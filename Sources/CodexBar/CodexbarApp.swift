@@ -297,25 +297,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 private func showAbout() {
     NSApp.activate(ignoringOtherApps: true)
 
+    let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
+    let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+    let versionString = build.isEmpty ? version : "\(version) (\(build))"
+
     let credits = NSMutableAttributedString(string: "Peter Steinberger — MIT License\n")
-    let link = NSAttributedString(
-        string: "https://github.com/steipete/CodexBar",
-        attributes: [
-            .link: URL(string: "https://github.com/steipete/CodexBar") as Any,
-            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
-        ])
-    credits.append(link)
+    credits.append(makeLink("GitHub", urlString: "https://github.com/steipete/CodexBar"))
+    credits.append(NSAttributedString(string: "\n"))
+    credits.append(makeLink("Website", urlString: "https://steipete.me"))
+    credits.append(NSAttributedString(string: "\n"))
+    credits.append(makeLink("Twitter", urlString: "https://twitter.com/steipete"))
+    credits.append(NSAttributedString(string: "\n"))
+    credits.append(makeLink("Email", urlString: "mailto:peter@steipete.me"))
 
     let options: [NSApplication.AboutPanelOptionKey: Any] = [
         .applicationName: "CodexBar",
-        .applicationVersion: "0.1.1",
-        .version: "0.1.1",
+        .applicationVersion: versionString,
+        .version: versionString,
         .credits: credits,
         // Use bundled icon if available; fallback to empty image to avoid nil coercion warnings.
         .applicationIcon: (NSApplication.shared.applicationIconImage ?? NSImage()) as Any,
     ]
 
     NSApp.orderFrontStandardAboutPanel(options: options)
+
+    func makeLink(_ title: String, urlString: String) -> NSAttributedString {
+        NSAttributedString(string: title, attributes: [
+            .link: URL(string: urlString) as Any,
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+        ])
+    }
 }
 
 enum LaunchAtLoginManager {
