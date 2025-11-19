@@ -292,7 +292,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func animateIcons(_ link: CADisplayLink) {
-        self.animationPhase += 0.18
+        self.animationPhase += 0.09
         self.applyIcon(for: .codex, phase: self.animationPhase)
         self.applyIcon(for: .claude, phase: self.animationPhase)
     }
