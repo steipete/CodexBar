@@ -121,19 +121,38 @@ private func makeUpdaterController() -> UpdaterProviding {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let updaterController: UpdaterProviding = makeUpdaterController()
     private var statusController: StatusItemController?
+    private var store: UsageStore?
+    private var settings: SettingsStore?
+    private var account: AccountInfo?
+    private var preferencesSelection: PreferencesSelection?
 
     func configure(store: UsageStore, settings: SettingsStore, account: AccountInfo, selection: PreferencesSelection) {
-        self.statusController = StatusItemController(
-            store: store,
-            settings: settings,
-            account: account,
-            updater: self.updaterController,
-            preferencesSelection: selection)
+        self.store = store
+        self.settings = settings
+        self.account = account
+        self.preferencesSelection = selection
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // If not configured yet (shouldn't happen), create a minimal controller.
-        if self.statusController == nil {
+        self.ensureStatusController()
+    }
+
+    private func ensureStatusController() {
+        if self.statusController != nil {
+            return
+        }
+
+        if let store = self.store,
+           let settings = self.settings,
+           let account = self.account,
+           let selection = self.preferencesSelection {
+            self.statusController = StatusItemController(
+                store: store,
+                settings: settings,
+                account: account,
+                updater: self.updaterController,
+                preferencesSelection: selection)
+        } else {
             let settings = SettingsStore()
             let fetcher = UsageFetcher()
             let account = fetcher.loadAccountInfo()
