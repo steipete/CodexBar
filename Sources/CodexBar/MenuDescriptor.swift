@@ -128,7 +128,8 @@ struct MenuDescriptor {
             }
 
             if let version = versionNumber(for: providerForMeta) {
-                entries.append(.text(version, .secondary))
+                let cliName = store.metadata(for: providerForMeta).cliName
+                entries.append(.text("\(cliName) \(version)", .secondary))
             }
             return Section(entries: entries)
         }
