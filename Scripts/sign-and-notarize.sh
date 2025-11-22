@@ -5,6 +5,7 @@ APP_NAME="CodexBar"
 APP_IDENTITY="Developer ID Application: Peter Steinberger (Y5PE65HELJ)"
 APP_BUNDLE="CodexBar.app"
 ZIP_NAME="CodexBar-0.5.3.zip"
+BUILD_NUMBER="19"
 
 if [[ -z "${APP_STORE_CONNECT_API_KEY_P8:-}" || -z "${APP_STORE_CONNECT_KEY_ID:-}" || -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ]]; then
   echo "Missing APP_STORE_CONNECT_* env vars (API key, key id, issuer id)." >&2

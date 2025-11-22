@@ -44,7 +44,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>CodexBar</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.5.3</string>
-    <key>CFBundleVersion</key><string>18</string>
+    <key>CFBundleVersion</key><string>19</string>
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>LSUIElement</key><true/>
     <key>CFBundleIconFile</key><string>Icon</string>
