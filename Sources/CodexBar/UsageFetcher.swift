@@ -282,6 +282,12 @@ private final class CodexRPCClient: @unchecked Sendable {
     /// Builds a PATH that works in hardened contexts by appending common install locations (Homebrew, bun, nvm, npm).
     static func seededPATH(from env: [String: String]) -> String {
         let home = NSHomeDirectory()
+        let nvmVersionsDir = "\(home)/.nvm/versions/node"
+        let nvmBins: [String] = if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvmVersionsDir) {
+            versions.map { "\(nvmVersionsDir)/\($0)/bin" }
+        } else {
+            []
+        }
         let defaultPath = [
             "/usr/bin",
             "/bin",
@@ -291,15 +297,15 @@ private final class CodexRPCClient: @unchecked Sendable {
             "/usr/local/bin",
             "\(home)/.bun/bin",
             "\(home)/.nvm/versions/node/current/bin",
-            "\(home)/.nvm/versions/node/*/bin",
             "\(home)/.npm-global/bin",
             "\(home)/.local/share/fnm",
             "\(home)/.fnm",
-        ].joined(separator: ":")
+        ] + nvmBins
+        let joined = defaultPath.joined(separator: ":")
         if let existing = env["PATH"], !existing.isEmpty {
-            return "\(existing):\(defaultPath)"
+            return "\(existing):\(joined)"
         }
-        return defaultPath
+        return joined
     }
 }
 
@@ -312,6 +318,12 @@ struct UsageFetcher: Sendable {
     /// npm).
     static func seededPATH(from env: [String: String]) -> String {
         let home = NSHomeDirectory()
+        let nvmVersionsDir = "\(home)/.nvm/versions/node"
+        let nvmBins: [String] = if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvmVersionsDir) {
+            versions.map { "\(nvmVersionsDir)/\($0)/bin" }
+        } else {
+            []
+        }
         let defaultPath = [
             "/usr/bin",
             "/bin",
@@ -321,15 +333,15 @@ struct UsageFetcher: Sendable {
             "/usr/local/bin",
             "\(home)/.bun/bin",
             "\(home)/.nvm/versions/node/current/bin",
-            "\(home)/.nvm/versions/node/*/bin",
             "\(home)/.npm-global/bin",
             "\(home)/.local/share/fnm",
             "\(home)/.fnm",
-        ].joined(separator: ":")
+        ] + nvmBins
+        let joined = defaultPath.joined(separator: ":")
         if let existing = env["PATH"], !existing.isEmpty {
-            return "\(existing):\(defaultPath)"
+            return "\(existing):\(joined)"
         }
-        return defaultPath
+        return joined
     }
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
