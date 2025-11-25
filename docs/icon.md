@@ -1,3 +1,10 @@
+---
+summary: "Convert macOS .icon bundles to CodexBar .icns via Scripts/build_icon.sh and ictool."
+read_when:
+  - Updating the CodexBar app icon or asset pipeline
+  - Preparing release builds that need a refreshed icns
+---
+
 # Icon pipeline (macOS .icon → .icns without Xcodebuild)
 
 We use the new macOS 26 “glass” `.icon` bundle from Icon Composer/IconStudio and convert it to `.icns` via Xcode’s hidden CLI (ictool/icontool), without an Xcode project.

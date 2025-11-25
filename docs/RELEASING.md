@@ -1,3 +1,11 @@
+---
+summary: "CodexBar release checklist: package, sign, notarize, appcast, and asset validation."
+read_when:
+  - Starting a CodexBar release
+  - Updating signing/notarization or appcast steps
+  - Validating release assets or Sparkle feed
+---
+
 # Release process (CodexBar)
 
 SwiftPM-only; package/sign/notarize manually (no Xcode project). Sparkle feed is served from GitHub Releases. Checklist below merges Trimmy’s release flow with CodexBar specifics.

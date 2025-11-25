@@ -1,3 +1,11 @@
+---
+summary: "Sparkle integration details for CodexBar: updater config, keys, and release flow."
+read_when:
+  - Touching Sparkle settings, feed URL, or keys
+  - Generating or troubleshooting the Sparkle appcast
+  - Validating update toggles or updater UI
+---
+
 # Sparkle integration
 
 - Framework: Sparkle 2.8.1 via SwiftPM.

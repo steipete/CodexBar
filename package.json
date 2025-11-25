@@ -8,6 +8,7 @@
     "lint": "swiftlint --strict",
     "format": "swiftformat Sources Tests",
     "check": "swiftformat Sources Tests --lint && swiftlint --strict",
+    "docs:list": "node Scripts/docs-list.mjs",
     "build": "swift build",
     "test": "swift test",
     "test:tty": "swift test --filter TTYIntegrationTests",

@@ -1,3 +1,11 @@
+---
+summary: "Plan for adding Claude Code support to CodexBar (detect, toggle, icon, menu UX)."
+read_when:
+  - Planning or implementing Claude/dual-provider support
+  - Adjusting menu-bar icons or usage rows for Claude
+  - Estimating work for Claude CLI detection or settings
+---
+
 # Claude support plan (CodexBar)
 
 Goal: add optional Claude Code usage alongside Codex, with a Claude-themed menu bar icon and independent on/off toggles.

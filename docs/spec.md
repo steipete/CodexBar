@@ -1,3 +1,11 @@
+---
+summary: "CodexBar implementation notes: data sources, refresh cadence, UI, and structure."
+read_when:
+  - Modifying usage fetching/parsing for Codex or Claude
+  - Changing refresh cadence, background tasks, or menu UI
+  - Reviewing architecture before feature work
+---
+
 # CodexBar – implementation notes
 
 ## Data source
