@@ -110,8 +110,13 @@ public enum BinaryLocator {
         {
             return nvmHit
         }
-        if let fnmHit = self.scanManagedVersions(
-            root: "\(home)/.local/share/fnm",
+        // fnm: check default alias first, then scan node-versions
+        let fnmDefaultBin = "\(home)/.local/share/fnm/aliases/default/bin/\(name)"
+        if fileManager.isExecutableFile(atPath: fnmDefaultBin) {
+            return fnmDefaultBin
+        }
+        if let fnmHit = self.scanFnmVersions(
+            root: "\(home)/.local/share/fnm/node-versions",
             binary: name,
             fileManager: fileManager)
         {
@@ -169,6 +174,18 @@ public enum BinaryLocator {
         }
         return nil
     }
+
+    /// fnm uses node-versions/v*/installation/bin/ structure
+    private static func scanFnmVersions(root: String, binary: String, fileManager: FileManager) -> String? {
+        guard let versions = try? fileManager.contentsOfDirectory(atPath: root) else { return nil }
+        for version in versions.sorted(by: >) { // newest first
+            let candidate = "\(root)/\(version)/installation/bin/\(binary)"
+            if fileManager.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
+    }
 }
 
 public enum PathBuilder {
@@ -194,8 +211,10 @@ public enum PathBuilder {
         parts.append("\(home)/bin")
         parts.append("\(home)/.bun/bin")
         parts.append("\(home)/.npm-global/bin")
-        parts.append("\(home)/.local/share/fnm")
-        parts.append("\(home)/.fnm")
+        // fnm: add aliases/default/bin so node is available for node-based CLI scripts
+        parts.append("\(home)/.local/share/fnm/aliases/default/bin")
+        // nvm: add default alias bin for node availability
+        parts.append("\(home)/.nvm/alias/default/bin")
 
         // Directories for resolved binaries
         let binaries = resolvedBinaryPaths
