@@ -505,7 +505,6 @@ public struct ClaudeStatusProbe: Sendable {
                 subcommand,
                 "--allowed-tools",
                 "",
-                "--dangerously-skip-permissions",
             ]
             let pipe = Pipe()
             process.standardOutput = pipe

@@ -53,6 +53,11 @@ func showAbout() {
     ]
 
     NSApp.orderFrontStandardAboutPanel(options: options)
+
+    // Remove the focus ring around the app icon in the standard About panel for a cleaner look.
+    if let aboutPanel = NSApp.windows.first(where: { $0.className.contains("About") }) {
+        removeFocusRings(in: aboutPanel.contentView)
+    }
 }
 
 private func formattedBuildTimestamp(_ timestamp: String) -> String? {
@@ -65,4 +70,15 @@ private func formattedBuildTimestamp(_ timestamp: String) -> String? {
     formatter.timeStyle = .short
     formatter.locale = .current
     return formatter.string(from: date)
+}
+
+@MainActor
+private func removeFocusRings(in view: NSView?) {
+    guard let view else { return }
+    if let imageView = view as? NSImageView {
+        imageView.focusRingType = .none
+    }
+    for subview in view.subviews {
+        removeFocusRings(in: subview)
+    }
 }

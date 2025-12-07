@@ -127,7 +127,6 @@ struct ClaudeUsageTests {
             "/usage",
             "--allowed-tools",
             "",
-            "--dangerously-skip-permissions",
         ]
         let pipe = Pipe()
         process.standardOutput = pipe

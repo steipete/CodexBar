@@ -3,112 +3,38 @@
     <channel>
         <title>CodexBar</title>
         <item>
-            <title>0.6.0</title>
-            <pubDate>Thu, 04 Dec 2025 17:15:00 +0100</pubDate>
+            <title>0.6.1</title>
+            <pubDate>Sun, 07 Dec 2025 23:03:14 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>24</sparkle:version>
-            <sparkle:shortVersionString>0.6.0</sparkle:shortVersionString>
+            <sparkle:version>25</sparkle:version>
+            <sparkle:shortVersionString>0.6.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.6.0/CodexBar-0.6.0.zip" length="2969578" type="application/octet-stream" sparkle:edSignature="+2wAD6jSQ3iC/6pqGHpjOp4ikviWOFGsXLUWaw+HeB1xFk2eg4keHfBS1Oe4xvvgKIfLMkbz2ly/QOp8eDyIDg=="/>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.6.1/CodexBar-0.6.1.zip" length="2969550" type="application/octet-stream" sparkle:edSignature="upndGWHK2ZyR9YZXhGaMMwFYSlnrMbzl2e3htoTHCApjqNRdoeGjCP17hToNJKFmP5Ck/7pHbt/lOOBDVU/7BA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.6.1/CodexBar25-23.delta" sparkle:deltaFrom="23" length="385642" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="860528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Ou/L5SfxDUmoYxElxdB5SSLsawZwGn4H7hpbVoEjjYQlFq1v7o5wNJ/QiZ5hKZW4VVkWbcgBchfBcTf/EyrPAQ=="/>
+                <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.6.1/CodexBar25-22.delta" sparkle:deltaFrom="22" length="388502" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="860528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="pSP83vr7o6I4A2r5eZi9Li9JplQXt5SR+UHFWs/9jszbDkcpFF/EYrqUm6lKWC+NQn65+LNE0KULDvR7eUeCDw=="/>
+                <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.6.1/CodexBar25-21.delta" sparkle:deltaFrom="21" length="406946" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="860528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="BPozWdfoEWtlLJHHo2JBoXCcySeJSKJaeen7p4ZaVYJ0LZgG8k1FKAGlqmA2ZK8ituIlXJMz3yGXXUUDN3uOAg=="/>
+                <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.6.1/CodexBar25-20.delta" sparkle:deltaFrom="20" length="416694" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="860528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="vOeLXSLoB/Hf1/vBGbtDlfOqBeR01bT6OYBA/oR4cmmxMp4aCFanR4OZNiJd/2rbSwHWbg6f+ZrH3+nb78njCA=="/>
+                <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.6.1/CodexBar25-19.delta" sparkle:deltaFrom="19" length="417674" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="860528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="vueY6R45AjuOKA373NHhdZy/YztI0Ihsk4f0RE187N11ANqBneHA0UfLdWV6JcAcrfcd4vkjkT92qTRAEPB4BQ=="/>
+            </sparkle:deltas>
         </item>
         <item>
             <title>0.5.7</title>
-            <pubDate>Wed, 26 Nov 2025 01:18:17 +0100</pubDate>
+            <pubDate>Wed, 26 Nov 2025 01:05:28 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
             <sparkle:version>23</sparkle:version>
             <sparkle:shortVersionString>0.5.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.5.7/CodexBar-0.5.7.zip" length="2627639" type="application/octet-stream" sparkle:edSignature="Yi5LidRJHiKl9kV3uiZ7VH9TrEFM/gTdQNN5hz/LxZpipKHmSpbbkdJDcF51DJFQBPlQtxwDZYgXoHwbN1hmCA=="/>
+            <enclosure url="https://raw.githubusercontent.com/steipete/CodexBar/main/CodexBar-0.5.7.zip" length="2627639" type="application/octet-stream" sparkle:edSignature="Yi5LidRJHiKl9kV3uiZ7VH9TrEFM/gTdQNN5hz/LxZpipKHmSpbbkdJDcF51DJFQBPlQtxwDZYgXoHwbN1hmCA=="/>
         </item>
         <item>
             <title>0.5.6</title>
-            <pubDate>Tue, 25 Nov 2025 12:38:19 +0100</pubDate>
+            <pubDate>Tue, 25 Nov 2025 12:38:06 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
             <sparkle:version>22</sparkle:version>
             <sparkle:shortVersionString>0.5.6</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.5.6/CodexBar-0.5.6.zip" length="2709527" type="application/octet-stream" sparkle:edSignature="sHzDe5fRSBq0r+eXwaj8B9LqdjaBtKb/iy9EnFMpR/rOY+U75BTuZGFq4BCihGWSWPdB7PCqUaOm/HTX6+ekDg=="/>
-        </item>
-        <item>
-            <title>0.5.5</title>
-            <pubDate>Tue, 25 Nov 2025 02:32:07 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>21</sparkle:version>
-            <sparkle:shortVersionString>0.5.5</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.5.5/CodexBar-0.5.5.zip" length="2690958" type="application/octet-stream" sparkle:edSignature="P/6aRe2Gz5j1n4yMIBjGwZs6+TQCSortsmetBdXJwfayb42I9QLhlqwuKD1EWd+Diq+qAe/HHPMBY2noqeVcBw=="/>
-        </item>
-        <item>
-            <title>0.5.4</title>
-            <pubDate>Mon, 24 Nov 2025 12:56:23 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>20</sparkle:version>
-            <sparkle:shortVersionString>0.5.4</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.5.4/CodexBar-0.5.4.zip" length="2667573" type="application/octet-stream" sparkle:edSignature="FM5nq89Yyj65qSA1ag1XMUcgBF7AFBaad3u6t+DZqvOzOzXLv8Yaq1vLvCdax/tzND465lWHrvQCMJGJvThcBQ=="/>
-        </item>
-        <item>
-            <title>0.5.3</title>
-            <pubDate>Sat, 22 Nov 2025 23:07:34 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>19</sparkle:version>
-            <sparkle:shortVersionString>0.5.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.5.3/CodexBar-0.5.3.zip" length="2667624" type="application/octet-stream" sparkle:edSignature="6+xEyjeFcS1/1Tgp8ZJGG1/D2osi4JQ/y/LxDosg5vUHGZwhXuFrmgmzi3T1/DHX0FkHuoTNk9oAZzr7yzENDg=="/>
-        </item>
-        <item>
-            <title>0.5.2</title>
-            <pubDate>Sat, 22 Nov 2025 10:19:44 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>17</sparkle:version>
-            <sparkle:shortVersionString>0.5.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.5.2/CodexBar-0.5.2.zip" length="2645714" type="application/octet-stream" sparkle:edSignature="Fs/M9yxMf4+JXeu96WpI/dp8RVso7KBuPNBHugVk2TP+Vm0biex4y3m6n4lBdBz1IWC+L5TIyZ1fwGXbtU2LBA=="/>
-        </item>
-        <item>
-            <title>0.5.1</title>
-            <pubDate>Sat, 22 Nov 2025 05:07:22 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>16</sparkle:version>
-            <sparkle:shortVersionString>0.5.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.5.1/CodexBar-0.5.1.zip" length="2648232" type="application/octet-stream" sparkle:edSignature="S9b/IbDVZWcAL4u7AuAce6dzpqFK6srw4JWVB0cBp079JsP8n7hx9DCbMvQt/eOfCUEmrnnXBkLBTcYBeiayCw=="/>
-        </item>
-        <item>
-            <title>0.5.0</title>
-            <pubDate>Sat, 22 Nov 2025 03:46:20 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>15</sparkle:version>
-            <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.5.0/CodexBar-0.5.0.zip" length="2644453" type="application/octet-stream" sparkle:edSignature="hTz3UrYQQullw/Z9jrd3f8JfKGWPDiAdBOxmw538qAScidarrl9wulFygQdauqoKVNhjJjYHL1Qmr8dhxJbgDQ=="/>
-        </item>
-        <item>
-            <title>0.4.3</title>
-            <pubDate>Fri, 21 Nov 2025 09:17:18 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>13</sparkle:version>
-            <sparkle:shortVersionString>0.4.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.4.3/CodexBar-0.4.3.zip" length="2610622" type="application/octet-stream" sparkle:edSignature="XCmnh5hNlaSeJYq766U9XZCjq+DG36KrdbWv4hRjj/C810dTvHeXTE2cwVviqp9p36jYep/AFzppBK/DPyMrAA=="/>
-        </item>
-        <item>
-            <title>0.4.2</title>
-            <pubDate>Fri, 21 Nov 2025 07:15:09 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>12</sparkle:version>
-            <sparkle:shortVersionString>0.4.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.4.2/CodexBar-0.4.2.zip" length="2609814" type="application/octet-stream" sparkle:edSignature="+ZX4XuHYRUilCqCMfoDOHFCbvNzZrtVU8WahzILmGMbWrylOFkA2WRqSZ/iUDdrISwmK4AQ+Mw/1myqaYnTvBA=="/>
-        </item>
-        <item>
-            <title>0.4.1</title>
-            <pubDate>Fri, 21 Nov 2025 06:52:42 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>11</sparkle:version>
-            <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.4.1/CodexBar-0.4.1.zip" length="2606458" type="application/octet-stream" sparkle:edSignature="kkN3g7EdbgfHkxF2IMd5KHjQCAO+sHlRfkBRhJKrN5XMXJhFo2edltHYX9UuTmrFPYGHNN09OpJ7m6gw4KAOBQ=="/>
+            <enclosure url="https://raw.githubusercontent.com/steipete/CodexBar/main/CodexBar-0.5.6.zip" length="2709527" type="application/octet-stream" sparkle:edSignature="sHzDe5fRSBq0r+eXwaj8B9LqdjaBtKb/iy9EnFMpR/rOY+U75BTuZGFq4BCihGWSWPdB7PCqUaOm/HTX6+ekDg=="/>
         </item>
     </channel>
 </rss>

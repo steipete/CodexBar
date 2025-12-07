@@ -19,7 +19,7 @@ Use it when you need usage numbers in scripts, CI, or dashboards without UI.
 ## Build
 - `./Scripts/package_app.sh` (or `./Scripts/compile_and_run.sh`) bundles `CodexBarCLI` into `CodexBar.app/Contents/Helpers/CodexBarCLI`.
 - Standalone: `swift build -c release --product CodexBarCLI` (binary at `./.build/release/CodexBarCLI`).
-- Dependencies: Swift 6.2+, local Commander submodule at `../Peekaboo/Commander`.
+- Dependencies: Swift 6.2+, Commander package (`https://github.com/steipete/Commander`).
 
 ## Command
 - `codexbar` defaults to the `usage` command.
