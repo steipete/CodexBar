@@ -159,8 +159,7 @@ struct MenuDescriptor {
 
     private static func actionsSection(for provider: UsageProvider?, store: UsageStore) -> Section {
         var entries: [Entry] = [
-            .action("Refresh now", .refresh),
-            .text(self.refreshStatusText(for: provider, store: store), .secondary),
+            .action("Refresh Now", .refresh),
             .action("Usage Dashboard", .dashboard),
             .action("Status Page", .statusPage),
         ]
@@ -178,24 +177,6 @@ struct MenuDescriptor {
             .action("About CodexBar", .about),
             .action("Quit", .quit),
         ])
-    }
-
-    /// Decides what to show under the refresh button (status or last error).
-    private static func refreshStatusText(for provider: UsageProvider?, store: UsageStore) -> String {
-        if store.isRefreshing { return "Refreshing..." }
-        let target = provider ?? store.enabledProviders().first
-        if let target,
-           let err = store.error(for: target),
-           !err.isEmpty
-        {
-            return UsageFormatter.truncatedSingleLine(err, max: 80)
-        }
-        if let target,
-           let updated = store.snapshot(for: target)?.updatedAt
-        {
-            return UsageFormatter.updatedString(from: updated)
-        }
-        return "Not fetched yet"
     }
 
     private static func statusLine(for provider: UsageProvider?, store: UsageStore) -> String? {
@@ -239,10 +220,8 @@ struct MenuDescriptor {
 
 private enum AccountFormatter {
     static func plan(_ text: String) -> String {
-        guard let first = text.unicodeScalars.first else { return text }
-        let cappedFirst = String(first).capitalized
-        let remainder = String(text.unicodeScalars.dropFirst())
-        return cappedFirst + remainder
+        let cleaned = UsageFormatter.cleanPlanName(text)
+        return cleaned.isEmpty ? text : cleaned
     }
 
     static func email(_ text: String) -> String { text }

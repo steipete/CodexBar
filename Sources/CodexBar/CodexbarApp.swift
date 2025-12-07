@@ -710,7 +710,23 @@ extension StatusItemController {
             self.menuProviders[ObjectIdentifier(menu)] = provider
         }
 
-        for (index, section) in descriptor.sections.enumerated() {
+        if let model = self.menuCardModel(for: provider) {
+            let cardView = UsageMenuCardView(model: model)
+            let hosting = NSHostingView(rootView: cardView)
+            let size = hosting.fittingSize
+            let width: CGFloat = 300
+            hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+            let item = NSMenuItem()
+            item.view = hosting
+            item.isEnabled = false
+            menu.addItem(item)
+            if model.subtitleStyle == .info {
+                menu.addItem(.separator())
+            }
+        }
+
+        let actionableSections = Array(descriptor.sections.suffix(2))
+        for (index, section) in actionableSections.enumerated() {
             for entry in section.entries {
                 switch entry {
                 case let .text(text, style):
@@ -736,7 +752,7 @@ extension StatusItemController {
                     menu.addItem(.separator())
                 }
             }
-            if index < descriptor.sections.count - 1 {
+            if index < actionableSections.count - 1 {
                 menu.addItem(.separator())
             }
         }
@@ -761,6 +777,35 @@ extension StatusItemController {
         case .quit: (#selector(self.quit), nil)
         case let .copyError(message): (#selector(self.copyError(_:)), message)
         }
+    }
+}
+
+extension StatusItemController {
+    private func menuCardModel(for provider: UsageProvider?) -> UsageMenuCardView.Model? {
+        let target = provider ?? self.store.enabledProviders().first ?? .codex
+        let metadata = self.store.metadata(for: target)
+
+        let snapshot = self.store.snapshot(for: target)
+        let credits: CreditsSnapshot?
+        let creditsError: String?
+        if target == .codex {
+            credits = self.store.credits
+            creditsError = self.store.lastCreditsError
+        } else {
+            credits = nil
+            creditsError = nil
+        }
+
+        let input = UsageMenuCardView.Model.Input(
+            provider: target,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: credits,
+            creditsError: creditsError,
+            account: self.account,
+            isRefreshing: self.store.isRefreshing,
+            lastError: self.store.error(for: target))
+        return UsageMenuCardView.Model.make(input)
     }
 }
 

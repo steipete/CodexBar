@@ -200,11 +200,12 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         func makeWindow(pctLeft: Int?, reset: String?) -> RateWindow? {
             guard let left = pctLeft else { return nil }
             let used = max(0, min(100, 100 - Double(left)))
+            let resetClean = reset?.trimmingCharacters(in: .whitespacesAndNewlines)
             return RateWindow(
                 usedPercent: used,
                 windowMinutes: nil,
-                resetsAt: nil,
-                resetDescription: reset)
+                resetsAt: ClaudeStatusProbe.parseResetDate(from: resetClean),
+                resetDescription: resetClean)
         }
 
         let primary = makeWindow(pctLeft: sessionPctLeft, reset: snap.primaryResetDescription)!
