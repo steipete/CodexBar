@@ -9,12 +9,12 @@ public enum UsageFormatter {
         // Human-friendly phrasing: today / tomorrow / date+time.
         let calendar = Calendar.current
         if calendar.isDate(date, inSameDayAs: now) {
-            return "today at \(date.formatted(date: .omitted, time: .shortened))"
+            return date.formatted(date: .omitted, time: .shortened)
         }
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
            calendar.isDate(date, inSameDayAs: tomorrow)
         {
-            return "tomorrow at \(date.formatted(date: .omitted, time: .shortened))"
+            return "tomorrow, \(date.formatted(date: .omitted, time: .shortened))"
         }
         return date.formatted(date: .abbreviated, time: .shortened)
     }
@@ -76,5 +76,26 @@ public enum UsageFormatter {
         guard single.count > max else { return single }
         let idx = single.index(single.startIndex, offsetBy: max)
         return "\(single[..<idx])…"
+    }
+
+    /// Cleans a provider plan string: strip ANSI/bracket noise, drop boilerplate words, collapse whitespace, and
+    /// ensure a leading capital if the result starts lowercase.
+    public static func cleanPlanName(_ text: String) -> String {
+        let stripped = TextParsing.stripANSICodes(text)
+        let withoutCodes = stripped.replacingOccurrences(
+            of: #"^\s*(?:\[\d{1,3}m\s*)+"#,
+            with: "",
+            options: [.regularExpression])
+        let withoutBoilerplate = withoutCodes.replacingOccurrences(
+            of: #"(?i)\b(claude|codex|account|plan)\b"#,
+            with: "",
+            options: [.regularExpression])
+        var cleaned = withoutBoilerplate
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.isEmpty {
+            cleaned = stripped.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return cleaned.capitalized
     }
 }
