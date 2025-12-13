@@ -14,6 +14,7 @@ public struct TTYCommandRunner {
         public var timeout: TimeInterval = 20.0
         public var extraArgs: [String] = []
         public var sendEnterEvery: TimeInterval?
+        public var sendOnSubstrings: [String: String]
         public var stopOnURL: Bool
         public var stopOnSubstrings: [String]
         public var settleAfterStop: TimeInterval
@@ -24,6 +25,7 @@ public struct TTYCommandRunner {
             timeout: TimeInterval = 20.0,
             extraArgs: [String] = [],
             sendEnterEvery: TimeInterval? = nil,
+            sendOnSubstrings: [String: String] = [:],
             stopOnURL: Bool = false,
             stopOnSubstrings: [String] = [],
             settleAfterStop: TimeInterval = 0.25)
@@ -33,6 +35,7 @@ public struct TTYCommandRunner {
             self.timeout = timeout
             self.extraArgs = extraArgs
             self.sendEnterEvery = sendEnterEvery
+            self.sendOnSubstrings = sendOnSubstrings
             self.stopOnURL = stopOnURL
             self.stopOnSubstrings = stopOnSubstrings
             self.settleAfterStop = settleAfterStop
@@ -64,7 +67,14 @@ public struct TTYCommandRunner {
         options: Options = Options(),
         onURLDetected: (@Sendable () -> Void)? = nil) throws -> Result
     {
-        guard let resolved = Self.which(binary) else { throw Error.binaryNotFound(binary) }
+        let resolved: String
+        if FileManager.default.isExecutableFile(atPath: binary) {
+            resolved = binary
+        } else if let hit = Self.which(binary) {
+            resolved = hit
+        } else {
+            throw Error.binaryNotFound(binary)
+        }
 
         var primaryFD: Int32 = -1
         var secondaryFD: Int32 = -1
@@ -214,14 +224,25 @@ public struct TTYCommandRunner {
             }
 
             let stopNeedles = options.stopOnSubstrings.map { Data($0.utf8) }
+            let sendNeedles = options.sendOnSubstrings.map { (needle: Data($0.key.utf8), keys: Data($0.value.utf8)) }
             let urlNeedles = [Data("https://".utf8), Data("http://".utf8)]
             var lastEnter = Date()
             var stoppedEarly = false
             var urlSeen = false
+            var triggeredSends = Set<Data>()
 
             while Date() < deadline {
                 readChunk()
                 respondIfCursorQuerySeen()
+
+                if !sendNeedles.isEmpty {
+                    for item in sendNeedles where !triggeredSends.contains(item.needle) {
+                        if buffer.range(of: item.needle) != nil {
+                            try? primaryHandle.write(contentsOf: item.keys)
+                            triggeredSends.insert(item.needle)
+                        }
+                    }
+                }
 
                 if urlNeedles.contains(where: { buffer.range(of: $0) != nil }) {
                     urlSeen = true

@@ -493,107 +493,39 @@ public struct ClaudeStatusProbe: Sendable {
 
     // MARK: - Process helpers
 
-    // Run claude CLI via expect script to handle interactive permission dialogs
+    // Run claude CLI inside a PTY so we can respond to interactive permission prompts.
     private static func capture(subcommand: String, binary: String, timeout: TimeInterval) async throws -> String {
         try await Task.detached(priority: .utility) { [claudeBinary = binary, timeout] in
-            // Create an expect script to handle the interactive dialog
-            let expectScript = """
-            #!/usr/bin/expect -f
-            set timeout \(Int(timeout + 5))
-            log_user 1
-            spawn \(claudeBinary) \(subcommand) --allowed-tools ""
-
-            # Phase 1: Handle permission dialog if it appears
-            expect {
-                -re "Ready to code here\\?" {
-                    # Wait for menu to render fully
-                    sleep 0.3
-                    send "\\r"
-                }
-                -re "% used" {
-                    # Already past dialog, got usage data
-                }
-                timeout {
-                    exit 1
-                }
-                eof {
-                    exit 0
-                }
-            }
-
-            # Phase 2: Wait for usage/status data then exit cleanly
-            expect {
-                -re "Esc to cancel" {
-                    # Usage data rendered, send Escape to exit
-                    sleep 0.2
-                    send "\\x1b"
-                    sleep 0.2
-                    send "\\x1b"
-                }
-                -re "% used" {
-                    exp_continue
-                }
-                -re "% left" {
-                    exp_continue
-                }
-                timeout {
-                    # Got data but no clean exit prompt, that's ok
-                    exit 0
-                }
-                eof {
-                    exit 0
-                }
-            }
-
-            # Phase 3: Wait for clean exit
-            expect {
-                eof {
-                    exit 0
-                }
-                timeout {
-                    exit 0
-                }
-            }
-            """
-
-            // Write expect script to temporary file
-            let tempDir = FileManager.default.temporaryDirectory
-            let scriptPath = tempDir.appendingPathComponent("claude_capture_\(UUID().uuidString).exp")
-            try expectScript.write(to: scriptPath, atomically: true, encoding: .utf8)
-            defer { try? FileManager.default.removeItem(at: scriptPath) }
-
-            // Make script executable
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptPath.path)
-
-            let process = Process()
-            process.launchPath = "/usr/bin/expect"
-            process.arguments = ["-f", scriptPath.path]
-
-            let stdoutPipe = Pipe()
-            process.standardOutput = stdoutPipe
-            process.standardError = stdoutPipe // Combine stderr to see expect output
-
-            var env = ProcessInfo.processInfo.environment
-            env["PATH"] = PathBuilder.effectivePATH(purposes: [.tty, .nodeTooling], env: env)
-            process.environment = env
+            let runner = TTYCommandRunner()
+            let options = TTYCommandRunner.Options(
+                timeout: timeout,
+                extraArgs: [
+                    subcommand,
+                    "--allowed-tools",
+                    "",
+                ],
+                sendOnSubstrings: [
+                    "Ready to code here?": "\r",
+                    "Esc to cancel": "\u{1b}\u{1b}",
+                ],
+                stopOnSubstrings: [
+                    "Esc to cancel",
+                ],
+                settleAfterStop: 0.35)
 
             do {
-                try process.run()
-            } catch {
-                throw ClaudeStatusProbeError.claudeNotInstalled
+                let result = try runner.run(binary: claudeBinary, send: "", options: options)
+                return result.text
+            } catch let error as TTYCommandRunner.Error {
+                switch error {
+                case .binaryNotFound:
+                    throw ClaudeStatusProbeError.claudeNotInstalled
+                case .timedOut:
+                    throw ClaudeStatusProbeError.timedOut
+                case .launchFailed:
+                    throw ClaudeStatusProbeError.claudeNotInstalled
+                }
             }
-
-            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
-                if process.isRunning { process.terminate() }
-            }
-
-            process.waitUntilExit()
-
-            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-
-            guard !data.isEmpty else { throw ClaudeStatusProbeError.timedOut }
-            return output
         }.value
     }
 }
