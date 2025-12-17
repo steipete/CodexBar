@@ -234,6 +234,24 @@ public struct ClaudeStatusProbe: Sendable {
         if let jsonHint = self.extractUsageErrorJSON(text: text) { return jsonHint }
 
         let lower = text.lowercased()
+        if lower.contains("do you trust the files in this folder"), !lower.contains("current session") {
+            let folder = self.extractFirst(
+                pattern: #"Do you trust the files in this folder\?\s*\n\s*([^\n]+)"#,
+                text: text)
+            let folderHint = folder.flatMap { value in
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            if let folderHint {
+                return """
+                Claude CLI is waiting for a folder trust prompt (\(folderHint)). Open `claude` once in that folder, \
+                choose “Yes, proceed”, then retry.
+                """
+            }
+            return """
+            Claude CLI is waiting for a folder trust prompt. Open `claude` once, choose “Yes, proceed”, then retry.
+            """
+        }
         if lower.contains("token_expired") || lower.contains("token has expired") {
             return "Claude CLI token expired. Run `claude login` to refresh."
         }
@@ -493,18 +511,35 @@ public struct ClaudeStatusProbe: Sendable {
 
     // MARK: - Process helpers
 
+    private static func probeWorkingDirectoryURL() -> URL {
+        let fm = FileManager.default
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
+        let dir = base
+            .appendingPathComponent("CodexBar", isDirectory: true)
+            .appendingPathComponent("ClaudeProbe", isDirectory: true)
+        do {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir
+        } catch {
+            return fm.temporaryDirectory
+        }
+    }
+
     // Run claude CLI inside a PTY so we can respond to interactive permission prompts.
     private static func capture(subcommand: String, binary: String, timeout: TimeInterval) async throws -> String {
         try await Task.detached(priority: .utility) { [claudeBinary = binary, timeout] in
             let runner = TTYCommandRunner()
             let options = TTYCommandRunner.Options(
                 timeout: timeout,
+                workingDirectory: Self.probeWorkingDirectoryURL(),
                 extraArgs: [
                     subcommand,
                     "--allowed-tools",
                     "",
                 ],
+                sendEnterEvery: 1.5,
                 sendOnSubstrings: [
+                    "Do you trust the files in this folder?": "\r",
                     "Ready to code here?": "\r",
                     "Press Enter to continue": "\r",
                 ])

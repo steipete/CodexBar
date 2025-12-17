@@ -12,6 +12,7 @@ public struct TTYCommandRunner {
         public var rows: UInt16 = 50
         public var cols: UInt16 = 160
         public var timeout: TimeInterval = 20.0
+        public var workingDirectory: URL?
         public var extraArgs: [String] = []
         public var sendEnterEvery: TimeInterval?
         public var sendOnSubstrings: [String: String]
@@ -23,6 +24,7 @@ public struct TTYCommandRunner {
             rows: UInt16 = 50,
             cols: UInt16 = 160,
             timeout: TimeInterval = 20.0,
+            workingDirectory: URL? = nil,
             extraArgs: [String] = [],
             sendEnterEvery: TimeInterval? = nil,
             sendOnSubstrings: [String: String] = [:],
@@ -33,6 +35,7 @@ public struct TTYCommandRunner {
             self.rows = rows
             self.cols = cols
             self.timeout = timeout
+            self.workingDirectory = workingDirectory
             self.extraArgs = extraArgs
             self.sendEnterEvery = sendEnterEvery
             self.sendOnSubstrings = sendOnSubstrings
@@ -97,7 +100,12 @@ public struct TTYCommandRunner {
         // Mirror RPC PATH seeding so CLIs installed via npm/nvm/fnm/bun still launch in hardened builds,
         // but keep the caller’s environment (HOME, LANG, BUN_INSTALL, etc.) so the CLIs can find their
         // auth/config files.
-        proc.environment = Self.enrichedEnvironment()
+        var env = Self.enrichedEnvironment()
+        if let workingDirectory = options.workingDirectory {
+            proc.currentDirectoryURL = workingDirectory
+            env["PWD"] = workingDirectory.path
+        }
+        proc.environment = env
 
         var cleanedUp = false
         var didLaunch = false

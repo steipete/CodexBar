@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CodexBarCore
 
@@ -44,5 +45,17 @@ struct TTYCommandRunnerEnvTests {
         #expect(merged["BUN_INSTALL"] == "/Users/tester/.bun")
         #expect(merged["SHELL"] == "/bin/zsh")
         #expect((merged["PATH"] ?? "").contains("/custom/bin"))
+    }
+
+    @Test
+    func setsWorkingDirectoryWhenProvided() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("codexbar-tty-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        let runner = TTYCommandRunner()
+        let result = try runner.run(binary: "/bin/pwd", send: "", options: .init(timeout: 3, workingDirectory: dir))
+        let clean = result.text.replacingOccurrences(of: "\r", with: "")
+        #expect(clean.contains(dir.path))
     }
 }
