@@ -234,9 +234,9 @@ public struct ClaudeStatusProbe: Sendable {
         if let jsonHint = self.extractUsageErrorJSON(text: text) { return jsonHint }
 
         let lower = text.lowercased()
-        if lower.contains("do you trust the files in this folder"), !lower.contains("current session") {
+        if lower.contains("do you trust the files in this folder?"), !lower.contains("current session") {
             let folder = self.extractFirst(
-                pattern: #"Do you trust the files in this folder\?\s*\n\s*([^\n]+)"#,
+                pattern: #"Do you trust the files in this folder\?\s*(?:\r?\n)+\s*([^\r\n]+)"#,
                 text: text)
             let folderHint = folder.flatMap { value in
                 let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -244,12 +244,13 @@ public struct ClaudeStatusProbe: Sendable {
             }
             if let folderHint {
                 return """
-                Claude CLI is waiting for a folder trust prompt (\(folderHint)). Open `claude` once in that folder, \
-                choose “Yes, proceed”, then retry.
+                Claude CLI is waiting for a folder trust prompt (\(folderHint)). CodexBar tries to auto-accept this, \
+                but if it keeps appearing run: `cd "\(folderHint)" && claude` and choose “Yes, proceed”, then retry.
                 """
             }
             return """
-            Claude CLI is waiting for a folder trust prompt. Open `claude` once, choose “Yes, proceed”, then retry.
+            Claude CLI is waiting for a folder trust prompt. CodexBar tries to auto-accept this, but if it keeps \
+            appearing open `claude` once, choose “Yes, proceed”, then retry.
             """
         }
         if lower.contains("token_expired") || lower.contains("token has expired") {
@@ -537,9 +538,8 @@ public struct ClaudeStatusProbe: Sendable {
                     "--allowed-tools",
                     "",
                 ],
-                sendEnterEvery: 1.5,
                 sendOnSubstrings: [
-                    "Do you trust the files in this folder?": "\r",
+                    "Do you trust the files in this folder?": "y\r",
                     "Ready to code here?": "\r",
                     "Press Enter to continue": "\r",
                 ])

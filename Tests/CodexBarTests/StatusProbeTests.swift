@@ -200,6 +200,8 @@ struct StatusProbeTests {
             #expect(Bool(false), "Parsing should fail for folder trust prompt")
         } catch let ClaudeStatusProbeError.parseFailed(message) {
             #expect(message.lowercased().contains("trust"))
+            #expect(message.contains("/Users/example/project"))
+            #expect(message.contains("cd \"/Users/example/project\" && claude"))
         } catch {
             #expect(Bool(false), "Unexpected error: \(error)")
         }
