@@ -155,7 +155,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     // MARK: - Public API
 
     public func detectVersion() -> String? {
-        guard let path = Self.which("claude") else { return nil }
+        // Keep version detection consistent with the PTY probe which uses `TTYCommandRunner.which`.
+        guard let path = TTYCommandRunner.which("claude") else { return nil }
         return Self.readString(cmd: path, args: ["--allowed-tools", "", "--version"])?
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
