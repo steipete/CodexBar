@@ -89,15 +89,17 @@ public struct ClaudeStatusProbe: Sendable {
             throw ClaudeStatusProbeError.parseFailed(usageError)
         }
 
-        var sessionPct = self.extractPercent(labelSubstring: "Current session", text: clean)
-        var weeklyPct = self.extractPercent(labelSubstring: "Current week (all models)", text: clean)
-        var opusPct = self.extractPercent(
+        let lines = clean.components(separatedBy: .newlines)
+
+        var session = self.extractPercentMatch(labelSubstring: "Current session", lines: lines)
+        var weekly = self.extractPercentMatch(labelSubstring: "Current week (all models)", lines: lines)
+        var opus = self.extractPercentMatch(
             labelSubstrings: [
                 "Current week (Opus)",
                 "Current week (Sonnet only)",
                 "Current week (Sonnet)",
             ],
-            text: clean)
+            lines: lines)
 
         // Fallback: order-based percent scraping when labels are present but the surrounding layout moved.
         // Only apply the fallback when the corresponding label exists in the rendered panel; enterprise accounts
@@ -106,11 +108,11 @@ public struct ClaudeStatusProbe: Sendable {
         let hasWeeklyLabel = lower.contains("current week")
         let hasOpusLabel = lower.contains("opus") || lower.contains("sonnet")
 
-        if sessionPct == nil || (hasWeeklyLabel && weeklyPct == nil) || (hasOpusLabel && opusPct == nil) {
-            let ordered = self.allPercents(clean)
-            if sessionPct == nil, ordered.indices.contains(0) { sessionPct = ordered[0] }
-            if hasWeeklyLabel, weeklyPct == nil, ordered.indices.contains(1) { weeklyPct = ordered[1] }
-            if hasOpusLabel, opusPct == nil, ordered.indices.contains(2) { opusPct = ordered[2] }
+        if session == nil || (hasWeeklyLabel && weekly == nil) || (hasOpusLabel && opus == nil) {
+            let ordered = self.allPercentMatches(lines)
+            if session == nil, ordered.indices.contains(0) { session = ordered[0] }
+            if hasWeeklyLabel, weekly == nil, ordered.indices.contains(1) { weekly = ordered[1] }
+            if hasOpusLabel, opus == nil, ordered.indices.contains(2) { opus = ordered[2] }
         }
 
         // Prefer usage text for identity; fall back to /status if present.
@@ -161,7 +163,7 @@ public struct ClaudeStatusProbe: Sendable {
         // Prefer explicit login method from /status, then fall back to /usage header heuristics.
         let login = self.extractLoginMethod(text: statusText ?? "") ?? self.extractLoginMethod(text: clean)
 
-        guard let sessionPct else {
+        guard let session else {
             Self.dumpIfNeeded(
                 enabled: shouldDump,
                 reason: "missing session label",
@@ -170,38 +172,46 @@ public struct ClaudeStatusProbe: Sendable {
             throw ClaudeStatusProbeError.parseFailed("Missing Current session")
         }
 
-        // Capture reset strings for UI display.
-        let resets = self.allResets(clean)
+        let resetDescriptions = self.extractResets(
+            lines: lines,
+            session: session,
+            weekly: weekly,
+            opus: opus)
 
         return ClaudeStatusSnapshot(
-            sessionPercentLeft: sessionPct,
-            weeklyPercentLeft: weeklyPct,
-            opusPercentLeft: opusPct,
+            sessionPercentLeft: session.pctLeft,
+            weeklyPercentLeft: weekly?.pctLeft,
+            opusPercentLeft: opus?.pctLeft,
             accountEmail: email,
             accountOrganization: org,
             loginMethod: login,
-            primaryResetDescription: resets.first,
-            secondaryResetDescription: resets.count > 1 ? resets[1] : nil,
-            opusResetDescription: resets.count > 2 ? resets[2] : nil,
+            primaryResetDescription: resetDescriptions.primary,
+            secondaryResetDescription: resetDescriptions.weekly,
+            opusResetDescription: resetDescriptions.opus,
             rawText: text + (statusText ?? ""))
     }
 
-    private static func extractPercent(labelSubstring: String, text: String) -> Int? {
-        let lines = text.components(separatedBy: .newlines)
-        for (idx, line) in lines.enumerated() where line.lowercased().contains(labelSubstring.lowercased()) {
+    private struct PercentMatch {
+        let pctLeft: Int
+        let lineIndex: Int
+    }
+
+    private static func extractPercentMatch(labelSubstring: String, lines: [String]) -> PercentMatch? {
+        let labelLower = labelSubstring.lowercased()
+        for (idx, line) in lines.enumerated() where line.lowercased().contains(labelLower) {
             // Claude's usage panel can take a moment to render percentages (especially on enterprise accounts),
             // so scan a larger window than the original 3–4 lines.
             let window = lines.dropFirst(idx).prefix(12)
-            for candidate in window {
-                if let pct = percentFromLine(candidate) { return pct }
+            for (offset, candidate) in window.enumerated() {
+                if let pct = percentFromLine(candidate) { return PercentMatch(pctLeft: pct, lineIndex: idx + offset) }
             }
         }
         return nil
     }
 
-    private static func extractPercent(labelSubstrings: [String], text: String) -> Int? {
+    private static func extractPercentMatch(labelSubstrings: [String], lines: [String]) -> PercentMatch? {
         for label in labelSubstrings {
-            if let value = self.extractPercent(labelSubstring: label, text: text) { return value }
+            if let value = self.extractPercentMatch(labelSubstring: label, lines: lines) { return value }
         }
         return nil
     }
@@ -266,42 +276,123 @@ public struct ClaudeStatusProbe: Sendable {
     }
 
     // Collect remaining percentages in the order they appear; used as a backup when labels move/rename.
-    private static func allPercents(_ text: String) -> [Int] {
-        let pat = #"([0-9]{1,3})\p{Zs}*%\s*(left|used)"#
-        guard let regex = try? NSRegularExpression(pattern: pat, options: [.caseInsensitive]) else { return [] }
-        let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
-        var results: [Int] = []
-        regex.enumerateMatches(in: text, options: [], range: nsrange) { match, _, _ in
-            guard let match,
-                  match.numberOfRanges >= 3,
-                  let valRange = Range(match.range(at: 1), in: text),
-                  let kindRange = Range(match.range(at: 2), in: text),
-                  let val = Int(text[valRange]) else { return }
-            let kind = text[kindRange].lowercased()
-            let remaining = kind.contains("used") ? max(0, 100 - val) : max(0, min(val, 100))
-            results.append(remaining)
+    private static func allPercentMatches(_ lines: [String]) -> [PercentMatch] {
+        var results: [PercentMatch] = []
+        for (idx, line) in lines.enumerated() {
+            guard let remaining = percentFromLine(line) else { continue }
+            results.append(PercentMatch(pctLeft: remaining, lineIndex: idx))
         }
         return results
     }
 
-    // Capture all "Resets ..." strings to surface in the menu.
-    private static func allResets(_ text: String) -> [String] {
-        let pat = #"Resets[^\n]*"#
-        guard let regex = try? NSRegularExpression(pattern: pat, options: [.caseInsensitive]) else { return [] }
-        let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
-        var results: [String] = []
-        regex.enumerateMatches(in: text, options: [], range: nsrange) { match, _, _ in
-            guard let match,
-                  let r = Range(match.range(at: 0), in: text) else { return }
-            // TTY capture sometimes appends a stray ")" at line ends; trim it to keep snapshots stable.
-            let raw = String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
-            var cleaned = raw.trimmingCharacters(in: CharacterSet(charactersIn: " )"))
-            let openCount = cleaned.count(where: { $0 == "(" })
-            let closeCount = cleaned.count(where: { $0 == ")" })
-            if openCount > closeCount { cleaned.append(")") }
-            results.append(cleaned)
+    private static func extractResets(
+        lines: [String],
+        session: PercentMatch,
+        weekly: PercentMatch?,
+        opus: PercentMatch?) -> (primary: String?, weekly: String?, opus: String?)
+    {
+        struct Block {
+            enum Kind { case session, weekly, opus }
+            let kind: Kind
+            let match: PercentMatch
         }
-        return results
+
+        var blocks: [Block] = [Block(kind: .session, match: session)]
+        if let weekly { blocks.append(Block(kind: .weekly, match: weekly)) }
+        if let opus { blocks.append(Block(kind: .opus, match: opus)) }
+        blocks.sort { $0.match.lineIndex < $1.match.lineIndex }
+
+        func resetForBlock(_ index: Int) -> String? {
+            let start = blocks[index].match.lineIndex
+            let end = index + 1 < blocks.count ? blocks[index + 1].match.lineIndex : lines.count
+            guard start >= 0, start < end, end <= lines.count else { return nil }
+            var fallback: String?
+            for line in lines[start..<end] {
+                guard let candidate = self.normalizeResetCandidate(line) else { continue }
+                if Self.parseResetDate(from: candidate) != nil { return candidate }
+                if fallback == nil { fallback = candidate }
+            }
+            return fallback
+        }
+
+        var primary: String?
+        var weeklyReset: String?
+        var opusReset: String?
+
+        for (idx, block) in blocks.enumerated() {
+            let reset = resetForBlock(idx)
+            switch block.kind {
+            case .session: primary = reset
+            case .weekly: weeklyReset = reset
+            case .opus: opusReset = reset
+            }
+        }
+
+        return (primary: primary, weekly: weeklyReset, opus: opusReset)
+    }
+
+    private static func normalizeResetCandidate(_ line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let lower = trimmed.lowercased()
+        let hasResetWord = lower.contains("reset")
+        let hasTime = trimmed
+            .range(of: #"(?i)\b\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)\b"#, options: .regularExpression) != nil
+            || trimmed.range(of: #"\b\d{1,2}:\d{2}\b"#, options: .regularExpression) != nil
+        let hasMonth = trimmed.range(
+            of: #"(?i)\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b"#,
+            options: .regularExpression) != nil
+        let hasTimeZone = trimmed.range(of: #"\([^)]+\)"#, options: .regularExpression) != nil
+
+        // Avoid accidental matches on percent lines or other UI chrome.
+        guard hasResetWord || hasTime || hasMonth || hasTimeZone else { return nil }
+
+        if let range = trimmed.range(of: #"(?i)resets?\b.*"#, options: .regularExpression) {
+            return self.cleanResetString(String(trimmed[range]))
+        }
+
+        guard let payloadStart = self.firstResetPayloadStart(in: trimmed) else { return nil }
+        let payload = trimmed[payloadStart...].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !payload.isEmpty else { return nil }
+        return self.cleanResetString("Resets \(payload)")
+    }
+
+    private static func firstResetPayloadStart(in text: String) -> String.Index? {
+        // Find the first plausible date/time token and start the reset string there to repair
+        // corrupted "Resets" prefixes produced by TTY screen redraws (e.g. "Reses6pm ...").
+        let patterns = [
+            #"(?i)\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b"#,
+            #"(?i)\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)\b"#,
+            #"\b\d{1,2}:\d{2}\b"#,
+        ]
+
+        var earliest: Range<String.Index>?
+        for pat in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pat, options: []) else { continue }
+            let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
+            guard let match = regex.firstMatch(in: text, options: [], range: nsrange),
+                  let r = Range(match.range(at: 0), in: text) else { continue }
+            if let earliestExisting = earliest {
+                if r.lowerBound < earliestExisting.lowerBound { earliest = r }
+            } else {
+                earliest = r
+            }
+        }
+
+        return earliest?.lowerBound
+    }
+
+    private static func cleanResetString(_ text: String) -> String {
+        // TTY capture sometimes appends a stray ")" at line ends; trim it to keep snapshots stable.
+        let raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var cleaned = raw.trimmingCharacters(in: CharacterSet(charactersIn: " )"))
+        // Repair missing whitespace before time zone parentheses from TUI redraw artifacts.
+        cleaned = cleaned.replacingOccurrences(of: #"(?<=\S)\("#, with: " (", options: .regularExpression)
+        let openCount = cleaned.count(where: { $0 == "(" })
+        let closeCount = cleaned.count(where: { $0 == ")" })
+        if openCount > closeCount { cleaned.append(")") }
+        return cleaned
     }
 
     /// Attempts to parse a Claude reset string into a Date, using the current year and handling optional timezones.

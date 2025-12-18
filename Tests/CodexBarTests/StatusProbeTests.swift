@@ -86,6 +86,28 @@ struct StatusProbeTests {
     }
 
     @Test
+    func parseClaudeStatus_withCorruptedSessionResetPrefix_doesNotShiftResets() throws {
+        let sample = """
+        Current session
+        40% used
+        Reses 3pm (Europe/Vienna)
+        Current week (all models)
+        10% used
+        Resets Nov 27
+        Current week (Sonnet only)
+        0% used
+        Resets Nov 27
+        """
+        let snap = try ClaudeStatusProbe.parse(text: sample)
+        #expect(snap.sessionPercentLeft == 60)
+        #expect(snap.weeklyPercentLeft == 90)
+        #expect(snap.opusPercentLeft == 100)
+        #expect(snap.primaryResetDescription == "Resets 3pm (Europe/Vienna)")
+        #expect(snap.secondaryResetDescription == "Resets Nov 27")
+        #expect(snap.opusResetDescription == "Resets Nov 27")
+    }
+
+    @Test
     func parseClaudeStatusLegacyOpusLabel() throws {
         let sample = """
         Current session
