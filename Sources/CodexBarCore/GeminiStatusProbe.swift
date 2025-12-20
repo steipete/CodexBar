@@ -388,15 +388,22 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         // Navigate from bin/gemini to the oauth2.js file
-        // Typical path: .../libexec/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js
+        // Homebrew path: .../libexec/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js
+        // Bun/npm path: .../node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js (sibling package)
         let binDir = (realPath as NSString).deletingLastPathComponent
         let baseDir = (binDir as NSString).deletingLastPathComponent
 
         let oauthSubpath =
             "node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js"
+        let oauthFile = "dist/src/code_assist/oauth2.js"
         let possiblePaths = [
+            // Homebrew nested structure
             "\(baseDir)/libexec/lib/\(oauthSubpath)",
             "\(baseDir)/lib/\(oauthSubpath)",
+            // Bun/npm sibling structure: gemini-cli-core is a sibling to gemini-cli
+            "\(baseDir)/../gemini-cli-core/\(oauthFile)",
+            // npm nested inside gemini-cli
+            "\(baseDir)/node_modules/@google/gemini-cli-core/\(oauthFile)",
         ]
 
         for path in possiblePaths {
