@@ -72,12 +72,12 @@ public struct CCUsageDailyReport: Sendable, Decodable {
             self.costUSD =
                 try container.decodeIfPresent(Double.self, forKey: .costUSD)
                 ?? container.decodeIfPresent(Double.self, forKey: .totalCost)
-            if let list = (try? container.decodeIfPresent([String].self, forKey: .modelsUsed)) ?? nil {
+            if let list = (try? container.decodeIfPresent([String].self, forKey: .modelsUsed)).flatMap(\.self) {
                 self.modelsUsed = list
-            } else if let list = (try? container.decodeIfPresent([String].self, forKey: .models)) ?? nil {
+            } else if let list = (try? container.decodeIfPresent([String].self, forKey: .models)).flatMap(\.self) {
                 self.modelsUsed = list
-            } else if let dict = (try? container.decodeIfPresent([String: CCUsageAnyValue].self, forKey: .models)) ??
-                nil
+            } else if let dict = (try? container.decodeIfPresent([String: CCUsageAnyValue].self, forKey: .models))
+                .flatMap(\.self)
             {
                 self.modelsUsed = dict.keys.sorted()
             } else {
