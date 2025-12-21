@@ -76,10 +76,8 @@ public struct CCUsageDailyReport: Sendable, Decodable {
                 self.modelsUsed = list
             } else if let list = (try? container.decodeIfPresent([String].self, forKey: .models)).flatMap(\.self) {
                 self.modelsUsed = list
-            } else if let dict = (try? container.decodeIfPresent([String: CCUsageAnyValue].self, forKey: .models))
-                .flatMap(\.self)
-            {
-                self.modelsUsed = dict.keys.sorted()
+            } else if let models = try? container.nestedContainer(keyedBy: CCUsageAnyCodingKey.self, forKey: .models) {
+                self.modelsUsed = models.allKeys.map(\.stringValue).sorted()
             } else {
                 self.modelsUsed = nil
             }
@@ -324,33 +322,6 @@ private struct CCUsageAnyCodingKey: CodingKey {
     init?(stringValue: String) {
         self.stringValue = stringValue
         self.intValue = nil
-    }
-}
-
-private struct CCUsageAnyValue: Decodable, Sendable {
-    init(from decoder: Decoder) throws {
-        if var unkeyed = try? decoder.unkeyedContainer() {
-            while !unkeyed.isAtEnd {
-                _ = try? unkeyed.decode(CCUsageAnyValue.self)
-            }
-            return
-        }
-
-        if let keyed = try? decoder.container(keyedBy: CCUsageAnyCodingKey.self) {
-            for key in keyed.allKeys {
-                _ = try? keyed.decode(CCUsageAnyValue.self, forKey: key)
-            }
-            return
-        }
-
-        let single = try decoder.singleValueContainer()
-        if single.decodeNil() { return }
-        if (try? single.decode(Bool.self)) != nil { return }
-        if (try? single.decode(Int.self)) != nil { return }
-        if (try? single.decode(Double.self)) != nil { return }
-        if (try? single.decode(String.self)) != nil { return }
-
-        throw DecodingError.dataCorruptedError(in: single, debugDescription: "Unsupported JSON scalar")
     }
 }
 
