@@ -23,7 +23,7 @@
 
     <link rel="icon" href="./icon.png" type="image/png" />
     <link rel="apple-touch-icon" href="./icon.png" />
-    <link rel="stylesheet" href="./site.css?v=98aa736" />
+    <link rel="stylesheet" href="./site.css?v=a1b2c3d" />
   </head>
   <body>
     <main class="wrap">
@@ -57,9 +57,27 @@
             <a class="btn primary" href="https://github.com/steipete/CodexBar/releases/latest">Download latest</a>
             <a class="btn" href="https://github.com/steipete/CodexBar">View on GitHub</a>
           </div>
-          <p>
-            Homebrew: <code>brew install --cask steipete/tap/codexbar</code>
+          <p class="brew-line">
+            Homebrew: <code id="brew-cmd">brew install --cask steipete/tap/codexbar</code>
+            <button class="copy-btn" onclick="copyBrew()" aria-label="Copy to clipboard" title="Copy to clipboard">
+              <svg class="icon-copy" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="5" width="9" height="9" rx="1.5"/>
+                <path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/>
+              </svg>
+              <svg class="icon-check" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 8 6 11 13 4"/>
+              </svg>
+            </button>
           </p>
+          <script>
+            function copyBrew() {
+              const cmd = document.getElementById('brew-cmd').textContent;
+              navigator.clipboard.writeText(cmd).then(() => {
+                document.querySelector('.copy-btn').classList.add('copied');
+                setTimeout(() => document.querySelector('.copy-btn').classList.remove('copied'), 1500);
+              });
+            }
+          </script>
           <ul class="bullets" aria-label="What it does">
             <li>One status item per provider (Codex + Claude).</li>
             <li>Session + weekly bars, plus reset times.</li>

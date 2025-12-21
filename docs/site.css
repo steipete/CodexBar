@@ -224,6 +224,59 @@ code {
   position: relative;
 }
 
+.brew-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.brew-line code {
+  background: color-mix(in srgb, var(--panel-solid) 40%, transparent);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-solid) 30%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.copy-btn:hover {
+  background: color-mix(in srgb, var(--panel-solid) 60%, transparent);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+}
+
+.copy-btn .icon-check {
+  display: none;
+  color: var(--accent);
+}
+
+.copy-btn.copied .icon-copy {
+  display: none;
+}
+
+.copy-btn.copied .icon-check {
+  display: block;
+}
+
+.copy-btn.copied {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .bullets {
   margin: 14px 0 0;
   padding: 0 0 0 18px;
