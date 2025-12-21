@@ -109,6 +109,9 @@ struct MenuDescriptor {
             Self.appendRateWindow(entries: &entries, title: meta.sessionLabel, window: snap.primary)
             if let weekly = snap.secondary {
                 Self.appendRateWindow(entries: &entries, title: meta.weeklyLabel, window: weekly)
+                if let paceText = UsagePaceText.weekly(provider: provider, window: weekly) {
+                    entries.append(.text(paceText, .secondary))
+                }
             } else if provider == .claude {
                 entries.append(.text("Weekly usage unavailable for this account.", .secondary))
             }

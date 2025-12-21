@@ -51,7 +51,8 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
-            tokenCostUsageEnabled: false))
+            tokenCostUsageEnabled: false,
+            now: now))
 
         #expect(model.providerName == "Codex")
         #expect(model.metrics.count == 2)
@@ -103,7 +104,8 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: true,
-            tokenCostUsageEnabled: false))
+            tokenCostUsageEnabled: false,
+            now: now))
 
         #expect(model.metrics.first?.title == "Session")
         #expect(model.metrics.first?.percent == 22)
@@ -145,7 +147,8 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
-            tokenCostUsageEnabled: false))
+            tokenCostUsageEnabled: false,
+            now: now))
 
         #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 73 })
     }
@@ -180,7 +183,8 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
-            tokenCostUsageEnabled: false))
+            tokenCostUsageEnabled: false,
+            now: now))
 
         #expect(model.metrics.count == 1)
         #expect(model.metrics.first?.title == "Session")
@@ -204,7 +208,8 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: "Probe failed for Codex",
             usageBarsShowUsed: false,
-            tokenCostUsageEnabled: false))
+            tokenCostUsageEnabled: false,
+            now: Date()))
 
         #expect(model.subtitleStyle == .error)
         #expect(model.subtitleText.contains("Probe failed"))
@@ -228,7 +233,8 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
-            tokenCostUsageEnabled: false))
+            tokenCostUsageEnabled: false,
+            now: Date()))
 
         #expect(model.planText == nil)
         #expect(model.email.isEmpty)
