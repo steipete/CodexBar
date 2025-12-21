@@ -65,6 +65,40 @@ struct CCUsageDecodingTests {
     }
 
     @Test
+    func decodesDailyReportLegacyFormatWithModelMap() throws {
+        let json = """
+        {
+          "daily": [
+            {
+              "date": "Dec 20, 2025",
+              "inputTokens": 10,
+              "outputTokens": 20,
+              "totalTokens": 30,
+              "costUSD": 0.12,
+              "models": {
+                "gpt-5.2": {
+                  "inputTokens": 10,
+                  "outputTokens": 20,
+                  "totalTokens": 30,
+                  "isFallback": false
+                }
+              }
+            }
+          ],
+          "totals": {
+            "totalTokens": 30,
+            "costUSD": 0.12
+          }
+        }
+        """
+
+        let report = try JSONDecoder().decode(CCUsageDailyReport.self, from: Data(json.utf8))
+        #expect(report.data.count == 1)
+        #expect(report.data[0].costUSD == 0.12)
+        #expect(report.data[0].modelsUsed == ["gpt-5.2"])
+    }
+
+    @Test
     func decodesMonthlyReportLegacyFormat() throws {
         let json = """
         {

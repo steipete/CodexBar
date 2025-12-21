@@ -72,9 +72,17 @@ public struct CCUsageDailyReport: Sendable, Decodable {
             self.costUSD =
                 try container.decodeIfPresent(Double.self, forKey: .costUSD)
                 ?? container.decodeIfPresent(Double.self, forKey: .totalCost)
-            self.modelsUsed =
-                try container.decodeIfPresent([String].self, forKey: .modelsUsed)
-                ?? container.decodeIfPresent([String].self, forKey: .models)
+            if let list = (try? container.decodeIfPresent([String].self, forKey: .modelsUsed)) ?? nil {
+                self.modelsUsed = list
+            } else if let list = (try? container.decodeIfPresent([String].self, forKey: .models)) ?? nil {
+                self.modelsUsed = list
+            } else if let dict = (try? container.decodeIfPresent([String: CCUsageAnyValue].self, forKey: .models)) ??
+                nil
+            {
+                self.modelsUsed = dict.keys.sorted()
+            } else {
+                self.modelsUsed = nil
+            }
             self.modelBreakdowns = try container.decodeIfPresent([ModelBreakdown].self, forKey: .modelBreakdowns)
         }
     }
@@ -302,6 +310,48 @@ private struct CCUsageLegacyTotals: Sendable, Decodable {
     let totalOutputTokens: Int?
     let totalTokens: Int?
     let totalCost: Double?
+}
+
+private struct CCUsageAnyCodingKey: CodingKey {
+    var intValue: Int?
+    var stringValue: String
+
+    init?(intValue: Int) {
+        self.intValue = intValue
+        self.stringValue = "\(intValue)"
+    }
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+}
+
+private struct CCUsageAnyValue: Decodable, Sendable {
+    init(from decoder: Decoder) throws {
+        if var unkeyed = try? decoder.unkeyedContainer() {
+            while !unkeyed.isAtEnd {
+                _ = try? unkeyed.decode(CCUsageAnyValue.self)
+            }
+            return
+        }
+
+        if let keyed = try? decoder.container(keyedBy: CCUsageAnyCodingKey.self) {
+            for key in keyed.allKeys {
+                _ = try? keyed.decode(CCUsageAnyValue.self, forKey: key)
+            }
+            return
+        }
+
+        let single = try decoder.singleValueContainer()
+        if single.decodeNil() { return }
+        if (try? single.decode(Bool.self)) != nil { return }
+        if (try? single.decode(Int.self)) != nil { return }
+        if (try? single.decode(Double.self)) != nil { return }
+        if (try? single.decode(String.self)) != nil { return }
+
+        throw DecodingError.dataCorruptedError(in: single, debugDescription: "Unsupported JSON scalar")
+    }
 }
 
 enum CCUsageDateParser {
