@@ -127,4 +127,21 @@ struct TTYCommandRunnerEnvTests {
         #expect(result.text.contains("hello"))
         #expect(elapsed < 3.0)
     }
+
+    @Test
+    func rollingBufferDetectsNeedleAcrossBoundary() {
+        var scanner = TTYCommandRunner.RollingBuffer(maxNeedle: 6)
+        let needle = Data("hello".utf8)
+        let first = scanner.append(Data("he".utf8))
+        #expect(first.range(of: needle) == nil)
+        let second = scanner.append(Data("llo!".utf8))
+        #expect(second.range(of: needle) != nil)
+    }
+
+    @Test
+    func lowercasedASCIIOnlyTouchesAscii() {
+        let data = Data("UpDaTe".utf8)
+        let lowered = TTYCommandRunner.lowercasedASCII(data)
+        #expect(String(data: lowered, encoding: .utf8) == "update")
+    }
 }

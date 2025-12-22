@@ -70,6 +70,57 @@ public struct TTYCommandRunner {
 
     public init() {}
 
+    struct RollingBuffer: Sendable {
+        private let maxNeedle: Int
+        private var tail = Data()
+
+        init(maxNeedle: Int) {
+            self.maxNeedle = max(0, maxNeedle)
+        }
+
+        mutating func append(_ data: Data) -> Data {
+            guard !data.isEmpty else { return Data() }
+
+            var combined = Data()
+            combined.reserveCapacity(self.tail.count + data.count)
+            combined.append(self.tail)
+            combined.append(data)
+
+            if self.maxNeedle > 1 {
+                if combined.count >= self.maxNeedle - 1 {
+                    self.tail = combined.suffix(self.maxNeedle - 1)
+                } else {
+                    self.tail = combined
+                }
+            } else {
+                self.tail.removeAll(keepingCapacity: true)
+            }
+
+            return combined
+        }
+
+        mutating func reset() {
+            self.tail.removeAll(keepingCapacity: true)
+        }
+    }
+
+    static func lowercasedASCII(_ data: Data) -> Data {
+        guard !data.isEmpty else { return data }
+        var out = Data(count: data.count)
+        out.withUnsafeMutableBytes { dest in
+            data.withUnsafeBytes { source in
+                let src = source.bindMemory(to: UInt8.self)
+                let dst = dest.bindMemory(to: UInt8.self)
+                for idx in 0..<src.count {
+                    var byte = src[idx]
+                    if byte >= 65, byte <= 90 { byte += 32 }
+                    dst[idx] = byte
+                }
+            }
+        }
+        return out
+    }
+
     private static func locateBundledHelper(_ name: String) -> String? {
         let fm = FileManager.default
 
@@ -229,16 +280,20 @@ public struct TTYCommandRunner {
         let isCodexStatus = isCodex && trimmed == "/status"
 
         var buffer = Data()
-        func readChunk() {
+        func readChunk() -> Data {
+            var appended = Data()
             while true {
                 var tmp = [UInt8](repeating: 0, count: 8192)
                 let n = Darwin.read(primaryFD, &tmp, tmp.count)
                 if n > 0 {
-                    buffer.append(contentsOf: tmp.prefix(n))
+                    let slice = tmp.prefix(n)
+                    buffer.append(contentsOf: slice)
+                    appended.append(contentsOf: slice)
                     continue
                 }
                 break
             }
+            return appended
         }
 
         func firstLink(in data: Data) -> String? {
@@ -258,26 +313,7 @@ public struct TTYCommandRunner {
             return url
         }
 
-        func containsCodexStatus() -> Bool {
-            let markers = [
-                "Credits:",
-                "5h limit",
-                "5-hour limit",
-                "Weekly limit",
-            ].map { Data($0.utf8) }
-            return markers.contains { buffer.contains($0) }
-        }
-
-        func respondIfCursorQuerySeen() {
-            let query = Data([0x1B, 0x5B, 0x36, 0x6E])
-            if buffer.contains(query) { try? send("\u{1b}[1;1R") }
-        }
-
-        func containsCodexUpdatePrompt() -> Bool {
-            let needles = ["Update available!", "Run bun install -g @openai/codex", "0.60.1 ->"]
-            let lower = String(data: buffer, encoding: .utf8)?.lowercased() ?? ""
-            return needles.contains { lower.contains($0.lowercased()) }
-        }
+        let cursorQuery = Data([0x1B, 0x5B, 0x36, 0x6E])
 
         usleep(UInt32(options.initialDelay * 1_000_000))
 
@@ -291,6 +327,13 @@ public struct TTYCommandRunner {
             let stopNeedles = options.stopOnSubstrings.map { Data($0.utf8) }
             let sendNeedles = options.sendOnSubstrings.map { (needle: Data($0.key.utf8), keys: Data($0.value.utf8)) }
             let urlNeedles = [Data("https://".utf8), Data("http://".utf8)]
+            let needleLengths =
+                stopNeedles.map(\.count) +
+                sendNeedles.map(\.needle.count) +
+                urlNeedles.map(\.count) +
+                [cursorQuery.count]
+            let maxNeedle = needleLengths.max() ?? cursorQuery.count
+            var scanBuffer = RollingBuffer(maxNeedle: maxNeedle)
             var lastEnter = Date()
             var stoppedEarly = false
             var urlSeen = false
@@ -298,23 +341,25 @@ public struct TTYCommandRunner {
             var lastOutputAt = Date()
 
             while Date() < deadline {
-                let beforeCount = buffer.count
-                readChunk()
-                if buffer.count != beforeCount {
+                let newData = readChunk()
+                if !newData.isEmpty {
                     lastOutputAt = Date()
                 }
-                respondIfCursorQuerySeen()
+                let scanData = scanBuffer.append(newData)
+                if !scanData.isEmpty, scanData.range(of: cursorQuery) != nil {
+                    try? send("\u{1b}[1;1R")
+                }
 
                 if !sendNeedles.isEmpty {
                     for item in sendNeedles where !triggeredSends.contains(item.needle) {
-                        if buffer.range(of: item.needle) != nil {
+                        if scanData.range(of: item.needle) != nil {
                             try? primaryHandle.write(contentsOf: item.keys)
                             triggeredSends.insert(item.needle)
                         }
                     }
                 }
 
-                if urlNeedles.contains(where: { buffer.range(of: $0) != nil }) {
+                if urlNeedles.contains(where: { scanData.range(of: $0) != nil }) {
                     urlSeen = true
                     if urlSeen {
                         onURLDetected?()
@@ -324,7 +369,7 @@ public struct TTYCommandRunner {
                         break
                     }
                 }
-                if !stopNeedles.isEmpty, stopNeedles.contains(where: { buffer.range(of: $0) != nil }) {
+                if !stopNeedles.isEmpty, stopNeedles.contains(where: { scanData.range(of: $0) != nil }) {
                     stoppedEarly = true
                     break
                 }
@@ -350,8 +395,11 @@ public struct TTYCommandRunner {
                 if settle > 0 {
                     let settleDeadline = Date().addingTimeInterval(settle)
                     while Date() < settleDeadline {
-                        readChunk()
-                        respondIfCursorQuerySeen()
+                        let newData = readChunk()
+                        let scanData = scanBuffer.append(newData)
+                        if !scanData.isEmpty, scanData.range(of: cursorQuery) != nil {
+                            try? send("\u{1b}[1;1R")
+                        }
                         usleep(50000)
                     }
                 }
@@ -380,11 +428,45 @@ public struct TTYCommandRunner {
         var resendStatusRetries = 0
         var enterRetries = 0
         var sawCodexStatus = false
+        var sawCodexUpdatePrompt = false
+        let statusMarkers = [
+            "Credits:",
+            "5h limit",
+            "5-hour limit",
+            "Weekly limit",
+        ].map { Data($0.utf8) }
+        let updateNeedles = ["Update available!", "Run bun install -g @openai/codex", "0.60.1 ->"]
+        let updateNeedlesLower = updateNeedles.map { Data($0.lowercased().utf8) }
+        let statusNeedleLengths = statusMarkers.map(\.count)
+        let updateNeedleLengths = updateNeedlesLower.map(\.count)
+        let statusMaxNeedle = ([cursorQuery.count] + statusNeedleLengths).max() ?? cursorQuery.count
+        let updateMaxNeedle = updateNeedleLengths.max() ?? 0
+        var statusScanBuffer = RollingBuffer(maxNeedle: statusMaxNeedle)
+        var updateScanBuffer = RollingBuffer(maxNeedle: updateMaxNeedle)
 
         while Date() < deadline {
-            readChunk()
-            respondIfCursorQuerySeen()
-            if !skippedCodexUpdate, containsCodexUpdatePrompt() {
+            let newData = readChunk()
+            let scanData = statusScanBuffer.append(newData)
+            if !scanData.isEmpty, scanData.range(of: cursorQuery) != nil {
+                try? send("\u{1b}[1;1R")
+            }
+            if !scanData.isEmpty, !sawCodexStatus {
+                if statusMarkers.contains(where: { scanData.range(of: $0) != nil }) {
+                    sawCodexStatus = true
+                }
+            }
+
+            if !newData.isEmpty {
+                let lowerData = Self.lowercasedASCII(newData)
+                let lowerScan = updateScanBuffer.append(lowerData)
+                if !sawCodexUpdatePrompt {
+                    if updateNeedlesLower.contains(where: { lowerScan.range(of: $0) != nil }) {
+                        sawCodexUpdatePrompt = true
+                    }
+                }
+            }
+
+            if !skippedCodexUpdate, sawCodexUpdatePrompt {
                 // Prompt shows options: 1) Update now, 2) Skip, 3) Skip until next version.
                 // Users report one Down + Enter is enough; follow with an extra Enter for safety, then re-run
                 // /status.
@@ -401,10 +483,13 @@ public struct TTYCommandRunner {
                     sentScript = false // re-send /status after dismissing
                     scriptSentAt = nil
                     buffer.removeAll()
+                    statusScanBuffer.reset()
+                    updateScanBuffer.reset()
+                    sawCodexStatus = false
                 }
                 usleep(300_000)
             }
-            if !sentScript, !containsCodexUpdatePrompt() || skippedCodexUpdate {
+            if !sentScript, !sawCodexUpdatePrompt || skippedCodexUpdate {
                 try? send(script)
                 try? send("\r")
                 sentScript = true
@@ -413,7 +498,7 @@ public struct TTYCommandRunner {
                 usleep(200_000)
                 continue
             }
-            if sentScript, !containsCodexStatus() {
+            if sentScript, !sawCodexStatus {
                 if Date().timeIntervalSince(lastEnter) >= 1.2, enterRetries < 6 {
                     try? send("\r")
                     enterRetries += 1
@@ -429,24 +514,27 @@ public struct TTYCommandRunner {
                     try? send("\r")
                     resendStatusRetries += 1
                     buffer.removeAll()
+                    statusScanBuffer.reset()
+                    updateScanBuffer.reset()
+                    sawCodexStatus = false
                     scriptSentAt = Date()
                     lastEnter = Date()
                     usleep(220_000)
                     continue
                 }
             }
-            if containsCodexStatus() {
-                sawCodexStatus = true
-                break
-            }
+            if sawCodexStatus { break }
             usleep(120_000)
         }
 
         if sawCodexStatus {
             let settleDeadline = Date().addingTimeInterval(2.0)
             while Date() < settleDeadline {
-                readChunk()
-                respondIfCursorQuerySeen()
+                let newData = readChunk()
+                let scanData = statusScanBuffer.append(newData)
+                if !scanData.isEmpty, scanData.range(of: cursorQuery) != nil {
+                    try? send("\u{1b}[1;1R")
+                }
                 usleep(100_000)
             }
         }

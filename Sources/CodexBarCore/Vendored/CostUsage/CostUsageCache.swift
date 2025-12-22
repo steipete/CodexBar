@@ -67,4 +67,13 @@ struct CostUsageFileUsage: Codable, Sendable {
     var mtimeUnixMs: Int64
     var size: Int64
     var days: [String: [String: [Int]]]
+    var parsedBytes: Int64?
+    var lastModel: String?
+    var lastTotals: CostUsageCodexTotals?
+}
+
+struct CostUsageCodexTotals: Codable, Sendable {
+    var input: Int
+    var cached: Int
+    var output: Int
 }

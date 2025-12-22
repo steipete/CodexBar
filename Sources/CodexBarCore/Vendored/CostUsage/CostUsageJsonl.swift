@@ -6,14 +6,22 @@ enum CostUsageJsonl {
         let wasTruncated: Bool
     }
 
+    @discardableResult
     static func scan(
         fileURL: URL,
+        offset: Int64 = 0,
         maxLineBytes: Int,
         prefixBytes: Int,
         onLine: (Line) -> Void) throws
+        -> Int64
     {
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
+
+        let startOffset = max(0, offset)
+        if startOffset > 0 {
+            try handle.seek(toOffset: UInt64(startOffset))
+        }
 
         var buffer = Data()
         buffer.reserveCapacity(64 * 1024)
@@ -22,6 +30,7 @@ enum CostUsageJsonl {
         current.reserveCapacity(4 * 1024)
         var lineBytes = 0
         var truncated = false
+        var bytesRead: Int64 = 0
 
         func flushLine() {
             guard lineBytes > 0 else { return }
@@ -39,6 +48,7 @@ enum CostUsageJsonl {
                 break
             }
 
+            bytesRead += Int64(chunk.count)
             buffer.append(chunk)
 
             while true {
@@ -58,5 +68,7 @@ enum CostUsageJsonl {
                 flushLine()
             }
         }
+
+        return startOffset + bytesRead
     }
 }

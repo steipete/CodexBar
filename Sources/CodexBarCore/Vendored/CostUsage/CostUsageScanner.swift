@@ -18,6 +18,35 @@ enum CostUsageScanner {
         }
     }
 
+    struct CodexParseResult: Sendable {
+        let days: [String: [String: [Int]]]
+        let parsedBytes: Int64
+        let lastModel: String?
+        let lastTotals: CostUsageCodexTotals?
+    }
+
+    struct ClaudeParseResult: Sendable {
+        let days: [String: [String: [Int]]]
+        let parsedBytes: Int64
+    }
+
+    private final class ISO8601FormatterBox: @unchecked Sendable {
+        let lock = NSLock()
+        let withFractional: ISO8601DateFormatter = {
+            let fmt = ISO8601DateFormatter()
+            fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return fmt
+        }()
+
+        let plain: ISO8601DateFormatter = {
+            let fmt = ISO8601DateFormatter()
+            fmt.formatOptions = [.withInternetDateTime]
+            return fmt
+        }()
+    }
+
+    private static let isoBox = ISO8601FormatterBox()
+
     static func loadDailyReport(
         provider: UsageProvider,
         since: Date,
@@ -70,6 +99,12 @@ enum CostUsageScanner {
 
     // MARK: - Codex
 
+    private static func parseISO(_ text: String) -> Date? {
+        self.isoBox.lock.lock()
+        defer { Self.isoBox.lock.unlock() }
+        return self.isoBox.withFractional.date(from: text) ?? self.isoBox.plain.date(from: text)
+    }
+
     private static func defaultCodexSessionsRoot(options: Options) -> URL {
         if let override = options.codexSessionsRoot { return override }
         let env = ProcessInfo.processInfo.environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -112,19 +147,17 @@ enum CostUsageScanner {
         return out
     }
 
-    private static func parseCodexFile(fileURL: URL, range: CostUsageDayRange) -> CostUsageFileUsage {
-        var currentModel: String?
-        var previousTotals: (input: Int, cached: Int, output: Int)?
+    static func parseCodexFile(
+        fileURL: URL,
+        range: CostUsageDayRange,
+        startOffset: Int64 = 0,
+        initialModel: String? = nil,
+        initialTotals: CostUsageCodexTotals? = nil) -> CodexParseResult
+    {
+        var currentModel = initialModel
+        var previousTotals = initialTotals
 
         var days: [String: [String: [Int]]] = [:]
-
-        let isoWithFractional = ISO8601DateFormatter()
-        isoWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let isoPlain = ISO8601DateFormatter()
-        isoPlain.formatOptions = [.withInternetDateTime]
-        func parseISO(_ text: String) -> Date? {
-            isoWithFractional.date(from: text) ?? isoPlain.date(from: text)
-        }
 
         func add(dayKey: String, model: String, input: Int, cached: Int, output: Int) {
             guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
@@ -143,92 +176,95 @@ enum CostUsageScanner {
         let maxLineBytes = 256 * 1024
         let prefixBytes = 32 * 1024
 
-        try? CostUsageJsonl.scan(fileURL: fileURL, maxLineBytes: maxLineBytes, prefixBytes: prefixBytes) { line in
-            guard !line.bytes.isEmpty else { return }
-            guard !line.wasTruncated else { return }
+        let parsedBytes = (try? CostUsageJsonl.scan(
+            fileURL: fileURL,
+            offset: startOffset,
+            maxLineBytes: maxLineBytes,
+            prefixBytes: prefixBytes,
+            onLine: { line in
+                guard !line.bytes.isEmpty else { return }
+                guard !line.wasTruncated else { return }
 
-            guard
-                line.bytes.containsAscii(#""type":"event_msg""#)
-                || line.bytes.containsAscii(#""type":"turn_context""#)
-            else { return }
+                guard
+                    line.bytes.containsAscii(#""type":"event_msg""#)
+                    || line.bytes.containsAscii(#""type":"turn_context""#)
+                else { return }
 
-            if line.bytes.containsAscii(#""type":"event_msg""#), !line.bytes.containsAscii(#""token_count""#) {
-                return
-            }
-
-            guard
-                let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
-                let type = obj["type"] as? String
-            else { return }
-
-            guard let tsText = obj["timestamp"] as? String else { return }
-            guard let ts = parseISO(tsText) else { return }
-            let dayKey = CostUsageDayRange.dayKey(from: ts)
-
-            if type == "turn_context" {
-                if let payload = obj["payload"] as? [String: Any] {
-                    if let model = payload["model"] as? String {
-                        currentModel = model
-                    } else if let info = payload["info"] as? [String: Any], let model = info["model"] as? String {
-                        currentModel = model
-                    }
+                if line.bytes.containsAscii(#""type":"event_msg""#), !line.bytes.containsAscii(#""token_count""#) {
+                    return
                 }
-                return
-            }
 
-            guard type == "event_msg" else { return }
-            guard let payload = obj["payload"] as? [String: Any] else { return }
-            guard (payload["type"] as? String) == "token_count" else { return }
+                guard
+                    let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
+                    let type = obj["type"] as? String
+                else { return }
 
-            let info = payload["info"] as? [String: Any]
-            let modelFromInfo = info?["model"] as? String
-                ?? info?["model_name"] as? String
-                ?? payload["model"] as? String
-                ?? obj["model"] as? String
-            let model = modelFromInfo ?? currentModel ?? "gpt-5"
+                guard let tsText = obj["timestamp"] as? String else { return }
+                guard let ts = Self.parseISO(tsText) else { return }
+                let dayKey = CostUsageDayRange.dayKey(from: ts)
 
-            func toInt(_ v: Any?) -> Int {
-                if let n = v as? NSNumber { return n.intValue }
-                return 0
-            }
+                if type == "turn_context" {
+                    if let payload = obj["payload"] as? [String: Any] {
+                        if let model = payload["model"] as? String {
+                            currentModel = model
+                        } else if let info = payload["info"] as? [String: Any], let model = info["model"] as? String {
+                            currentModel = model
+                        }
+                    }
+                    return
+                }
 
-            let total = (info?["total_token_usage"] as? [String: Any])
-            let last = (info?["last_token_usage"] as? [String: Any])
+                guard type == "event_msg" else { return }
+                guard let payload = obj["payload"] as? [String: Any] else { return }
+                guard (payload["type"] as? String) == "token_count" else { return }
 
-            var deltaInput = 0
-            var deltaCached = 0
-            var deltaOutput = 0
+                let info = payload["info"] as? [String: Any]
+                let modelFromInfo = info?["model"] as? String
+                    ?? info?["model_name"] as? String
+                    ?? payload["model"] as? String
+                    ?? obj["model"] as? String
+                let model = modelFromInfo ?? currentModel ?? "gpt-5"
 
-            if let total {
-                let input = toInt(total["input_tokens"])
-                let cached = toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"])
-                let output = toInt(total["output_tokens"])
+                func toInt(_ v: Any?) -> Int {
+                    if let n = v as? NSNumber { return n.intValue }
+                    return 0
+                }
 
-                let prev = previousTotals
-                deltaInput = max(0, input - (prev?.input ?? 0))
-                deltaCached = max(0, cached - (prev?.cached ?? 0))
-                deltaOutput = max(0, output - (prev?.output ?? 0))
-                previousTotals = (input: input, cached: cached, output: output)
-            } else if let last {
-                deltaInput = max(0, toInt(last["input_tokens"]))
-                deltaCached = max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"]))
-                deltaOutput = max(0, toInt(last["output_tokens"]))
-            } else {
-                return
-            }
+                let total = (info?["total_token_usage"] as? [String: Any])
+                let last = (info?["last_token_usage"] as? [String: Any])
 
-            if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
-            let cachedClamp = min(deltaCached, deltaInput)
-            add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
-        }
+                var deltaInput = 0
+                var deltaCached = 0
+                var deltaOutput = 0
 
-        let attrs = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)) ?? [:]
-        let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
-        return CostUsageFileUsage(
-            mtimeUnixMs: Int64(mtime * 1000),
-            size: size,
-            days: days)
+                if let total {
+                    let input = toInt(total["input_tokens"])
+                    let cached = toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"])
+                    let output = toInt(total["output_tokens"])
+
+                    let prev = previousTotals
+                    deltaInput = max(0, input - (prev?.input ?? 0))
+                    deltaCached = max(0, cached - (prev?.cached ?? 0))
+                    deltaOutput = max(0, output - (prev?.output ?? 0))
+                    previousTotals = CostUsageCodexTotals(input: input, cached: cached, output: output)
+                } else if let last {
+                    deltaInput = max(0, toInt(last["input_tokens"]))
+                    deltaCached = max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"]))
+                    deltaOutput = max(0, toInt(last["output_tokens"]))
+                } else {
+                    return
+                }
+
+                if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
+                let cachedClamp = min(deltaCached, deltaInput)
+                add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
+            })) ?? startOffset
+
+        return CodexParseResult(
+            days: days,
+            parsedBytes: parsedBytes,
+            lastModel: currentModel,
+            lastTotals: previousTotals)
     }
 
     private static func loadCodexDaily(range: CostUsageDayRange, now: Date, options: Options) -> CCUsageDailyReport {
@@ -261,12 +297,45 @@ enum CostUsageScanner {
                 }
 
                 if let cached = cache.files[path] {
+                    let startOffset = cached.parsedBytes ?? cached.size
+                    let canIncremental = size > cached.size && startOffset > 0 && startOffset <= size
+                        && cached.lastTotals != nil
+                    if canIncremental {
+                        let delta = Self.parseCodexFile(
+                            fileURL: fileURL,
+                            range: range,
+                            startOffset: startOffset,
+                            initialModel: cached.lastModel,
+                            initialTotals: cached.lastTotals)
+                        if !delta.days.isEmpty {
+                            Self.applyFileDays(cache: &cache, fileDays: delta.days, sign: 1)
+                        }
+
+                        var mergedDays = cached.days
+                        Self.mergeFileDays(existing: &mergedDays, delta: delta.days)
+                        cache.files[path] = Self.makeFileUsage(
+                            mtimeUnixMs: mtimeMs,
+                            size: size,
+                            days: mergedDays,
+                            parsedBytes: delta.parsedBytes,
+                            lastModel: delta.lastModel,
+                            lastTotals: delta.lastTotals)
+                        continue
+                    }
+
                     Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
                 }
 
                 let parsed = Self.parseCodexFile(fileURL: fileURL, range: range)
-                cache.files[path] = parsed
-                Self.applyFileDays(cache: &cache, fileDays: parsed.days, sign: 1)
+                let usage = Self.makeFileUsage(
+                    mtimeUnixMs: mtimeMs,
+                    size: size,
+                    days: parsed.days,
+                    parsedBytes: parsed.parsedBytes,
+                    lastModel: parsed.lastModel,
+                    lastTotals: parsed.lastTotals)
+                cache.files[path] = usage
+                Self.applyFileDays(cache: &cache, fileDays: usage.days, sign: 1)
             }
 
             for key in cache.files.keys where !filePathsInScan.contains(key) {
@@ -395,16 +464,12 @@ enum CostUsageScanner {
         return roots
     }
 
-    private static func parseClaudeFile(fileURL: URL, range: CostUsageDayRange) -> CostUsageFileUsage {
+    static func parseClaudeFile(
+        fileURL: URL,
+        range: CostUsageDayRange,
+        startOffset: Int64 = 0) -> ClaudeParseResult
+    {
         var days: [String: [String: [Int]]] = [:]
-
-        let isoWithFractional = ISO8601DateFormatter()
-        isoWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let isoPlain = ISO8601DateFormatter()
-        isoPlain.formatOptions = [.withInternetDateTime]
-        func parseISO(_ text: String) -> Date? {
-            isoWithFractional.date(from: text) ?? isoPlain.date(from: text)
-        }
 
         struct ClaudeTokens: Sendable {
             let input: Int
@@ -430,48 +495,47 @@ enum CostUsageScanner {
         let maxLineBytes = 256 * 1024
         let prefixBytes = 64 * 1024
 
-        try? CostUsageJsonl.scan(fileURL: fileURL, maxLineBytes: maxLineBytes, prefixBytes: prefixBytes) { line in
-            guard !line.bytes.isEmpty else { return }
-            guard !line.wasTruncated else { return }
-            guard line.bytes.containsAscii(#""type":"assistant""#) else { return }
-            guard line.bytes.containsAscii(#""usage""#) else { return }
+        let parsedBytes = (try? CostUsageJsonl.scan(
+            fileURL: fileURL,
+            offset: startOffset,
+            maxLineBytes: maxLineBytes,
+            prefixBytes: prefixBytes,
+            onLine: { line in
+                guard !line.bytes.isEmpty else { return }
+                guard !line.wasTruncated else { return }
+                guard line.bytes.containsAscii(#""type":"assistant""#) else { return }
+                guard line.bytes.containsAscii(#""usage""#) else { return }
 
-            guard
-                let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
-                let type = obj["type"] as? String,
-                type == "assistant"
-            else { return }
+                guard
+                    let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
+                    let type = obj["type"] as? String,
+                    type == "assistant"
+                else { return }
 
-            guard let tsText = obj["timestamp"] as? String else { return }
-            guard let ts = parseISO(tsText) else { return }
-            let dayKey = CostUsageDayRange.dayKey(from: ts)
+                guard let tsText = obj["timestamp"] as? String else { return }
+                guard let ts = Self.parseISO(tsText) else { return }
+                let dayKey = CostUsageDayRange.dayKey(from: ts)
 
-            guard let message = obj["message"] as? [String: Any] else { return }
-            guard let model = message["model"] as? String else { return }
-            guard let usage = message["usage"] as? [String: Any] else { return }
+                guard let message = obj["message"] as? [String: Any] else { return }
+                guard let model = message["model"] as? String else { return }
+                guard let usage = message["usage"] as? [String: Any] else { return }
 
-            func toInt(_ v: Any?) -> Int {
-                if let n = v as? NSNumber { return n.intValue }
-                return 0
-            }
+                func toInt(_ v: Any?) -> Int {
+                    if let n = v as? NSNumber { return n.intValue }
+                    return 0
+                }
 
-            let input = max(0, toInt(usage["input_tokens"]))
-            let cacheCreate = max(0, toInt(usage["cache_creation_input_tokens"]))
-            let cacheRead = max(0, toInt(usage["cache_read_input_tokens"]))
-            let output = max(0, toInt(usage["output_tokens"]))
-            if input == 0, cacheCreate == 0, cacheRead == 0, output == 0 { return }
+                let input = max(0, toInt(usage["input_tokens"]))
+                let cacheCreate = max(0, toInt(usage["cache_creation_input_tokens"]))
+                let cacheRead = max(0, toInt(usage["cache_read_input_tokens"]))
+                let output = max(0, toInt(usage["output_tokens"]))
+                if input == 0, cacheCreate == 0, cacheRead == 0, output == 0 { return }
 
-            let tokens = ClaudeTokens(input: input, cacheRead: cacheRead, cacheCreate: cacheCreate, output: output)
-            add(dayKey: dayKey, model: model, tokens: tokens)
-        }
+                let tokens = ClaudeTokens(input: input, cacheRead: cacheRead, cacheCreate: cacheCreate, output: output)
+                add(dayKey: dayKey, model: model, tokens: tokens)
+            })) ?? startOffset
 
-        let attrs = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)) ?? [:]
-        let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
-        return CostUsageFileUsage(
-            mtimeUnixMs: Int64(mtime * 1000),
-            size: size,
-            days: days)
+        return ClaudeParseResult(days: days, parsedBytes: parsedBytes)
     }
 
     private static func loadClaudeDaily(range: CostUsageDayRange, now: Date, options: Options) -> CCUsageDailyReport {
@@ -521,12 +585,38 @@ enum CostUsageScanner {
                     }
 
                     if let cached = cache.files[path] {
+                        let startOffset = cached.parsedBytes ?? cached.size
+                        let canIncremental = size > cached.size && startOffset > 0 && startOffset <= size
+                        if canIncremental {
+                            let delta = Self.parseClaudeFile(
+                                fileURL: url,
+                                range: range,
+                                startOffset: startOffset)
+                            if !delta.days.isEmpty {
+                                Self.applyFileDays(cache: &cache, fileDays: delta.days, sign: 1)
+                            }
+
+                            var mergedDays = cached.days
+                            Self.mergeFileDays(existing: &mergedDays, delta: delta.days)
+                            cache.files[path] = Self.makeFileUsage(
+                                mtimeUnixMs: mtimeMs,
+                                size: size,
+                                days: mergedDays,
+                                parsedBytes: delta.parsedBytes)
+                            continue
+                        }
+
                         Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
                     }
 
                     let parsed = Self.parseClaudeFile(fileURL: url, range: range)
-                    cache.files[path] = parsed
-                    Self.applyFileDays(cache: &cache, fileDays: parsed.days, sign: 1)
+                    let usage = Self.makeFileUsage(
+                        mtimeUnixMs: mtimeMs,
+                        size: size,
+                        days: parsed.days,
+                        parsedBytes: parsed.parsedBytes)
+                    cache.files[path] = usage
+                    Self.applyFileDays(cache: &cache, fileDays: usage.days, sign: 1)
                 }
             }
 
@@ -630,6 +720,47 @@ enum CostUsageScanner {
     }
 
     // MARK: - Shared cache mutations
+
+    private static func makeFileUsage(
+        mtimeUnixMs: Int64,
+        size: Int64,
+        days: [String: [String: [Int]]],
+        parsedBytes: Int64?,
+        lastModel: String? = nil,
+        lastTotals: CostUsageCodexTotals? = nil) -> CostUsageFileUsage
+    {
+        CostUsageFileUsage(
+            mtimeUnixMs: mtimeUnixMs,
+            size: size,
+            days: days,
+            parsedBytes: parsedBytes,
+            lastModel: lastModel,
+            lastTotals: lastTotals)
+    }
+
+    private static func mergeFileDays(
+        existing: inout [String: [String: [Int]]],
+        delta: [String: [String: [Int]]])
+    {
+        for (day, models) in delta {
+            var dayModels = existing[day] ?? [:]
+            for (model, packed) in models {
+                let existingPacked = dayModels[model] ?? []
+                let merged = Self.addPacked(a: existingPacked, b: packed, sign: 1)
+                if merged.allSatisfy({ $0 == 0 }) {
+                    dayModels.removeValue(forKey: model)
+                } else {
+                    dayModels[model] = merged
+                }
+            }
+
+            if dayModels.isEmpty {
+                existing.removeValue(forKey: day)
+            } else {
+                existing[day] = dayModels
+            }
+        }
+    }
 
     private static func applyFileDays(cache: inout CostUsageCache, fileDays: [String: [String: [Int]]], sign: Int) {
         for (day, models) in fileDays {

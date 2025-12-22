@@ -134,6 +134,145 @@ struct CostUsageScannerTests {
         #expect(report.data[0].totalTokens == 355)
         #expect((report.data[0].costUSD ?? 0) > 0)
     }
+
+    @Test
+    func codexIncrementalParsingUsesPreviousTotals() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2025, month: 12, day: 20)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+
+        let model = "openai/gpt-5.2-codex"
+        let normalized = CostUsagePricing.normalizeCodexModel(model)
+        let turnContext: [String: Any] = [
+            "type": "turn_context",
+            "timestamp": iso0,
+            "payload": [
+                "model": model,
+            ],
+        ]
+        let firstTokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso1,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "total_token_usage": [
+                        "input_tokens": 100,
+                        "cached_input_tokens": 20,
+                        "output_tokens": 10,
+                    ],
+                    "model": model,
+                ],
+            ],
+        ]
+
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "session.jsonl",
+            contents: env.jsonl([turnContext, firstTokenCount]))
+
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+        let first = CostUsageScanner.parseCodexFile(fileURL: fileURL, range: range)
+        #expect(first.parsedBytes > 0)
+        #expect(first.lastTotals?.input == 100)
+        #expect(first.lastTotals?.cached == 20)
+        #expect(first.lastTotals?.output == 10)
+
+        let secondTokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso2,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "total_token_usage": [
+                        "input_tokens": 160,
+                        "cached_input_tokens": 40,
+                        "output_tokens": 16,
+                    ],
+                    "model": model,
+                ],
+            ],
+        ]
+        try env.jsonl([turnContext, firstTokenCount, secondTokenCount])
+            .write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let delta = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: range,
+            startOffset: first.parsedBytes,
+            initialModel: first.lastModel,
+            initialTotals: first.lastTotals)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = delta.days[dayKey]?[normalized] ?? []
+        #expect(packed.count >= 3)
+        #expect(packed[0] == 60)
+        #expect(packed[1] == 20)
+        #expect(packed[2] == 6)
+    }
+
+    @Test
+    func claudeIncrementalParsingReadsAppendedLinesOnly() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2025, month: 12, day: 20)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+
+        let model = "claude-sonnet-4-20250514"
+        let normalized = CostUsagePricing.normalizeClaudeModel(model)
+        let first: [String: Any] = [
+            "type": "assistant",
+            "timestamp": iso0,
+            "message": [
+                "model": model,
+                "usage": [
+                    "input_tokens": 200,
+                    "cache_creation_input_tokens": 50,
+                    "cache_read_input_tokens": 25,
+                    "output_tokens": 80,
+                ],
+            ],
+        ]
+        let fileURL = try env.writeClaudeProjectFile(
+            relativePath: "project-a/session-a.jsonl",
+            contents: env.jsonl([first]))
+
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+        let firstParse = CostUsageScanner.parseClaudeFile(fileURL: fileURL, range: range)
+        #expect(firstParse.parsedBytes > 0)
+
+        let second: [String: Any] = [
+            "type": "assistant",
+            "timestamp": iso1,
+            "message": [
+                "model": model,
+                "usage": [
+                    "input_tokens": 40,
+                    "cache_creation_input_tokens": 10,
+                    "cache_read_input_tokens": 5,
+                    "output_tokens": 20,
+                ],
+            ],
+        ]
+        try env.jsonl([first, second]).write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let delta = CostUsageScanner.parseClaudeFile(
+            fileURL: fileURL,
+            range: range,
+            startOffset: firstParse.parsedBytes)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = delta.days[dayKey]?[normalized] ?? []
+        #expect(packed.count >= 4)
+        #expect(packed[0] == 40)
+        #expect(packed[1] == 5)
+        #expect(packed[2] == 10)
+        #expect(packed[3] == 20)
+    }
 }
 
 private struct CostUsageTestEnvironment {
