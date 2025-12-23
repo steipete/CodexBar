@@ -424,9 +424,14 @@ extension StatusItemController {
         var isHighlighted = false
     }
 
+    private final class MenuHostingView<Content: View>: NSHostingView<Content> {
+        override var allowsVibrancy: Bool { true }
+    }
+
     @MainActor
     private final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, MenuCardHighlighting {
         private let highlightState: MenuCardHighlightState
+        override var allowsVibrancy: Bool { true }
 
         init(rootView: Content, highlightState: MenuCardHighlightState) {
             self.highlightState = highlightState
@@ -487,14 +492,34 @@ extension StatusItemController {
                 }
         }
 
+        private struct MenuSelectionMaterialBackground: NSViewRepresentable {
+            let cornerRadius: CGFloat
+
+            func makeNSView(context: Context) -> NSVisualEffectView {
+                let view = NSVisualEffectView()
+                view.material = .selection
+                view.blendingMode = .withinWindow
+                view.state = .active
+                view.isEmphasized = true
+                view.wantsLayer = true
+                view.layer?.cornerRadius = cornerRadius
+                if #available(macOS 13.0, *) {
+                    view.layer?.cornerCurve = .continuous
+                }
+                view.layer?.masksToBounds = true
+                return view
+            }
+
+            func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+        }
+
         @ViewBuilder
         private var highlightBackground: some View {
             GeometryReader { proxy in
                 let topInset: CGFloat = 1
                 let bottomInset: CGFloat = 1
                 let height = max(0, proxy.size.height - self.highlightExclusionHeight - topInset - bottomInset)
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(MenuHighlightStyle.selectionBackground(self.highlightState.isHighlighted))
+                MenuSelectionMaterialBackground(cornerRadius: 6)
                     .frame(height: height, alignment: .top)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.horizontal, 6)
@@ -552,7 +577,7 @@ extension StatusItemController {
 
         let submenu = NSMenu()
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown)
-        let hosting = NSHostingView(rootView: chartView)
+        let hosting = MenuHostingView(rootView: chartView)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: Self.menuCardWidth, height: 1))
         hosting.layoutSubtreeIfNeeded()
         let size = hosting.fittingSize
@@ -572,7 +597,7 @@ extension StatusItemController {
 
         let submenu = NSMenu()
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown)
-        let hosting = NSHostingView(rootView: chartView)
+        let hosting = MenuHostingView(rootView: chartView)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: Self.menuCardWidth, height: 1))
         hosting.layoutSubtreeIfNeeded()
         let size = hosting.fittingSize
@@ -596,7 +621,7 @@ extension StatusItemController {
             provider: provider,
             daily: tokenSnapshot.daily,
             totalCostUSD: tokenSnapshot.last30DaysCostUSD)
-        let hosting = NSHostingView(rootView: chartView)
+        let hosting = MenuHostingView(rootView: chartView)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: Self.menuCardWidth, height: 1))
         hosting.layoutSubtreeIfNeeded()
         let size = hosting.fittingSize
