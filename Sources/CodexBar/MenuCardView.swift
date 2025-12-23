@@ -702,8 +702,8 @@ extension UsageMenuCardView.Model {
 
     private static func providerCostSection(
         provider: UsageProvider,
-        cost: ProviderCostSnapshot?
-    ) -> ProviderCostSection? {
+        cost: ProviderCostSnapshot?) -> ProviderCostSection?
+    {
         guard provider == .claude else { return nil }
         guard let cost else { return nil }
         guard cost.limit > 0 else { return nil }

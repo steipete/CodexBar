@@ -17,23 +17,23 @@ enum MenuHighlightStyle {
     static let normalSecondaryText = Color(nsColor: .secondaryLabelColor)
 
     static func primary(_ highlighted: Bool) -> Color {
-        highlighted ? Self.selectionText : Self.normalPrimaryText
+        highlighted ? self.selectionText : self.normalPrimaryText
     }
 
     static func secondary(_ highlighted: Bool) -> Color {
-        highlighted ? Self.selectionText : Self.normalSecondaryText
+        highlighted ? self.selectionText : self.normalSecondaryText
     }
 
     static func error(_ highlighted: Bool) -> Color {
-        highlighted ? Self.selectionText : Color(nsColor: .systemRed)
+        highlighted ? self.selectionText : Color(nsColor: .systemRed)
     }
 
     static func progressTrack(_ highlighted: Bool) -> Color {
-        highlighted ? Self.selectionText.opacity(0.35) : Color.secondary.opacity(0.25)
+        highlighted ? self.selectionText.opacity(0.35) : Color.secondary.opacity(0.25)
     }
 
     static func progressTint(_ highlighted: Bool, fallback: Color) -> Color {
-        highlighted ? Self.selectionText : fallback
+        highlighted ? self.selectionText : fallback
     }
 
     static func selectionBackground(_ highlighted: Bool) -> Color {

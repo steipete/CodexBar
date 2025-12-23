@@ -919,11 +919,13 @@ final class UsageStore {
             description: response.status.description,
             updatedAt: response.page?.updatedAt)
     }
+}
 
+extension UsageStore {
     func debugDumpClaude() async {
         let output = await self.claudeFetcher.debugRawProbe(model: "sonnet")
         let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("codexbar-claude-probe.txt")
-        try? output.write(to: url, atomically: true, encoding: String.Encoding.utf8)
+        try? output.write(to: url, atomically: true, encoding: .utf8)
         await MainActor.run {
             let snippet = String(output.prefix(180)).replacingOccurrences(of: "\n", with: " ")
             self.errors[.claude] = "[Claude] \(snippet) (saved: \(url.path))"
@@ -940,26 +942,15 @@ final class UsageStore {
             _ = await MainActor.run { NSWorkspace.shared.open(url) }
             return url
         } catch {
-            await MainActor.run { self.errors[provider] = "Failed to save log: \(error.localizedDescription)" }
+            await MainActor.run {
+                self.errors[provider] = "Failed to save log: \(error.localizedDescription)"
+            }
             return nil
         }
     }
 
     func debugClaudeDump() async -> String {
         await ClaudeStatusProbe.latestDumps()
-    }
-
-    private func detectVersions() {
-        Task.detached { [claudeFetcher] in
-            let codexVer = Self.readCLI("codex", args: ["-s", "read-only", "-a", "untrusted", "--version"])
-            let claudeVer = claudeFetcher.detectVersion()
-            let geminiVer = Self.readCLI("gemini", args: ["--version"])
-            await MainActor.run {
-                self.codexVersion = codexVer
-                self.claudeVersion = claudeVer
-                self.geminiVersion = geminiVer
-            }
-        }
     }
 
     func debugLog(for provider: UsageProvider) async -> String {
@@ -988,20 +979,30 @@ final class UsageStore {
                             let web = try await ClaudeWebAPIFetcher.fetchUsage { msg in lines.append(msg) }
                             lines.append("")
                             lines.append("Web API summary:")
-                            lines.append("session_used=\(web.sessionPercentUsed)% resetsAt=\(web.sessionResetsAt?.description ?? "nil")")
+
+                            let sessionReset = web.sessionResetsAt?.description ?? "nil"
+                            lines.append("session_used=\(web.sessionPercentUsed)% resetsAt=\(sessionReset)")
+
                             if let weekly = web.weeklyPercentUsed {
-                                lines.append("weekly_used=\(weekly)% resetsAt=\(web.weeklyResetsAt?.description ?? "nil")")
+                                let weeklyReset = web.weeklyResetsAt?.description ?? "nil"
+                                lines.append("weekly_used=\(weekly)% resetsAt=\(weeklyReset)")
                             } else {
                                 lines.append("weekly_used=nil")
                             }
+
                             lines.append("opus_used=\(web.opusPercentUsed?.description ?? "nil")")
+
                             if let extra = web.extraUsageCost {
-                                lines.append(
-                                    "extra_usage used=\(extra.used) limit=\(extra.limit) currency=\(extra.currencyCode) " +
-                                        "period=\(extra.period ?? "nil") resetsAt=\(extra.resetsAt?.description ?? "nil")")
+                                let resetsAt = extra.resetsAt?.description ?? "nil"
+                                let period = extra.period ?? "nil"
+                                let line =
+                                    "extra_usage used=\(extra.used) limit=\(extra.limit) " +
+                                    "currency=\(extra.currencyCode) period=\(period) resetsAt=\(resetsAt)"
+                                lines.append(line)
                             } else {
                                 lines.append("extra_usage=nil")
                             }
+
                             return lines.joined(separator: "\n")
                         } catch {
                             lines.append("Web API failed: \(error.localizedDescription)")
@@ -1038,6 +1039,19 @@ final class UsageStore {
         }
     }
 
+    private func detectVersions() {
+        Task.detached { [claudeFetcher] in
+            let codexVer = Self.readCLI("codex", args: ["-s", "read-only", "-a", "untrusted", "--version"])
+            let claudeVer = claudeFetcher.detectVersion()
+            let geminiVer = Self.readCLI("gemini", args: ["--version"])
+            await MainActor.run {
+                self.codexVersion = codexVer
+                self.claudeVersion = claudeVer
+                self.geminiVersion = geminiVer
+            }
+        }
+    }
+
     private nonisolated static func readCLI(_ cmd: String, args: [String]) -> String? {
         let env = ProcessInfo.processInfo.environment
         var pathEnv = env
@@ -1068,9 +1082,7 @@ final class UsageStore {
             !text.isEmpty else { return nil }
         return text
     }
-}
 
-extension UsageStore {
     private func refreshPathDebugInfo() {
         self.pathDebugInfo = PathBuilder.debugSnapshot(purposes: [.rpc, .tty, .nodeTooling])
     }
