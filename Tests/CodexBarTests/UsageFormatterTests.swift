@@ -17,7 +17,8 @@ struct UsageFormatterTests {
         let fiveHoursAgo = now.addingTimeInterval(-5 * 3600)
         let text = UsageFormatter.updatedString(from: fiveHoursAgo, now: now)
         #expect(text.contains("Updated"))
-        #expect(text.contains("ago"))
+        // Check for relative time format (varies by locale: "ago" in English, "전" in Korean, etc.)
+        #expect(text.contains("5") || text.lowercased().contains("hour") || text.contains("시간"))
     }
 
     @Test

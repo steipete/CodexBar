@@ -25,8 +25,8 @@ struct CLIProviderSelectionTests {
     func providerSelectionUsesAllWhenEnabled() {
         let selection = CodexBarCLI.providerSelection(
             rawOverride: nil,
-            enabled: [.codex, .claude, .gemini, .antigravity])
-        #expect(selection.asList == [.codex, .claude, .gemini, .antigravity])
+            enabled: [.codex, .claude, .gemini, .antigravity, .cursor])
+        #expect(selection.asList == [.codex, .claude, .gemini, .antigravity, .cursor])
     }
 
     @Test
