@@ -23,6 +23,9 @@ struct StatusMenuTests {
         if let geminiMeta = registry.metadata[.gemini] {
             settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
         }
+        if let antigravityMeta = registry.metadata[.antigravity] {
+            settings.setProviderEnabled(provider: .antigravity, metadata: antigravityMeta, enabled: false)
+        }
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, settings: settings)
@@ -40,6 +43,9 @@ struct StatusMenuTests {
         // No providers enabled: fall back to Codex.
         if let claudeMeta = registry.metadata[.claude] {
             settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+        if let antigravityMeta = registry.metadata[.antigravity] {
+            settings.setProviderEnabled(provider: .antigravity, metadata: antigravityMeta, enabled: false)
         }
         let unmappedMenu = controller.makeMenu()
         controller.menuWillOpen(unmappedMenu)
