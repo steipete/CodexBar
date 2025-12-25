@@ -48,6 +48,8 @@ enum CostUsageScanner {
             return CCUsageDailyReport(data: [], summary: nil)
         case .antigravity:
             return CCUsageDailyReport(data: [], summary: nil)
+        case .cursor:
+            return CCUsageDailyReport(data: [], summary: nil)
         }
     }
 

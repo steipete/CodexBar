@@ -9,6 +9,7 @@ enum IconStyle {
     case claude
     case gemini
     case antigravity
+    case cursor
     case combined
 }
 
@@ -158,6 +159,7 @@ final class UsageStore {
     var claudeVersion: String?
     var geminiVersion: String?
     var antigravityVersion: String?
+    var cursorVersion: String?
     var claudeAccountEmail: String?
     var claudeAccountOrganization: String?
     var isRefreshing = false
@@ -260,6 +262,7 @@ final class UsageStore {
         case .claude: self.claudeVersion
         case .gemini: self.geminiVersion
         case .antigravity: self.antigravityVersion
+        case .cursor: self.cursorVersion
         }
     }
 
@@ -282,6 +285,7 @@ final class UsageStore {
     var iconStyle: IconStyle {
         let enabled = self.enabledProviders()
         if enabled.count > 1 { return .combined }
+        if self.isEnabled(.cursor) { return .cursor }
         if self.isEnabled(.antigravity) { return .antigravity }
         if self.isEnabled(.gemini) { return .gemini }
         if self.isEnabled(.claude) { return .claude }
@@ -292,7 +296,8 @@ final class UsageStore {
         (self.isEnabled(.codex) && self.lastCodexError != nil) ||
             (self.isEnabled(.claude) && self.lastClaudeError != nil) ||
             (self.isEnabled(.gemini) && self.errors[.gemini] != nil) ||
-            (self.isEnabled(.antigravity) && self.errors[.antigravity] != nil)
+            (self.isEnabled(.antigravity) && self.errors[.antigravity] != nil) ||
+            (self.isEnabled(.cursor) && self.errors[.cursor] != nil)
     }
 
     func enabledProviders() -> [UsageProvider] {
@@ -1003,6 +1008,10 @@ extension UsageStore {
             case .antigravity:
                 let text = "Antigravity debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.antigravity] = text }
+                return text
+            case .cursor:
+                let text = "Cursor debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.cursor] = text }
                 return text
             }
         }.value

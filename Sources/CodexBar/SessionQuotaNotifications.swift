@@ -44,6 +44,7 @@ final class SessionQuotaNotifier {
         case .claude: "Claude"
         case .gemini: "Gemini"
         case .antigravity: "Antigravity"
+        case .cursor: "Cursor"
         }
 
         let (title, body) = switch transition {

@@ -27,6 +27,7 @@ struct ProviderRegistry {
         let claudeMeta = metadata[.claude]!
         let geminiMeta = metadata[.gemini]!
         let antigravityMeta = metadata[.antigravity]!
+        let cursorMeta = metadata[.cursor]!
 
         let codexSpec = ProviderSpec(
             style: .codex,
@@ -71,11 +72,21 @@ struct ProviderRegistry {
                 return try snap.toUsageSnapshot()
             })
 
+        let cursorSpec = ProviderSpec(
+            style: .cursor,
+            isEnabled: { settings.isProviderEnabled(provider: .cursor, metadata: cursorMeta) },
+            fetch: {
+                let probe = CursorStatusProbe()
+                let snap = try await probe.fetch()
+                return snap.toUsageSnapshot()
+            })
+
         return [
             .codex: codexSpec,
             .claude: claudeSpec,
             .gemini: geminiSpec,
             .antigravity: antigravitySpec,
+            .cursor: cursorSpec,
         ]
     }
 

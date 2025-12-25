@@ -33,6 +33,7 @@ enum ProviderChoice: String, AppEnum {
         case .claude: self = .claude
         case .gemini: self = .gemini
         case .antigravity: self = .antigravity
+        case .cursor: return nil // Cursor not yet supported in widgets
         }
     }
 }

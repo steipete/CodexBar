@@ -54,6 +54,8 @@ extension UsageStore {
             return "Gemini cost summary is not supported."
         case .antigravity:
             return "Antigravity cost summary is not supported."
+        case .cursor:
+            return "Cursor cost summary is not supported."
         }
     }
 }

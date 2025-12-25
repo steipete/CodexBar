@@ -570,7 +570,8 @@ enum IconRenderer {
         case .claude: 1
         case .gemini: 2
         case .antigravity: 3
-        case .combined: 4
+        case .cursor: 4
+        case .combined: 5
         }
     }
 
