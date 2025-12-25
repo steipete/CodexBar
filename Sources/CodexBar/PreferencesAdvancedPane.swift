@@ -21,6 +21,8 @@ struct AdvancedPane: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize(horizontal: false, vertical: true)
 
                     if self.settings.refreshFrequency == .manual {
                         Text("Auto-refresh is off; use the menu's Refresh command.")
