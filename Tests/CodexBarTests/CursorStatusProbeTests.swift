@@ -199,5 +199,42 @@ struct CursorStatusProbeTests {
         // Secondary should be nil when no team limit
         #expect(usageSnapshot.secondary == nil)
     }
+
+    // MARK: - Session Store Serialization
+
+    @Test
+    func sessionStoreSavesAndLoadsCookies() async throws {
+        let store = CursorSessionStore.shared
+
+        // Clear any existing cookies
+        await store.clearCookies()
+
+        // Create test cookies with Date properties
+        let cookieProps: [HTTPCookiePropertyKey: Any] = [
+            .name: "testCookie",
+            .value: "testValue",
+            .domain: "cursor.com",
+            .path: "/",
+            .expires: Date(timeIntervalSince1970: 1_800_000_000),
+            .secure: true,
+        ]
+
+        guard let cookie = HTTPCookie(properties: cookieProps) else {
+            Issue.record("Failed to create test cookie")
+            return
+        }
+
+        // Save cookies
+        await store.setCookies([cookie])
+
+        // Verify cookies are stored
+        let storedCookies = await store.getCookies()
+        #expect(storedCookies.count == 1)
+        #expect(storedCookies.first?.name == "testCookie")
+        #expect(storedCookies.first?.value == "testValue")
+
+        // Clean up
+        await store.clearCookies()
+    }
 }
 

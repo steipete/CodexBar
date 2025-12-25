@@ -346,10 +346,29 @@ public actor CursorSessionStore {
     }
 
     private func saveToDisk() {
+        // Convert cookie properties to JSON-serializable format
+        // Date values must be converted to TimeInterval (Double)
         let cookieData = self.sessionCookies.compactMap { cookie -> [String: Any]? in
-            cookie.properties as? [String: Any]
+            guard let props = cookie.properties else { return nil }
+            var serializable: [String: Any] = [:]
+            for (key, value) in props {
+                let keyString = key.rawValue
+                if let date = value as? Date {
+                    // Convert Date to TimeInterval for JSON compatibility
+                    serializable[keyString] = date.timeIntervalSince1970
+                    serializable[keyString + "_isDate"] = true
+                } else if let url = value as? URL {
+                    serializable[keyString] = url.absoluteString
+                    serializable[keyString + "_isURL"] = true
+                } else if JSONSerialization.isValidJSONObject([value]) || value is String || value is Bool || value is NSNumber {
+                    serializable[keyString] = value
+                }
+            }
+            return serializable
         }
-        guard let data = try? JSONSerialization.data(withJSONObject: cookieData, options: [.prettyPrinted]) else {
+        guard !cookieData.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: cookieData, options: [.prettyPrinted])
+        else {
             return
         }
         try? data.write(to: self.fileURL)
@@ -361,10 +380,26 @@ public actor CursorSessionStore {
         else { return }
 
         self.sessionCookies = cookieArray.compactMap { props in
-            HTTPCookie(properties: props.compactMapValues { value -> Any? in
-                // Convert string keys to HTTPCookiePropertyKey
-                value
-            } as? [HTTPCookiePropertyKey: Any] ?? [:])
+            // Convert back to HTTPCookiePropertyKey dictionary
+            var cookieProps: [HTTPCookiePropertyKey: Any] = [:]
+            for (key, value) in props {
+                // Skip marker keys
+                if key.hasSuffix("_isDate") || key.hasSuffix("_isURL") { continue }
+
+                let propKey = HTTPCookiePropertyKey(key)
+
+                // Check if this was a Date
+                if props[key + "_isDate"] as? Bool == true, let interval = value as? TimeInterval {
+                    cookieProps[propKey] = Date(timeIntervalSince1970: interval)
+                }
+                // Check if this was a URL
+                else if props[key + "_isURL"] as? Bool == true, let urlString = value as? String {
+                    cookieProps[propKey] = URL(string: urlString)
+                } else {
+                    cookieProps[propKey] = value
+                }
+            }
+            return HTTPCookie(properties: cookieProps)
         }
     }
 }
