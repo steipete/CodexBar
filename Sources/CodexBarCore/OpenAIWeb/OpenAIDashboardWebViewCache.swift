@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 import Foundation
 import WebKit
@@ -7,6 +8,7 @@ struct OpenAIDashboardWebViewLease {
     let log: (String) -> Void
     let release: () -> Void
 }
+#endif
 
 @MainActor
 final class OpenAIDashboardWebViewCache {

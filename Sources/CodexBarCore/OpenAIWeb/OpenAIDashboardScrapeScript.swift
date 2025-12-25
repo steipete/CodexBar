@@ -1,3 +1,4 @@
+#if os(macOS)
 let openAIDashboardScrapeScript = """
 
     (() => {
@@ -554,3 +555,4 @@ let openAIDashboardScrapeScript = """
     })();
     
 """
+#endif

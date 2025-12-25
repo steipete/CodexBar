@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 
 /// Reads cookies from Safari's `Cookies.binarycookies` file (macOS).
@@ -247,6 +248,7 @@ enum SafariCookieImporter {
         }
     }
 }
+#endif
 
 // MARK: - DataReader
 

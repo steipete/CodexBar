@@ -1,7 +1,13 @@
-import AppKit
 import CodexBarCore
 import Commander
+#if canImport(AppKit)
+import AppKit
+#endif
+#if canImport(Darwin)
 import Darwin
+#else
+import Glibc
+#endif
 import Foundation
 
 @main
@@ -64,6 +70,12 @@ enum CodexBarCLI {
         let useColor = Self.shouldUseColor()
         let fetcher = UsageFetcher()
         let claudeFetcher = ClaudeUsageFetcher()
+
+        #if !os(macOS)
+        if openaiWeb {
+            Self.exit(code: .failure, message: "Error: --openai-web is only supported on macOS.")
+        }
+        #endif
 
         var sections: [String] = []
         var payload: [ProviderPayload] = []
@@ -350,6 +362,7 @@ enum CodexBarCLI {
         options: OpenAIWebOptions,
         exitCode: inout ExitCode) async -> OpenAIDashboardSnapshot?
     {
+        #if os(macOS)
         // Ensure AppKit is initialized before using WebKit in a CLI.
         _ = NSApplication.shared
 
@@ -398,6 +411,14 @@ enum CodexBarCLI {
             }
             return nil
         }
+        #else
+        _ = usage
+        _ = fetcher
+        _ = options
+        exitCode = .failure
+        fputs("Error: OpenAI web access is only supported on macOS.\n", stderr)
+        return nil
+        #endif
     }
 
     private static func renderOpenAIWebDashboardText(_ dash: OpenAIDashboardSnapshot) -> String {
@@ -462,7 +483,7 @@ enum CodexBarCLI {
         if let message {
             fputs("\(message)\n", stderr)
         }
-        Darwin.exit(code.rawValue)
+        Self.platformExit(code.rawValue)
     }
 
     static func printVersion() -> Never {
@@ -471,7 +492,7 @@ enum CodexBarCLI {
         } else {
             print("CodexBar")
         }
-        Darwin.exit(0)
+        Self.platformExit(0)
     }
 
     static func printHelp(for command: String?) -> Never {
@@ -482,7 +503,15 @@ enum CodexBarCLI {
         default:
             print(Self.rootHelp(version: version))
         }
-        Darwin.exit(0)
+        Self.platformExit(0)
+    }
+
+    private static func platformExit(_ code: Int32) -> Never {
+        #if canImport(Darwin)
+        Darwin.exit(code)
+        #else
+        Glibc.exit(code)
+        #endif
     }
 
     static func usageHelp(version: String) -> String {
@@ -495,7 +524,7 @@ enum CodexBarCLI {
 
         Description:
           Print usage from enabled providers as text (default) or JSON. Honors your in-app toggles.
-          When --openai-web is set, CodexBar imports browser cookies (Safari → Chrome)
+          When --openai-web is set (macOS only), CodexBar imports browser cookies (Safari → Chrome)
           and fetches the OpenAI web dashboard.
 
         Examples:
@@ -534,6 +563,14 @@ enum CodexBarCLI {
 // MARK: - Options & decoding helpers
 
 private struct UsageOptions: CommanderParsable {
+    private static let openAIWebHelp: String = {
+        #if os(macOS)
+        "Fetch OpenAI web dashboard data (imports browser cookies)"
+        #else
+        "Fetch OpenAI web dashboard data (macOS only)"
+        #endif
+    }()
+
     @Option(name: .long("provider"), help: "Provider to query: codex | claude | gemini | both | all")
     var provider: ProviderSelection?
 
@@ -552,7 +589,7 @@ private struct UsageOptions: CommanderParsable {
     @Flag(name: .long("status"), help: "Fetch and include provider status")
     var status: Bool = false
 
-    @Flag(name: .long("openai-web"), help: "Fetch OpenAI web dashboard data (imports browser cookies)")
+    @Flag(name: .long("openai-web"), help: Self.openAIWebHelp)
     var openaiWeb: Bool = false
 
     @Option(name: .long("openai-web-timeout"), help: "OpenAI web dashboard fetch timeout (seconds)")

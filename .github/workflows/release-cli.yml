@@ -1,0 +1,82 @@
+name: Release Linux CLI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-cli:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runs-on: ubuntu-24.04
+          - name: linux-arm64
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Swift 6.2.1
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.2.1"
+
+      - name: Build CodexBarCLI (release)
+        run: swift build -c release --product CodexBarCLI --static-swift-stdlib
+
+      - name: Package
+        id: pkg
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+          if [[ -z "$TAG" ]]; then
+            echo "Missing tag (GITHUB_REF_NAME)." >&2
+            exit 1
+          fi
+
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64) ARCH="x86_64" ;;
+            aarch64|arm64) ARCH="aarch64" ;;
+          esac
+
+          BIN_DIR="$(swift build -c release --product CodexBarCLI --static-swift-stdlib --show-bin-path)"
+          OUT_DIR="$(mktemp -d)"
+          install -m 0755 "$BIN_DIR/CodexBarCLI" "$OUT_DIR/CodexBarCLI"
+          ln -s "CodexBarCLI" "$OUT_DIR/codexbar"
+
+          ASSET="CodexBarCLI-${TAG}-linux-${ARCH}.tar.gz"
+          (cd "$OUT_DIR" && tar czf "$ASSET" CodexBarCLI codexbar)
+          sha256sum "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
+
+          echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release assets
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          OUT_DIR="${{ steps.pkg.outputs.out_dir }}"
+          ASSET="${{ steps.pkg.outputs.asset }}"
+          gh release upload "$TAG" "$OUT_DIR/$ASSET" "$OUT_DIR/$ASSET.sha256" --clobber
+
+      - name: Upload workflow artifact (manual runs)
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: codexbar-linux-cli-${{ matrix.name }}
+          path: |
+            ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}
+            ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}.sha256

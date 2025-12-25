@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(os.log)
 import os.log
+#endif
 
 public struct GeminiModelQuota: Sendable {
     public let modelId: String
@@ -151,6 +153,7 @@ public struct GeminiStatusProbe: Sendable {
             homeDirectory: self.homeDirectory,
             dataLoader: self.dataLoader)
 
+        #if canImport(os.log)
         if #available(macOS 13.0, *) {
             os_log(
                 "[GeminiStatusProbe] API fetch ok — daily %.1f%% left",
@@ -158,6 +161,7 @@ public struct GeminiStatusProbe: Sendable {
                 type: .info,
                 snap.dailyPercentLeft ?? -1)
         }
+        #endif
         return snap
     }
 
@@ -171,6 +175,7 @@ public struct GeminiStatusProbe: Sendable {
     {
         let creds = try Self.loadCredentials(homeDirectory: homeDirectory)
 
+        #if canImport(os.log)
         if #available(macOS 13.0, *) {
             let expiryStr = creds.expiryDate.map { "\($0)" } ?? "nil"
             let hasRefresh = creds.refreshToken != nil
@@ -182,22 +187,29 @@ public struct GeminiStatusProbe: Sendable {
                 hasRefresh,
                 "\(Date())")
         }
+        #endif
 
         guard let storedAccessToken = creds.accessToken, !storedAccessToken.isEmpty else {
+            #if canImport(os.log)
             os_log("[GeminiStatusProbe] No access token found", log: .default, type: .error)
+            #endif
             throw GeminiStatusProbeError.notLoggedIn
         }
 
         var accessToken = storedAccessToken
         if let expiry = creds.expiryDate, expiry < Date() {
+            #if canImport(os.log)
             os_log(
                 "[GeminiStatusProbe] Token expired at %{public}@, attempting refresh",
                 log: .default,
                 type: .info,
                 "\(expiry)")
+            #endif
 
             guard let refreshToken = creds.refreshToken else {
+                #if canImport(os.log)
                 os_log("[GeminiStatusProbe] No refresh token available", log: .default, type: .error)
+                #endif
                 throw GeminiStatusProbeError.notLoggedIn
             }
 
@@ -459,10 +471,12 @@ public struct GeminiStatusProbe: Sendable {
         request.timeoutInterval = timeout
 
         guard let oauthCreds = Self.extractOAuthCredentials() else {
+            #if canImport(os.log)
             os_log(
                 "[GeminiStatusProbe] Could not extract OAuth credentials from Gemini CLI",
                 log: .default,
                 type: .error)
+            #endif
             throw GeminiStatusProbeError.apiError("Could not find Gemini CLI OAuth configuration")
         }
 
@@ -481,11 +495,13 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
+            #if canImport(os.log)
             os_log(
                 "[GeminiStatusProbe] Token refresh failed with status %{public}d",
                 log: .default,
                 type: .error,
                 httpResponse.statusCode)
+            #endif
             throw GeminiStatusProbeError.notLoggedIn
         }
 
@@ -498,7 +514,9 @@ public struct GeminiStatusProbe: Sendable {
         // Update stored credentials with new token
         try Self.updateStoredCredentials(json, homeDirectory: homeDirectory)
 
+        #if canImport(os.log)
         os_log("[GeminiStatusProbe] Token refreshed successfully", log: .default, type: .info)
+        #endif
         return newAccessToken
     }
 

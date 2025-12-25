@@ -137,6 +137,91 @@ struct PathBuilderTests {
             home: "/home/test")
         #expect(resolved == "/login/bin/claude")
     }
+
+    @Test
+    func resolvesClaudeFromAliasWhenOtherLookupsFail() {
+        let aliasPath = "/home/test/.claude/local/bin/claude"
+        let fm = MockFileManager(executables: [aliasPath])
+        var aliasCalled = false
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String)
+            -> String? = { tool, shell, timeout, _, home in
+                aliasCalled = true
+                #expect(tool == "claude")
+                #expect(shell == "/bin/zsh")
+                #expect(timeout == 2.0)
+                #expect(home == "/home/test")
+                return aliasPath
+            }
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in
+            nil
+        }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/home/test")
+
+        #expect(aliasCalled)
+        #expect(resolved == aliasPath)
+    }
+
+    @Test
+    func resolvesCodexFromAliasWhenOtherLookupsFail() {
+        let aliasPath = "/home/test/.codex/bin/codex"
+        let fm = MockFileManager(executables: [aliasPath])
+        var aliasCalled = false
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String)
+            -> String? = { tool, shell, timeout, _, home in
+                aliasCalled = true
+                #expect(tool == "codex")
+                #expect(shell == "/bin/zsh")
+                #expect(timeout == 2.0)
+                #expect(home == "/home/test")
+                return aliasPath
+            }
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in
+            nil
+        }
+
+        let resolved = BinaryLocator.resolveCodexBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/home/test")
+
+        #expect(aliasCalled)
+        #expect(resolved == aliasPath)
+    }
+
+    @Test
+    func skipsAliasWhenCommandVResolves() {
+        let path = "/shell/bin/claude"
+        let fm = MockFileManager(executables: [path])
+        var aliasCalled = false
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in
+            aliasCalled = true
+            return "/alias/claude"
+        }
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in
+            path
+        }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/home/test")
+
+        #expect(!aliasCalled)
+        #expect(resolved == path)
+    }
 }
 
 private final class MockFileManager: FileManager {

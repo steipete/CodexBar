@@ -41,3 +41,33 @@ jobs:
 
       - name: Swift Test
         run: swift test --parallel
+
+  build-linux-cli:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runs-on: ubuntu-24.04
+          - name: linux-arm64
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Swift 6.2.1
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.2.1"
+
+      - name: Build CodexBarCLI (release, static Swift stdlib)
+        run: swift build -c release --product CodexBarCLI --static-swift-stdlib
+
+      - name: Smoke test CodexBarCLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(swift build -c release --product CodexBarCLI --static-swift-stdlib --show-bin-path)"
+          BIN="$BIN_DIR/CodexBarCLI"
+          "$BIN" --help >/dev/null
+          "$BIN" --version >/dev/null

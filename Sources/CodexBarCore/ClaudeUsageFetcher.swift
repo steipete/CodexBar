@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(os.log)
 import os.log
+#endif
 
 public protocol ClaudeUsageFetching: Sendable {
     func loadLatestUsage(model: String) async throws -> ClaudeUsageSnapshot
@@ -208,9 +210,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private func loadViaWebAPI() async throws -> ClaudeUsageSnapshot {
         let webData = try await ClaudeWebAPIFetcher.fetchUsage { msg in
+            #if canImport(os.log)
             if #available(macOS 13.0, *) {
                 os_log("%{public}@", log: .default, type: .debug, msg)
             }
+            #endif
         }
         // Convert web API data to ClaudeUsageSnapshot format
         let primary = RateWindow(

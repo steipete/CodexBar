@@ -40,6 +40,8 @@ public enum BinaryLocator {
         env: [String: String] = ProcessInfo.processInfo.environment,
         loginPATH: [String]? = LoginShellPathCache.shared.current,
         commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
@@ -49,6 +51,7 @@ public enum BinaryLocator {
             env: env,
             loginPATH: loginPATH,
             commandV: commandV,
+            aliasResolver: aliasResolver,
             fileManager: fileManager,
             home: home)
     }
@@ -57,6 +60,8 @@ public enum BinaryLocator {
         env: [String: String] = ProcessInfo.processInfo.environment,
         loginPATH: [String]? = LoginShellPathCache.shared.current,
         commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
@@ -66,6 +71,7 @@ public enum BinaryLocator {
             env: env,
             loginPATH: loginPATH,
             commandV: commandV,
+            aliasResolver: aliasResolver,
             fileManager: fileManager,
             home: home)
     }
@@ -74,6 +80,8 @@ public enum BinaryLocator {
         env: [String: String] = ProcessInfo.processInfo.environment,
         loginPATH: [String]? = LoginShellPathCache.shared.current,
         commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
@@ -83,6 +91,7 @@ public enum BinaryLocator {
             env: env,
             loginPATH: loginPATH,
             commandV: commandV,
+            aliasResolver: aliasResolver,
             fileManager: fileManager,
             home: home)
     }
@@ -94,8 +103,9 @@ public enum BinaryLocator {
         env: [String: String],
         loginPATH: [String]?,
         commandV: (String, String?, TimeInterval, FileManager) -> String?,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String?,
         fileManager: FileManager,
-        home _: String) -> String?
+        home: String) -> String?
     {
         // swiftlint:enable function_parameter_count
         // 1) Explicit override
@@ -127,6 +137,13 @@ public enum BinaryLocator {
             return shellHit
         }
 
+        // 4b) Alias fallback (login shell); only attempt after all standard lookups fail.
+        if let aliasHit = aliasResolver(name, env["SHELL"], 2.0, fileManager, home),
+           fileManager.isExecutableFile(atPath: aliasHit)
+        {
+            return aliasHit
+        }
+
         // 5) Minimal fallback
         let fallback = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
         if let pathHit = self.find(name, in: fallback, fileManager: fileManager) {
@@ -154,11 +171,53 @@ public enum ShellCommandLocator {
         _ timeout: TimeInterval,
         _ fileManager: FileManager) -> String?
     {
+        let text = self.runShellCapture(shell, timeout, "command -v \(tool)")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let text, !text.isEmpty else { return nil }
+
+        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        for line in lines.reversed() where line.hasPrefix("/") {
+            let path = line
+            if fileManager.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+
+        return nil
+    }
+
+    public static func resolveAlias(
+        _ tool: String,
+        _ shell: String?,
+        _ timeout: TimeInterval,
+        _ fileManager: FileManager,
+        _ home: String) -> String?
+    {
+        let command = "alias \(tool) 2>/dev/null; type -a \(tool) 2>/dev/null"
+        guard let text = self.runShellCapture(shell, timeout, command) else { return nil }
+        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        if let aliasPath = self.parseAliasPath(lines, tool: tool, home: home, fileManager: fileManager) {
+            return aliasPath
+        }
+
+        for line in lines {
+            if let path = self.extractPathCandidate(line: line, tool: tool, home: home),
+               fileManager.isExecutableFile(atPath: path)
+            {
+                return path
+            }
+        }
+
+        return nil
+    }
+
+    private static func runShellCapture(_ shell: String?, _ timeout: TimeInterval, _ command: String) -> String? {
         let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: shellPath)
         // Interactive login shell to pick up PATH mutations from shell init (nvm/fnm/mise).
-        process.arguments = ["-l", "-i", "-c", "command -v \(tool)"]
+        process.arguments = ["-l", "-i", "-c", command]
         let stdout = Pipe()
         process.standardOutput = stdout
         process.standardError = Pipe()
@@ -179,19 +238,63 @@ public enum ShellCommandLocator {
         }
 
         let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        guard let text = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !text.isEmpty else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 
-        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        for line in lines.reversed() where line.hasPrefix("/") {
-            let path = line
-            if fileManager.isExecutableFile(atPath: path) {
-                return path
+    private static func parseAliasPath(
+        _ lines: [String],
+        tool: String,
+        home: String,
+        fileManager: FileManager) -> String?
+    {
+        for line in lines {
+            if line.hasPrefix("alias \(tool)=") {
+                let value = line.replacingOccurrences(of: "alias \(tool)=", with: "")
+                if let path = self.extractAliasExpansion(value, home: home),
+                   fileManager.isExecutableFile(atPath: path)
+                {
+                    return path
+                }
+            }
+            if line.lowercased().contains("aliased to") {
+                if let range = line.range(of: "aliased to") {
+                    let value = line[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let path = self.extractAliasExpansion(String(value), home: home),
+                       fileManager.isExecutableFile(atPath: path)
+                    {
+                        return path
+                    }
+                }
             }
         }
-
         return nil
+    }
+
+    private static func extractAliasExpansion(_ raw: String, home: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: CharacterSet(charactersIn: " \t\"'`"))
+        guard !trimmed.isEmpty else { return nil }
+        let parts = trimmed.split(separator: " ").map(String.init)
+        guard let first = parts.first else { return nil }
+        return self.expandPath(first, home: home)
+    }
+
+    private static func extractPathCandidate(line: String, tool: String, home: String) -> String? {
+        let tokens = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+        for token in tokens {
+            let candidate = self.expandPath(token, home: home)
+            if candidate.hasPrefix("/"),
+               URL(fileURLWithPath: candidate).lastPathComponent == tool
+            {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private static func expandPath(_ raw: String, home: String) -> String {
+        if raw == "~" { return home }
+        if raw.hasPrefix("~/") { return home + String(raw.dropFirst()) }
+        return raw
     }
 }
 

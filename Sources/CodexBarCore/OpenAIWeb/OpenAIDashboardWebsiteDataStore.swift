@@ -1,3 +1,4 @@
+#if os(macOS)
 import CryptoKit
 import Foundation
 import WebKit
@@ -74,3 +75,4 @@ public enum OpenAIDashboardWebsiteDataStore {
         return UUID(uuid: uuidBytes)
     }
 }
+#endif

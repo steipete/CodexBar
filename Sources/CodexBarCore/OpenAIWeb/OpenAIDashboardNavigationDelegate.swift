@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import WebKit
 
@@ -31,6 +32,7 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
         self.completion(result)
     }
 }
+#endif
 
 extension WKWebView {
     var codexNavigationDelegate: NavigationDelegate? {

@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(os.log)
 import os.log
+#endif
 
 public struct AntigravityModelQuota: Sendable {
     public let label: String
@@ -143,7 +145,9 @@ public struct AntigravityStatusProbe: Sendable {
     private static let commandModelConfigPath =
         "/exa.language_server_pb.LanguageServerService/GetCommandModelConfigs"
     private static let unleashPath = "/exa.language_server_pb.LanguageServerService/GetUnleashData"
+    #if canImport(os.log)
     private static let log = Logger(subsystem: "com.steipete.codexbar", category: "antigravity")
+    #endif
 
     public init(timeout: TimeInterval = 8.0) {
         self.timeout = timeout
@@ -423,10 +427,12 @@ public struct AntigravityStatusProbe: Sendable {
                     timeout: timeout))
             return true
         } catch {
+            #if canImport(os.log)
             if #available(macOS 13.0, *) {
                 self.log
                     .debug("[Antigravity] Port \(port) probe failed: \(error.localizedDescription, privacy: .public)")
             }
+            #endif
             return false
         }
     }

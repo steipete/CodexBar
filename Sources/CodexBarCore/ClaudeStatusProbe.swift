@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(os.log)
 import os.log
+#endif
 
 public struct ClaudeStatusSnapshot: Sendable {
     public let sessionPercentLeft: Int?
@@ -68,6 +70,7 @@ public struct ClaudeStatusProbe: Sendable {
         let status = try? await Self.capture(subcommand: "/status", binary: resolved, timeout: min(timeout, 12))
         let snap = try Self.parse(text: usage, statusText: status)
 
+        #if canImport(os.log)
         if #available(macOS 13.0, *) {
             os_log(
                 "[ClaudeStatusProbe] CLI scrape ok — session %d%% left, week %d%% left, opus %d%% left",
@@ -77,6 +80,7 @@ public struct ClaudeStatusProbe: Sendable {
                 snap.weeklyPercentLeft ?? -1,
                 snap.opusPercentLeft ?? -1)
         }
+        #endif
         return snap
     }
 
