@@ -1,4 +1,8 @@
+#if canImport(Darwin)
 import Darwin
+#else
+import Glibc
+#endif
 import Foundation
 
 public enum SubprocessRunnerError: LocalizedError, Sendable {

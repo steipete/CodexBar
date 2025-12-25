@@ -1,4 +1,8 @@
+#if canImport(Darwin)
 import Darwin
+#else
+import Glibc
+#endif
 import Foundation
 
 /// Executes an interactive CLI inside a pseudo-terminal and returns all captured text.
