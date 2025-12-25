@@ -5,6 +5,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case claude
     case gemini
     case antigravity
+    case cursor
 }
 
 public struct ProviderMetadata: Sendable {
@@ -128,5 +129,20 @@ public enum ProviderDefaults {
             statusPageURL: nil,
             statusLinkURL: "https://www.google.com/appsstatus/dashboard/products/npdyhgECDJ6tB66MxXyo",
             statusWorkspaceProductID: "npdyhgECDJ6tB66MxXyo"),
+        .cursor: ProviderMetadata(
+            id: .cursor,
+            displayName: "Cursor",
+            sessionLabel: "Plan",
+            weeklyLabel: "On-Demand",
+            opusLabel: nil,
+            supportsOpus: false,
+            supportsCredits: true,
+            creditsHint: "On-demand usage beyond included plan limits.",
+            toggleTitle: "Show Cursor usage",
+            cliName: "cursor",
+            defaultEnabled: false,
+            dashboardURL: "https://cursor.com/dashboard?tab=usage",
+            statusPageURL: nil,
+            statusLinkURL: "https://status.cursor.com"),
     ]
 }
