@@ -4,6 +4,7 @@
 - Preferences: fix Advanced Display checkboxes and move the Quit button to the bottom of General.
 - Widgets: add a new “CodexBar Switcher” widget that lets you switch providers and remember the selection.
 - Menu: add a bit more padding to the provider switcher selection.
+- Dev: `compile_and_run.sh` now force-kills old instances to avoid launching duplicates.
 
 ## 0.14.0 — 2025-12-25
 - Antigravity: new local provider for the Antigravity language server (Claude + Gemini quotas) with an experimental toggle; improved plan display + debug output; clearer not-running/port errors; hide account switch.

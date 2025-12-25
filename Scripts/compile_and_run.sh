@@ -70,20 +70,39 @@ kill_claude_probes() {
 }
 
 kill_all_codexbar() {
-  for _ in {1..10}; do
+  is_running() {
+    pgrep -f "${APP_PROCESS_PATTERN}" >/dev/null 2>&1 \
+      || pgrep -f "${DEBUG_PROCESS_PATTERN}" >/dev/null 2>&1 \
+      || pgrep -f "${RELEASE_PROCESS_PATTERN}" >/dev/null 2>&1 \
+      || pgrep -x "CodexBar" >/dev/null 2>&1
+  }
+
+  # Phase 1: request termination (give the app time to exit cleanly).
+  for _ in {1..25}; do
     pkill -f "${APP_PROCESS_PATTERN}" 2>/dev/null || true
     pkill -f "${DEBUG_PROCESS_PATTERN}" 2>/dev/null || true
     pkill -f "${RELEASE_PROCESS_PATTERN}" 2>/dev/null || true
     pkill -x "CodexBar" 2>/dev/null || true
-    # If nothing remains, stop early.
-    if ! pgrep -f "${APP_PROCESS_PATTERN}" >/dev/null 2>&1 \
-      && ! pgrep -f "${DEBUG_PROCESS_PATTERN}" >/dev/null 2>&1 \
-      && ! pgrep -f "${RELEASE_PROCESS_PATTERN}" >/dev/null 2>&1 \
-      && ! pgrep -x "CodexBar" >/dev/null 2>&1; then
+    if ! is_running; then
       return 0
     fi
-    sleep 0.3
+    sleep 0.2
   done
+
+  # Phase 2: force kill any stragglers (avoids `open -n` creating multiple instances).
+  pkill -9 -f "${APP_PROCESS_PATTERN}" 2>/dev/null || true
+  pkill -9 -f "${DEBUG_PROCESS_PATTERN}" 2>/dev/null || true
+  pkill -9 -f "${RELEASE_PROCESS_PATTERN}" 2>/dev/null || true
+  pkill -9 -x "CodexBar" 2>/dev/null || true
+
+  for _ in {1..25}; do
+    if ! is_running; then
+      return 0
+    fi
+    sleep 0.2
+  done
+
+  fail "Failed to kill all CodexBar instances."
 }
 
 # 1) Ensure a single runner instance.
