@@ -2,129 +2,163 @@ import Foundation
 
 #if os(macOS)
 
-// MARK: - Factory Cookie Importer
+// MARK: - Factory Token Importer
 
-/// Imports Factory session cookies from Safari/Chrome/Firefox browsers
-public enum FactoryCookieImporter {
-    private static let sessionCookieNames: Set<String> = [
-        "wos-session",
-        "__Secure-next-auth.session-token",
-        "next-auth.session-token",
-        "__Host-authjs.csrf-token",
-        "authjs.session-token",
-    ]
+/// Imports Factory refresh tokens from Chrome localStorage (LevelDB)
+public enum FactoryTokenImporter {
+    private static let workosClientID = "client_01HNM792M5G5G1A2THWPXKFMXB"
 
-    public struct SessionInfo: Sendable {
-        public let cookies: [HTTPCookie]
+    public struct TokenInfo: Sendable {
+        public let accessToken: String
+        public let refreshToken: String
+        public let email: String?
         public let sourceLabel: String
 
-        public init(cookies: [HTTPCookie], sourceLabel: String) {
-            self.cookies = cookies
+        public init(accessToken: String, refreshToken: String, email: String?, sourceLabel: String) {
+            self.accessToken = accessToken
+            self.refreshToken = refreshToken
+            self.email = email
             self.sourceLabel = sourceLabel
-        }
-
-        public var cookieHeader: String {
-            self.cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
         }
     }
 
-    /// Attempts to import Factory cookies from Safari first, then Chrome, then Firefox
-    public static func importSession(logger: ((String) -> Void)? = nil) throws -> SessionInfo {
-        let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
-
-        // Try Safari first
-        do {
-            let safariRecords = try SafariCookieImporter.loadCookies(
-                matchingDomains: ["factory.ai", "app.factory.ai", "auth.factory.ai"],
-                logger: log)
-            if !safariRecords.isEmpty {
-                let httpCookies = SafariCookieImporter.makeHTTPCookies(safariRecords)
-                if httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
-                    log("Found \(httpCookies.count) Factory cookies in Safari")
-                    return SessionInfo(cookies: httpCookies, sourceLabel: "Safari")
-                } else {
-                    log("Safari cookies found, but no Factory session cookie present")
-                }
+    /// Attempts to import Factory refresh token and exchange for access token
+    public static func importSession(logger: ((String) -> Void)? = nil) async throws -> TokenInfo {
+        // Try stored refresh token first (most likely to be valid)
+        let storedToken = await FactorySessionStore.shared.getRefreshToken()
+        if let storedToken, !storedToken.isEmpty {
+            do {
+                return try await Self.exchangeRefreshToken(storedToken, source: "Stored", logger: logger)
+            } catch {
+                await FactorySessionStore.shared.clearSession()
             }
-        } catch {
-            log("Safari cookie import failed: \(error.localizedDescription)")
         }
 
-        // Try Chrome
-        do {
-            let chromeSources = try ChromeCookieImporter.loadCookiesFromAllProfiles(
-                matchingDomains: ["factory.ai", "app.factory.ai", "auth.factory.ai"])
-            for source in chromeSources where !source.records.isEmpty {
-                let httpCookies = source.records.compactMap { record -> HTTPCookie? in
-                    let domain = record.hostKey.hasPrefix(".") ? String(record.hostKey.dropFirst()) : record.hostKey
-                    var props: [HTTPCookiePropertyKey: Any] = [
-                        .domain: domain,
-                        .path: record.path,
-                        .name: record.name,
-                        .value: record.value,
-                        .secure: record.isSecure,
-                    ]
-                    if record.isHTTPOnly {
-                        props[.init("HttpOnly")] = "TRUE"
-                    }
-                    if record.expiresUTC > 0 {
-                        let unixTimestamp = Double(record.expiresUTC - 11_644_473_600_000_000) / 1_000_000
-                        props[.expires] = Date(timeIntervalSince1970: unixTimestamp)
-                    }
-                    return HTTPCookie(properties: props)
-                }
-                if httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
-                    log("Found \(httpCookies.count) Factory cookies in \(source.label)")
-                    return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
-                } else {
-                    log("Chrome source \(source.label) has no Factory session cookie")
-                }
-            }
-        } catch {
-            log("Chrome cookie import failed: \(error.localizedDescription)")
-        }
+        // Try Chrome - read all tokens from localStorage and try each until one works
+        let chromeTokens = (try? Self.readAllChromeRefreshTokens()) ?? []
 
-        // Try Firefox
-        do {
-            let firefoxSources = try FirefoxCookieImporter.loadCookiesFromAllProfiles(
-                matchingDomains: ["factory.ai", "app.factory.ai", "auth.factory.ai"])
-            for source in firefoxSources where !source.records.isEmpty {
-                let httpCookies = source.records.compactMap { record -> HTTPCookie? in
-                    let domain = record.host.hasPrefix(".") ? String(record.host.dropFirst()) : record.host
-                    var props: [HTTPCookiePropertyKey: Any] = [
-                        .domain: domain,
-                        .path: record.path,
-                        .name: record.name,
-                        .value: record.value,
-                        .secure: record.isSecure,
-                    ]
-                    if record.isHTTPOnly {
-                        props[.init("HttpOnly")] = "TRUE"
-                    }
-                    if let expires = record.expires {
-                        props[.expires] = expires
-                    }
-                    return HTTPCookie(properties: props)
-                }
-                if httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
-                    log("Found \(httpCookies.count) Factory cookies in \(source.label)")
-                    return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
-                } else {
-                    log("Firefox source \(source.label) has no Factory session cookie")
-                }
+        for token in chromeTokens {
+            do {
+                return try await Self.exchangeRefreshToken(token, source: "Chrome", logger: logger)
+            } catch {
+                continue
             }
-        } catch {
-            log("Firefox cookie import failed: \(error.localizedDescription)")
         }
 
         throw FactoryStatusProbeError.noSessionCookie
     }
 
-    /// Check if Factory session cookies are available
-    public static func hasSession(logger: ((String) -> Void)? = nil) -> Bool {
+    private static func readAllChromeRefreshTokens() throws -> [String] {
+        let fm = FileManager.default
+        let home = fm.homeDirectoryForCurrentUser
+        let chromePath = home.appendingPathComponent("Library/Application Support/Google/Chrome/Default/Local Storage/leveldb")
+
+        guard fm.fileExists(atPath: chromePath.path) else { return [] }
+
+        var foundTokens: [String] = []
+        var seenTokens: Set<String> = []
+
+        // Read .ldb and .log files, sorted by modification date (newest first)
+        let contents = (try? fm.contentsOfDirectory(at: chromePath, includingPropertiesForKeys: [.contentModificationDateKey]))?
+            .sorted { url1, url2 in
+                let date1 = (try? url1.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                let date2 = (try? url2.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                return date1 > date2
+            } ?? []
+
+        for file in contents {
+            let ext = file.pathExtension
+            guard ext == "ldb" || ext == "log" else { continue }
+            guard let data = try? Data(contentsOf: file) else { continue }
+
+            let content = String(decoding: data, as: UTF8.self)
+            guard content.contains("app.factory.ai") else { continue }
+
+            // Find tokens after "workos:refresh-token" marker
+            let marker = "workos:refresh-token"
+            var searchStart = content.startIndex
+
+            while let markerRange = content.range(of: marker, range: searchStart..<content.endIndex) {
+                searchStart = markerRange.upperBound
+
+                // Skip non-alphanumeric characters
+                var tokenStart = markerRange.upperBound
+                while tokenStart < content.endIndex && !content[tokenStart].isLetter && !content[tokenStart].isNumber {
+                    tokenStart = content.index(after: tokenStart)
+                }
+
+                // Read alphanumeric token
+                var tokenEnd = tokenStart
+                while tokenEnd < content.endIndex && (content[tokenEnd].isLetter || content[tokenEnd].isNumber) {
+                    tokenEnd = content.index(after: tokenEnd)
+                }
+
+                let token = String(content[tokenStart..<tokenEnd])
+                if token.count >= 20 && token.count <= 35 && !seenTokens.contains(token) {
+                    seenTokens.insert(token)
+                    foundTokens.append(token)
+                }
+            }
+        }
+
+        return foundTokens
+    }
+
+    private static func exchangeRefreshToken(
+        _ refreshToken: String,
+        source: String,
+        logger: ((String) -> Void)? = nil) async throws -> TokenInfo
+    {
+        let url = URL(string: "https://api.workos.com/user_management/authenticate")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let body: [String: Any] = [
+            "client_id": Self.workosClientID,
+            "grant_type": "refresh_token",
+            "refresh_token": refreshToken,
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FactoryStatusProbeError.networkError("Invalid response from WorkOS")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw FactoryStatusProbeError.notLoggedIn
+        }
+
+        struct WorkOSResponse: Codable {
+            let access_token: String
+            let refresh_token: String
+            let user: WorkOSUser?
+        }
+
+        struct WorkOSUser: Codable {
+            let email: String?
+        }
+
+        let workosResponse = try JSONDecoder().decode(WorkOSResponse.self, from: data)
+
+        // Store the new refresh token for future use (WorkOS tokens are single-use)
+        await FactorySessionStore.shared.setRefreshToken(workosResponse.refresh_token)
+
+        return TokenInfo(
+            accessToken: workosResponse.access_token,
+            refreshToken: workosResponse.refresh_token,
+            email: workosResponse.user?.email,
+            sourceLabel: source)
+    }
+
+    /// Check if Factory session is available
+    public static func hasSession(logger: ((String) -> Void)? = nil) async -> Bool {
         do {
-            let session = try self.importSession(logger: logger)
-            return !session.cookies.isEmpty
+            _ = try await Self.importSession(logger: logger)
+            return true
         } catch {
             return false
         }
@@ -147,12 +181,6 @@ public struct FactoryOrganization: Codable, Sendable {
     public let id: String?
     public let name: String?
     public let subscription: FactorySubscription?
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case name
-        case subscription
-    }
 }
 
 public struct FactorySubscription: Codable, Sendable {
@@ -193,14 +221,10 @@ public struct FactoryTokenUsage: Codable, Sendable {
     public let orgOverageLimit: Int64?
 }
 
-/// Helper for encoding arbitrary JSON
+/// Helper for decoding arbitrary JSON
 public struct AnyCodable: Codable, Sendable {
     public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if container.decodeNil() {
-            return
-        }
-        _ = try? container.decode([String: AnyCodable].self)
+        _ = try? decoder.singleValueContainer()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -212,34 +236,19 @@ public struct AnyCodable: Codable, Sendable {
 // MARK: - Factory Status Snapshot
 
 public struct FactoryStatusSnapshot: Sendable {
-    /// Standard token usage (user)
     public let standardUserTokens: Int64
-    /// Standard token usage (org total)
     public let standardOrgTokens: Int64
-    /// Standard token allowance
     public let standardAllowance: Int64
-    /// Premium token usage (user)
     public let premiumUserTokens: Int64
-    /// Premium token usage (org total)
     public let premiumOrgTokens: Int64
-    /// Premium token allowance
     public let premiumAllowance: Int64
-    /// Billing period start
     public let periodStart: Date?
-    /// Billing period end
     public let periodEnd: Date?
-    /// Plan name
     public let planName: String?
-    /// Factory tier (enterprise, team, etc.)
     public let tier: String?
-    /// Organization name
     public let organizationName: String?
-    /// User email
     public let accountEmail: String?
-    /// User ID
     public let userId: String?
-    /// Raw JSON for debugging
-    public let rawJSON: String?
 
     public init(
         standardUserTokens: Int64,
@@ -254,8 +263,7 @@ public struct FactoryStatusSnapshot: Sendable {
         tier: String?,
         organizationName: String?,
         accountEmail: String?,
-        userId: String?,
-        rawJSON: String?)
+        userId: String?)
     {
         self.standardUserTokens = standardUserTokens
         self.standardOrgTokens = standardOrgTokens
@@ -270,12 +278,9 @@ public struct FactoryStatusSnapshot: Sendable {
         self.organizationName = organizationName
         self.accountEmail = accountEmail
         self.userId = userId
-        self.rawJSON = rawJSON
     }
 
-    /// Convert to UsageSnapshot for the common provider interface
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary: Standard tokens used (as percentage of allowance, capped reasonably)
         let standardPercent = self.calculateUsagePercent(
             used: self.standardUserTokens,
             allowance: self.standardAllowance)
@@ -286,7 +291,6 @@ public struct FactoryStatusSnapshot: Sendable {
             resetsAt: self.periodEnd,
             resetDescription: self.periodEnd.map { Self.formatResetDate($0) })
 
-        // Secondary: Premium tokens used
         let premiumPercent = self.calculateUsagePercent(
             used: self.premiumUserTokens,
             allowance: self.premiumAllowance)
@@ -297,7 +301,6 @@ public struct FactoryStatusSnapshot: Sendable {
             resetsAt: self.periodEnd,
             resetDescription: self.periodEnd.map { Self.formatResetDate($0) })
 
-        // Format login method as tier + plan
         let loginMethod: String? = {
             var parts: [String] = []
             if let tier = self.tier, !tier.isEmpty {
@@ -321,11 +324,8 @@ public struct FactoryStatusSnapshot: Sendable {
     }
 
     private func calculateUsagePercent(used: Int64, allowance: Int64) -> Double {
-        // Treat very large allowances (> 1 trillion) as unlimited
         let unlimitedThreshold: Int64 = 1_000_000_000_000
         if allowance > unlimitedThreshold {
-            // For unlimited, show a token count-based pseudo-percentage (capped at 100%)
-            // Use 100M tokens as a reference point for "100%"
             let referenceTokens: Double = 100_000_000
             return min(100, Double(used) / referenceTokens * 100)
         }
@@ -368,8 +368,7 @@ public enum FactoryStatusProbeError: LocalizedError, Sendable {
 public actor FactorySessionStore {
     public static let shared = FactorySessionStore()
 
-    private var sessionCookies: [HTTPCookie] = []
-    private var bearerToken: String?
+    private var refreshToken: String?
     private let fileURL: URL
 
     private init() {
@@ -383,85 +382,41 @@ public actor FactorySessionStore {
         Task { await self.loadFromDisk() }
     }
 
-    public func setCookies(_ cookies: [HTTPCookie]) {
-        self.sessionCookies = cookies
+    public func setRefreshToken(_ token: String?) {
+        self.refreshToken = token
         self.saveToDisk()
     }
 
-    public func getCookies() -> [HTTPCookie] {
-        self.sessionCookies
-    }
-
-    public func setBearerToken(_ token: String?) {
-        self.bearerToken = token
-    }
-
-    public func getBearerToken() -> String? {
-        self.bearerToken
+    public func getRefreshToken() -> String? {
+        self.refreshToken
     }
 
     public func clearSession() {
-        self.sessionCookies = []
-        self.bearerToken = nil
+        self.refreshToken = nil
         try? FileManager.default.removeItem(at: self.fileURL)
     }
 
     public func hasValidSession() -> Bool {
-        !self.sessionCookies.isEmpty || self.bearerToken != nil
+        self.refreshToken != nil && !self.refreshToken!.isEmpty
     }
 
     private func saveToDisk() {
-        let cookieData = self.sessionCookies.compactMap { cookie -> [String: Any]? in
-            guard let props = cookie.properties else { return nil }
-            var serializable: [String: Any] = [:]
-            for (key, value) in props {
-                let keyString = key.rawValue
-                if let date = value as? Date {
-                    serializable[keyString] = date.timeIntervalSince1970
-                    serializable[keyString + "_isDate"] = true
-                } else if let url = value as? URL {
-                    serializable[keyString] = url.absoluteString
-                    serializable[keyString + "_isURL"] = true
-                } else if JSONSerialization.isValidJSONObject([value]) ||
-                    value is String ||
-                    value is Bool ||
-                    value is NSNumber
-                {
-                    serializable[keyString] = value
-                }
-            }
-            return serializable
-        }
-        guard !cookieData.isEmpty,
-              let data = try? JSONSerialization.data(withJSONObject: cookieData, options: [.prettyPrinted])
-        else {
+        guard let token = self.refreshToken, !token.isEmpty else {
+            try? FileManager.default.removeItem(at: self.fileURL)
             return
         }
-        try? data.write(to: self.fileURL)
+        let data: [String: String] = ["refreshToken": token]
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted])
+        else { return }
+        try? jsonData.write(to: self.fileURL)
     }
 
     private func loadFromDisk() {
         guard let data = try? Data(contentsOf: self.fileURL),
-              let cookieArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+              let token = json["refreshToken"]
         else { return }
-
-        self.sessionCookies = cookieArray.compactMap { props in
-            var cookieProps: [HTTPCookiePropertyKey: Any] = [:]
-            for (key, value) in props {
-                if key.hasSuffix("_isDate") || key.hasSuffix("_isURL") { continue }
-
-                let propKey = HTTPCookiePropertyKey(key)
-
-                if props[key + "_isDate"] as? Bool == true, let interval = value as? TimeInterval {
-                    cookieProps[propKey] = Date(timeIntervalSince1970: interval)
-                } else if props[key + "_isURL"] as? Bool == true, let urlString = value as? String {
-                    cookieProps[propKey] = URL(string: urlString)
-                } else {
-                    cookieProps[propKey] = value
-                }
-            }
-            return HTTPCookie(properties: cookieProps)
-        }
+        self.refreshToken = token
     }
 }
 
@@ -476,60 +431,26 @@ public struct FactoryStatusProbe: Sendable {
         self.timeout = timeout
     }
 
-    /// Fetch Factory usage using browser cookies (Safari/Chrome/Firefox) with fallback to stored session
     public func fetch(logger: ((String) -> Void)? = nil) async throws -> FactoryStatusSnapshot {
-        let log: (String) -> Void = { msg in logger?("[factory] \(msg)") }
-
-        // Try importing cookies from Safari/Chrome/Firefox first
-        do {
-            let session = try FactoryCookieImporter.importSession(logger: log)
-            log("Using cookies from \(session.sourceLabel)")
-            return try await self.fetchWithCookieHeader(session.cookieHeader)
-        } catch {
-            log("Browser cookie import failed: \(error.localizedDescription)")
-        }
-
-        // Fall back to stored session cookies
-        let storedCookies = await FactorySessionStore.shared.getCookies()
-        if !storedCookies.isEmpty {
-            log("Using stored session cookies")
-            let cookieHeader = storedCookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-            do {
-                return try await self.fetchWithCookieHeader(cookieHeader)
-            } catch {
-                if case FactoryStatusProbeError.notLoggedIn = error {
-                    await FactorySessionStore.shared.clearSession()
-                    log("Stored session invalid, cleared")
-                } else {
-                    log("Stored session failed: \(error.localizedDescription)")
-                }
-            }
-        }
-
-        throw FactoryStatusProbeError.noSessionCookie
+        let tokenInfo = try await FactoryTokenImporter.importSession(logger: logger)
+        return try await self.fetchWithBearerToken(tokenInfo.accessToken, email: tokenInfo.email)
     }
 
-    private func fetchWithCookieHeader(_ cookieHeader: String) async throws -> FactoryStatusSnapshot {
-        // First fetch auth info to get user ID and org info
-        let authInfo = try await self.fetchAuthInfo(cookieHeader: cookieHeader)
+    private func fetchWithBearerToken(_ bearerToken: String, email: String?) async throws -> FactoryStatusSnapshot {
+        let authInfo = try await self.fetchAuthInfo(bearerToken: bearerToken)
+        let usageData = try await self.fetchUsage(bearerToken: bearerToken)
 
-        // Extract user ID from JWT in the auth response or use a default endpoint
-        let userId = self.extractUserIdFromAuth(authInfo)
-
-        // Fetch usage data
-        let usageData = try await self.fetchUsage(cookieHeader: cookieHeader, userId: userId)
-
-        return self.buildSnapshot(authInfo: authInfo, usageData: usageData, userId: userId)
+        return self.buildSnapshot(authInfo: authInfo, usageData: usageData, email: email)
     }
 
-    private func fetchAuthInfo(cookieHeader: String) async throws -> FactoryAuthResponse {
+    private func fetchAuthInfo(bearerToken: String) async throws -> FactoryAuthResponse {
         let url = self.baseURL.appendingPathComponent("/api/app/auth/me")
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         request.setValue("web-app", forHTTPHeaderField: "x-factory-client")
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -547,8 +468,7 @@ public struct FactoryStatusProbe: Sendable {
         }
 
         do {
-            let decoder = JSONDecoder()
-            return try decoder.decode(FactoryAuthResponse.self, from: data)
+            return try JSONDecoder().decode(FactoryAuthResponse.self, from: data)
         } catch {
             let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
             throw FactoryStatusProbeError
@@ -556,21 +476,17 @@ public struct FactoryStatusProbe: Sendable {
         }
     }
 
-    private func fetchUsage(cookieHeader: String, userId: String?) async throws -> FactoryUsageResponse {
+    private func fetchUsage(bearerToken: String) async throws -> FactoryUsageResponse {
         let url = self.baseURL.appendingPathComponent("/api/organization/subscription/usage")
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         request.setValue("web-app", forHTTPHeaderField: "x-factory-client")
 
-        // Build request body
-        var body: [String: Any] = ["useCache": true]
-        if let userId {
-            body["userId"] = userId
-        }
+        let body: [String: Any] = ["useCache": true]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -588,8 +504,7 @@ public struct FactoryStatusProbe: Sendable {
         }
 
         do {
-            let decoder = JSONDecoder()
-            return try decoder.decode(FactoryUsageResponse.self, from: data)
+            return try JSONDecoder().decode(FactoryUsageResponse.self, from: data)
         } catch {
             let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
             throw FactoryStatusProbeError
@@ -597,16 +512,10 @@ public struct FactoryStatusProbe: Sendable {
         }
     }
 
-    private func extractUserIdFromAuth(_ auth: FactoryAuthResponse) -> String? {
-        // The user ID might be in the organization or we might need to parse JWT
-        // For now, return nil and let the API handle it
-        nil
-    }
-
     private func buildSnapshot(
         authInfo: FactoryAuthResponse,
         usageData: FactoryUsageResponse,
-        userId: String?) -> FactoryStatusSnapshot
+        email: String?) -> FactoryStatusSnapshot
     {
         let usage = usageData.usage
 
@@ -625,15 +534,14 @@ public struct FactoryStatusProbe: Sendable {
             planName: authInfo.organization?.subscription?.orbSubscription?.plan?.name,
             tier: authInfo.organization?.subscription?.factoryTier,
             organizationName: authInfo.organization?.name,
-            accountEmail: nil, // Email is in JWT, not in auth response body
-            userId: userId ?? usageData.userId,
-            rawJSON: nil)
+            accountEmail: email,
+            userId: usageData.userId)
     }
 }
 
 #else
 
-// MARK: - Factory (Unsupported)
+// MARK: - Factory (Unsupported Platforms)
 
 public enum FactoryStatusProbeError: LocalizedError, Sendable {
     case notSupported
@@ -660,13 +568,9 @@ public struct FactoryStatusSnapshot: Sendable {
 }
 
 public struct FactoryStatusProbe: Sendable {
-    public init(baseURL: URL = URL(string: "https://app.factory.ai")!, timeout: TimeInterval = 15.0) {
-        _ = baseURL
-        _ = timeout
-    }
+    public init(baseURL: URL = URL(string: "https://app.factory.ai")!, timeout: TimeInterval = 15.0) {}
 
     public func fetch(logger: ((String) -> Void)? = nil) async throws -> FactoryStatusSnapshot {
-        _ = logger
         throw FactoryStatusProbeError.notSupported
     }
 }
