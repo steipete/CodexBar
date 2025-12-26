@@ -247,7 +247,9 @@ struct MenuDescriptor {
         }
 
         let dashboardTarget = provider ?? store.enabledProviders().first
-        if dashboardTarget == .codex || dashboardTarget == .claude || dashboardTarget == .cursor || dashboardTarget == .factory {
+        if dashboardTarget == .codex || dashboardTarget == .claude || dashboardTarget == .cursor || dashboardTarget ==
+            .factory
+        {
             entries.append(.action("Usage Dashboard", .dashboard))
         }
         entries.append(.action("Status Page", .statusPage))

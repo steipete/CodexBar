@@ -52,7 +52,8 @@ public enum FactoryTokenImporter {
     private static func readAllChromeRefreshTokens() throws -> [String] {
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
-        let chromePath = home.appendingPathComponent("Library/Application Support/Google/Chrome/Default/Local Storage/leveldb")
+        let chromePath = home
+            .appendingPathComponent("Library/Application Support/Google/Chrome/Default/Local Storage/leveldb")
 
         guard fm.fileExists(atPath: chromePath.path) else { return [] }
 
@@ -60,10 +61,14 @@ public enum FactoryTokenImporter {
         var seenTokens: Set<String> = []
 
         // Read .ldb and .log files, sorted by modification date (newest first)
-        let contents = (try? fm.contentsOfDirectory(at: chromePath, includingPropertiesForKeys: [.contentModificationDateKey]))?
+        let contents = (try? fm.contentsOfDirectory(
+            at: chromePath,
+            includingPropertiesForKeys: [.contentModificationDateKey]))?
             .sorted { url1, url2 in
-                let date1 = (try? url1.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-                let date2 = (try? url2.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                let date1 = (try? url1.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? .distantPast
+                let date2 = (try? url2.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? .distantPast
                 return date1 > date2
             } ?? []
 
@@ -72,7 +77,7 @@ public enum FactoryTokenImporter {
             guard ext == "ldb" || ext == "log" else { continue }
             guard let data = try? Data(contentsOf: file) else { continue }
 
-            let content = String(decoding: data, as: UTF8.self)
+            guard let content = String(bytes: data, encoding: .isoLatin1) else { continue }
             guard content.contains("app.factory.ai") else { continue }
 
             // Find tokens after "workos:refresh-token" marker
@@ -84,18 +89,18 @@ public enum FactoryTokenImporter {
 
                 // Skip non-alphanumeric characters
                 var tokenStart = markerRange.upperBound
-                while tokenStart < content.endIndex && !content[tokenStart].isLetter && !content[tokenStart].isNumber {
+                while tokenStart < content.endIndex, !content[tokenStart].isLetter, !content[tokenStart].isNumber {
                     tokenStart = content.index(after: tokenStart)
                 }
 
                 // Read alphanumeric token
                 var tokenEnd = tokenStart
-                while tokenEnd < content.endIndex && (content[tokenEnd].isLetter || content[tokenEnd].isNumber) {
+                while tokenEnd < content.endIndex, content[tokenEnd].isLetter || content[tokenEnd].isNumber {
                     tokenEnd = content.index(after: tokenEnd)
                 }
 
                 let token = String(content[tokenStart..<tokenEnd])
-                if token.count >= 20 && token.count <= 35 && !seenTokens.contains(token) {
+                if token.count >= 20, token.count <= 35, !seenTokens.contains(token) {
                     seenTokens.insert(token)
                     foundTokens.append(token)
                 }
@@ -158,7 +163,7 @@ public enum FactoryTokenImporter {
     /// Check if Factory session is available
     public static func hasSession(logger: ((String) -> Void)? = nil) async -> Bool {
         do {
-            _ = try await Self.importSession(logger: logger)
+            _ = try await self.importSession(logger: logger)
             return true
         } catch {
             return false
