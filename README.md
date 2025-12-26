@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 15+ menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, and z.ai limits visible (session + weekly where available) and when each window resets. One status item per provider; enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 15+ menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, z.ai, and Factory/Droid limits visible (session + weekly where available) and when each window resets. One status item per provider; enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 ## Install
 - Homebrew (UI app; Sparkle disabled): `brew install --cask steipete/tap/codexbar` (update via `brew upgrade --cask steipete/tap/codexbar`)
@@ -14,6 +14,7 @@ Login story
 - **Gemini** — Uses the Gemini CLI `/stats` output for quota, with OAuth-backed API fetches for plan/limits.
 - **Antigravity** — Local Antigravity language server probe; conservative parsing and no external auth.
 - **z.ai** — Calls the z.ai quota API (API token stored in Keychain via Preferences → Providers) to show Tokens + MCP windows; dashboard: https://z.ai/manage-apikey/subscription
+- **Factory/Droid** — Fetches standard and premium token usage from app.factory.ai API using WorkOS Bearer tokens. Token import reads WorkOS refresh tokens from Chrome localStorage (LevelDB format); tokens are single-use and automatically rotated on each exchange. Dashboard: https://app.factory.ai/settings/billing
 - **Provider detection** — On first launch we detect installed CLIs and enable Codex by default (Claude turns on when the `claude` binary is present). Toggle providers in Settings → Providers or rerun detection after installing a CLI.
 - **Privacy note** — Wondering if CodexBar scans your disk? It doesn't; see the discussion and audit notes in [issue #12](https://github.com/steipete/CodexBar/issues/12).
 
@@ -25,7 +26,7 @@ Icon bar mapping (grayscale)
 ![CodexBar Screenshot](codexbar.png)
 
 ## Features
-- Multi-provider: Codex, Claude Code, Cursor, Gemini, Antigravity, and z.ai can be shown together; enable what you use in Settings → Providers.
+- Multi-provider: Codex, Claude Code, Cursor, Gemini, Antigravity, z.ai, and Factory/Droid can be shown together; enable what you use in Settings → Providers.
 - Codex path: prefers the codex app-server RPC (run with `-s read-only -a untrusted`) for rate limits and credits; falls back to a PTY scrape of `codex /status`, keeping cached credits when RPC is unavailable.
 - Codex optional: “Access OpenAI via web” adds Code review remaining + Usage breakdown + Credits usage history (dashboard scrape) by reusing existing browser cookies; no passwords stored.
 - Claude path: runs `claude /usage` and `/status` in a local PTY (no tmux) to parse session/week/Sonnet percentages, reset strings, and account email/org/login method; debug view can copy the latest raw scrape.

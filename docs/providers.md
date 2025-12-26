@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, z.ai, Factory)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -49,4 +49,14 @@ read_when:
 - Status: Statuspage.io (Cursor).
 - Details in `docs/cursor.md`.
 
-See also: `docs/claude.md`, `docs/antigravity.md`, `docs/cursor.md`.
+## Factory (Droid)
+- Web-based: fetches usage from app.factory.ai API using WorkOS Bearer tokens.
+- Token import: reads WorkOS refresh tokens from Chrome localStorage (LevelDB format).
+- Token lifecycle: WorkOS refresh tokens are single-use; each exchange returns a new token that is stored for future use.
+- Shows standard and premium token usage with billing cycle reset.
+- Supports Enterprise, Team, and Pro tiers.
+- Dashboard: `https://app.factory.ai/settings/billing`
+- Status: no public status integration yet.
+- Details in `docs/factory.md`.
+
+See also: `docs/claude.md`, `docs/antigravity.md`, `docs/cursor.md`, `docs/factory.md`.
