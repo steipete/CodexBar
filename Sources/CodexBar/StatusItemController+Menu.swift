@@ -383,7 +383,10 @@ extension StatusItemController {
                 showBottomDivider: false,
                 bottomPadding: usageBottomPadding,
                 width: width)
-            let usageSubmenu = webItems.hasUsageBreakdown ? self.makeUsageBreakdownSubmenu() : nil
+            let usageSubmenu = self.makeUsageSubmenu(
+                provider: provider,
+                snapshot: self.store.snapshot(for: provider),
+                webItems: webItems)
             menu.addItem(self.makeMenuCardItem(
                 usageView,
                 id: "menuCardUsage",
@@ -630,6 +633,53 @@ extension StatusItemController {
         item.submenu = submenu
         menu.addItem(item)
         return true
+    }
+
+    private func makeUsageSubmenu(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        webItems: OpenAIWebMenuItems) -> NSMenu?
+    {
+        if provider == .codex, webItems.hasUsageBreakdown {
+            return self.makeUsageBreakdownSubmenu()
+        }
+        if provider == .zai {
+            return self.makeZaiUsageDetailsSubmenu(snapshot: snapshot)
+        }
+        return nil
+    }
+
+    private func makeZaiUsageDetailsSubmenu(snapshot: UsageSnapshot?) -> NSMenu? {
+        guard let timeLimit = snapshot?.zaiUsage?.timeLimit else { return nil }
+        guard !timeLimit.usageDetails.isEmpty else { return nil }
+
+        let submenu = NSMenu()
+        let titleItem = NSMenuItem(title: "MCP details", action: nil, keyEquivalent: "")
+        titleItem.isEnabled = false
+        submenu.addItem(titleItem)
+
+        if let window = timeLimit.windowLabel {
+            let item = NSMenuItem(title: "Window: \(window)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            submenu.addItem(item)
+        }
+        if let resetTime = timeLimit.nextResetTime {
+            let reset = UsageFormatter.resetDescription(from: resetTime)
+            let item = NSMenuItem(title: "Resets: \(reset)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            submenu.addItem(item)
+        }
+        submenu.addItem(.separator())
+
+        let sortedDetails = timeLimit.usageDetails.sorted {
+            $0.modelCode.localizedCaseInsensitiveCompare($1.modelCode) == .orderedAscending
+        }
+        for detail in sortedDetails {
+            let usage = UsageFormatter.tokenCountString(detail.usage)
+            let item = NSMenuItem(title: "\(detail.modelCode): \(usage)", action: nil, keyEquivalent: "")
+            submenu.addItem(item)
+        }
+        return submenu
     }
 
     private func makeUsageBreakdownSubmenu() -> NSMenu? {
@@ -1233,6 +1283,8 @@ private final class ProviderSwitcherView: NSView {
             NSColor(deviceRed: 73 / 255, green: 163 / 255, blue: 176 / 255, alpha: 1)
         case .claude:
             NSColor(deviceRed: 204 / 255, green: 124 / 255, blue: 94 / 255, alpha: 1)
+        case .zai:
+            NSColor(deviceRed: 232 / 255, green: 90 / 255, blue: 106 / 255, alpha: 1)
         case .gemini:
             NSColor(deviceRed: 171 / 255, green: 135 / 255, blue: 234 / 255, alpha: 1) // #AB87EA
         case .antigravity:
@@ -1248,6 +1300,7 @@ private final class ProviderSwitcherView: NSView {
         switch provider {
         case .codex: "Codex"
         case .claude: "Claude"
+        case .zai: "z.ai"
         case .gemini: "Gemini"
         case .antigravity: "Antigravity"
         case .cursor: "Cursor"

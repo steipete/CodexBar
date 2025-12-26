@@ -9,8 +9,8 @@ struct CLIProviderSelectionTests {
     func helpIncludesGeminiAndAll() {
         let usage = CodexBarCLI.usageHelp(version: "0.0.0")
         let root = CodexBarCLI.rootHelp(version: "0.0.0")
-        #expect(usage.contains("codex|claude|gemini|antigravity|both|all"))
-        #expect(root.contains("codex|claude|gemini|antigravity|both|all"))
+        #expect(usage.contains("codex|claude|zai|gemini|antigravity|both|all"))
+        #expect(root.contains("codex|claude|zai|gemini|antigravity|both|all"))
         #expect(usage.contains("codexbar usage --provider gemini"))
         #expect(usage.contains("codexbar usage --format json --provider all --pretty"))
         #expect(root.contains("codexbar --provider gemini"))
@@ -46,8 +46,8 @@ struct CLIProviderSelectionTests {
     func providerSelectionUsesAllWhenEnabled() {
         let selection = CodexBarCLI.providerSelection(
             rawOverride: nil,
-            enabled: [.codex, .claude, .cursor, .gemini, .antigravity])
-        #expect(selection.asList == [.codex, .claude, .cursor, .gemini, .antigravity])
+            enabled: [.codex, .claude, .zai, .cursor, .gemini, .antigravity])
+        #expect(selection.asList == [.codex, .claude, .zai, .cursor, .gemini, .antigravity])
     }
 
     @Test

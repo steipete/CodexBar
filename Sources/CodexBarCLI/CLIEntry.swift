@@ -241,6 +241,8 @@ enum CodexBarCLI {
             VersionDetector.codexVersion()
         case .claude:
             ClaudeUsageFetcher().detectVersion()
+        case .zai:
+            nil
         case .gemini:
             VersionDetector.geminiVersion()
         case .antigravity:
@@ -256,6 +258,7 @@ enum CodexBarCLI {
         let source = switch provider {
         case .codex: "codex-cli"
         case .claude: "claude"
+        case .zai: "zai"
         case .gemini: "gemini-cli"
         case .antigravity: "antigravity"
         case .cursor: "cursor"
@@ -370,6 +373,25 @@ enum CodexBarCLI {
             }
         }
 
+        if provider == .zai {
+            guard let apiKey = ZaiSettingsReader.apiToken() else {
+                return ProviderFetchOutcome(
+                    result: .failure(ZaiSettingsError.missingToken),
+                    dashboard: nil,
+                    sourceOverride: nil)
+            }
+            do {
+                let zaiUsage = try await ZaiUsageFetcher.fetchUsage(apiKey: apiKey)
+                let snapshot = zaiUsage.toUsageSnapshot()
+                return ProviderFetchOutcome(
+                    result: .success((usage: snapshot, credits: nil)),
+                    dashboard: nil,
+                    sourceOverride: "zai")
+            } catch {
+                return ProviderFetchOutcome(result: .failure(error), dashboard: nil, sourceOverride: nil)
+            }
+        }
+
         if provider == .claude, context.sourceMode.usesWeb {
             do {
                 let webUsage = try await ClaudeUsageFetcher(dataSource: .web).loadLatestUsage(model: "sonnet")
@@ -439,11 +461,17 @@ enum CodexBarCLI {
                         primary: usage.primary,
                         secondary: usage.secondary,
                         tertiary: usage.opus,
+                        providerCost: usage.providerCost,
                         updatedAt: usage.updatedAt,
                         accountEmail: usage.accountEmail,
                         accountOrganization: usage.accountOrganization,
                         loginMethod: usage.loginMethod),
                     credits: nil))
+            case .zai:
+                let apiKey = ZaiSettingsReader.apiToken()
+                guard let apiKey else { return .failure(ZaiSettingsError.missingToken) }
+                let usage = try await ZaiUsageFetcher.fetchUsage(apiKey: apiKey)
+                return .success((usage: usage.toUsageSnapshot(), credits: nil))
             case .gemini:
                 let probe = GeminiStatusProbe()
                 let snap = try await probe.fetch()
@@ -777,7 +805,7 @@ enum CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar usage [--format text|json] [--provider codex|claude|gemini|antigravity|both|all]
+          codexbar usage [--format text|json] [--provider codex|claude|zai|gemini|antigravity|both|all]
                        [--no-credits] [--pretty] [--status] [--source <auto|web|cli|oauth>]
                        [--web-timeout <seconds>] [--web-debug-dump-html] [--antigravity-plan-debug]
 
@@ -804,7 +832,7 @@ enum CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar [--format text|json] [--provider codex|claude|gemini|antigravity|both|all]
+          codexbar [--format text|json] [--provider codex|claude|zai|gemini|antigravity|both|all]
                   [--no-credits] [--pretty] [--status] [--source <auto|web|cli|oauth>]
                   [--web-timeout <seconds>] [--web-debug-dump-html] [--antigravity-plan-debug]
 
@@ -868,6 +896,7 @@ private struct UsageOptions: CommanderParsable {
 enum ProviderSelection: Sendable, ExpressibleFromArgument {
     case codex
     case claude
+    case zai
     case gemini
     case antigravity
     case cursor
@@ -880,6 +909,7 @@ enum ProviderSelection: Sendable, ExpressibleFromArgument {
         switch argument.lowercased() {
         case "codex": self = .codex
         case "claude": self = .claude
+        case "zai", "z.ai": self = .zai
         case "gemini": self = .gemini
         case "antigravity": self = .antigravity
         case "cursor": self = .cursor
@@ -894,6 +924,7 @@ enum ProviderSelection: Sendable, ExpressibleFromArgument {
         switch provider {
         case .codex: self = .codex
         case .claude: self = .claude
+        case .zai: self = .zai
         case .gemini: self = .gemini
         case .antigravity: self = .antigravity
         case .cursor: self = .cursor
@@ -905,12 +936,13 @@ enum ProviderSelection: Sendable, ExpressibleFromArgument {
         switch self {
         case .codex: [.codex]
         case .claude: [.claude]
+        case .zai: [.zai]
         case .gemini: [.gemini]
         case .antigravity: [.antigravity]
         case .cursor: [.cursor]
         case .factory: [.factory]
         case .both: [.codex, .claude]
-        case .all: [.codex, .claude, .cursor, .gemini, .antigravity, .factory]
+        case .all: [.codex, .claude, .zai, .cursor, .gemini, .antigravity, .factory]
         case let .custom(providers): providers
         }
     }

@@ -18,7 +18,7 @@ struct AppDelegateTests {
         }
         defer { StatusItemController.factory = StatusItemController.defaultFactory }
 
-        let settings = SettingsStore()
+        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, settings: settings)
         let account = fetcher.loadAccountInfo()

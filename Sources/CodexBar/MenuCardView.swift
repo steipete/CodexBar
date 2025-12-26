@@ -589,7 +589,7 @@ extension UsageMenuCardView.Model {
         case .codex:
             if let email = snapshot?.accountEmail, !email.isEmpty { return email }
             if let email = account.email, !email.isEmpty { return email }
-        case .claude, .gemini, .antigravity, .cursor, .factory:
+        case .claude, .zai, .gemini, .antigravity, .cursor, .factory:
             if let email = snapshot?.accountEmail, !email.isEmpty { return email }
         }
         return ""
@@ -600,7 +600,7 @@ extension UsageMenuCardView.Model {
         case .codex:
             if let plan = snapshot?.loginMethod, !plan.isEmpty { return self.planDisplay(plan) }
             if let plan = account.plan, !plan.isEmpty { return Self.planDisplay(plan) }
-        case .claude, .gemini, .antigravity, .cursor, .factory:
+        case .claude, .zai, .gemini, .antigravity, .cursor, .factory:
             if let plan = snapshot?.loginMethod, !plan.isEmpty { return self.planDisplay(plan) }
         }
         return nil
@@ -635,6 +635,9 @@ extension UsageMenuCardView.Model {
         guard let snapshot = input.snapshot else { return [] }
         var metrics: [Metric] = []
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
+        let zaiUsage = input.provider == .zai ? snapshot.zaiUsage : nil
+        let zaiTokenDetail = Self.zaiLimitDetailText(limit: zaiUsage?.tokenLimit)
+        let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
         metrics.append(Metric(
             id: "primary",
             title: input.metadata.sessionLabel,
@@ -642,7 +645,7 @@ extension UsageMenuCardView.Model {
                 input.usageBarsShowUsed ? snapshot.primary.usedPercent : snapshot.primary.remainingPercent),
             percentStyle: percentStyle,
             resetText: Self.resetText(for: snapshot.primary, prefersCountdown: true),
-            detailText: nil))
+            detailText: input.provider == .zai ? zaiTokenDetail : nil))
         if let weekly = snapshot.secondary {
             let paceText = UsagePaceText.weekly(provider: input.provider, window: weekly, now: input.now)
             metrics.append(Metric(
@@ -651,7 +654,7 @@ extension UsageMenuCardView.Model {
                 percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: weekly, prefersCountdown: true),
-                detailText: paceText))
+                detailText: input.provider == .zai ? zaiTimeDetail : paceText))
         }
         if input.metadata.supportsOpus, let opus = snapshot.tertiary {
             metrics.append(Metric(
@@ -674,6 +677,14 @@ extension UsageMenuCardView.Model {
                 detailText: nil))
         }
         return metrics
+    }
+
+    private static func zaiLimitDetailText(limit: ZaiLimitEntry?) -> String? {
+        guard let limit else { return nil }
+        let currentStr = UsageFormatter.tokenCountString(limit.currentValue)
+        let usageStr = UsageFormatter.tokenCountString(limit.usage)
+        let remainingStr = UsageFormatter.tokenCountString(limit.remaining)
+        return "\(currentStr) / \(usageStr) (\(remainingStr) remaining)"
     }
 
     private static func creditsLine(
@@ -763,6 +774,8 @@ extension UsageMenuCardView.Model {
             Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
         case .claude:
             Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255)
+        case .zai:
+            Color(red: 232 / 255, green: 90 / 255, blue: 106 / 255)
         case .gemini:
             Color(red: 171 / 255, green: 135 / 255, blue: 234 / 255) // #AB87EA
         case .antigravity:

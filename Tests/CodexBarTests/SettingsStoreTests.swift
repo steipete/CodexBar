@@ -1,5 +1,5 @@
-import Foundation
 import CodexBarCore
+import Foundation
 import Testing
 @testable import CodexBar
 
@@ -12,7 +12,7 @@ struct SettingsStoreTests {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
 
-        let store = SettingsStore(userDefaults: defaults)
+        let store = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
 
         #expect(store.refreshFrequency == .fiveMinutes)
         #expect(store.refreshFrequency.seconds == 300)
@@ -23,12 +23,12 @@ struct SettingsStoreTests {
         let suite = "SettingsStoreTests-persist"
         let defaultsA = UserDefaults(suiteName: suite)!
         defaultsA.removePersistentDomain(forName: suite)
-        let storeA = SettingsStore(userDefaults: defaultsA)
+        let storeA = SettingsStore(userDefaults: defaultsA, zaiTokenStore: NoopZaiTokenStore())
 
         storeA.refreshFrequency = .fifteenMinutes
 
         let defaultsB = UserDefaults(suiteName: suite)!
-        let storeB = SettingsStore(userDefaults: defaultsB)
+        let storeB = SettingsStore(userDefaults: defaultsB, zaiTokenStore: NoopZaiTokenStore())
 
         #expect(storeB.refreshFrequency == .fifteenMinutes)
         #expect(storeB.refreshFrequency.seconds == 900)
@@ -39,12 +39,12 @@ struct SettingsStoreTests {
         let suite = "SettingsStoreTests-selectedMenuProvider"
         let defaultsA = UserDefaults(suiteName: suite)!
         defaultsA.removePersistentDomain(forName: suite)
-        let storeA = SettingsStore(userDefaults: defaultsA)
+        let storeA = SettingsStore(userDefaults: defaultsA, zaiTokenStore: NoopZaiTokenStore())
 
         storeA.selectedMenuProvider = .claude
 
         let defaultsB = UserDefaults(suiteName: suite)!
-        let storeB = SettingsStore(userDefaults: defaultsB)
+        let storeB = SettingsStore(userDefaults: defaultsB, zaiTokenStore: NoopZaiTokenStore())
 
         #expect(storeB.selectedMenuProvider == .claude)
     }
@@ -55,7 +55,7 @@ struct SettingsStoreTests {
         let suite = "SettingsStoreTests-sessionQuotaNotifications"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
-        let store = SettingsStore(userDefaults: defaults)
+        let store = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
         #expect(store.sessionQuotaNotificationsEnabled == true)
         #expect(defaults.bool(forKey: key) == true)
     }
@@ -66,7 +66,7 @@ struct SettingsStoreTests {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
 
-        let store = SettingsStore(userDefaults: defaults)
+        let store = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
 
         #expect(store.claudeUsageDataSource == .web)
     }
@@ -78,7 +78,7 @@ struct SettingsStoreTests {
         defaults.removePersistentDomain(forName: suite)
         defaults.set(true, forKey: "providerDetectionCompleted")
 
-        let store = SettingsStore(userDefaults: defaults)
+        let store = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
 
         #expect(store.orderedProviders() == UsageProvider.allCases)
     }
@@ -93,16 +93,17 @@ struct SettingsStoreTests {
         // Partial list to mimic "older version" missing providers.
         defaultsA.set([UsageProvider.gemini.rawValue, UsageProvider.codex.rawValue], forKey: "providerOrder")
 
-        let storeA = SettingsStore(userDefaults: defaultsA)
+        let storeA = SettingsStore(userDefaults: defaultsA, zaiTokenStore: NoopZaiTokenStore())
 
-        #expect(storeA.orderedProviders() == [.gemini, .codex, .claude, .cursor, .antigravity])
+        #expect(storeA.orderedProviders() == [.gemini, .codex, .claude, .zai, .cursor, .antigravity])
 
         // Move one provider; ensure it's persisted across instances.
-        storeA.moveProvider(fromOffsets: IndexSet(integer: 4), toOffset: 0)
+        let antigravityIndex = storeA.orderedProviders().firstIndex(of: .antigravity)!
+        storeA.moveProvider(fromOffsets: IndexSet(integer: antigravityIndex), toOffset: 0)
 
         let defaultsB = UserDefaults(suiteName: suite)!
         defaultsB.set(true, forKey: "providerDetectionCompleted")
-        let storeB = SettingsStore(userDefaults: defaultsB)
+        let storeB = SettingsStore(userDefaults: defaultsB, zaiTokenStore: NoopZaiTokenStore())
 
         #expect(storeB.orderedProviders().first == .antigravity)
     }

@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 15+ menu bar app that keeps your Codex and Claude Code limits visible (5‑hour/session + weekly windows) and when each window resets. One status item per provider; enable either or both from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 15+ menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, and z.ai limits visible (session + weekly where available) and when each window resets. One status item per provider; enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 ## Install
 - Homebrew (UI app; Sparkle disabled): `brew install --cask steipete/tap/codexbar` (update via `brew upgrade --cask steipete/tap/codexbar`)
@@ -11,7 +11,10 @@ Login story
 - **Codex (optional OpenAI web)** — Settings → General → "Access OpenAI via web" reuses an existing signed-in `chatgpt.com` session (Safari → Chrome → Firefox cookie import) to show **Code review remaining**, **Usage breakdown**, and **Credits usage history** (when available). No passwords stored; may require granting Full Disk Access for Safari cookie import.
 - **Claude Code** — Reads session + weekly + Sonnet-only weekly usage from the Claude CLI by running `/usage` + `/status` in a local PTY (no tmux). Shows email/org/login method directly from the CLI output. No browser or network calls beyond the CLI itself.
 - **Cursor** — Fetches plan usage and on-demand usage from cursor.com API using browser session cookies (Safari → Chrome → Firefox). Requires cursor.com + cursor.sh cookies; shows included plan percentage, on-demand spend, and billing cycle reset time. Supports Pro, Enterprise, and other membership types. No CLI required; just stay signed in to cursor.com in your browser.
-- **Provider detection** — On first launch we detect installed CLIs and enable Codex by default (Claude turns on when the `claude` binary is present). You can toggle either provider in Settings → General or rerun detection after installing a CLI.
+- **Gemini** — Uses the Gemini CLI `/stats` output for quota, with OAuth-backed API fetches for plan/limits.
+- **Antigravity** — Local Antigravity language server probe; conservative parsing and no external auth.
+- **z.ai** — Calls the z.ai quota API (API token stored in Keychain via Preferences → Providers) to show Tokens + MCP windows; dashboard: https://z.ai/manage-apikey/subscription
+- **Provider detection** — On first launch we detect installed CLIs and enable Codex by default (Claude turns on when the `claude` binary is present). Toggle providers in Settings → Providers or rerun detection after installing a CLI.
 - **Privacy note** — Wondering if CodexBar scans your disk? It doesn't; see the discussion and audit notes in [issue #12](https://github.com/steipete/CodexBar/issues/12).
 
 Icon bar mapping (grayscale)
@@ -22,7 +25,7 @@ Icon bar mapping (grayscale)
 ![CodexBar Screenshot](codexbar.png)
 
 ## Features
-- Dual providers: Codex status item (5h/weekly + credits) and Claude Code status item (session/weekly + Sonnet-only weekly limit) can be shown together; Codex defaults on, Claude turns on when the CLI is present. Both sections show last-updated time and surface errors inline.
+- Multi-provider: Codex, Claude Code, Cursor, Gemini, Antigravity, and z.ai can be shown together; enable what you use in Settings → Providers.
 - Codex path: prefers the codex app-server RPC (run with `-s read-only -a untrusted`) for rate limits and credits; falls back to a PTY scrape of `codex /status`, keeping cached credits when RPC is unavailable.
 - Codex optional: “Access OpenAI via web” adds Code review remaining + Usage breakdown + Credits usage history (dashboard scrape) by reusing existing browser cookies; no passwords stored.
 - Claude path: runs `claude /usage` and `/status` in a local PTY (no tmux) to parse session/week/Sonnet percentages, reset strings, and account email/org/login method; debug view can copy the latest raw scrape.

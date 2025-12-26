@@ -3,6 +3,7 @@ import Foundation
 public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case codex
     case claude
+    case zai
     case cursor
     case gemini
     case antigravity
@@ -98,6 +99,20 @@ public enum ProviderDefaults {
             dashboardURL: "https://console.anthropic.com/settings/billing",
             subscriptionDashboardURL: "https://claude.ai/settings/usage",
             statusPageURL: "https://status.claude.com/"),
+        .zai: ProviderMetadata(
+            id: .zai,
+            displayName: "z.ai",
+            sessionLabel: "Tokens",
+            weeklyLabel: "MCP",
+            opusLabel: nil,
+            supportsOpus: false,
+            supportsCredits: false,
+            creditsHint: "",
+            toggleTitle: "Show z.ai usage",
+            cliName: "zai",
+            defaultEnabled: false,
+            dashboardURL: "https://z.ai/manage-apikey/subscription",
+            statusPageURL: nil),
         .cursor: ProviderMetadata(
             id: .cursor,
             displayName: "Cursor",

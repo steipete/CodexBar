@@ -68,6 +68,9 @@ struct MenuDescriptor {
                 codex: store.snapshot(for: .codex),
                 account: account,
                 preferClaude: true))
+        case .zai?:
+            sections.append(Self.usageSection(for: .zai, store: store, settings: settings))
+            sections.append(Self.accountSectionForSnapshot(store.snapshot(for: .zai)))
         case .gemini?:
             sections.append(Self.usageSection(for: .gemini, store: store, settings: settings))
             sections.append(Self.accountSection(
@@ -234,7 +237,9 @@ struct MenuDescriptor {
         ]
 
         // Show "Add Account" if no account, "Switch Account" if logged in
-        if (provider ?? store.enabledProviders().first) != .antigravity {
+        if (provider ?? store.enabledProviders().first) != .antigravity,
+           (provider ?? store.enabledProviders().first) != .zai
+        {
             let loginAction = self.switchAccountTarget(for: provider, store: store)
             let hasAccount = self.hasAccount(for: provider, store: store)
             let accountLabel = hasAccount ? "Switch Account..." : "Add Account..."

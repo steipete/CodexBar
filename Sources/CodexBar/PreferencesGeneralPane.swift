@@ -105,6 +105,8 @@ struct GeneralPane: View {
             "Claude"
         case .codex:
             "Codex"
+        case .zai:
+            "z.ai"
         case .gemini:
             "Gemini"
         case .antigravity:

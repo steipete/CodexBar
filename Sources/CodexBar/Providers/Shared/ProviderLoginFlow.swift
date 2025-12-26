@@ -13,6 +13,8 @@ extension StatusItemController {
         case .claude:
             await self.runClaudeLoginFlow()
             return true
+        case .zai:
+            return false
         case .gemini:
             await self.runGeminiLoginFlow()
             return false

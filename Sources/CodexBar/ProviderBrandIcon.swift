@@ -39,6 +39,7 @@ enum ProviderBrandIcon {
         switch provider {
         case .codex: "ProviderIcon-codex"
         case .claude: "ProviderIcon-claude"
+        case .zai: "ProviderIcon-zai"
         case .cursor: "ProviderIcon-cursor"
         case .factory: "ProviderIcon-factory"
         case .gemini: "ProviderIcon-gemini"

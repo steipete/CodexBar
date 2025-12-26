@@ -6,7 +6,7 @@
     <title>CodexBar</title>
     <meta
       name="description"
-      content="Tiny macOS menu bar app that keeps your Codex and Claude Code limits visible."
+      content="Tiny macOS menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, and z.ai limits visible."
     />
     <meta name="theme-color" content="#0b1016" />
     <link rel="canonical" href="https://codexbar.app/" />
@@ -14,7 +14,7 @@
     <meta property="og:title" content="CodexBar" />
     <meta
       property="og:description"
-      content="Tiny macOS menu bar app that keeps your Codex and Claude Code limits visible."
+      content="Tiny macOS menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, and z.ai limits visible."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://codexbar.app/" />
@@ -32,7 +32,7 @@
           <img class="mark" src="./icon.png" alt="" aria-hidden="true" width="44" height="44" />
           <span class="name">
             <h1 class="title">CodexBar</h1>
-            <p class="tagline">Codex + Claude Code limits, always visible.</p>
+            <p class="tagline">Codex, Claude Code, Cursor, Gemini, Antigravity, z.ai limits.</p>
           </span>
         </a>
         <nav class="links" aria-label="Links">
@@ -79,9 +79,9 @@
             }
           </script>
           <ul class="bullets" aria-label="What it does">
-            <li>One status item per provider (Codex + Claude).</li>
+            <li>One status item per provider (Codex, Claude, Cursor, Gemini, Antigravity, z.ai).</li>
             <li>Session + weekly bars, plus reset times.</li>
-            <li>Web-backed limits + credits via browser cookies (Codex + Claude).</li>
+            <li>Web-backed limits via browser cookies (Codex, Claude, Cursor).</li>
             <li>Minimal UI, no Dock icon.</li>
           </ul>
         </div>
@@ -92,24 +92,23 @@
 
       <section class="details" aria-label="Details" data-animate="4">
         <div class="card">
-          <h3>Codex</h3>
+          <h3>Providers</h3>
           <p>
-            Uses the OpenAI web dashboard when enabled, with local RPC + PTY fallback to <code>codex /status</code> if
-            cookies are missing. The web view shows limits + credits + code review + usage breakdown.
+            Codex · Claude Code · Cursor · Gemini · Antigravity · z.ai
           </p>
         </div>
         <div class="card">
-          <h3>Claude Code</h3>
+          <h3>Data sources</h3>
           <p>
-            Prefers the claude.ai web API via browser cookies, and falls back to the local CLI (<code>/usage</code> +
-            <code>/status</code>) when no session cookies are found.
+            CLI + local RPC where available, web dashboards via browser cookies for Codex/Claude/Cursor, plus z.ai API key
+            support (<a href="https://z.ai/manage-apikey/subscription">z.ai dashboard</a>).
           </p>
         </div>
         <div class="card">
           <h3>Privacy</h3>
           <p>
-            Reuses existing browser cookies (Safari/Chrome/Firefox) for OpenAI + Claude dashboards — no passwords stored. When
-            cookies are missing, CodexBar falls back to local CLI output.
+            Reuses existing browser cookies (Safari/Chrome/Firefox) for dashboard access — no passwords stored. When cookies
+            are missing, CodexBar falls back to local CLI output.
           </p>
         </div>
       </section>

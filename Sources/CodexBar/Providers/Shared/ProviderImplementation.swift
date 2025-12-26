@@ -32,11 +32,20 @@ protocol ProviderImplementation: Sendable {
     /// Important: Providers must not return custom SwiftUI views here. Only shared toggle/action descriptors.
     @MainActor
     func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor]
+
+    /// Optional provider-specific settings fields to render in the Providers pane.
+    @MainActor
+    func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor]
 }
 
 extension ProviderImplementation {
     @MainActor
     func settingsToggles(context _: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
+        []
+    }
+
+    @MainActor
+    func settingsFields(context _: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         []
     }
 }

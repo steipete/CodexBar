@@ -681,11 +681,12 @@ enum IconRenderer {
         switch style {
         case .codex: 0
         case .claude: 1
-        case .gemini: 2
-        case .antigravity: 3
-        case .cursor: 4
-        case .combined: 5
-        case .factory: 6
+        case .zai: 2
+        case .gemini: 3
+        case .antigravity: 4
+        case .cursor: 5
+        case .combined: 6
+        case .factory: 7
         }
     }
 

@@ -127,6 +127,11 @@ final class SettingsStore {
         didSet { self.userDefaults.set(self.switcherShowsIcons, forKey: "switcherShowsIcons") }
     }
 
+    /// z.ai API token (stored in Keychain).
+    var zaiAPIToken: String {
+        didSet { self.schedulePersistZaiAPIToken() }
+    }
+
     private var selectedMenuProviderRaw: String? {
         didSet {
             if let raw = self.selectedMenuProviderRaw {
@@ -177,6 +182,7 @@ final class SettingsStore {
         _ = self.claudeUsageDataSource
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
+        _ = self.zaiAPIToken
         _ = self.debugLoadingPattern
         _ = self.selectedMenuProvider
         _ = self.providerToggleRevision
@@ -189,10 +195,13 @@ final class SettingsStore {
 
     @ObservationIgnored private let userDefaults: UserDefaults
     @ObservationIgnored private let toggleStore: ProviderToggleStore
+    @ObservationIgnored private let zaiTokenStore: any ZaiTokenStoring
+    @ObservationIgnored private var zaiTokenPersistTask: Task<Void, Never>?
     private var providerToggleRevision: Int = 0
 
-    init(userDefaults: UserDefaults = .standard) {
+    init(userDefaults: UserDefaults = .standard, zaiTokenStore: any ZaiTokenStoring = KeychainZaiTokenStore()) {
         self.userDefaults = userDefaults
+        self.zaiTokenStore = zaiTokenStore
         self.providerOrderRaw = userDefaults.stringArray(forKey: "providerOrder") ?? []
         let raw = userDefaults.string(forKey: "refreshFrequency") ?? RefreshFrequency.fiveMinutes.rawValue
         self.refreshFrequency = RefreshFrequency(rawValue: raw) ?? .fiveMinutes
@@ -219,6 +228,7 @@ final class SettingsStore {
         self.claudeUsageDataSourceRaw = claudeSourceRaw ?? ClaudeUsageDataSource.web.rawValue
         self.mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
         self.switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
+        self.zaiAPIToken = (try? zaiTokenStore.loadToken()) ?? ""
         self.selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         self.providerDetectionCompleted = userDefaults.object(
             forKey: "providerDetectionCompleted") as? Bool ?? false
@@ -396,6 +406,32 @@ final class SettingsStore {
         }()
 
         return claudeRoots.contains(where: hasAnyJsonl(in:))
+    }
+
+    private func schedulePersistZaiAPIToken() {
+        self.zaiTokenPersistTask?.cancel()
+        let token = self.zaiAPIToken
+        let tokenStore = self.zaiTokenStore
+        self.zaiTokenPersistTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: 350_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            let error: (any Error)? = await Task.detached(priority: .utility) { () -> (any Error)? in
+                do {
+                    try tokenStore.storeToken(token)
+                    return nil
+                } catch {
+                    return error
+                }
+            }.value
+            if let error {
+                // Keep value in memory; persist best-effort.
+                CodexBarLog.logger("zai-token-store").error("Failed to persist z.ai token: \(error)")
+            }
+        }
     }
 }
 

@@ -9,6 +9,7 @@ enum ProviderCatalog {
     static let all: [any ProviderImplementation] = [
         CodexProviderImplementation(),
         ClaudeProviderImplementation(),
+        ZaiProviderImplementation(),
         CursorProviderImplementation(),
         GeminiProviderImplementation(),
         AntigravityProviderImplementation(),

@@ -8,7 +8,7 @@ import Testing
 struct StatusItemAnimationTests {
     @Test
     func mergedIconLoadingAnimationTracksSelectedProviderOnly() {
-        let settings = SettingsStore()
+        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true

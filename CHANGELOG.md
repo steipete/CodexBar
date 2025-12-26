@@ -1,11 +1,13 @@
 # Changelog
 
 ## 0.14.1 — Unreleased
+- Providers: Codex, Claude Code, Cursor, Gemini, Antigravity, z.ai.
 - Codex: OpenAI web dashboard is now the primary source for usage + credits; CLI fallback only when no matching cookies exist.
 - Claude: prefer claude.ai web API via cookies with CLI fallback when no session cookies are found; OAuth is debug-only.
 - CLI: replace `--web`/`--claude-source` with `--source` (auto/web/cli/oauth); auto falls back only when cookies are missing.
 - Cursor: add new usage provider with browser cookie auth (cursor.com + cursor.sh), on-demand bar support, and dashboard access.
 - Cursor: keep stored sessions on transient failures; clear only on invalid auth.
+- z.ai: new provider support with Tokens + MCP usage bars and MCP details submenu; API token now lives in Preferences (stored in Keychain); usage bars respect the show-used toggle. Thanks @uwe-schwarz for the initial work!
 - Preferences: fix Advanced Display checkboxes and move the Quit button to the bottom of General.
 - Preferences: hide “Augment Claude via web” unless Claude usage source is CLI; rename the cost toggle to “Show cost summary”.
 - Preferences: add an Advanced toggle to show/hide optional Codex Credits + Claude Extra usage sections (on by default).

@@ -10,7 +10,7 @@ struct ProviderIconResourcesTests {
         let root = try Self.repoRoot()
         let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
 
-        let slugs = ["codex", "claude", "cursor", "gemini", "antigravity"]
+        let slugs = ["codex", "claude", "zai", "cursor", "gemini", "antigravity"]
         for slug in slugs {
             let url1x = resources.appending(path: "ProviderIcon-\(slug).png")
             let url2x = resources.appending(path: "ProviderIcon-\(slug)@2x.png")

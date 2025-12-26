@@ -50,6 +50,8 @@ extension UsageStore {
             return "No Codex sessions found in \(root)."
         case .claude:
             return "No Claude usage logs found in ~/.config/claude/projects or ~/.claude/projects."
+        case .zai:
+            return "z.ai cost summary is not supported."
         case .gemini:
             return "Gemini cost summary is not supported."
         case .antigravity:

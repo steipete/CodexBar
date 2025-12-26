@@ -25,6 +25,12 @@ read_when:
 - Handles Sonnet-only weekly bar when present; legacy Opus label fallback.
 - Status: Statuspage.io (Anthropic).
 
+## z.ai
+- API: `https://api.z.ai/api/monitor/usage/quota/limit` using an API token stored in Keychain (Preferences → Providers → z.ai).
+- Shows token and MCP usage windows from the quota limits response.
+- Dashboard: `https://z.ai/manage-apikey/subscription`
+- Status: no public status integration yet.
+
 ## Gemini
 - CLI `/stats` parsing for quota; OAuth-backed API fetch for plan/limits.
 - Status: Google Workspace incidents for the Gemini product.

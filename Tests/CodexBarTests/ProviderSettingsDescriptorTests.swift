@@ -11,7 +11,7 @@ struct ProviderSettingsDescriptorTests {
     func toggleIDsAreUniqueAcrossProviders() {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-unique")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-unique")
-        let settings = SettingsStore(userDefaults: defaults)
+        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
         let store = UsageStore(fetcher: UsageFetcher(environment: [:]), settings: settings)
 
         var statusByID: [String: String] = [:]
@@ -25,6 +25,11 @@ struct ProviderSettingsDescriptorTests {
                 settings: settings,
                 store: store,
                 boolBinding: { keyPath in
+                    Binding(
+                        get: { settings[keyPath: keyPath] },
+                        set: { settings[keyPath: keyPath] = $0 })
+                },
+                stringBinding: { keyPath in
                     Binding(
                         get: { settings[keyPath: keyPath] },
                         set: { settings[keyPath: keyPath] = $0 })
@@ -65,7 +70,7 @@ struct ProviderSettingsDescriptorTests {
     func codexDoesNotExposeOpenAIWebToggle() {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-codex")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-codex")
-        let settings = SettingsStore(userDefaults: defaults)
+        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
         let store = UsageStore(fetcher: UsageFetcher(environment: [:]), settings: settings)
 
         let context = ProviderSettingsContext(
@@ -73,6 +78,11 @@ struct ProviderSettingsDescriptorTests {
             settings: settings,
             store: store,
             boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
                 Binding(
                     get: { settings[keyPath: keyPath] },
                     set: { settings[keyPath: keyPath] = $0 })
@@ -91,7 +101,7 @@ struct ProviderSettingsDescriptorTests {
     func claudeWebExtrasToggleIsVisibleOnlyForCLIDataSource() {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-claude")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-claude")
-        let settings = SettingsStore(userDefaults: defaults)
+        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
         let store = UsageStore(fetcher: UsageFetcher(environment: [:]), settings: settings)
 
         let context = ProviderSettingsContext(
@@ -99,6 +109,11 @@ struct ProviderSettingsDescriptorTests {
             settings: settings,
             store: store,
             boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
                 Binding(
                     get: { settings[keyPath: keyPath] },
                     set: { settings[keyPath: keyPath] = $0 })
@@ -124,7 +139,7 @@ struct ProviderSettingsDescriptorTests {
     func claudeWebExtrasAutoDisablesWhenLeavingCLI() {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-claude-invariant")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-claude-invariant")
-        let settings = SettingsStore(userDefaults: defaults)
+        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
         settings.debugMenuEnabled = true
         settings.claudeUsageDataSource = .cli
         settings.claudeWebExtrasEnabled = true

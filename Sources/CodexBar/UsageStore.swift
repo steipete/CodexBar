@@ -6,6 +6,7 @@ import Observation
 enum IconStyle {
     case codex
     case claude
+    case zai
     case gemini
     case antigravity
     case cursor
@@ -33,6 +34,7 @@ extension UsageStore {
         _ = self.codexVersion
         _ = self.claudeVersion
         _ = self.geminiVersion
+        _ = self.zaiVersion
         _ = self.antigravityVersion
         _ = self.claudeAccountEmail
         _ = self.claudeAccountOrganization
@@ -159,6 +161,7 @@ final class UsageStore {
     var codexVersion: String?
     var claudeVersion: String?
     var geminiVersion: String?
+    var zaiVersion: String?
     var antigravityVersion: String?
     var cursorVersion: String?
     var claudeAccountEmail: String?
@@ -260,6 +263,7 @@ final class UsageStore {
         switch provider {
         case .codex: self.codexVersion
         case .claude: self.claudeVersion
+        case .zai: self.zaiVersion
         case .gemini: self.geminiVersion
         case .antigravity: self.antigravityVersion
         case .cursor: self.cursorVersion
@@ -274,10 +278,16 @@ final class UsageStore {
         if self.isEnabled(.claude), let claudeSnapshot {
             return claudeSnapshot
         }
+        if self.isEnabled(.zai), let snap = self.snapshots[.zai] {
+            return snap
+        }
         if self.isEnabled(.gemini), let snap = self.snapshots[.gemini] {
             return snap
         }
         if self.isEnabled(.antigravity), let snap = self.snapshots[.antigravity] {
+            return snap
+        }
+        if self.isEnabled(.cursor), let snap = self.snapshots[.cursor] {
             return snap
         }
         return nil
@@ -289,6 +299,7 @@ final class UsageStore {
         if self.isEnabled(.cursor) { return .cursor }
         if self.isEnabled(.antigravity) { return .antigravity }
         if self.isEnabled(.gemini) { return .gemini }
+        if self.isEnabled(.zai) { return .zai }
         if self.isEnabled(.claude) { return .claude }
         return .codex
     }
@@ -296,6 +307,7 @@ final class UsageStore {
     var isStale: Bool {
         (self.isEnabled(.codex) && self.lastCodexError != nil) ||
             (self.isEnabled(.claude) && self.lastClaudeError != nil) ||
+            (self.isEnabled(.zai) && self.errors[.zai] != nil) ||
             (self.isEnabled(.gemini) && self.errors[.gemini] != nil) ||
             (self.isEnabled(.antigravity) && self.errors[.antigravity] != nil) ||
             (self.isEnabled(.cursor) && self.errors[.cursor] != nil)
@@ -1095,6 +1107,16 @@ extension UsageStore {
                 }
                 await MainActor.run { self.probeLogs[.claude] = text }
                 return text
+            case .zai:
+                let settingsToken = await MainActor.run {
+                    self.settings.zaiAPIToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                let envToken = ZaiSettingsReader.apiToken()
+                let hasAny = !settingsToken.isEmpty || envToken != nil
+                let source = !settingsToken.isEmpty ? "keychain" : (envToken != nil ? "env" : "none")
+                let text = "Z_AI_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                await MainActor.run { self.probeLogs[.zai] = text }
+                return text
             case .gemini:
                 let text = "Gemini debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.gemini] = text }
@@ -1138,6 +1160,7 @@ extension UsageStore {
                 self.codexVersion = codexVer
                 self.claudeVersion = claudeVer
                 self.geminiVersion = geminiVer
+                self.zaiVersion = nil
                 self.antigravityVersion = antigravityVer
             }
         }

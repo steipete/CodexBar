@@ -32,6 +32,7 @@ struct ProvidersPane: View {
                 sourceLabel: { provider in self.providerSourceLabel(provider) },
                 statusLabel: { provider in self.providerStatusLabel(provider) },
                 settingsToggles: { provider in self.extraSettingsToggles(for: provider) },
+                settingsFields: { provider in self.extraSettingsFields(for: provider) },
                 errorDisplay: { provider in self.providerErrorDisplay(provider) },
                 isErrorExpanded: { provider in self.expandedBinding(for: provider) },
                 onCopyError: { text in self.copyToPasteboard(text) },
@@ -70,9 +71,6 @@ struct ProvidersPane: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Providers")
                 .font(.headline)
-            Text("Enable or disable usage providers. Providers may offer additional settings when enabled.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -94,8 +92,8 @@ struct ProvidersPane: View {
 
         let usageText: String
         if let snapshot = self.store.snapshot(for: provider) {
-            let timestamp = snapshot.updatedAt.formatted(date: .abbreviated, time: .shortened)
-            usageText = "usage fetched \(timestamp)"
+            let relative = snapshot.updatedAt.relativeDescription()
+            usageText = "usage fetched \(relative)"
         } else if self.store.isStale(provider: provider) {
             usageText = "last fetch failed"
         } else {
@@ -109,6 +107,9 @@ struct ProvidersPane: View {
         // Cursor is web-based, no CLI version to detect
         if provider == .cursor {
             return "web • \(usageText)"
+        }
+        if provider == .zai {
+            return "api • \(usageText)"
         }
 
         var detail = "\(cliName) \(versionText) • \(usageText)"
@@ -127,6 +128,8 @@ struct ProvidersPane: View {
                 return self.settings.claudeUsageDataSource.rawValue
             }
             return "auto"
+        case .zai:
+            return "api"
         case .cursor:
             return "web"
         case .gemini:
@@ -162,12 +165,24 @@ struct ProvidersPane: View {
             .filter { $0.isVisible?() ?? true }
     }
 
+    private func extraSettingsFields(for provider: UsageProvider) -> [ProviderSettingsFieldDescriptor] {
+        guard let impl = ProviderCatalog.implementation(for: provider) else { return [] }
+        let context = self.makeSettingsContext(provider: provider)
+        return impl.settingsFields(context: context)
+            .filter { $0.isVisible?() ?? true }
+    }
+
     private func makeSettingsContext(provider: UsageProvider) -> ProviderSettingsContext {
         ProviderSettingsContext(
             provider: provider,
             settings: self.settings,
             store: self.store,
             boolBinding: { keyPath in
+                Binding(
+                    get: { self.settings[keyPath: keyPath] },
+                    set: { self.settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
                 Binding(
                     get: { self.settings[keyPath: keyPath] },
                     set: { self.settings[keyPath: keyPath] = $0 })
@@ -245,6 +260,7 @@ private struct ProviderListView: View {
     let sourceLabel: (UsageProvider) -> String
     let statusLabel: (UsageProvider) -> String
     let settingsToggles: (UsageProvider) -> [ProviderSettingsToggleDescriptor]
+    let settingsFields: (UsageProvider) -> [ProviderSettingsFieldDescriptor]
     let errorDisplay: (UsageProvider) -> ProviderErrorDisplay?
     let isErrorExpanded: (UsageProvider) -> Binding<Bool>
     let onCopyError: (String) -> Void
@@ -267,6 +283,10 @@ private struct ProviderListView: View {
                         .listRowInsets(ProviderListMetrics.rowInsets)
 
                     if self.isEnabled(provider).wrappedValue {
+                        ForEach(self.settingsFields(provider)) { field in
+                            ProviderListFieldRowView(provider: provider, field: field)
+                                .listRowInsets(ProviderListMetrics.rowInsets)
+                        }
                         ForEach(self.settingsToggles(provider)) { toggle in
                             ProviderListToggleRowView(provider: provider, toggle: toggle)
                                 .listRowInsets(ProviderListMetrics.rowInsets)
@@ -435,6 +455,60 @@ private struct ProviderListToggleRowView: View {
             guard self.toggle.binding.wrappedValue else { return }
             guard let onAppear = self.toggle.onAppearWhenEnabled else { return }
             await onAppear()
+        }
+    }
+}
+
+@MainActor
+private struct ProviderListFieldRowView: View {
+    let provider: UsageProvider
+    let field: ProviderSettingsFieldDescriptor
+
+    var body: some View {
+        HStack(alignment: .top, spacing: ProviderListMetrics.rowSpacing) {
+            Color.clear
+                .frame(width: ProviderListMetrics.checkboxSize, height: ProviderListMetrics.checkboxSize)
+
+            Color.clear
+                .frame(width: ProviderListMetrics.iconSize, height: ProviderListMetrics.iconSize)
+
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(self.field.title)
+                        .font(.subheadline.weight(.semibold))
+                    Text(self.field.subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                switch self.field.kind {
+                case .plain:
+                    TextField(self.field.placeholder ?? "", text: self.field.binding)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.footnote)
+                case .secure:
+                    SecureField(self.field.placeholder ?? "", text: self.field.binding)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.footnote)
+                }
+
+                let actions = self.field.actions.filter { $0.isVisible?() ?? true }
+                if !actions.isEmpty {
+                    HStack(spacing: 10) {
+                        ForEach(actions) { action in
+                            Button(action.title) {
+                                Task { @MainActor in
+                                    await action.perform()
+                                }
+                            }
+                            .applyProviderSettingsButtonStyle(action.style)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

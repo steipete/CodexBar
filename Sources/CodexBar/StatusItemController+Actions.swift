@@ -241,6 +241,7 @@ extension StatusItemController {
         let title = switch provider {
         case .codex: "Codex login successful"
         case .claude: "Claude login successful"
+        case .zai: "z.ai login successful"
         case .gemini: "Gemini login successful"
         case .antigravity: "Antigravity login successful"
         case .cursor: "Cursor login successful"

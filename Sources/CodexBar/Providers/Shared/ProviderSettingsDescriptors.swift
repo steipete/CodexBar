@@ -16,6 +16,7 @@ struct ProviderSettingsContext {
     let store: UsageStore
 
     let boolBinding: (ReferenceWritableKeyPath<SettingsStore, Bool>) -> Binding<Bool>
+    let stringBinding: (ReferenceWritableKeyPath<SettingsStore, String>) -> Binding<String>
 
     let statusText: (String) -> String?
     let setStatusText: (String, String?) -> Void
@@ -62,6 +63,24 @@ struct ProviderSettingsToggleDescriptor: Identifiable {
 
     /// Called when the view appears while the toggle is enabled.
     let onAppearWhenEnabled: (() async -> Void)?
+}
+
+/// Shared text field descriptor rendered in the Providers settings pane.
+@MainActor
+struct ProviderSettingsFieldDescriptor: Identifiable {
+    enum Kind {
+        case plain
+        case secure
+    }
+
+    let id: String
+    let title: String
+    let subtitle: String
+    let kind: Kind
+    let placeholder: String?
+    let binding: Binding<String>
+    let actions: [ProviderSettingsActionDescriptor]
+    let isVisible: (() -> Bool)?
 }
 
 /// Shared action descriptor rendered under a settings toggle.

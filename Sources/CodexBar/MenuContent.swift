@@ -125,7 +125,7 @@ struct StatusIconView: View {
             weeklyRemaining: self.store.snapshot(for: self.provider)?.secondary?.remainingPercent,
             creditsRemaining: self.provider == .codex ? self.store.credits?.remaining : nil,
             stale: self.store.isStale(provider: self.provider),
-            style: self.provider == .codex ? .codex : .claude,
+            style: self.store.style(for: self.provider),
             statusIndicator: self.store.statusIndicator(for: self.provider))
     }
 }

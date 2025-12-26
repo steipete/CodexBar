@@ -190,6 +190,8 @@ struct CostHistoryChartMenuView: View {
             Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
         case .claude:
             Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255)
+        case .zai:
+            Color(red: 232 / 255, green: 90 / 255, blue: 106 / 255)
         case .gemini:
             Color(red: 171 / 255, green: 135 / 255, blue: 234 / 255)
         case .antigravity:
