@@ -371,7 +371,7 @@ public struct AntigravityStatusProbe: Sendable {
         let env = ProcessInfo.processInfo.environment
         let result = try await SubprocessRunner.run(
             binary: lsof,
-            arguments: ["-nP", "-iTCP", "-sTCP:LISTEN", "-p", String(pid)],
+            arguments: ["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", String(pid)],
             environment: env,
             timeout: timeout,
             label: "antigravity-lsof")
