@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Z.ai usage limit types from the API
 public enum ZaiLimitType: String, Sendable {
@@ -74,7 +77,50 @@ public struct ZaiUsageSnapshot: Sendable {
 
     /// Returns true if this snapshot contains valid z.ai data
     public var isValid: Bool {
-        tokenLimit != nil || timeLimit != nil
+        self.tokenLimit != nil || self.timeLimit != nil
+    }
+
+    /// Converts this z.ai usage snapshot to a generic UsageSnapshot
+    public func toUsageSnapshot() -> UsageSnapshot {
+        // For the primary (session) metric, use token limit if available
+        let primaryPercent: Double
+        let secondaryPercent: Double?
+
+        if let tokenLimit = self.tokenLimit {
+            primaryPercent = tokenLimit.percentage
+            secondaryPercent = self.timeLimit?.percentage
+        } else if let timeLimit = self.timeLimit {
+            primaryPercent = timeLimit.percentage
+            secondaryPercent = nil
+        } else {
+            primaryPercent = 0
+            secondaryPercent = nil
+        }
+
+        let primary = RateWindow(
+            usedPercent: primaryPercent,
+            windowMinutes: self.tokenLimit?.unit == .hours ? 300 : nil,
+            resetsAt: self.tokenLimit?.nextResetTime,
+            resetDescription: "5-hour window")
+
+        let secondary: RateWindow? = secondaryPercent.map { pct in
+            RateWindow(
+                usedPercent: pct,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "Monthly")
+        }
+
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: nil,
+            providerCost: nil,
+            zaiUsage: self,
+            updatedAt: self.updatedAt,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "z.ai Coding Plan")
     }
 }
 
@@ -85,7 +131,7 @@ private struct ZaiQuotaLimitResponse: Codable {
     let data: ZaiQuotaLimitData
     let success: Bool
 
-    var isSuccess: Bool { success && code == 200 }
+    var isSuccess: Bool { self.success && self.code == 200 }
 }
 
 private struct ZaiQuotaLimitData: Codable {
@@ -104,18 +150,18 @@ private struct ZaiLimitRaw: Codable {
     let nextResetTime: Int?
 
     func toLimitEntry() -> ZaiLimitEntry? {
-        guard let limitType = ZaiLimitType(rawValue: type) else { return nil }
-        let limitUnit = ZaiLimitUnit(rawValue: unit) ?? .unknown
-        let nextReset = nextResetTime.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) }
+        guard let limitType = ZaiLimitType(rawValue: self.type) else { return nil }
+        let limitUnit = ZaiLimitUnit(rawValue: self.unit) ?? .unknown
+        let nextReset = self.nextResetTime.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) }
         return ZaiLimitEntry(
             type: limitType,
             unit: limitUnit,
-            number: number,
-            usage: usage,
-            currentValue: currentValue,
-            remaining: remaining,
-            percentage: Double(percentage),
-            usageDetails: usageDetails ?? [],
+            number: self.number,
+            usage: self.usage,
+            currentValue: self.currentValue,
+            remaining: self.remaining,
+            percentage: Double(self.percentage),
+            usageDetails: self.usageDetails ?? [],
             nextResetTime: nextReset)
     }
 }
@@ -203,13 +249,13 @@ public enum ZaiUsageError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .invalidCredentials:
-            return "Invalid z.ai API credentials"
+            "Invalid z.ai API credentials"
         case let .networkError(message):
-            return "z.ai network error: \(message)"
+            "z.ai network error: \(message)"
         case let .apiError(message):
-            return "z.ai API error: \(message)"
+            "z.ai API error: \(message)"
         case let .parseFailed(message):
-            return "Failed to parse z.ai response: \(message)"
+            "Failed to parse z.ai response: \(message)"
         }
     }
 }

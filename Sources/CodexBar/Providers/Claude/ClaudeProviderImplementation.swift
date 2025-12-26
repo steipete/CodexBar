@@ -112,51 +112,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         }
 
         let zaiUsage = try await ZaiUsageFetcher.fetchUsage(apiKey: apiKey)
-
-        // Convert z.ai usage to a UsageSnapshot format
-        // Create placeholder rate windows from z.ai data
-        let tokenLimit = zaiUsage.tokenLimit
-        let timeLimit = zaiUsage.timeLimit
-
-        // For the primary (session) metric, use token limit if available
-        let primaryPercent: Double
-        let secondaryPercent: Double?
-
-        if let tokenLimit = tokenLimit {
-            primaryPercent = tokenLimit.percentage
-            secondaryPercent = timeLimit?.percentage
-        } else if let timeLimit = timeLimit {
-            primaryPercent = timeLimit.percentage
-            secondaryPercent = nil
-        } else {
-            primaryPercent = 0
-            secondaryPercent = nil
-        }
-
-        let primary = RateWindow(
-            usedPercent: primaryPercent,
-            windowMinutes: tokenLimit?.unit == .hours ? 300 : nil,
-            resetsAt: tokenLimit?.nextResetTime,
-            resetDescription: "5-hour window")
-
-        let secondary: RateWindow? = secondaryPercent.map { pct in
-            RateWindow(
-                usedPercent: pct,
-                windowMinutes: nil,
-                resetsAt: nil,
-                resetDescription: "Monthly")
-        }
-
-        return UsageSnapshot(
-            primary: primary,
-            secondary: secondary,
-            tertiary: nil,
-            providerCost: nil,
-            zaiUsage: zaiUsage,
-            updatedAt: zaiUsage.updatedAt,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: "z.ai Coding Plan")
+        return zaiUsage.toUsageSnapshot()
     }
 
     // MARK: - Web extras status
