@@ -4,6 +4,7 @@ import Foundation
 struct ClaudeUsageStrategy: Equatable, Sendable {
     let dataSource: ClaudeUsageDataSource
     let useWebExtras: Bool
+    let isZaiConfigured: Bool
 }
 
 struct ClaudeProviderImplementation: ProviderImplementation {
@@ -46,27 +47,41 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         settings: SettingsStore,
         hasWebSession: () -> Bool = { ClaudeWebAPIFetcher.hasSessionKey() }) -> ClaudeUsageStrategy
     {
+        // Check if z.ai is configured first
+        let claudeSettings = ClaudeSettingsReader.readSettings()
+        let isZaiConfigured = claudeSettings.isZaiConfigured
+
+        if isZaiConfigured {
+            // When z.ai is configured, we use a special data source that bypasses CLI/cookies
+            return ClaudeUsageStrategy(dataSource: .oauth, useWebExtras: false, isZaiConfigured: true)
+        }
+
         if settings.debugMenuEnabled {
             let dataSource = settings.claudeUsageDataSource
             if dataSource == .oauth {
-                return ClaudeUsageStrategy(dataSource: dataSource, useWebExtras: false)
+                return ClaudeUsageStrategy(dataSource: dataSource, useWebExtras: false, isZaiConfigured: false)
             }
             let hasSession = hasWebSession()
             if dataSource == .web, !hasSession {
-                return ClaudeUsageStrategy(dataSource: .cli, useWebExtras: false)
+                return ClaudeUsageStrategy(dataSource: .cli, useWebExtras: false, isZaiConfigured: false)
             }
             let useWebExtras = dataSource == .cli && settings.claudeWebExtrasEnabled && hasSession
-            return ClaudeUsageStrategy(dataSource: dataSource, useWebExtras: useWebExtras)
+            return ClaudeUsageStrategy(dataSource: dataSource, useWebExtras: useWebExtras, isZaiConfigured: false)
         }
 
         let hasSession = hasWebSession()
         let dataSource: ClaudeUsageDataSource = hasSession ? .web : .cli
-        return ClaudeUsageStrategy(dataSource: dataSource, useWebExtras: false)
+        return ClaudeUsageStrategy(dataSource: dataSource, useWebExtras: false, isZaiConfigured: false)
     }
 
     func makeFetch(context: ProviderBuildContext) -> @Sendable () async throws -> UsageSnapshot {
         {
             let strategy = await MainActor.run { Self.usageStrategy(settings: context.settings) }
+
+            // When z.ai is configured, use the z.ai-only fetcher
+            if strategy.isZaiConfigured {
+                return try await Self.fetchZaiUsage()
+            }
 
             let fetcher: any ClaudeUsageFetching = if context.claudeFetcher is ClaudeUsageFetcher {
                 ClaudeUsageFetcher(dataSource: strategy.dataSource, useWebExtras: strategy.useWebExtras)
@@ -80,11 +95,68 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 secondary: usage.secondary,
                 tertiary: usage.opus,
                 providerCost: usage.providerCost,
+                zaiUsage: usage.zaiUsage,
                 updatedAt: usage.updatedAt,
                 accountEmail: usage.accountEmail,
                 accountOrganization: usage.accountOrganization,
                 loginMethod: usage.loginMethod)
         }
+    }
+
+    // MARK: - z.ai usage fetching
+
+    private static func fetchZaiUsage() async throws -> UsageSnapshot {
+        let settings = ClaudeSettingsReader.readSettings()
+        guard settings.isZaiConfigured, let apiKey = settings.apiToken else {
+            throw ClaudeUsageError.parseFailed("z.ai configured but no API key found")
+        }
+
+        let zaiUsage = try await ZaiUsageFetcher.fetchUsage(apiKey: apiKey)
+
+        // Convert z.ai usage to a UsageSnapshot format
+        // Create placeholder rate windows from z.ai data
+        let tokenLimit = zaiUsage.tokenLimit
+        let timeLimit = zaiUsage.timeLimit
+
+        // For the primary (session) metric, use token limit if available
+        let primaryPercent: Double
+        let secondaryPercent: Double?
+
+        if let tokenLimit = tokenLimit {
+            primaryPercent = tokenLimit.percentage
+            secondaryPercent = timeLimit?.percentage
+        } else if let timeLimit = timeLimit {
+            primaryPercent = timeLimit.percentage
+            secondaryPercent = nil
+        } else {
+            primaryPercent = 0
+            secondaryPercent = nil
+        }
+
+        let primary = RateWindow(
+            usedPercent: primaryPercent,
+            windowMinutes: tokenLimit?.unit == .hours ? 300 : nil,
+            resetsAt: tokenLimit?.nextResetTime,
+            resetDescription: "5-hour window")
+
+        let secondary: RateWindow? = secondaryPercent.map { pct in
+            RateWindow(
+                usedPercent: pct,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "Monthly")
+        }
+
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: nil,
+            providerCost: nil,
+            zaiUsage: zaiUsage,
+            updatedAt: zaiUsage.updatedAt,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "z.ai Coding Plan")
     }
 
     // MARK: - Web extras status

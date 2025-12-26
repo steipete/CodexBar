@@ -1030,18 +1030,25 @@ extension UsageStore {
                     let hasKey = ClaudeWebAPIFetcher.hasSessionKey { msg in lines.append(msg) }
 
                     let strategy: ClaudeUsageStrategy = {
+                        // Check if z.ai is configured
+                        let claudeSettings = ClaudeSettingsReader.readSettings()
+                        let isZaiConfigured = claudeSettings.isZaiConfigured
+                        if isZaiConfigured {
+                            return ClaudeUsageStrategy(dataSource: .oauth, useWebExtras: false, isZaiConfigured: true)
+                        }
+
                         if claudeDebugMenuEnabled {
                             let selected = claudeUsageDataSource
                             if selected == .oauth {
-                                return ClaudeUsageStrategy(dataSource: .oauth, useWebExtras: false)
+                                return ClaudeUsageStrategy(dataSource: .oauth, useWebExtras: false, isZaiConfigured: false)
                             }
                             if selected == .web, !hasKey {
-                                return ClaudeUsageStrategy(dataSource: .cli, useWebExtras: false)
+                                return ClaudeUsageStrategy(dataSource: .cli, useWebExtras: false, isZaiConfigured: false)
                             }
                             let useExtras = selected == .cli && claudeWebExtrasEnabled && hasKey
-                            return ClaudeUsageStrategy(dataSource: selected, useWebExtras: useExtras)
+                            return ClaudeUsageStrategy(dataSource: selected, useWebExtras: useExtras, isZaiConfigured: false)
                         }
-                        return ClaudeUsageStrategy(dataSource: hasKey ? .web : .cli, useWebExtras: false)
+                        return ClaudeUsageStrategy(dataSource: hasKey ? .web : .cli, useWebExtras: false, isZaiConfigured: false)
                     }()
 
                     lines.append("strategy=\(strategy.dataSource.rawValue)")

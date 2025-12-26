@@ -11,6 +11,7 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let secondary: RateWindow?
     public let opus: RateWindow?
     public let providerCost: ProviderCostSnapshot?
+    public let zaiUsage: ZaiUsageSnapshot?
     public let updatedAt: Date
     public let accountEmail: String?
     public let accountOrganization: String?
@@ -22,6 +23,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         secondary: RateWindow?,
         opus: RateWindow?,
         providerCost: ProviderCostSnapshot? = nil,
+        zaiUsage: ZaiUsageSnapshot? = nil,
         updatedAt: Date,
         accountEmail: String?,
         accountOrganization: String?,
@@ -32,6 +34,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.secondary = secondary
         self.opus = opus
         self.providerCost = providerCost
+        self.zaiUsage = zaiUsage
         self.updatedAt = updatedAt
         self.accountEmail = accountEmail
         self.accountOrganization = accountOrganization
@@ -61,6 +64,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     private let environment: [String: String]
     private let dataSource: ClaudeUsageDataSource
     private let useWebExtras: Bool
+    private let fetchZaiStats: Bool
     private static let log = CodexBarLog.logger("claude-usage")
 
     /// Creates a new ClaudeUsageFetcher.
@@ -68,14 +72,18 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     ///   - environment: Process environment (default: current process environment)
     ///   - dataSource: Usage data source (default: OAuth API).
     ///   - useWebExtras: If true, attempts to enrich usage with Claude web data (cookies).
+    ///   - fetchZaiStats: If true, attempts to fetch z.ai usage stats when configured.
     public init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         dataSource: ClaudeUsageDataSource = .oauth,
-        useWebExtras: Bool = false)
+        useWebExtras: Bool = false,
+        fetchZaiStats: Bool = true)
     {
         self.environment = environment
         self.dataSource = dataSource
         self.useWebExtras = useWebExtras
+        // Only fetch z.ai stats if not explicitly disabled and z.ai is configured
+        self.fetchZaiStats = fetchZaiStats && ClaudeSettingsReader.readSettings().isZaiConfigured
     }
 
     // MARK: - Parsing helpers
@@ -146,6 +154,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             secondary: weekAll,
             opus: opusWindow,
             providerCost: nil,
+            zaiUsage: nil,
             updatedAt: Date(),
             accountEmail: email,
             accountOrganization: org,
@@ -203,17 +212,22 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         case .oauth:
             var snap = try await self.loadViaOAuth()
             snap = await self.applyWebExtrasIfNeeded(to: snap)
+            snap = await self.applyZaiStatsIfNeeded(to: snap)
             return snap
         case .web:
-            return try await self.loadViaWebAPI()
+            var snap = try await self.loadViaWebAPI()
+            snap = await self.applyZaiStatsIfNeeded(to: snap)
+            return snap
         case .cli:
             do {
                 var snap = try await self.loadViaPTY(model: model, timeout: 10)
                 snap = await self.applyWebExtrasIfNeeded(to: snap)
+                snap = await self.applyZaiStatsIfNeeded(to: snap)
                 return snap
             } catch {
                 var snap = try await self.loadViaPTY(model: model, timeout: 24)
                 snap = await self.applyWebExtrasIfNeeded(to: snap)
+                snap = await self.applyZaiStatsIfNeeded(to: snap)
                 return snap
             }
         }
@@ -271,6 +285,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             secondary: weekly,
             opus: modelSpecific,
             providerCost: Self.oauthExtraUsageCost(usage.extraUsage),
+            zaiUsage: nil,
             updatedAt: Date(),
             accountEmail: nil,
             accountOrganization: nil,
@@ -336,6 +351,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             secondary: secondary,
             opus: opus,
             providerCost: webData.extraUsageCost,
+            zaiUsage: nil,
             updatedAt: Date(),
             accountEmail: webData.accountEmail,
             accountOrganization: webData.accountOrganization,
@@ -381,6 +397,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             secondary: weekly,
             opus: opus,
             providerCost: nil,
+            zaiUsage: nil,
             updatedAt: Date(),
             accountEmail: snap.accountEmail,
             accountOrganization: snap.accountOrganization,
@@ -401,6 +418,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     secondary: snapshot.secondary,
                     opus: snapshot.opus,
                     providerCost: extra,
+                    zaiUsage: snapshot.zaiUsage,
                     updatedAt: snapshot.updatedAt,
                     accountEmail: snapshot.accountEmail,
                     accountOrganization: snapshot.accountOrganization,
@@ -411,6 +429,33 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             Self.log.debug("Claude web extras fetch failed: \(error.localizedDescription)")
         }
         return snapshot
+    }
+
+    private func applyZaiStatsIfNeeded(to snapshot: ClaudeUsageSnapshot) async -> ClaudeUsageSnapshot {
+        guard self.fetchZaiStats else { return snapshot }
+        guard snapshot.zaiUsage == nil || !snapshot.zaiUsage!.isValid else { return snapshot }
+
+        do {
+            let settings = ClaudeSettingsReader.readSettings()
+            guard settings.isZaiConfigured, let apiKey = settings.apiToken else {
+                return snapshot
+            }
+            let zaiUsage = try await ZaiUsageFetcher.fetchUsage(apiKey: apiKey)
+            return ClaudeUsageSnapshot(
+                primary: snapshot.primary,
+                secondary: snapshot.secondary,
+                opus: snapshot.opus,
+                providerCost: snapshot.providerCost,
+                zaiUsage: zaiUsage,
+                updatedAt: snapshot.updatedAt,
+                accountEmail: snapshot.accountEmail,
+                accountOrganization: snapshot.accountOrganization,
+                loginMethod: snapshot.loginMethod,
+                rawText: snapshot.rawText)
+        } catch {
+            Self.log.debug("z.ai stats fetch failed: \(error.localizedDescription)")
+            return snapshot
+        }
     }
 
     // MARK: - Process helpers

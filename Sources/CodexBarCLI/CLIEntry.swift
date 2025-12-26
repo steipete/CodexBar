@@ -367,6 +367,68 @@ enum CodexBarCLI {
             }
         }
 
+        if provider == .claude {
+            // Check if z.ai is configured first
+            let claudeSettings = ClaudeSettingsReader.readSettings()
+            if claudeSettings.isZaiConfigured {
+                if let apiKey = claudeSettings.apiToken {
+                    do {
+                        let zaiUsage = try await ZaiUsageFetcher.fetchUsage(apiKey: apiKey)
+
+                        // Convert z.ai usage to a UsageSnapshot format
+                        let tokenLimit = zaiUsage.tokenLimit
+                        let timeLimit = zaiUsage.timeLimit
+
+                        let primaryPercent: Double
+                        let secondaryPercent: Double?
+
+                        if let tokenLimit = tokenLimit {
+                            primaryPercent = tokenLimit.percentage
+                            secondaryPercent = timeLimit?.percentage
+                        } else if let timeLimit = timeLimit {
+                            primaryPercent = timeLimit.percentage
+                            secondaryPercent = nil
+                        } else {
+                            primaryPercent = 0
+                            secondaryPercent = nil
+                        }
+
+                        let primary = RateWindow(
+                            usedPercent: primaryPercent,
+                            windowMinutes: tokenLimit?.unit == .hours ? 300 : nil,
+                            resetsAt: tokenLimit?.nextResetTime,
+                            resetDescription: "5-hour window")
+
+                        let secondary: RateWindow? = secondaryPercent.map { pct in
+                            RateWindow(
+                                usedPercent: pct,
+                                windowMinutes: nil,
+                                resetsAt: nil,
+                                resetDescription: "Monthly")
+                        }
+
+                        let snapshot = UsageSnapshot(
+                            primary: primary,
+                            secondary: secondary,
+                            tertiary: nil,
+                            providerCost: nil,
+                            zaiUsage: zaiUsage,
+                            updatedAt: zaiUsage.updatedAt,
+                            accountEmail: nil,
+                            accountOrganization: nil,
+                            loginMethod: "z.ai Coding Plan")
+
+                        return ProviderFetchOutcome(
+                            result: .success((usage: snapshot, credits: nil)),
+                            dashboard: nil,
+                            sourceOverride: "z.ai")
+                    } catch {
+                        return ProviderFetchOutcome(result: .failure(error), dashboard: nil, sourceOverride: nil)
+                    }
+                }
+            }
+        }
+
         if provider == .claude, context.sourceMode.usesWeb {
             do {
                 let webUsage = try await ClaudeUsageFetcher(dataSource: .web).loadLatestUsage(model: "sonnet")
@@ -436,6 +498,8 @@ enum CodexBarCLI {
                         primary: usage.primary,
                         secondary: usage.secondary,
                         tertiary: usage.opus,
+                        providerCost: usage.providerCost,
+                        zaiUsage: usage.zaiUsage,
                         updatedAt: usage.updatedAt,
                         accountEmail: usage.accountEmail,
                         accountOrganization: usage.accountOrganization,
