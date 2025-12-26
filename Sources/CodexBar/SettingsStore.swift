@@ -36,6 +36,13 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class SettingsStore {
+    /// Persisted provider display order.
+    ///
+    /// Stored as raw `UsageProvider` strings so new providers can be appended automatically without breaking.
+    private var providerOrderRaw: [String] {
+        didSet { self.userDefaults.set(self.providerOrderRaw, forKey: "providerOrder") }
+    }
+
     var refreshFrequency: RefreshFrequency {
         didSet { self.userDefaults.set(self.refreshFrequency.rawValue, forKey: "refreshFrequency") }
     }
@@ -156,6 +163,7 @@ final class SettingsStore {
     }
 
     var menuObservationToken: Int {
+        _ = self.providerOrderRaw
         _ = self.refreshFrequency
         _ = self.launchAtLogin
         _ = self.debugMenuEnabled
@@ -185,6 +193,7 @@ final class SettingsStore {
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
+        self.providerOrderRaw = userDefaults.stringArray(forKey: "providerOrder") ?? []
         let raw = userDefaults.string(forKey: "refreshFrequency") ?? RefreshFrequency.fiveMinutes.rawValue
         self.refreshFrequency = RefreshFrequency(rawValue: raw) ?? .fiveMinutes
         self.launchAtLogin = userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false
@@ -223,6 +232,16 @@ final class SettingsStore {
         }
     }
 
+    func orderedProviders() -> [UsageProvider] {
+        Self.effectiveProviderOrder(raw: self.providerOrderRaw)
+    }
+
+    func moveProvider(fromOffsets: IndexSet, toOffset: Int) {
+        var order = self.orderedProviders()
+        order.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        self.providerOrderRaw = order.map(\.rawValue)
+    }
+
     func isProviderEnabled(provider: UsageProvider, metadata: ProviderMetadata) -> Bool {
         _ = self.providerToggleRevision
         return self.toggleStore.isEnabled(metadata: metadata)
@@ -241,6 +260,29 @@ final class SettingsStore {
 
     func isCCUsageCostUsageEffectivelyEnabled(for provider: UsageProvider) -> Bool {
         self.ccusageCostUsageEnabled && (provider == .codex || provider == .claude)
+    }
+
+    private static func effectiveProviderOrder(raw: [String]) -> [UsageProvider] {
+        var seen: Set<UsageProvider> = []
+        var ordered: [UsageProvider] = []
+
+        for rawValue in raw {
+            guard let provider = UsageProvider(rawValue: rawValue) else { continue }
+            guard !seen.contains(provider) else { continue }
+            seen.insert(provider)
+            ordered.append(provider)
+        }
+
+        if ordered.isEmpty {
+            ordered = UsageProvider.allCases
+            seen = Set(ordered)
+        }
+
+        for provider in UsageProvider.allCases where !seen.contains(provider) {
+            ordered.append(provider)
+        }
+
+        return ordered
     }
 
     private func runInitialProviderDetectionIfNeeded(force: Bool = false) {

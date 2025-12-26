@@ -302,7 +302,7 @@ final class UsageStore {
     }
 
     func enabledProviders() -> [UsageProvider] {
-        UsageProvider.allCases.filter { self.isEnabled($0) }
+        self.settings.orderedProviders().filter { self.isEnabled($0) }
     }
 
     var statusChecksEnabled: Bool {

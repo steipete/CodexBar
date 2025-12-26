@@ -18,7 +18,7 @@ struct ProvidersPane: View {
     @State private var settingsLastAppActiveRunAtByID: [String: Date] = [:]
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
 
-    private var providers: [UsageProvider] { UsageProvider.allCases }
+    private var providers: [UsageProvider] { self.settings.orderedProviders() }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -34,7 +34,10 @@ struct ProvidersPane: View {
                 settingsToggles: { provider in self.extraSettingsToggles(for: provider) },
                 errorDisplay: { provider in self.providerErrorDisplay(provider) },
                 isErrorExpanded: { provider in self.expandedBinding(for: provider) },
-                onCopyError: { text in self.copyToPasteboard(text) })
+                onCopyError: { text in self.copyToPasteboard(text) },
+                moveProviders: { fromOffsets, toOffset in
+                    self.settings.moveProvider(fromOffsets: fromOffsets, toOffset: toOffset)
+                })
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -235,20 +238,6 @@ struct ProvidersPane: View {
 
 @MainActor
 private struct ProviderListView: View {
-    private enum Row: Identifiable {
-        case provider(UsageProvider)
-        case toggle(provider: UsageProvider, toggle: ProviderSettingsToggleDescriptor)
-
-        var id: String {
-            switch self {
-            case let .provider(provider):
-                "provider.\(provider.rawValue)"
-            case let .toggle(provider, toggle):
-                "toggle.\(provider.rawValue).\(toggle.id)"
-            }
-        }
-    }
-
     let providers: [UsageProvider]
     @Bindable var store: UsageStore
     let isEnabled: (UsageProvider) -> Binding<Bool>
@@ -259,50 +248,40 @@ private struct ProviderListView: View {
     let errorDisplay: (UsageProvider) -> ProviderErrorDisplay?
     let isErrorExpanded: (UsageProvider) -> Binding<Bool>
     let onCopyError: (String) -> Void
+    let moveProviders: (IndexSet, Int) -> Void
 
     var body: some View {
-        let rows = self.rows()
-        List(rows) { row in
-            self.render(row: row)
-                .listRowInsets(ProviderListMetrics.rowInsets)
+        List {
+            ForEach(self.providers, id: \.self) { provider in
+                Section {
+                    ProviderListProviderRowView(
+                        provider: provider,
+                        store: self.store,
+                        isEnabled: self.isEnabled(provider),
+                        subtitle: self.subtitle(provider),
+                        sourceLabel: self.sourceLabel(provider),
+                        statusLabel: self.statusLabel(provider),
+                        errorDisplay: self.isEnabled(provider).wrappedValue ? self.errorDisplay(provider) : nil,
+                        isErrorExpanded: self.isErrorExpanded(provider),
+                        onCopyError: self.onCopyError)
+                        .listRowInsets(ProviderListMetrics.rowInsets)
+
+                    if self.isEnabled(provider).wrappedValue {
+                        ForEach(self.settingsToggles(provider)) { toggle in
+                            ProviderListToggleRowView(provider: provider, toggle: toggle)
+                                .listRowInsets(ProviderListMetrics.rowInsets)
+                        }
+                    }
+                } header: {
+                    EmptyView()
+                }
+            }
+            .onMove { fromOffsets, toOffset in
+                self.moveProviders(fromOffsets, toOffset)
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-    }
-
-    private func rows() -> [Row] {
-        var rows: [Row] = []
-        for provider in self.providers {
-            rows.append(.provider(provider))
-
-            if self.isEnabled(provider).wrappedValue {
-                for toggle in self.settingsToggles(provider) {
-                    rows.append(.toggle(provider: provider, toggle: toggle))
-                }
-            }
-        }
-        return rows
-    }
-
-    @ViewBuilder
-    private func render(row: Row) -> some View {
-        switch row {
-        case let .provider(provider):
-            ProviderListProviderRowView(
-                provider: provider,
-                store: self.store,
-                isEnabled: self.isEnabled(provider),
-                subtitle: self.subtitle(provider),
-                sourceLabel: self.sourceLabel(provider),
-                statusLabel: self.statusLabel(provider),
-                errorDisplay: self.isEnabled(provider).wrappedValue ? self.errorDisplay(provider) : nil,
-                isErrorExpanded: self.isErrorExpanded(provider),
-                onCopyError: self.onCopyError)
-        case let .toggle(provider, toggle):
-            ProviderListToggleRowView(
-                provider: provider,
-                toggle: toggle)
-        }
     }
 }
 

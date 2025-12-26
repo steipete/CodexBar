@@ -1,4 +1,5 @@
 import Foundation
+import CodexBarCore
 import Testing
 @testable import CodexBar
 
@@ -68,5 +69,41 @@ struct SettingsStoreTests {
         let store = SettingsStore(userDefaults: defaults)
 
         #expect(store.claudeUsageDataSource == .web)
+    }
+
+    @Test
+    func providerOrder_defaultsToAllCases() {
+        let suite = "SettingsStoreTests-providerOrder-default"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "providerDetectionCompleted")
+
+        let store = SettingsStore(userDefaults: defaults)
+
+        #expect(store.orderedProviders() == UsageProvider.allCases)
+    }
+
+    @Test
+    func providerOrder_persistsAndAppendsNewProviders() {
+        let suite = "SettingsStoreTests-providerOrder-persist"
+        let defaultsA = UserDefaults(suiteName: suite)!
+        defaultsA.removePersistentDomain(forName: suite)
+        defaultsA.set(true, forKey: "providerDetectionCompleted")
+
+        // Partial list to mimic "older version" missing providers.
+        defaultsA.set([UsageProvider.gemini.rawValue, UsageProvider.codex.rawValue], forKey: "providerOrder")
+
+        let storeA = SettingsStore(userDefaults: defaultsA)
+
+        #expect(storeA.orderedProviders() == [.gemini, .codex, .claude, .cursor, .antigravity])
+
+        // Move one provider; ensure it's persisted across instances.
+        storeA.moveProvider(fromOffsets: IndexSet(integer: 4), toOffset: 0)
+
+        let defaultsB = UserDefaults(suiteName: suite)!
+        defaultsB.set(true, forKey: "providerDetectionCompleted")
+        let storeB = SettingsStore(userDefaults: defaultsB)
+
+        #expect(storeB.orderedProviders().first == .antigravity)
     }
 }
