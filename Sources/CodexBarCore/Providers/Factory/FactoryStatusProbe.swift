@@ -1,6 +1,7 @@
 import Foundation
 
 #if os(macOS)
+import Security
 
 // MARK: - Factory Token Importer
 
@@ -368,23 +369,23 @@ public enum FactoryStatusProbeError: LocalizedError, Sendable {
 public actor FactorySessionStore {
     public static let shared = FactorySessionStore()
 
+    private static let log = CodexBarLog.logger("factory-session")
+    private static let keychainService = "com.steipete.CodexBar"
+    private static let keychainAccount = "factory-refresh-token"
+
     private var refreshToken: String?
-    private let fileURL: URL
+    private let legacyFileURL: URL
 
     private init() {
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fm.temporaryDirectory
-        let dir = appSupport.appendingPathComponent("CodexBar", isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.fileURL = dir.appendingPathComponent("factory-session.json")
-
-        Task { await self.loadFromDisk() }
+        self.legacyFileURL = Self.legacySessionFileURL()
+        Task { await self.loadSession() }
     }
 
     public func setRefreshToken(_ token: String?) {
-        self.refreshToken = token
-        self.saveToDisk()
+        let cleaned = token?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.refreshToken = cleaned
+        self.saveToKeychain(cleaned)
+        try? FileManager.default.removeItem(at: self.legacyFileURL)
     }
 
     public func getRefreshToken() -> String? {
@@ -393,30 +394,143 @@ public actor FactorySessionStore {
 
     public func clearSession() {
         self.refreshToken = nil
-        try? FileManager.default.removeItem(at: self.fileURL)
+        self.saveToKeychain(nil)
+        try? FileManager.default.removeItem(at: self.legacyFileURL)
     }
 
     public func hasValidSession() -> Bool {
         self.refreshToken != nil && !self.refreshToken!.isEmpty
     }
 
-    private func saveToDisk() {
-        guard let token = self.refreshToken, !token.isEmpty else {
-            try? FileManager.default.removeItem(at: self.fileURL)
-            return
+    private func loadSession() {
+        do {
+            if let token = try Self.loadRefreshTokenFromKeychain() {
+                self.refreshToken = token
+                return
+            }
+        } catch {
+            Self.log.error("Keychain read failed: \(error.localizedDescription)")
         }
-        let data: [String: String] = ["refreshToken": token]
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted])
-        else { return }
-        try? jsonData.write(to: self.fileURL)
+
+        self.migrateLegacyFileIfPresent()
     }
 
-    private func loadFromDisk() {
-        guard let data = try? Data(contentsOf: self.fileURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: String],
-              let token = json["refreshToken"]
+    private func migrateLegacyFileIfPresent() {
+        guard let data = try? Data(contentsOf: self.legacyFileURL) else { return }
+        defer { try? FileManager.default.removeItem(at: self.legacyFileURL) }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+              let token = json["refreshToken"],
+              !token.isEmpty
         else { return }
         self.refreshToken = token
+        self.saveToKeychain(token)
+    }
+
+    private func saveToKeychain(_ token: String?) {
+        do {
+            try Self.storeRefreshTokenInKeychain(token)
+        } catch {
+            Self.log.error("Keychain write failed: \(error.localizedDescription)")
+        }
+    }
+
+    private static func legacySessionFileURL() -> URL {
+        let fm = FileManager.default
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fm.temporaryDirectory
+        let dir = appSupport.appendingPathComponent("CodexBar", isDirectory: true)
+        return dir.appendingPathComponent("factory-session.json")
+    }
+
+    private static func loadRefreshTokenFromKeychain() throws -> String? {
+        var result: CFTypeRef?
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: self.keychainService,
+            kSecAttrAccount as String: self.keychainAccount,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnData as String: true,
+        ]
+
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            return nil
+        }
+        guard status == errSecSuccess else {
+            throw FactorySessionStoreError.keychainStatus(status)
+        }
+
+        guard let data = result as? Data else {
+            throw FactorySessionStoreError.invalidData
+        }
+        let token = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let token, !token.isEmpty {
+            return token
+        }
+        return nil
+    }
+
+    private static func storeRefreshTokenInKeychain(_ token: String?) throws {
+        let cleaned = token?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned == nil || cleaned?.isEmpty == true {
+            try self.deleteRefreshTokenFromKeychainIfPresent()
+            return
+        }
+
+        let data = cleaned!.data(using: .utf8)!
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: self.keychainService,
+            kSecAttrAccount as String: self.keychainAccount,
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+        ]
+
+        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if updateStatus == errSecSuccess {
+            return
+        }
+        if updateStatus != errSecItemNotFound {
+            throw FactorySessionStoreError.keychainStatus(updateStatus)
+        }
+
+        var addQuery = query
+        for (key, value) in attributes {
+            addQuery[key] = value
+        }
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        guard addStatus == errSecSuccess else {
+            throw FactorySessionStoreError.keychainStatus(addStatus)
+        }
+    }
+
+    private static func deleteRefreshTokenFromKeychainIfPresent() throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: self.keychainService,
+            kSecAttrAccount as String: self.keychainAccount,
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        if status == errSecSuccess || status == errSecItemNotFound {
+            return
+        }
+        throw FactorySessionStoreError.keychainStatus(status)
+    }
+}
+
+private enum FactorySessionStoreError: LocalizedError {
+    case keychainStatus(OSStatus)
+    case invalidData
+
+    var errorDescription: String? {
+        switch self {
+        case let .keychainStatus(status):
+            "Keychain error: \(status)"
+        case .invalidData:
+            "Keychain returned invalid data."
+        }
     }
 }
 

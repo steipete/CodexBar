@@ -25,8 +25,7 @@ extension StatusItemController {
             await self.runCursorLoginFlow()
             return true
         case .factory:
-            await self.runFactoryLoginFlow()
-            return true
+            return await self.runFactoryLoginFlow()
         }
     }
 }
