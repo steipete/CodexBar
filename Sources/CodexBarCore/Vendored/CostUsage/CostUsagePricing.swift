@@ -114,6 +114,37 @@ enum CostUsagePricing {
             outputCostPerTokenAboveThreshold: 2.25e-5,
             cacheCreationInputCostPerTokenAboveThreshold: 7.5e-6,
             cacheReadInputCostPerTokenAboveThreshold: 6e-7),
+        // z.ai GLM models (Zhipu AI)
+        "glm-4.5-air": ClaudePricing(
+            inputCostPerToken: 0.2e-6,
+            outputCostPerToken: 1.1e-6,
+            cacheCreationInputCostPerToken: 0,
+            cacheReadInputCostPerToken: 0.03e-6,
+            thresholdTokens: nil,
+            inputCostPerTokenAboveThreshold: nil,
+            outputCostPerTokenAboveThreshold: nil,
+            cacheCreationInputCostPerTokenAboveThreshold: nil,
+            cacheReadInputCostPerTokenAboveThreshold: nil),
+        "glm-4.6": ClaudePricing(
+            inputCostPerToken: 0.6e-6,
+            outputCostPerToken: 2.2e-6,
+            cacheCreationInputCostPerToken: 0,
+            cacheReadInputCostPerToken: 0.11e-6,
+            thresholdTokens: nil,
+            inputCostPerTokenAboveThreshold: nil,
+            outputCostPerTokenAboveThreshold: nil,
+            cacheCreationInputCostPerTokenAboveThreshold: nil,
+            cacheReadInputCostPerTokenAboveThreshold: nil),
+        "glm-4.7": ClaudePricing(
+            inputCostPerToken: 0.6e-6,
+            outputCostPerToken: 2.2e-6,
+            cacheCreationInputCostPerToken: 0,
+            cacheReadInputCostPerToken: 0.11e-6,
+            thresholdTokens: nil,
+            inputCostPerTokenAboveThreshold: nil,
+            outputCostPerTokenAboveThreshold: nil,
+            cacheCreationInputCostPerTokenAboveThreshold: nil,
+            cacheReadInputCostPerTokenAboveThreshold: nil),
     ]
 
     static func normalizeCodexModel(_ raw: String) -> String {
