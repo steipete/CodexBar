@@ -203,7 +203,13 @@ extension StatusItemController {
                     if case let .switchAccount(targetProvider) = action,
                        let subtitle = self.switchAccountSubtitle(for: targetProvider)
                     {
-                        item.subtitle = subtitle
+                        if #available(macOS 14.4, *) {
+                            item.subtitle = subtitle
+                        } else {
+                            item.attributedTitle = NSAttributedString(
+                                string: "\(title) — \(subtitle)",
+                                attributes: [.foregroundColor: NSColor.labelColor])
+                        }
                         item.isEnabled = false
                     }
                     menu.addItem(item)

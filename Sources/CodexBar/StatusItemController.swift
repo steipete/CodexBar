@@ -68,6 +68,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     let preferencesSelection: PreferencesSelection
     var animationDisplayLink: CADisplayLink?
+    var animationTimer: Timer?
     var animationPhase: Double = 0
     var animationPattern: LoadingPattern = .knightRider
     let loginLogger = CodexBarLog.logger("login")
