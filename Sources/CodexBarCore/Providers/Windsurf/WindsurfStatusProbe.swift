@@ -813,7 +813,40 @@ public struct WindsurfStatusProbe: Sendable {
             } catch {
                 if case WindsurfStatusProbeError.notLoggedIn = error {
                     await WindsurfSessionStore.shared.clearCookies()
-                    log("Stored session invalid, cleared")
+                    log("Stored session invalid, cleared - will retry browser extraction")
+
+                    // Retry: Try fresh browser extraction since stored session expired
+                    // The user may have logged in again via browser
+                    #if os(macOS) || os(Linux)
+                    do {
+                        let freshSessions = try WindsurfCookieImporter.importSessions(logger: log)
+                        for session in freshSessions {
+                            do {
+                                log("Retry: Using fresh cookies from \(session.sourceLabel)")
+                                let result = try await self.fetchWithCookieHeader(session.cookieHeader)
+                                // Success! Store the working cookies for next time
+                                let cookies = session.cookies
+                                await WindsurfSessionStore.shared.setCookies(cookies)
+                                log("Stored fresh session cookies for future use")
+                                return result
+                            } catch {
+                                log("Retry: Fresh cookies from \(session.sourceLabel) failed: \(error.localizedDescription)")
+                            }
+                        }
+                    } catch {
+                        log("Retry: Browser cookie re-import failed: \(error.localizedDescription)")
+                    }
+
+                    // Also retry automated token extraction
+                    if let freshToken = await Self.extractTokenFromBrowser() {
+                        log("Retry: Using fresh token from browser IndexedDB")
+                        do {
+                            return try await self.fetchWithBearerToken(freshToken)
+                        } catch {
+                            log("Retry: Fresh token failed: \(error.localizedDescription)")
+                        }
+                    }
+                    #endif
                 } else {
                     log("Stored session failed: \(error.localizedDescription)")
                 }
