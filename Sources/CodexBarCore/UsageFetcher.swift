@@ -550,7 +550,7 @@ public struct UsageFetcher: Sendable {
     private static func makeWindow(from rpc: RPCRateLimitWindow?) -> RateWindow? {
         guard let rpc else { return nil }
         let resetsAtDate = rpc.resetsAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
-        let resetDescription = resetsAtDate.map { UsageFormatter.resetDescription(from: $0) }
+        let resetDescription = resetsAtDate.map { "Resets \(UsageFormatter.resetCountdownDescription(from: $0))" }
         return RateWindow(
             usedPercent: rpc.usedPercent,
             windowMinutes: rpc.windowDurationMins,

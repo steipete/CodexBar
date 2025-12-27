@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Z.ai usage limit types from the API
 public enum ZaiLimitType: String, Sendable {

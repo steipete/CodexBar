@@ -344,10 +344,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     }
 
     private static func formatResetDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d 'at' h:mma"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter.string(from: date)
+        "Resets \(UsageFormatter.resetCountdownDescription(from: date))"
     }
 
     // MARK: - PTY-based probe (no tmux)

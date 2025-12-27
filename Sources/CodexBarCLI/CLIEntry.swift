@@ -71,18 +71,31 @@ enum CodexBarCLI {
         if sourceModeRaw != nil, parsedSourceMode == nil {
             Self.exit(code: .failure, message: "Error: --source must be auto|web|cli|oauth.")
         }
+        #if os(macOS)
         let sourceMode = parsedSourceMode ?? .auto
+        #else
+        let sourceMode = parsedSourceMode ?? .cli
+        #endif
         let antigravityPlanDebug = values.flags.contains("antigravityPlanDebug")
         let webDebugDumpHTML = values.flags.contains("webDebugDumpHtml")
         let webTimeout = Self.decodeWebTimeout(from: values) ?? 60
         let verbose = values.flags.contains("verbose")
         let useColor = Self.shouldUseColor()
         let fetcher = UsageFetcher()
+        #if os(macOS)
         let claudeSource: ClaudeUsageDataSource = switch sourceMode {
         case .oauth: .oauth
         case .cli: .cli
         case .web, .auto: .cli
         }
+        #else
+        // On Linux, prefer OAuth (reads ~/.claude/.credentials.json) since PTY-based CLI capture
+        // has reliability issues on Linux terminals.
+        let claudeSource: ClaudeUsageDataSource = switch sourceMode {
+        case .oauth: .oauth
+        case .cli, .web, .auto: .oauth
+        }
+        #endif
         let claudeFetcher = ClaudeUsageFetcher(dataSource: claudeSource)
 
         #if !os(macOS)
@@ -439,6 +452,22 @@ enum CodexBarCLI {
             }
         }
 
+        if provider == .cursor {
+            do {
+                let probe = CursorStatusProbe()
+                let logger: ((String) -> Void)? = context.verbose ? { line in
+                    Self.writeStderr(line + "\n")
+                } : nil
+                let snap = try await probe.fetch(logger: logger)
+                return ProviderFetchOutcome(
+                    result: .success((usage: snap.toUsageSnapshot(), credits: nil)),
+                    dashboard: nil,
+                    sourceOverride: nil)
+            } catch {
+                return ProviderFetchOutcome(result: .failure(error), dashboard: nil, sourceOverride: nil)
+            }
+        }
+
         let result = await Self.fetch(
             provider: provider,
             includeCredits: context.includeCredits,
@@ -606,8 +635,13 @@ enum CodexBarCLI {
                 self.lines.removeFirst(self.lines.count - self.maxCount)
             }
             if self.verbose {
-                fputs("\(line)\n", stderr)
+                Self.writeToStderr("\(line)\n")
             }
+        }
+
+        private static func writeToStderr(_ string: String) {
+            guard let data = string.data(using: .utf8) else { return }
+            FileHandle.standardError.write(data)
         }
 
         func snapshot() -> [String] {

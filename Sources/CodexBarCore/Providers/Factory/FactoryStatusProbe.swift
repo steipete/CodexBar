@@ -324,10 +324,7 @@ public struct FactoryStatusSnapshot: Sendable {
     }
 
     private static func formatResetDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d 'at' h:mma"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return "Resets " + formatter.string(from: date)
+        "Resets \(UsageFormatter.resetCountdownDescription(from: date))"
     }
 }
 

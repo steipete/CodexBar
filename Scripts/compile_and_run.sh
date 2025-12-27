@@ -8,6 +8,7 @@ APP_BUNDLE="${ROOT_DIR}/CodexBar.app"
 APP_PROCESS_PATTERN="CodexBar.app/Contents/MacOS/CodexBar"
 DEBUG_PROCESS_PATTERN="${ROOT_DIR}/.build/debug/CodexBar"
 RELEASE_PROCESS_PATTERN="${ROOT_DIR}/.build/release/CodexBar"
+HOST_OS="$(uname -s)"
 LOCK_KEY="$(printf '%s' "${ROOT_DIR}" | shasum -a 256 | cut -c1-8)"
 LOCK_DIR="${TMPDIR:-/tmp}/codexbar-compile-and-run-${LOCK_KEY}"
 LOCK_PID_FILE="${LOCK_DIR}/pid"
@@ -132,10 +133,14 @@ run_step "swift build" swift build -q
 if [[ "${RUN_TESTS}" == "1" ]]; then
   run_step "swift test" swift test -q
 fi
+if [[ "${HOST_OS}" != "Darwin" ]]; then
+  log "==> Non-macOS host; skipping app packaging and launch."
+  exit 0
+fi
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
-  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 "${ROOT_DIR}/scripts/package_app.sh" debug
+  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 "${ROOT_DIR}/Scripts/package_app.sh" debug
 else
-  run_step "package app" "${ROOT_DIR}/scripts/package_app.sh"
+  run_step "package app" "${ROOT_DIR}/Scripts/package_app.sh"
 fi
 
 # 4) Launch the packaged app.

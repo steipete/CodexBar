@@ -140,7 +140,11 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
 public struct AntigravityStatusProbe: Sendable {
     public var timeout: TimeInterval = 8.0
 
+    #if os(macOS)
     private static let processName = "language_server_macos"
+    #else
+    private static let processName = "language_server_linux"
+    #endif
     private static let getUserStatusPath = "/exa.language_server_pb.LanguageServerService/GetUserStatus"
     private static let commandModelConfigPath =
         "/exa.language_server_pb.LanguageServerService/GetCommandModelConfigs"
@@ -264,12 +268,13 @@ public struct AntigravityStatusProbe: Sendable {
     private static func quotaFromConfig(_ config: ModelConfig) -> AntigravityModelQuota? {
         guard let quota = config.quotaInfo else { return nil }
         let reset = quota.resetTime.flatMap { Self.parseDate($0) }
+        let resetDesc = reset.map { Self.formatResetDate($0) }
         return AntigravityModelQuota(
             label: config.label,
             modelId: config.modelOrAlias.model,
             remainingFraction: quota.remainingFraction,
             resetTime: reset,
-            resetDescription: nil)
+            resetDescription: resetDesc)
     }
 
     private static func invalidCode(_ code: CodeValue?) -> String? {
@@ -286,6 +291,10 @@ public struct AntigravityStatusProbe: Sendable {
             return Date(timeIntervalSince1970: seconds)
         }
         return nil
+    }
+
+    private static func formatResetDate(_ date: Date) -> String {
+        "Resets \(UsageFormatter.resetCountdownDescription(from: date))"
     }
 
     // MARK: - Port detection
@@ -502,6 +511,24 @@ public struct AntigravityStatusProbe: Sendable {
         payload: RequestPayload,
         context: RequestContext) async throws -> Data
     {
+        #if os(macOS)
+        return try await sendRequestURLSession(scheme: scheme, port: port, payload: payload, context: context)
+        #else
+        // On Linux, FoundationNetworking doesn't support delegate-based TLS certificate bypass,
+        // so use curl with -k flag for HTTPS requests to local servers with self-signed certs.
+        if scheme == "https" {
+            return try await sendRequestCurl(port: port, payload: payload, context: context)
+        }
+        return try await sendRequestURLSession(scheme: scheme, port: port, payload: payload, context: context)
+        #endif
+    }
+
+    private static func sendRequestURLSession(
+        scheme: String,
+        port: Int,
+        payload: RequestPayload,
+        context: RequestContext) async throws -> Data
+    {
         guard let url = URL(string: "\(scheme)://127.0.0.1:\(port)\(payload.path)") else {
             throw AntigravityStatusProbeError.apiError("Invalid URL")
         }
@@ -532,6 +559,46 @@ public struct AntigravityStatusProbe: Sendable {
         }
         return data
     }
+
+    #if !os(macOS)
+    private static func sendRequestCurl(
+        port: Int,
+        payload: RequestPayload,
+        context: RequestContext) async throws -> Data
+    {
+        let url = "https://127.0.0.1:\(port)\(payload.path)"
+        let body = try JSONSerialization.data(withJSONObject: payload.body, options: [])
+        guard let bodyString = String(data: body, encoding: .utf8) else {
+            throw AntigravityStatusProbeError.apiError("Failed to encode request body")
+        }
+
+        let curlPath = ["/usr/bin/curl", "/bin/curl"].first(where: {
+            FileManager.default.isExecutableFile(atPath: $0)
+        }) ?? "curl"
+
+        let result = try await SubprocessRunner.run(
+            binary: curlPath,
+            arguments: [
+                "-s", "-k",
+                "--max-time", String(Int(context.timeout)),
+                "-X", "POST",
+                "-H", "Content-Type: application/json",
+                "-H", "Connect-Protocol-Version: 1",
+                "-H", "X-Codeium-Csrf-Token: \(context.csrfToken)",
+                "-d", bodyString,
+                url,
+            ],
+            environment: ProcessInfo.processInfo.environment,
+            timeout: context.timeout + 1,
+            label: "antigravity-curl")
+
+        guard let data = result.stdout.data(using: .utf8), !data.isEmpty else {
+            throw AntigravityStatusProbeError.apiError("Empty response from curl")
+        }
+
+        return data
+    }
+    #endif
 }
 
 private final class InsecureSessionDelegate: NSObject {}

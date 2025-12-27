@@ -320,4 +320,30 @@ struct CursorStatusProbeTests {
         // Clean up
         await store.clearCookies()
     }
+
+    // MARK: - Environment Cookie Header
+
+    @Test
+    func readsCookieHeaderFromEnvironment() {
+        let header = CursorEnvironment.cookieHeader(environment: [
+            "CURSOR_COOKIE_HEADER": "WorkosCursorSessionToken=token123",
+        ])
+        #expect(header == "WorkosCursorSessionToken=token123")
+    }
+
+    @Test
+    func stripsCookiePrefixAndQuotes() {
+        let header = CursorEnvironment.cookieHeader(environment: [
+            "CURSOR_COOKIE_HEADER": "\"Cookie: WorkosCursorSessionToken=token123\"",
+        ])
+        #expect(header == "WorkosCursorSessionToken=token123")
+    }
+
+    @Test
+    func usesFallbackCookieKey() {
+        let header = CursorEnvironment.cookieHeader(environment: [
+            "CURSOR_COOKIE": "WorkosCursorSessionToken=token123",
+        ])
+        #expect(header == "WorkosCursorSessionToken=token123")
+    }
 }
