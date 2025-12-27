@@ -253,8 +253,8 @@ public struct GeminiStatusProbe: Sendable {
             dataLoader: dataLoader)
 
         // Plan display strings with tier mapping:
-        // - standard-tier: Paid subscription (AI Pro, AI Ultra, Code Assist Standard/Enterprise, Developer Program
-        // Premium)
+        // - standard-tier: Paid subscription (AI Pro, AI Ultra, Code Assist
+        //   Standard/Enterprise, Developer Program Premium)
         // - free-tier + hd claim: Workspace account (Gemini included free since Jan 2025)
         // - free-tier: Personal free account (1000 req/day limit)
         // - legacy-tier: Unknown legacy/grandfathered tier
