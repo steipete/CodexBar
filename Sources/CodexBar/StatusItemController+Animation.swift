@@ -337,7 +337,7 @@ extension StatusItemController {
     func updateAnimationState() {
         let needsAnimation = self.needsMenuBarIconAnimation()
         if needsAnimation {
-            if self.animationDisplayLink == nil {
+            if self.animationDisplayLink == nil && self.animationTimer == nil {
                 if let forced = self.settings.debugLoadingPattern {
                     self.animationPattern = forced
                 } else if !LoadingPattern.allCases.contains(self.animationPattern) {

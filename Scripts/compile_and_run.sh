@@ -133,9 +133,9 @@ if [[ "${RUN_TESTS}" == "1" ]]; then
   run_step "swift test" swift test -q
 fi
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
-  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="$(uname -m)" APP_IDENTITY="-" "${ROOT_DIR}/scripts/package_app.sh" debug
+  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="$(uname -m)" "${ROOT_DIR}/scripts/package_app.sh" debug
 else
-  run_step "package app" env ARCHES="$(uname -m)" APP_IDENTITY="-" "${ROOT_DIR}/scripts/package_app.sh"
+  run_step "package app" env ARCHES="$(uname -m)" "${ROOT_DIR}/scripts/package_app.sh"
 fi
 
 # 4) Launch the packaged app.

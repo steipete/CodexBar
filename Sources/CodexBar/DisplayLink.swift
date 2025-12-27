@@ -14,7 +14,8 @@ final class DisplayLinkDriver {
     private var timer: Timer?
 
     func start(fps: Double = 12) {
-        guard self.link == nil else { return }
+        // Avoid multiple timers/links when called repeatedly (macOS 14 timer path)
+        guard self.link == nil, self.timer == nil else { return }
         let rate = Float(fps)
         if #available(macOS 15, *), let screen = NSScreen.main {
             let displayLink = screen.displayLink(target: self, selector: #selector(self.step))
