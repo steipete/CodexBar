@@ -140,7 +140,7 @@ fi
 
 # 4) Launch the packaged app.
 log "==> launch app"
-if ! open -n "${APP_BUNDLE}"; then
+if ! open "${APP_BUNDLE}"; then
   log "WARN: launch app returned non-zero; falling back to direct binary launch."
   "${APP_BUNDLE}/Contents/MacOS/CodexBar" >/dev/null 2>&1 &
   disown

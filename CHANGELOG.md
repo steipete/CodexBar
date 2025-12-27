@@ -23,9 +23,11 @@
 - Menu: provider switcher now aligns to the same horizontal padding grid as the menu cards when space allows.
 - Dev: `compile_and_run.sh` now force-kills old instances to avoid launching duplicates.
 - Dev: `compile_and_run.sh` now waits for slow launches (polling for the process).
+- Dev: `compile_and_run.sh` now launches a single app instance (no more extra windows).
 - CI: build/test Linux `CodexBarCLI` (x86_64 + aarch64) and publish release assets as `CodexBarCLI-<tag>-linux-<arch>.tar.gz` (+ `.sha256`).
 - CLI: add alias fallback for Codex/Claude detection when PATH lookups fail.
 - Providers: support Arc browser cookies for Factory/Droid (and other Chromium-based cookie imports).
+- Providers: support ChatGPT Atlas browser data for Chromium cookie imports.
 - Providers: accept Auth.js secure session cookies for Factory/Droid login detection.
 - Providers: accept Factory auth session cookies (session/access-token) for Droid.
 - Droid: surface Factory API errors instead of masking them as missing sessions.
@@ -33,6 +35,8 @@
 - Droid: try all detected browser profiles before giving up.
 - Droid: fall back to auth.factory.ai endpoints when cookies live on the auth host.
 - Droid: use WorkOS refresh tokens from browser local storage when cookies fail.
+- Droid: read WorkOS refresh tokens from Safari local storage.
+- Droid: avoid Chrome Safe Storage prompts when Safari sessions are available.
 - Providers: hide z.ai in the menu until an API key is set.
 - Menu: refresh runs automatically when opening the menu with a short retry (refresh row removed).
 - Menu: hide the Status Page row when a provider has no status URL.

@@ -49,23 +49,10 @@ public enum FactoryCookieImporter {
         let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
         var sessions: [SessionInfo] = []
 
-        let cookieDomains = ["factory.ai", "app.factory.ai", "auth.factory.ai"]
         for browserSource in factoryCookieImportOrder.sources {
             do {
-                let sources = try BrowserCookieImporter.loadCookieSources(
-                    from: browserSource,
-                    matchingDomains: cookieDomains,
-                    logger: log)
-                for source in sources where !source.records.isEmpty {
-                    let httpCookies = BrowserCookieImporter.makeHTTPCookies(source.records)
-                    if httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
-                        log("Found \(httpCookies.count) Factory cookies in \(source.label)")
-                        log("\(source.label) cookie names: \(self.cookieNames(from: httpCookies))")
-                        sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
-                    } else {
-                        log("\(source.label) cookies found, but no Factory session cookie present")
-                    }
-                }
+                let perSource = try self.importSessions(from: browserSource, logger: logger)
+                sessions.append(contentsOf: perSource)
             } catch {
                 log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
             }
@@ -73,6 +60,39 @@ public enum FactoryCookieImporter {
 
         guard !sessions.isEmpty else {
             throw FactoryStatusProbeError.noSessionCookie
+        }
+        return sessions
+    }
+
+    public static func importSessions(
+        from browserSource: BrowserCookieSource,
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
+        let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
+        let cookieDomains = ["factory.ai", "app.factory.ai", "auth.factory.ai"]
+        let sources = try BrowserCookieImporter.loadCookieSources(
+            from: browserSource,
+            matchingDomains: cookieDomains,
+            logger: log)
+
+        var sessions: [SessionInfo] = []
+        for source in sources where !source.records.isEmpty {
+            let httpCookies = BrowserCookieImporter.makeHTTPCookies(source.records)
+            if httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
+                log("Found \(httpCookies.count) Factory cookies in \(source.label)")
+                log("\(source.label) cookie names: \(self.cookieNames(from: httpCookies))")
+                if let token = httpCookies.first(where: { $0.name == "access-token" })?.value {
+                    let hint = token.contains(".") ? "jwt" : "opaque"
+                    log("\(source.label) access-token cookie: \(token.count) chars (\(hint))")
+                }
+                if let token = httpCookies.first(where: { self.authSessionCookieNames.contains($0.name) })?.value {
+                    let hint = token.contains(".") ? "jwt" : "opaque"
+                    log("\(source.label) session cookie: \(token.count) chars (\(hint))")
+                }
+                sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
+            } else {
+                log("\(source.label) cookies found, but no Factory session cookie present")
+            }
         }
         return sessions
     }
@@ -541,17 +561,28 @@ public struct FactoryStatusProbe: Sendable {
 
     private func attemptBrowserCookies(logger: @escaping (String) -> Void) async -> FetchAttemptResult {
         do {
-            let sessions = try FactoryCookieImporter.importSessions(logger: logger)
+            let hasSafariLocalStorageToken = FactoryLocalStorageImporter.hasSafariWorkOSRefreshToken()
             var lastError: Error?
-            for session in sessions {
-                logger("Using cookies from \(session.sourceLabel)")
-                do {
-                    let snapshot = try await self.fetchWithCookies(session.cookies, logger: logger)
-                    await FactorySessionStore.shared.setCookies(session.cookies)
-                    return .success(snapshot)
-                } catch {
-                    lastError = error
-                    logger("Browser session fetch failed for \(session.sourceLabel): \(error.localizedDescription)")
+            var hadSafariSession = false
+            for browserSource in factoryCookieImportOrder.sources {
+                if browserSource == .chrome, hasSafariLocalStorageToken || hadSafariSession {
+                    logger("Skipping Chrome cookie import to avoid Keychain prompt (Safari session present)")
+                    continue
+                }
+                let sessions = try FactoryCookieImporter.importSessions(from: browserSource, logger: logger)
+                if browserSource == .safari {
+                    hadSafariSession = !sessions.isEmpty
+                }
+                for session in sessions {
+                    logger("Using cookies from \(session.sourceLabel)")
+                    do {
+                        let snapshot = try await self.fetchWithCookies(session.cookies, logger: logger)
+                        await FactorySessionStore.shared.setCookies(session.cookies)
+                        return .success(snapshot)
+                    } catch {
+                        lastError = error
+                        logger("Browser session fetch failed for \(session.sourceLabel): \(error.localizedDescription)")
+                    }
                 }
             }
             if let lastError { return .failure(lastError) }
@@ -892,10 +923,16 @@ public struct FactoryStatusProbe: Sendable {
     }
 
     private static func bearerToken(from cookies: [HTTPCookie]) -> String? {
-        if let token = cookies.first(where: { $0.name == "access-token" })?.value {
-            return token
+        let accessToken = cookies.first(where: { $0.name == "access-token" })?.value
+        let sessionToken = cookies.first(where: { Self.authSessionCookieNames.contains($0.name) })?.value
+
+        if let accessToken, accessToken.contains(".") {
+            return accessToken
         }
-        return cookies.first(where: { Self.authSessionCookieNames.contains($0.name) })?.value
+        if let sessionToken, sessionToken.contains(".") {
+            return sessionToken
+        }
+        return accessToken ?? sessionToken
     }
 
     private func fetchWithBearerToken(
