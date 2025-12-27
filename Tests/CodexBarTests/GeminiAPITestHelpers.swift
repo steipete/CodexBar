@@ -58,13 +58,37 @@ enum GeminiAPITestHelpers {
         ])
     }
 
-    static func makeIDToken(email: String) -> String {
-        let payload = ["email": email]
+    static func makeIDToken(email: String, hostedDomain: String? = nil) -> String {
+        var payload: [String: Any] = ["email": email]
+        if let hd = hostedDomain {
+            payload["hd"] = hd
+        }
         let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
         var encoded = data.base64EncodedString()
         encoded = encoded.replacingOccurrences(of: "+", with: "-")
         encoded = encoded.replacingOccurrences(of: "/", with: "_")
         encoded = encoded.replacingOccurrences(of: "=", with: "")
         return "header.\(encoded).sig"
+    }
+
+    static func loadCodeAssistResponse(tierId: String) -> Data {
+        self.jsonData([
+            "currentTier": [
+                "id": tierId,
+                "name": tierId.replacingOccurrences(of: "-tier", with: ""),
+            ],
+        ])
+    }
+
+    static func loadCodeAssistFreeTierResponse() -> Data {
+        self.loadCodeAssistResponse(tierId: "free-tier")
+    }
+
+    static func loadCodeAssistStandardTierResponse() -> Data {
+        self.loadCodeAssistResponse(tierId: "standard-tier")
+    }
+
+    static func loadCodeAssistLegacyTierResponse() -> Data {
+        self.loadCodeAssistResponse(tierId: "legacy-tier")
     }
 }

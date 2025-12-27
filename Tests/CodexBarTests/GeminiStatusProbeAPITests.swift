@@ -77,6 +77,16 @@ struct GeminiStatusProbeAPITests {
                 let json = GeminiAPITestHelpers.jsonData(["projects": []])
                 return GeminiAPITestHelpers.response(url: url.absoluteString, status: 200, body: json)
             case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    let auth = request.value(forHTTPHeaderField: "Authorization")
+                    if auth != "Bearer new-token" {
+                        return GeminiAPITestHelpers.response(url: url.absoluteString, status: 401, body: Data())
+                    }
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistStandardTierResponse())
+                }
                 if url.path != "/v1internal:retrieveUserQuota" {
                     return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
                 }
@@ -88,12 +98,6 @@ struct GeminiStatusProbeAPITests {
                     url: url.absoluteString,
                     status: 200,
                     body: GeminiAPITestHelpers.sampleQuotaResponse())
-            case "www.googleapis.com":
-                if url.path != "/drive/v3/about" {
-                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
-                }
-                let json = GeminiAPITestHelpers.jsonData(["storageQuota": ["limit": "2199023255552"]])
-                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 200, body: json)
             default:
                 return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
             }
@@ -101,7 +105,7 @@ struct GeminiStatusProbeAPITests {
 
         let probe = GeminiStatusProbe(timeout: 2, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
         let snapshot = try await probe.fetch()
-        #expect(snapshot.accountPlan == "AI Pro")
+        #expect(snapshot.accountPlan == "Paid")
 
         let updated = try env.readCredentials()
         #expect(updated["access_token"] as? String == "new-token")
