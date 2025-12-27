@@ -49,9 +49,23 @@ PROVIDER_LABELS = {
     "antigravity": {"primary": "Claude", "secondary": "Gemini Pro", "tertiary": "Gemini Flash"},
     "claude": {"primary": "Session", "secondary": "Weekly"},
     "codex": {"primary": "Session", "secondary": "Weekly"},
+    "copilot": {"primary": "Premium requests", "secondary": "Usage"},
+    "windsurf": {"primary": "Credits", "secondary": "Usage"},
     "gemini": {"primary": "Daily", "secondary": "Daily"},
     "cursor": {"primary": "Fast", "secondary": "Slow"},
     "zed": {"primary": "Session", "secondary": "Weekly"},
+}
+
+PROVIDER_DISPLAY_NAMES = {
+    "codex": "Codex",
+    "claude": "Claude",
+    "gemini": "Gemini",
+    "antigravity": "Antigravity",
+    "cursor": "Cursor",
+    "factory": "Factory",
+    "windsurf": "Windsurf",
+    "copilot": "Copilot",
+    "zed": "Zed",
 }
 
 
@@ -61,7 +75,10 @@ class UsageData:
     def __init__(self, provider: str, primary_percent: float, secondary_percent: Optional[float],
                  tertiary_percent: Optional[float], primary_reset: Optional[str],
                  secondary_reset: Optional[str], tertiary_reset: Optional[str],
-                 version: Optional[str], account_email: Optional[str]):
+                 version: Optional[str], account_email: Optional[str],
+                 login_method: Optional[str] = None, updated_at: Optional[str] = None,
+                 primary_used_count: Optional[float] = None, primary_total_count: Optional[float] = None,
+                 secondary_used_count: Optional[float] = None, secondary_total_count: Optional[float] = None):
         self.provider = provider
         self.primary_percent = primary_percent
         self.secondary_percent = secondary_percent
@@ -71,6 +88,12 @@ class UsageData:
         self.tertiary_reset = tertiary_reset
         self.version = version
         self.account_email = account_email
+        self.login_method = login_method
+        self.updated_at = updated_at
+        self.primary_used_count = primary_used_count
+        self.primary_total_count = primary_total_count
+        self.secondary_used_count = secondary_used_count
+        self.secondary_total_count = secondary_total_count
 
     @property
     def primary_remaining(self) -> float:
@@ -90,6 +113,30 @@ class UsageData:
 
     def get_labels(self) -> dict:
         return PROVIDER_LABELS.get(self.provider, {"primary": "Primary", "secondary": "Secondary", "tertiary": "Tertiary"})
+
+    def has_primary_counts(self) -> bool:
+        return self.primary_used_count is not None and self.primary_total_count is not None
+
+    def has_secondary_counts(self) -> bool:
+        return self.secondary_used_count is not None and self.secondary_total_count is not None
+
+    def format_primary_usage(self) -> str:
+        """Format primary usage as 'X / Y used' if counts available, else 'X%'"""
+        if self.has_primary_counts():
+            used = int(self.primary_used_count) if self.primary_used_count == int(self.primary_used_count) else self.primary_used_count
+            total = int(self.primary_total_count) if self.primary_total_count == int(self.primary_total_count) else self.primary_total_count
+            return f"{used} / {total} used"
+        return f"{self.primary_remaining:.0f}%"
+
+    def format_secondary_usage(self) -> Optional[str]:
+        """Format secondary usage as 'X / Y used' if counts available, else 'X%'"""
+        if self.secondary_percent is None:
+            return None
+        if self.has_secondary_counts():
+            used = int(self.secondary_used_count) if self.secondary_used_count == int(self.secondary_used_count) else self.secondary_used_count
+            total = int(self.secondary_total_count) if self.secondary_total_count == int(self.secondary_total_count) else self.secondary_total_count
+            return f"{used} / {total} used"
+        return f"{self.secondary_remaining:.0f}%"
 
 
 class CodexBarTray:
@@ -164,26 +211,54 @@ class CodexBarTray:
 
     def _fetch_usage(self):
         """Fetch usage data from CodexBarCLI."""
-        try:
-            # Use --source cli which works for all providers on Linux
-            result = subprocess.run(
-                [self.cli_path, "usage", "--provider", "all", "--format", "json", "--source", "cli"],
-                capture_output=True, text=True, timeout=CLI_TIMEOUT_SECONDS,
-            )
-            if result.stdout.strip():
-                data = json.loads(result.stdout)
-                self._parse_usage_data(data)
-                self.last_error = None
-            elif result.stderr.strip():
-                self.last_error = result.stderr.strip().split("\n")[0]
-        except subprocess.TimeoutExpired:
-            self.last_error = "CLI timeout"
-        except json.JSONDecodeError as e:
-            self.last_error = f"JSON parse error: {e}"
-        except FileNotFoundError:
-            self.last_error = f"CLI not found: {self.cli_path}"
-        except Exception as e:
-            self.last_error = str(e)
+        all_data = []
+        errors = []
+
+        # Fetch each provider separately with appropriate source
+        # Claude: use oauth (gets plan info from credentials file)
+        # All others: use cli
+        provider_sources = [
+            ("claude", "oauth"),
+            ("codex", "cli"),
+            ("gemini", "cli"),
+            ("antigravity", "cli"),
+            ("cursor", "cli"),
+            ("copilot", "cli"),
+            ("windsurf", "cli"),
+        ]
+
+        for provider, source in provider_sources:
+            try:
+                result = subprocess.run(
+                    [self.cli_path, "usage", "--provider", provider, "--format", "json", "--source", source],
+                    capture_output=True, text=True, timeout=CLI_TIMEOUT_SECONDS,
+                )
+                if result.stdout.strip():
+                    data = json.loads(result.stdout)
+                    all_data.extend(data)
+                elif result.stderr.strip():
+                    # Skip errors for providers that aren't configured
+                    err = result.stderr.strip().split("\n")[0]
+                    skip_patterns = ["not installed", "not found", "no session", "no token", "not configured"]
+                    if not any(p in err.lower() for p in skip_patterns):
+                        errors.append(f"{provider}: {err}")
+            except subprocess.TimeoutExpired:
+                errors.append(f"{provider}: timeout")
+            except json.JSONDecodeError:
+                pass  # Skip invalid JSON
+            except FileNotFoundError:
+                self.last_error = f"CLI not found: {self.cli_path}"
+                self.last_update = datetime.now()
+                return
+            except Exception as e:
+                errors.append(f"{provider}: {e}")
+
+        if all_data:
+            self._parse_usage_data(all_data)
+            self.last_error = None
+        elif errors:
+            self.last_error = "; ".join(errors[:2])  # Show first 2 errors
+
         self.last_update = datetime.now()
 
     def _parse_usage_data(self, data: list):
@@ -205,6 +280,10 @@ class CodexBarTray:
                 tertiary_reset=tertiary.get("resetDescription") if tertiary else None,
                 version=item.get("version"),
                 account_email=usage.get("accountEmail"),
+                primary_used_count=primary.get("usedCount"),
+                primary_total_count=primary.get("totalCount"),
+                secondary_used_count=secondary.get("usedCount") if secondary else None,
+                secondary_total_count=secondary.get("totalCount") if secondary else None,
             )
 
     def _build_menu(self) -> pystray.Menu:
@@ -214,20 +293,21 @@ class CodexBarTray:
         # Usage entries for each provider
         if self.usage_data:
             for provider, usage in self.usage_data.items():
-                display_name = provider.capitalize()
+                display_name = PROVIDER_DISPLAY_NAMES.get(provider, provider.capitalize())
                 labels = usage.get_labels()
 
-                # Primary usage
+                # Primary usage - use count format if available
                 primary_label = labels.get("primary", "Session")
-                primary_pct = f"{usage.primary_remaining:.0f}%"
-                items.append(pystray.MenuItem(f"{display_name}: {primary_label} {primary_pct}", None, enabled=False))
+                primary_text = usage.format_primary_usage()
+                items.append(pystray.MenuItem(f"{display_name}: {primary_label} {primary_text}", None, enabled=False))
                 if usage.primary_reset:
                     items.append(pystray.MenuItem(f"  └ {usage.primary_reset}", None, enabled=False))
 
-                # Secondary usage
+                # Secondary usage - use count format if available
                 if usage.secondary_remaining is not None:
                     secondary_label = labels.get("secondary", "Weekly")
-                    items.append(pystray.MenuItem(f"  {secondary_label}: {usage.secondary_remaining:.0f}%", None, enabled=False))
+                    secondary_text = usage.format_secondary_usage()
+                    items.append(pystray.MenuItem(f"  {secondary_label}: {secondary_text}", None, enabled=False))
                     if usage.secondary_reset:
                         items.append(pystray.MenuItem(f"    └ {usage.secondary_reset}", None, enabled=False))
 
@@ -387,26 +467,54 @@ class GtkTray:
 
     def _fetch_usage(self):
         """Fetch usage data from CodexBarCLI."""
-        try:
-            # Use --source cli which works for all providers on Linux
-            result = subprocess.run(
-                [self.cli_path, "usage", "--provider", "all", "--format", "json", "--source", "cli"],
-                capture_output=True, text=True, timeout=CLI_TIMEOUT_SECONDS,
-            )
-            if result.stdout.strip():
-                data = json.loads(result.stdout)
-                self._parse_usage_data(data)
-                self.last_error = None
-            elif result.stderr.strip():
-                self.last_error = result.stderr.strip().split("\n")[0]
-        except subprocess.TimeoutExpired:
-            self.last_error = "CLI timeout"
-        except json.JSONDecodeError as e:
-            self.last_error = f"JSON parse error: {e}"
-        except FileNotFoundError:
-            self.last_error = f"CLI not found: {self.cli_path}"
-        except Exception as e:
-            self.last_error = str(e)
+        all_data = []
+        errors = []
+
+        # Fetch each provider separately with appropriate source
+        # Claude: use oauth (gets plan info from credentials file)
+        # All others: use cli
+        provider_sources = [
+            ("claude", "oauth"),
+            ("codex", "cli"),
+            ("gemini", "cli"),
+            ("antigravity", "cli"),
+            ("cursor", "cli"),
+            ("copilot", "cli"),
+            ("windsurf", "cli"),
+        ]
+
+        for provider, source in provider_sources:
+            try:
+                result = subprocess.run(
+                    [self.cli_path, "usage", "--provider", provider, "--format", "json", "--source", source],
+                    capture_output=True, text=True, timeout=CLI_TIMEOUT_SECONDS,
+                )
+                if result.stdout.strip():
+                    data = json.loads(result.stdout)
+                    all_data.extend(data)
+                elif result.stderr.strip():
+                    # Skip errors for providers that aren't configured
+                    err = result.stderr.strip().split("\n")[0]
+                    skip_patterns = ["not installed", "not found", "no session", "no token", "not configured"]
+                    if not any(p in err.lower() for p in skip_patterns):
+                        errors.append(f"{provider}: {err}")
+            except subprocess.TimeoutExpired:
+                errors.append(f"{provider}: timeout")
+            except json.JSONDecodeError:
+                pass  # Skip invalid JSON
+            except FileNotFoundError:
+                self.last_error = f"CLI not found: {self.cli_path}"
+                self.last_update = datetime.now()
+                return
+            except Exception as e:
+                errors.append(f"{provider}: {e}")
+
+        if all_data:
+            self._parse_usage_data(all_data)
+            self.last_error = None
+        elif errors:
+            self.last_error = "; ".join(errors[:2])  # Show first 2 errors
+
         self.last_update = datetime.now()
 
     def _parse_usage_data(self, data: list):
@@ -427,50 +535,128 @@ class GtkTray:
                 tertiary_reset=tertiary.get("resetDescription") if tertiary else None,
                 version=item.get("version"),
                 account_email=usage.get("accountEmail"),
+                login_method=usage.get("loginMethod"),
+                updated_at=usage.get("updatedAt"),
+                primary_used_count=primary.get("usedCount"),
+                primary_total_count=primary.get("totalCount"),
+                secondary_used_count=secondary.get("usedCount") if secondary else None,
+                secondary_total_count=secondary.get("totalCount") if secondary else None,
             )
 
+    def _format_relative_time(self, updated_at_str: Optional[str]) -> str:
+        """Format updated_at as relative time like 'just now', '2m ago', etc."""
+        if not updated_at_str:
+            return ""
+        try:
+            # Parse ISO format: 2025-12-27T14:20:49Z - strip timezone for simple comparison
+            clean = updated_at_str.replace("Z", "").split("+")[0].split(".")[0]
+            dt = datetime.fromisoformat(clean)
+            now = datetime.utcnow()
+            seconds = int((now - dt).total_seconds())
+            if seconds < 0:
+                seconds = 0
+            if seconds < 60:
+                return "just now"
+            elif seconds < 3600:
+                return f"{seconds // 60}m ago"
+            elif seconds < 86400:
+                return f"{seconds // 3600}h ago"
+            else:
+                return f"{seconds // 86400}d ago"
+        except Exception:
+            return ""
+
+    def _make_bar(self, remaining_pct: float) -> str:
+        """Create a compact Unicode progress bar (8 chars)."""
+        filled = int((remaining_pct / 100) * 8)
+        return "█" * filled + "░" * (8 - filled)
+
+    def _provider_icon(self, provider: str) -> str:
+        """Get emoji icon for provider."""
+        icons = {
+            "codex": "🤖",
+            "claude": "🟠",
+            "antigravity": "🚀",
+            "gemini": "💎",
+            "cursor": "⚡",
+            "zed": "⚛",
+            "factory": "🏭",
+            "copilot": "🐙",
+            "windsurf": "🌊",
+        }
+        return icons.get(provider.lower(), "●")
+
     def _build_menu(self):
-        """Build GTK menu."""
+        """Build GTK menu - ultra compact layout."""
         menu = Gtk.Menu()
 
         if self.usage_data:
             for provider, usage in self.usage_data.items():
-                display_name = provider.capitalize()
+                icon = self._provider_icon(provider)
+                name = PROVIDER_DISPLAY_NAMES.get(provider, provider.capitalize())
                 labels = usage.get_labels()
 
-                # Primary usage
-                primary_label = labels.get("primary", "Session")
-                primary_pct = f"{usage.primary_remaining:.0f}%"
-                item = Gtk.MenuItem(label=f"{display_name}: {primary_label} {primary_pct}")
+                # Header: "🤖 Codex (Pro) • user@email.com • just now"
+                parts = [f"{icon} {name}"]
+                if usage.login_method:
+                    parts[0] += f" ({usage.login_method})"
+                if usage.account_email:
+                    parts.append(usage.account_email)
+                updated = self._format_relative_time(usage.updated_at)
+                if updated:
+                    parts.append(updated)
+                header = " • ".join(parts)
+                item = Gtk.MenuItem(label=header)
                 item.set_sensitive(False)
                 menu.append(item)
 
-                if usage.primary_reset:
-                    item = Gtk.MenuItem(label=f"  └ {usage.primary_reset}")
-                    item.set_sensitive(False)
-                    menu.append(item)
+                # Primary: "  Session: ████████ 83%  in 3h" or "  Credits: 45 / 100 used  in 3h"
+                bar = self._make_bar(usage.primary_remaining)
+                reset = usage.primary_reset.replace("Resets ", "") if usage.primary_reset else ""
+                primary_label = labels.get("primary", "Session")
+                # Use count format for providers with counts (Windsurf, Copilot)
+                if usage.has_primary_counts():
+                    usage_text = usage.format_primary_usage()
+                    line = f"    {primary_label}: {bar} {usage_text}"
+                else:
+                    pct = f"{usage.primary_remaining:.0f}%"
+                    line = f"    {primary_label}: {bar} {pct:>3}"
+                if reset:
+                    line += f"  {reset}"
+                item = Gtk.MenuItem(label=line)
+                item.set_sensitive(False)
+                menu.append(item)
 
-                # Secondary usage
+                # Secondary
                 if usage.secondary_remaining is not None:
-                    secondary_label = labels.get("secondary", "Weekly")
-                    item = Gtk.MenuItem(label=f"  {secondary_label}: {usage.secondary_remaining:.0f}%")
+                    bar = self._make_bar(usage.secondary_remaining)
+                    reset = usage.secondary_reset.replace("Resets ", "") if usage.secondary_reset else ""
+                    sec_label = labels.get("secondary", "Weekly")
+                    # Use count format for providers with counts
+                    if usage.has_secondary_counts():
+                        usage_text = usage.format_secondary_usage()
+                        line = f"    {sec_label}: {bar} {usage_text}"
+                    else:
+                        pct = f"{usage.secondary_remaining:.0f}%"
+                        line = f"    {sec_label}: {bar} {pct:>3}"
+                    if reset:
+                        line += f"  {reset}"
+                    item = Gtk.MenuItem(label=line)
                     item.set_sensitive(False)
                     menu.append(item)
-                    if usage.secondary_reset:
-                        item = Gtk.MenuItem(label=f"    └ {usage.secondary_reset}")
-                        item.set_sensitive(False)
-                        menu.append(item)
 
-                # Tertiary usage (e.g., Gemini Flash for Antigravity)
+                # Tertiary
                 if usage.tertiary_remaining is not None:
-                    tertiary_label = labels.get("tertiary", "Tertiary")
-                    item = Gtk.MenuItem(label=f"  {tertiary_label}: {usage.tertiary_remaining:.0f}%")
+                    pct = f"{usage.tertiary_remaining:.0f}%"
+                    bar = self._make_bar(usage.tertiary_remaining)
+                    reset = usage.tertiary_reset.replace("Resets ", "") if usage.tertiary_reset else ""
+                    ter_label = labels.get("tertiary", "Tertiary")
+                    line = f"    {ter_label}: {bar} {pct:>3}"
+                    if reset:
+                        line += f"  {reset}"
+                    item = Gtk.MenuItem(label=line)
                     item.set_sensitive(False)
                     menu.append(item)
-                    if usage.tertiary_reset:
-                        item = Gtk.MenuItem(label=f"    └ {usage.tertiary_reset}")
-                        item.set_sensitive(False)
-                        menu.append(item)
 
                 menu.append(Gtk.SeparatorMenuItem())
         else:
@@ -480,23 +666,16 @@ class GtkTray:
             menu.append(Gtk.SeparatorMenuItem())
 
         if self.last_error:
-            item = Gtk.MenuItem(label=f"⚠ {self.last_error[:50]}")
+            item = Gtk.MenuItem(label=f"⚠ {self.last_error[:40]}")
             item.set_sensitive(False)
             menu.append(item)
             menu.append(Gtk.SeparatorMenuItem())
 
-        if self.last_update:
-            item = Gtk.MenuItem(label=f"Updated: {self.last_update.strftime('%H:%M:%S')}")
-            item.set_sensitive(False)
-            menu.append(item)
-
-        menu.append(Gtk.SeparatorMenuItem())
-
-        refresh_item = Gtk.MenuItem(label="Refresh Now")
+        refresh_item = Gtk.MenuItem(label="↻ Refresh")
         refresh_item.connect("activate", self._on_refresh)
         menu.append(refresh_item)
 
-        cli_item = Gtk.MenuItem(label="Copy CLI Command")
+        cli_item = Gtk.MenuItem(label="📋 Copy CLI")
         cli_item.connect("activate", self._on_copy_cli_command)
         menu.append(cli_item)
 
