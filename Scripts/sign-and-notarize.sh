@@ -30,8 +30,13 @@ fi
 echo "$APP_STORE_CONNECT_API_KEY_P8" | sed 's/\\n/\n/g' > /tmp/codexbar-api-key.p8
 trap 'rm -f /tmp/codexbar-api-key.p8 /tmp/${APP_NAME}Notarize.zip' EXIT
 
-swift build -c release --arch arm64
-./Scripts/package_app.sh release
+# Allow building a universal binary if ARCHES is provided; default to arm64 per release policy.
+ARCHES_VALUE=${ARCHES:-"arm64"}
+ARCHES=( ${ARCHES_VALUE} )
+for A in "${ARCHES[@]}"; do
+  swift build -c release --arch "$A"
+done
+ARCHES="${ARCHES_VALUE}" ./Scripts/package_app.sh release
 
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"
@@ -81,7 +86,10 @@ spctl -a -t exec -vv "$APP_BUNDLE"
 stapler validate "$APP_BUNDLE"
 
 echo "Packaging dSYM"
-DSYM_PATH=".build/arm64-apple-macosx/release/${APP_NAME}.dSYM"
+# Prefer dSYM from the first arch; for universal it doesn't matter which slice we zip.
+FIRST_ARCH="${ARCHES[0]}"
+PREFERRED_ARCH_DIR=".build/${FIRST_ARCH}-apple-macosx/release"
+DSYM_PATH="${PREFERRED_ARCH_DIR}/${APP_NAME}.dSYM"
 if [[ ! -d "$DSYM_PATH" ]]; then
   echo "Missing dSYM at $DSYM_PATH" >&2
   exit 1

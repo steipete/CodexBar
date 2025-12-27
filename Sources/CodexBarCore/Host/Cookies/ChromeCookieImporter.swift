@@ -72,8 +72,7 @@ enum ChromeCookieImporter {
                         .appendingPathComponent("com.openai.atlas")
                         .appendingPathComponent("browser-data")
                         .appendingPathComponent("host"),
-                    "ChatGPT Atlas"
-                ),
+                    "ChatGPT Atlas"),
                 (appSupport.appendingPathComponent("Chromium"), "Chromium"),
             ]
         }

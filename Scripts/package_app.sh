@@ -12,7 +12,21 @@ source "$ROOT/version.env"
 rm -rf "$ROOT/.build"
 swift package clean >/dev/null 2>&1 || true
 
-swift build -c "$CONF" --arch arm64
+# Build for host architecture by default; allow overriding via ARCHES (e.g., "arm64 x86_64" for universal).
+ARCHES=( ${ARCHES:-} )
+if [[ ${#ARCHES[@]} -eq 0 ]]; then
+  # Default to host arch; on Intel this is x86_64, on Apple Silicon arm64.
+  HOST_ARCH=$(uname -m)
+  case "$HOST_ARCH" in
+    arm64) ARCHES=(arm64) ;;
+    x86_64) ARCHES=(x86_64) ;;
+    *) ARCHES=("$HOST_ARCH") ;;
+  esac
+fi
+
+for A in "${ARCHES[@]}"; do
+  swift build -c "$CONF" --arch "$A"
+done
 
 APP="$ROOT/CodexBar.app"
 rm -rf "$APP"
@@ -90,7 +104,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${MARKETING_VERSION}</string>
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
-    <key>LSMinimumSystemVersion</key><string>15.0</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>CFBundleIconFile</key><string>Icon</string>
     <key>NSHumanReadableCopyright</key><string>© 2025 Peter Steinberger. MIT License.</string>
@@ -103,16 +117,53 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-cp ".build/$CONF/CodexBar" "$APP/Contents/MacOS/CodexBar"
+# If building universal, create a fat binary, else copy the built one.
+if [[ ${#ARCHES[@]} -gt 1 ]]; then
+  BINARIES=()
+  for A in "${ARCHES[@]}"; do
+    case "$A" in
+      arm64) BINARIES+=(".build/arm64-apple-macosx/$CONF/CodexBar") ;;
+      x86_64) BINARIES+=(".build/x86_64-apple-macosx/$CONF/CodexBar") ;;
+      *) BINARIES+=(".build/$CONF/CodexBar") ;;
+    esac
+  done
+  lipo -create "${BINARIES[@]}" -output "$APP/Contents/MacOS/CodexBar"
+else
+  cp ".build/$CONF/CodexBar" "$APP/Contents/MacOS/CodexBar"
+fi
 chmod +x "$APP/Contents/MacOS/CodexBar"
 # Ship CodexBarCLI alongside the app for easy symlinking.
 if [[ -f ".build/$CONF/CodexBarCLI" ]]; then
-  cp ".build/$CONF/CodexBarCLI" "$APP/Contents/Helpers/CodexBarCLI"
+  if [[ ${#ARCHES[@]} -gt 1 ]]; then
+    BINARIES=()
+    for A in "${ARCHES[@]}"; do
+      case "$A" in
+        arm64) BINARIES+=(".build/arm64-apple-macosx/$CONF/CodexBarCLI") ;;
+        x86_64) BINARIES+=(".build/x86_64-apple-macosx/$CONF/CodexBarCLI") ;;
+        *) BINARIES+=(".build/$CONF/CodexBarCLI") ;;
+      esac
+    done
+    lipo -create "${BINARIES[@]}" -output "$APP/Contents/Helpers/CodexBarCLI"
+  else
+    cp ".build/$CONF/CodexBarCLI" "$APP/Contents/Helpers/CodexBarCLI"
+  fi
   chmod +x "$APP/Contents/Helpers/CodexBarCLI"
 fi
 # Watchdog helper: ensures `claude` probes die when CodexBar crashes/gets killed.
 if [[ -f ".build/$CONF/CodexBarClaudeWatchdog" ]]; then
-  cp ".build/$CONF/CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
+  if [[ ${#ARCHES[@]} -gt 1 ]]; then
+    BINARIES=()
+    for A in "${ARCHES[@]}"; do
+      case "$A" in
+        arm64) BINARIES+=(".build/arm64-apple-macosx/$CONF/CodexBarClaudeWatchdog") ;;
+        x86_64) BINARIES+=(".build/x86_64-apple-macosx/$CONF/CodexBarClaudeWatchdog") ;;
+        *) BINARIES+=(".build/$CONF/CodexBarClaudeWatchdog") ;;
+      esac
+    done
+    lipo -create "${BINARIES[@]}" -output "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
+  else
+    cp ".build/$CONF/CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
+  fi
   chmod +x "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
 fi
 if [[ -f ".build/$CONF/CodexBarWidget" ]]; then
@@ -130,7 +181,7 @@ if [[ -f ".build/$CONF/CodexBarWidget" ]]; then
     <key>CFBundlePackageType</key><string>XPC!</string>
     <key>CFBundleShortVersionString</key><string>${MARKETING_VERSION}</string>
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
-    <key>LSMinimumSystemVersion</key><string>15.0</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSExtension</key>
     <dict>
         <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>
@@ -139,7 +190,19 @@ if [[ -f ".build/$CONF/CodexBarWidget" ]]; then
 </dict>
 </plist>
 PLIST
-  cp ".build/$CONF/CodexBarWidget" "$WIDGET_APP/Contents/MacOS/CodexBarWidget"
+  if [[ ${#ARCHES[@]} -gt 1 ]]; then
+    BINARIES=()
+    for A in "${ARCHES[@]}"; do
+      case "$A" in
+        arm64) BINARIES+=(".build/arm64-apple-macosx/$CONF/CodexBarWidget") ;;
+        x86_64) BINARIES+=(".build/x86_64-apple-macosx/$CONF/CodexBarWidget") ;;
+        *) BINARIES+=(".build/$CONF/CodexBarWidget") ;;
+      esac
+    done
+    lipo -create "${BINARIES[@]}" -output "$WIDGET_APP/Contents/MacOS/CodexBarWidget"
+  else
+    cp ".build/$CONF/CodexBarWidget" "$WIDGET_APP/Contents/MacOS/CodexBarWidget"
+  fi
   chmod +x "$WIDGET_APP/Contents/MacOS/CodexBarWidget"
 fi
 # Embed Sparkle.framework

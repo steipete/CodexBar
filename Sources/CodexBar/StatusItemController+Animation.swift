@@ -344,9 +344,21 @@ extension StatusItemController {
                     self.animationPattern = .knightRider
                 }
                 self.animationPhase = 0
-                if let link = NSScreen.main?.displayLink(target: self, selector: #selector(self.animateIcons(_:))) {
+                if #available(macOS 15, *), let screen = NSScreen.main {
+                    let link = screen.displayLink(target: self, selector: #selector(self.animateIcons(_:)))
                     link.add(to: .main, forMode: .common)
                     self.animationDisplayLink = link
+                } else {
+                    // Fallback to timer on macOS 14.
+                    let interval = 1.0 / 60.0
+                    let timer = Timer(
+                        timeInterval: interval,
+                        target: self,
+                        selector: #selector(self.animateIconsTimer(_:)),
+                        userInfo: nil,
+                        repeats: true)
+                    RunLoop.main.add(timer, forMode: .common)
+                    self.animationTimer = timer
                 }
             } else if let forced = self.settings.debugLoadingPattern, forced != self.animationPattern {
                 self.animationPattern = forced
@@ -355,6 +367,8 @@ extension StatusItemController {
         } else {
             self.animationDisplayLink?.invalidate()
             self.animationDisplayLink = nil
+            self.animationTimer?.invalidate()
+            self.animationTimer = nil
             self.animationPhase = 0
             if self.shouldMergeIcons {
                 self.applyIcon(phase: nil)
@@ -364,7 +378,11 @@ extension StatusItemController {
         }
     }
 
-    @objc func animateIcons(_ link: CADisplayLink) {
+    @objc func animateIcons(_ link: CADisplayLink) { self.updateAnimationFrame() }
+
+    @objc func animateIconsTimer(_ timer: Timer) { self.updateAnimationFrame() }
+
+    private func updateAnimationFrame() {
         self.animationPhase += 0.045 // half-speed animation
         if self.shouldMergeIcons {
             self.applyIcon(phase: self.animationPhase)
