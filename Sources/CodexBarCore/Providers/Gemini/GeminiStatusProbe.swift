@@ -253,7 +253,8 @@ public struct GeminiStatusProbe: Sendable {
             dataLoader: dataLoader)
 
         // Plan display strings with tier mapping:
-        // - standard-tier: Paid subscription (AI Pro, AI Ultra, Code Assist Standard/Enterprise, Developer Program Premium)
+        // - standard-tier: Paid subscription (AI Pro, AI Ultra, Code Assist Standard/Enterprise, Developer Program
+        // Premium)
         // - free-tier + hd claim: Workspace account (Gemini included free since Jan 2025)
         // - free-tier: Personal free account (1000 req/day limit)
         // - legacy-tier: Unknown legacy/grandfathered tier
@@ -261,7 +262,7 @@ public struct GeminiStatusProbe: Sendable {
         let plan: String? = switch (userTier, claims.hostedDomain) {
         case (.standard, _):
             "Paid"
-        case (.free, .some(let domain)):
+        case let (.free, .some(domain)):
             { Self.log.info("Workspace account detected", metadata: ["domain": domain]); return "Workspace" }()
         case (.free, .none):
             { Self.log.info("Personal free account"); return "Free" }()
@@ -328,7 +329,7 @@ public struct GeminiStatusProbe: Sendable {
         dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async -> GeminiUserTierId?
     {
         guard let url = URL(string: loadCodeAssistEndpoint) else {
-            Self.log.warning("loadCodeAssist: invalid endpoint URL")
+            self.log.warning("loadCodeAssist: invalid endpoint URL")
             return nil
         }
 
