@@ -1,11 +1,11 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 15+ menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, and z.ai limits visible (session + weekly where available) and shows when each window resets. One status item per provider; enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 14+ menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, and z.ai limits visible (session + weekly where available) and shows when each window resets. One status item per provider; enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 ## Install
 
 ### Requirements
-- macOS 15+ (Sequoia).
+- macOS 14+ (Sonoma).
 - Apple Silicon (arm64). Intel builds are not currently published.
 
 ### Option A: GitHub Releases (recommended, Sparkle updates)

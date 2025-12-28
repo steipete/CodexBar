@@ -12,6 +12,10 @@ read_when:
 - `Sources/CodexBar`: state + UI (UsageStore, SettingsStore, StatusItemController, menus, icon rendering).
 - `Sources/CodexBarWidget`: WidgetKit extension wired to the shared snapshot.
 - `Sources/CodexBarCLI`: bundled CLI for `codexbar` usage/status output.
+- `Sources/CodexBarMacros`: SwiftSyntax macros for provider registration.
+- `Sources/CodexBarMacroSupport`: shared macro support used by app/core/CLI targets.
+- `Sources/CodexBarClaudeWatchdog`: helper process for stable Claude CLI PTY sessions.
+- `Sources/CodexBarClaudeWebProbe`: CLI helper to diagnose Claude web fetches.
 
 ## Entry points
 - `CodexBarApp`: SwiftUI keepalive + Settings scene.
@@ -23,6 +27,6 @@ read_when:
 
 ## Concurrency & platform
 - Swift 6 strict concurrency enabled; prefer Sendable state and explicit MainActor hops.
-- macOS 15+ targeting; avoid deprecated APIs when refactoring.
+- macOS 14+ targeting; avoid deprecated APIs when refactoring.
 
 See also: `docs/providers.md`, `docs/refresh-loop.md`, `docs/ui.md`.
