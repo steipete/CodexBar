@@ -43,7 +43,8 @@ read_when:
 ## Cursor
 - Web-based: fetches usage from cursor.com API using browser session cookies.
 - Cookie import: Safari (Cookies.binarycookies) → Chrome (encrypted SQLite DB) → Firefox (cookies.sqlite); requires cursor.com + cursor.sh cookies.
-- Fallback: stored session from "Add Account" WebKit login flow.
+- Linux: Chrome cookie import supported; sign in to cursor.com in Chrome.
+- Fallback: stored session from "Add Account" WebKit login flow (macOS) or `CURSOR_COOKIE_HEADER` env var (Linux).
 - Shows plan usage percentage, on-demand usage, and billing cycle reset.
 - Supports Pro, Enterprise, Team, and Hobby membership types.
 - Status: Statuspage.io (Cursor).
@@ -51,10 +52,18 @@ read_when:
 
 ## GitHub Copilot
 - Web-based: fetches usage from `github.com/settings/copilot` using browser session cookies.
-- Cookie import: Safari → Chrome → Firefox; requires `github.com` session cookies.
+- Cookie import: Safari → Chrome → Firefox (macOS); Chrome only on Linux.
 - Parses premium requests usage percentage and monthly reset timing.
 - Shows account login and active plan when available.
 - Status: status page at `https://www.githubstatus.com`.
+
+## Windsurf
+- Firebase-based: fetches usage from Windsurf's Firebase backend using access tokens.
+- Token sources: `WINDSURF_TOKEN` environment variable, or auto-extracted from Chrome's IndexedDB.
+- Linux: requires `pysqlite3` or manual token extraction via browser DevTools.
+- Shows credits usage (in cents) with usage percentage and reset timing.
+- Auto-retries token extraction when stored tokens expire.
+- Status: no public status integration yet.
 
 ## Droid (Factory)
 - Web-based: fetches usage from app.factory.ai (and auth/api hosts when needed) using browser session cookies or WorkOS refresh tokens from local storage.

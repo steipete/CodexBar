@@ -1,5 +1,40 @@
 # Changelog
 
+## Fork Changes (zoomcharts/CodexBar)
+
+This fork extends the upstream CodexBar with enhanced Linux support and additional providers.
+
+### New Providers
+- **Windsurf**: Firebase-based usage fetching with auto-token extraction from Chrome IndexedDB. Shows credits usage in cents with reset timing. Auto-retries when tokens expire.
+- **GitHub Copilot**: Premium requests usage from github.com/settings/copilot via browser cookies. Shows monthly reset and account info.
+
+### Enhanced Linux Support
+- **Full CLI support**: All providers work on Linux (except Factory/Droid which requires macOS WebKit).
+- **Cursor on Linux**: Chrome cookie import for cursor.com authentication.
+- **System tray**: Python-based GTK+AppIndicator tray (`Sources/CodexBarLinux/codexbar_tray.py`) with:
+  - Live usage display with Unicode progress bars
+  - Auto-refresh every 60 seconds
+  - Support for all Linux-compatible providers
+  - Compact menu layout with account info and reset times
+
+### Claude Enhancements
+- Enhanced OAuth usage fetching with subscription type detection (Pro, Max, Team, etc.)
+- Overage cost calculation for usage beyond included limits
+- Improved credential handling from Keychain and `~/.claude/.credentials.json`
+
+### Provider Improvements
+- Windsurf: Regex escaping fix for token extraction
+- Windsurf: Auto-retry browser extraction when stored token expires
+- Copilot: Premium requests shown as percentage with monthly reset
+- Cursor: Linux support via Chrome cookie import or `CURSOR_COOKIE_HEADER` env var
+
+### Documentation
+- New `docs/linux.md` for Linux-specific setup and troubleshooting
+- Updated `docs/cli.md` with Linux tray instructions
+- Updated `docs/providers.md` with Windsurf and Copilot details
+
+---
+
 ## 0.15.0 — Unreleased
 - Droid (Factory): new provider with Standard + Premium usage via browser cookies, plus dashboard + status links. Thanks @shashank-factory!
 - Menu: allow multi-line error messages in the provider subtitle (up to 4 lines).

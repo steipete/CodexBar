@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 15+ menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, and z.ai limits visible (session + weekly where available) and when each window resets. One status item per provider; enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 15+ menu bar app (with Linux CLI + tray support) that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, Windsurf, GitHub Copilot, and z.ai limits visible (session + weekly where available) and when each window resets. One status item per provider; enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 ## Install
 - Homebrew (UI app; Sparkle disabled): `brew install --cask steipete/tap/codexbar` (update via `brew upgrade --cask steipete/tap/codexbar`)
@@ -14,6 +14,8 @@ Login story
 - **Gemini** — Uses the Gemini CLI `/stats` output for quota, with OAuth-backed API fetches for plan/limits.
 - **Antigravity** — Local Antigravity language server probe; conservative parsing and no external auth.
 - **z.ai** — Calls the z.ai quota API (API token stored in Keychain via Preferences → Providers) to show Tokens + MCP windows; dashboard: https://z.ai/manage-apikey/subscription
+- **Windsurf** — Fetches usage from Windsurf via Firebase token extraction from browser IndexedDB. Shows credits usage and reset timing. Set `WINDSURF_TOKEN` environment variable or let CodexBar extract it from Chrome's IndexedDB automatically.
+- **GitHub Copilot** — Fetches premium requests usage from github.com/settings/copilot using browser session cookies. Shows remaining premium requests and monthly reset.
 - **Provider detection** — On first launch we detect installed CLIs and enable Codex by default (Claude turns on when the `claude` binary is present). Toggle providers in Settings → Providers or rerun detection after installing a CLI.
 - **Privacy note** — Wondering if CodexBar scans your disk? It doesn't; see the discussion and audit notes in [issue #12](https://github.com/steipete/CodexBar/issues/12).
 
@@ -25,7 +27,7 @@ Icon bar mapping (grayscale)
 ![CodexBar Screenshot](codexbar.png)
 
 ## Features
-- Multi-provider: Codex, Claude Code, Cursor, Gemini, Antigravity, and z.ai can be shown together; enable what you use in Settings → Providers.
+- Multi-provider: Codex, Claude Code, Cursor, Gemini, Antigravity, Windsurf, GitHub Copilot, and z.ai can be shown together; enable what you use in Settings → Providers.
 - Codex path: prefers the codex app-server RPC (run with `-s read-only -a untrusted`) for rate limits and credits; falls back to a PTY scrape of `codex /status`, keeping cached credits when RPC is unavailable.
 - Codex optional: “Access OpenAI via web” adds Code review remaining + Usage breakdown + Credits usage history (dashboard scrape) by reusing existing browser cookies; no passwords stored.
 - Claude path: runs `claude /usage` and `/status` in a local PTY (no tmux) to parse session/week/Sonnet percentages, reset strings, and account email/org/login method; debug view can copy the latest raw scrape.
@@ -43,15 +45,19 @@ open CodexBar.app
 - Start here: `docs/provider.md` (provider authoring guide + target architecture).
 
 ## CLI
-- macOS: Preferences → Advanced → “Install CLI” installs `codexbar` to `/usr/local/bin` + `/opt/homebrew/bin`.
+- macOS: Preferences → Advanced → "Install CLI" installs `codexbar` to `/usr/local/bin` + `/opt/homebrew/bin`.
 - Linux: download `CodexBarCLI-<tag>-linux-<arch>.tar.gz` from GitHub Releases (x86_64 + aarch64) and run `./codexbar`.
-- Docs: see `docs/cli.md`.
+- Linux tray: run `Sources/CodexBarLinux/codexbar_tray.py` for a GTK+AppIndicator system tray with live usage display.
+- Docs: see `docs/cli.md` and `docs/linux.md`.
 
 Requirements:
-- macOS 15+.
-- Codex: Codex CLI ≥ 0.55.0 installed and logged in (`codex --version`) to show the Codex row + credits. If your account hasn’t reported usage yet, the menu will show “No usage yet.”
+- macOS 15+ (for the menu bar app) or Linux (for CLI + tray).
+- Codex: Codex CLI ≥ 0.55.0 installed and logged in (`codex --version`) to show the Codex row + credits. If your account hasn't reported usage yet, the menu will show "No usage yet."
 - Claude: Claude Code CLI installed (`claude --version`) and logged in via `claude login` to show the Claude row. Run at least one `/usage` so session/week numbers exist.
-- OpenAI web (optional): stay signed in to `chatgpt.com` in Safari, Chrome, or Firefox. Safari cookie import may require Full Disk Access (System Settings → Privacy & Security → Full Disk Access → enable CodexBar).
+- Cursor: sign in to cursor.com in Chrome (Linux) or Safari/Chrome/Firefox (macOS).
+- Windsurf: sign in via the Windsurf app; CodexBar extracts the Firebase token from Chrome's IndexedDB or use `WINDSURF_TOKEN`.
+- GitHub Copilot: sign in to github.com in Chrome (Linux) or Safari/Chrome/Firefox (macOS).
+- OpenAI web (optional, macOS only): stay signed in to `chatgpt.com` in Safari, Chrome, or Firefox. Safari cookie import may require Full Disk Access (System Settings → Privacy & Security → Full Disk Access → enable CodexBar).
 
 ## Refresh cadence
 Menu → “Refresh every …” presets: Manual, 1 min, 2 min, 5 min (default), 15 min. Manual still allows “Refresh now.”

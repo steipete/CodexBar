@@ -19,12 +19,32 @@ Use it when you need usage numbers in scripts, CI, or dashboards without UI.
 ### Linux install
 - Download `CodexBarCLI-<tag>-linux-<arch>.tar.gz` from GitHub Releases (x86_64 + aarch64).
 - Extract; run `./codexbar` (symlink) or `./CodexBarCLI`.
+- Or build from source: `swift build -c release --product CodexBarCLI` and copy `.build/release/CodexBarCLI` to `~/.local/bin/codexbar`.
 
-```
+```bash
+# From release:
 tar -xzf CodexBarCLI-0.14.1-linux-x86_64.tar.gz
 ./codexbar --version
 ./codexbar usage --format json --pretty
+
+# From source:
+swift build -c release --product CodexBarCLI
+cp .build/release/CodexBarCLI ~/.local/bin/codexbar
 ```
+
+### Linux tray
+A Python-based system tray is available for Linux desktops with GTK+AppIndicator support:
+
+```bash
+# Install dependencies
+pip install pystray pillow
+sudo apt install python3-gi gir1.2-ayatanaappindicator3-0.1  # Ubuntu/Debian
+
+# Run the tray
+python3 Sources/CodexBarLinux/codexbar_tray.py
+```
+
+The tray displays usage for all configured providers with Unicode progress bars and auto-refreshes every 60 seconds. See `docs/linux.md` for full details.
 
 ## Build
 - `./Scripts/package_app.sh` (or `./Scripts/compile_and_run.sh`) bundles `CodexBarCLI` into `CodexBar.app/Contents/Helpers/CodexBarCLI`.
