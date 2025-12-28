@@ -22,8 +22,6 @@ struct ProvidersPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            self.header
-
             ProviderListView(
                 providers: self.providers,
                 store: self.store,
@@ -38,7 +36,7 @@ struct ProvidersPane: View {
                 onCopyError: { text in self.copyToPasteboard(text) },
                 moveProviders: { fromOffsets, toOffset in
                     self.settings.moveProvider(fromOffsets: fromOffsets, toOffset: toOffset)
-                })
+            })
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -65,13 +63,6 @@ struct ProvidersPane: View {
                     Text(active.message)
                 }
             })
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Providers")
-                .font(.headline)
-        }
     }
 
     private func binding(for provider: UsageProvider) -> Binding<Bool> {
