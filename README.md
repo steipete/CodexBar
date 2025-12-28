@@ -47,7 +47,7 @@ open CodexBar.app
 ## CLI
 - macOS: Preferences → Advanced → "Install CLI" installs `codexbar` to `/usr/local/bin` + `/opt/homebrew/bin`.
 - Linux: download `CodexBarCLI-<tag>-linux-<arch>.tar.gz` from GitHub Releases (x86_64 + aarch64) and run `./codexbar`.
-- Linux tray: run `Sources/CodexBarLinux/codexbar_tray.py` for a GTK+AppIndicator system tray with live usage display.
+- Linux tray: run `./Scripts/install_linux_tray.sh` for automated setup, or manually run `Sources/CodexBarLinux/codexbar_tray.py` for a GTK+AppIndicator system tray with live usage display.
 - Docs: see `docs/cli.md` and `docs/linux.md`.
 
 Requirements:
