@@ -36,12 +36,13 @@ SwiftPM-only; package/sign/notarize manually (no Xcode project). Sparkle feed is
 ```
 Uses Xcode’s `ictool` + transparent padding + iconset → Icon.icns.
 
-## Build, sign, notarize (arm64)
+## Build, sign, notarize (universal: arm64 + x86_64)
 ```
 ./Scripts/sign-and-notarize.sh
 ```
 What it does:
-- `swift build -c release --arch arm64`
+- `swift build -c release --arch arm64` and `swift build -c release --arch x86_64`
+- Creates a universal binary using `lipo` that supports both Intel and Apple Silicon Macs
 - Packages `CodexBar.app` with Info.plist and Icon.icns
 - Embeds Sparkle.framework, Updater, Autoupdate, XPCs
 - Codesigns **everything** with runtime + timestamp (deep) and adds rpath

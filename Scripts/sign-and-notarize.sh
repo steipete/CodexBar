@@ -30,8 +30,8 @@ fi
 echo "$APP_STORE_CONNECT_API_KEY_P8" | sed 's/\\n/\n/g' > /tmp/codexbar-api-key.p8
 trap 'rm -f /tmp/codexbar-api-key.p8 /tmp/${APP_NAME}Notarize.zip' EXIT
 
-# Allow building a universal binary if ARCHES is provided; default to arm64 per release policy.
-ARCHES_VALUE=${ARCHES:-"arm64"}
+# Allow building a universal binary if ARCHES is provided; default to universal (arm64 + x86_64) for Intel + Apple Silicon support.
+ARCHES_VALUE=${ARCHES:-"arm64 x86_64"}
 ARCH_LIST=( ${ARCHES_VALUE} )
 for ARCH in "${ARCH_LIST[@]}"; do
   swift build -c release --arch "$ARCH"
