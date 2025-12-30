@@ -27,6 +27,24 @@ run_step() {
   fi
 }
 
+run_package_app() {
+  local config="$1"
+  local allow_lldb="$2"
+  local signing_mode="$3"
+  local cmd=(env ARCHES="${ARCHES_VALUE}")
+  if [[ "${allow_lldb}" == "1" ]]; then
+    cmd+=(CODEXBAR_ALLOW_LLDB=1)
+  fi
+  if [[ -n "${signing_mode}" ]]; then
+    cmd+=(CODEXBAR_SIGNING="${signing_mode}")
+  fi
+  cmd+=("${ROOT_DIR}/Scripts/package_app.sh")
+  if [[ -n "${config}" ]]; then
+    cmd+=("${config}")
+  fi
+  "${cmd[@]}"
+}
+
 cleanup() {
   if [[ -d "${LOCK_DIR}" ]]; then
     rm -rf "${LOCK_DIR}"
@@ -143,9 +161,33 @@ if [[ -n "${RELEASE_ARCHES}" ]]; then
   ARCHES_VALUE="${RELEASE_ARCHES}"
 fi
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
-  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh" debug
+  log "==> package app"
+  if ! output=$(run_package_app debug 1 "" 2>&1); then
+    if [[ "${output}" == *"no identity found"* ]]; then
+      log "WARN: Developer ID signing identity missing; retrying with ad-hoc signing."
+      output=$(run_package_app debug 1 "adhoc" 2>&1) || { printf '%s\n' "${output}" >&2; fail "package app failed"; }
+    else
+      printf '%s\n' "${output}" >&2
+      fail "package app failed"
+    fi
+  fi
+  if [[ -n "${output}" ]]; then
+    printf '%s\n' "${output}"
+  fi
 else
-  run_step "package app" env ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
+  log "==> package app"
+  if ! output=$(run_package_app "" 0 "" 2>&1); then
+    if [[ "${output}" == *"no identity found"* ]]; then
+      log "WARN: Developer ID signing identity missing; retrying with ad-hoc signing."
+      output=$(run_package_app "" 0 "adhoc" 2>&1) || { printf '%s\n' "${output}" >&2; fail "package app failed"; }
+    else
+      printf '%s\n' "${output}" >&2
+      fail "package app failed"
+    fi
+  fi
+  if [[ -n "${output}" ]]; then
+    printf '%s\n' "${output}"
+  fi
 fi
 
 # 4) Launch the packaged app.

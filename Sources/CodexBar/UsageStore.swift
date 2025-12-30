@@ -38,7 +38,6 @@ extension UsageStore {
 
     func observeSettingsChanges() {
         withObservationTracking {
-            _ = self.settings.refreshFrequency
             _ = self.settings.statusChecksEnabled
             _ = self.settings.sessionQuotaNotificationsEnabled
             _ = self.settings.usageBarsShowUsed
@@ -53,7 +52,6 @@ extension UsageStore {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeSettingsChanges()
-                self.startTimer()
                 await self.refresh()
             }
         }
@@ -232,6 +230,14 @@ final class UsageStore {
     @ObservationIgnored private var providerSpecs: [UsageProvider: ProviderSpec] = [:]
     @ObservationIgnored private let providerMetadata: [UsageProvider: ProviderMetadata]
     @ObservationIgnored private var timerTask: Task<Void, Never>?
+    /// Fallback polling interval when file watching doesn't detect changes (5 minutes).
+    @ObservationIgnored private let fallbackRefreshInterval: TimeInterval = 300
+    /// Directory watchers for reactive updates when provider data sources change.
+    @ObservationIgnored private var directoryWatchers: [UsageProvider: DirectoryWatcher] = [:]
+    @ObservationIgnored private var liveRefreshTasks: [UsageProvider: Task<Void, Never>] = [:]
+    @ObservationIgnored private var lastTokenRefreshTriggerAt: [UsageProvider: Date] = [:]
+    @ObservationIgnored private let liveRefreshInterval: TimeInterval = 10
+    @ObservationIgnored private let tokenRefreshEventThrottle: TimeInterval = 10
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
     @ObservationIgnored private var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
@@ -294,6 +300,93 @@ final class UsageStore {
         }
         let subscriptionIndicators = ["max", "pro", "ultra", "team"]
         return subscriptionIndicators.contains { method.contains($0) }
+    }
+
+    // MARK: - Usage change tracking
+
+    private struct UsageFingerprint: Equatable {
+        let primary: RateWindowFingerprint
+        let secondary: RateWindowFingerprint?
+        let tertiary: RateWindowFingerprint?
+        let providerCost: ProviderCostFingerprint?
+        let zaiUsage: ZaiUsageFingerprint?
+    }
+
+    private struct RateWindowFingerprint: Equatable {
+        let usedPercent: Double
+        let windowMinutes: Int?
+        let resetsAt: Date?
+
+        init(window: RateWindow) {
+            self.usedPercent = window.usedPercent
+            self.windowMinutes = window.windowMinutes
+            self.resetsAt = window.resetsAt
+        }
+    }
+
+    private struct ProviderCostFingerprint: Equatable {
+        let used: Double
+        let limit: Double
+        let currencyCode: String
+        let period: String?
+        let resetsAt: Date?
+
+        init(cost: ProviderCostSnapshot) {
+            self.used = cost.used
+            self.limit = cost.limit
+            self.currencyCode = cost.currencyCode
+            self.period = cost.period
+            self.resetsAt = cost.resetsAt
+        }
+    }
+
+    private struct ZaiUsageFingerprint: Equatable {
+        let tokenUsage: Int?
+        let tokenRemaining: Int?
+        let tokenCurrent: Int?
+        let tokenLimit: Int?
+        let tokenNextReset: Date?
+        let timeUsage: Int?
+        let timeRemaining: Int?
+        let timeCurrent: Int?
+        let timeLimit: Int?
+        let timeNextReset: Date?
+        let planName: String?
+
+        init(usage: ZaiUsageSnapshot) {
+            let token = usage.tokenLimit
+            let time = usage.timeLimit
+            self.tokenUsage = token?.usage
+            self.tokenRemaining = token?.remaining
+            self.tokenCurrent = token?.currentValue
+            self.tokenLimit = token?.number
+            self.tokenNextReset = token?.nextResetTime
+            self.timeUsage = time?.usage
+            self.timeRemaining = time?.remaining
+            self.timeCurrent = time?.currentValue
+            self.timeLimit = time?.number
+            self.timeNextReset = time?.nextResetTime
+            self.planName = usage.planName
+        }
+    }
+
+    nonisolated static func didUsageChange(
+        previous: UsageSnapshot?,
+        next: UsageSnapshot,
+        provider: UsageProvider) -> Bool
+    {
+        _ = provider
+        guard let previous else { return true }
+        return Self.usageFingerprint(for: previous) != Self.usageFingerprint(for: next)
+    }
+
+    private nonisolated static func usageFingerprint(for snapshot: UsageSnapshot) -> UsageFingerprint {
+        UsageFingerprint(
+            primary: RateWindowFingerprint(window: snapshot.primary),
+            secondary: snapshot.secondary.map { RateWindowFingerprint(window: $0) },
+            tertiary: snapshot.tertiary.map { RateWindowFingerprint(window: $0) },
+            providerCost: snapshot.providerCost.map { ProviderCostFingerprint(cost: $0) },
+            zaiUsage: snapshot.zaiUsage.map { ZaiUsageFingerprint(usage: $0) })
     }
 
     func version(for provider: UsageProvider) -> String? {
@@ -464,15 +557,154 @@ final class UsageStore {
 
     private func startTimer() {
         self.timerTask?.cancel()
-        guard let wait = self.settings.refreshFrequency.seconds else { return }
 
-        // Background poller so the menu stays responsive; canceled when settings change or store deallocates.
+        // Fallback polling every 5 minutes in case file watching misses events.
+        // Primary updates come from DirectoryWatcher detecting provider data source changes.
         self.timerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(wait))
+                try? await Task.sleep(for: .seconds(self?.fallbackRefreshInterval ?? 300))
                 await self?.refresh()
             }
         }
+
+        // Start watching provider data sources for reactive updates.
+        self.startDirectoryWatchers()
+    }
+
+    private func startDirectoryWatchers() {
+        for watcher in self.directoryWatchers.values {
+            watcher.stop()
+        }
+        self.directoryWatchers.removeAll()
+
+        let watchPaths = self.providerWatchPaths()
+        for (provider, paths) in watchPaths where !paths.isEmpty {
+            let watcher = DirectoryWatcher(
+                directories: paths,
+                debounceInterval: 2.0 // Wait 2 seconds after last change before refreshing
+            ) { [weak self] in
+                Task { @MainActor [weak self] in
+                    await self?.handleProviderActivity(provider)
+                }
+            }
+            self.directoryWatchers[provider] = watcher
+            watcher.start()
+        }
+    }
+
+    private func handleProviderActivity(_ provider: UsageProvider) async {
+        guard self.isEnabled(provider) else { return }
+        let forceTokenUsage = self.shouldForceTokenRefresh(for: provider)
+        await self.refreshProviders([provider], reason: "fs-events", forceTokenUsage: forceTokenUsage)
+    }
+
+    private func refreshProviders(
+        _ providers: [UsageProvider],
+        reason: String,
+        forceTokenUsage: Bool = false) async
+    {
+        let targets = Array(Set(providers))
+        guard !targets.isEmpty else { return }
+        for provider in targets {
+            await self.refreshProvider(provider)
+        }
+        if forceTokenUsage {
+            self.scheduleTokenRefresh(force: true, providers: targets)
+        }
+        self.persistWidgetSnapshot(reason: reason)
+    }
+
+    private func providerWatchPaths() -> [UsageProvider: [String]] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let env = ProcessInfo.processInfo.environment
+        var paths: [UsageProvider: [String]] = [:]
+
+        paths[.codex] = self.dedupedPaths(self.codexWatchPaths(home: home, env: env))
+        paths[.claude] = self.dedupedPaths(self.claudeWatchPaths(home: home, env: env))
+        paths[.gemini] = self.dedupedPaths([home.appendingPathComponent(".gemini").path])
+
+        let supportPath = Self.codexBarSupportDirectory(fileManager: .default).path
+        paths[.cursor] = self.dedupedPaths([supportPath])
+        paths[.factory] = self.dedupedPaths([supportPath])
+
+        return paths
+    }
+
+    private func codexWatchPaths(home: URL, env: [String: String]) -> [String] {
+        var paths: [String] = []
+        if let raw = env["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty
+        {
+            paths.append(raw)
+        }
+        paths.append(home.appendingPathComponent(".codex").path)
+        return paths
+    }
+
+    private func claudeWatchPaths(home: URL, env: [String: String]) -> [String] {
+        var paths: [String] = []
+        if let claudeConfigDir = env["CLAUDE_CONFIG_DIR"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !claudeConfigDir.isEmpty
+        {
+            for part in claudeConfigDir.split(separator: ",") {
+                let path = String(part).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !path.isEmpty {
+                    paths.append(path)
+                }
+            }
+        } else {
+            paths.append(home.appendingPathComponent(".claude").path)
+            paths.append(home.appendingPathComponent(".config/claude").path)
+        }
+        return paths
+    }
+
+    private func dedupedPaths(_ paths: [String]) -> [String] {
+        var seen = Set<String>()
+        return paths.compactMap { path in
+            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            guard !seen.contains(trimmed) else { return nil }
+            seen.insert(trimmed)
+            return trimmed
+        }
+    }
+
+    private nonisolated static func codexBarSupportDirectory(fileManager: FileManager) -> URL {
+        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
+        let dir = appSupport.appendingPathComponent("CodexBar", isDirectory: true)
+        if !fileManager.fileExists(atPath: dir.path) {
+            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+
+    private func shouldForceTokenRefresh(for provider: UsageProvider) -> Bool {
+        guard provider == .codex || provider == .claude else { return false }
+        let now = Date()
+        let last = self.lastTokenRefreshTriggerAt[provider] ?? .distantPast
+        guard now.timeIntervalSince(last) >= self.tokenRefreshEventThrottle else { return false }
+        self.lastTokenRefreshTriggerAt[provider] = now
+        return true
+    }
+
+    private func scheduleLiveRefresh(for provider: UsageProvider) {
+        guard self.isEnabled(provider) else { return }
+        guard self.liveRefreshTasks[provider] == nil else { return }
+        let interval = self.liveRefreshInterval
+        self.liveRefreshTasks[provider] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .seconds(interval))
+            guard !Task.isCancelled else { return }
+            self.liveRefreshTasks[provider] = nil
+            await self.refreshProviders([provider], reason: "live-refresh")
+        }
+    }
+
+    private func cancelLiveRefresh(for provider: UsageProvider) {
+        self.liveRefreshTasks[provider]?.cancel()
+        self.liveRefreshTasks[provider] = nil
     }
 
     private func startTokenTimer() {
@@ -486,7 +718,7 @@ final class UsageStore {
         }
     }
 
-    private func scheduleTokenRefresh(force: Bool) {
+    private func scheduleTokenRefresh(force: Bool, providers: [UsageProvider]? = nil) {
         if force {
             self.tokenRefreshSequenceTask?.cancel()
             self.tokenRefreshSequenceTask = nil
@@ -494,6 +726,7 @@ final class UsageStore {
             return
         }
 
+        let targets = providers ?? UsageProvider.allCases
         self.tokenRefreshSequenceTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             defer {
@@ -501,7 +734,7 @@ final class UsageStore {
                     self?.tokenRefreshSequenceTask = nil
                 }
             }
-            for provider in UsageProvider.allCases {
+            for provider in targets {
                 if Task.isCancelled { break }
                 await self.refreshTokenUsage(provider, force: force)
             }
@@ -512,6 +745,12 @@ final class UsageStore {
         self.timerTask?.cancel()
         self.tokenTimerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
+        for watcher in self.directoryWatchers.values {
+            watcher.stop()
+        }
+        for task in self.liveRefreshTasks.values {
+            task.cancel()
+        }
     }
 
     private func refreshProvider(_ provider: UsageProvider) async {
@@ -531,9 +770,12 @@ final class UsageStore {
                 self.statuses.removeValue(forKey: provider)
                 self.lastKnownSessionRemaining.removeValue(forKey: provider)
                 self.lastTokenFetchAt.removeValue(forKey: provider)
+                self.cancelLiveRefresh(for: provider)
             }
             return
         }
+
+        guard !self.refreshingProviders.contains(provider) else { return }
 
         self.refreshingProviders.insert(provider)
         defer { self.refreshingProviders.remove(provider) }
@@ -546,12 +788,18 @@ final class UsageStore {
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
-            await MainActor.run {
+            let didChange = await MainActor.run {
+                let previous = self.snapshots[provider]
+                let changed = Self.didUsageChange(previous: previous, next: scoped, provider: provider)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
                 self.snapshots[provider] = scoped
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
+                return changed
+            }
+            if didChange {
+                self.scheduleLiveRefresh(for: provider)
             }
         case let .failure(error):
             await MainActor.run {
@@ -752,7 +1000,8 @@ final class UsageStore {
         self.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: targetEmail)
 
         let now = Date()
-        let minInterval = max(self.settings.refreshFrequency.seconds ?? 0, 120)
+        // OpenAI web dashboard has a longer minimum refresh interval (heavier operation)
+        let minInterval: TimeInterval = 120
         if !force,
            !self.openAIWebAccountDidChange,
            self.lastOpenAIDashboardError == nil,
