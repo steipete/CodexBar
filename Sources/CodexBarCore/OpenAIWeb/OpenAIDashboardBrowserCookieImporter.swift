@@ -187,7 +187,13 @@ public struct OpenAIDashboardBrowserCookieImporter {
         log: @escaping (String) -> Void,
         diagnostics: inout ImportDiagnostics) async -> ImportResult?
     {
-        // Chrome fallback: may trigger Keychain prompt. Only do this if Safari didn't match.
+        // Skip Chrome if keychain access would require user interaction (avoids repeated prompts).
+        if case .interactionRequired = KeychainAccessPreflight
+            .checkGenericPassword(service: "Chrome Safe Storage", account: "Chrome")
+        {
+            log("Chrome skipped: keychain access would require interaction.")
+            return nil
+        }
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
             let chromeSources = try Self.cookieClient.records(
