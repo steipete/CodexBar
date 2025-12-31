@@ -145,11 +145,13 @@ public enum ClaudeOAuthCredentialsStore {
         #if os(macOS)
         // SKIP keychain entirely for "Claude Code-credentials".
         // This keychain item is created by Claude CLI, not CodexBar. Its ACL doesn't include
-        // CodexBar, so ANY keychain access (even the preflight check) can trigger macOS prompts.
-        // The caller will fall back to ~/.claude/.credentials.json instead.
+        // CodexBar, so ANY keychain access triggers macOS prompts (we're not in the ACL).
+        // The caller will fall back to ~/.claude/.credentials.json if it exists,
+        // otherwise the app uses CLI mode for Claude usage data.
         throw ClaudeOAuthCredentialsError.notFound
         #else
         throw ClaudeOAuthCredentialsError.notFound
         #endif
     }
 }
+
