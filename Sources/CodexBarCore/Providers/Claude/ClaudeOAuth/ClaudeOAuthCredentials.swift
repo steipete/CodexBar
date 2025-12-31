@@ -143,13 +143,13 @@ public enum ClaudeOAuthCredentialsStore {
 
     public static func loadFromKeychain() throws -> Data {
         #if os(macOS)
+        // Skip keychain read if it would trigger a macOS permission prompt.
+        // This avoids the repeated "CodexBar wants to access key" dialog on every session.
+        // The caller will fall back to ~/.claude/.credentials.json instead.
         if case .interactionRequired = KeychainAccessPreflight
             .checkGenericPassword(service: self.keychainService, account: nil)
         {
-            KeychainPromptHandler.handler?(KeychainPromptContext(
-                kind: .claudeOAuth,
-                service: self.keychainService,
-                account: nil))
+            throw ClaudeOAuthCredentialsError.notFound
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

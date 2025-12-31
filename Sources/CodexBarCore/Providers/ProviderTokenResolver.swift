@@ -75,6 +75,12 @@ public enum ProviderTokenResolver {
 
     private static func keychainToken(service: String, account: String) -> String? {
         #if canImport(Security)
+        if case .interactionRequired = KeychainAccessPreflight
+            .checkGenericPassword(service: service, account: account)
+        {
+            return nil
+        }
+
         var result: CFTypeRef?
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
