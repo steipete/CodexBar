@@ -182,53 +182,15 @@ public struct OpenAIDashboardBrowserCookieImporter {
     }
 
     private func tryChrome(
-        targetEmail: String?,
-        allowAnyAccount: Bool,
+        targetEmail _: String?,
+        allowAnyAccount _: Bool,
         log: @escaping (String) -> Void,
-        diagnostics: inout ImportDiagnostics) async -> ImportResult?
+        diagnostics _: inout ImportDiagnostics) async -> ImportResult?
     {
-        // Skip Chrome if keychain access would require user interaction (avoids repeated prompts).
-        if case .interactionRequired = KeychainAccessPreflight
-            .checkGenericPassword(service: "Chrome Safe Storage", account: "Chrome")
-        {
-            log("Chrome skipped: keychain access would require interaction.")
-            return nil
-        }
-        do {
-            let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let chromeSources = try Self.cookieClient.records(
-                matching: query,
-                in: .chrome)
-            for source in chromeSources {
-                let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                if cookies.isEmpty {
-                    log("\(source.label) produced 0 HTTPCookies.")
-                    continue
-                }
-                diagnostics.foundAnyCookies = true
-                log("Loaded \(cookies.count) cookies from \(source.label) (\(self.cookieSummary(cookies)))")
-                let candidate = Candidate(label: source.label, cookies: cookies)
-                if let match = await self.applyCandidate(
-                    candidate,
-                    targetEmail: targetEmail,
-                    allowAnyAccount: allowAnyAccount,
-                    log: log,
-                    diagnostics: &diagnostics)
-                {
-                    return match
-                }
-            }
-            return nil
-        } catch let error as BrowserCookieError {
-            if let hint = error.accessDeniedHint {
-                diagnostics.accessDeniedHints.append(hint)
-            }
-            log("Chrome cookie load failed: \(error.localizedDescription)")
-            return nil
-        } catch {
-            log("Chrome cookie load failed: \(error.localizedDescription)")
-            return nil
-        }
+        // SKIP Chrome entirely. "Chrome Safe Storage" keychain is created by Chrome, not CodexBar.
+        // Its ACL doesn't include CodexBar, so ANY keychain access (even preflight) triggers prompts.
+        log("Chrome skipped: keychain access triggers macOS prompts.")
+        return nil
     }
 
     private func tryFirefox(

@@ -143,35 +143,11 @@ public enum ClaudeOAuthCredentialsStore {
 
     public static func loadFromKeychain() throws -> Data {
         #if os(macOS)
-        // Skip keychain read if it would trigger a macOS permission prompt.
-        // This avoids the repeated "CodexBar wants to access key" dialog on every session.
+        // SKIP keychain entirely for "Claude Code-credentials".
+        // This keychain item is created by Claude CLI, not CodexBar. Its ACL doesn't include
+        // CodexBar, so ANY keychain access (even the preflight check) can trigger macOS prompts.
         // The caller will fall back to ~/.claude/.credentials.json instead.
-        if case .interactionRequired = KeychainAccessPreflight
-            .checkGenericPassword(service: self.keychainService, account: nil)
-        {
-            throw ClaudeOAuthCredentialsError.notFound
-        }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: self.keychainService,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecReturnData as String: true,
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        switch status {
-        case errSecSuccess:
-            guard let data = result as? Data else {
-                throw ClaudeOAuthCredentialsError.readFailed("Keychain item is empty.")
-            }
-            if data.isEmpty { throw ClaudeOAuthCredentialsError.notFound }
-            return data
-        case errSecItemNotFound:
-            throw ClaudeOAuthCredentialsError.notFound
-        default:
-            throw ClaudeOAuthCredentialsError.keychainError(Int(status))
-        }
+        throw ClaudeOAuthCredentialsError.notFound
         #else
         throw ClaudeOAuthCredentialsError.notFound
         #endif
