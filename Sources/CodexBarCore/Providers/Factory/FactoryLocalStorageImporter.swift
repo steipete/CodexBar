@@ -90,6 +90,7 @@ enum FactoryLocalStorageImporter {
                         .appendingPathComponent("host"),
                     "ChatGPT Atlas"),
                 (appSupport.appendingPathComponent("Chromium"), "Chromium"),
+                (appSupport.appendingPathComponent("Helium").appendingPathComponent("User Data"), "Helium"),
             ]
         }
 
