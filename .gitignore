@@ -6,9 +6,12 @@ xcuserdata/
 DerivedData
 
 # Bundles / artifacts
-CodexBar.app
+# Main app bundle (any variation)
+CodexBar.app/
 CodexBar *.app/
-Codexbar.app
+CodexBar_*.app/
+Codexbar.app/
+# Release artifacts
 *.ipa
 *.dSYM*
 *.zip
