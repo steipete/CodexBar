@@ -7,6 +7,7 @@ DerivedData
 
 # Bundles / artifacts
 CodexBar.app
+CodexBar *.app/
 Codexbar.app
 *.ipa
 *.dSYM*
@@ -17,6 +18,7 @@ Codexbar.app
 *.tar.gz
 *.tgz
 Icon.iconset
+debug_*.swift
 
 # Misc
 .DS_Store

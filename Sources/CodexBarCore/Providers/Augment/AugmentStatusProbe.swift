@@ -11,8 +11,12 @@ private let augmentCookieImportOrder: BrowserCookieImportOrder =
 /// Imports Augment session cookies from browser cookies.
 public enum AugmentCookieImporter {
     private static let cookieClient = BrowserCookieClient()
+    // Auth0 session cookies used by Augment
     private static let sessionCookieNames: Set<String> = [
-        "_session",
+        "_session",           // Legacy session cookie
+        "auth0",              // Auth0 session
+        "auth0.is.authenticated",  // Auth0 authentication flag
+        "a0.spajs.txs",       // Auth0 SPA transaction state
     ]
 
     public struct SessionInfo: Sendable {
@@ -33,7 +37,7 @@ public enum AugmentCookieImporter {
     public static func importSession(logger: ((String) -> Void)? = nil) throws -> SessionInfo {
         let log: (String) -> Void = { msg in logger?("[augment-cookie] \(msg)") }
 
-        let cookieDomains = ["augmentcode.com"]
+        let cookieDomains = ["augmentcode.com", "login.augmentcode.com", ".augmentcode.com"]
         for browserSource in augmentCookieImportOrder {
             do {
                 let query = BrowserCookieQuery(domains: cookieDomains)
@@ -43,15 +47,25 @@ public enum AugmentCookieImporter {
                     logger: log)
                 for source in sources where !source.records.isEmpty {
                     let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+
+                    // Log all cookies found for debugging
+                    log("Found \(httpCookies.count) cookies in \(source.label): \(httpCookies.map { $0.name }.joined(separator: ", "))")
+
+                    // Check if we have any session cookies
                     if httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
-                        log("Found \(httpCookies.count) Augment cookies in \(source.label)")
+                        log("✓ Found Augment session cookies in \(source.label)")
+                        return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
+                    } else if !httpCookies.isEmpty {
+                        // If we have ANY cookies for augmentcode.com, try using them
+                        // This is more permissive and will help us discover what cookies are actually needed
+                        log("⚠️ No known session cookies, but found \(httpCookies.count) cookies - attempting to use them")
                         return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
                     } else {
-                        log("\(source.label) cookies found, but no Augment session cookie present")
+                        log("✗ \(source.label) has no cookies for augmentcode.com")
                     }
                 }
             } catch {
-                log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
+                log("✗ \(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
             }
         }
 
