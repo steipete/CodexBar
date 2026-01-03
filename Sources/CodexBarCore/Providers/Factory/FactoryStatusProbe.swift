@@ -47,11 +47,16 @@ public enum FactoryCookieImporter {
     }
 
     /// Returns all Factory sessions across supported browsers.
-    public static func importSessions(logger: ((String) -> Void)? = nil) throws -> [SessionInfo] {
+    public static func importSessions(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
         let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
         var sessions: [SessionInfo] = []
 
-        for browserSource in factoryCookieImportOrder {
+        // Filter to only installed browsers to avoid unnecessary keychain prompts
+        let installedBrowsers = browserDetection.filterInstalled(factoryCookieImportOrder)
+        for browserSource in installedBrowsers {
             do {
                 let perSource = try self.importSessions(from: browserSource, logger: logger)
                 sessions.append(contentsOf: perSource)
@@ -101,8 +106,11 @@ public enum FactoryCookieImporter {
     }
 
     /// Attempts to import Factory cookies using the standard browser import order.
-    public static func importSession(logger: ((String) -> Void)? = nil) throws -> SessionInfo {
-        let sessions = try self.importSessions(logger: logger)
+    public static func importSession(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionInfo
+    {
+        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
         guard let first = sessions.first else {
             throw FactoryStatusProbeError.noSessionCookie
         }
@@ -110,9 +118,9 @@ public enum FactoryCookieImporter {
     }
 
     /// Check if Factory session cookies are available
-    public static func hasSession(logger: ((String) -> Void)? = nil) -> Bool {
+    public static func hasSession(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
         do {
-            return try !(self.importSessions(logger: logger)).isEmpty
+            return try !(self.importSessions(browserDetection: browserDetection, logger: logger)).isEmpty
         } catch {
             return false
         }
@@ -542,9 +550,16 @@ public struct FactoryStatusProbe: Sendable {
         let organization_id: String?
     }
 
-    public init(baseURL: URL = URL(string: "https://app.factory.ai")!, timeout: TimeInterval = 15.0) {
+    private let browserDetection: BrowserDetection
+
+    public init(
+        baseURL: URL = URL(string: "https://app.factory.ai")!,
+        timeout: TimeInterval = 15.0,
+        browserDetection: BrowserDetection)
+    {
         self.baseURL = baseURL
         self.timeout = timeout
+        self.browserDetection = browserDetection
     }
 
     /// Fetch Factory usage using browser cookies with fallback to stored session.
@@ -577,6 +592,9 @@ public struct FactoryStatusProbe: Sendable {
             throw FactoryStatusProbeError.noSessionCookie
         }
 
+        // Filter to only installed browsers to avoid unnecessary keychain prompts
+        let installedChromiumAndFirefox = self.browserDetection.filterInstalled([.chrome, .firefox])
+
         let attempts: [FetchAttemptResult] = await [
             self.attemptBrowserCookies(logger: log, sources: [.safari]),
             self.attemptStoredCookies(logger: log),
@@ -584,8 +602,8 @@ public struct FactoryStatusProbe: Sendable {
             self.attemptStoredRefreshToken(logger: log),
             self.attemptLocalStorageTokens(logger: log),
             self.attemptWorkOSCookies(logger: log, sources: [.safari]),
-            self.attemptBrowserCookies(logger: log, sources: [.chrome, .firefox]),
-            self.attemptWorkOSCookies(logger: log, sources: [.chrome, .firefox]),
+            self.attemptBrowserCookies(logger: log, sources: installedChromiumAndFirefox),
+            self.attemptWorkOSCookies(logger: log, sources: installedChromiumAndFirefox),
         ]
 
         for result in attempts {
@@ -687,7 +705,9 @@ public struct FactoryStatusProbe: Sendable {
     }
 
     private func attemptLocalStorageTokens(logger: @escaping (String) -> Void) async -> FetchAttemptResult {
-        let workosTokens = FactoryLocalStorageImporter.importWorkOSTokens(logger: logger)
+        let workosTokens = FactoryLocalStorageImporter.importWorkOSTokens(
+            browserDetection: self.browserDetection,
+            logger: logger)
         guard !workosTokens.isEmpty else { return .skipped }
         var lastError: Error?
         for token in workosTokens {

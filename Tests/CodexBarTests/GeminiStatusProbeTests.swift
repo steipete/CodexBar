@@ -76,7 +76,8 @@ struct GeminiStatusProbeTests {
     @Test
     func stripsANSICodesBeforeParsing() throws {
         // swiftlint:disable:next line_length
-        let output = "\u{1B}[32m│\u{1B}[0m  gemini-2.5-flash                                                -       75.5% (Resets in 18h)  │"
+        let output =
+            "\u{1B}[32m│\u{1B}[0m  gemini-2.5-flash                                                -       75.5% (Resets in 18h)  │"
         let snap = try GeminiStatusProbe.parse(text: output)
         #expect(snap.dailyPercentLeft == 75.5)
     }

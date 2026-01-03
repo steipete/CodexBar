@@ -27,6 +27,7 @@ enum CodexBarClaudeWebProbe {
         do {
             let results = try await ClaudeWebAPIFetcher.probeEndpoints(
                 endpoints,
+                browserDetection: BrowserDetection(),
                 includePreview: includePreview)
             for result in results {
                 Self.printResult(result)

@@ -32,11 +32,16 @@ public enum CursorCookieImporter {
     }
 
     /// Attempts to import Cursor cookies using the standard browser import order.
-    public static func importSession(logger: ((String) -> Void)? = nil) throws -> SessionInfo {
+    public static func importSession(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionInfo
+    {
         let log: (String) -> Void = { msg in logger?("[cursor-cookie] \(msg)") }
 
+        // Filter to only installed browsers to avoid unnecessary keychain prompts
+        let installedBrowsers = browserDetection.filterInstalled(cursorCookieImportOrder)
         let cookieDomains = ["cursor.com", "cursor.sh"]
-        for browserSource in cursorCookieImportOrder {
+        for browserSource in installedBrowsers {
             do {
                 let query = BrowserCookieQuery(domains: cookieDomains)
                 let sources = try Self.cookieClient.records(
@@ -61,9 +66,9 @@ public enum CursorCookieImporter {
     }
 
     /// Check if Cursor session cookies are available
-    public static func hasSession(logger: ((String) -> Void)? = nil) -> Bool {
+    public static func hasSession(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
         do {
-            let session = try self.importSession(logger: logger)
+            let session = try self.importSession(browserDetection: browserDetection, logger: logger)
             return !session.cookies.isEmpty
         } catch {
             return false
@@ -434,10 +439,16 @@ public actor CursorSessionStore {
 public struct CursorStatusProbe: Sendable {
     public let baseURL: URL
     public var timeout: TimeInterval = 15.0
+    private let browserDetection: BrowserDetection
 
-    public init(baseURL: URL = URL(string: "https://cursor.com")!, timeout: TimeInterval = 15.0) {
+    public init(
+        baseURL: URL = URL(string: "https://cursor.com")!,
+        timeout: TimeInterval = 15.0,
+        browserDetection: BrowserDetection)
+    {
         self.baseURL = baseURL
         self.timeout = timeout
+        self.browserDetection = browserDetection
     }
 
     /// Fetch Cursor usage using browser cookies with fallback to stored session.
@@ -453,7 +464,7 @@ public struct CursorStatusProbe: Sendable {
 
         // Try importing cookies from the configured browser order first.
         do {
-            let session = try CursorCookieImporter.importSession(logger: log)
+            let session = try CursorCookieImporter.importSession(browserDetection: self.browserDetection, logger: log)
             log("Using cookies from \(session.sourceLabel)")
             return try await self.fetchWithCookieHeader(session.cookieHeader)
         } catch {

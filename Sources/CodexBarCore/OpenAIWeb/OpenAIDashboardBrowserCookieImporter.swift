@@ -65,7 +65,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
     }
 
-    public init() {}
+    public init(browserDetection: BrowserDetection) {
+        self.browserDetection = browserDetection
+    }
+
+    private let browserDetection: BrowserDetection
 
     private struct ImportDiagnostics {
         var mismatches: [FoundAccount] = []
@@ -110,7 +114,9 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         var diagnostics = ImportDiagnostics()
 
-        for browserSource in Self.cookieImportOrder {
+        // Filter to only installed browsers to avoid unnecessary keychain prompts
+        let installedBrowsers = self.browserDetection.filterInstalled(Self.cookieImportOrder)
+        for browserSource in installedBrowsers {
             if let match = await self.trySource(
                 browserSource,
                 targetEmail: normalizedTarget,

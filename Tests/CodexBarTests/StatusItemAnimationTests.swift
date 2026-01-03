@@ -26,7 +26,7 @@ struct StatusItemAnimationTests {
         }
 
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(), settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -65,7 +65,7 @@ struct StatusItemAnimationTests {
         }
 
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(), settings: settings)
 
         // Seed with data so init doesn't start the animation driver.
         let snapshot = UsageSnapshot(

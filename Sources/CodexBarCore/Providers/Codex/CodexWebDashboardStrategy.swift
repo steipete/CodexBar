@@ -25,6 +25,7 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
             fetcher: context.fetcher,
             timeout: context.webTimeout,
             debugDumpHTML: context.webDebugDumpHTML,
+            browserDetection: context.browserDetection,
             verbose: context.verbose)
         return self.makeResult(
             usage: result.usage,
@@ -96,6 +97,7 @@ extension CodexWebDashboardStrategy {
         fetcher: UsageFetcher,
         timeout: TimeInterval,
         debugDumpHTML: Bool,
+        browserDetection: BrowserDetection,
         verbose: Bool) async throws -> OpenAIWebCodexResult
     {
         let options = OpenAIWebOptions(timeout: timeout, debugDumpHTML: debugDumpHTML, verbose: verbose)
@@ -107,6 +109,7 @@ extension CodexWebDashboardStrategy {
             accountEmail: accountEmail,
             fetcher: fetcher,
             options: options,
+            browserDetection: browserDetection,
             logger: log)
         guard let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: accountEmail) else {
             throw OpenAIWebCodexError.missingUsage
@@ -120,6 +123,7 @@ extension CodexWebDashboardStrategy {
         accountEmail: String?,
         fetcher: UsageFetcher,
         options: OpenAIWebOptions,
+        browserDetection: BrowserDetection,
         logger: @MainActor @escaping (String) -> Void) async throws -> OpenAIDashboardSnapshot
     {
         let trimmed = accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -127,7 +131,7 @@ extension CodexWebDashboardStrategy {
         let codexEmail = trimmed?.isEmpty == false ? trimmed : (fallback?.isEmpty == false ? fallback : nil)
         let allowAnyAccount = codexEmail == nil
 
-        let importResult = try await OpenAIDashboardBrowserCookieImporter()
+        let importResult = try await OpenAIDashboardBrowserCookieImporter(browserDetection: browserDetection)
             .importBestCookies(intoAccountEmail: codexEmail, allowAnyAccount: allowAnyAccount, logger: logger)
         let effectiveEmail = codexEmail ?? importResult.signedInEmail?
             .trimmingCharacters(in: .whitespacesAndNewlines)

@@ -11,11 +11,14 @@ enum MiniMaxLocalStorageImporter {
         let sourceLabel: String
     }
 
-    static func importAccessTokens(logger: ((String) -> Void)? = nil) -> [TokenInfo] {
+    static func importAccessTokens(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> [TokenInfo]
+    {
         let log: (String) -> Void = { msg in logger?("[minimax-storage] \(msg)") }
         var tokens: [TokenInfo] = []
 
-        let chromeCandidates = self.chromeLocalStorageCandidates()
+        let chromeCandidates = self.chromeLocalStorageCandidates(browserDetection: browserDetection)
         if !chromeCandidates.isEmpty {
             log("Chrome local storage candidates: \(chromeCandidates.count)")
         }
@@ -37,7 +40,7 @@ enum MiniMaxLocalStorageImporter {
         }
 
         if tokens.isEmpty {
-            let sessionCandidates = self.chromeSessionStorageCandidates()
+            let sessionCandidates = self.chromeSessionStorageCandidates(browserDetection: browserDetection)
             if !sessionCandidates.isEmpty {
                 log("Chrome session storage candidates: \(sessionCandidates.count)")
             }
@@ -54,7 +57,7 @@ enum MiniMaxLocalStorageImporter {
         }
 
         if tokens.isEmpty {
-            let indexedCandidates = self.chromeIndexedDBCandidates()
+            let indexedCandidates = self.chromeIndexedDBCandidates(browserDetection: browserDetection)
             if !indexedCandidates.isEmpty {
                 log("Chrome IndexedDB candidates: \(indexedCandidates.count)")
             }
@@ -77,11 +80,14 @@ enum MiniMaxLocalStorageImporter {
         return tokens
     }
 
-    static func importGroupIDs(logger: ((String) -> Void)? = nil) -> [String: String] {
+    static func importGroupIDs(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> [String: String]
+    {
         let log: (String) -> Void = { msg in logger?("[minimax-storage] \(msg)") }
         var results: [String: String] = [:]
 
-        let chromeCandidates = self.chromeLocalStorageCandidates()
+        let chromeCandidates = self.chromeLocalStorageCandidates(browserDetection: browserDetection)
         if !chromeCandidates.isEmpty {
             log("Chrome local storage candidates: \(chromeCandidates.count)")
         }
@@ -119,7 +125,7 @@ enum MiniMaxLocalStorageImporter {
         let url: URL
     }
 
-    private static func chromeLocalStorageCandidates() -> [LocalStorageCandidate] {
+    private static func chromeLocalStorageCandidates(browserDetection: BrowserDetection) -> [LocalStorageCandidate] {
         let browsers: [Browser] = [
             .chrome,
             .chromeBeta,
@@ -138,8 +144,12 @@ enum MiniMaxLocalStorageImporter {
             .chromium,
             .helium,
         ]
+
+        // Filter to only installed browsers to avoid unnecessary filesystem access
+        let installedBrowsers = browserDetection.filterInstalled(browsers)
+
         let roots = ChromiumProfileLocator
-            .roots(for: browsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
+            .roots(for: installedBrowsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
             .map { (url: $0.url, labelPrefix: $0.labelPrefix) }
 
         var candidates: [LocalStorageCandidate] = []
@@ -175,7 +185,8 @@ enum MiniMaxLocalStorageImporter {
         }
     }
 
-    private static func chromeSessionStorageCandidates() -> [SessionStorageCandidate] {
+    private static func chromeSessionStorageCandidates(browserDetection: BrowserDetection)
+    -> [SessionStorageCandidate] {
         let browsers: [Browser] = [
             .chrome,
             .chromeBeta,
@@ -194,8 +205,12 @@ enum MiniMaxLocalStorageImporter {
             .chromium,
             .helium,
         ]
+
+        // Filter to only installed browsers to avoid unnecessary filesystem access
+        let installedBrowsers = browserDetection.filterInstalled(browsers)
+
         let roots = ChromiumProfileLocator
-            .roots(for: browsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
+            .roots(for: installedBrowsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
             .map { (url: $0.url, labelPrefix: $0.labelPrefix) }
 
         var candidates: [SessionStorageCandidate] = []
@@ -231,7 +246,7 @@ enum MiniMaxLocalStorageImporter {
         }
     }
 
-    private static func chromeIndexedDBCandidates() -> [IndexedDBCandidate] {
+    private static func chromeIndexedDBCandidates(browserDetection: BrowserDetection) -> [IndexedDBCandidate] {
         let browsers: [Browser] = [
             .chrome,
             .chromeBeta,
@@ -250,8 +265,12 @@ enum MiniMaxLocalStorageImporter {
             .chromium,
             .helium,
         ]
+
+        // Filter to only installed browsers to avoid unnecessary filesystem access
+        let installedBrowsers = browserDetection.filterInstalled(browsers)
+
         let roots = ChromiumProfileLocator
-            .roots(for: browsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
+            .roots(for: installedBrowsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
             .map { (url: $0.url, labelPrefix: $0.labelPrefix) }
 
         var candidates: [IndexedDBCandidate] = []

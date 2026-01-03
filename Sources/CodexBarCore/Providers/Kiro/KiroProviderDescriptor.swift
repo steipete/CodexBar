@@ -37,7 +37,7 @@ public enum KiroProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "kiro",
                 aliases: ["kiro-cli"],
-                versionDetector: { KiroStatusProbe.detectVersion() }))
+                versionDetector: { _ in KiroStatusProbe.detectVersion() }))
     }
 }
 
