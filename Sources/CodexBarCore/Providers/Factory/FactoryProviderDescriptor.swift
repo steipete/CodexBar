@@ -51,7 +51,7 @@ struct FactoryStatusFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let probe = FactoryStatusProbe()
+        let probe = FactoryStatusProbe(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
         let snap = try await probe.fetch(cookieHeaderOverride: manual)
         return self.makeResult(

@@ -37,7 +37,7 @@ public enum GeminiProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [GeminiStatusFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "gemini",
-                versionDetector: { ProviderVersionDetector.geminiVersion() }))
+                versionDetector: { _ in ProviderVersionDetector.geminiVersion() }))
     }
 }
 

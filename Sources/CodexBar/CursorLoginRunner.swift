@@ -25,6 +25,7 @@ final class CursorLoginRunner: NSObject {
         let email: String?
     }
 
+    private let browserDetection: BrowserDetection
     private var webView: WKWebView?
     private var window: NSWindow?
     private var continuation: CheckedContinuation<Result, Never>?
@@ -33,6 +34,11 @@ final class CursorLoginRunner: NSObject {
 
     private static let dashboardURL = URL(string: "https://cursor.com/dashboard")!
     private static let loginURLPattern = "authenticator.cursor.sh"
+
+    init(browserDetection: BrowserDetection) {
+        self.browserDetection = browserDetection
+        super.init()
+    }
 
     /// Runs the Cursor login flow in a browser window.
     /// Returns the result after the user completes login or cancels.
@@ -117,7 +123,7 @@ final class CursorLoginRunner: NSObject {
 
     private func fetchUserEmail() async -> String? {
         do {
-            let probe = CursorStatusProbe()
+            let probe = CursorStatusProbe(browserDetection: self.browserDetection)
             let snapshot = try await probe.fetch()
             return snapshot.accountEmail
         } catch {

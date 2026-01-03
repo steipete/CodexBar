@@ -27,6 +27,7 @@ public struct ProviderFetchContext: Sendable {
     public let settings: ProviderSettingsSnapshot?
     public let fetcher: UsageFetcher
     public let claudeFetcher: any ClaudeUsageFetching
+    public let browserDetection: BrowserDetection
 
     public init(
         runtime: ProviderRuntime,
@@ -38,7 +39,8 @@ public struct ProviderFetchContext: Sendable {
         env: [String: String],
         settings: ProviderSettingsSnapshot?,
         fetcher: UsageFetcher,
-        claudeFetcher: any ClaudeUsageFetching)
+        claudeFetcher: any ClaudeUsageFetching,
+        browserDetection: BrowserDetection)
     {
         self.runtime = runtime
         self.sourceMode = sourceMode
@@ -50,6 +52,7 @@ public struct ProviderFetchContext: Sendable {
         self.settings = settings
         self.fetcher = fetcher
         self.claudeFetcher = claudeFetcher
+        self.browserDetection = browserDetection
     }
 }
 

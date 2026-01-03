@@ -553,6 +553,6 @@ let openAIDashboardScrapeScript = """
         didScrollToCredits
       };
     })();
-    
+
 """
 #endif

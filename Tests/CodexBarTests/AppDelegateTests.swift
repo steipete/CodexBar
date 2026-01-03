@@ -20,7 +20,7 @@ struct AppDelegateTests {
 
         let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(), settings: settings)
         let account = fetcher.loadAccountInfo()
 
         // configure should not eagerly construct the status controller

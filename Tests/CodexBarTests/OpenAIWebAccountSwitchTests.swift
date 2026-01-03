@@ -11,7 +11,7 @@ struct OpenAIWebAccountSwitchTests {
         let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
         settings.refreshFrequency = .manual
 
-        let store = UsageStore(fetcher: UsageFetcher(), settings: settings)
+        let store = UsageStore(fetcher: UsageFetcher(), browserDetection: BrowserDetection(), settings: settings)
 
         store.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: "a@example.com")
         store.openAIDashboard = OpenAIDashboardSnapshot(
@@ -34,7 +34,7 @@ struct OpenAIWebAccountSwitchTests {
         let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
         settings.refreshFrequency = .manual
 
-        let store = UsageStore(fetcher: UsageFetcher(), settings: settings)
+        let store = UsageStore(fetcher: UsageFetcher(), browserDetection: BrowserDetection(), settings: settings)
 
         store.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: "a@example.com")
         let dash = OpenAIDashboardSnapshot(
