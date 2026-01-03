@@ -59,14 +59,15 @@ struct DebugPane: View {
 
                 SettingsSection(
                     title: "Probe logs",
-                    caption: "Fetch the latest PTY scrape for Codex or Claude; Copy keeps the full text.")
+                    caption: "Fetch the latest probe output for debugging; Copy keeps the full text.")
                 {
                     Picker("Provider", selection: self.$currentLogProvider) {
                         Text("Codex").tag(UsageProvider.codex)
                         Text("Claude").tag(UsageProvider.claude)
+                        Text("Cursor").tag(UsageProvider.cursor)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 240)
+                    .frame(width: 320)
 
                     HStack(spacing: 12) {
                         Button { self.loadLog(self.currentLogProvider) } label: {

@@ -1166,6 +1166,8 @@ extension UsageStore {
         let claudeUsageDataSource = self.settings.claudeUsageDataSource
         let claudeCookieSource = self.settings.claudeCookieSource
         let claudeCookieHeader = self.settings.claudeCookieHeader
+        let cursorCookieSource = self.settings.cursorCookieSource
+        let cursorCookieHeader = self.settings.cursorCookieHeader
         return await Task.detached(priority: .utility) { () -> String in
             switch provider {
             case .codex:
@@ -1196,7 +1198,9 @@ extension UsageStore {
                 await MainActor.run { self.probeLogs[.antigravity] = text }
                 return text
             case .cursor:
-                let text = "Cursor debug log not yet implemented"
+                let text = await self.debugCursorLog(
+                    cursorCookieSource: cursorCookieSource,
+                    cursorCookieHeader: cursorCookieHeader)
                 await MainActor.run { self.probeLogs[.cursor] = text }
                 return text
             case .factory:
@@ -1302,6 +1306,55 @@ extension UsageStore {
                 return lines.joined(separator: "\n")
             case .oauth:
                 lines.append("OAuth source selected.")
+                return lines.joined(separator: "\n")
+            }
+        }
+    }
+
+    private func debugCursorLog(
+        cursorCookieSource: ProviderCookieSource,
+        cursorCookieHeader: String) async -> String
+    {
+        await self.runWithTimeout(seconds: 15) {
+            var lines: [String] = []
+
+            do {
+                let probe = CursorStatusProbe()
+                let snapshot: CursorStatusSnapshot
+
+                if cursorCookieSource == .manual, let normalizedHeader = CookieHeaderNormalizer.normalize(cursorCookieHeader) {
+                    snapshot = try await probe.fetchWithManualCookies(normalizedHeader)
+                } else {
+                    snapshot = try await probe.fetch { msg in lines.append("[cursor-cookie] \(msg)") }
+                }
+
+                lines.append("")
+                lines.append("Cursor Status Summary:")
+                lines.append("membershipType=\(snapshot.membershipType ?? "nil")")
+                lines.append("accountEmail=\(snapshot.accountEmail ?? "nil")")
+                lines.append("planPercentUsed=\(snapshot.planPercentUsed)%")
+                lines.append("planUsedUSD=$\(snapshot.planUsedUSD)")
+                lines.append("planLimitUSD=$\(snapshot.planLimitUSD)")
+                lines.append("onDemandUsedUSD=$\(snapshot.onDemandUsedUSD)")
+                lines.append("onDemandLimitUSD=\(snapshot.onDemandLimitUSD.map { "$\($0)" } ?? "nil")")
+                if let teamUsed = snapshot.teamOnDemandUsedUSD {
+                    lines.append("teamOnDemandUsedUSD=$\(teamUsed)")
+                }
+                if let teamLimit = snapshot.teamOnDemandLimitUSD {
+                    lines.append("teamOnDemandLimitUSD=$\(teamLimit)")
+                }
+                lines.append("billingCycleEnd=\(snapshot.billingCycleEnd?.description ?? "nil")")
+
+                if let rawJSON = snapshot.rawJSON {
+                    lines.append("")
+                    lines.append("Raw API Response:")
+                    lines.append(rawJSON)
+                }
+
+                return lines.joined(separator: "\n")
+            } catch {
+                lines.append("")
+                lines.append("Cursor probe failed: \(error.localizedDescription)")
                 return lines.joined(separator: "\n")
             }
         }

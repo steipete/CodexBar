@@ -440,6 +440,11 @@ public struct CursorStatusProbe: Sendable {
         self.timeout = timeout
     }
 
+    /// Fetch Cursor usage with manual cookie header (for debugging).
+    public func fetchWithManualCookies(_ cookieHeader: String) async throws -> CursorStatusSnapshot {
+        try await self.fetchWithCookieHeader(cookieHeader)
+    }
+
     /// Fetch Cursor usage using browser cookies with fallback to stored session.
     public func fetch(cookieHeaderOverride: String? = nil, logger: ((String) -> Void)? = nil)
         async throws -> CursorStatusSnapshot
@@ -485,13 +490,13 @@ public struct CursorStatusProbe: Sendable {
         async let usageSummaryTask = self.fetchUsageSummary(cookieHeader: cookieHeader)
         async let userInfoTask = self.fetchUserInfo(cookieHeader: cookieHeader)
 
-        let usageSummary = try await usageSummaryTask
+        let (usageSummary, rawJSON) = try await usageSummaryTask
         let userInfo = try? await userInfoTask
 
-        return self.parseUsageSummary(usageSummary, userInfo: userInfo)
+        return self.parseUsageSummary(usageSummary, userInfo: userInfo, rawJSON: rawJSON)
     }
 
-    private func fetchUsageSummary(cookieHeader: String) async throws -> CursorUsageSummary {
+    private func fetchUsageSummary(cookieHeader: String) async throws -> (CursorUsageSummary, String) {
         let url = self.baseURL.appendingPathComponent("/api/usage-summary")
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
@@ -512,11 +517,13 @@ public struct CursorStatusProbe: Sendable {
             throw CursorStatusProbeError.networkError("HTTP \(httpResponse.statusCode)")
         }
 
+        let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
+
         do {
             let decoder = JSONDecoder()
-            return try decoder.decode(CursorUsageSummary.self, from: data)
+            let summary = try decoder.decode(CursorUsageSummary.self, from: data)
+            return (summary, rawJSON)
         } catch {
-            let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
             throw CursorStatusProbeError
                 .parseFailed("JSON decode failed: \(error.localizedDescription). Raw: \(rawJSON.prefix(200))")
         }
@@ -539,7 +546,7 @@ public struct CursorStatusProbe: Sendable {
         return try decoder.decode(CursorUserInfo.self, from: data)
     }
 
-    func parseUsageSummary(_ summary: CursorUsageSummary, userInfo: CursorUserInfo?) -> CursorStatusSnapshot {
+    func parseUsageSummary(_ summary: CursorUsageSummary, userInfo: CursorUserInfo?, rawJSON: String?) -> CursorStatusSnapshot {
         // Parse billing cycle end date
         let billingCycleEnd: Date? = summary.billingCycleEnd.flatMap { dateString in
             let formatter = ISO8601DateFormatter()
@@ -548,8 +555,9 @@ public struct CursorStatusProbe: Sendable {
         }
 
         // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
+        // Use breakdown.total if available (includes bonus credits), otherwise fall back to limit.
         let planUsedRaw = Double(summary.individualUsage?.plan?.used ?? 0)
-        let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
+        let planLimitRaw = Double(summary.individualUsage?.plan?.breakdown?.total ?? summary.individualUsage?.plan?.limit ?? 0)
         let planUsed = planUsedRaw / 100.0
         let planLimit = planLimitRaw / 100.0
         let planPercentUsed: Double = if planLimitRaw > 0 {
@@ -578,7 +586,7 @@ public struct CursorStatusProbe: Sendable {
             membershipType: summary.membershipType,
             accountEmail: userInfo?.email,
             accountName: userInfo?.name,
-            rawJSON: nil)
+            rawJSON: rawJSON)
     }
 }
 

@@ -243,19 +243,19 @@ private struct RPCCreditsSnapshot: Decodable, Encodable {
     let balance: String?
 }
 
-private enum RPCWireError: Error, CustomStringConvertible {
+private enum RPCWireError: Error, LocalizedError {
     case startFailed(String)
     case requestFailed(String)
     case malformed(String)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .startFailed(message):
-            "Failed to start codex app-server: \(message)"
+            "Codex not running. Try running a Codex command first. (\(message))"
         case let .requestFailed(message):
-            "RPC request failed: \(message)"
+            "Codex connection failed: \(message)"
         case let .malformed(message):
-            "Malformed response: \(message)"
+            "Codex returned invalid data: \(message)"
         }
     }
 }
