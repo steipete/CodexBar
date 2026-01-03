@@ -58,6 +58,7 @@ public enum ProviderDescriptorRegistry {
         _ = ProviderDescriptorRegistry.register(FactoryProviderDescriptor.descriptor)
         _ = ProviderDescriptorRegistry.register(ZaiProviderDescriptor.descriptor)
         _ = ProviderDescriptorRegistry.register(MiniMaxProviderDescriptor.descriptor)
+        _ = ProviderDescriptorRegistry.register(AugmentProviderDescriptor.descriptor)
         _ = ProviderDescriptorRegistry.register(CursorProviderDescriptor.descriptor)
         _ = ProviderDescriptorRegistry.register(GeminiProviderDescriptor.descriptor)
         _ = ProviderDescriptorRegistry.register(AntigravityProviderDescriptor.descriptor)

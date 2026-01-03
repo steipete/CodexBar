@@ -145,7 +145,7 @@ fi
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
   run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh" debug
 else
-  run_step "package app" env ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
+  run_step "package app" env CODEXBAR_SIGNING=adhoc ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
 fi
 
 # 4) Launch the packaged app.

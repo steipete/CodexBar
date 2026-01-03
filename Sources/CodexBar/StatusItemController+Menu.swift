@@ -540,6 +540,7 @@ extension StatusItemController {
         case .statusPage: (#selector(self.openStatusPage), nil)
         case let .switchAccount(provider): (#selector(self.runSwitchAccount(_:)), provider.rawValue)
         case let .openTerminal(command): (#selector(self.openTerminalCommand(_:)), command)
+        case let .loginToProvider(url): (#selector(self.openLoginToProvider(_:)), url)
         case .settings: (#selector(self.showSettingsGeneral), nil)
         case .about: (#selector(self.showSettingsAbout), nil)
         case .quit: (#selector(self.quit), nil)

@@ -86,6 +86,10 @@ struct MenuContent: View {
             self.actions.switchAccount(provider)
         case let .openTerminal(command):
             self.actions.openTerminal(command)
+        case let .loginToProvider(url):
+            if let urlObj = URL(string: url) {
+                NSWorkspace.shared.open(urlObj)
+            }
         case .settings:
             self.actions.openSettings()
         case .about:

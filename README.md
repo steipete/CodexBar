@@ -22,6 +22,9 @@ brew install --cask steipete/tap/codexbar
 - Install/sign in to the provider sources you rely on (e.g. `codex`, `claude`, `gemini`, browser cookies, or OAuth; Antigravity requires the Antigravity app running).
 - Optional: Settings → Providers → Codex → OpenAI cookies (Automatic or Manual) to add dashboard extras.
 
+### Development
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for build instructions, architecture notes, and troubleshooting.
+
 ## Providers
 
 - [Codex](docs/codex.md) — Local Codex CLI RPC (+ PTY fallback) and optional OpenAI web dashboard extras.

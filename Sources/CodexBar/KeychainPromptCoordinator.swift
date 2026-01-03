@@ -71,6 +71,11 @@ enum KeychainPromptCoordinator {
                 "CodexBar will ask macOS Keychain for your MiniMax session cookie",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
+        case .augmentCookie:
+            return (title, [
+                "CodexBar will ask macOS Keychain for your Augment cookie header",
+                "so it can fetch usage. Click OK to continue.",
+            ].joined(separator: " "))
         }
     }
 

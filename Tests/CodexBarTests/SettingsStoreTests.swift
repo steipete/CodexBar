@@ -131,6 +131,7 @@ struct SettingsStoreTests {
             .minimax,
             .kiro,
             .vertexai,
+            .augment,
         ])
 
         // Move one provider; ensure it's persisted across instances.

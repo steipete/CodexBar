@@ -19,6 +19,7 @@ struct MenuDescriptor {
         case statusPage = "waveform.path.ecg"
         case switchAccount = "key"
         case openTerminal = "terminal"
+        case loginToProvider = "arrow.right.square"
         case settings = "gearshape"
         case about = "info.circle"
         case quit = "xmark.rectangle"
@@ -38,6 +39,7 @@ struct MenuDescriptor {
         case statusPage
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
+        case loginToProvider(url: String)
         case settings
         case about
         case quit
@@ -271,6 +273,18 @@ struct MenuDescriptor {
             entries.append(.action(accountLabel, accountAction))
         }
 
+        // Show Augment session management options
+        if let targetProvider, targetProvider == .augment {
+            // Show login prompt for session/cookie errors
+            if let error = store.error(for: .augment) {
+                if error.contains("session has expired") ||
+                   error.contains("No Augment session cookie found")
+                {
+                    entries.append(.action("Open Augment (Log Out & Back In)", .loginToProvider(url: "https://app.augmentcode.com")))
+                }
+            }
+        }
+
         if metadata?.dashboardURL != nil {
             entries.append(.action("Usage Dashboard", .dashboard))
         }
@@ -396,6 +410,7 @@ extension MenuDescriptor.MenuAction {
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
+        case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue
         }
     }

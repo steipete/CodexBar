@@ -59,14 +59,16 @@ struct DebugPane: View {
 
                 SettingsSection(
                     title: "Probe logs",
-                    caption: "Fetch the latest PTY scrape for Codex or Claude; Copy keeps the full text.")
+                    caption: "Fetch the latest probe output for debugging; Copy keeps the full text.")
                 {
                     Picker("Provider", selection: self.$currentLogProvider) {
                         Text("Codex").tag(UsageProvider.codex)
                         Text("Claude").tag(UsageProvider.claude)
+                        Text("Cursor").tag(UsageProvider.cursor)
+                        Text("Augment").tag(UsageProvider.augment)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 240)
+                    .frame(width: 400)
 
                     HStack(spacing: 12) {
                         Button { self.loadLog(self.currentLogProvider) } label: {
@@ -231,9 +233,10 @@ struct DebugPane: View {
                         Text("Claude").tag(UsageProvider.claude)
                         Text("Gemini").tag(UsageProvider.gemini)
                         Text("Antigravity").tag(UsageProvider.antigravity)
+                        Text("Augment").tag(UsageProvider.augment)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 240)
+                    .frame(width: 300)
 
                     TextField("Simulated error text", text: self.$simulatedErrorText, axis: .vertical)
                         .lineLimit(4)

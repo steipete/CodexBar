@@ -74,6 +74,12 @@ extension StatusItemController {
         Self.openTerminal(command: command)
     }
 
+    @objc func openLoginToProvider(_ sender: NSMenuItem) {
+        guard let urlString = sender.representedObject as? String,
+              let url = URL(string: urlString) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     @objc func runSwitchAccount(_ sender: NSMenuItem) {
         if self.loginTask != nil {
             self.loginLogger.info("Switch Account tap ignored: login already in-flight")

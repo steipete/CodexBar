@@ -72,7 +72,10 @@ struct ProviderRegistry {
                                 cookieSource: settings.minimaxCookieSource,
                                 manualCookieHeader: settings.minimaxCookieHeader),
                             zai: ProviderSettingsSnapshot.ZaiProviderSettings(),
-                            copilot: ProviderSettingsSnapshot.CopilotProviderSettings())
+                            copilot: ProviderSettingsSnapshot.CopilotProviderSettings(),
+                            augment: ProviderSettingsSnapshot.AugmentProviderSettings(
+                                cookieSource: settings.augmentCookieSource,
+                                manualCookieHeader: settings.augmentCookieHeader))
                     }
                     let context = ProviderFetchContext(
                         runtime: .app,

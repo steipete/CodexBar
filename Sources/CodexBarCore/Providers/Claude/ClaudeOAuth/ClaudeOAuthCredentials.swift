@@ -108,12 +108,28 @@ public enum ClaudeOAuthCredentialsStore {
     private static let credentialsPath = ".claude/.credentials.json"
     private static let keychainService = "Claude Code-credentials"
 
+    // Cache to avoid repeated keychain prompts (nonisolated for synchronous access)
+    private nonisolated(unsafe) static var cachedCredentials: ClaudeOAuthCredentials?
+    private nonisolated(unsafe) static var cacheTimestamp: Date?
+    private static let cacheValidityDuration: TimeInterval = 60 // 1 minute cache
+
     public static func load() throws -> ClaudeOAuthCredentials {
+        // Check cache first to avoid repeated keychain access
+        if let cached = self.cachedCredentials,
+           let timestamp = self.cacheTimestamp,
+           Date().timeIntervalSince(timestamp) < self.cacheValidityDuration
+        {
+            return cached
+        }
+
         // Prefer Keychain (CLI writes there on macOS), but fall back to the JSON file when missing.
         var lastError: Error?
         if let keychainData = try? self.loadFromKeychain() {
             do {
-                return try ClaudeOAuthCredentials.parse(data: keychainData)
+                let creds = try ClaudeOAuthCredentials.parse(data: keychainData)
+                self.cachedCredentials = creds
+                self.cacheTimestamp = Date()
+                return creds
             } catch {
                 // Keep the Keychain parse error so we can surface it if the file is also invalid.
                 lastError = error
@@ -121,7 +137,10 @@ public enum ClaudeOAuthCredentialsStore {
         }
         do {
             let fileData = try self.loadFromFile()
-            return try ClaudeOAuthCredentials.parse(data: fileData)
+            let creds = try ClaudeOAuthCredentials.parse(data: fileData)
+            self.cachedCredentials = creds
+            self.cacheTimestamp = Date()
+            return creds
         } catch {
             if let lastError { throw lastError }
             throw error
@@ -139,6 +158,12 @@ public enum ClaudeOAuthCredentialsStore {
             }
             throw ClaudeOAuthCredentialsError.readFailed(error.localizedDescription)
         }
+    }
+
+    /// Invalidate the credentials cache (call after login/logout)
+    public static func invalidateCache() {
+        self.cachedCredentials = nil
+        self.cacheTimestamp = nil
     }
 
     public static func loadFromKeychain() throws -> Data {

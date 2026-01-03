@@ -143,7 +143,8 @@ struct CursorStatusProbeTests {
                             totalPercentUsed: 0.40625),
                         onDemand: nil),
                     teamUsage: nil),
-                userInfo: nil)
+                userInfo: nil,
+                rawJSON: nil)
 
         #expect(snapshot.planPercentUsed == 9.8)
     }
@@ -172,7 +173,8 @@ struct CursorStatusProbeTests {
                             totalPercentUsed: 0.5),
                         onDemand: nil),
                     teamUsage: nil),
-                userInfo: nil)
+                userInfo: nil,
+                rawJSON: nil)
 
         #expect(snapshot.planPercentUsed == 50.0)
     }
