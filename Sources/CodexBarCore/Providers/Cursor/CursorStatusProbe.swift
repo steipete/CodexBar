@@ -124,6 +124,49 @@ public struct CursorTeamUsage: Codable, Sendable {
     public let onDemand: CursorOnDemandUsage?
 }
 
+// MARK: - Cursor Usage API Models (Legacy Request-Based Plans)
+
+/// Response from `/api/usage?user=ID` endpoint for legacy request-based plans.
+public struct CursorUsageResponse: Codable, Sendable {
+    public let gpt4: CursorModelUsage?
+    public let startOfMonth: String?
+
+    enum CodingKeys: String, CodingKey {
+        case gpt4 = "gpt-4"
+        case startOfMonth
+    }
+}
+
+public struct CursorModelUsage: Codable, Sendable {
+    public let numRequests: Int?
+    public let numRequestsTotal: Int?
+    public let numTokens: Int?
+    public let maxRequestUsage: Int?
+    public let maxTokenUsage: Int?
+}
+
+/// Request usage snapshot for legacy Cursor plans (request-based instead of token-based).
+public struct CursorRequestUsage: Codable, Sendable {
+    /// Requests used this billing cycle
+    public let used: Int
+    /// Request limit (e.g., 500 for legacy enterprise plans)
+    public let limit: Int
+
+    public init(used: Int, limit: Int) {
+        self.used = used
+        self.limit = limit
+    }
+
+    public var usedPercent: Double {
+        guard self.limit > 0 else { return 0 }
+        return (Double(self.used) / Double(self.limit)) * 100
+    }
+
+    public var remainingPercent: Double {
+        max(0, 100 - self.usedPercent)
+    }
+}
+
 public struct CursorUserInfo: Codable, Sendable {
     public let email: String?
     public let emailVerified: Bool?
@@ -172,6 +215,18 @@ public struct CursorStatusSnapshot: Sendable {
     /// Raw API response for debugging
     public let rawJSON: String?
 
+    // MARK: - Legacy Plan (Request-Based) Fields
+
+    /// Requests used this billing cycle (legacy plans only)
+    public let requestsUsed: Int?
+    /// Request limit (non-nil indicates legacy request-based plan)
+    public let requestsLimit: Int?
+
+    /// Whether this is a legacy request-based plan (vs token-based)
+    public var isLegacyRequestPlan: Bool {
+        self.requestsLimit != nil
+    }
+
     public init(
         planPercentUsed: Double,
         planUsedUSD: Double,
@@ -184,7 +239,9 @@ public struct CursorStatusSnapshot: Sendable {
         membershipType: String?,
         accountEmail: String?,
         accountName: String?,
-        rawJSON: String?)
+        rawJSON: String?,
+        requestsUsed: Int? = nil,
+        requestsLimit: Int? = nil)
     {
         self.planPercentUsed = planPercentUsed
         self.planUsedUSD = planUsedUSD
@@ -198,31 +255,35 @@ public struct CursorStatusSnapshot: Sendable {
         self.accountEmail = accountEmail
         self.accountName = accountName
         self.rawJSON = rawJSON
+        self.requestsUsed = requestsUsed
+        self.requestsLimit = requestsLimit
     }
 
     /// Convert to UsageSnapshot for the common provider interface
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary: Plan usage percentage
+        // Primary: For legacy request-based plans, use request usage; otherwise use plan percentage
+        let primaryUsedPercent: Double = if self.isLegacyRequestPlan,
+                                            let used = self.requestsUsed,
+                                            let limit = self.requestsLimit,
+                                            limit > 0
+        {
+            (Double(used) / Double(limit)) * 100
+        } else {
+            self.planPercentUsed
+        }
+
         let primary = RateWindow(
-            usedPercent: self.planPercentUsed,
+            usedPercent: primaryUsedPercent,
             windowMinutes: nil,
             resetsAt: self.billingCycleEnd,
             resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
 
-        let resolvedOnDemandUsed: Double
-        let resolvedOnDemandLimit: Double?
+        // Always use individual on-demand values (what users see in their Cursor dashboard).
+        // Team values are aggregates across all members, not useful for individual tracking.
+        let resolvedOnDemandUsed = self.onDemandUsedUSD
+        let resolvedOnDemandLimit = self.onDemandLimitUSD
 
-        if let teamLimit = self.teamOnDemandLimitUSD,
-           let teamUsed = self.teamOnDemandUsedUSD
-        {
-            resolvedOnDemandUsed = teamUsed
-            resolvedOnDemandLimit = teamLimit
-        } else {
-            resolvedOnDemandUsed = self.onDemandUsedUSD
-            resolvedOnDemandLimit = self.onDemandLimitUSD
-        }
-
-        // Secondary: On-demand usage as percentage of limit (team when present, else individual)
+        // Secondary: On-demand usage as percentage of individual limit
         let secondary: RateWindow? = if let limit = resolvedOnDemandLimit,
                                         limit > 0
         {
@@ -248,6 +309,15 @@ public struct CursorStatusSnapshot: Sendable {
             nil
         }
 
+        // Legacy plan request usage (when maxRequestUsage is set)
+        let cursorRequests: CursorRequestUsage? = if let used = self.requestsUsed,
+                                                     let limit = self.requestsLimit
+        {
+            CursorRequestUsage(used: used, limit: limit)
+        } else {
+            nil
+        }
+
         let identity = ProviderIdentitySnapshot(
             providerID: .cursor,
             accountEmail: self.accountEmail,
@@ -258,6 +328,7 @@ public struct CursorStatusSnapshot: Sendable {
             secondary: secondary,
             tertiary: nil,
             providerCost: providerCost,
+            cursorRequests: cursorRequests,
             updatedAt: Date(),
             identity: identity)
     }
@@ -488,7 +559,16 @@ public struct CursorStatusProbe: Sendable {
         let usageSummary = try await usageSummaryTask
         let userInfo = try? await userInfoTask
 
-        return self.parseUsageSummary(usageSummary, userInfo: userInfo)
+        // Fetch legacy request usage only if user has a sub ID.
+        // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
+        let requestUsage: CursorUsageResponse?
+        if let userId = userInfo?.sub {
+            requestUsage = try? await self.fetchRequestUsage(userId: userId, cookieHeader: cookieHeader)
+        } else {
+            requestUsage = nil
+        }
+
+        return self.parseUsageSummary(usageSummary, userInfo: userInfo, requestUsage: requestUsage)
     }
 
     private func fetchUsageSummary(cookieHeader: String) async throws -> CursorUsageSummary {
@@ -539,7 +619,29 @@ public struct CursorStatusProbe: Sendable {
         return try decoder.decode(CursorUserInfo.self, from: data)
     }
 
-    func parseUsageSummary(_ summary: CursorUsageSummary, userInfo: CursorUserInfo?) -> CursorStatusSnapshot {
+    private func fetchRequestUsage(userId: String, cookieHeader: String) async throws -> CursorUsageResponse {
+        let url = self.baseURL.appendingPathComponent("/api/usage")
+            .appending(queryItems: [URLQueryItem(name: "user", value: userId)])
+        var request = URLRequest(url: url)
+        request.timeoutInterval = self.timeout
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw CursorStatusProbeError.networkError("Failed to fetch request usage")
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode(CursorUsageResponse.self, from: data)
+    }
+
+    func parseUsageSummary(
+        _ summary: CursorUsageSummary,
+        userInfo: CursorUserInfo?,
+        requestUsage: CursorUsageResponse? = nil
+    ) -> CursorStatusSnapshot {
         // Parse billing cycle end date
         let billingCycleEnd: Date? = summary.billingCycleEnd.flatMap { dateString in
             let formatter = ISO8601DateFormatter()
@@ -566,6 +668,10 @@ public struct CursorStatusProbe: Sendable {
         let teamOnDemandUsed: Double? = summary.teamUsage?.onDemand?.used.map { Double($0) / 100.0 }
         let teamOnDemandLimit: Double? = summary.teamUsage?.onDemand?.limit.map { Double($0) / 100.0 }
 
+        // Legacy request-based plan: maxRequestUsage being non-nil indicates a request-based plan
+        let requestsUsed: Int? = requestUsage?.gpt4?.numRequests
+        let requestsLimit: Int? = requestUsage?.gpt4?.maxRequestUsage
+
         return CursorStatusSnapshot(
             planPercentUsed: planPercentUsed,
             planUsedUSD: planUsed,
@@ -578,7 +684,9 @@ public struct CursorStatusProbe: Sendable {
             membershipType: summary.membershipType,
             accountEmail: userInfo?.email,
             accountName: userInfo?.name,
-            rawJSON: nil)
+            rawJSON: nil,
+            requestsUsed: requestsUsed,
+            requestsLimit: requestsLimit)
     }
 }
 

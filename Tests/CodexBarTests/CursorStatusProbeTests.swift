@@ -199,9 +199,10 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.accountEmail(for: .cursor) == "user@example.com")
         #expect(usageSnapshot.loginMethod(for: .cursor) == "Cursor Pro")
         #expect(usageSnapshot.secondary != nil)
+        // Uses individual on-demand values (what users see in their dashboard)
         #expect(usageSnapshot.secondary?.usedPercent == 5.0)
-        #expect(usageSnapshot.providerCost?.used == 25.0)
-        #expect(usageSnapshot.providerCost?.limit == 500.0)
+        #expect(usageSnapshot.providerCost?.used == 5.0)
+        #expect(usageSnapshot.providerCost?.limit == 100.0)
         #expect(usageSnapshot.providerCost?.currencyCode == "USD")
     }
 
@@ -282,6 +283,94 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.providerCost?.limit == 0.0)
         // Secondary should be nil when no on-demand limit
         #expect(usageSnapshot.secondary == nil)
+    }
+
+    // MARK: - Legacy Request-Based Plan
+
+    @Test
+    func parsesLegacyRequestBasedPlan() {
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 100.0,
+            planUsedUSD: 0,
+            planLimitUSD: 0,
+            onDemandUsedUSD: 43.64,
+            onDemandLimitUSD: 200.0,
+            teamOnDemandUsedUSD: 92.91,
+            teamOnDemandLimitUSD: 20000.0,
+            billingCycleEnd: nil,
+            membershipType: "enterprise",
+            accountEmail: "user@company.com",
+            accountName: "Test User",
+            rawJSON: nil,
+            requestsUsed: 500,
+            requestsLimit: 500)
+
+        #expect(snapshot.isLegacyRequestPlan == true)
+        #expect(snapshot.requestsUsed == 500)
+        #expect(snapshot.requestsLimit == 500)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        #expect(usageSnapshot.cursorRequests != nil)
+        #expect(usageSnapshot.cursorRequests?.used == 500)
+        #expect(usageSnapshot.cursorRequests?.limit == 500)
+        #expect(usageSnapshot.cursorRequests?.usedPercent == 100.0)
+        #expect(usageSnapshot.cursorRequests?.remainingPercent == 0.0)
+
+        // Primary RateWindow should use request-based percentage for legacy plans
+        #expect(usageSnapshot.primary?.usedPercent == 100.0)
+    }
+
+    @Test
+    func legacyPlanPrimaryUsesRequestsNotDollars() {
+        // Regression: Legacy plans report planPercentUsed as 0 while requests are used
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 0.0, // Dollar-based shows 0
+            planUsedUSD: 0,
+            planLimitUSD: 0,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "enterprise",
+            accountEmail: "user@company.com",
+            accountName: nil,
+            rawJSON: nil,
+            requestsUsed: 250,
+            requestsLimit: 500)
+
+        #expect(snapshot.isLegacyRequestPlan == true)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        // Primary should reflect request usage (50%), not dollar usage (0%)
+        #expect(usageSnapshot.primary?.usedPercent == 50.0)
+        #expect(usageSnapshot.cursorRequests?.usedPercent == 50.0)
+    }
+
+    @Test
+    func detectsNonLegacyPlan() {
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 50.0,
+            planUsedUSD: 25.0,
+            planLimitUSD: 50.0,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: 100.0,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+
+        #expect(snapshot.isLegacyRequestPlan == false)
+        #expect(snapshot.requestsUsed == nil)
+        #expect(snapshot.requestsLimit == nil)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+        #expect(usageSnapshot.cursorRequests == nil)
     }
 
     // MARK: - Session Store Serialization
