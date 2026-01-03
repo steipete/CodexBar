@@ -129,10 +129,13 @@ public enum ClaudeWebAPIFetcher {
 
     /// Attempts to fetch Claude usage data using cookies extracted from browsers.
     /// Tries browser cookies using the standard import order.
-    public static func fetchUsage(logger: ((String) -> Void)? = nil) async throws -> WebUsageData {
+    public static func fetchUsage(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) async throws -> WebUsageData
+    {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
 
-        let sessionInfo = try extractSessionKeyInfo(logger: log)
+        let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
         log("Found session key: \(sessionInfo.key.prefix(20))...")
 
         return try await self.fetchUsage(using: sessionInfo, logger: log)
@@ -208,11 +211,12 @@ public enum ClaudeWebAPIFetcher {
     ///   - includePreview: When true, includes a truncated response preview in results.
     public static func probeEndpoints(
         _ endpoints: [String],
+        browserDetection: BrowserDetection,
         includePreview: Bool = false,
         logger: ((String) -> Void)? = nil) async throws -> [ProbeResult]
     {
         let log: (String) -> Void = { msg in logger?("[claude-probe] \(msg)") }
-        let sessionInfo = try extractSessionKeyInfo(logger: log)
+        let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
         let sessionKey = sessionInfo.key
         let organization = try? await fetchOrganizationInfo(sessionKey: sessionKey, logger: log)
         let expanded = endpoints.map { endpoint -> String in
@@ -273,9 +277,9 @@ public enum ClaudeWebAPIFetcher {
     }
 
     /// Checks if we can find a Claude session key in browser cookies without making API calls.
-    public static func hasSessionKey(logger: ((String) -> Void)? = nil) -> Bool {
+    public static func hasSessionKey(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
         do {
-            _ = try self.sessionKeyInfo(logger: logger)
+            _ = try self.sessionKeyInfo(browserDetection: browserDetection, logger: logger)
             return true
         } catch {
             return false
@@ -287,8 +291,11 @@ public enum ClaudeWebAPIFetcher {
         return (try? self.sessionKeyInfo(cookieHeader: cookieHeader)) != nil
     }
 
-    public static func sessionKeyInfo(logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo {
-        try self.extractSessionKeyInfo(logger: logger)
+    public static func sessionKeyInfo(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
+    {
+        try self.extractSessionKeyInfo(browserDetection: browserDetection, logger: logger)
     }
 
     public static func sessionKeyInfo(cookieHeader: String) throws -> SessionKeyInfo {
@@ -304,12 +311,17 @@ public enum ClaudeWebAPIFetcher {
 
     // MARK: - Session Key Extraction
 
-    private static func extractSessionKeyInfo(logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo {
+    private static func extractSessionKeyInfo(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
+    {
         let log: (String) -> Void = { msg in logger?(msg) }
 
         let cookieDomains = ["claude.ai"]
 
-        for browserSource in Self.cookieImportOrder {
+        // Filter to only installed browsers to avoid unnecessary keychain prompts
+        let installedBrowsers = browserDetection.filterInstalled(Self.cookieImportOrder)
+        for browserSource in installedBrowsers {
             do {
                 let query = BrowserCookieQuery(domains: cookieDomains)
                 let sources = try Self.cookieClient.records(

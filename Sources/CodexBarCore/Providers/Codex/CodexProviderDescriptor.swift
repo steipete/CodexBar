@@ -36,7 +36,7 @@ public enum CodexProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "codex",
-                versionDetector: { ProviderVersionDetector.codexVersion() }))
+                versionDetector: { _ in ProviderVersionDetector.codexVersion() }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

@@ -27,8 +27,9 @@ struct CodexBarApp: App {
         let preferencesSelection = PreferencesSelection()
         let settings = SettingsStore()
         let fetcher = UsageFetcher()
+        let browserDetection = BrowserDetection()
         let account = fetcher.loadAccountInfo()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: settings)
         self.preferencesSelection = preferencesSelection
         _settings = State(wrappedValue: settings)
         _store = State(wrappedValue: store)
@@ -268,8 +269,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Defensive fallback: this should not be hit in normal app lifecycle.
         let fallbackSettings = SettingsStore()
         let fetcher = UsageFetcher()
+        let browserDetection = BrowserDetection()
         let fallbackAccount = fetcher.loadAccountInfo()
-        let fallbackStore = UsageStore(fetcher: fetcher, settings: fallbackSettings)
+        let fallbackStore = UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: fallbackSettings)
         self.statusController = StatusItemController.factory(
             fallbackStore,
             fallbackSettings,
