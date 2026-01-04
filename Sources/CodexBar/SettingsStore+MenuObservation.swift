@@ -9,6 +9,8 @@ extension SettingsStore {
         _ = self.debugDisableKeychainAccess
         _ = self.statusChecksEnabled
         _ = self.sessionQuotaNotificationsEnabled
+        _ = self.hideStatusItemBelowThreshold
+        _ = self.statusItemThresholdPercent
         _ = self.usageBarsShowUsed
         _ = self.resetTimesShowAbsolute
         _ = self.menuBarShowsBrandIconWithPercent
