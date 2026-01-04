@@ -9,6 +9,8 @@ struct SettingsDefaultsState: Sendable {
     var debugLoadingPatternRaw: String?
     var statusChecksEnabled: Bool
     var sessionQuotaNotificationsEnabled: Bool
+    var hideStatusItemBelowThreshold: Bool
+    var statusItemThresholdPercent: Int
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
     var menuBarShowsBrandIconWithPercent: Bool

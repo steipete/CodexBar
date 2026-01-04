@@ -43,6 +43,8 @@ extension StatusItemController {
         if self.isHostedSubviewMenu(menu) {
             self.refreshHostedSubviewHeights(in: menu)
             self.openMenus[ObjectIdentifier(menu)] = menu
+            self.scheduleOpenMenuRefresh(for: menu)
+            self.updateVisibility()
             // Removed redundant async refresh - single pass is sufficient after initial layout
             return
         }
@@ -75,6 +77,7 @@ extension StatusItemController {
         self.openMenus[ObjectIdentifier(menu)] = menu
         // Only schedule refresh after menu is registered as open - refreshNow is called async
         self.scheduleOpenMenuRefresh(for: menu)
+        self.updateVisibility()
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -93,6 +96,7 @@ extension StatusItemController {
         for menuItem in menu.items {
             (menuItem.view as? MenuCardHighlighting)?.setHighlighted(false)
         }
+        self.updateVisibility()
     }
 
     func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
