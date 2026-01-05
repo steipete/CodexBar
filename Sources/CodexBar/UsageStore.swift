@@ -299,9 +299,13 @@ final class UsageStore {
             claudeFetcher: claudeFetcher)
         self.bindSettings()
         self.detectVersions()
-        self.refreshPathDebugInfo()
+        Task.detached(priority: .userInitiated) { [weak self] in
+            await self?.refreshPathDebugInfo()
+        }
         LoginShellPathCache.shared.captureOnce { [weak self] _ in
-            Task { @MainActor in self?.refreshPathDebugInfo() }
+            Task { @MainActor in
+                await self?.refreshPathDebugInfo()
+            }
         }
         Task { await self.refresh() }
         self.startTimer()
@@ -1510,8 +1514,11 @@ extension UsageStore {
         return text
     }
 
-    private func refreshPathDebugInfo() {
-        self.pathDebugInfo = PathBuilder.debugSnapshot(purposes: [.rpc, .tty, .nodeTooling])
+    private func refreshPathDebugInfo() async {
+        let snapshot = PathBuilder.debugSnapshot(purposes: [.rpc, .tty, .nodeTooling])
+        await MainActor.run {
+            self.pathDebugInfo = snapshot
+        }
     }
 
     func clearCostUsageCache() async -> String? {
