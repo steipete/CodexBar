@@ -1,6 +1,8 @@
 import Foundation
 
 #if os(macOS)
+import AppKit
+import UserNotifications
 
 /// Manages automatic session keepalive for Augment to prevent cookie expiration.
 ///
@@ -190,9 +192,98 @@ public final class AugmentSessionKeepalive {
             } else {
                 self.log("⚠️ Session refresh returned no new cookies")
             }
+        } catch AugmentSessionKeepaliveError.sessionExpired {
+            self.log("🔐 Session expired - attempting automatic recovery...")
+            await self.attemptSessionRecovery()
         } catch {
             self.log("✗ Session refresh failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Attempt to recover from an expired session by triggering browser re-authentication
+    private func attemptSessionRecovery() async {
+        self.log("🔄 Attempting automatic session recovery...")
+        self.log("   Strategy: Open Augment dashboard to trigger browser re-auth")
+
+        #if os(macOS)
+        // Open the Augment dashboard in the default browser
+        // This will trigger the browser to re-authenticate if the user is still logged in
+        if let url = URL(string: "https://app.augmentcode.com") {
+            let _ = await MainActor.run {
+                NSWorkspace.shared.open(url)
+            }
+            self.log("   ✅ Opened Augment dashboard in browser")
+            self.log("   ⏳ Waiting 5 seconds for browser to re-authenticate...")
+
+            // Wait for browser to potentially re-authenticate
+            try? await Task.sleep(for: .seconds(5))
+
+            // Try to import cookies again
+            do {
+                let newSession = try AugmentCookieImporter.importSession(logger: self.logger)
+                self.log("   ✅ Session recovery successful - imported \(newSession.cookies.count) cookies")
+                self.lastSuccessfulRefresh = Date()
+
+                // Verify the session is actually valid by pinging the API
+                let isValid = try await self.pingSessionEndpoint()
+                if isValid {
+                    self.log("   ✅ Session verified - recovery complete!")
+                } else {
+                    self.log("   ⚠️ Session imported but not yet valid - may need manual login")
+                    self.notifyUserLoginRequired()
+                }
+            } catch {
+                self.log("   ✗ Session recovery failed: \(error.localizedDescription)")
+                self.log("   ℹ️ User needs to manually log in to Augment")
+                self.notifyUserLoginRequired()
+            }
+        }
+        #else
+        self.log("   ✗ Automatic recovery not supported on this platform")
+        #endif
+    }
+
+    /// Notify the user that they need to log in to Augment
+    private func notifyUserLoginRequired() {
+        #if os(macOS)
+        self.log("📢 Sending notification: Augment session expired")
+
+        Task {
+            let center = UNUserNotificationCenter.current()
+
+            // Request authorization if needed
+            do {
+                let granted = try await center.requestAuthorization(options: [.alert, .sound])
+                guard granted else {
+                    self.log("⚠️ Notification permission denied")
+                    return
+                }
+            } catch {
+                self.log("✗ Failed to request notification permission: \(error)")
+                return
+            }
+
+            // Create notification content
+            let content = UNMutableNotificationContent()
+            content.title = "Augment Session Expired"
+            content.body = "Please log in to app.augmentcode.com to restore your session."
+            content.sound = .default
+
+            // Create trigger (deliver immediately)
+            let request = UNNotificationRequest(
+                identifier: "augment-session-expired-\(UUID().uuidString)",
+                content: content,
+                trigger: nil)
+
+            // Deliver notification
+            do {
+                try await center.add(request)
+                self.log("✅ Notification delivered successfully")
+            } catch {
+                self.log("✗ Failed to deliver notification: \(error)")
+            }
+        }
+        #endif
     }
 
     /// Ping Augment's session endpoint to trigger cookie refresh
@@ -213,6 +304,8 @@ public final class AugmentSessionKeepalive {
             "https://app.augmentcode.com/api/session", // Alternative
             "https://app.augmentcode.com/api/user", // User endpoint
         ]
+
+        var receivedUnauthorized = false
 
         for (index, urlString) in endpoints.enumerated() {
             self.log("   Trying endpoint \(index + 1)/\(endpoints.count): \(urlString)")
@@ -262,7 +355,9 @@ public final class AugmentSessionKeepalive {
                     }
                 } else if httpResponse.statusCode == 401 {
                     self.log("   ✗ 401 Unauthorized - session expired")
-                    throw AugmentSessionKeepaliveError.sessionExpired
+                    receivedUnauthorized = true
+                    // Don't throw immediately - try all endpoints first
+                    continue
                 } else if httpResponse.statusCode == 404 {
                     self.log("   ✗ 404 Not Found - trying next endpoint")
                     continue
@@ -274,6 +369,12 @@ public final class AugmentSessionKeepalive {
                 self.log("   ✗ Request failed: \(error.localizedDescription)")
                 continue
             }
+        }
+
+        // If we got 401 from all endpoints, the session is definitely expired
+        if receivedUnauthorized {
+            self.log("⚠️ All endpoints returned 401 - session is expired")
+            throw AugmentSessionKeepaliveError.sessionExpired
         }
 
         self.log("⚠️ All session endpoints failed or returned no valid data")
