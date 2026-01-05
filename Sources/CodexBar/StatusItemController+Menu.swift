@@ -69,10 +69,21 @@ extension StatusItemController {
     }
 
     func menuDidClose(_ menu: NSMenu) {
-        self.openMenus.removeValue(forKey: ObjectIdentifier(menu))
-        self.menuRefreshTasks.removeValue(forKey: ObjectIdentifier(menu))?.cancel()
+        let key = ObjectIdentifier(menu)
+
+        // Clean up all tracked state for this menu to prevent accumulation
+        self.openMenus.removeValue(forKey: key)
+        self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
+        self.menuProviders.removeValue(forKey: key)
+        self.menuVersions.removeValue(forKey: key)
+
+        // Clear highlight state and explicitly release views
         for menuItem in menu.items {
-            (menuItem.view as? MenuCardHighlighting)?.setHighlighted(false)
+            if let highlighting = menuItem.view as? MenuCardHighlighting {
+                highlighting.setHighlighted(false)
+            }
+            // Explicitly clear the view to help break retain cycles
+            menuItem.view = nil
         }
     }
 
@@ -410,7 +421,11 @@ extension StatusItemController {
         guard !self.openMenus.isEmpty else { return }
         for (key, menu) in self.openMenus {
             guard key == ObjectIdentifier(menu) else {
+                // Clean up orphaned menu entries from all tracking dictionaries
                 self.openMenus.removeValue(forKey: key)
+                self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
+                self.menuProviders.removeValue(forKey: key)
+                self.menuVersions.removeValue(forKey: key)
                 continue
             }
 
@@ -1774,5 +1789,11 @@ private final class ProviderSwitcherView: NSView {
 
     private static func switcherTitle(for provider: UsageProvider) -> String {
         ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+    }
+
+    deinit {
+        // Clean up weekly indicators dictionary to prevent accumulation
+        // Subviews will be cleaned up automatically when the parent view deallocates
+        self.weeklyIndicators.removeAll()
     }
 }
