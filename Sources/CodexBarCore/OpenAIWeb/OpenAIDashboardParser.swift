@@ -140,10 +140,9 @@ public enum OpenAIDashboardParser {
 
     private static func parseCreditsUsed(_ text: String) -> Double {
         let cleaned = text
-            .replacingOccurrences(of: ",", with: "")
             .replacingOccurrences(of: "credits", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return Double(cleaned) ?? 0
+        return TextParsing.parseLocalizedNumber(cleaned) ?? 0
     }
 
     // MARK: - Private
