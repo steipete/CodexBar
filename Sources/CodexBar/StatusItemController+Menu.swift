@@ -457,7 +457,8 @@ extension StatusItemController {
     }
 
     private func scheduleOpenMenuRefresh(for menu: NSMenu) {
-        self.refreshNow()
+        // Only refresh if data is stale, and do it asynchronously after a delay
+        // NEVER block menu opening with network requests
         let key = ObjectIdentifier(menu)
         self.menuRefreshTasks[key]?.cancel()
         self.menuRefreshTasks[key] = Task { @MainActor [weak self, weak menu] in
