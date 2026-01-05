@@ -130,6 +130,17 @@ log "==> Killing existing CodexBar instances"
 kill_all_codexbar
 kill_claude_probes
 
+# 2.5) Delete keychain entries to avoid permission prompts with adhoc signing
+# (adhoc signature changes on every build, making old keychain entries inaccessible)
+if [[ "${CODEXBAR_SIGNING:-adhoc}" == "adhoc" ]]; then
+  log "==> Clearing keychain entries (adhoc signing)"
+  security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null || true
+  # Clear all keychain items for the app to avoid multiple prompts
+  while security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null; do
+    :
+  done
+fi
+
 # 3) Package (release build happens inside package_app.sh).
 if [[ "${RUN_TESTS}" == "1" ]]; then
   run_step "swift test" swift test -q
