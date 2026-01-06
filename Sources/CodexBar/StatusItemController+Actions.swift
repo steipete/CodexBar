@@ -9,7 +9,11 @@ extension StatusItemController {
     }
 
     @objc func refreshAugmentSession() {
-        Task { await self.store.forceRefreshAugmentSession() }
+        Task {
+            await self.store.forceRefreshAugmentSession()
+            // Also trigger a full refresh to update the menu and clear any stale errors
+            await self.store.refresh(forceTokenUsage: false)
+        }
     }
 
     @objc func installUpdate() {

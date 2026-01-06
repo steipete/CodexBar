@@ -33,6 +33,11 @@ public final class AugmentSessionKeepalive {
     private let logger: ((String) -> Void)?
     private var onSessionRecovered: (() async -> Void)?
 
+    /// Track consecutive failures to stop retrying after too many failures
+    private var consecutiveFailures = 0
+    private let maxConsecutiveFailures = 3  // Stop after 3 failures
+    private var hasGivenUp = false
+
     // MARK: - Initialization
 
     public init(logger: ((String) -> Void)? = nil, onSessionRecovered: (() async -> Void)? = nil) {
@@ -86,6 +91,13 @@ public final class AugmentSessionKeepalive {
     private func checkAndRefreshIfNeeded() async {
         guard !self.isRefreshing else {
             self.log("Refresh already in progress, skipping check")
+            return
+        }
+
+        // Stop trying if we've given up
+        if self.hasGivenUp {
+            self.log("⏸️ Keepalive has given up after \(self.maxConsecutiveFailures) consecutive failures")
+            self.log("   User must manually log in to Augment and click 'Refresh Session'")
             return
         }
 
@@ -178,6 +190,13 @@ public final class AugmentSessionKeepalive {
 
         self.log(forced ? "Performing forced session refresh..." : "Performing automatic session refresh...")
 
+        // If this is a forced refresh (user clicked "Refresh Session"), reset failure tracking
+        if forced {
+            self.consecutiveFailures = 0
+            self.hasGivenUp = false
+            self.log("🔄 Manual refresh - resetting failure tracking")
+        }
+
         do {
             // Step 1: Ping the session endpoint to trigger cookie refresh
             let refreshed = try await self.pingSessionEndpoint()
@@ -191,14 +210,40 @@ public final class AugmentSessionKeepalive {
                     "✅ Session refresh successful - imported \(newSession.cookies.count) cookies " +
                         "from \(newSession.sourceLabel)")
                 self.lastSuccessfulRefresh = Date()
+
+                // Reset failure tracking on success
+                self.consecutiveFailures = 0
+                self.hasGivenUp = false
             } else {
                 self.log("⚠️ Session refresh returned no new cookies")
+                self.consecutiveFailures += 1
+                self.checkIfShouldGiveUp()
             }
         } catch AugmentSessionKeepaliveError.sessionExpired {
             self.log("🔐 Session expired - attempting automatic recovery...")
-            await self.attemptSessionRecovery()
+            self.consecutiveFailures += 1
+
+            if self.consecutiveFailures >= self.maxConsecutiveFailures {
+                self.log("❌ Too many consecutive failures (\(self.consecutiveFailures)) - giving up")
+                self.log("   User must manually log in to Augment and click 'Refresh Session'")
+                self.hasGivenUp = true
+                self.notifyUserLoginRequired()
+            } else {
+                await self.attemptSessionRecovery()
+            }
         } catch {
             self.log("✗ Session refresh failed: \(error.localizedDescription)")
+            self.consecutiveFailures += 1
+            self.checkIfShouldGiveUp()
+        }
+    }
+
+    private func checkIfShouldGiveUp() {
+        if self.consecutiveFailures >= self.maxConsecutiveFailures {
+            self.log("❌ Too many consecutive failures (\(self.consecutiveFailures)) - giving up")
+            self.log("   User must manually log in to Augment and click 'Refresh Session'")
+            self.hasGivenUp = true
+            self.notifyUserLoginRequired()
         }
     }
 
