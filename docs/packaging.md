@@ -8,9 +8,9 @@ read_when:
 # Packaging & signing
 
 ## Scripts
-- `Scripts/package_app.sh`: builds host arch by default; set `ARCHES="arm64 x86_64"` for universal. Verifies slices.
-- `Scripts/compile_and_run.sh`: uses host arch; pass `--release-universal` or `--release-arches="arm64 x86_64"` for release packaging.
-- `Scripts/sign-and-notarize.sh`: signs, notarizes, staples, zips (accepts `ARCHES` for universal).
+- `Scripts/package_app.sh`: builds universal binary (arm64 + x86_64) by default. Set `ARCHES="arm64"` or `ARCHES="x86_64"` for single-arch builds. Verifies slices.
+- `Scripts/compile_and_run.sh`: builds universal by default; pass `--release-arches="arm64"` for single arch builds.
+- `Scripts/sign-and-notarize.sh`: signs, notarizes, staples, zips universal binary (accepts `ARCHES` override).
 - `Scripts/make_appcast.sh`: generates Sparkle appcast and embeds HTML release notes.
 - `Scripts/changelog-to-html.sh`: converts the per-version changelog section to HTML for Sparkle.
 
