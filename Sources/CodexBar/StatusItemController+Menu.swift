@@ -884,6 +884,7 @@ extension StatusItemController {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            hidePersonalInfo: self.settings.hidePersonalInfo,
             now: Date())
         return UsageMenuCardView.Model.make(input)
     }

@@ -591,6 +591,7 @@ extension UsageMenuCardView.Model {
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
         let tokenCostUsageEnabled: Bool
         let showOptionalCreditsAndExtraUsage: Bool
+        let hidePersonalInfo: Bool
         let now: Date
     }
 
@@ -599,7 +600,8 @@ extension UsageMenuCardView.Model {
             for: input.provider,
             snapshot: input.snapshot,
             account: input.account,
-            metadata: input.metadata)
+            metadata: input.metadata,
+            hidePersonalInfo: input.hidePersonalInfo)
         let planText = Self.plan(
             for: input.provider,
             snapshot: input.snapshot,
@@ -611,7 +613,10 @@ extension UsageMenuCardView.Model {
         } else {
             Self.creditsLine(metadata: input.metadata, credits: input.credits, error: input.creditsError)
         }
-        let creditsHintText = Self.dashboardHint(provider: input.provider, error: input.dashboardError)
+        let creditsHintText = Self.dashboardHint(
+            provider: input.provider,
+            error: input.dashboardError,
+            hidePersonalInfo: input.hidePersonalInfo)
         let providerCost: ProviderCostSection? = if input.provider == .claude, !input.showOptionalCreditsAndExtraUsage {
             nil
         } else {
@@ -621,11 +626,13 @@ extension UsageMenuCardView.Model {
             provider: input.provider,
             enabled: input.tokenCostUsageEnabled,
             snapshot: input.tokenSnapshot,
-            error: input.tokenError)
+            error: input.tokenError,
+            hidePersonalInfo: input.hidePersonalInfo)
         let subtitle = Self.subtitle(
             snapshot: input.snapshot,
             isRefreshing: input.isRefreshing,
-            lastError: input.lastError)
+            lastError: input.lastError,
+            hidePersonalInfo: input.hidePersonalInfo)
         let placeholder = input.snapshot == nil && !input.isRefreshing && input.lastError == nil ? "No usage yet" : nil
 
         return UsageMenuCardView.Model(
@@ -649,13 +656,16 @@ extension UsageMenuCardView.Model {
         for provider: UsageProvider,
         snapshot: UsageSnapshot?,
         account: AccountInfo,
-        metadata: ProviderMetadata) -> String
+        metadata: ProviderMetadata,
+        hidePersonalInfo: Bool) -> String
     {
-        if let email = snapshot?.accountEmail(for: provider), !email.isEmpty { return email }
+        if let email = snapshot?.accountEmail(for: provider), !email.isEmpty {
+            return PersonalInfoRedactor.redactEmail(email, isEnabled: hidePersonalInfo)
+        }
         if metadata.usesAccountFallback,
            let email = account.email, !email.isEmpty
         {
-            return email
+            return PersonalInfoRedactor.redactEmail(email, isEnabled: hidePersonalInfo)
         }
         return ""
     }
@@ -685,10 +695,13 @@ extension UsageMenuCardView.Model {
     private static func subtitle(
         snapshot: UsageSnapshot?,
         isRefreshing: Bool,
-        lastError: String?) -> (text: String, style: SubtitleStyle)
+        lastError: String?,
+        hidePersonalInfo: Bool) -> (text: String, style: SubtitleStyle)
     {
         if let lastError, !lastError.isEmpty {
-            return (lastError.trimmingCharacters(in: .whitespacesAndNewlines), .error)
+            let trimmed = lastError.trimmingCharacters(in: .whitespacesAndNewlines)
+            let redacted = PersonalInfoRedactor.redactEmails(in: trimmed, isEnabled: hidePersonalInfo) ?? trimmed
+            return (redacted, .error)
         }
 
         if isRefreshing, snapshot == nil {
@@ -775,17 +788,22 @@ extension UsageMenuCardView.Model {
         return metadata.creditsHint
     }
 
-    private static func dashboardHint(provider: UsageProvider, error: String?) -> String? {
+    private static func dashboardHint(
+        provider: UsageProvider,
+        error: String?,
+        hidePersonalInfo: Bool) -> String?
+    {
         guard provider == .codex else { return nil }
         guard let error, !error.isEmpty else { return nil }
-        return error
+        return PersonalInfoRedactor.redactEmails(in: error, isEnabled: hidePersonalInfo) ?? error
     }
 
     private static func tokenUsageSection(
         provider: UsageProvider,
         enabled: Bool,
         snapshot: CostUsageTokenSnapshot?,
-        error: String?) -> TokenUsageSection?
+        error: String?,
+        hidePersonalInfo: Bool) -> TokenUsageSection?
     {
         guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
         guard enabled else { return nil }
@@ -811,12 +829,13 @@ extension UsageMenuCardView.Model {
             return "Last 30 days: \(monthCost)"
         }()
         let err = (error?.isEmpty ?? true) ? nil : error
+        let redacted = PersonalInfoRedactor.redactEmails(in: err, isEnabled: hidePersonalInfo)
         return TokenUsageSection(
             sessionLine: sessionLine,
             monthLine: monthLine,
             hintLine: nil,
-            errorLine: err,
-            errorCopyText: (error?.isEmpty ?? true) ? nil : error)
+            errorLine: redacted ?? err,
+            errorCopyText: (error?.isEmpty ?? true) ? nil : (redacted ?? error))
     }
 
     private static func providerCostSection(
