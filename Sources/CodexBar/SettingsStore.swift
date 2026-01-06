@@ -214,6 +214,11 @@ final class SettingsStore {
         didSet { self.userDefaults.set(self.switcherShowsIcons, forKey: "switcherShowsIcons") }
     }
 
+    /// z.ai API region (stored in UserDefaults).
+    var zaiAPIRegion: ZaiAPIRegion {
+        didSet { self.userDefaults.set(self.zaiAPIRegion.rawValue, forKey: "zaiAPIRegion") }
+    }
+
     /// z.ai API token (stored in Keychain).
     var zaiAPIToken: String {
         didSet { self.schedulePersistZaiAPIToken() }
@@ -503,6 +508,8 @@ final class SettingsStore {
             ?? ProviderCookieSource.auto.rawValue
         self.mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
         self.switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
+        let zaiAPIRegionRaw = userDefaults.string(forKey: "zaiAPIRegion")
+        self.zaiAPIRegion = ZaiAPIRegion(rawValue: zaiAPIRegionRaw ?? ZaiAPIRegion.global.rawValue) ?? .global
         self.zaiAPIToken = ""
         self.codexCookieHeader = ""
         self.claudeCookieHeader = ""

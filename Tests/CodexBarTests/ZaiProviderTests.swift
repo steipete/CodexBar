@@ -15,6 +15,19 @@ struct ZaiSettingsReaderTests {
         let token = ZaiSettingsReader.apiToken(environment: ["Z_AI_API_KEY": "\"token-xyz\""])
         #expect(token == "token-xyz")
     }
+
+    @Test
+    func apiHostReadsFromEnvironment() {
+        let host = ZaiSettingsReader.apiHost(environment: [ZaiSettingsReader.apiHostKey: " open.bigmodel.cn "])
+        #expect(host == "open.bigmodel.cn")
+    }
+
+    @Test
+    func quotaURLInfersScheme() {
+        let url = ZaiSettingsReader
+            .quotaURL(environment: [ZaiSettingsReader.quotaURLKey: "open.bigmodel.cn/api/coding"])
+        #expect(url?.absoluteString == "https://open.bigmodel.cn/api/coding")
+    }
 }
 
 @Suite
@@ -57,5 +70,34 @@ struct ZaiUsageSnapshotTests {
         #expect(usage.secondary?.usedPercent == 20)
         #expect(usage.secondary?.resetDescription == "30 days window")
         #expect(usage.zaiUsage?.tokenLimit?.usage == 100)
+    }
+}
+
+@Suite
+struct ZaiAPIRegionTests {
+    @Test
+    func defaultsToGlobalEndpoint() {
+        let url = ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: [:])
+        #expect(url.absoluteString == "https://api.z.ai/api/monitor/usage/quota/limit")
+    }
+
+    @Test
+    func usesBigModelRegionWhenSelected() {
+        let url = ZaiUsageFetcher.resolveQuotaURL(region: .bigmodelCN, environment: [:])
+        #expect(url.absoluteString == "https://open.bigmodel.cn/api/monitor/usage/quota/limit")
+    }
+
+    @Test
+    func quotaUrlEnvironmentOverrideWins() {
+        let env = [ZaiSettingsReader.quotaURLKey: "https://open.bigmodel.cn/api/coding/paas/v4"]
+        let url = ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: env)
+        #expect(url.absoluteString == "https://open.bigmodel.cn/api/coding/paas/v4")
+    }
+
+    @Test
+    func apiHostEnvironmentAppendsQuotaPath() {
+        let env = [ZaiSettingsReader.apiHostKey: "open.bigmodel.cn"]
+        let url = ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: env)
+        #expect(url.absoluteString == "https://open.bigmodel.cn/api/monitor/usage/quota/limit")
     }
 }
