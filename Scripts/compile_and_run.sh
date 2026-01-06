@@ -137,10 +137,15 @@ fi
 if [[ "${DEBUG_LLDB}" == "1" && -n "${RELEASE_ARCHES}" ]]; then
   fail "--release-arches is only supported for release packaging"
 fi
-HOST_ARCH="$(uname -m)"
-ARCHES_VALUE="${HOST_ARCH}"
+# Default to universal binaries for releases, host arch for debug
 if [[ -n "${RELEASE_ARCHES}" ]]; then
   ARCHES_VALUE="${RELEASE_ARCHES}"
+elif [[ "${DEBUG_LLDB}" == "1" ]]; then
+  # Debug with LLDB: use host arch only
+  ARCHES_VALUE="$(uname -m)"
+else
+  # Default: universal binary
+  ARCHES_VALUE="arm64 x86_64"
 fi
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
   run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh" debug
