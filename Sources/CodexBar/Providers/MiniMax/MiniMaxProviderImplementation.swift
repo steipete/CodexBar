@@ -35,6 +35,15 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
             }
         }
 
+        let regionBinding = Binding(
+            get: { context.settings.minimaxAPIRegion.rawValue },
+            set: { raw in
+                context.settings.minimaxAPIRegion = MiniMaxAPIRegion(rawValue: raw) ?? .global
+            })
+        let regionOptions = MiniMaxAPIRegion.allCases.map {
+            ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+        }
+
         return [
             ProviderSettingsPickerDescriptor(
                 id: "minimax-cookie-source",
@@ -43,6 +52,14 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
+                isVisible: nil,
+                onChange: nil),
+            ProviderSettingsPickerDescriptor(
+                id: "minimax-region",
+                title: "API region",
+                subtitle: "Choose the MiniMax host (global .io or China mainland .com).",
+                binding: regionBinding,
+                options: regionOptions,
                 isVisible: nil,
                 onChange: nil),
         ]
@@ -65,11 +82,8 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            if let url = URL(
-                                string: "https://platform.minimax.io/user-center/payment/coding-plan?cycle_type=3")
-                            {
-                                NSWorkspace.shared.open(url)
-                            }
+                            let url = context.settings.minimaxAPIRegion.codingPlanURL
+                            NSWorkspace.shared.open(url)
                         }),
                 ],
                 isVisible: { context.settings.minimaxCookieSource == .manual },

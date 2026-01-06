@@ -32,13 +32,19 @@ MiniMax is web-only. Usage is fetched from the Coding Plan remains API using a s
    - CLI/runtime env: `MINIMAX_COOKIE` or `MINIMAX_COOKIE_HEADER`.
 
 ## Endpoints
-- `GET https://platform.minimax.io/user-center/payment/coding-plan`
+- Global host: `https://platform.minimax.io`
+- China mainland host: `https://platform.minimaxi.com`
+- `GET {host}/user-center/payment/coding-plan`
   - HTML parse for "Available usage" and plan name.
-- `GET https://platform.minimax.io/v1/api/openplatform/coding_plan/remains`
+- `GET {host}/v1/api/openplatform/coding_plan/remains`
   - Fallback when HTML parsing fails.
   - Sent with a `Referer` to the Coding Plan page.
   - Adds `Authorization: Bearer <access_token>` when available.
   - Adds `GroupId` query param when known.
+- Region picker in Providers settings toggles the host; environment overrides:
+  - `MINIMAX_HOST=platform.minimaxi.com`
+  - `MINIMAX_CODING_PLAN_URL=...` (full URL override)
+  - `MINIMAX_REMAINS_URL=...` (full URL override)
 
 ## Cookie capture (optional override)
 - Open the Coding Plan page and DevTools → Network.

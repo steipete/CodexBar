@@ -60,10 +60,13 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         if let override = Self.resolveCookieOverride(context: context) {
             Self.log.debug("Using MiniMax cookie header from settings/env")
+            let region = context.settings?.minimax?.apiRegion ?? .global
             let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
                 cookieHeader: override.cookieHeader,
                 authorizationToken: override.authorizationToken,
-                groupID: override.groupID)
+                groupID: override.groupID,
+                region: region,
+                environment: context.env)
             return self.makeResult(
                 usage: snapshot.toUsageSnapshot(),
                 sourceLabel: "web")
@@ -94,6 +97,7 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
 
         var lastError: Error?
         for session in sessions {
+            let region = context.settings?.minimax?.apiRegion ?? .global
             let tokenCandidates = tokensByLabel[session.sourceLabel] ?? []
             let groupID = groupIDByLabel[session.sourceLabel]
             let cookieToken = Self.cookieValue(named: "HERTZ-SESSION", in: session.cookieHeader)
@@ -113,7 +117,9 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
                     let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
                         cookieHeader: session.cookieHeader,
                         authorizationToken: token,
-                        groupID: groupID)
+                        groupID: groupID,
+                        region: region,
+                        environment: context.env)
                     Self.log.debug("MiniMax cookies valid from \(session.sourceLabel)")
                     return self.makeResult(
                         usage: snapshot.toUsageSnapshot(),

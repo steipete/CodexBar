@@ -70,7 +70,8 @@ struct ProviderRegistry {
                                 manualCookieHeader: settings.factoryCookieHeader),
                             minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings(
                                 cookieSource: settings.minimaxCookieSource,
-                                manualCookieHeader: settings.minimaxCookieHeader),
+                                manualCookieHeader: settings.minimaxCookieHeader,
+                                apiRegion: settings.minimaxAPIRegion),
                             zai: ProviderSettingsSnapshot.ZaiProviderSettings(),
                             copilot: ProviderSettingsSnapshot.CopilotProviderSettings(),
                             augment: ProviderSettingsSnapshot.AugmentProviderSettings(

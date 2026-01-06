@@ -59,10 +59,16 @@ public struct ProviderSettingsSnapshot: Sendable {
     public struct MiniMaxProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
+        public let apiRegion: MiniMaxAPIRegion
 
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+        public init(
+            cookieSource: ProviderCookieSource,
+            manualCookieHeader: String?,
+            apiRegion: MiniMaxAPIRegion = .global)
+        {
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
+            self.apiRegion = apiRegion
         }
     }
 
