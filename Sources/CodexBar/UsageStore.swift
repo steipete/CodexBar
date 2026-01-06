@@ -564,7 +564,14 @@ final class UsageStore {
             print("[CodexBar] \(message)")
         }
 
-        self.augmentKeepalive = AugmentSessionKeepalive(logger: logger)
+        // Callback to refresh Augment usage after successful session recovery
+        let onSessionRecovered: () async -> Void = { [weak self] in
+            guard let self else { return }
+            print("[CodexBar] 🔄 Session recovered - refreshing Augment usage")
+            await self.refreshProvider(.augment)
+        }
+
+        self.augmentKeepalive = AugmentSessionKeepalive(logger: logger, onSessionRecovered: onSessionRecovered)
         self.augmentKeepalive?.start()
         print("[CodexBar] ✅ Augment session keepalive STARTED (will auto-recover expired sessions)")
         #endif

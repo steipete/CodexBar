@@ -31,11 +31,13 @@ public final class AugmentSessionKeepalive {
     private var lastSuccessfulRefresh: Date?
     private var isRefreshing = false
     private let logger: ((String) -> Void)?
+    private var onSessionRecovered: (() async -> Void)?
 
     // MARK: - Initialization
 
-    public init(logger: ((String) -> Void)? = nil) {
+    public init(logger: ((String) -> Void)? = nil, onSessionRecovered: (() async -> Void)? = nil) {
         self.logger = logger
+        self.onSessionRecovered = onSessionRecovered
     }
 
     deinit {
@@ -228,6 +230,11 @@ public final class AugmentSessionKeepalive {
                 let isValid = try await self.pingSessionEndpoint()
                 if isValid {
                     self.log("   ✅ Session verified - recovery complete!")
+                    // Notify UsageStore to refresh Augment usage
+                    if let callback = self.onSessionRecovered {
+                        self.log("   🔄 Triggering usage refresh after successful recovery")
+                        await callback()
+                    }
                 } else {
                     self.log("   ⚠️ Session imported but not yet valid - may need manual login")
                     self.notifyUserLoginRequired()
