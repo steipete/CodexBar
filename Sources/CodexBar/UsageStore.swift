@@ -60,7 +60,6 @@ extension UsageStore {
             _ = self.settings.cursorCookieHeader
             _ = self.settings.factoryCookieHeader
             _ = self.settings.minimaxCookieHeader
-            _ = self.settings.kimiAuthToken
             _ = self.settings.kimiManualCookieHeader
             _ = self.settings.augmentCookieHeader
             _ = self.settings.mergeIcons
