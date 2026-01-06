@@ -53,15 +53,19 @@ extension UsageStore {
             _ = self.settings.cursorCookieSource
             _ = self.settings.factoryCookieSource
             _ = self.settings.minimaxCookieSource
+            _ = self.settings.kimiCookieSource
+            _ = self.settings.augmentCookieSource
             _ = self.settings.codexCookieHeader
             _ = self.settings.claudeCookieHeader
             _ = self.settings.cursorCookieHeader
             _ = self.settings.factoryCookieHeader
             _ = self.settings.minimaxCookieHeader
+            _ = self.settings.kimiAuthToken
+            _ = self.settings.kimiManualCookieHeader
+            _ = self.settings.augmentCookieHeader
             _ = self.settings.mergeIcons
             _ = self.settings.selectedMenuProvider
             _ = self.settings.debugLoadingPattern
-            _ = self.settings.augmentCookieSource
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -344,6 +348,7 @@ final class UsageStore {
         case .vertexai: nil
         case .kiro: self.kiroVersion
         case .augment: nil
+        case .kimi: nil
         }
     }
 
@@ -1306,6 +1311,10 @@ extension UsageStore {
                 let text = await self.debugAugmentLog()
                 await MainActor.run { self.probeLogs[.augment] = text }
                 return text
+            case .kimi:
+                let text = "Kimi debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.kimi] = text }
+                return text
             }
         }.value
     }
@@ -1499,7 +1508,9 @@ extension UsageStore {
         process.arguments = [resolved] + args
         process.environment = pathEnv
         let pipe = Pipe()
+        let errorPipe = Pipe()
         process.standardOutput = pipe
+        process.standardError = errorPipe
         try? process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }

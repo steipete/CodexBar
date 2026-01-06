@@ -194,6 +194,16 @@ final class SettingsStore {
         }
     }
 
+    private var kimiCookieSourceRaw: String? {
+        didSet {
+            if let raw = self.kimiCookieSourceRaw {
+                self.userDefaults.set(raw, forKey: "kimiCookieSource")
+            } else {
+                self.userDefaults.removeObject(forKey: "kimiCookieSource")
+            }
+        }
+    }
+
     private var augmentCookieSourceRaw: String? {
         didSet {
             if let raw = self.augmentCookieSourceRaw {
@@ -252,6 +262,12 @@ final class SettingsStore {
     /// Copilot API token (stored in Keychain).
     var copilotAPIToken: String {
         didSet { self.schedulePersistCopilotAPIToken() }
+    }
+
+    /// Kimi manual cookie header (stored in UserDefaults).
+    var kimiManualCookieHeader: String {
+        get { self.userDefaults.string(forKey: "kimiManualCookieHeader") ?? "" }
+        set { self.userDefaults.set(newValue, forKey: "kimiManualCookieHeader") }
     }
 
     private var selectedMenuProviderRaw: String? {
@@ -328,6 +344,11 @@ final class SettingsStore {
         set { self.minimaxCookieSourceRaw = newValue.rawValue }
     }
 
+    var kimiCookieSource: ProviderCookieSource {
+        get { ProviderCookieSource(rawValue: self.kimiCookieSourceRaw ?? "") ?? .auto }
+        set { self.kimiCookieSourceRaw = newValue.rawValue }
+    }
+
     var augmentCookieSource: ProviderCookieSource {
         get { ProviderCookieSource(rawValue: self.augmentCookieSourceRaw ?? "") ?? .auto }
         set { self.augmentCookieSourceRaw = newValue.rawValue }
@@ -355,6 +376,8 @@ final class SettingsStore {
         _ = self.cursorCookieSource
         _ = self.factoryCookieSource
         _ = self.minimaxCookieSource
+        _ = self.kimiCookieSource
+        _ = self.augmentCookieSource
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
         _ = self.zaiAPIToken
@@ -363,6 +386,8 @@ final class SettingsStore {
         _ = self.cursorCookieHeader
         _ = self.factoryCookieHeader
         _ = self.minimaxCookieHeader
+        _ = self.kimiManualCookieHeader
+        _ = self.augmentCookieHeader
         _ = self.copilotAPIToken
         _ = self.debugLoadingPattern
         _ = self.selectedMenuProvider
@@ -498,6 +523,8 @@ final class SettingsStore {
         self.factoryCookieSourceRaw = userDefaults.string(forKey: "factoryCookieSource")
             ?? ProviderCookieSource.auto.rawValue
         self.minimaxCookieSourceRaw = userDefaults.string(forKey: "minimaxCookieSource")
+            ?? ProviderCookieSource.auto.rawValue
+        self.kimiCookieSourceRaw = userDefaults.string(forKey: "kimiCookieSource")
             ?? ProviderCookieSource.auto.rawValue
         self.augmentCookieSourceRaw = userDefaults.string(forKey: "augmentCookieSource")
             ?? ProviderCookieSource.auto.rawValue

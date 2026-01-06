@@ -73,6 +73,9 @@ struct ProviderRegistry {
                                 manualCookieHeader: settings.minimaxCookieHeader),
                             zai: ProviderSettingsSnapshot.ZaiProviderSettings(),
                             copilot: ProviderSettingsSnapshot.CopilotProviderSettings(),
+                            kimi: ProviderSettingsSnapshot.KimiProviderSettings(
+                                cookieSource: settings.kimiCookieSource,
+                                manualCookieHeader: settings.kimiManualCookieHeader),
                             augment: ProviderSettingsSnapshot.AugmentProviderSettings(
                                 cookieSource: settings.augmentCookieSource,
                                 manualCookieHeader: settings.augmentCookieHeader))
