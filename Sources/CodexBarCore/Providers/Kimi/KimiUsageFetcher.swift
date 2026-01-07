@@ -80,7 +80,17 @@ public struct KimiUsageFetcher: Sendable {
         let parts = jwt.split(separator: ".", maxSplits: 2)
         guard parts.count == 3 else { return nil }
 
-        guard let payloadData = Data(base64Encoded: String(parts[1]).padding(toLength: ((String(parts[1]).count + 3) / 4) * 4, withPad: "=", startingAt: 0)),
+        // Convert base64url to base64 for JWT decoding
+        // base64url uses - and _ instead of + and /
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        // Add padding if needed
+        while payload.count % 4 != 0 {
+            payload += "="
+        }
+
+        guard let payloadData = Data(base64Encoded: payload),
               let json = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else {
             return nil
         }
