@@ -264,10 +264,9 @@ final class SettingsStore {
         didSet { self.schedulePersistCopilotAPIToken() }
     }
 
-    /// Kimi manual cookie header (stored in UserDefaults).
-    var kimiManualCookieHeader: String {
-        get { self.userDefaults.string(forKey: "kimiManualCookieHeader") ?? "" }
-        set { self.userDefaults.set(newValue, forKey: "kimiManualCookieHeader") }
+    /// Kimi auth token (stored in Keychain).
+    var kimiManualCookieHeader: String = "" {
+        didSet { self.schedulePersistKimiAuthToken() }
     }
 
     private var selectedMenuProviderRaw: String? {
@@ -425,6 +424,10 @@ final class SettingsStore {
     @ObservationIgnored private var minimaxCookiePersistTask: Task<Void, Never>?
     @ObservationIgnored private var minimaxCookieLoaded = false
     @ObservationIgnored private var minimaxCookieLoading = false
+    @ObservationIgnored private let kimiTokenStore: any KimiTokenStoring
+    @ObservationIgnored private var kimiTokenPersistTask: Task<Void, Never>?
+    @ObservationIgnored private var kimiTokenLoaded = false
+    @ObservationIgnored private var kimiTokenLoading = false
     @ObservationIgnored private let augmentCookieStore: any CookieHeaderStoring
     @ObservationIgnored private var augmentCookiePersistTask: Task<Void, Never>?
     @ObservationIgnored private var augmentCookieLoaded = false
@@ -463,7 +466,8 @@ final class SettingsStore {
         augmentCookieStore: any CookieHeaderStoring = KeychainCookieHeaderStore(
             account: "augment-cookie",
             promptKind: .augmentCookie),
-        copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore())
+        copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
+        kimiTokenStore: any KimiTokenStoring = KeychainKimiTokenStore())
     {
         self.userDefaults = userDefaults
         self.zaiTokenStore = zaiTokenStore
@@ -474,6 +478,7 @@ final class SettingsStore {
         self.minimaxCookieStore = minimaxCookieStore
         self.augmentCookieStore = augmentCookieStore
         self.copilotTokenStore = copilotTokenStore
+        self.kimiTokenStore = kimiTokenStore
         self.providerOrderRaw = userDefaults.stringArray(forKey: "providerOrder") ?? []
         let raw = userDefaults.string(forKey: "refreshFrequency") ?? RefreshFrequency.fiveMinutes.rawValue
         self.refreshFrequency = RefreshFrequency(rawValue: raw) ?? .fiveMinutes
@@ -985,6 +990,32 @@ extension SettingsStore {
             }
         }
     }
+
+    private func schedulePersistKimiAuthToken() {
+        if self.kimiTokenLoading { return }
+        self.kimiTokenPersistTask?.cancel()
+        let token = self.kimiManualCookieHeader
+        let tokenStore = self.kimiTokenStore
+        self.kimiTokenPersistTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: 350_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            let error: (any Error)? = await Task.detached(priority: .utility) { () -> (any Error)? in
+                do {
+                    try tokenStore.storeToken(token)
+                    return nil
+                } catch {
+                    return error
+                }
+            }.value
+            if let error {
+                CodexBarLog.logger("kimi-token-store").error("Failed to persist Kimi token: \(error)")
+            }
+        }
+    }
 }
 
 extension SettingsStore {
@@ -1050,6 +1081,14 @@ extension SettingsStore {
         self.copilotAPIToken = (try? self.copilotTokenStore.loadToken()) ?? ""
         self.copilotTokenLoading = false
         self.copilotTokenLoaded = true
+    }
+
+    func ensureKimiAuthTokenLoaded() {
+        guard !self.kimiTokenLoaded else { return }
+        self.kimiTokenLoading = true
+        self.kimiManualCookieHeader = (try? self.kimiTokenStore.loadToken()) ?? ""
+        self.kimiTokenLoading = false
+        self.kimiTokenLoaded = true
     }
 }
 

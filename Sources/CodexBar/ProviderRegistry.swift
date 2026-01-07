@@ -75,7 +75,10 @@ struct ProviderRegistry {
                             copilot: ProviderSettingsSnapshot.CopilotProviderSettings(),
                             kimi: ProviderSettingsSnapshot.KimiProviderSettings(
                                 cookieSource: settings.kimiCookieSource,
-                                manualCookieHeader: settings.kimiManualCookieHeader),
+                                manualCookieHeader: {
+                                    settings.ensureKimiAuthTokenLoaded()
+                                    return settings.kimiManualCookieHeader
+                                }()),
                             augment: ProviderSettingsSnapshot.AugmentProviderSettings(
                                 cookieSource: settings.augmentCookieSource,
                                 manualCookieHeader: settings.augmentCookieHeader))

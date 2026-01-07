@@ -74,7 +74,7 @@ struct KimiProviderImplementation: ProviderImplementation {
                         }),
                 ],
                 isVisible: { context.settings.kimiCookieSource == .manual },
-                onActivate: nil),
+                onActivate: { context.settings.ensureKimiAuthTokenLoaded() }),
         ]
     }
 }
