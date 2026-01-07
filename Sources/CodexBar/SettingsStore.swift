@@ -1086,7 +1086,22 @@ extension SettingsStore {
     func ensureKimiAuthTokenLoaded() {
         guard !self.kimiTokenLoaded else { return }
         self.kimiTokenLoading = true
-        self.kimiManualCookieHeader = (try? self.kimiTokenStore.loadToken()) ?? ""
+
+        // Try loading from Keychain first
+        var token = (try? self.kimiTokenStore.loadToken()) ?? ""
+
+        // If Keychain is empty, check for old UserDefaults value and migrate it
+        if token.isEmpty {
+            if let oldToken = self.userDefaults.string(forKey: "kimiManualCookieHeader"), !oldToken.isEmpty {
+                token = oldToken
+                // Store to Keychain
+                try? self.kimiTokenStore.storeToken(oldToken)
+                // Clear old UserDefaults value
+                self.userDefaults.removeObject(forKey: "kimiManualCookieHeader")
+            }
+        }
+
+        self.kimiManualCookieHeader = token
         self.kimiTokenLoading = false
         self.kimiTokenLoaded = true
     }
