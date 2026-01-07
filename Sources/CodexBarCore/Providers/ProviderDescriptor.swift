@@ -62,6 +62,7 @@ public enum ProviderDescriptorRegistry {
         _ = ProviderDescriptorRegistry.register(GeminiProviderDescriptor.descriptor)
         _ = ProviderDescriptorRegistry.register(AntigravityProviderDescriptor.descriptor)
         _ = ProviderDescriptorRegistry.register(CopilotProviderDescriptor.descriptor)
+        _ = ProviderDescriptorRegistry.register(KimiProviderDescriptor.descriptor)
         _ = ProviderDescriptorRegistry.register(VertexAIProviderDescriptor.descriptor)
         _ = ProviderDescriptorRegistry.register(KiroProviderDescriptor.descriptor)
     }()

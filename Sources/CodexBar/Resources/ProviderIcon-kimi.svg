@@ -1,0 +1,8 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <linearGradient id="k-gradient" x1="0" x2="1" y1="0" y2="1">
+    <stop offset="0%" stop-color="#4C00FF"/>
+    <stop offset="100%" stop-color="#00B8FF"/>
+  </linearGradient>
+  <rect width="64" height="64" rx="14" fill="url(#k-gradient)"/>
+  <path d="M20 18h8l10 14 10-14h8v28h-8v-16l-10 14-10-14v16h-8z" fill="#fff"/>
+</svg>
