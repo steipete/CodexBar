@@ -24,7 +24,7 @@ public enum ProviderTokenResolver {
     private static let keychainService = "com.steipete.CodexBar"
     private static let zaiAccount = "zai-api-token"
     private static let copilotAccount = "copilot-api-token"
-    private static let minimaxAccount = "minimax-cookie"
+    private static let minimaxAccount = "minimax-api-token"
 
     public static func zaiToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.zaiResolution(environment: environment)?.token
@@ -34,7 +34,7 @@ public enum ProviderTokenResolver {
         self.copilotResolution(environment: environment)?.token
     }
 
-    public static func minimaxCookie(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+    public static func minimaxToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.minimaxResolution(environment: environment)?.token
     }
 
@@ -68,7 +68,7 @@ public enum ProviderTokenResolver {
         if let token = self.keychainToken(service: self.keychainService, account: self.minimaxAccount) {
             return ProviderTokenResolution(token: token, source: .keychain)
         }
-        if let token = MiniMaxSettingsReader.cookieHeader(environment: environment) {
+        if let token = MiniMaxAPISettingsReader.apiToken(environment: environment) {
             return ProviderTokenResolution(token: token, source: .environment)
         }
         return nil

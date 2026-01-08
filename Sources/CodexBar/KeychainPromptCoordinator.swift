@@ -66,9 +66,9 @@ enum KeychainPromptCoordinator {
                 "CodexBar will ask macOS Keychain for your GitHub Copilot token",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
-        case .minimaxCookie:
+        case .minimaxToken:
             return (title, [
-                "CodexBar will ask macOS Keychain for your MiniMax session cookie",
+                "CodexBar will ask macOS Keychain for your MiniMax API token",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
         case .augmentCookie:
