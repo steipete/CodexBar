@@ -137,10 +137,12 @@ enum CodexBarCLI {
                 }
 
                 if augmentDebug, p == .augment {
+                    #if os(macOS)
                     let dump = await AugmentStatusProbe.latestDumps()
                     if format == .text, !dump.isEmpty {
                         Self.writeStderr("Augment API responses:\n\(dump)\n")
                     }
+                    #endif
                 }
 
                 if dashboard == nil, format == .json, p == .codex {
