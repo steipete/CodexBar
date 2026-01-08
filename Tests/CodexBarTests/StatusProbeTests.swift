@@ -184,6 +184,34 @@ struct StatusProbeTests {
     }
 
     @Test
+    func parseClaudeStatusWithExtraUsageSection() throws {
+        let sample = """
+        Settings:  Status   Config   Usage  (tab to cycle)
+
+         Current session
+         ▌                                                  1% used
+         Resets 3:59pm (Europe/Helsinki)
+
+         Current week (all models)
+         ▌                                                  1% used
+         Resets Jan 2, 2026, 10:59pm (Europe/Helsinki)
+
+         Current week (Sonnet only)
+                                                            0% used
+
+         Extra usage
+         Extra usage not enabled • /extra-usage to enable
+        """
+
+        let snap = try ClaudeStatusProbe.parse(text: sample)
+        #expect(snap.sessionPercentLeft == 99)
+        #expect(snap.weeklyPercentLeft == 99)
+        #expect(snap.opusPercentLeft == 100)
+        #expect(snap.primaryResetDescription == "Resets 3:59pm (Europe/Helsinki)")
+        #expect(snap.secondaryResetDescription == "Resets Jan 2, 2026, 10:59pm (Europe/Helsinki)")
+    }
+
+    @Test
     func parseClaudeStatusWithBracketPlanNoiseNoEsc() throws {
         let sample = """
         Login method: [22m Claude Max Account

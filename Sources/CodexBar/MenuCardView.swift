@@ -31,6 +31,10 @@ struct UsageMenuCardView: View {
             let percentStyle: PercentStyle
             let resetText: String?
             let detailText: String?
+            let detailLeftText: String?
+            let detailRightText: String?
+            let pacePercent: Double?
+            let paceOnTop: Bool
 
             var percentLabel: String {
                 String(format: "%.0f%% %@", self.percent, self.percentStyle.labelSuffix)
@@ -105,32 +109,10 @@ struct UsageMenuCardView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if hasUsage {
                         VStack(alignment: .leading, spacing: 12) {
-                            ForEach(self.model.metrics) { metric in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(metric.title)
-                                        .font(.body)
-                                        .fontWeight(.medium)
-                                    UsageProgressBar(
-                                        percent: metric.percent,
-                                        tint: self.model.progressColor,
-                                        accessibilityLabel: metric.percentStyle.accessibilityLabel)
-                                    HStack(alignment: .firstTextBaseline) {
-                                        Text(metric.percentLabel)
-                                            .font(.footnote)
-                                        Spacer()
-                                        if let reset = metric.resetText {
-                                            Text(reset)
-                                                .font(.footnote)
-                                                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                                        }
-                                    }
-                                    if let detail = metric.detailText {
-                                        Text(detail)
-                                            .font(.footnote)
-                                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                                            .lineLimit(1)
-                                    }
-                                }
+                            ForEach(self.model.metrics, id: \.id) { metric in
+                                MetricRow(
+                                    metric: metric,
+                                    progressColor: self.model.progressColor)
                             }
                         }
                     }
@@ -326,6 +308,64 @@ private struct ProviderCostContent: View {
     }
 }
 
+private struct MetricRow: View {
+    let metric: UsageMenuCardView.Model.Metric
+    let progressColor: Color
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(self.metric.title)
+                .font(.body)
+                .fontWeight(.medium)
+            UsageProgressBar(
+                percent: self.metric.percent,
+                tint: self.progressColor,
+                accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
+                pacePercent: self.metric.pacePercent,
+                paceOnTop: self.metric.paceOnTop)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(self.metric.percentLabel)
+                        .font(.footnote)
+                        .lineLimit(1)
+                    Spacer()
+                    if let rightLabel = self.metric.resetText {
+                        Text(rightLabel)
+                            .font(.footnote)
+                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                            .lineLimit(1)
+                    }
+                }
+                if self.metric.detailLeftText != nil || self.metric.detailRightText != nil {
+                    HStack(alignment: .firstTextBaseline) {
+                        if let detailLeft = self.metric.detailLeftText {
+                            Text(detailLeft)
+                                .font(.footnote)
+                                .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        if let detailRight = self.metric.detailRightText {
+                            Text(detailRight)
+                                .font(.footnote)
+                                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+            if let detail = self.metric.detailText {
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct UsageMenuCardHeaderSectionView: View {
     let model: UsageMenuCardView.Model
     let showDivider: Bool
@@ -362,32 +402,10 @@ struct UsageMenuCardUsageSectionView: View {
                         .font(.subheadline)
                 }
             } else {
-                ForEach(self.model.metrics) { metric in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(metric.title)
-                            .font(.body)
-                            .fontWeight(.medium)
-                        UsageProgressBar(
-                            percent: metric.percent,
-                            tint: self.model.progressColor,
-                            accessibilityLabel: metric.percentStyle.accessibilityLabel)
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(metric.percentLabel)
-                                .font(.footnote)
-                            Spacer()
-                            if let reset = metric.resetText {
-                                Text(reset)
-                                    .font(.footnote)
-                                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                            }
-                        }
-                        if let detail = metric.detailText {
-                            Text(detail)
-                                .font(.footnote)
-                                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                                .lineLimit(1)
-                        }
-                    }
+                ForEach(self.model.metrics, id: \.id) { metric in
+                    MetricRow(
+                        metric: metric,
+                        progressColor: self.model.progressColor)
                 }
             }
             if self.showBottomDivider {
@@ -717,17 +735,29 @@ extension UsageMenuCardView.Model {
                     input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now),
-                detailText: input.provider == .zai ? zaiTokenDetail : nil))
+                detailText: input.provider == .zai ? zaiTokenDetail : nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true))
         }
         if let weekly = snapshot.secondary {
-            let paceText = UsagePaceText.weekly(provider: input.provider, window: weekly, now: input.now)
+            let paceDetail = Self.weeklyPaceDetail(
+                provider: input.provider,
+                window: weekly,
+                now: input.now,
+                showUsed: input.usageBarsShowUsed)
             metrics.append(Metric(
                 id: "secondary",
                 title: input.metadata.weeklyLabel,
                 percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now),
-                detailText: input.provider == .zai ? zaiTimeDetail : paceText))
+                detailText: input.provider == .zai ? zaiTimeDetail : nil,
+                detailLeftText: paceDetail?.leftLabel,
+                detailRightText: paceDetail?.rightLabel,
+                pacePercent: paceDetail?.pacePercent,
+                paceOnTop: paceDetail?.paceOnTop ?? true))
         }
         if input.metadata.supportsOpus, let opus = snapshot.tertiary {
             metrics.append(Metric(
@@ -736,7 +766,11 @@ extension UsageMenuCardView.Model {
                 percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now),
-                detailText: nil))
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true))
         }
 
         if input.provider == .codex, let remaining = input.dashboard?.codeReviewRemainingPercent {
@@ -747,7 +781,11 @@ extension UsageMenuCardView.Model {
                 percent: Self.clamped(percent),
                 percentStyle: percentStyle,
                 resetText: nil,
-                detailText: nil))
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true))
         }
         return metrics
     }
@@ -758,6 +796,34 @@ extension UsageMenuCardView.Model {
         let usageStr = UsageFormatter.tokenCountString(limit.usage)
         let remainingStr = UsageFormatter.tokenCountString(limit.remaining)
         return "\(currentStr) / \(usageStr) (\(remainingStr) remaining)"
+    }
+
+    private struct PaceDetail {
+        let leftLabel: String
+        let rightLabel: String?
+        let pacePercent: Double?
+        let paceOnTop: Bool
+    }
+
+    private static func weeklyPaceDetail(
+        provider: UsageProvider,
+        window: RateWindow,
+        now: Date,
+        showUsed: Bool) -> PaceDetail?
+    {
+        guard let detail = UsagePaceText.weeklyDetail(provider: provider, window: window, now: now) else { return nil }
+        let expectedUsed = detail.expectedUsedPercent
+        let actualUsed = window.usedPercent
+        let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
+        let actualPercent = showUsed ? actualUsed : (100 - actualUsed)
+        if expectedPercent.isFinite == false || actualPercent.isFinite == false { return nil }
+        let paceOnTop = actualUsed <= expectedUsed
+        let pacePercent: Double? = if detail.stage == .onTrack { nil } else { expectedPercent }
+        return PaceDetail(
+            leftLabel: detail.leftLabel,
+            rightLabel: detail.rightLabel,
+            pacePercent: pacePercent,
+            paceOnTop: paceOnTop)
     }
 
     private static func creditsLine(
