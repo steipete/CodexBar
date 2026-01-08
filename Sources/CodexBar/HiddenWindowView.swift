@@ -11,6 +11,12 @@ struct HiddenWindowView: View {
                     self.openSettings()
                 }
             }
+            .task {
+                // Migrate keychain items to reduce permission prompts during development (runs off main thread)
+                await Task.detached(priority: .userInitiated) {
+                    KeychainMigration.migrateIfNeeded()
+                }.value
+            }
             .onAppear {
                 if let window = NSApp.windows.first(where: { $0.title == "CodexBarLifecycleKeepalive" }) {
                     // Make the keepalive window truly invisible and non-interactive.

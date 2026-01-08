@@ -122,7 +122,8 @@ extension StatusItemController {
         }
 
         let provider = self.resolvedShortcutProvider()
-        let item = self.statusItems[provider] ?? self.statusItem
+        // Use the lazy accessor to ensure the item exists
+        let item = self.lazyStatusItem(for: provider)
         item.button?.performClick(nil)
     }
 
