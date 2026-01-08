@@ -106,45 +106,80 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
 
 public enum ClaudeOAuthCredentialsStore {
     private static let credentialsPath = ".claude/.credentials.json"
-    private static let keychainService = "Claude Code-credentials"
+    // Claude CLI's keychain service (owned by Claude, may prompt on access)
+    private static let claudeKeychainService = "Claude Code-credentials"
+    // CodexBar's cached copy (owned by CodexBar, no prompts)
+    private static let cacheKeychainService = "com.steipete.codexbar.claude-oauth-cache"
 
-    // Cache to avoid repeated keychain prompts (nonisolated for synchronous access)
+    // In-memory cache (nonisolated for synchronous access)
     private nonisolated(unsafe) static var cachedCredentials: ClaudeOAuthCredentials?
     private nonisolated(unsafe) static var cacheTimestamp: Date?
-    private static let cacheValidityDuration: TimeInterval = 60 // 1 minute cache
+    // In-memory cache valid for 30 minutes (keychain cache persists longer)
+    private static let memoryCacheValidityDuration: TimeInterval = 1800
+    // Refresh from Claude's keychain when token expires within this buffer
+    private static let tokenExpiryBuffer: TimeInterval = 300 // 5 minutes
 
     public static func load() throws -> ClaudeOAuthCredentials {
-        // Check cache first to avoid repeated keychain access
+        // 1. Check in-memory cache first
         if let cached = self.cachedCredentials,
            let timestamp = self.cacheTimestamp,
-           Date().timeIntervalSince(timestamp) < self.cacheValidityDuration
+           Date().timeIntervalSince(timestamp) < self.memoryCacheValidityDuration,
+           !self.isTokenExpiringSoon(cached)
         {
             return cached
         }
 
-        // Prefer Keychain (CLI writes there on macOS), but fall back to the JSON file when missing.
+        // 2. Try CodexBar's persistent keychain cache (no prompts)
+        #if os(macOS)
+        if let cachedData = try? self.loadFromCacheKeychain() {
+            if let creds = try? ClaudeOAuthCredentials.parse(data: cachedData),
+               !self.isTokenExpiringSoon(creds)
+            {
+                self.cachedCredentials = creds
+                self.cacheTimestamp = Date()
+                return creds
+            }
+            // Cache exists but token is expiring, fall through to refresh
+        }
+        #endif
+
+        // 3. Try file (no keychain prompt)
+        if let fileData = try? self.loadFromFile() {
+            if let creds = try? ClaudeOAuthCredentials.parse(data: fileData) {
+                self.cachedCredentials = creds
+                self.cacheTimestamp = Date()
+                #if os(macOS)
+                self.saveToCacheKeychain(fileData)
+                #endif
+                return creds
+            }
+        }
+
+        // 4. Fall back to Claude's keychain (may prompt user)
         var lastError: Error?
-        if let keychainData = try? self.loadFromKeychain() {
+        if let keychainData = try? self.loadFromClaudeKeychain() {
             do {
                 let creds = try ClaudeOAuthCredentials.parse(data: keychainData)
                 self.cachedCredentials = creds
                 self.cacheTimestamp = Date()
+                #if os(macOS)
+                self.saveToCacheKeychain(keychainData)
+                #endif
                 return creds
             } catch {
-                // Keep the Keychain parse error so we can surface it if the file is also invalid.
                 lastError = error
             }
         }
-        do {
-            let fileData = try self.loadFromFile()
-            let creds = try ClaudeOAuthCredentials.parse(data: fileData)
-            self.cachedCredentials = creds
-            self.cacheTimestamp = Date()
-            return creds
-        } catch {
-            if let lastError { throw lastError }
-            throw error
+
+        if let lastError { throw lastError }
+        throw ClaudeOAuthCredentialsError.notFound
+    }
+
+    private static func isTokenExpiringSoon(_ credentials: ClaudeOAuthCredentials) -> Bool {
+        guard let expiresAt = credentials.expiresAt else {
+            return false // No expiry info, assume valid
         }
+        return expiresAt.timeIntervalSinceNow < self.tokenExpiryBuffer
     }
 
     public static func loadFromFile() throws -> Data {
@@ -164,21 +199,28 @@ public enum ClaudeOAuthCredentialsStore {
     public static func invalidateCache() {
         self.cachedCredentials = nil
         self.cacheTimestamp = nil
+        #if os(macOS)
+        self.clearCacheKeychain()
+        #endif
     }
 
-    public static func loadFromKeychain() throws -> Data {
+    // MARK: - Claude's Keychain (may prompt)
+
+    /// Loads from Claude CLI's keychain item. This may trigger a system keychain prompt
+    /// because the item is owned by Claude CLI, not CodexBar.
+    public static func loadFromClaudeKeychain() throws -> Data {
         #if os(macOS)
         if case .interactionRequired = KeychainAccessPreflight
-            .checkGenericPassword(service: self.keychainService, account: nil)
+            .checkGenericPassword(service: self.claudeKeychainService, account: nil)
         {
             KeychainPromptHandler.handler?(KeychainPromptContext(
                 kind: .claudeOAuth,
-                service: self.keychainService,
+                service: self.claudeKeychainService,
                 account: nil))
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: self.keychainService,
+            kSecAttrService as String: self.claudeKeychainService,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true,
         ]
@@ -201,4 +243,78 @@ public enum ClaudeOAuthCredentialsStore {
         throw ClaudeOAuthCredentialsError.notFound
         #endif
     }
+
+    /// Legacy alias for backward compatibility
+    public static func loadFromKeychain() throws -> Data {
+        try self.loadFromClaudeKeychain()
+    }
+
+    // MARK: - CodexBar's Cache Keychain (no prompts)
+
+    #if os(macOS)
+    /// Loads from CodexBar's own keychain cache. This never prompts because CodexBar owns this item.
+    private static func loadFromCacheKeychain() throws -> Data {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: self.cacheKeychainService,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnData as String: true,
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        switch status {
+        case errSecSuccess:
+            guard let data = result as? Data else {
+                throw ClaudeOAuthCredentialsError.readFailed("Cache keychain item is empty.")
+            }
+            return data
+        case errSecItemNotFound:
+            throw ClaudeOAuthCredentialsError.notFound
+        default:
+            throw ClaudeOAuthCredentialsError.keychainError(Int(status))
+        }
+    }
+
+    /// Saves credentials to CodexBar's own keychain cache.
+    private static func saveToCacheKeychain(_ data: Data) {
+        // First try to update existing item
+        let updateQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: self.cacheKeychainService,
+        ]
+        let updateAttrs: [String: Any] = [
+            kSecValueData as String: data,
+        ]
+
+        var status = SecItemUpdate(updateQuery as CFDictionary, updateAttrs as CFDictionary)
+        if status == errSecItemNotFound {
+            // Item doesn't exist, create it
+            let addQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: self.cacheKeychainService,
+                kSecAttrLabel as String: "CodexBar Claude OAuth Cache",
+                kSecValueData as String: data,
+                // Use ThisDeviceOnly to avoid keychain prompts on code signature changes
+                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            ]
+            status = SecItemAdd(addQuery as CFDictionary, nil)
+        }
+
+        if status != errSecSuccess && status != errSecDuplicateItem {
+            // Log error but don't fail - cache is best-effort
+            CodexBarLog.logger("claude-oauth").debug(
+                "Failed to save to cache keychain: \(status)")
+        }
+    }
+
+    /// Clears CodexBar's keychain cache.
+    private static func clearCacheKeychain() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: self.cacheKeychainService,
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+    #endif
 }
