@@ -47,7 +47,14 @@ enum MiniMaxUsageParser {
     }
 
     static func parseCodingPlanRemains(json: [String: Any], now: Date = Date()) throws -> MiniMaxUsageSnapshot {
-        if let base = json["base_resp"] as? [String: Any],
+        // Unwrap data wrapper if present (API can return data wrapped or direct response)
+        var effectiveJSON = json
+        if let dataWrapper = json["data"] as? [String: Any] {
+            effectiveJSON = dataWrapper
+        }
+
+        // Check base_resp for errors (may be at root or inside data wrapper)
+        if let base = effectiveJSON["base_resp"] as? [String: Any],
            let status = self.intValue(base["status_code"]),
            status != 0
         {
@@ -59,7 +66,7 @@ enum MiniMaxUsageParser {
             throw MiniMaxUsageError.apiError(message)
         }
 
-        let modelRemains = json["model_remains"] as? [[String: Any]] ?? []
+        let modelRemains = effectiveJSON["model_remains"] as? [[String: Any]] ?? []
         guard let first = modelRemains.first else {
             throw MiniMaxUsageError.parseFailed("Missing coding plan data.")
         }
@@ -77,7 +84,7 @@ enum MiniMaxUsageParser {
             remains: self.intValue(first["remains_time"]),
             now: now)
 
-        let planName = self.parsePlanName(root: json)
+        let planName = self.parsePlanName(root: effectiveJSON)
 
         if planName == nil, total == nil, usedPercent == nil {
             throw MiniMaxUsageError.parseFailed("Missing coding plan data.")
