@@ -413,7 +413,9 @@ public enum ClaudeWebAPIFetcher {
         }
 
         // Parse five_hour (session) usage
-        var sessionPercent: Double?
+        // Note: The API may return null for all fields when there's no usage data yet
+        // or when the user has unlimited/no rate limits. Treat null as 0% usage.
+        var sessionPercent: Double = 0.0
         var sessionResets: Date?
         if let fiveHour = json["five_hour"] as? [String: Any] {
             if let utilization = fiveHour["utilization"] as? Int {
@@ -422,10 +424,6 @@ public enum ClaudeWebAPIFetcher {
             if let resetsAt = fiveHour["resets_at"] as? String {
                 sessionResets = self.parseISO8601Date(resetsAt)
             }
-        }
-        guard let sessionPercent else {
-            // If we can't parse session utilization, treat this as a failure so callers can fall back to the CLI.
-            throw FetchError.invalidResponse
         }
 
         // Parse seven_day (weekly) usage

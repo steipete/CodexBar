@@ -222,6 +222,29 @@ struct ClaudeUsageTests {
     }
 
     @Test
+    func parsesClaudeWebAPIUsageResponseWhenAllFieldsNull() throws {
+        // Claude Max and similar unlimited plans may return null for all usage fields
+        let json = """
+        {
+          "five_hour": null,
+          "seven_day": null,
+          "seven_day_oauth_apps": null,
+          "seven_day_opus": null,
+          "seven_day_sonnet": null,
+          "iguana_necktie": null,
+          "extra_usage": null
+        }
+        """
+        let data = Data(json.utf8)
+        let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
+        #expect(parsed.sessionPercentUsed == 0.0)
+        #expect(parsed.weeklyPercentUsed == nil)
+        #expect(parsed.opusPercentUsed == nil)
+        #expect(parsed.sessionResetsAt == nil)
+        #expect(parsed.weeklyResetsAt == nil)
+    }
+
+    @Test
     func parsesClaudeWebAPIOverageSpendLimit() {
         let json = """
         {
