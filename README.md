@@ -8,6 +8,7 @@ Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antig
 
 ### Requirements
 - macOS 14+ (Sonoma)
+- Apple Silicon (arm64) or Intel (x86_64)
 
 ### GitHub Releases
 Download: <https://github.com/steipete/CodexBar/releases>

@@ -23,15 +23,11 @@ if [[ "${CODEXBAR_FORCE_CLEAN:-0}" == "1" ]]; then
   swift package clean >/dev/null 2>&1 || true
 fi
 
-# Build for host architecture by default; allow overriding via ARCHES (e.g., "arm64 x86_64" for universal).
+# Build universal binary by default (arm64 + x86_64); allow overriding via ARCHES.
 ARCH_LIST=( ${ARCHES:-} )
 if [[ ${#ARCH_LIST[@]} -eq 0 ]]; then
-  HOST_ARCH=$(uname -m)
-  case "$HOST_ARCH" in
-    arm64) ARCH_LIST=(arm64) ;;
-    x86_64) ARCH_LIST=(x86_64) ;;
-    *) ARCH_LIST=("$HOST_ARCH") ;;
-  esac
+  # Default to universal binary for maximum compatibility
+  ARCH_LIST=(arm64 x86_64)
 fi
 
 patch_keyboard_shortcuts() {
