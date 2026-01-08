@@ -57,13 +57,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     }
 
     public struct MiniMaxProviderSettings: Sendable {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
+        public init() {}
     }
 
     public struct ZaiProviderSettings: Sendable {

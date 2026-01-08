@@ -12,7 +12,7 @@ public struct KeychainPromptContext: Sendable {
         case factoryCookie
         case zaiToken
         case copilotToken
-        case minimaxCookie
+        case minimaxToken
         case augmentCookie
     }
 

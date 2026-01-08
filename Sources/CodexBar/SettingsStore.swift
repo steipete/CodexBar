@@ -184,16 +184,6 @@ final class SettingsStore {
         }
     }
 
-    private var minimaxCookieSourceRaw: String? {
-        didSet {
-            if let raw = self.minimaxCookieSourceRaw {
-                self.userDefaults.set(raw, forKey: "minimaxCookieSource")
-            } else {
-                self.userDefaults.removeObject(forKey: "minimaxCookieSource")
-            }
-        }
-    }
-
     private var augmentCookieSourceRaw: String? {
         didSet {
             if let raw = self.augmentCookieSourceRaw {
@@ -239,9 +229,9 @@ final class SettingsStore {
         didSet { self.schedulePersistFactoryCookieHeader() }
     }
 
-    /// MiniMax cookie header (stored in Keychain).
-    var minimaxCookieHeader: String {
-        didSet { self.schedulePersistMiniMaxCookieHeader() }
+    /// MiniMax API token (stored in Keychain).
+    var minimaxAPIToken: String {
+        didSet { self.schedulePersistMiniMaxAPIToken() }
     }
 
     /// Augment session cookie header (stored in Keychain).
@@ -323,11 +313,6 @@ final class SettingsStore {
         set { self.factoryCookieSourceRaw = newValue.rawValue }
     }
 
-    var minimaxCookieSource: ProviderCookieSource {
-        get { ProviderCookieSource(rawValue: self.minimaxCookieSourceRaw ?? "") ?? .auto }
-        set { self.minimaxCookieSourceRaw = newValue.rawValue }
-    }
-
     var augmentCookieSource: ProviderCookieSource {
         get { ProviderCookieSource(rawValue: self.augmentCookieSourceRaw ?? "") ?? .auto }
         set { self.augmentCookieSourceRaw = newValue.rawValue }
@@ -354,7 +339,6 @@ final class SettingsStore {
         _ = self.claudeCookieSource
         _ = self.cursorCookieSource
         _ = self.factoryCookieSource
-        _ = self.minimaxCookieSource
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
         _ = self.zaiAPIToken
@@ -362,7 +346,7 @@ final class SettingsStore {
         _ = self.claudeCookieHeader
         _ = self.cursorCookieHeader
         _ = self.factoryCookieHeader
-        _ = self.minimaxCookieHeader
+        _ = self.minimaxAPIToken
         _ = self.copilotAPIToken
         _ = self.debugLoadingPattern
         _ = self.selectedMenuProvider
@@ -396,10 +380,10 @@ final class SettingsStore {
     @ObservationIgnored private var factoryCookiePersistTask: Task<Void, Never>?
     @ObservationIgnored private var factoryCookieLoaded = false
     @ObservationIgnored private var factoryCookieLoading = false
-    @ObservationIgnored private let minimaxCookieStore: any MiniMaxCookieStoring
-    @ObservationIgnored private var minimaxCookiePersistTask: Task<Void, Never>?
-    @ObservationIgnored private var minimaxCookieLoaded = false
-    @ObservationIgnored private var minimaxCookieLoading = false
+    @ObservationIgnored private let minimaxAPITokenStore: any MiniMaxAPITokenStoring
+    @ObservationIgnored private var minimaxAPITokenPersistTask: Task<Void, Never>?
+    @ObservationIgnored private var minimaxAPITokenLoaded = false
+    @ObservationIgnored private var minimaxAPITokenLoading = false
     @ObservationIgnored private let augmentCookieStore: any CookieHeaderStoring
     @ObservationIgnored private var augmentCookiePersistTask: Task<Void, Never>?
     @ObservationIgnored private var augmentCookieLoaded = false
@@ -434,7 +418,7 @@ final class SettingsStore {
         factoryCookieStore: any CookieHeaderStoring = KeychainCookieHeaderStore(
             account: "factory-cookie",
             promptKind: .factoryCookie),
-        minimaxCookieStore: any MiniMaxCookieStoring = KeychainMiniMaxCookieStore(),
+        minimaxAPITokenStore: any MiniMaxAPITokenStoring = KeychainMiniMaxAPITokenStore(),
         augmentCookieStore: any CookieHeaderStoring = KeychainCookieHeaderStore(
             account: "augment-cookie",
             promptKind: .augmentCookie),
@@ -446,7 +430,7 @@ final class SettingsStore {
         self.claudeCookieStore = claudeCookieStore
         self.cursorCookieStore = cursorCookieStore
         self.factoryCookieStore = factoryCookieStore
-        self.minimaxCookieStore = minimaxCookieStore
+        self.minimaxAPITokenStore = minimaxAPITokenStore
         self.augmentCookieStore = augmentCookieStore
         self.copilotTokenStore = copilotTokenStore
         self.providerOrderRaw = userDefaults.stringArray(forKey: "providerOrder") ?? []
@@ -497,8 +481,6 @@ final class SettingsStore {
             ?? ProviderCookieSource.auto.rawValue
         self.factoryCookieSourceRaw = userDefaults.string(forKey: "factoryCookieSource")
             ?? ProviderCookieSource.auto.rawValue
-        self.minimaxCookieSourceRaw = userDefaults.string(forKey: "minimaxCookieSource")
-            ?? ProviderCookieSource.auto.rawValue
         self.augmentCookieSourceRaw = userDefaults.string(forKey: "augmentCookieSource")
             ?? ProviderCookieSource.auto.rawValue
         self.mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
@@ -508,7 +490,7 @@ final class SettingsStore {
         self.claudeCookieHeader = ""
         self.cursorCookieHeader = ""
         self.factoryCookieHeader = ""
-        self.minimaxCookieHeader = ""
+        self.minimaxAPIToken = ""
         self.augmentCookieHeader = ""
         self.copilotAPIToken = ""
         self.selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
@@ -907,12 +889,12 @@ extension SettingsStore {
         }
     }
 
-    private func schedulePersistMiniMaxCookieHeader() {
-        if self.minimaxCookieLoading { return }
-        self.minimaxCookiePersistTask?.cancel()
-        let header = self.minimaxCookieHeader
-        let cookieStore = self.minimaxCookieStore
-        self.minimaxCookiePersistTask = Task { @MainActor in
+    private func schedulePersistMiniMaxAPIToken() {
+        if self.minimaxAPITokenLoading { return }
+        self.minimaxAPITokenPersistTask?.cancel()
+        let token = self.minimaxAPIToken
+        let tokenStore = self.minimaxAPITokenStore
+        self.minimaxAPITokenPersistTask = Task { @MainActor in
             do {
                 try await Task.sleep(nanoseconds: 350_000_000)
             } catch {
@@ -921,14 +903,14 @@ extension SettingsStore {
             guard !Task.isCancelled else { return }
             let error: (any Error)? = await Task.detached(priority: .utility) { () -> (any Error)? in
                 do {
-                    try cookieStore.storeCookieHeader(header)
+                    try tokenStore.storeToken(token)
                     return nil
                 } catch {
                     return error
                 }
             }.value
             if let error {
-                CodexBarLog.logger("minimax-cookie-store").error("Failed to persist MiniMax cookie: \(error)")
+                CodexBarLog.logger("minimax-api-token-store").error("Failed to persist MiniMax API token: \(error)")
             }
         }
     }
@@ -1001,12 +983,12 @@ extension SettingsStore {
         self.factoryCookieLoaded = true
     }
 
-    func ensureMiniMaxCookieLoaded() {
-        guard !self.minimaxCookieLoaded else { return }
-        self.minimaxCookieLoading = true
-        self.minimaxCookieHeader = (try? self.minimaxCookieStore.loadCookieHeader()) ?? ""
-        self.minimaxCookieLoading = false
-        self.minimaxCookieLoaded = true
+    func ensureMiniMaxAPITokenLoaded() {
+        guard !self.minimaxAPITokenLoaded else { return }
+        self.minimaxAPITokenLoading = true
+        self.minimaxAPIToken = (try? self.minimaxAPITokenStore.loadToken()) ?? ""
+        self.minimaxAPITokenLoading = false
+        self.minimaxAPITokenLoaded = true
     }
 
     func ensureAugmentCookieLoaded() {

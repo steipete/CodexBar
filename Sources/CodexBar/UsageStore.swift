@@ -52,12 +52,11 @@ extension UsageStore {
             _ = self.settings.claudeCookieSource
             _ = self.settings.cursorCookieSource
             _ = self.settings.factoryCookieSource
-            _ = self.settings.minimaxCookieSource
             _ = self.settings.codexCookieHeader
             _ = self.settings.claudeCookieHeader
             _ = self.settings.cursorCookieHeader
             _ = self.settings.factoryCookieHeader
-            _ = self.settings.minimaxCookieHeader
+            _ = self.settings.minimaxAPIToken
             _ = self.settings.mergeIcons
             _ = self.settings.selectedMenuProvider
             _ = self.settings.debugLoadingPattern
@@ -451,6 +450,12 @@ final class UsageStore {
                 return true
             }
             return !self.settings.zaiAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        if provider == .minimax {
+            if MiniMaxAPISettingsReader.apiToken(environment: ProcessInfo.processInfo.environment) != nil {
+                return true
+            }
+            return !self.settings.minimaxAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         return true
     }

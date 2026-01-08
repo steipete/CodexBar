@@ -709,6 +709,8 @@ extension UsageMenuCardView.Model {
         let zaiUsage = input.provider == .zai ? snapshot.zaiUsage : nil
         let zaiTokenDetail = Self.zaiLimitDetailText(limit: zaiUsage?.tokenLimit)
         let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
+        let minimaxUsage = input.provider == .minimax ? snapshot.minimaxUsage : nil
+        let minimaxPromptDetail = Self.minimaxPromptDetailText(usage: minimaxUsage)
         if let primary = snapshot.primary {
             metrics.append(Metric(
                 id: "primary",
@@ -717,7 +719,7 @@ extension UsageMenuCardView.Model {
                     input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now),
-                detailText: input.provider == .zai ? zaiTokenDetail : nil))
+                detailText: input.provider == .zai ? zaiTokenDetail : (input.provider == .minimax ? minimaxPromptDetail : nil)))
         }
         if let weekly = snapshot.secondary {
             let paceText = UsagePaceText.weekly(provider: input.provider, window: weekly, now: input.now)
@@ -758,6 +760,17 @@ extension UsageMenuCardView.Model {
         let usageStr = UsageFormatter.tokenCountString(limit.usage)
         let remainingStr = UsageFormatter.tokenCountString(limit.remaining)
         return "\(currentStr) / \(usageStr) (\(remainingStr) remaining)"
+    }
+
+    private static func minimaxPromptDetailText(usage: MiniMaxUsageSnapshot?) -> String? {
+        guard let usage else { return nil }
+        guard let current = usage.currentPrompts, let total = usage.availablePrompts, let remaining = usage.remainingPrompts else {
+            return nil
+        }
+        let currentStr = UsageFormatter.tokenCountString(current)
+        let totalStr = UsageFormatter.tokenCountString(total)
+        let remainingStr = UsageFormatter.tokenCountString(remaining)
+        return "\(currentStr) / \(totalStr) (\(remainingStr) remaining)"
     }
 
     private static func creditsLine(

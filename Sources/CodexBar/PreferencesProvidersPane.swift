@@ -108,7 +108,7 @@ struct ProvidersPane: View {
             return "api • \(usageText)"
         }
         if provider == .minimax {
-            return "web • \(usageText)"
+            return "api • \(usageText)"
         }
 
         let detail = "\(cliName) \(versionText) • \(usageText)"
