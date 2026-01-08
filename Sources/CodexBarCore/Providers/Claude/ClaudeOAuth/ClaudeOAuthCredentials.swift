@@ -116,15 +116,13 @@ public enum ClaudeOAuthCredentialsStore {
     private nonisolated(unsafe) static var cacheTimestamp: Date?
     // In-memory cache valid for 30 minutes (keychain cache persists longer)
     private static let memoryCacheValidityDuration: TimeInterval = 1800
-    // Refresh from Claude's keychain when token expires within this buffer
-    private static let tokenExpiryBuffer: TimeInterval = 300 // 5 minutes
 
     public static func load() throws -> ClaudeOAuthCredentials {
         // 1. Check in-memory cache first
         if let cached = self.cachedCredentials,
            let timestamp = self.cacheTimestamp,
            Date().timeIntervalSince(timestamp) < self.memoryCacheValidityDuration,
-           !self.isTokenExpiringSoon(cached)
+           !cached.isExpired
         {
             return cached
         }
@@ -133,13 +131,13 @@ public enum ClaudeOAuthCredentialsStore {
         #if os(macOS)
         if let cachedData = try? self.loadFromCacheKeychain() {
             if let creds = try? ClaudeOAuthCredentials.parse(data: cachedData),
-               !self.isTokenExpiringSoon(creds)
+               !creds.isExpired
             {
                 self.cachedCredentials = creds
                 self.cacheTimestamp = Date()
                 return creds
             }
-            // Cache exists but token is expiring, fall through to refresh
+            // Cache exists but token is expired, fall through to refresh
         }
         #endif
 
@@ -173,13 +171,6 @@ public enum ClaudeOAuthCredentialsStore {
 
         if let lastError { throw lastError }
         throw ClaudeOAuthCredentialsError.notFound
-    }
-
-    private static func isTokenExpiringSoon(_ credentials: ClaudeOAuthCredentials) -> Bool {
-        guard let expiresAt = credentials.expiresAt else {
-            return false // No expiry info, assume valid
-        }
-        return expiresAt.timeIntervalSinceNow < self.tokenExpiryBuffer
     }
 
     public static func loadFromFile() throws -> Data {
