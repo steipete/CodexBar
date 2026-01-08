@@ -57,10 +57,50 @@ public enum AugmentProviderDescriptor {
                 noDataMessage: { "Augment cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [AugmentStatusFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    var strategies: [any ProviderFetchStrategy] = []
+                    // Try CLI first (no browser prompts!)
+                    strategies.append(AugmentCLIFetchStrategy())
+                    // Fallback to web (browser cookies)
+                    strategies.append(AugmentStatusFetchStrategy())
+                    return strategies
+                })),
             cli: ProviderCLIConfig(
                 name: "augment",
                 versionDetector: nil))
+    }
+}
+
+struct AugmentCLIFetchStrategy: ProviderFetchStrategy {
+    let id: String = "augment.cli"
+    let kind: ProviderFetchKind = .cli
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        // Check if auggie CLI is installed
+        let env = ProcessInfo.processInfo.environment
+        let loginPATH = LoginShellPathCache.shared.current
+        return BinaryLocator.resolveAuggieBinary(env: env, loginPATH: loginPATH) != nil
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let probe = AuggieCLIProbe()
+        let snap = try await probe.fetch()
+        return self.makeResult(
+            usage: snap.toUsageSnapshot(),
+            sourceLabel: "cli")
+    }
+
+    func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
+        // Fallback to web if CLI fails (not authenticated, etc.)
+        if let cliError = error as? AuggieCLIError {
+            switch cliError {
+            case .notAuthenticated, .noOutput:
+                return true
+            case .parseError:
+                return false  // Don't fallback on parse errors - something is wrong
+            }
+        }
+        return true
     }
 }
 

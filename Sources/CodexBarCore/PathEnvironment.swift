@@ -96,6 +96,26 @@ public enum BinaryLocator {
             home: home)
     }
 
+    public static func resolveAuggieBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "auggie",
+            overrideKey: "AUGGIE_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fileManager,
+            home: home)
+    }
+
     // swiftlint:disable function_parameter_count
     private static func resolveBinary(
         name: String,

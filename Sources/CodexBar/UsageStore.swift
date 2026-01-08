@@ -75,18 +75,13 @@ extension UsageStore {
 
     private func restartAugmentKeepaliveIfNeeded() {
         #if os(macOS)
-        let shouldRun = self.isEnabled(.augment)
+        // Always keep the keepalive running - it handles session recovery even when provider is disabled
         let isRunning = self.augmentKeepalive != nil
 
-        if shouldRun, !isRunning {
+        if !isRunning {
             self.startAugmentKeepalive()
-        } else if !shouldRun, isRunning {
-            Task { @MainActor in
-                self.augmentKeepalive?.stop()
-                self.augmentKeepalive = nil
-                print("[CodexBar] Augment session keepalive stopped (provider disabled)")
-            }
         }
+        // Never stop the keepalive - it's needed for automatic session recovery
         #endif
     }
 }
@@ -565,24 +560,26 @@ final class UsageStore {
 
     private func startAugmentKeepalive() {
         #if os(macOS)
-        print("[CodexBar] 🔍 Checking if Augment keepalive should start...")
+        print("[CodexBar] 🔍 Starting Augment session keepalive...")
         print("[CodexBar]   - Augment enabled: \(self.isEnabled(.augment))")
         print("[CodexBar]   - Augment available: \(self.isProviderAvailable(.augment))")
 
-        // Only start keepalive if Augment is enabled
-        guard self.isEnabled(.augment) else {
-            print("[CodexBar] ⚠️ Augment keepalive NOT started - provider is disabled")
-            print("[CodexBar]   Tip: Enable Augment in Settings to activate automatic session management")
-            return
-        }
-
+        // ALWAYS start the keepalive - it will handle session recovery even if provider is disabled
+        // This ensures we can detect and recover from expired sessions automatically
         let logger: (String) -> Void = { message in
             print("[CodexBar] \(message)")
         }
 
-        self.augmentKeepalive = AugmentSessionKeepalive(logger: logger)
+        // Callback to refresh Augment usage after successful session recovery
+        let onSessionRecovered: () async -> Void = { [weak self] in
+            guard let self else { return }
+            print("[CodexBar] 🔄 Session recovered - refreshing Augment usage")
+            await self.refreshProvider(.augment)
+        }
+
+        self.augmentKeepalive = AugmentSessionKeepalive(logger: logger, onSessionRecovered: onSessionRecovered)
         self.augmentKeepalive?.start()
-        print("[CodexBar] ✅ Augment session keepalive STARTED successfully")
+        print("[CodexBar] ✅ Augment session keepalive STARTED (will auto-recover expired sessions)")
         #endif
     }
 
@@ -660,6 +657,14 @@ final class UsageStore {
                     self.snapshots.removeValue(forKey: provider)
                 } else {
                     self.errors[provider] = nil
+                }
+
+                // Trigger immediate session recovery for Augment when session expires
+                if provider == .augment, error.localizedDescription.contains("session expired") {
+                    print("[CodexBar] 🔐 Augment session expired detected - triggering immediate recovery")
+                    Task {
+                        await self.forceRefreshAugmentSession()
+                    }
                 }
             }
         }
