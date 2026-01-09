@@ -392,8 +392,14 @@ final class UsageStore {
         var highest: (provider: UsageProvider, usedPercent: Double)?
         for provider in self.enabledProviders() {
             guard let snapshot = self.snapshots[provider] else { continue }
-            // Use primary window (session/5-hour), falling back to secondary (weekly).
-            let percent = snapshot.primary?.usedPercent ?? snapshot.secondary?.usedPercent ?? 0
+            // Use the same window selection logic as menuBarPercentWindow:
+            // Factory uses secondary (premium) first, others use primary (session) first.
+            let window: RateWindow? = if provider == .factory {
+                snapshot.secondary ?? snapshot.primary
+            } else {
+                snapshot.primary ?? snapshot.secondary
+            }
+            let percent = window?.usedPercent ?? 0
             if highest == nil || percent > highest!.usedPercent {
                 highest = (provider, percent)
             }
