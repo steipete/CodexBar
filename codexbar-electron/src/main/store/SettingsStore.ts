@@ -60,6 +60,16 @@ export class SettingsStore {
   }
   
   /**
+   * Set a setting by string key (for IPC)
+   */
+  setAny(key: string, value: unknown): void {
+    if (key in defaults) {
+      this.store.set(key as keyof SettingsSchema, value as any);
+      logger.debug(`Setting updated: ${key} = ${JSON.stringify(value)}`);
+    }
+  }
+  
+  /**
    * Check if a provider is enabled
    */
   isProviderEnabled(providerId: string): boolean {

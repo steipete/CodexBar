@@ -9,6 +9,14 @@
     "type": "git",
     "url": "https://github.com/steipete/CodexBar"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "keytar",
+      "node-pty"
+    ]
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
     "dev:main": "tsc -p tsconfig.main.json --watch",

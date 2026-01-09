@@ -118,7 +118,7 @@ function setupIPC(): void {
 
   // Update settings
   ipcMain.handle('set-setting', async (_event, key: string, value: unknown) => {
-    settingsStore?.set(key, value);
+    settingsStore?.setAny(key, value);
     await updateTrayMenu();
   });
 
