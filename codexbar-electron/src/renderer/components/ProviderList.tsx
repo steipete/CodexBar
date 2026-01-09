@@ -22,6 +22,15 @@ interface Props {
 }
 
 export function ProviderList({ providers, onToggle }: Props) {
+  if (providers.length === 0) {
+    return (
+      <div className="empty-state">
+        <div className="empty-state-icon">📡</div>
+        <p className="empty-state-text">Loading providers...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="provider-list">
       {providers.map((provider) => (
@@ -42,10 +51,27 @@ function ProviderCard({ provider, onToggle }: { provider: Provider; onToggle: Pr
   
   const getStatusText = () => {
     if (!provider.enabled) return 'Disabled';
-    if (provider.result.state === 'loading') return 'Loading...';
-    if (provider.result.state === 'error') return provider.result.error || 'Error';
-    if (provider.result.state === 'success' && usage) return usage.displayString;
-    return 'No data';
+    if (provider.result.state === 'loading') return 'Syncing...';
+    if (provider.result.state === 'error') return provider.result.error || 'Connection error';
+    if (provider.result.state === 'success' && usage) {
+      return usage.displayString;
+    }
+    if (provider.result.state === 'success') return 'Connected';
+    return 'Not configured';
+  };
+
+  const getStatusClass = () => {
+    if (!provider.enabled) return '';
+    if (provider.result.state === 'success') return 'success';
+    if (provider.result.state === 'error') return 'error';
+    return '';
+  };
+
+  const getPercentageClass = () => {
+    if (!usage) return '';
+    if (usage.percentage >= 90) return 'critical';
+    if (usage.percentage >= 70) return 'warning';
+    return '';
   };
 
   const getBarClass = () => {
@@ -61,18 +87,25 @@ function ProviderCard({ provider, onToggle }: { provider: Provider; onToggle: Pr
       
       <div className="provider-info">
         <div className="provider-name">{provider.name}</div>
-        <div className="provider-status">{getStatusText()}</div>
+        <div className={`provider-status ${getStatusClass()}`}>
+          {getStatusText()}
+        </div>
       </div>
       
-      {provider.enabled && usage && (
+      {provider.enabled && usage && usage.limit > 0 && (
         <div className="provider-usage">
-          <div className="usage-bar">
+          <div className={`usage-percentage ${getPercentageClass()}`}>
+            {usage.percentage}%
+          </div>
+          <div className="usage-bar-container">
             <div 
               className={`usage-bar-fill ${getBarClass()}`}
               style={{ width: `${Math.min(100, usage.percentage)}%` }}
             />
           </div>
-          <div className="usage-text">{usage.percentage}%</div>
+          <div className="usage-details">
+            {usage.used.toLocaleString()} / {usage.limit.toLocaleString()}
+          </div>
         </div>
       )}
       
