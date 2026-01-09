@@ -387,6 +387,20 @@ final class UsageStore {
         return enabled.filter { self.isProviderAvailable($0) }
     }
 
+    /// Returns the enabled provider with the highest usage percentage (closest to rate limit).
+    func providerWithHighestUsage() -> (provider: UsageProvider, usedPercent: Double)? {
+        var highest: (provider: UsageProvider, usedPercent: Double)?
+        for provider in self.enabledProviders() {
+            guard let snapshot = self.snapshots[provider] else { continue }
+            // Use primary window (session/5-hour), falling back to secondary (weekly).
+            let percent = snapshot.primary?.usedPercent ?? snapshot.secondary?.usedPercent ?? 0
+            if highest == nil || percent > highest!.usedPercent {
+                highest = (provider, percent)
+            }
+        }
+        return highest
+    }
+
     var statusChecksEnabled: Bool {
         self.settings.statusChecksEnabled
     }
