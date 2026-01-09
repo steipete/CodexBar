@@ -356,6 +356,13 @@ extension StatusItemController {
     }
 
     private func primaryProviderForUnifiedIcon() -> UsageProvider {
+        // When "show highest usage" is enabled, auto-select the provider closest to rate limit.
+        if self.settings.menuBarShowsHighestUsage,
+           self.shouldMergeIcons,
+           let highest = self.store.providerWithHighestUsage()
+        {
+            return highest.provider
+        }
         if self.shouldMergeIcons,
            let selected = self.selectedMenuProvider,
            self.store.isEnabled(selected)

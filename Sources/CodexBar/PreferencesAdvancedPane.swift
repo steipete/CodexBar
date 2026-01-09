@@ -60,6 +60,12 @@ struct AdvancedPane: View {
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
+                        title: "Show most-used provider",
+                        subtitle: "Menu bar auto-shows the provider closest to its rate limit.",
+                        binding: self.$settings.menuBarShowsHighestUsage)
+                        .disabled(!self.settings.mergeIcons)
+                        .opacity(self.settings.mergeIcons ? 1 : 0.5)
+                    PreferenceToggleRow(
                         title: "Menu bar shows percent",
                         subtitle: "Replace critter bars with provider branding icons and a percentage.",
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)

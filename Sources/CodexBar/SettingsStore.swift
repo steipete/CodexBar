@@ -106,6 +106,11 @@ final class SettingsStore {
         didSet { self.userDefaults.set(self.randomBlinkEnabled, forKey: "randomBlinkEnabled") }
     }
 
+    /// Optional: auto-select the provider with highest usage in the merged menu bar icon.
+    var menuBarShowsHighestUsage: Bool {
+        didSet { self.userDefaults.set(self.menuBarShowsHighestUsage, forKey: "menuBarShowsHighestUsage") }
+    }
+
     /// Optional: augment Claude usage with claude.ai web API (via browser cookies),
     /// incl. "Extra usage" spend.
     var claudeWebExtrasEnabled: Bool {
@@ -345,6 +350,7 @@ final class SettingsStore {
         _ = self.menuBarShowsBrandIconWithPercent
         _ = self.costUsageEnabled
         _ = self.randomBlinkEnabled
+        _ = self.menuBarShowsHighestUsage
         _ = self.claudeWebExtrasEnabled
         _ = self.showOptionalCreditsAndExtraUsage
         _ = self.openAIWebAccessEnabled
@@ -468,6 +474,7 @@ final class SettingsStore {
             forKey: "menuBarShowsBrandIconWithPercent") as? Bool ?? false
         self.costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
         self.randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
+        self.menuBarShowsHighestUsage = userDefaults.object(forKey: "menuBarShowsHighestUsage") as? Bool ?? false
         self.claudeWebExtrasEnabled = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
         let creditsExtrasDefault = userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool
         self.showOptionalCreditsAndExtraUsage = creditsExtrasDefault ?? true
