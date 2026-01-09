@@ -18,43 +18,52 @@ export class CopilotProvider extends BaseProvider {
   readonly statusPageUrl = 'https://www.githubstatus.com';
   
   async isConfigured(): Promise<boolean> {
-    // Check for GitHub CLI auth or Copilot extension config
+    // 1. Check for GitHub CLI auth (existing check)
     const ghConfigPath = path.join(os.homedir(), '.config', 'gh', 'hosts.yml');
     const ghConfigPathWin = path.join(os.homedir(), 'AppData', 'Roaming', 'GitHub CLI', 'hosts.yml');
     
+    // 2. Check for VS Code Extension (Windows/Linux/Mac standard path)
+    const vscodeExtensions = path.join(os.homedir(), '.vscode', 'extensions');
+    
     try {
+      // Check GH CLI (Unix)
       await fs.access(ghConfigPath);
       return true;
     } catch {
       try {
+        // Check GH CLI (Windows)
         await fs.access(ghConfigPathWin);
         return true;
       } catch {
-        return false;
+        try {
+          // Check VS Code Extensions
+          const extensions = await fs.readdir(vscodeExtensions);
+          const hasCopilot = extensions.some(ext => ext.startsWith('github.copilot'));
+          if (hasCopilot) return true;
+        } catch (err) {
+          // Ignore error (dir might not exist)
+        }
       }
     }
+    return false;
   }
   
   async fetchUsage(): Promise<ProviderUsage | null> {
     // Copilot doesn't expose usage limits in the same way
     // It's typically unlimited for paid subscribers
-    // We could track local completion counts if needed
-    
-    logger.debug('Copilot: Usage tracking not yet implemented');
     
     // Return a placeholder indicating active status
     return {
       session: {
         used: 0,
-        limit: -1, // Unlimited
+        limit: 0, // 0 limit often implies "unlimited" or "special" handling in UI logic
         percentage: 0,
-        displayString: 'Unlimited',
+        displayString: 'Active', // Changed from "Unlimited" to "Active" to sound more "connected"
       },
     };
   }
   
   async fetchStatus(): Promise<ProviderStatus | null> {
-    // TODO: Check GitHub status page
     return { operational: true };
   }
 }

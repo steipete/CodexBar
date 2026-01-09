@@ -31,18 +31,33 @@ if (!gotTheLock) {
 }
 
 async function createTray(): Promise<void> {
-  // Create tray icon - use a simple icon for now
+  // Create tray icon
   const iconPath = path.join(__dirname, '../../assets/icon.png');
   let trayIcon: Electron.NativeImage;
   
   try {
     trayIcon = nativeImage.createFromPath(iconPath);
-    // Resize for system tray (16x16 on Windows, 22x22 on Linux)
+    if (trayIcon.isEmpty()) {
+      throw new Error('Icon loaded but is empty');
+    }
+    // Resize for system tray (16x16 on Windows)
     trayIcon = trayIcon.resize({ width: 16, height: 16 });
-  } catch {
-    // Fallback to empty icon if asset not found
-    trayIcon = nativeImage.createEmpty();
-    logger.warn('Tray icon not found, using empty icon');
+    logger.info('Tray icon loaded from:', iconPath);
+  } catch (err) {
+    // Create a simple colored icon as fallback
+    logger.warn('Tray icon not found, creating fallback icon:', err);
+    // Create a 16x16 icon with a simple design
+    const size = 16;
+    const canvas = `
+      <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+        <rect width="${size}" height="${size}" rx="3" fill="#3b82f6"/>
+        <text x="8" y="12" text-anchor="middle" fill="white" font-size="10" font-weight="bold">C</text>
+      </svg>
+    `;
+    trayIcon = nativeImage.createFromDataURL(
+      `data:image/svg+xml;base64,${Buffer.from(canvas).toString('base64')}`
+    );
+    trayIcon = trayIcon.resize({ width: 16, height: 16 });
   }
 
   tray = new Tray(trayIcon);
@@ -78,24 +93,42 @@ function createSettingsWindow(): void {
     return;
   }
 
+  const iconPath = path.join(__dirname, '../../assets/icon.png');
+
   settingsWindow = new BrowserWindow({
-    width: 600,
-    height: 500,
-    title: 'CodexBar Settings',
+    width: 500,
+    height: 600,
+    title: 'CodexBar',
+    icon: iconPath, // Set the window icon explicitly for taskbar
+    backgroundColor: '#09090b',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#09090b',
+      symbolColor: '#a1a1aa',
+      height: 36
+    },
+    trafficLightPosition: { x: 16, y: 16 },
     resizable: true,
     minimizable: true,
     maximizable: false,
+    show: false, // Don't show until ready-to-show to prevent white flash
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      sandbox: false // Required for some electron-store operations in renderer if used directly
     },
+  });
+
+  // Graceful showing
+  settingsWindow.once('ready-to-show', () => {
+    settingsWindow?.show();
   });
 
   // Load the renderer
   if (process.env.NODE_ENV === 'development') {
     settingsWindow.loadURL('http://localhost:5173');
-    settingsWindow.webContents.openDevTools();
+    // settingsWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     settingsWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
@@ -145,6 +178,9 @@ function setupIPC(): void {
 
 async function initialize(): Promise<void> {
   logger.info('CodexBar starting...');
+
+  // Remove default menu for a cleaner look
+  Menu.setApplicationMenu(null);
 
   // Initialize stores
   settingsStore = new SettingsStore();
