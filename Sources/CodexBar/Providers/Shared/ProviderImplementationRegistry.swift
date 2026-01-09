@@ -22,6 +22,7 @@ enum ProviderImplementationRegistry {
         _ = ProviderImplementationRegistry.register(CopilotProviderImplementation())
         _ = ProviderImplementationRegistry.register(KiroProviderImplementation())
         _ = ProviderImplementationRegistry.register(VertexAIProviderImplementation())
+        _ = ProviderImplementationRegistry.register(OpenCodeProviderImplementation())
     }()
 
     private static func ensureBootstrapped() {

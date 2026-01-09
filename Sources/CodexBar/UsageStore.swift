@@ -235,6 +235,7 @@ final class UsageStore {
     var antigravityVersion: String?
     var cursorVersion: String?
     var kiroVersion: String?
+    var opencodeVersion: String?
     var isRefreshing = false
     private(set) var refreshingProviders: Set<UsageProvider> = []
     var debugForceAnimation = false
@@ -350,6 +351,7 @@ final class UsageStore {
         case .vertexai: nil
         case .kiro: self.kiroVersion
         case .augment: nil
+        case .opencode: self.opencodeVersion
         }
     }
 
@@ -1312,6 +1314,10 @@ extension UsageStore {
             case .augment:
                 let text = await self.debugAugmentLog()
                 await MainActor.run { self.probeLogs[.augment] = text }
+                return text
+            case .opencode:
+                let text = "OpenCode debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.opencode] = text }
                 return text
             }
         }.value
