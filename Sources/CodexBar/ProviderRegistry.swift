@@ -76,7 +76,10 @@ struct ProviderRegistry {
                             copilot: ProviderSettingsSnapshot.CopilotProviderSettings(),
                             augment: ProviderSettingsSnapshot.AugmentProviderSettings(
                                 cookieSource: settings.augmentCookieSource,
-                                manualCookieHeader: settings.augmentCookieHeader))
+                                manualCookieHeader: settings.augmentCookieHeader),
+                            amp: ProviderSettingsSnapshot.AmpProviderSettings(
+                                cookieSource: settings.ampCookieSource,
+                                manualCookieHeader: settings.ampCookieHeader))
                     }
                     let context = ProviderFetchContext(
                         runtime: .app,
