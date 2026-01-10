@@ -1,18 +1,59 @@
 /**
  * Claude (Anthropic) Provider
  * 
- * Fetches usage from:
- * 1. Claude CLI (`claude --status` or `/status` command)
- * 2. Claude web API (with OAuth)
- * 3. Cost tracking from local logs
+ * Fetches usage from Claude CLI's stats-cache.json file stored in ~/.claude/
+ * This file contains detailed usage statistics including:
+ * - Daily activity (message count, session count, tool calls)
+ * - Token usage by model
+ * - Total sessions and messages
  */
 
-import { BaseProvider, ProviderUsage, ProviderStatus, calculatePercentage, formatUsage, formatResetCountdown } from '../BaseProvider';
+import { BaseProvider, ProviderUsage, ProviderStatus, calculatePercentage } from '../BaseProvider';
 import { runCommand } from '../../utils/subprocess';
 import { logger } from '../../utils/logger';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
+
+interface DailyActivity {
+  date: string;
+  messageCount: number;
+  sessionCount: number;
+  toolCallCount: number;
+}
+
+interface DailyModelTokens {
+  date: string;
+  tokensByModel: Record<string, number>;
+}
+
+interface ModelUsageStats {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  webSearchRequests: number;
+  costUSD: number;
+  contextWindow: number;
+}
+
+interface ClaudeStatsCache {
+  version: number;
+  lastComputedDate: string;
+  dailyActivity: DailyActivity[];
+  dailyModelTokens: DailyModelTokens[];
+  modelUsage: Record<string, ModelUsageStats>;
+  totalSessions: number;
+  totalMessages: number;
+  longestSession?: {
+    sessionId: string;
+    duration: number;
+    messageCount: number;
+    timestamp: string;
+  };
+  firstSessionDate?: string;
+  hourCounts?: Record<string, number>;
+}
 
 export class ClaudeProvider extends BaseProvider {
   readonly id = 'claude';
@@ -21,128 +62,139 @@ export class ClaudeProvider extends BaseProvider {
   readonly websiteUrl = 'https://claude.ai';
   readonly statusPageUrl = 'https://status.anthropic.com';
   
+  private claudeDir = path.join(os.homedir(), '.claude');
+  
   async isConfigured(): Promise<boolean> {
     try {
       // Check if claude CLI is available
       const result = await runCommand('claude', ['--version']);
-      return result.exitCode === 0;
+      if (result.exitCode === 0) return true;
     } catch {
-      // Also check for config file
-      const configPath = path.join(os.homedir(), '.claude', 'config.json');
-      try {
-        await fs.access(configPath);
-        return true;
-      } catch {
-        return false;
-      }
+      // CLI not found, check for config directory
+    }
+    
+    // Check for .claude directory with stats
+    const statsPath = path.join(this.claudeDir, 'stats-cache.json');
+    try {
+      await fs.access(statsPath);
+      return true;
+    } catch {
+      return false;
     }
   }
   
   async fetchUsage(): Promise<ProviderUsage | null> {
     try {
-      // Try running claude with status flag
-      // Note: The actual command depends on the Claude CLI version
-      const result = await runCommand('claude', ['--status'], { timeout: 10000 });
+      // Read stats from ~/.claude/stats-cache.json
+      const statsPath = path.join(this.claudeDir, 'stats-cache.json');
       
-      if (result.exitCode === 0 && result.stdout) {
-        return this.parseStatusOutput(result.stdout);
+      try {
+        await fs.access(statsPath);
+      } catch {
+        logger.debug('Claude stats-cache.json not found');
+        return null;
       }
       
-      // Fallback: try to read from local state file
-      return await this.readLocalState();
+      const content = await fs.readFile(statsPath, 'utf-8');
+      const stats: ClaudeStatsCache = JSON.parse(content);
+      
+      return this.parseStatsCache(stats);
     } catch (error) {
       logger.error('Failed to fetch Claude usage:', error);
       return null;
     }
   }
   
-  private parseStatusOutput(output: string): ProviderUsage | null {
-    // Strip ANSI codes
-    const cleanOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
-    
+  private parseStatsCache(stats: ClaudeStatsCache): ProviderUsage | null {
     const usage: ProviderUsage = {};
     
-    // Parse various formats from Claude CLI output
-    // Format: "Session: X/Y requests" or "X of Y requests used"
+    // Get today's date
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
     
-    const sessionPatterns = [
-      /session[:\s]+(\d+)\s*\/\s*(\d+)/i,
-      /(\d+)\s+of\s+(\d+)\s+requests?\s+used/i,
-      /requests?[:\s]+(\d+)\s*\/\s*(\d+)/i,
-    ];
+    // Get week start (Sunday)
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay());
+    const weekStartStr = weekStart.toISOString().split('T')[0];
     
-    for (const pattern of sessionPatterns) {
-      const match = cleanOutput.match(pattern);
-      if (match) {
-        const used = parseInt(match[1], 10);
-        const limit = parseInt(match[2], 10);
-        usage.session = {
-          used,
-          limit,
-          percentage: calculatePercentage(used, limit),
-          displayString: formatUsage(used, limit, 'requests'),
-        };
-        break;
-      }
-    }
+    // Get month start
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthStartStr = monthStart.toISOString().split('T')[0];
     
-    // Parse reset time
-    const resetPatterns = [
-      /reset[s]?\s+(?:in\s+)?(\d+[hm]?\s*\d*[hm]?)/i,
-      /(\d+)\s*(?:hours?|h)\s*(?:(\d+)\s*(?:minutes?|m))?/i,
-    ];
+    // Calculate daily usage
+    const todayActivity = stats.dailyActivity.find(a => a.date === todayStr);
+    const todayTokens = stats.dailyModelTokens.find(t => t.date === todayStr);
     
-    for (const pattern of resetPatterns) {
-      const match = cleanOutput.match(pattern);
-      if (match && usage.session) {
-        usage.session.resetCountdown = match[0].trim();
-        break;
-      }
-    }
-    
-    // Parse cost if present
-    const costMatch = cleanOutput.match(/\$(\d+\.?\d*)/);
-    if (costMatch) {
-      usage.cost = {
-        amount: parseFloat(costMatch[1]),
-        currency: 'USD',
-        displayString: `$${costMatch[1]}`,
+    if (todayActivity || todayTokens) {
+      const messages = todayActivity?.messageCount ?? 0;
+      const sessions = todayActivity?.sessionCount ?? 0;
+      const tokens = todayTokens ? Object.values(todayTokens.tokensByModel).reduce((a, b) => a + b, 0) : 0;
+      
+      usage.session = {
+        used: tokens,
+        limit: 1000000, // No hard limit, using arbitrary high value
+        percentage: Math.min(100, Math.round((tokens / 1000000) * 100)),
+        displayString: `${messages} msgs · ${sessions} sessions · ${formatTokenCount(tokens)} tokens`,
       };
+    }
+    
+    // Calculate weekly usage
+    const weeklyActivity = stats.dailyActivity.filter(a => a.date >= weekStartStr);
+    const weeklyTokensData = stats.dailyModelTokens.filter(t => t.date >= weekStartStr);
+    
+    if (weeklyActivity.length > 0 || weeklyTokensData.length > 0) {
+      const messages = weeklyActivity.reduce((sum, a) => sum + a.messageCount, 0);
+      const sessions = weeklyActivity.reduce((sum, a) => sum + a.sessionCount, 0);
+      const tokens = weeklyTokensData.reduce((sum, t) => 
+        sum + Object.values(t.tokensByModel).reduce((a, b) => a + b, 0), 0
+      );
+      
+      usage.weekly = {
+        used: tokens,
+        limit: 10000000,
+        percentage: Math.min(100, Math.round((tokens / 10000000) * 100)),
+        displayString: `${messages} msgs · ${sessions} sessions · ${formatTokenCount(tokens)} tokens`,
+      };
+    }
+    
+    // Calculate monthly usage (all time from model usage)
+    const totalInputTokens = Object.values(stats.modelUsage).reduce((sum, m) => sum + m.inputTokens, 0);
+    const totalOutputTokens = Object.values(stats.modelUsage).reduce((sum, m) => sum + m.outputTokens, 0);
+    const totalTokens = totalInputTokens + totalOutputTokens;
+    
+    if (stats.totalMessages > 0) {
+      usage.monthly = {
+        used: totalTokens,
+        limit: 50000000,
+        percentage: Math.min(100, Math.round((totalTokens / 50000000) * 100)),
+        displayString: `${stats.totalMessages} msgs · ${stats.totalSessions} sessions · ${formatTokenCount(totalTokens)} tokens`,
+      };
+    }
+    
+    // Log model breakdown
+    logger.info('Claude usage by model:');
+    for (const [model, modelStats] of Object.entries(stats.modelUsage)) {
+      const modelTokens = modelStats.inputTokens + modelStats.outputTokens;
+      logger.info(`  ${model}: ${formatTokenCount(modelStats.inputTokens)} in, ${formatTokenCount(modelStats.outputTokens)} out`);
     }
     
     return Object.keys(usage).length > 0 ? usage : null;
   }
   
-  private async readLocalState(): Promise<ProviderUsage | null> {
-    // Try to read Claude's local state file
-    const statePath = path.join(os.homedir(), '.claude', 'state.json');
-    
-    try {
-      const content = await fs.readFile(statePath, 'utf-8');
-      const state = JSON.parse(content);
-      
-      if (state.usage) {
-        const used = state.usage.used ?? 0;
-        const limit = state.usage.limit ?? 100;
-        
-        return {
-          session: {
-            used,
-            limit,
-            percentage: calculatePercentage(used, limit),
-            displayString: formatUsage(used, limit, 'requests'),
-          },
-        };
-      }
-    } catch {
-      // State file doesn't exist or is invalid
-    }
-    
-    return null;
-  }
-  
   async fetchStatus(): Promise<ProviderStatus | null> {
-    // TODO: Implement status page scraping
     return { operational: true };
   }
+}
+
+/**
+ * Format token count for display (e.g., 1234 -> "1.2K", 1234567 -> "1.2M")
+ */
+function formatTokenCount(count: number): string {
+  if (count >= 1000000) {
+    return `${(count / 1000000).toFixed(1)}M`;
+  }
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}K`;
+  }
+  return count.toString();
 }

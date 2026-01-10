@@ -1,15 +1,17 @@
 /**
  * Codex (OpenAI) Provider
  * 
- * Fetches usage from:
- * 1. Codex CLI (`codex --status`)
- * 2. OpenAI Dashboard (web scraping with cookies)
- * 3. Cost tracking from local logs
+ * The Codex CLI doesn't store usage data locally or provide a status command.
+ * This provider checks if the CLI is installed and configured.
+ * Usage tracking would require API integration with OpenAI's usage dashboard.
  */
 
-import { BaseProvider, ProviderUsage, ProviderStatus, calculatePercentage, formatUsage } from '../BaseProvider';
+import { BaseProvider, ProviderUsage, ProviderStatus } from '../BaseProvider';
 import { runCommand } from '../../utils/subprocess';
 import { logger } from '../../utils/logger';
+import path from 'path';
+import fs from 'fs/promises';
+import os from 'os';
 
 export class CodexProvider extends BaseProvider {
   readonly id = 'codex';
@@ -17,6 +19,8 @@ export class CodexProvider extends BaseProvider {
   readonly icon = '🤖';
   readonly websiteUrl = 'https://platform.openai.com';
   readonly statusPageUrl = 'https://status.openai.com';
+  
+  private codexDir = path.join(os.homedir(), '.codex');
   
   async isConfigured(): Promise<boolean> {
     try {
@@ -29,68 +33,35 @@ export class CodexProvider extends BaseProvider {
   }
   
   async fetchUsage(): Promise<ProviderUsage | null> {
+    // The Codex CLI doesn't have a status/usage command
+    // and doesn't store usage data locally.
+    // We can only confirm the CLI is installed and working.
+    
     try {
-      // Run codex --status to get usage info
-      const result = await runCommand('codex', ['--status']);
+      const result = await runCommand('codex', ['--version']);
       
-      if (result.exitCode !== 0) {
-        logger.warn('Codex CLI returned non-zero exit code');
-        return null;
+      if (result.exitCode === 0) {
+        // CLI is working, return a basic status
+        // Extract version from output
+        const version = result.stdout.trim() || 'installed';
+        
+        return {
+          session: {
+            used: 0,
+            limit: 0,
+            percentage: 0,
+            displayString: `CLI ${version}`,
+          },
+        };
       }
-      
-      return this.parseStatusOutput(result.stdout);
     } catch (error) {
-      logger.error('Failed to fetch Codex usage:', error);
-      return null;
-    }
-  }
-  
-  private parseStatusOutput(output: string): ProviderUsage | null {
-    // Parse the codex --status output
-    // Format varies, but typically includes:
-    // - Requests used/limit
-    // - Session info
-    // - Reset time
-    
-    const usage: ProviderUsage = {};
-    
-    // Try to parse session usage
-    const sessionMatch = output.match(/session[:\s]+(\d+)\s*\/\s*(\d+)/i);
-    if (sessionMatch) {
-      const used = parseInt(sessionMatch[1], 10);
-      const limit = parseInt(sessionMatch[2], 10);
-      usage.session = {
-        used,
-        limit,
-        percentage: calculatePercentage(used, limit),
-        displayString: formatUsage(used, limit, 'requests'),
-      };
+      logger.debug('Codex CLI check failed:', error);
     }
     
-    // Try to parse weekly/monthly usage
-    const weeklyMatch = output.match(/week(?:ly)?[:\s]+(\d+)\s*\/\s*(\d+)/i);
-    if (weeklyMatch) {
-      const used = parseInt(weeklyMatch[1], 10);
-      const limit = parseInt(weeklyMatch[2], 10);
-      usage.weekly = {
-        used,
-        limit,
-        percentage: calculatePercentage(used, limit),
-        displayString: formatUsage(used, limit, 'requests'),
-      };
-    }
-    
-    // Parse reset time if present
-    const resetMatch = output.match(/reset[s]?\s+(?:in\s+)?(.+)/i);
-    if (resetMatch && usage.session) {
-      usage.session.resetCountdown = resetMatch[1].trim();
-    }
-    
-    return Object.keys(usage).length > 0 ? usage : null;
+    return null;
   }
   
   async fetchStatus(): Promise<ProviderStatus | null> {
-    // TODO: Implement status page scraping
     return { operational: true };
   }
 }

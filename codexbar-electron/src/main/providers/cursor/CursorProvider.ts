@@ -1,7 +1,11 @@
 /**
  * Cursor Provider
  * 
- * Fetches usage from Cursor's API endpoint.
+ * Cursor is an AI-powered code editor. This provider checks for Cursor installation
+ * and attempts to read usage data if available.
+ * 
+ * Note: Cursor doesn't have a CLI and stores auth in various locations depending
+ * on the platform. The API requires authentication that's tied to the desktop app.
  */
 
 import { BaseProvider, ProviderUsage, ProviderStatus, calculatePercentage, formatUsage } from '../BaseProvider';
@@ -24,12 +28,29 @@ export class CursorProvider extends BaseProvider {
   readonly websiteUrl = 'https://cursor.sh';
   readonly statusPageUrl = 'https://status.cursor.sh';
   
-  private readonly API_URL = 'https://www.cursor.com/api/usage';
-  
   async isConfigured(): Promise<boolean> {
-    // Check if Cursor is installed and has auth
-    const authToken = await this.getAuthToken();
-    return authToken !== null;
+    // Check if Cursor is installed by looking for its data directories
+    const cursorPaths = [
+      // Windows
+      path.join(os.homedir(), 'AppData', 'Roaming', 'Cursor'),
+      path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'cursor'),
+      // macOS
+      path.join(os.homedir(), 'Library', 'Application Support', 'Cursor'),
+      // Linux
+      path.join(os.homedir(), '.config', 'Cursor'),
+      path.join(os.homedir(), '.cursor'),
+    ];
+    
+    for (const cursorPath of cursorPaths) {
+      try {
+        await fs.access(cursorPath);
+        return true;
+      } catch {
+        // Try next path
+      }
+    }
+    
+    return false;
   }
   
   private async getAuthToken(): Promise<string | null> {
@@ -37,7 +58,9 @@ export class CursorProvider extends BaseProvider {
     const possiblePaths = [
       path.join(os.homedir(), '.cursor', 'auth.json'),
       path.join(os.homedir(), 'AppData', 'Roaming', 'Cursor', 'auth.json'),
+      path.join(os.homedir(), 'AppData', 'Roaming', 'Cursor', 'User', 'globalStorage', 'auth.json'),
       path.join(os.homedir(), '.config', 'Cursor', 'auth.json'),
+      path.join(os.homedir(), 'Library', 'Application Support', 'Cursor', 'auth.json'),
     ];
     
     for (const authPath of possiblePaths) {
@@ -56,31 +79,43 @@ export class CursorProvider extends BaseProvider {
   }
   
   async fetchUsage(): Promise<ProviderUsage | null> {
-    try {
-      const token = await this.getAuthToken();
-      if (!token) {
-        logger.warn('Cursor: No auth token found');
-        return null;
-      }
-      
-      const response = await fetch(this.API_URL, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        logger.warn(`Cursor API returned ${response.status}`);
-        return null;
-      }
-      
-      const data = await response.json() as CursorUsageResponse;
-      return this.parseUsageResponse(data);
-    } catch (error) {
-      logger.error('Failed to fetch Cursor usage:', error);
+    // Check if Cursor is installed
+    const isInstalled = await this.isConfigured();
+    
+    if (!isInstalled) {
       return null;
     }
+    
+    // Try to get auth token and fetch from API
+    const token = await this.getAuthToken();
+    
+    if (token) {
+      try {
+        const response = await fetch('https://www.cursor.com/api/usage', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json() as CursorUsageResponse;
+          return this.parseUsageResponse(data);
+        }
+      } catch (error) {
+        logger.debug('Cursor API request failed:', error);
+      }
+    }
+    
+    // If no API access, return basic installed status
+    return {
+      session: {
+        used: 0,
+        limit: 0,
+        percentage: 0,
+        displayString: 'Installed',
+      },
+    };
   }
   
   private parseUsageResponse(data: CursorUsageResponse): ProviderUsage {

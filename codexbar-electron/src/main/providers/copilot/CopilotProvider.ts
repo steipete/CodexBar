@@ -1,10 +1,13 @@
 /**
  * GitHub Copilot Provider
  * 
- * Fetches usage from GitHub Copilot's usage API.
+ * GitHub Copilot is typically accessed through VS Code or other IDE extensions.
+ * This provider checks for the presence of the Copilot extension and GitHub CLI auth.
+ * Copilot doesn't expose usage limits - it's unlimited for paid subscribers.
  */
 
-import { BaseProvider, ProviderUsage, ProviderStatus, calculatePercentage, formatUsage } from '../BaseProvider';
+import { BaseProvider, ProviderUsage, ProviderStatus } from '../BaseProvider';
+import { runCommand } from '../../utils/subprocess';
 import { logger } from '../../utils/logger';
 import path from 'path';
 import fs from 'fs/promises';
@@ -18,47 +21,91 @@ export class CopilotProvider extends BaseProvider {
   readonly statusPageUrl = 'https://www.githubstatus.com';
   
   async isConfigured(): Promise<boolean> {
-    // 1. Check for GitHub CLI auth (existing check)
-    const ghConfigPath = path.join(os.homedir(), '.config', 'gh', 'hosts.yml');
-    const ghConfigPathWin = path.join(os.homedir(), 'AppData', 'Roaming', 'GitHub CLI', 'hosts.yml');
+    // Check multiple possible configurations
     
-    // 2. Check for VS Code Extension (Windows/Linux/Mac standard path)
-    const vscodeExtensions = path.join(os.homedir(), '.vscode', 'extensions');
+    // 1. Check GitHub CLI auth
+    const ghConfigPaths = [
+      path.join(os.homedir(), '.config', 'gh', 'hosts.yml'),
+      path.join(os.homedir(), 'AppData', 'Roaming', 'GitHub CLI', 'hosts.yml'),
+    ];
     
-    try {
-      // Check GH CLI (Unix)
-      await fs.access(ghConfigPath);
-      return true;
-    } catch {
+    for (const configPath of ghConfigPaths) {
       try {
-        // Check GH CLI (Windows)
-        await fs.access(ghConfigPathWin);
+        await fs.access(configPath);
         return true;
       } catch {
-        try {
-          // Check VS Code Extensions
-          const extensions = await fs.readdir(vscodeExtensions);
-          const hasCopilot = extensions.some(ext => ext.startsWith('github.copilot'));
-          if (hasCopilot) return true;
-        } catch (err) {
-          // Ignore error (dir might not exist)
-        }
+        // Try next path
       }
     }
+    
+    // 2. Check for VS Code Copilot extension
+    const vscodeExtensions = path.join(os.homedir(), '.vscode', 'extensions');
+    try {
+      const extensions = await fs.readdir(vscodeExtensions);
+      const hasCopilot = extensions.some(ext => 
+        ext.startsWith('github.copilot') || ext.includes('copilot')
+      );
+      if (hasCopilot) return true;
+    } catch {
+      // VS Code extensions dir not found
+    }
+    
+    // 3. Check for GitHub CLI with copilot extension
+    try {
+      const result = await runCommand('gh', ['extension', 'list']);
+      if (result.exitCode === 0 && result.stdout.toLowerCase().includes('copilot')) {
+        return true;
+      }
+    } catch {
+      // gh CLI not available
+    }
+    
     return false;
   }
   
   async fetchUsage(): Promise<ProviderUsage | null> {
-    // Copilot doesn't expose usage limits in the same way
-    // It's typically unlimited for paid subscribers
+    // GitHub Copilot doesn't have usage limits for paid subscribers
+    // We can check the subscription status via gh CLI if available
     
-    // Return a placeholder indicating active status
+    let subscriptionInfo = 'Active';
+    
+    try {
+      // Try to get GitHub user info to confirm auth
+      const result = await runCommand('gh', ['auth', 'status'], { timeout: 10000 });
+      
+      if (result.exitCode === 0) {
+        // Extract account info from output
+        const accountMatch = result.stdout.match(/Logged in to [^\s]+ account (\w+)/i) ||
+                            result.stderr.match(/Logged in to [^\s]+ account (\w+)/i);
+        if (accountMatch) {
+          subscriptionInfo = `@${accountMatch[1]}`;
+        }
+      }
+    } catch (error) {
+      logger.debug('Could not get GitHub auth status:', error);
+    }
+    
+    // Check for Copilot extension version
+    const vscodeExtensions = path.join(os.homedir(), '.vscode', 'extensions');
+    try {
+      const extensions = await fs.readdir(vscodeExtensions);
+      const copilotExt = extensions.find(ext => ext.startsWith('github.copilot-'));
+      if (copilotExt) {
+        const versionMatch = copilotExt.match(/github\.copilot-(\d+\.\d+\.\d+)/);
+        if (versionMatch) {
+          subscriptionInfo += ` · v${versionMatch[1]}`;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    
     return {
       session: {
         used: 0,
-        limit: 0, // 0 limit often implies "unlimited" or "special" handling in UI logic
+        limit: 0, // 0 limit indicates unlimited
         percentage: 0,
-        displayString: 'Active', // Changed from "Unlimited" to "Active" to sound more "connected"
+        displayString: subscriptionInfo,
       },
     };
   }
