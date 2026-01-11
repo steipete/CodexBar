@@ -33,6 +33,31 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
     }
 }
 
+/// Controls what the menu bar displays when brand icon mode is enabled.
+enum MenuBarDisplayMode: String, CaseIterable, Identifiable {
+    case percent
+    case pace
+    case both
+
+    var id: String { self.rawValue }
+
+    var label: String {
+        switch self {
+        case .percent: "Percent"
+        case .pace: "Pace"
+        case .both: "Both"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .percent: "Show remaining/used percentage (e.g. 45%)"
+        case .pace: "Show pace indicator (e.g. +5%)"
+        case .both: "Show both percentage and pace (e.g. 45% +5%)"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class SettingsStore {
@@ -95,6 +120,22 @@ final class SettingsStore {
         didSet {
             self.userDefaults.set(self.menuBarShowsBrandIconWithPercent, forKey: "menuBarShowsBrandIconWithPercent")
         }
+    }
+
+    /// Controls what the menu bar displays when brand icon mode is enabled.
+    private var menuBarDisplayModeRaw: String? {
+        didSet {
+            if let raw = self.menuBarDisplayModeRaw {
+                self.userDefaults.set(raw, forKey: "menuBarDisplayMode")
+            } else {
+                self.userDefaults.removeObject(forKey: "menuBarDisplayMode")
+            }
+        }
+    }
+
+    var menuBarDisplayMode: MenuBarDisplayMode {
+        get { MenuBarDisplayMode(rawValue: self.menuBarDisplayModeRaw ?? "") ?? .percent }
+        set { self.menuBarDisplayModeRaw = newValue.rawValue }
     }
 
     /// Optional: show provider cost summary from local usage logs (Codex + Claude).
@@ -343,6 +384,7 @@ final class SettingsStore {
         _ = self.usageBarsShowUsed
         _ = self.resetTimesShowAbsolute
         _ = self.menuBarShowsBrandIconWithPercent
+        _ = self.menuBarDisplayMode
         _ = self.costUsageEnabled
         _ = self.randomBlinkEnabled
         _ = self.claudeWebExtrasEnabled
@@ -466,6 +508,8 @@ final class SettingsStore {
         self.resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
         self.menuBarShowsBrandIconWithPercent = userDefaults.object(
             forKey: "menuBarShowsBrandIconWithPercent") as? Bool ?? false
+        self.menuBarDisplayModeRaw = userDefaults.string(forKey: "menuBarDisplayMode")
+            ?? MenuBarDisplayMode.percent.rawValue
         self.costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
         self.randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         self.claudeWebExtrasEnabled = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
