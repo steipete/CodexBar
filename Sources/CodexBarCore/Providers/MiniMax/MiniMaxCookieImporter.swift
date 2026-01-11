@@ -9,7 +9,14 @@ private let minimaxCookieImportOrder: BrowserCookieImportOrder =
 public enum MiniMaxCookieImporter {
     private static let log = CodexBarLog.logger("minimax-cookie")
     private static let cookieClient = BrowserCookieClient()
-    private static let cookieDomains = ["platform.minimax.io", "openplatform.minimax.io", "minimax.io"]
+    private static let cookieDomains = [
+        "platform.minimax.io",
+        "openplatform.minimax.io",
+        "minimax.io",
+        "platform.minimaxi.com",
+        "openplatform.minimaxi.com",
+        "minimaxi.com",
+    ]
 
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]

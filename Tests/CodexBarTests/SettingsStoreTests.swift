@@ -83,6 +83,21 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func persistsMiniMaxAPIRegionAcrossInstances() {
+        let suite = "SettingsStoreTests-minimax-region"
+        let defaultsA = UserDefaults(suiteName: suite)!
+        defaultsA.removePersistentDomain(forName: suite)
+        let storeA = SettingsStore(userDefaults: defaultsA, zaiTokenStore: NoopZaiTokenStore())
+
+        storeA.minimaxAPIRegion = .chinaMainland
+
+        let defaultsB = UserDefaults(suiteName: suite)!
+        let storeB = SettingsStore(userDefaults: defaultsB, zaiTokenStore: NoopZaiTokenStore())
+
+        #expect(storeB.minimaxAPIRegion == .chinaMainland)
+    }
+
+    @Test
     func defaultsOpenAIWebAccessToEnabled() {
         let suite = "SettingsStoreTests-openai-web"
         let defaults = UserDefaults(suiteName: suite)!
