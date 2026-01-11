@@ -1,9 +1,9 @@
+#if os(macOS)
+
 import CommonCrypto
 import Foundation
 import Security
 import SQLite3
-
-#if os(macOS)
 
 enum ChromiumCookieFallbackReader {
     enum ReadError: LocalizedError {
