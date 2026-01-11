@@ -349,7 +349,8 @@ extension StatusItemController {
     }
 
     private func menuBarPaceText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
-        guard let window = self.menuBarPercentWindow(for: provider, snapshot: snapshot) else { return nil }
+        // PACE is calculated from the weekly (secondary) window, not the session (primary) window
+        guard let window = snapshot?.secondary else { return nil }
         guard provider == .codex || provider == .claude else { return nil }
         guard window.remainingPercent > 0 else { return nil }
         guard let pace = UsagePace.weekly(window: window, now: Date(), defaultWindowMinutes: 10080) else { return nil }
