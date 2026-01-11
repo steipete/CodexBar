@@ -132,6 +132,7 @@ struct SettingsStoreTests {
             .kiro,
             .vertexai,
             .augment,
+            .amp,
         ])
 
         // Move one provider; ensure it's persisted across instances.
