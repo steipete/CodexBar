@@ -40,8 +40,7 @@ extension AmpUsageSnapshot {
 
         let resetsAt: Date? = {
             guard quota > 0, self.hourlyReplenishment > 0 else { return nil }
-            let remaining = max(0, quota - used)
-            let hoursToFull = remaining / self.hourlyReplenishment
+            let hoursToFull = used / self.hourlyReplenishment
             let seconds = max(0, hoursToFull * 3600)
             return now.addingTimeInterval(seconds)
         }()

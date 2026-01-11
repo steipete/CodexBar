@@ -26,7 +26,7 @@ struct AmpUsageParserTests {
         #expect(abs((usage.primary?.usedPercent ?? 0) - expectedPercent) < 0.001)
         #expect(usage.primary?.windowMinutes == 1440)
 
-        let expectedHoursToFull = (1000 - 338.5) / 42
+        let expectedHoursToFull = 338.5 / 42
         let expectedReset = now.addingTimeInterval(expectedHoursToFull * 3600)
         #expect(usage.primary?.resetsAt == expectedReset)
         #expect(usage.identity?.loginMethod == "Amp Free")
