@@ -25,6 +25,7 @@ public enum ProviderTokenResolver {
     private static let zaiAccount = "zai-api-token"
     private static let copilotAccount = "copilot-api-token"
     private static let minimaxAccount = "minimax-cookie"
+    private static let kimiAccount = "kimi-api-token"
 
     public static func zaiToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.zaiResolution(environment: environment)?.token
@@ -36,6 +37,10 @@ public enum ProviderTokenResolver {
 
     public static func minimaxCookie(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.minimaxResolution(environment: environment)?.token
+    }
+
+    public static func kimiToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.kimiResolution(environment: environment)?.token
     }
 
     public static func zaiResolution(
@@ -69,6 +74,18 @@ public enum ProviderTokenResolver {
             return ProviderTokenResolution(token: token, source: .keychain)
         }
         if let token = MiniMaxSettingsReader.cookieHeader(environment: environment) {
+            return ProviderTokenResolution(token: token, source: .environment)
+        }
+        return nil
+    }
+
+    public static func kimiResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        if let token = self.keychainToken(service: self.keychainService, account: self.kimiAccount) {
+            return ProviderTokenResolution(token: token, source: .keychain)
+        }
+        if let token = KimiSettingsReader.apiKey(environment: environment) {
             return ProviderTokenResolution(token: token, source: .environment)
         }
         return nil
