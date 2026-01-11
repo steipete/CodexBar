@@ -50,7 +50,7 @@ public enum ErrorPresenter {
 
         // Handle FetchError from ClaudeWebAPIFetcher specifically
         // Avoid matching non-Claude FetchErrors (e.g., OpenAIDashboardFetcher.FetchError)
-        if typeName.contains("ClaudeWebAPIFetcher") && typeName.contains("FetchError") {
+        if typeName.contains("ClaudeWebAPIFetcher"), typeName.contains("FetchError") {
             return Self.presentFetchError(error, context: context)
         }
 
