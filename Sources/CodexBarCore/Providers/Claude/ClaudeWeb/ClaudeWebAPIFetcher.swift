@@ -567,16 +567,35 @@ public enum ClaudeWebAPIFetcher {
     private struct OrganizationResponse: Decodable {
         let uuid: String
         let name: String?
+        let capabilities: [String]?
+
+        var normalizedCapabilities: Set<String> {
+            Set((self.capabilities ?? []).map { $0.lowercased() })
+        }
+
+        var hasChatCapability: Bool {
+            self.normalizedCapabilities.contains("chat")
+        }
+
+        var isApiOnly: Bool {
+            let normalized = self.normalizedCapabilities
+            return !normalized.isEmpty && normalized == ["api"]
+        }
     }
 
     private static func parseOrganizationResponse(_ data: Data) throws -> OrganizationInfo {
         guard let organizations = try? JSONDecoder().decode([OrganizationResponse].self, from: data) else {
             throw FetchError.invalidResponse
         }
-        guard let first = organizations.first else { throw FetchError.noOrganization }
-        let name = first.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let selected = organizations.first(where: { $0.hasChatCapability })
+            ?? organizations.first(where: { !$0.isApiOnly })
+            ?? organizations.first
+        else {
+            throw FetchError.noOrganization
+        }
+        let name = selected.name?.trimmingCharacters(in: .whitespacesAndNewlines)
         let sanitized = (name?.isEmpty ?? true) ? nil : name
-        return OrganizationInfo(id: first.uuid, name: sanitized)
+        return OrganizationInfo(id: selected.uuid, name: sanitized)
     }
 
     public struct WebAccountInfo: Sendable {
