@@ -28,6 +28,13 @@ debug_*.swift
 
 # Debug/analysis docs
 docs/*-analysis.md
+codedocs/
+
+# Local tooling artifacts
+Continuous-Claude-v3/
+Continuous-Claawde-v3/
+node_modules/
+pnpm-lock.yaml
 
 # Swift Package Manager metadata (leave sources tracked)
 # Packages/

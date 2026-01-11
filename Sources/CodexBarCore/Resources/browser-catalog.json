@@ -1,0 +1,829 @@
+{
+  "chromium": [
+    {
+      "id": "chrome",
+      "displayName": "Google Chrome",
+      "bundleIDs": [
+        "com.google.Chrome"
+      ],
+      "appNameHints": [
+        "Google Chrome"
+      ],
+      "profileRootRelative": [
+        "Application Support/Google/Chrome"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "chrome-beta",
+      "displayName": "Google Chrome Beta",
+      "bundleIDs": [
+        "com.google.Chrome.beta"
+      ],
+      "appNameHints": [
+        "Google Chrome Beta"
+      ],
+      "profileRootRelative": [
+        "Application Support/Google/Chrome Beta"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "chrome-dev",
+      "displayName": "Google Chrome Dev",
+      "bundleIDs": [
+        "com.google.Chrome.dev"
+      ],
+      "appNameHints": [
+        "Google Chrome Dev"
+      ],
+      "profileRootRelative": [
+        "Application Support/Google/Chrome Dev"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "chrome-canary",
+      "displayName": "Google Chrome Canary",
+      "bundleIDs": [
+        "com.google.Chrome.canary"
+      ],
+      "appNameHints": [
+        "Google Chrome Canary"
+      ],
+      "profileRootRelative": [
+        "Application Support/Google/Chrome Canary"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "chromium",
+      "displayName": "Chromium",
+      "bundleIDs": [
+        "org.chromium.Chromium"
+      ],
+      "appNameHints": [
+        "Chromium"
+      ],
+      "profileRootRelative": [
+        "Application Support/Chromium"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "edge",
+      "displayName": "Microsoft Edge",
+      "bundleIDs": [
+        "com.microsoft.edgemac"
+      ],
+      "appNameHints": [
+        "Microsoft Edge"
+      ],
+      "profileRootRelative": [
+        "Application Support/Microsoft Edge"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "edge-beta",
+      "displayName": "Microsoft Edge Beta",
+      "bundleIDs": [
+        "com.microsoft.edgemac.Beta"
+      ],
+      "appNameHints": [
+        "Microsoft Edge Beta"
+      ],
+      "profileRootRelative": [
+        "Application Support/Microsoft Edge Beta"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "edge-dev",
+      "displayName": "Microsoft Edge Dev",
+      "bundleIDs": [
+        "com.microsoft.edgemac.Dev"
+      ],
+      "appNameHints": [
+        "Microsoft Edge Dev"
+      ],
+      "profileRootRelative": [
+        "Application Support/Microsoft Edge Dev"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "edge-canary",
+      "displayName": "Microsoft Edge Canary",
+      "bundleIDs": [
+        "com.microsoft.edgemac.Canary"
+      ],
+      "appNameHints": [
+        "Microsoft Edge Canary"
+      ],
+      "profileRootRelative": [
+        "Application Support/Microsoft Edge Canary"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "brave",
+      "displayName": "Brave Browser",
+      "bundleIDs": [
+        "com.brave.Browser"
+      ],
+      "appNameHints": [
+        "Brave Browser"
+      ],
+      "profileRootRelative": [
+        "Application Support/BraveSoftware/Brave-Browser"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "brave-beta",
+      "displayName": "Brave Browser Beta",
+      "bundleIDs": [
+        "com.brave.Browser.beta"
+      ],
+      "appNameHints": [
+        "Brave Browser Beta"
+      ],
+      "profileRootRelative": [
+        "Application Support/BraveSoftware/Brave-Browser-Beta"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "brave-nightly",
+      "displayName": "Brave Browser Nightly",
+      "bundleIDs": [
+        "com.brave.Browser.nightly"
+      ],
+      "appNameHints": [
+        "Brave Browser Nightly"
+      ],
+      "profileRootRelative": [
+        "Application Support/BraveSoftware/Brave-Browser-Nightly"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "vivaldi",
+      "displayName": "Vivaldi",
+      "bundleIDs": [
+        "com.vivaldi.Vivaldi"
+      ],
+      "appNameHints": [
+        "Vivaldi"
+      ],
+      "profileRootRelative": [
+        "Application Support/Vivaldi"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "opera",
+      "displayName": "Opera",
+      "bundleIDs": [
+        "com.operasoftware.Opera"
+      ],
+      "appNameHints": [
+        "Opera"
+      ],
+      "profileRootRelative": [
+        "Application Support/com.operasoftware.Opera"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "opera-gx",
+      "displayName": "Opera GX",
+      "bundleIDs": [
+        "com.operasoftware.OperaGX"
+      ],
+      "appNameHints": [
+        "Opera GX"
+      ],
+      "profileRootRelative": [
+        "Application Support/com.operasoftware.OperaGX"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "opera-developer",
+      "displayName": "Opera Developer",
+      "bundleIDs": [
+        "com.operasoftware.OperaDeveloper"
+      ],
+      "appNameHints": [
+        "Opera Developer"
+      ],
+      "profileRootRelative": [
+        "Application Support/com.operasoftware.OperaDeveloper"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "arc",
+      "displayName": "Arc",
+      "bundleIDs": [
+        "company.thebrowser.Browser"
+      ],
+      "appNameHints": [
+        "Arc"
+      ],
+      "profileRootRelative": [
+        "Application Support/Arc/User Data"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "comet",
+      "displayName": "Comet",
+      "bundleIDs": [
+        "com.perplexity.comet",
+        "com.perplexity.Comet"
+      ],
+      "appNameHints": [
+        "Comet"
+      ],
+      "profileRootRelative": [
+        "Application Support/Comet"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "yandex",
+      "displayName": "Yandex Browser",
+      "bundleIDs": [
+        "ru.yandex.desktop.yandex-browser"
+      ],
+      "appNameHints": [
+        "Yandex Browser"
+      ],
+      "profileRootRelative": [
+        "Application Support/Yandex/YandexBrowser"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "avast-secure-browser",
+      "displayName": "Avast Secure Browser",
+      "bundleIDs": [
+        "com.avast.securebrowser"
+      ],
+      "appNameHints": [
+        "Avast Secure Browser"
+      ],
+      "profileRootRelative": [
+        "Application Support/AVAST Software/Avast Secure Browser"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "avg-secure-browser",
+      "displayName": "AVG Secure Browser",
+      "bundleIDs": [
+        "com.avg.securebrowser"
+      ],
+      "appNameHints": [
+        "AVG Secure Browser"
+      ],
+      "profileRootRelative": [
+        "Application Support/AVAST Software/AVG Secure Browser"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "slimjet",
+      "displayName": "Slimjet",
+      "bundleIDs": [
+        "com.slimjet.Slimjet"
+      ],
+      "appNameHints": [
+        "Slimjet"
+      ],
+      "profileRootRelative": [
+        "Application Support/Slimjet"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "sidekick",
+      "displayName": "Sidekick",
+      "bundleIDs": [
+        "com.pushplaylabs.sidekick"
+      ],
+      "appNameHints": [
+        "Sidekick"
+      ],
+      "profileRootRelative": [
+        "Application Support/Sidekick"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "wavebox",
+      "displayName": "Wavebox",
+      "bundleIDs": [
+        "io.wavebox.app"
+      ],
+      "appNameHints": [
+        "Wavebox"
+      ],
+      "profileRootRelative": [
+        "Application Support/Wavebox"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    },
+    {
+      "id": "min",
+      "displayName": "Min",
+      "bundleIDs": [
+        "com.minbrowser.min"
+      ],
+      "appNameHints": [
+        "Min"
+      ],
+      "profileRootRelative": [
+        "Application Support/Min"
+      ],
+      "cookiePathPatterns": [
+        "Default/Cookies",
+        "Default/Network/Cookies",
+        "Profile */Cookies",
+        "Profile */Network/Cookies",
+        "user-*/Cookies",
+        "user-*/Network/Cookies",
+        "Guest Profile/Cookies",
+        "Guest Profile/Network/Cookies"
+      ]
+    }
+  ],
+  "firefox": [
+    {
+      "id": "firefox",
+      "displayName": "Firefox",
+      "bundleIDs": [
+        "org.mozilla.firefox"
+      ],
+      "appNameHints": [
+        "Firefox"
+      ],
+      "profileRootRelative": [
+        "Application Support/Firefox"
+      ],
+      "cookiePathPatterns": [
+        "Profiles/*/cookies.sqlite"
+      ]
+    },
+    {
+      "id": "firefox-developer-edition",
+      "displayName": "Firefox Developer Edition",
+      "bundleIDs": [
+        "org.mozilla.firefoxdeveloperedition"
+      ],
+      "appNameHints": [
+        "Firefox Developer Edition"
+      ],
+      "profileRootRelative": [
+        "Application Support/Firefox Developer Edition"
+      ],
+      "cookiePathPatterns": [
+        "Profiles/*/cookies.sqlite"
+      ]
+    },
+    {
+      "id": "firefox-nightly",
+      "displayName": "Firefox Nightly",
+      "bundleIDs": [
+        "org.mozilla.nightly"
+      ],
+      "appNameHints": [
+        "Firefox Nightly"
+      ],
+      "profileRootRelative": [
+        "Application Support/Firefox Nightly"
+      ],
+      "cookiePathPatterns": [
+        "Profiles/*/cookies.sqlite"
+      ]
+    },
+    {
+      "id": "firefox-esr",
+      "displayName": "Firefox ESR",
+      "bundleIDs": [
+        "org.mozilla.firefoxesr"
+      ],
+      "appNameHints": [
+        "Firefox ESR"
+      ],
+      "profileRootRelative": [
+        "Application Support/Firefox ESR"
+      ],
+      "cookiePathPatterns": [
+        "Profiles/*/cookies.sqlite"
+      ]
+    },
+    {
+      "id": "tor-browser",
+      "displayName": "Tor Browser",
+      "bundleIDs": [
+        "org.torproject.torbrowser"
+      ],
+      "appNameHints": [
+        "Tor Browser"
+      ],
+      "profileRootRelative": [
+        "Application Support/TorBrowser-Data/Browser"
+      ],
+      "cookiePathPatterns": [
+        "profile.default/cookies.sqlite",
+        "profile.default-release/cookies.sqlite",
+        "Profiles/*/cookies.sqlite"
+      ]
+    },
+    {
+      "id": "waterfox",
+      "displayName": "Waterfox",
+      "bundleIDs": [
+        "net.waterfox.waterfox"
+      ],
+      "appNameHints": [
+        "Waterfox"
+      ],
+      "profileRootRelative": [
+        "Application Support/Waterfox"
+      ],
+      "cookiePathPatterns": [
+        "Profiles/*/cookies.sqlite"
+      ]
+    },
+    {
+      "id": "librewolf",
+      "displayName": "LibreWolf",
+      "bundleIDs": [
+        "org.librewolf"
+      ],
+      "appNameHints": [
+        "LibreWolf"
+      ],
+      "profileRootRelative": [
+        "Application Support/LibreWolf"
+      ],
+      "cookiePathPatterns": [
+        "Profiles/*/cookies.sqlite"
+      ]
+    },
+    {
+      "id": "floorp",
+      "displayName": "Floorp",
+      "bundleIDs": [
+        "org.floorp.floorp"
+      ],
+      "appNameHints": [
+        "Floorp"
+      ],
+      "profileRootRelative": [
+        "Application Support/Floorp"
+      ],
+      "cookiePathPatterns": [
+        "Profiles/*/cookies.sqlite"
+      ]
+    },
+    {
+      "id": "seamonkey",
+      "displayName": "SeaMonkey",
+      "bundleIDs": [
+        "org.mozilla.seamonkey"
+      ],
+      "appNameHints": [
+        "SeaMonkey"
+      ],
+      "profileRootRelative": [
+        "Application Support/SeaMonkey"
+      ],
+      "cookiePathPatterns": [
+        "Profiles/*/cookies.sqlite"
+      ]
+    }
+  ],
+  "webkit": [
+    {
+      "id": "duckduckgo",
+      "displayName": "DuckDuckGo Browser",
+      "bundleIDs": [
+        "com.duckduckgo.browser"
+      ],
+      "appNameHints": [
+        "DuckDuckGo"
+      ],
+      "profileRootRelative": [
+        "Containers/com.duckduckgo.browser/Data/Library/Cookies"
+      ],
+      "cookiePathPatterns": [
+        "Cookies.binarycookies"
+      ]
+    },
+    {
+      "id": "orion",
+      "displayName": "Orion",
+      "bundleIDs": [
+        "com.kagi.orion"
+      ],
+      "appNameHints": [
+        "Orion"
+      ],
+      "profileRootRelative": [
+        "Containers/com.kagi.orion/Data/Library/Cookies"
+      ],
+      "cookiePathPatterns": [
+        "Cookies.binarycookies"
+      ]
+    },
+    {
+      "id": "sigmaos",
+      "displayName": "SigmaOS",
+      "bundleIDs": [
+        "com.sigmaos.sigmaos"
+      ],
+      "appNameHints": [
+        "SigmaOS"
+      ],
+      "profileRootRelative": [
+        "Containers/com.sigmaos.sigmaos/Data/Library/Cookies"
+      ],
+      "cookiePathPatterns": [
+        "Cookies.binarycookies"
+      ]
+    },
+    {
+      "id": "icab",
+      "displayName": "iCab",
+      "bundleIDs": [
+        "de.icab.iCab"
+      ],
+      "appNameHints": [
+        "iCab"
+      ],
+      "profileRootRelative": [
+        "Containers/de.icab.iCab/Data/Library/Cookies"
+      ],
+      "cookiePathPatterns": [
+        "Cookies.binarycookies"
+      ]
+    }
+  ],
+  "safari": [
+    {
+      "id": "safari",
+      "displayName": "Safari",
+      "bundleIDs": [
+        "com.apple.Safari"
+      ],
+      "appNameHints": [
+        "Safari"
+      ],
+      "profileRootRelative": [
+        "Cookies",
+        "Containers/com.apple.Safari/Data/Library/Cookies"
+      ],
+      "cookiePathPatterns": [
+        "Cookies.binarycookies"
+      ]
+    },
+    {
+      "id": "safari-technology-preview",
+      "displayName": "Safari Technology Preview",
+      "bundleIDs": [
+        "com.apple.SafariTechnologyPreview"
+      ],
+      "appNameHints": [
+        "Safari Technology Preview"
+      ],
+      "profileRootRelative": [
+        "Containers/com.apple.SafariTechnologyPreview/Data/Library/Cookies"
+      ],
+      "cookiePathPatterns": [
+        "Cookies.binarycookies"
+      ]
+    }
+  ]
+}

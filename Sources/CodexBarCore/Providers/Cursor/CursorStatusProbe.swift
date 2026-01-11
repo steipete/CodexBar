@@ -572,6 +572,7 @@ public struct CursorStatusProbe: Sendable {
         let url = self.baseURL.appendingPathComponent("/api/usage-summary")
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
+        request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
@@ -605,6 +606,7 @@ public struct CursorStatusProbe: Sendable {
         let url = self.baseURL.appendingPathComponent("/api/auth/me")
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
+        request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
@@ -623,6 +625,7 @@ public struct CursorStatusProbe: Sendable {
             .appending(queryItems: [URLQueryItem(name: "user", value: userId)])
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
+        request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 

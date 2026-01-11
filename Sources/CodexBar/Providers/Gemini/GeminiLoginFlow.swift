@@ -6,7 +6,7 @@ extension StatusItemController {
         let store = self.store
         let result = await GeminiLoginRunner.run {
             Task { @MainActor in
-                await store.refresh()
+                await store.refresh(trigger: .userInitiated)
                 print("[CodexBar] Auto-refreshed after Gemini auth")
             }
         }

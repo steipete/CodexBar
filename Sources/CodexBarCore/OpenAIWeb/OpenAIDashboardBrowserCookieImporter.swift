@@ -128,6 +128,15 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
         }
 
+        if let match = await self.tryCometFallback(
+            targetEmail: normalizedTarget,
+            allowAnyAccount: allowAnyAccount,
+            log: log,
+            diagnostics: &diagnostics)
+        {
+            return match
+        }
+
         if !diagnostics.mismatches.isEmpty {
             let found = Array(Set(diagnostics.mismatches)).sorted { lhs, rhs in
                 if lhs.sourceLabel == rhs.sourceLabel { return lhs.email < rhs.email }
@@ -333,6 +342,97 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
     }
 
+    private func tryCometFallback(
+        targetEmail: String?,
+        allowAnyAccount: Bool,
+        log: @escaping (String) -> Void,
+        diagnostics: inout ImportDiagnostics) async -> ImportResult?
+    {
+        guard self.browserDetection.isBrowserIDAllowed("comet") else {
+            log("Comet cookie import skipped (disabled).")
+            return nil
+        }
+
+        let root = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Application Support")
+            .appendingPathComponent("Comet")
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDir), isDir.boolValue else {
+            return nil
+        }
+
+        let candidates = self.cometCookieCandidates(root: root)
+        guard !candidates.isEmpty else { return nil }
+
+        for candidate in candidates {
+            do {
+                let records = try ChromiumCookieFallbackReader.loadCookies(
+                    databaseURL: candidate.url,
+                    browserName: "Comet",
+                    bundleIDs: ["com.perplexity.comet", "com.perplexity.Comet"],
+                    domains: Self.cookieDomains,
+                    logger: log)
+                let cookies = self.cookies(from: records)
+                if cookies.isEmpty {
+                    log("\(candidate.label) produced 0 HTTPCookies.")
+                    continue
+                }
+                diagnostics.foundAnyCookies = true
+                log("Loaded \(cookies.count) cookies from \(candidate.label) (\(self.cookieSummary(cookies)))")
+                let candidate = Candidate(label: candidate.label, cookies: cookies)
+                if let match = await self.applyCandidate(
+                    candidate,
+                    targetEmail: targetEmail,
+                    allowAnyAccount: allowAnyAccount,
+                    log: log,
+                    diagnostics: &diagnostics)
+                {
+                    return match
+                }
+            } catch {
+                diagnostics.accessDeniedHints.append(error.localizedDescription)
+                log("Comet cookie load failed: \(error.localizedDescription)")
+            }
+        }
+
+        return nil
+    }
+
+    private func cometCookieCandidates(root: URL) -> [(label: String, url: URL)] {
+        let fm = FileManager.default
+        var results: [(label: String, url: URL)] = []
+
+        func addCandidate(label: String, path: URL) {
+            guard fm.fileExists(atPath: path.path) else { return }
+            results.append((label: label, url: path))
+        }
+
+        let defaultProfile = root.appendingPathComponent("Default")
+        addCandidate(label: "Comet Default", path: defaultProfile.appendingPathComponent("Cookies"))
+        addCandidate(
+            label: "Comet Default (Network)",
+            path: defaultProfile.appendingPathComponent("Network/Cookies"))
+
+        if let entries = try? fm.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles])
+        {
+            for entry in entries {
+                let name = entry.lastPathComponent
+                let isProfile = name.hasPrefix("Profile ") || name.hasPrefix("user-") || name == "Guest Profile"
+                guard isProfile else { continue }
+                addCandidate(label: "Comet \(name)", path: entry.appendingPathComponent("Cookies"))
+                addCandidate(
+                    label: "Comet \(name) (Network)",
+                    path: entry.appendingPathComponent("Network/Cookies"))
+            }
+        }
+
+        return results
+    }
+
     private func trySource(
         _ source: Browser,
         targetEmail: String?,
@@ -510,6 +610,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
             request.timeoutInterval = 10
+            request.httpShouldHandleCookies = false
             request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
 
@@ -628,6 +729,29 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 if let cookie = HTTPCookie(properties: props) {
                     cookies.append(cookie)
                 }
+            }
+        }
+        return cookies
+    }
+
+    private func cookies(from records: [ChromiumCookieFallbackReader.CookieRecord]) -> [HTTPCookie] {
+        var cookies: [HTTPCookie] = []
+        for record in records {
+            var props: [HTTPCookiePropertyKey: Any] = [
+                .name: record.name,
+                .value: record.value,
+                .domain: record.domain,
+                .path: record.path,
+                .secure: record.isSecure,
+            ]
+            if let expires = record.expires {
+                props[.expires] = expires
+            }
+            if record.isHTTPOnly {
+                props[HTTPCookiePropertyKey("HttpOnly")] = "TRUE"
+            }
+            if let cookie = HTTPCookie(properties: props) {
+                cookies.append(cookie)
             }
         }
         return cookies

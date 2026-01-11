@@ -19,17 +19,20 @@ struct ProviderRegistry {
     @MainActor
     func specs(
         settings: SettingsStore,
-        metadata: [UsageProvider: ProviderMetadata],
         codexFetcher: UsageFetcher,
         claudeFetcher: any ClaudeUsageFetching,
-        browserDetection: BrowserDetection) -> [UsageProvider: ProviderSpec]
+        browserDetection: BrowserDetection,
+        allowBrowserCookieAccess: @escaping @MainActor () -> Bool) -> [UsageProvider: ProviderSpec]
     {
         var specs: [UsageProvider: ProviderSpec] = [:]
         specs.reserveCapacity(UsageProvider.allCases.count)
 
         for provider in UsageProvider.allCases {
             let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-            let meta = metadata[provider]!
+            guard let meta = self.metadata[provider] ?? Self.defaultMetadata[provider] else {
+                assertionFailure("Missing metadata for provider \(provider.rawValue)")
+                continue
+            }
             let spec = ProviderSpec(
                 style: descriptor.branding.iconStyle,
                 isEnabled: { settings.isProviderEnabled(provider: provider, metadata: meta) },
@@ -52,30 +55,51 @@ struct ProviderRegistry {
                         .auto
                     }
                     let snapshot = await MainActor.run {
-                        ProviderSettingsSnapshot(
+                        let allowCookies = allowBrowserCookieAccess()
+                        let codexCookieSource = Self.resolvedCookieSource(
+                            settings.codexCookieSource,
+                            allowCookies: allowCookies)
+                        let claudeCookieSource = Self.resolvedCookieSource(
+                            settings.claudeCookieSource,
+                            allowCookies: allowCookies)
+                        let cursorCookieSource = Self.resolvedCookieSource(
+                            settings.cursorCookieSource,
+                            allowCookies: allowCookies)
+                        let factoryCookieSource = Self.resolvedCookieSource(
+                            settings.factoryCookieSource,
+                            allowCookies: allowCookies)
+                        let minimaxCookieSource = Self.resolvedCookieSource(
+                            settings.minimaxCookieSource,
+                            allowCookies: allowCookies)
+                        let augmentCookieSource = Self.resolvedCookieSource(
+                            settings.augmentCookieSource,
+                            allowCookies: allowCookies)
+                        // Gate webExtras on cookie access - web extras require cookie scans
+                        let claudeWebExtras = allowCookies && settings.claudeWebExtrasEnabled
+                        return ProviderSettingsSnapshot(
                             debugMenuEnabled: settings.debugMenuEnabled,
                             codex: ProviderSettingsSnapshot.CodexProviderSettings(
                                 usageDataSource: settings.codexUsageDataSource,
-                                cookieSource: settings.codexCookieSource,
+                                cookieSource: codexCookieSource,
                                 manualCookieHeader: settings.codexCookieHeader),
                             claude: ProviderSettingsSnapshot.ClaudeProviderSettings(
                                 usageDataSource: settings.claudeUsageDataSource,
-                                webExtrasEnabled: settings.claudeWebExtrasEnabled,
-                                cookieSource: settings.claudeCookieSource,
+                                webExtrasEnabled: claudeWebExtras,
+                                cookieSource: claudeCookieSource,
                                 manualCookieHeader: settings.claudeCookieHeader),
                             cursor: ProviderSettingsSnapshot.CursorProviderSettings(
-                                cookieSource: settings.cursorCookieSource,
+                                cookieSource: cursorCookieSource,
                                 manualCookieHeader: settings.cursorCookieHeader),
                             factory: ProviderSettingsSnapshot.FactoryProviderSettings(
-                                cookieSource: settings.factoryCookieSource,
+                                cookieSource: factoryCookieSource,
                                 manualCookieHeader: settings.factoryCookieHeader),
                             minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings(
-                                cookieSource: settings.minimaxCookieSource,
+                                cookieSource: minimaxCookieSource,
                                 manualCookieHeader: settings.minimaxCookieHeader),
                             zai: ProviderSettingsSnapshot.ZaiProviderSettings(),
                             copilot: ProviderSettingsSnapshot.CopilotProviderSettings(),
                             augment: ProviderSettingsSnapshot.AugmentProviderSettings(
-                                cookieSource: settings.augmentCookieSource,
+                                cookieSource: augmentCookieSource,
                                 manualCookieHeader: settings.augmentCookieHeader))
                     }
                     let context = ProviderFetchContext(
@@ -99,4 +123,17 @@ struct ProviderRegistry {
     }
 
     private static let defaultMetadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata
+
+    private static func resolvedCookieSource(
+        _ source: ProviderCookieSource,
+        allowCookies: Bool) -> ProviderCookieSource
+    {
+        if allowCookies { return source }
+        switch source {
+        case .manual, .off:
+            return source
+        case .auto:
+            return .off
+        }
+    }
 }

@@ -38,7 +38,7 @@ Usage source picker:
 - Mapping:
   - `five_hour` → session window.
   - `seven_day` → weekly window.
-  - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
+  - `seven_day_sonnet` → Sonnet-specific weekly window.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
 - Plan inference: `rate_limit_tier` from credentials maps to Max/Pro/Team/Enterprise.
 
@@ -54,7 +54,7 @@ Usage source picker:
   - `sessionKey` (value prefix `sk-ant-...`).
 - API calls (all include `Cookie: sessionKey=<value>`):
   - `GET https://claude.ai/api/organizations` → org UUID.
-  - `GET https://claude.ai/api/organizations/{orgId}/usage` → session/weekly/opus.
+  - `GET https://claude.ai/api/organizations/{orgId}/usage` → session/weekly/sonnet.
   - `GET https://claude.ai/api/organizations/{orgId}/overage_spend_limit` → Extra usage spend/limit.
   - `GET https://claude.ai/api/account` → email + plan hints.
 - Outputs:

@@ -32,7 +32,7 @@ extension StatusItemController {
         self.loginPhase = .idle
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
-            await self.store.refresh()
+            await self.store.refresh(trigger: .userInitiated)
         }
     }
 

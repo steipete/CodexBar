@@ -77,7 +77,7 @@ struct KeychainMiniMaxCookieStore: MiniMaxCookieStoring {
             return
         }
 
-        let data = raw.data(using: .utf8)!
+        let data = Data(raw.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,

@@ -11,6 +11,7 @@ public final class BrowserDetection: Sendable {
     public static let defaultCacheTTL: TimeInterval = 60 * 10
 
     private let cache = OSAllocatedUnfairLock<[CacheKey: CachedResult]>(initialState: [:])
+    private let allowedBrowserIDs = OSAllocatedUnfairLock<Set<String>?>(initialState: nil)
     private let homeDirectory: String
     private let cacheTTL: TimeInterval
     private let now: @Sendable () -> Date
@@ -36,6 +37,7 @@ public final class BrowserDetection: Sendable {
     public init(
         homeDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path,
         cacheTTL: TimeInterval = BrowserDetection.defaultCacheTTL,
+        allowedBrowserIDs: Set<String>? = nil,
         now: @escaping @Sendable () -> Date = Date.init,
         fileExists: @escaping @Sendable (String) -> Bool = { path in FileManager.default.fileExists(atPath: path) },
         directoryContents: @escaping @Sendable (String) -> [String]? = { path in
@@ -44,9 +46,28 @@ public final class BrowserDetection: Sendable {
     {
         self.homeDirectory = homeDirectory
         self.cacheTTL = cacheTTL
+        self.allowedBrowserIDs.withLock { $0 = allowedBrowserIDs }
         self.now = now
         self.fileExists = fileExists
         self.directoryContents = directoryContents
+    }
+
+    public func updateAllowedBrowserIDs(_ ids: Set<String>?) {
+        self.allowedBrowserIDs.withLock { $0 = ids }
+    }
+
+    public func allowedBrowserIDsSnapshot() -> Set<String>? {
+        self.allowedBrowserIDs.withLock { $0 }
+    }
+
+    public func isBrowserAllowed(_ browser: Browser) -> Bool {
+        guard let allowed = self.allowedBrowserIDs.withLock({ $0 }) else { return true }
+        return allowed.contains(browser.rawValue)
+    }
+
+    public func isBrowserIDAllowed(_ id: String) -> Bool {
+        guard let allowed = self.allowedBrowserIDs.withLock({ $0 }) else { return true }
+        return allowed.contains(id)
     }
 
     public func isAppInstalled(_ browser: Browser) -> Bool {
@@ -322,12 +343,14 @@ public struct BrowserDetection: Sendable {
     public init(
         homeDirectory: String = "",
         cacheTTL: TimeInterval = BrowserDetection.defaultCacheTTL,
+        allowedBrowserIDs: Set<String>? = nil,
         now: @escaping @Sendable () -> Date = Date.init,
         fileExists: @escaping @Sendable (String) -> Bool = { _ in false },
         directoryContents: @escaping @Sendable (String) -> [String]? = { _ in nil })
     {
         _ = homeDirectory
         _ = cacheTTL
+        _ = allowedBrowserIDs
         _ = now
         _ = fileExists
         _ = directoryContents
@@ -343,6 +366,24 @@ public struct BrowserDetection: Sendable {
 
     public func hasUsableProfileData(_ browser: Browser) -> Bool {
         false
+    }
+
+    public func updateAllowedBrowserIDs(_ ids: Set<String>?) {
+        _ = ids
+    }
+
+    public func allowedBrowserIDsSnapshot() -> Set<String>? {
+        nil
+    }
+
+    public func isBrowserAllowed(_ browser: Browser) -> Bool {
+        _ = browser
+        return true
+    }
+
+    public func isBrowserIDAllowed(_ id: String) -> Bool {
+        _ = id
+        return true
     }
 
     public func clearCache() {}

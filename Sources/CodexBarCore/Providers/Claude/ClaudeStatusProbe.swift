@@ -71,7 +71,7 @@ public struct ClaudeStatusProbe: Sendable {
         Self.log.info("Claude CLI scrape ok", metadata: [
             "sessionPercentLeft": "\(snap.sessionPercentLeft ?? -1)",
             "weeklyPercentLeft": "\(snap.weeklyPercentLeft ?? -1)",
-            "opusPercentLeft": "\(snap.opusPercentLeft ?? -1)",
+            "sonnetPercentLeft": "\(snap.opusPercentLeft ?? -1)",
         ])
         return snap
     }
@@ -96,7 +96,6 @@ public struct ClaudeStatusProbe: Sendable {
     }
 
     private static let weeklyLabelNeedle = Data("current week".utf8)
-    private static let opusLabelNeedle = Data("opus".utf8)
     private static let sonnetLabelNeedle = Data("sonnet".utf8)
 
     public static func parse(text: String, statusText: String? = nil) throws -> ClaudeStatusSnapshot {
@@ -121,7 +120,6 @@ public struct ClaudeStatusProbe: Sendable {
         var weeklyPct = self.extractPercent(labelSubstring: "Current week (all models)", context: labelContext)
         var opusPct = self.extractPercent(
             labelSubstrings: [
-                "Current week (Opus)",
                 "Current week (Sonnet only)",
                 "Current week (Sonnet)",
             ],
@@ -131,13 +129,13 @@ public struct ClaudeStatusProbe: Sendable {
         // Only apply the fallback when the corresponding label exists in the rendered panel; enterprise accounts
         // may omit the weekly panel entirely, and we should treat that as "unavailable" rather than guessing.
         let hasWeeklyLabel = labelContext.contains(Self.weeklyLabelNeedle)
-        let hasOpusLabel = labelContext.contains(Self.opusLabelNeedle) || labelContext.contains(Self.sonnetLabelNeedle)
+        let hasSonnetLabel = labelContext.contains(Self.sonnetLabelNeedle)
 
-        if sessionPct == nil || (hasWeeklyLabel && weeklyPct == nil) || (hasOpusLabel && opusPct == nil) {
+        if sessionPct == nil || (hasWeeklyLabel && weeklyPct == nil) || (hasSonnetLabel && opusPct == nil) {
             let ordered = self.allPercents(clean)
             if sessionPct == nil, ordered.indices.contains(0) { sessionPct = ordered[0] }
             if hasWeeklyLabel, weeklyPct == nil, ordered.indices.contains(1) { weeklyPct = ordered[1] }
-            if hasOpusLabel, opusPct == nil, ordered.indices.contains(2) { opusPct = ordered[2] }
+            if hasSonnetLabel, opusPct == nil, ordered.indices.contains(2) { opusPct = ordered[2] }
         }
 
         let identity = Self.parseIdentity(usageText: clean, statusText: statusClean)
@@ -155,10 +153,9 @@ public struct ClaudeStatusProbe: Sendable {
         let weeklyReset = hasWeeklyLabel
             ? self.extractReset(labelSubstring: "Current week (all models)", context: labelContext)
             : nil
-        let opusReset = hasOpusLabel
+        let opusReset = hasSonnetLabel
             ? self.extractReset(
                 labelSubstrings: [
-                    "Current week (Opus)",
                     "Current week (Sonnet only)",
                     "Current week (Sonnet)",
                 ],

@@ -448,6 +448,7 @@ public struct AugmentStatusProbe: Sendable {
         let url = self.baseURL.appendingPathComponent("/api/credits")
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
+        request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
@@ -481,6 +482,7 @@ public struct AugmentStatusProbe: Sendable {
         let url = self.baseURL.appendingPathComponent("/api/subscription")
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
+        request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 

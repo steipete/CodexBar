@@ -5,7 +5,7 @@ extension StatusItemController {
     // MARK: - Actions reachable from menus
 
     @objc func refreshNow() {
-        Task { await self.store.refresh(forceTokenUsage: true) }
+        Task { await self.store.refresh(forceTokenUsage: true, trigger: .userInitiated) }
     }
 
     @objc func installUpdate() {
@@ -105,7 +105,7 @@ extension StatusItemController {
 
             let shouldRefresh = await self.runLoginFlow(provider: provider)
             if shouldRefresh {
-                await self.store.refresh()
+                await self.store.refresh(trigger: .userInitiated)
                 print("[CodexBar] Triggered refresh after login")
             }
         }
@@ -130,10 +130,13 @@ extension StatusItemController {
         DispatchQueue.main.async {
             self.preferencesSelection.tab = tab
             NSApp.activate(ignoringOtherApps: true)
+            // Try SwiftUI environment action via notification first
             NotificationCenter.default.post(
                 name: .codexbarOpenSettings,
                 object: nil,
                 userInfo: ["tab": tab.rawValue])
+            // Fallback: Use AppKit selector for non-bundled execution
+            _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
         }
     }
 

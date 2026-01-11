@@ -66,13 +66,14 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
     }
 
     func storeToken(_ token: String?) throws {
-        let cleaned = token?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned == nil || cleaned?.isEmpty == true {
+        guard let cleaned = token?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !cleaned.isEmpty
+        else {
             try self.deleteTokenIfPresent()
             return
         }
 
-        let data = cleaned!.data(using: .utf8)!
+        let data = Data(cleaned.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,

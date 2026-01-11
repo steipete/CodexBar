@@ -32,7 +32,7 @@ extension StatusItemController {
                 self.seedBlinkStatesIfNeeded()
                 self.blinkTask = Task { [weak self] in
                     while !Task.isCancelled {
-                        try? await Task.sleep(for: .milliseconds(75))
+                        try? await Task.sleep(for: .milliseconds(150))
                         await MainActor.run { self?.tickBlink() }
                     }
                 }
@@ -424,7 +424,7 @@ extension StatusItemController {
                     self?.updateAnimationFrame()
                 })
                 self.animationDriver = driver
-                driver.start(fps: 60)
+                driver.start(fps: 15)
             } else if let forced = self.settings.debugLoadingPattern, forced != self.animationPattern {
                 self.animationPattern = forced
                 self.animationPhase = 0

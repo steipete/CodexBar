@@ -2,7 +2,8 @@ import Foundation
 
 enum CostUsageCacheIO {
     private static func defaultCacheRoot() -> URL {
-        let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let fm = FileManager.default
+        let root = fm.urls(for: .cachesDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
         return root.appendingPathComponent("CodexBar", isDirectory: true)
     }
 

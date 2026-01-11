@@ -34,6 +34,19 @@ public struct ClaudeOAuthCredentials: Sendable {
         return expiresAt.timeIntervalSinceNow
     }
 
+    public var planFromToken: String? {
+        let claims = Self.decodeTokenClaims(from: self.accessToken)
+        return claims?.subscriptionType ?? claims?.plan
+    }
+
+    public var rateLimitTierFromToken: String? {
+        Self.decodeTokenClaims(from: self.accessToken)?.rateLimitTier
+    }
+
+    public var billingTypeFromToken: String? {
+        Self.decodeTokenClaims(from: self.accessToken)?.billingType
+    }
+
     public static func parse(data: Data) throws -> ClaudeOAuthCredentials {
         let decoder = JSONDecoder()
         guard let root = try? decoder.decode(Root.self, from: data) else {
@@ -75,6 +88,34 @@ public struct ClaudeOAuthCredentials: Sendable {
             case scopes
             case rateLimitTier
         }
+    }
+
+    private struct TokenClaims: Decodable {
+        let subscriptionType: String?
+        let plan: String?
+        let rateLimitTier: String?
+        let billingType: String?
+    }
+
+    private static func decodeTokenClaims(from token: String) -> TokenClaims? {
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2,
+              let payloadData = Self.decodeJWTBase64URL(String(parts[1]))
+        else {
+            return nil
+        }
+        return try? JSONDecoder().decode(TokenClaims.self, from: payloadData)
+    }
+
+    private static func decodeJWTBase64URL(_ value: String) -> Data? {
+        var base64 = value
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = base64.count % 4
+        if remainder != 0 {
+            base64.append(String(repeating: "=", count: 4 - remainder))
+        }
+        return Data(base64Encoded: base64)
     }
 }
 

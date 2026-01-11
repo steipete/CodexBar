@@ -47,6 +47,8 @@ public struct MiniMaxUsageFetcher: Sendable {
     {
         var request = URLRequest(url: self.codingPlanURL)
         request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.httpShouldHandleCookies = false
         request.setValue(cookie, forHTTPHeaderField: "Cookie")
         if let authorizationToken {
             request.setValue("Bearer \(authorizationToken)", forHTTPHeaderField: "Authorization")
@@ -100,6 +102,8 @@ public struct MiniMaxUsageFetcher: Sendable {
         let remainsURL = self.appendGroupID(groupID, to: self.codingPlanRemainsURL)
         var request = URLRequest(url: remainsURL)
         request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.httpShouldHandleCookies = false
         request.setValue(cookie, forHTTPHeaderField: "Cookie")
         if let authorizationToken {
             request.setValue("Bearer \(authorizationToken)", forHTTPHeaderField: "Authorization")

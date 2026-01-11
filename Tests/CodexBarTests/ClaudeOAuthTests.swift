@@ -83,6 +83,32 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func mapsOAuthUsageWithAccountPlan() throws {
+        let usageJSON = """
+        {
+          "five_hour": { "utilization": 12, "resets_at": "2025-12-25T12:00:00.000Z" }
+        }
+        """
+        let accountJSON = """
+        {
+          "email": "user@example.com",
+          "subscription_type": "max",
+          "organization": {
+            "name": "Example Org",
+            "rate_limit_tier": "default_claude_max_20x"
+          }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(
+            Data(usageJSON.utf8),
+            rateLimitTier: "default_claude_pro_5x",
+            accountData: Data(accountJSON.utf8))
+        #expect(snap.loginMethod == "Claude Max")
+        #expect(snap.accountEmail == "user@example.com")
+        #expect(snap.accountOrganization == "Example Org")
+    }
+
+    @Test
     func mapsOAuthExtraUsage() throws {
         // OAuth API returns values in cents (minor units), same as Web API.
         // The normalization always converts to dollars (major units).
@@ -122,7 +148,24 @@ struct ClaudeOAuthTests {
     }
 
     @Test
-    func prefersOpusWhenSonnetMissing() throws {
+    func parsesPlanFromJWTClaims() {
+        let payload = """
+        {"subscriptionType":"max","rateLimitTier":"default_claude_max_20x","billingType":"stripe"}
+        """
+        let token = Self.jwtToken(payload: payload)
+        let creds = ClaudeOAuthCredentials(
+            accessToken: token,
+            refreshToken: nil,
+            expiresAt: nil,
+            scopes: [],
+            rateLimitTier: nil)
+        #expect(creds.planFromToken == "max")
+        #expect(creds.rateLimitTierFromToken == "default_claude_max_20x")
+        #expect(creds.billingTypeFromToken == "stripe")
+    }
+
+    @Test
+    func ignoresOpusWhenSonnetMissing() throws {
         let json = """
         {
           "five_hour": { "utilization": 10, "resets_at": "2025-12-25T12:00:00.000Z" },
@@ -130,7 +173,7 @@ struct ClaudeOAuthTests {
         }
         """
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
-        #expect(snap.opus?.usedPercent == 42)
+        #expect(snap.opus == nil)
     }
 
     @Test
@@ -188,5 +231,21 @@ struct ClaudeOAuthTests {
             hasWebSession: false,
             hasOAuthCredentials: false)
         #expect(strategy.dataSource == .cli)
+    }
+
+    private static func jwtToken(payload: String) -> String {
+        let header = "{\"alg\":\"none\"}"
+        let headerPart = Self.base64URL(header)
+        let payloadPart = Self.base64URL(payload)
+        return "\(headerPart).\(payloadPart)."
+    }
+
+    private static func base64URL(_ string: String) -> String {
+        let data = Data(string.utf8)
+        let base64 = data.base64EncodedString()
+        return base64
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }
