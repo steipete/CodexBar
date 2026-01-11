@@ -18,6 +18,7 @@ struct CLIProviderSelectionTests {
             "|gemini|",
             "|antigravity|",
             "|copilot|",
+            "|synthetic|",
             "|kiro|",
             "|both|",
             "|all]",

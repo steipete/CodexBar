@@ -61,6 +61,11 @@ enum KeychainPromptCoordinator {
                 "CodexBar will ask macOS Keychain for your z.ai API token",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
+        case .syntheticToken:
+            return (title, [
+                "CodexBar will ask macOS Keychain for your Synthetic API key",
+                "so it can fetch usage. Click OK to continue.",
+            ].joined(separator: " "))
         case .copilotToken:
             return (title, [
                 "CodexBar will ask macOS Keychain for your GitHub Copilot token",

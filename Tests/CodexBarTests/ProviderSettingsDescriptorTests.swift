@@ -11,7 +11,10 @@ struct ProviderSettingsDescriptorTests {
     func toggleIDsAreUniqueAcrossProviders() {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-unique")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-unique")
-        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -80,7 +83,10 @@ struct ProviderSettingsDescriptorTests {
     func codexExposesUsageAndCookiePickers() {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-codex")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-codex")
-        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -115,7 +121,10 @@ struct ProviderSettingsDescriptorTests {
     func claudeExposesUsageAndCookiePickers() {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-claude")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-claude")
-        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -149,7 +158,10 @@ struct ProviderSettingsDescriptorTests {
     func claudeWebExtrasAutoDisablesWhenLeavingCLI() {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-claude-invariant")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-claude-invariant")
-        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         settings.debugMenuEnabled = true
         settings.claudeUsageDataSource = .cli
         settings.claudeWebExtrasEnabled = true
