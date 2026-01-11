@@ -46,7 +46,7 @@ Cookie-based providers expose a Cookie source picker (Automatic or Manual) in Se
 
 ## z.ai
 - API token from Keychain or `Z_AI_API_KEY` env var.
-- `GET https://api.z.ai/api/monitor/usage/quota/limit`.
+- Quota endpoint: `https://api.z.ai/api/monitor/usage/quota/limit` (global) or `https://open.bigmodel.cn/api/monitor/usage/quota/limit` (BigModel CN); override with `Z_AI_API_HOST` or `Z_AI_QUOTA_URL`.
 - Status: none yet.
 - Details: `docs/zai.md`.
 

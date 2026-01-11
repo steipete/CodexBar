@@ -83,6 +83,21 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func persistsZaiAPIRegionAcrossInstances() {
+        let suite = "SettingsStoreTests-zai-region"
+        let defaultsA = UserDefaults(suiteName: suite)!
+        defaultsA.removePersistentDomain(forName: suite)
+        let storeA = SettingsStore(userDefaults: defaultsA, zaiTokenStore: NoopZaiTokenStore())
+
+        storeA.zaiAPIRegion = .bigmodelCN
+
+        let defaultsB = UserDefaults(suiteName: suite)!
+        let storeB = SettingsStore(userDefaults: defaultsB, zaiTokenStore: NoopZaiTokenStore())
+
+        #expect(storeB.zaiAPIRegion == .bigmodelCN)
+    }
+
+    @Test
     func defaultsOpenAIWebAccessToEnabled() {
         let suite = "SettingsStoreTests-openai-web"
         let defaults = UserDefaults(suiteName: suite)!

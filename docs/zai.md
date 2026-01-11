@@ -19,6 +19,9 @@ z.ai is API-token based. No browser cookies.
 
 ## API endpoint
 - `GET https://api.z.ai/api/monitor/usage/quota/limit`
+- BigModel (China mainland) host: `https://open.bigmodel.cn`
+- Override host via Providers → z.ai → *API region* or `Z_AI_API_HOST=open.bigmodel.cn`.
+- Override the full quota URL (e.g. coding plan endpoint) via `Z_AI_QUOTA_URL=https://open.bigmodel.cn/api/coding/paas/v4`.
 - Headers:
   - `authorization: Bearer <token>`
   - `accept: application/json`

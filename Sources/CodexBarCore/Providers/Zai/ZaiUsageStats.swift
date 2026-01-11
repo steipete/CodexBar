@@ -251,16 +251,41 @@ private struct ZaiLimitRaw: Codable {
 public struct ZaiUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger("zai-usage")
 
-    /// Base URL for z.ai quota API
-    private static let quotaAPIURL = "https://api.z.ai/api/monitor/usage/quota/limit"
+    /// Path for z.ai quota API
+    private static let quotaAPIPath = "api/monitor/usage/quota/limit"
+
+    /// Resolves the quota URL using (in order):
+    /// 1) `Z_AI_QUOTA_URL` environment override (full URL).
+    /// 2) `Z_AI_API_HOST` environment override (host/base URL).
+    /// 3) Region selection (global default).
+    public static func resolveQuotaURL(
+        region: ZaiAPIRegion,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
+    {
+        if let override = ZaiSettingsReader.quotaURL(environment: environment) {
+            return override
+        }
+        if let host = ZaiSettingsReader.apiHost(environment: environment),
+           let hostURL = self.quotaURL(baseURLString: host)
+        {
+            return hostURL
+        }
+        return region.quotaLimitURL
+    }
 
     /// Fetches usage stats from z.ai using the provided API key
-    public static func fetchUsage(apiKey: String) async throws -> ZaiUsageSnapshot {
+    public static func fetchUsage(
+        apiKey: String,
+        region: ZaiAPIRegion = .global,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> ZaiUsageSnapshot
+    {
         guard !apiKey.isEmpty else {
             throw ZaiUsageError.invalidCredentials
         }
 
-        var request = URLRequest(url: URL(string: quotaAPIURL)!)
+        let quotaURL = self.resolveQuotaURL(region: region, environment: environment)
+
+        var request = URLRequest(url: quotaURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "authorization")
         request.setValue("application/json", forHTTPHeaderField: "accept")
@@ -318,6 +343,22 @@ public struct ZaiUsageFetcher: Sendable {
             Self.log.error("z.ai parsing error: \(error.localizedDescription)")
             throw ZaiUsageError.parseFailed(error.localizedDescription)
         }
+    }
+
+    private static func quotaURL(baseURLString: String) -> URL? {
+        guard let cleaned = ZaiSettingsReader.cleaned(baseURLString) else { return nil }
+
+        if let url = URL(string: cleaned), url.scheme != nil {
+            if url.path.isEmpty || url.path == "/" {
+                return url.appendingPathComponent(Self.quotaAPIPath)
+            }
+            return url
+        }
+        guard let base = URL(string: "https://\(cleaned)") else { return nil }
+        if base.path.isEmpty || base.path == "/" {
+            return base.appendingPathComponent(Self.quotaAPIPath)
+        }
+        return base
     }
 }
 
