@@ -45,10 +45,8 @@ struct StatusProbeTests {
         1% used (Resets Dec 2 at 12am (Europe/Vienna))
 
         Nov 24, 2025 update:
-        We've increased your limits and removed the Opus cap,
-        so you can use Opus 4.5 up to your overall limit.
-        Sonnet now has its own limit—it's set to match your previous overall limit,
-        so you can use just as much as before.
+        We've increased your limits.
+        Sonnet now has its own limit—it's set to match your previous overall limit.
         Account: user@example.com
         Org: Example Org
         """
@@ -86,7 +84,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatusLegacyOpusLabel() throws {
+    func ignoresClaudeStatusLegacyOpusLabel() throws {
         let sample = """
         Current session
         12% used  (Resets 11am)
@@ -100,10 +98,10 @@ struct StatusProbeTests {
         let snap = try ClaudeStatusProbe.parse(text: sample)
         #expect(snap.sessionPercentLeft == 88)
         #expect(snap.weeklyPercentLeft == 45)
-        #expect(snap.opusPercentLeft == 95)
+        #expect(snap.opusPercentLeft == nil)
         #expect(snap.primaryResetDescription == "Resets 11am")
         #expect(snap.secondaryResetDescription == "Resets Nov 21")
-        #expect(snap.opusResetDescription == "Resets Nov 21")
+        #expect(snap.opusResetDescription == nil)
     }
 
     @Test
@@ -173,7 +171,7 @@ struct StatusProbeTests {
         10% used
         Current week (all models)
         20% used
-        Current week (Opus)
+        Current week (Sonnet)
         30% used
         \(sample)
         """
@@ -194,7 +192,7 @@ struct StatusProbeTests {
         10% used
         Current week (all models)
         20% used
-        Current week (Opus)
+        Current week (Sonnet)
         30% used
         \(sample)
         """

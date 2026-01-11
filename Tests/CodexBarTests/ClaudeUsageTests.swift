@@ -39,23 +39,19 @@ struct ClaudeUsageTests {
     }
 
     @Test
-    func parsesLegacyOpusAndAccount() {
+    func ignoresLegacyOpusLimit() {
         let json = """
         {
           "ok": true,
           "session_5h": { "pct_used": 2, "resets": "10:59pm (Europe/Vienna)" },
           "week_all_models": { "pct_used": 13, "resets": "Nov 21 at 4:59am (Europe/Vienna)" },
-          "week_opus": { "pct_used": 0, "resets": "" },
-          "account_email": " steipete@gmail.com ",
-          "account_org": ""
+          "week_opus": { "pct_used": 0, "resets": "" }
         }
         """
         let data = Data(json.utf8)
         let snap = ClaudeUsageFetcher.parse(json: data)
-        #expect(snap?.opus?.usedPercent == 0)
-        #expect(snap?.opus?.resetDescription?.isEmpty == true)
-        #expect(snap?.accountEmail == "steipete@gmail.com")
-        #expect(snap?.accountOrganization == nil)
+        #expect(snap != nil)
+        #expect(snap?.opus == nil)
     }
 
     @Test
@@ -112,7 +108,7 @@ struct ClaudeUsageTests {
         let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .cli)
         do {
             let snap = try await fetcher.loadLatestUsage()
-            let opusUsed = snap.opus?.usedPercent ?? -1
+            let sonnetUsed = snap.opus?.usedPercent ?? -1
             let weeklyUsed = snap.secondary?.usedPercent ?? -1
             let email = snap.accountEmail ?? "nil"
             let org = snap.accountOrganization ?? "nil"
@@ -121,7 +117,7 @@ struct ClaudeUsageTests {
                 Live Claude usage (PTY):
                 session used \(snap.primary.usedPercent)%
                 week used \(weeklyUsed)% 
-                opus \(opusUsed)% 
+                sonnet \(sonnetUsed)% 
                 email \(email) org \(org)
                 """)
             #expect(snap.primary.usedPercent >= 0)
@@ -170,13 +166,13 @@ struct ClaudeUsageTests {
         let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .web)
         let snap = try await fetcher.loadLatestUsage()
         let weeklyUsed = snap.secondary?.usedPercent ?? -1
-        let opusUsed = snap.opus?.usedPercent ?? -1
+        let sonnetUsed = snap.opus?.usedPercent ?? -1
         print(
             """
             Live Claude usage (Web API):
             session used \(snap.primary.usedPercent)%
             week used \(weeklyUsed)%
-            opus \(opusUsed)%
+            sonnet \(sonnetUsed)%
             login method: \(snap.loginMethod ?? "nil")
             """)
         #expect(snap.primary.usedPercent >= 0)
@@ -196,14 +192,14 @@ struct ClaudeUsageTests {
         {
           "five_hour": { "utilization": 9, "resets_at": "2025-12-23T16:00:00.000Z" },
           "seven_day": { "utilization": 4, "resets_at": "2025-12-29T23:00:00.000Z" },
-          "seven_day_opus": { "utilization": 1 }
+          "seven_day_sonnet": { "utilization": 1 }
         }
         """
         let data = Data(json.utf8)
         let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
         #expect(parsed.sessionPercentUsed == 9)
         #expect(parsed.weeklyPercentUsed == 4)
-        #expect(parsed.opusPercentUsed == 1)
+        #expect(parsed.sonnetPercentUsed == 1)
         #expect(parsed.sessionResetsAt != nil)
         #expect(parsed.weeklyResetsAt != nil)
     }
