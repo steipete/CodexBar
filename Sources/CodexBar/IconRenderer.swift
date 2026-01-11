@@ -715,6 +715,7 @@ enum IconRenderer {
         case .kiro: 9
         case .vertexai: 10
         case .augment: 11
+        case .synthetic: 12
         case .combined: 99
         }
     }

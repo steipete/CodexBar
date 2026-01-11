@@ -350,6 +350,7 @@ final class UsageStore {
         case .vertexai: nil
         case .kiro: self.kiroVersion
         case .augment: nil
+        case .synthetic: nil
         }
     }
 
@@ -378,7 +379,8 @@ final class UsageStore {
             (self.isEnabled(.cursor) && self.errors[.cursor] != nil) ||
             (self.isEnabled(.factory) && self.errors[.factory] != nil) ||
             (self.isEnabled(.copilot) && self.errors[.copilot] != nil) ||
-            (self.isEnabled(.minimax) && self.errors[.minimax] != nil)
+            (self.isEnabled(.minimax) && self.errors[.minimax] != nil) ||
+            (self.isEnabled(.synthetic) && self.errors[.synthetic] != nil)
     }
 
     func enabledProviders() -> [UsageProvider] {
@@ -457,6 +459,13 @@ final class UsageStore {
                 return true
             }
             return !self.settings.zaiAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        if provider == .synthetic {
+            if SyntheticSettingsReader.apiKey(environment: ProcessInfo.processInfo.environment) != nil {
+                return true
+            }
+            self.settings.ensureSyntheticAPITokenLoaded()
+            return !self.settings.syntheticAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         return true
     }
@@ -1271,6 +1280,13 @@ extension UsageStore {
                 let source = resolution?.source.rawValue ?? "none"
                 let text = "Z_AI_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 await MainActor.run { self.probeLogs[.zai] = text }
+                return text
+            case .synthetic:
+                let resolution = ProviderTokenResolver.syntheticResolution()
+                let hasAny = resolution != nil
+                let source = resolution?.source.rawValue ?? "none"
+                let text = "SYNTHETIC_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                await MainActor.run { self.probeLogs[.synthetic] = text }
                 return text
             case .gemini:
                 let text = "Gemini debug log not yet implemented"

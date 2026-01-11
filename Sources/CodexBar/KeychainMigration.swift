@@ -27,6 +27,7 @@ enum KeychainMigration {
         MigrationItem(service: "com.steipete.CodexBar", account: "augment-cookie"),
         MigrationItem(service: "com.steipete.CodexBar", account: "copilot-api-token"),
         MigrationItem(service: "com.steipete.CodexBar", account: "zai-api-token"),
+        MigrationItem(service: "com.steipete.CodexBar", account: "synthetic-api-key"),
         MigrationItem(service: "Claude Code-credentials", account: nil),
     ]
 
