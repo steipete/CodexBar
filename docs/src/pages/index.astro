@@ -1,0 +1,31 @@
+---
+import { Navigation } from '@/components/navigation';
+import { HeroSection } from '@/components/hero-section';
+import { InteractiveShowcase } from '@/components/interactive-showcase';
+import { ProvidersSection } from '@/components/providers-section';
+import { PrivacySection } from '@/components/privacy-section';
+import { Footer } from '@/components/footer';
+import '@/styles/global.css';
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/icon.png" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+		<title>CodexBar</title>
+	</head>
+	<body>
+		<div class="min-h-screen bg-[#0a0a0a] text-white">
+			<Navigation client:only />
+			<HeroSection client:only />
+			<InteractiveShowcase client:only />
+			<ProvidersSection client:only />
+			<PrivacySection client:only />
+			<Footer client:only />
+		</div>
+	</body>
+</html>
