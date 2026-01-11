@@ -45,4 +45,57 @@ struct AmpUsageParserTests {
         #expect(snapshot.freeUsed == 0)
         #expect(snapshot.freeQuota == 1000)
     }
+
+    @Test
+    func missingUsageThrowsParseFailed() {
+        let html = "<html><body>No usage here.</body></html>"
+
+        #expect {
+            try AmpUsageParser.parse(html: html)
+        } throws: { error in
+            guard case let AmpUsageError.parseFailed(message) = error else { return false }
+            return message.contains("Missing Amp Free usage data")
+        }
+    }
+
+    @Test
+    func signedOutThrowsNotLoggedIn() {
+        let html = "<html><body>Please sign in to Amp.</body></html>"
+
+        #expect {
+            try AmpUsageParser.parse(html: html)
+        } throws: { error in
+            guard case AmpUsageError.notLoggedIn = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func usageSnapshotClampsPercentAndWindow() {
+        let now = Date(timeIntervalSince1970: 1_700_020_000)
+        let snapshot = AmpUsageSnapshot(
+            freeQuota: 100,
+            freeUsed: 150,
+            hourlyReplenishment: 10,
+            windowHours: nil,
+            updatedAt: now)
+
+        let usage = snapshot.toUsageSnapshot(now: now)
+        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.primary?.windowMinutes == nil)
+    }
+
+    @Test
+    func usageSnapshotOmitsResetWhenHourlyReplenishmentIsZero() {
+        let now = Date(timeIntervalSince1970: 1_700_030_000)
+        let snapshot = AmpUsageSnapshot(
+            freeQuota: 100,
+            freeUsed: 20,
+            hourlyReplenishment: 0,
+            windowHours: 24,
+            updatedAt: now)
+
+        let usage = snapshot.toUsageSnapshot(now: now)
+        #expect(usage.primary?.resetsAt == nil)
+    }
 }
