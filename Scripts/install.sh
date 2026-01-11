@@ -41,10 +41,16 @@ else
     
     NEEDS_SUDO=false
     
-    if [[ ! -w "$TARGET_DIR" && ! -d "$TARGET_DIR" ]]; then
-        NEEDS_SUDO=true
-    elif [[ ! -w "$TARGET_DIR" ]]; then
-        NEEDS_SUDO=true
+    if [[ -d "$TARGET_DIR" ]]; then
+        if [[ ! -w "$TARGET_DIR" ]]; then
+            NEEDS_SUDO=true
+        fi
+    else
+        # If directory doesn't exist, check if we can create it (parent writable?)
+        PARENT_DIR="$(dirname "$TARGET_DIR")"
+        if [[ ! -w "$PARENT_DIR" ]]; then
+            NEEDS_SUDO=true
+        fi
     fi
 
     echo "    Linking 'codexbar' to $TARGET_LINK"
