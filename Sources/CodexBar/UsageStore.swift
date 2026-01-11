@@ -1,8 +1,101 @@
+// swiftlint:disable file_length
 import AppKit
 import CodexBarCore
 import Foundation
 import Observation
 import SweetCookieKit
+
+// MARK: - Unified Refresh Scheduler
+
+/// Debounces rapid-fire calls to a single delayed execution.
+/// Used to prevent cascading refresh storms from settings observation.
+@MainActor
+final class Debouncer {
+    private var task: Task<Void, Never>?
+    private let delay: TimeInterval
+
+    init(delay: TimeInterval = 0.5) {
+        self.delay = delay
+    }
+
+    func debounce(_ action: @escaping @MainActor () async -> Void) {
+        self.task?.cancel()
+        self.task = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(self.delay))
+            guard !Task.isCancelled else { return }
+            await action()
+        }
+    }
+
+    func cancel() {
+        self.task?.cancel()
+        self.task = nil
+    }
+}
+
+/// Coalesces multiple timer-based refresh operations into a single wake-up cycle.
+/// Reduces CPU usage by avoiding separate busy-wait loops for each refresh type.
+@MainActor
+final class UnifiedRefreshScheduler {
+    private var task: Task<Void, Never>?
+    private let usageInterval: TimeInterval
+    private let tokenInterval: TimeInterval
+    private let onUsageRefresh: @MainActor () async -> Void
+    private let onTokenRefresh: @MainActor () async -> Void
+
+    private var lastUsageRefresh: Date = .distantPast
+    private var lastTokenRefresh: Date = .distantPast
+
+    init(
+        usageInterval: TimeInterval,
+        tokenInterval: TimeInterval,
+        onUsageRefresh: @escaping @MainActor () async -> Void,
+        onTokenRefresh: @escaping @MainActor () async -> Void)
+    {
+        self.usageInterval = usageInterval
+        self.tokenInterval = tokenInterval
+        self.onUsageRefresh = onUsageRefresh
+        self.onTokenRefresh = onTokenRefresh
+    }
+
+    func start() {
+        self.task?.cancel()
+        // Use the smaller interval as the tick rate, but only fire callbacks when their interval has elapsed
+        let tickInterval = min(self.usageInterval, self.tokenInterval)
+
+        self.task = Task.detached(priority: .utility) { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(tickInterval))
+                await self?.tick()
+            }
+        }
+    }
+
+    func stop() {
+        self.task?.cancel()
+        self.task = nil
+    }
+
+    private func tick() async {
+        let now = Date()
+
+        // Check if usage refresh is due
+        if now.timeIntervalSince(self.lastUsageRefresh) >= self.usageInterval {
+            self.lastUsageRefresh = now
+            await self.onUsageRefresh()
+        }
+
+        // Check if token refresh is due
+        if now.timeIntervalSince(self.lastTokenRefresh) >= self.tokenInterval {
+            self.lastTokenRefresh = now
+            await self.onTokenRefresh()
+        }
+    }
+
+    func resetUsageTimer() {
+        self.lastUsageRefresh = .distantPast
+    }
+}
 
 // MARK: - Observation helpers
 
@@ -58,6 +151,7 @@ extension UsageStore {
             _ = self.settings.cursorCookieHeader
             _ = self.settings.factoryCookieHeader
             _ = self.settings.minimaxCookieHeader
+            _ = self.settings.allowedBrowserIDs
             _ = self.settings.mergeIcons
             _ = self.settings.selectedMenuProvider
             _ = self.settings.debugLoadingPattern
@@ -65,10 +159,16 @@ extension UsageStore {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                // Re-register observation immediately to catch subsequent changes
                 self.observeSettingsChanges()
-                self.startTimer()
-                self.restartAugmentKeepaliveIfNeeded()
-                await self.refresh()
+                // Debounce the actual refresh to avoid cascading updates
+                self.settingsDebouncer.debounce { [weak self] in
+                    guard let self else { return }
+                    self.browserDetection.updateAllowedBrowserIDs(self.settings.allowedBrowserIDs)
+                    self.startUnifiedScheduler()
+                    self.restartAugmentKeepaliveIfNeeded()
+                    await self.refresh(trigger: .automatic)
+                }
             }
         }
     }
@@ -214,6 +314,12 @@ struct ConsecutiveFailureGate {
 @MainActor
 @Observable
 final class UsageStore {
+    enum RefreshTrigger: Sendable {
+        case appLaunch
+        case automatic
+        case userInitiated
+    }
+
     private(set) var snapshots: [UsageProvider: UsageSnapshot] = [:]
     private(set) var errors: [UsageProvider: String] = [:]
     private(set) var lastSourceLabels: [UsageProvider: String] = [:]
@@ -264,14 +370,15 @@ final class UsageStore {
     @ObservationIgnored private var tokenFailureGates: [UsageProvider: ConsecutiveFailureGate] = [:]
     @ObservationIgnored private var providerSpecs: [UsageProvider: ProviderSpec] = [:]
     @ObservationIgnored private let providerMetadata: [UsageProvider: ProviderMetadata]
-    @ObservationIgnored private var timerTask: Task<Void, Never>?
-    @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
+    @ObservationIgnored private var unifiedScheduler: UnifiedRefreshScheduler?
+    @ObservationIgnored private var settingsDebouncer = Debouncer(delay: 0.5)
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
     @ObservationIgnored private var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored private(set) var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
     @ObservationIgnored private var augmentKeepalive: AugmentSessionKeepalive?
+    @ObservationIgnored private var allowBrowserCookieAccess: Bool = false
 
     init(
         fetcher: UsageFetcher,
@@ -297,21 +404,24 @@ final class UsageStore {
         self.tokenFailureGates = Dictionary(
             uniqueKeysWithValues: UsageProvider.allCases
                 .map { ($0, ConsecutiveFailureGate()) })
+        self.settings.initializeBrowserAllowlistIfNeeded(browserDetection: browserDetection)
+        self.browserDetection.updateAllowedBrowserIDs(self.settings.allowedBrowserIDs)
         self.providerSpecs = registry.specs(
             settings: settings,
-            metadata: self.providerMetadata,
             codexFetcher: fetcher,
             claudeFetcher: self.claudeFetcher,
-            browserDetection: browserDetection)
+            browserDetection: browserDetection,
+            allowBrowserCookieAccess: { [weak self] in
+                self?.allowBrowserCookieAccess ?? false
+            })
         self.bindSettings()
         self.detectVersions()
         self.refreshPathDebugInfo()
         LoginShellPathCache.shared.captureOnce { [weak self] _ in
             Task { @MainActor in self?.refreshPathDebugInfo() }
         }
-        Task { await self.refresh() }
-        self.startTimer()
-        self.startTokenTimer()
+        Task { await self.refresh(trigger: .appLaunch) }
+        self.startUnifiedScheduler()
         self.startAugmentKeepalive()
     }
 
@@ -392,7 +502,25 @@ final class UsageStore {
     }
 
     func metadata(for provider: UsageProvider) -> ProviderMetadata {
-        self.providerMetadata[provider]!
+        if let metadata = self.providerMetadata[provider] {
+            return metadata
+        }
+
+        assertionFailure("Missing provider metadata for \(provider.rawValue)")
+        return ProviderMetadata(
+            id: provider,
+            displayName: provider.rawValue,
+            sessionLabel: "Session",
+            weeklyLabel: "Week",
+            opusLabel: nil,
+            supportsOpus: false,
+            supportsCredits: false,
+            creditsHint: "",
+            toggleTitle: provider.rawValue,
+            cliName: provider.rawValue,
+            defaultEnabled: false,
+            dashboardURL: nil,
+            statusPageURL: nil)
     }
 
     private var codexBrowserCookieOrder: BrowserCookieImportOrder {
@@ -461,10 +589,14 @@ final class UsageStore {
         return true
     }
 
-    func refresh(forceTokenUsage: Bool = false) async {
+    func refresh(forceTokenUsage: Bool = false, trigger: RefreshTrigger = .automatic) async {
         guard !self.isRefreshing else { return }
         self.isRefreshing = true
         defer { self.isRefreshing = false }
+
+        if trigger == .userInitiated {
+            self.allowBrowserCookieAccess = true
+        }
 
         await withTaskGroup(of: Void.self) { group in
             for provider in UsageProvider.allCases {
@@ -509,28 +641,25 @@ final class UsageStore {
         self.observeSettingsChanges()
     }
 
-    private func startTimer() {
-        self.timerTask?.cancel()
-        guard let wait = self.settings.refreshFrequency.seconds else { return }
+    private func startUnifiedScheduler() {
+        self.unifiedScheduler?.stop()
+        guard let usageWait = self.settings.refreshFrequency.seconds else {
+            self.unifiedScheduler = nil
+            return
+        }
 
-        // Background poller so the menu stays responsive; canceled when settings change or store deallocates.
-        self.timerTask = Task.detached(priority: .utility) { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(wait))
+        let tokenWait = self.tokenFetchTTL
+
+        self.unifiedScheduler = UnifiedRefreshScheduler(
+            usageInterval: usageWait,
+            tokenInterval: tokenWait,
+            onUsageRefresh: { [weak self] in
                 await self?.refresh()
-            }
-        }
-    }
-
-    private func startTokenTimer() {
-        self.tokenTimerTask?.cancel()
-        let wait = self.tokenFetchTTL
-        self.tokenTimerTask = Task.detached(priority: .utility) { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(wait))
-                await self?.scheduleTokenRefresh(force: false)
-            }
-        }
+            },
+            onTokenRefresh: { [weak self] in
+                self?.scheduleTokenRefresh(force: false)
+            })
+        self.unifiedScheduler?.start()
     }
 
     private func scheduleTokenRefresh(force: Bool) {
@@ -555,9 +684,9 @@ final class UsageStore {
         }
     }
 
+    @MainActor
     deinit {
-        self.timerTask?.cancel()
-        self.tokenTimerTask?.cancel()
+        self.unifiedScheduler?.stop()
         self.tokenRefreshSequenceTask?.cancel()
         // Note: augmentKeepalive.stop() is @MainActor, can't call from deinit
         // The timer task will be cancelled when augmentKeepalive is deallocated
@@ -651,12 +780,36 @@ final class UsageStore {
                 self.failureGates[provider]?.recordSuccess()
             }
         case let .failure(error):
+            if !self.allowBrowserCookieAccess,
+               case ProviderFetchError.noAvailableStrategy = error
+            {
+                return
+            }
             await MainActor.run {
                 let hadPriorData = self.snapshots[provider] != nil
                 let shouldSurface = self.failureGates[provider]?
                     .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
                 if shouldSurface {
-                    self.errors[provider] = error.localizedDescription
+                    let context: ErrorContext = switch provider {
+                    case .claude:
+                        .usageFetch(provider: "Claude")
+                    case .codex:
+                        .usageFetch(provider: "Codex")
+                    case .cursor:
+                        .usageFetch(provider: "Cursor")
+                    case .copilot:
+                        .usageFetch(provider: "Copilot")
+                    case .gemini:
+                        .usageFetch(provider: "Gemini")
+                    case .vertexai:
+                        .usageFetch(provider: "Vertex AI")
+                    case .augment:
+                        .usageFetch(provider: "Augment")
+                    case .factory, .antigravity, .zai, .minimax, .kiro:
+                        .usageFetch(provider: provider.rawValue.capitalized)
+                    }
+                    let displayable = ErrorPresenter.present(error, context: context)
+                    self.errors[provider] = displayable.statusBarText
                     self.snapshots.removeValue(forKey: provider)
                 } else {
                     self.errors[provider] = nil
@@ -833,7 +986,8 @@ extension UsageStore {
     }
 
     private func refreshOpenAIDashboardIfNeeded(force: Bool = false) async {
-        guard self.isEnabled(.codex), self.settings.codexCookieSource.isEnabled else {
+        let cookieSource = self.settings.codexCookieSource
+        guard self.isEnabled(.codex), cookieSource.isEnabled else {
             await MainActor.run {
                 self.openAIDashboard = nil
                 self.lastOpenAIDashboardError = nil
@@ -848,11 +1002,17 @@ extension UsageStore {
             return
         }
 
+        if cookieSource == .auto, !self.allowBrowserCookieAccess {
+            return
+        }
+
         let targetEmail = self.codexAccountEmailForOpenAIDashboard()
         self.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: targetEmail)
 
         let now = Date()
-        let minInterval = max(self.settings.refreshFrequency.seconds ?? 0, 120)
+        // Increased minimum interval to 10 minutes to reduce WKWebView CPU overhead.
+        // WebView scraping is expensive; only refresh when cache is truly stale.
+        let minInterval: TimeInterval = max(self.settings.refreshFrequency.seconds ?? 0, 600)
         if !force,
            !self.openAIWebAccountDidChange,
            self.lastOpenAIDashboardError == nil,
@@ -1153,16 +1313,20 @@ extension UsageStore {
                  .manualCookieHeaderInvalid:
                 self.logOpenAIWeb("[\(stamp)] import failed: \(err.localizedDescription)")
                 await MainActor.run {
-                    self.openAIDashboardCookieImportStatus =
-                        "OpenAI cookie import failed: \(err.localizedDescription)"
+                    let displayable = ErrorPresenter.present(
+                        err,
+                        context: .cookieExtraction(provider: "OpenAI"))
+                    self.openAIDashboardCookieImportStatus = displayable.statusBarText
                     self.openAIDashboardRequiresLogin = true
                 }
             }
         } catch {
             self.logOpenAIWeb("[\(stamp)] import failed: \(error.localizedDescription)")
             await MainActor.run {
-                self.openAIDashboardCookieImportStatus =
-                    "Browser cookie import failed: \(error.localizedDescription)"
+                let displayable = ErrorPresenter.present(
+                    error,
+                    context: .cookieExtraction(provider: "OpenAI"))
+                self.openAIDashboardCookieImportStatus = displayable.statusBarText
             }
         }
         return nil
@@ -1370,7 +1534,7 @@ extension UsageStore {
                         lines.append("weekly_used=nil")
                     }
 
-                    lines.append("opus_used=\(web.opusPercentUsed?.description ?? "nil")")
+                    lines.append("sonnet_used=\(web.sonnetPercentUsed?.description ?? "nil")")
 
                     if let extra = web.extraUsageCost {
                         let resetsAt = extra.resetsAt?.description ?? "nil"

@@ -21,7 +21,7 @@ extension UsageStore {
     nonisolated static func costUsageCacheDirectory(
         fileManager: FileManager = .default) -> URL
     {
-        let root = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let root = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first ?? fileManager.temporaryDirectory
         return root
             .appendingPathComponent("CodexBar", isDirectory: true)
             .appendingPathComponent("cost-usage", isDirectory: true)

@@ -2,6 +2,7 @@ import AppKit
 import CodexBarCore
 import Observation
 import ServiceManagement
+import SweetCookieKit
 
 enum RefreshFrequency: String, CaseIterable, Identifiable {
     case manual
@@ -41,6 +42,10 @@ final class SettingsStore {
     /// Stored as raw `UsageProvider` strings so new providers can be appended automatically without breaking.
     private var providerOrderRaw: [String] {
         didSet { self.userDefaults.set(self.providerOrderRaw, forKey: "providerOrder") }
+    }
+
+    private var allowedBrowserIDsRaw: [String] {
+        didSet { self.userDefaults.set(self.allowedBrowserIDsRaw, forKey: "allowedBrowserIDs") }
     }
 
     var refreshFrequency: RefreshFrequency {
@@ -294,7 +299,8 @@ final class SettingsStore {
         get { ClaudeUsageDataSource(rawValue: self.claudeUsageDataSourceRaw ?? "") ?? .auto }
         set {
             self.claudeUsageDataSourceRaw = newValue.rawValue
-            if newValue != .cli {
+            // Only disable web extras for explicit web/oauth sources (not auto or cli)
+            if newValue == .web || newValue == .oauth {
                 self.claudeWebExtrasEnabled = false
             }
         }
@@ -335,6 +341,7 @@ final class SettingsStore {
 
     var menuObservationToken: Int {
         _ = self.providerOrderRaw
+        _ = self.allowedBrowserIDsRaw
         _ = self.refreshFrequency
         _ = self.launchAtLogin
         _ = self.debugMenuEnabled
@@ -450,6 +457,7 @@ final class SettingsStore {
         self.augmentCookieStore = augmentCookieStore
         self.copilotTokenStore = copilotTokenStore
         self.providerOrderRaw = userDefaults.stringArray(forKey: "providerOrder") ?? []
+        self.allowedBrowserIDsRaw = userDefaults.stringArray(forKey: "allowedBrowserIDs") ?? []
         let raw = userDefaults.string(forKey: "refreshFrequency") ?? RefreshFrequency.fiveMinutes.rawValue
         self.refreshFrequency = RefreshFrequency(rawValue: raw) ?? .fiveMinutes
         self.launchAtLogin = userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false
@@ -468,7 +476,7 @@ final class SettingsStore {
             forKey: "menuBarShowsBrandIconWithPercent") as? Bool ?? false
         self.costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
         self.randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
-        self.claudeWebExtrasEnabled = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
+        self.claudeWebExtrasEnabled = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? true
         let creditsExtrasDefault = userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool
         self.showOptionalCreditsAndExtraUsage = creditsExtrasDefault ?? true
         if creditsExtrasDefault == nil {
@@ -519,10 +527,16 @@ final class SettingsStore {
         LaunchAtLoginManager.setEnabled(self.launchAtLogin)
         self.runInitialProviderDetectionIfNeeded()
         self.applyTokenCostDefaultIfNeeded()
-        if self.claudeUsageDataSource != .cli {
+        // Allow web extras for auto mode (falls back to CLI with extras) and explicit CLI mode
+        if self.claudeUsageDataSource == .web || self.claudeUsageDataSource == .oauth {
             self.claudeWebExtrasEnabled = false
         }
         self.openAIWebAccessEnabled = self.codexCookieSource.isEnabled
+    }
+
+    var allowedBrowserIDs: Set<String> {
+        get { Set(self.allowedBrowserIDsRaw) }
+        set { self.allowedBrowserIDsRaw = newValue.sorted() }
     }
 
     func orderedProviders() -> [UsageProvider] {
@@ -579,6 +593,12 @@ final class SettingsStore {
 
     func rerunProviderDetection() {
         self.runInitialProviderDetectionIfNeeded(force: true)
+    }
+
+    func initializeBrowserAllowlistIfNeeded(browserDetection: BrowserDetection) {
+        if self.userDefaults.object(forKey: "allowedBrowserIDs") != nil { return }
+        let defaults = BrowserSelectionCatalog.defaultAllowedBrowserIDs(using: browserDetection)
+        self.allowedBrowserIDs = defaults
     }
 
     // MARK: - Private

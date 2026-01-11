@@ -247,12 +247,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Terminate other instances to enforce singleton behavior
+        self.terminateOtherInstances()
+
         AppNotifications.shared.requestAuthorizationOnStartup()
         self.ensureStatusController()
         KeyboardShortcuts.onKeyUp(for: .openMenu) { [weak self] in
             Task { @MainActor [weak self] in
                 self?.statusController?.openMenuFromShortcut()
             }
+        }
+    }
+
+    private func terminateOtherInstances() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let runningInstances = NSRunningApplication.runningApplications(
+            withBundleIdentifier: bundleID)
+
+        for instance in runningInstances where instance != NSRunningApplication.current {
+            instance.terminate()
         }
     }
 
