@@ -60,17 +60,32 @@ struct MenuDescriptor {
         switch provider {
         case .codex?:
             sections.append(Self.usageSection(for: .codex, store: store, settings: settings))
-            if let accountSection = Self.accountSection(for: .codex, store: store, account: account) {
+            if let accountSection = Self.accountSection(
+                for: .codex,
+                store: store,
+                settings: settings,
+                account: account)
+            {
                 sections.append(accountSection)
             }
         case .claude?:
             sections.append(Self.usageSection(for: .claude, store: store, settings: settings))
-            if let accountSection = Self.accountSection(for: .claude, store: store, account: account) {
+            if let accountSection = Self.accountSection(
+                for: .claude,
+                store: store,
+                settings: settings,
+                account: account)
+            {
                 sections.append(accountSection)
             }
         case let provider?:
             sections.append(Self.usageSection(for: provider, store: store, settings: settings))
-            if let accountSection = Self.accountSection(for: provider, store: store, account: account) {
+            if let accountSection = Self.accountSection(
+                for: provider,
+                store: store,
+                settings: settings,
+                account: account)
+            {
                 sections.append(accountSection)
             }
         case nil:
@@ -82,7 +97,11 @@ struct MenuDescriptor {
             }
             if addedUsage {
                 if let accountProvider = Self.accountProviderForCombined(store: store),
-                   let accountSection = Self.accountSection(for: accountProvider, store: store, account: account)
+                   let accountSection = Self.accountSection(
+                       for: accountProvider,
+                       store: store,
+                       settings: settings,
+                       account: account)
                 {
                     sections.append(accountSection)
                 }
@@ -186,6 +205,7 @@ struct MenuDescriptor {
     private static func accountSection(
         for provider: UsageProvider,
         store: UsageStore,
+        settings: SettingsStore,
         account: AccountInfo) -> Section?
     {
         let snapshot = store.snapshot(for: provider)
@@ -194,7 +214,8 @@ struct MenuDescriptor {
             provider: provider,
             snapshot: snapshot,
             metadata: metadata,
-            fallback: account)
+            fallback: account,
+            hidePersonalInfo: settings.hidePersonalInfo)
         guard !entries.isEmpty else { return nil }
         return Section(entries: entries)
     }
@@ -203,16 +224,18 @@ struct MenuDescriptor {
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         metadata: ProviderMetadata,
-        fallback: AccountInfo) -> [Entry]
+        fallback: AccountInfo,
+        hidePersonalInfo: Bool) -> [Entry]
     {
         var entries: [Entry] = []
         let emailText = snapshot?.accountEmail(for: provider)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let planText = snapshot?.loginMethod(for: provider)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let redactedEmail = PersonalInfoRedactor.redactEmail(emailText, isEnabled: hidePersonalInfo)
 
         if let emailText, !emailText.isEmpty {
-            entries.append(.text("Account: \(emailText)", .secondary))
+            entries.append(.text("Account: \(redactedEmail)", .secondary))
         }
         if let planText, !planText.isEmpty {
             entries.append(.text("Plan: \(AccountFormatter.plan(planText))", .secondary))
@@ -220,7 +243,8 @@ struct MenuDescriptor {
 
         if metadata.usesAccountFallback {
             if emailText?.isEmpty ?? true, let fallbackEmail = fallback.email, !fallbackEmail.isEmpty {
-                entries.append(.text("Account: \(fallbackEmail)", .secondary))
+                let redacted = PersonalInfoRedactor.redactEmail(fallbackEmail, isEnabled: hidePersonalInfo)
+                entries.append(.text("Account: \(redacted)", .secondary))
             }
             if planText?.isEmpty ?? true, let fallbackPlan = fallback.plan, !fallbackPlan.isEmpty {
                 entries.append(.text("Plan: \(AccountFormatter.plan(fallbackPlan))", .secondary))

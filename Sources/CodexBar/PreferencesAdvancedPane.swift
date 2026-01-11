@@ -50,6 +50,10 @@ struct AdvancedPane: View {
                         subtitle: "Show Codex Credits and Claude Extra usage sections in the menu.",
                         binding: self.$settings.showOptionalCreditsAndExtraUsage)
                     PreferenceToggleRow(
+                        title: "Hide personal information",
+                        subtitle: "Obscure email addresses in the menu bar and menu UI.",
+                        binding: self.$settings.hidePersonalInfo)
+                    PreferenceToggleRow(
                         title: "Merge Icons",
                         subtitle: "Use a single menu bar icon with a provider switcher.",
                         binding: self.$settings.mergeIcons)
