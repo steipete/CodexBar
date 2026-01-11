@@ -74,6 +74,8 @@ struct ProviderRegistry {
                         let augmentCookieSource = Self.resolvedCookieSource(
                             settings.augmentCookieSource,
                             allowCookies: allowCookies)
+                        // Gate webExtras on cookie access - web extras require cookie scans
+                        let claudeWebExtras = allowCookies && settings.claudeWebExtrasEnabled
                         return ProviderSettingsSnapshot(
                             debugMenuEnabled: settings.debugMenuEnabled,
                             codex: ProviderSettingsSnapshot.CodexProviderSettings(
@@ -82,7 +84,7 @@ struct ProviderRegistry {
                                 manualCookieHeader: settings.codexCookieHeader),
                             claude: ProviderSettingsSnapshot.ClaudeProviderSettings(
                                 usageDataSource: settings.claudeUsageDataSource,
-                                webExtrasEnabled: settings.claudeWebExtrasEnabled,
+                                webExtrasEnabled: claudeWebExtras,
                                 cookieSource: claudeCookieSource,
                                 manualCookieHeader: settings.claudeCookieHeader),
                             cursor: ProviderSettingsSnapshot.CursorProviderSettings(
