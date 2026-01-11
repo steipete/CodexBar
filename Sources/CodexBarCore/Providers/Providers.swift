@@ -15,6 +15,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case kiro
     case vertexai
     case augment
+    case kimi
 }
 
 // swiftformat:enable sortDeclarations
@@ -32,6 +33,7 @@ public enum IconStyle: Sendable {
     case kiro
     case vertexai
     case augment
+    case kimi
     case combined
 }
 

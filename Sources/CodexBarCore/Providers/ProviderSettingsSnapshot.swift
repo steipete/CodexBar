@@ -74,6 +74,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         public init() {}
     }
 
+    public struct KimiProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct AugmentProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -92,6 +102,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let minimax: MiniMaxProviderSettings?
     public let zai: ZaiProviderSettings?
     public let copilot: CopilotProviderSettings?
+    public let kimi: KimiProviderSettings?
     public let augment: AugmentProviderSettings?
 
     public init(
@@ -103,6 +114,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         minimax: MiniMaxProviderSettings?,
         zai: ZaiProviderSettings?,
         copilot: CopilotProviderSettings?,
+        kimi: KimiProviderSettings?,
         augment: AugmentProviderSettings?)
     {
         self.debugMenuEnabled = debugMenuEnabled
@@ -113,6 +125,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.minimax = minimax
         self.zai = zai
         self.copilot = copilot
+        self.kimi = kimi
         self.augment = augment
     }
 }

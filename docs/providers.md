@@ -50,11 +50,27 @@ Cookie-based providers expose a Cookie source picker (Automatic or Manual) in Se
 - Status: none yet.
 - Details: `docs/zai.md`.
 
-## MiniMax
-- Session cookie header from Keychain or `MINIMAX_COOKIE`/`MINIMAX_COOKIE_HEADER` env var.
-- `GET https://platform.minimax.io/v1/api/openplatform/coding_plan/remains`.
+| Provider | Strategies (ordered for auto) |
+| --- | --- |
+| Codex | Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`); app uses CLI usage + optional dashboard scrape. |
+| Claude | OAuth API (`oauth`) → Web API (`web`) → CLI PTY (`claude`). |
+| Gemini | OAuth API via Gemini CLI credentials (`api`). |
+| Antigravity | Local LSP/HTTP probe (`local`). |
+| Cursor | Web API via cookies → stored WebKit session (`web`). |
+| Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
+| z.ai | API token (Keychain/env) → quota API (`api`). |
+| MiniMax | Manual cookie header (Keychain/env) → browser cookies (+ local storage access token) → coding plan page (HTML) with remains API fallback (`web`). |
+| Kimi | API token (JWT from `kimi-auth` cookie) → usage API (`api`). |
+| Copilot | API token (device flow/env) → copilot_internal API (`api`). |
+| Kiro | CLI command via `kiro-cli chat --no-interactive "/usage"` (`cli`). |
+| Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
+
+## Kimi
+- Auth token (JWT from `kimi-auth` cookie) via manual entry or `KIMI_AUTH_TOKEN` env var.
+- `POST https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages`.
+- Shows weekly quota and 5-hour rate limit (300 minutes).
 - Status: none yet.
-- Details: `docs/minimax.md`.
+- Details: `docs/kimi.md`.
 
 ## Gemini
 - OAuth-backed quota API (`retrieveUserQuota`) using Gemini CLI credentials.

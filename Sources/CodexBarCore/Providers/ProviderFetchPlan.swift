@@ -164,6 +164,7 @@ public struct ProviderFetchPipeline: Sendable {
 
         for strategy in strategies {
             let available = await strategy.isAvailable(context)
+
             guard available else {
                 attempts.append(ProviderFetchAttempt(
                     strategyID: strategy.id,
