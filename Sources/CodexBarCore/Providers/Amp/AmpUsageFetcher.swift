@@ -74,9 +74,10 @@ public enum AmpCookieImporter {
                     guard !cookies.isEmpty else { continue }
                     let names = cookies.map(\.name).joined(separator: ", ")
                     log("\(source.label) cookies: \(names)")
-                    if cookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
-                        log("Found \(cookies.count) Amp cookies in \(source.label)")
-                        return SessionInfo(cookies: cookies, sourceLabel: source.label)
+                    let sessionCookies = cookies.filter { Self.sessionCookieNames.contains($0.name) }
+                    if !sessionCookies.isEmpty {
+                        log("Found Amp session cookie in \(source.label)")
+                        return SessionInfo(cookies: sessionCookies, sourceLabel: source.label)
                     }
                     log("\(source.label) cookies found, but no Amp session cookie present")
                     log("Expected one of: \(Self.sessionCookieNames.joined(separator: ", "))")
@@ -201,8 +202,11 @@ public struct AmpUsageFetcher: Sendable {
         logger: ((String) -> Void)?) async throws -> String
     {
         if let override = CookieHeaderNormalizer.normalize(override) {
-            logger?("[amp] Using manual cookie header")
-            return override
+            if let sessionHeader = self.sessionCookieHeader(from: override) {
+                logger?("[amp] Using manual session cookie")
+                return sessionHeader
+            }
+            throw AmpUsageError.noSessionCookie
         }
         #if os(macOS)
         let session = try AmpCookieImporter.importSession(browserDetection: self.browserDetection, logger: logger)
@@ -339,5 +343,12 @@ public struct AmpUsageFetcher: Sendable {
             let name = trimmed[..<idx].trimmingCharacters(in: .whitespacesAndNewlines)
             return name.isEmpty ? nil : String(name)
         }
+    }
+
+    private func sessionCookieHeader(from header: String) -> String? {
+        let pairs = CookieHeaderNormalizer.pairs(from: header)
+        let sessionPairs = pairs.filter { $0.name == "session" }
+        guard !sessionPairs.isEmpty else { return nil }
+        return sessionPairs.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
     }
 }
