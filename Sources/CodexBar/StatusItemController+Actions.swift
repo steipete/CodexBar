@@ -4,8 +4,12 @@ import CodexBarCore
 extension StatusItemController {
     // MARK: - Actions reachable from menus
 
+    func refreshStore(forceTokenUsage: Bool) {
+        Task { await self.store.refresh(forceTokenUsage: forceTokenUsage) }
+    }
+
     @objc func refreshNow() {
-        Task { await self.store.refresh(forceTokenUsage: true) }
+        self.refreshStore(forceTokenUsage: true)
     }
 
     @objc func installUpdate() {

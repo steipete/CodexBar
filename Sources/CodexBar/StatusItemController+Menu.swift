@@ -301,8 +301,18 @@ extension StatusItemController {
         return self.store.enabledProviders().first ?? .codex
     }
 
+    private func shouldRefreshOpenMenu(for menu: NSMenu) -> Bool {
+        guard !self.store.isRefreshing else { return false }
+        let provider = self.menuProvider(for: menu) ?? self.resolvedMenuProvider() ?? .codex
+        let isStale = self.store.isStale(provider: provider)
+        let hasSnapshot = self.store.snapshot(for: provider) != nil
+        return isStale || !hasSnapshot
+    }
+
     private func scheduleOpenMenuRefresh(for menu: NSMenu) {
-        self.refreshNow()
+        if self.shouldRefreshOpenMenu(for: menu) {
+            self.refreshStore(forceTokenUsage: false)
+        }
         let key = ObjectIdentifier(menu)
         self.menuRefreshTasks[key]?.cancel()
         self.menuRefreshTasks[key] = Task { @MainActor [weak self, weak menu] in
@@ -315,7 +325,8 @@ extension StatusItemController {
             let isStale = provider.map { self.store.isStale(provider: $0) } ?? self.store.isStale
             let hasSnapshot = provider.map { self.store.snapshot(for: $0) != nil } ?? true
             guard isStale || !hasSnapshot else { return }
-            self.refreshNow()
+
+            self.refreshStore(forceTokenUsage: false)
         }
     }
 
