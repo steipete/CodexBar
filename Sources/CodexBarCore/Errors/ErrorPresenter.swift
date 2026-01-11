@@ -43,14 +43,14 @@ public enum ErrorPresenter {
             return Self.presentImportError(error, context: context)
         }
 
-        // Handle FetchError from ClaudeWebAPIFetcher
-        if typeName.contains("FetchError") {
-            return Self.presentFetchError(error, context: context)
-        }
-
         // Handle ClaudeOAuthFetchError
         if typeName.contains("ClaudeOAuthFetchError") {
             return Self.presentOAuthError(error, context: context)
+        }
+
+        // Handle FetchError from ClaudeWebAPIFetcher
+        if typeName.contains("FetchError") {
+            return Self.presentFetchError(error, context: context)
         }
 
         return nil

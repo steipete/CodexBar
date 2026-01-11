@@ -114,15 +114,6 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         var diagnostics = ImportDiagnostics()
 
-        if let match = await self.tryCometFallback(
-            targetEmail: normalizedTarget,
-            allowAnyAccount: allowAnyAccount,
-            log: log,
-            diagnostics: &diagnostics)
-        {
-            return match
-        }
-
         // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
         let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: self.browserDetection)
         for browserSource in installedBrowsers {
@@ -135,6 +126,15 @@ public struct OpenAIDashboardBrowserCookieImporter {
             {
                 return match
             }
+        }
+
+        if let match = await self.tryCometFallback(
+            targetEmail: normalizedTarget,
+            allowAnyAccount: allowAnyAccount,
+            log: log,
+            diagnostics: &diagnostics)
+        {
+            return match
         }
 
         if !diagnostics.mismatches.isEmpty {
