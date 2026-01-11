@@ -37,6 +37,9 @@ private let ampCookieImportOrder: BrowserCookieImportOrder =
 public enum AmpCookieImporter {
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["ampcode.com", "www.ampcode.com"]
+    private static let sessionCookieNames: Set<String> = [
+        "session",
+    ]
 
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
@@ -70,8 +73,13 @@ public enum AmpCookieImporter {
                     let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
                     guard !cookies.isEmpty else { continue }
                     let names = cookies.map(\.name).joined(separator: ", ")
-                    log("Found Amp cookies in \(source.label): \(names)")
-                    return SessionInfo(cookies: cookies, sourceLabel: source.label)
+                    log("\(source.label) cookies: \(names)")
+                    if cookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
+                        log("Found \(cookies.count) Amp cookies in \(source.label)")
+                        return SessionInfo(cookies: cookies, sourceLabel: source.label)
+                    }
+                    log("\(source.label) cookies found, but no Amp session cookie present")
+                    log("Expected one of: \(Self.sessionCookieNames.joined(separator: ", "))")
                 }
             } catch {
                 log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
@@ -85,6 +93,7 @@ public enum AmpCookieImporter {
 
 public struct AmpUsageFetcher: Sendable {
     private static let settingsURL = URL(string: "https://ampcode.com/settings")!
+    @MainActor private static var recentDumps: [String] = []
 
     public let browserDetection: BrowserDetection
 
@@ -100,6 +109,126 @@ public struct AmpUsageFetcher: Sendable {
         let log: (String) -> Void = { msg in logger?("[amp] \(msg)") }
         let cookieHeader = try await self.resolveCookieHeader(override: cookieHeaderOverride, logger: log)
 
+        if let logger {
+            let names = self.cookieNames(from: cookieHeader)
+            if !names.isEmpty {
+                logger("[amp] Cookie names: \(names.joined(separator: ", "))")
+            }
+            let diagnostics = RedirectDiagnostics(cookieHeader: cookieHeader, logger: logger)
+            do {
+                let (html, responseInfo) = try await self.fetchHTMLWithDiagnostics(
+                    cookieHeader: cookieHeader,
+                    diagnostics: diagnostics)
+                self.logDiagnostics(responseInfo: responseInfo, diagnostics: diagnostics, logger: logger)
+                do {
+                    return try AmpUsageParser.parse(html: html, now: now)
+                } catch {
+                    logger("[amp] Parse failed: \(error.localizedDescription)")
+                    self.logHTMLHints(html: html, logger: logger)
+                    throw error
+                }
+            } catch {
+                self.logDiagnostics(responseInfo: nil, diagnostics: diagnostics, logger: logger)
+                throw error
+            }
+        }
+
+        let diagnostics = RedirectDiagnostics(cookieHeader: cookieHeader, logger: nil)
+        let (html, _) = try await self.fetchHTMLWithDiagnostics(
+            cookieHeader: cookieHeader,
+            diagnostics: diagnostics)
+        return try AmpUsageParser.parse(html: html, now: now)
+    }
+
+    public func debugRawProbe(cookieHeaderOverride: String? = nil) async -> String {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        var lines: [String] = []
+        lines.append("=== Amp Debug Probe @ \(stamp) ===")
+        lines.append("")
+
+        do {
+            let cookieHeader = try await self.resolveCookieHeader(
+                override: cookieHeaderOverride,
+                logger: { msg in lines.append("[cookie] \(msg)") })
+            let diagnostics = RedirectDiagnostics(cookieHeader: cookieHeader, logger: nil)
+            let cookieNames = CookieHeaderNormalizer.pairs(from: cookieHeader).map(\.name)
+            lines.append("Cookie names: \(cookieNames.joined(separator: ", "))")
+
+            let (snapshot, responseInfo) = try await self.fetchWithDiagnostics(
+                cookieHeader: cookieHeader,
+                diagnostics: diagnostics)
+
+            lines.append("")
+            lines.append("Fetch Success")
+            lines.append("Status: \(responseInfo.statusCode) \(responseInfo.url)")
+
+            if !diagnostics.redirects.isEmpty {
+                lines.append("")
+                lines.append("Redirects:")
+                for entry in diagnostics.redirects {
+                    lines.append("  \(entry)")
+                }
+            }
+
+            lines.append("")
+            lines.append("Amp Free:")
+            lines.append("  quota=\(snapshot.freeQuota)")
+            lines.append("  used=\(snapshot.freeUsed)")
+            lines.append("  hourlyReplenishment=\(snapshot.hourlyReplenishment)")
+            lines.append("  windowHours=\(snapshot.windowHours?.description ?? "nil")")
+
+            let output = lines.joined(separator: "\n")
+            Task { @MainActor in Self.recordDump(output) }
+            return output
+        } catch {
+            lines.append("")
+            lines.append("Probe Failed: \(error.localizedDescription)")
+            let output = lines.joined(separator: "\n")
+            Task { @MainActor in Self.recordDump(output) }
+            return output
+        }
+    }
+
+    public static func latestDumps() async -> String {
+        await MainActor.run {
+            let result = Self.recentDumps.joined(separator: "\n\n---\n\n")
+            return result.isEmpty ? "No Amp probe dumps captured yet." : result
+        }
+    }
+
+    private func resolveCookieHeader(
+        override: String?,
+        logger: ((String) -> Void)?) async throws -> String
+    {
+        if let override = CookieHeaderNormalizer.normalize(override) {
+            logger?("[amp] Using manual cookie header")
+            return override
+        }
+        #if os(macOS)
+        let session = try AmpCookieImporter.importSession(browserDetection: self.browserDetection, logger: logger)
+        logger?("[amp] Using cookies from \(session.sourceLabel)")
+        return session.cookieHeader
+        #else
+        throw AmpUsageError.noSessionCookie
+        #endif
+    }
+
+    private func fetchWithDiagnostics(
+        cookieHeader: String,
+        diagnostics: RedirectDiagnostics,
+        now: Date = Date()) async throws -> (AmpUsageSnapshot, ResponseInfo)
+    {
+        let (html, responseInfo) = try await self.fetchHTMLWithDiagnostics(
+            cookieHeader: cookieHeader,
+            diagnostics: diagnostics)
+        let snapshot = try AmpUsageParser.parse(html: html, now: now)
+        return (snapshot, responseInfo)
+    }
+
+    private func fetchHTMLWithDiagnostics(
+        cookieHeader: String,
+        diagnostics: RedirectDiagnostics) async throws -> (String, ResponseInfo)
+    {
         var request = URLRequest(url: Self.settingsURL)
         request.httpMethod = "GET"
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
@@ -112,36 +241,103 @@ public struct AmpUsageFetcher: Sendable {
         request.setValue("https://ampcode.com", forHTTPHeaderField: "origin")
         request.setValue(Self.settingsURL.absoluteString, forHTTPHeaderField: "referer")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = URLSession(configuration: .ephemeral, delegate: diagnostics, delegateQueue: nil)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AmpUsageError.networkError("Invalid response")
         }
+        let responseInfo = ResponseInfo(statusCode: httpResponse.statusCode, url: httpResponse.url?.absoluteString ?? "unknown")
 
         guard httpResponse.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? ""
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
                 throw AmpUsageError.invalidCredentials
             }
-            log("Amp returned \(httpResponse.statusCode): \(body)")
             throw AmpUsageError.networkError("HTTP \(httpResponse.statusCode)")
         }
 
         let html = String(data: data, encoding: .utf8) ?? ""
-        return try AmpUsageParser.parse(html: html, now: now)
+        return (html, responseInfo)
     }
 
-    private func resolveCookieHeader(
-        override: String?,
-        logger: ((String) -> Void)?) async throws -> String
-    {
-        if let override = CookieHeaderNormalizer.normalize(override) {
-            return override
+    @MainActor private static func recordDump(_ text: String) {
+        if self.recentDumps.count >= 5 { self.recentDumps.removeFirst() }
+        self.recentDumps.append(text)
+    }
+
+    private final class RedirectDiagnostics: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        private let cookieHeader: String
+        private let logger: ((String) -> Void)?
+        var redirects: [String] = []
+
+        init(cookieHeader: String, logger: ((String) -> Void)?) {
+            self.cookieHeader = cookieHeader
+            self.logger = logger
         }
-        #if os(macOS)
-        let session = try AmpCookieImporter.importSession(browserDetection: self.browserDetection, logger: logger)
-        return session.cookieHeader
-        #else
-        throw AmpUsageError.noSessionCookie
-        #endif
+
+        func urlSession(
+            _: URLSession,
+            task: URLSessionTask,
+            willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest,
+            completionHandler: @escaping (URLRequest?) -> Void)
+        {
+            let from = response.url?.absoluteString ?? "unknown"
+            let to = request.url?.absoluteString ?? "unknown"
+            self.redirects.append("\(response.statusCode) \(from) -> \(to)")
+            var updated = request
+            if !self.cookieHeader.isEmpty {
+                updated.setValue(self.cookieHeader, forHTTPHeaderField: "Cookie")
+            }
+            if let referer = response.url?.absoluteString {
+                updated.setValue(referer, forHTTPHeaderField: "referer")
+            }
+            if let logger {
+                logger("[amp] Redirect \(response.statusCode) \(from) -> \(to)")
+            }
+            completionHandler(updated)
+        }
+    }
+
+    private struct ResponseInfo: Sendable {
+        let statusCode: Int
+        let url: String
+    }
+
+    private func logDiagnostics(
+        responseInfo: ResponseInfo?,
+        diagnostics: RedirectDiagnostics,
+        logger: (String) -> Void)
+    {
+        if let responseInfo {
+            logger("[amp] Response: \(responseInfo.statusCode) \(responseInfo.url)")
+        }
+        if !diagnostics.redirects.isEmpty {
+            logger("[amp] Redirects:")
+            for entry in diagnostics.redirects {
+                logger("[amp]   \(entry)")
+            }
+        }
+    }
+
+    private func logHTMLHints(html: String, logger: (String) -> Void) {
+        let trimmed = html
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            let snippet = trimmed.prefix(240)
+            logger("[amp] HTML snippet: \(snippet)")
+        }
+        logger("[amp] Contains freeTierUsage: \(html.contains("freeTierUsage"))")
+        logger("[amp] Contains getFreeTierUsage: \(html.contains("getFreeTierUsage"))")
+    }
+
+    private func cookieNames(from header: String) -> [String] {
+        header.split(separator: ";").compactMap { part in
+            let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let idx = trimmed.firstIndex(of: "=") else { return nil }
+            let name = trimmed[..<idx].trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? nil : String(name)
+        }
     }
 }

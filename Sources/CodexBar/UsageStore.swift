@@ -1315,7 +1315,9 @@ extension UsageStore {
                 await MainActor.run { self.probeLogs[.augment] = text }
                 return text
             case .amp:
-                let text = "Amp debug log not yet implemented"
+                let text = await self.debugAmpLog(
+                    ampCookieSource: self.settings.ampCookieSource,
+                    ampCookieHeader: self.settings.ampCookieHeader)
                 await MainActor.run { self.probeLogs[.amp] = text }
                 return text
             }
@@ -1451,6 +1453,19 @@ extension UsageStore {
                 lines.append("Cursor probe failed: \(error.localizedDescription)")
                 return lines.joined(separator: "\n")
             }
+        }
+    }
+
+    private func debugAmpLog(
+        ampCookieSource: ProviderCookieSource,
+        ampCookieHeader: String) async -> String
+    {
+        await self.runWithTimeout(seconds: 15) {
+            let fetcher = AmpUsageFetcher(browserDetection: self.browserDetection)
+            let manualHeader = ampCookieSource == .manual
+                ? CookieHeaderNormalizer.normalize(ampCookieHeader)
+                : nil
+            return await fetcher.debugRawProbe(cookieHeaderOverride: manualHeader)
         }
     }
 

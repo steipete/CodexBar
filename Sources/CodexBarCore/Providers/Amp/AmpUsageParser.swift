@@ -2,11 +2,10 @@ import Foundation
 
 enum AmpUsageParser {
     static func parse(html: String, now: Date = Date()) throws -> AmpUsageSnapshot {
-        if self.looksSignedOut(html) {
-            throw AmpUsageError.notLoggedIn
-        }
-
         guard let usage = self.parseFreeTierUsage(html) else {
+            if self.looksSignedOut(html) {
+                throw AmpUsageError.notLoggedIn
+            }
             throw AmpUsageError.parseFailed("Missing Amp Free usage data.")
         }
 
