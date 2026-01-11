@@ -76,7 +76,9 @@ struct ProviderRegistry {
                             copilot: ProviderSettingsSnapshot.CopilotProviderSettings(),
                             augment: ProviderSettingsSnapshot.AugmentProviderSettings(
                                 cookieSource: settings.augmentCookieSource,
-                                manualCookieHeader: settings.augmentCookieHeader))
+                                manualCookieHeader: settings.augmentCookieHeader),
+                            jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
+                                ideBasePath: settings.jetbrainsIDEBasePath.isEmpty ? nil : settings.jetbrainsIDEBasePath))
                     }
                     let context = ProviderFetchContext(
                         runtime: .app,

@@ -269,6 +269,7 @@ private struct ProviderSwitchChip: View {
         case .vertexai: "Vertex"
         case .kiro: "Kiro"
         case .augment: "Augment"
+        case .jetbrains: "JetBrains"
         }
     }
 }
@@ -587,6 +588,8 @@ enum WidgetColors {
             Color(red: 255 / 255, green: 153 / 255, blue: 0 / 255) // AWS orange
         case .augment:
             Color(red: 99 / 255, green: 102 / 255, blue: 241 / 255) // Augment purple
+        case .jetbrains:
+            Color(red: 255 / 255, green: 51 / 255, blue: 153 / 255) // JetBrains pink
         }
     }
 }

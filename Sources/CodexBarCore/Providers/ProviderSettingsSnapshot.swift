@@ -84,6 +84,14 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct JetBrainsProviderSettings: Sendable {
+        public let ideBasePath: String?
+
+        public init(ideBasePath: String?) {
+            self.ideBasePath = ideBasePath
+        }
+    }
+
     public let debugMenuEnabled: Bool
     public let codex: CodexProviderSettings?
     public let claude: ClaudeProviderSettings?
@@ -93,6 +101,11 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let zai: ZaiProviderSettings?
     public let copilot: CopilotProviderSettings?
     public let augment: AugmentProviderSettings?
+    public let jetbrains: JetBrainsProviderSettings?
+
+    public var jetbrainsIDEBasePath: String? {
+        self.jetbrains?.ideBasePath
+    }
 
     public init(
         debugMenuEnabled: Bool,
@@ -103,7 +116,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         minimax: MiniMaxProviderSettings?,
         zai: ZaiProviderSettings?,
         copilot: CopilotProviderSettings?,
-        augment: AugmentProviderSettings?)
+        augment: AugmentProviderSettings?,
+        jetbrains: JetBrainsProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.codex = codex
@@ -114,5 +128,6 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.zai = zai
         self.copilot = copilot
         self.augment = augment
+        self.jetbrains = jetbrains
     }
 }
