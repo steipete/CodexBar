@@ -954,6 +954,7 @@ public struct FactoryStatusProbe: Sendable {
         request.setValue("https://app.factory.ai", forHTTPHeaderField: "Origin")
         request.setValue("https://app.factory.ai/", forHTTPHeaderField: "Referer")
         if !cookieHeader.isEmpty {
+            request.httpShouldHandleCookies = false
             request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         }
         request.setValue("web-app", forHTTPHeaderField: "x-factory-client")
@@ -1003,6 +1004,7 @@ public struct FactoryStatusProbe: Sendable {
         request.setValue("https://app.factory.ai", forHTTPHeaderField: "Origin")
         request.setValue("https://app.factory.ai/", forHTTPHeaderField: "Referer")
         if !cookieHeader.isEmpty {
+            request.httpShouldHandleCookies = false
             request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         }
         request.setValue("web-app", forHTTPHeaderField: "x-factory-client")
@@ -1207,6 +1209,7 @@ public struct FactoryStatusProbe: Sendable {
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
         request.httpMethod = "POST"
+        request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")

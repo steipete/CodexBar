@@ -136,7 +136,6 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             let candidates = firstWindowDict([
                 "week_sonnet",
                 "week_sonnet_only",
-                "week_opus",
             ])
             guard let opus = candidates else { return nil }
             let pct = (opus["pct_used"] as? NSNumber)?.doubleValue ?? 0
@@ -200,14 +199,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     public func debugRawProbe(model: String = "sonnet") async -> String {
         do {
             let snap = try await self.loadViaPTY(model: model, timeout: 10)
-            let opus = snap.opus?.remainingPercent ?? -1
+            let sonnet = snap.opus?.remainingPercent ?? -1
             let email = snap.accountEmail ?? "nil"
             let org = snap.accountOrganization ?? "nil"
             let weekly = snap.secondary?.remainingPercent ?? -1
             let primary = snap.primary.remainingPercent
             return """
             session_left=\(primary) weekly_left=\(weekly)
-            opus_left=\(opus) email \(email) org \(org)
+            sonnet_left=\(sonnet) email \(email) org \(org)
             \(snap)
             """
         } catch {
@@ -270,7 +269,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to Web/CLI.")
             }
             let usage = try await ClaudeOAuthUsageFetcher.fetchUsage(accessToken: creds.accessToken)
-            return try Self.mapOAuthUsage(usage, credentials: creds)
+            let account = try? await ClaudeOAuthUsageFetcher.fetchAccount(accessToken: creds.accessToken)
+            return try Self.mapOAuthUsage(usage, account: account, credentials: creds)
         } catch let error as ClaudeUsageError {
             throw error
         } catch let error as ClaudeOAuthCredentialsError {
@@ -293,6 +293,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private static func mapOAuthUsage(
         _ usage: OAuthUsageResponse,
+        account: OAuthAccountResponse?,
         credentials: ClaudeOAuthCredentials) throws -> ClaudeUsageSnapshot
     {
         func makeWindow(_ window: OAuthUsageWindow?, windowMinutes: Int?) -> RateWindow? {
@@ -314,8 +315,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
         let weekly = makeWindow(usage.sevenDay, windowMinutes: 7 * 24 * 60)
         let modelSpecific = makeWindow(
-            usage.sevenDaySonnet ?? usage.sevenDayOpus,
+            usage.sevenDaySonnet,
             windowMinutes: 7 * 24 * 60)
+
+        let email = account?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedEmail = (email?.isEmpty ?? true) ? nil : email
+        let org = account?.organization?.name ?? account?.organizations?.first?.name
+        let orgTrimmed = org?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedOrg = (orgTrimmed?.isEmpty ?? true) ? nil : orgTrimmed
 
         return ClaudeUsageSnapshot(
             primary: primary,
@@ -323,9 +330,19 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             opus: modelSpecific,
             providerCost: Self.oauthExtraUsageCost(usage.extraUsage),
             updatedAt: Date(),
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: Self.inferPlan(rateLimitTier: credentials.rateLimitTier),
+            accountEmail: normalizedEmail,
+            accountOrganization: normalizedOrg,
+            loginMethod: Self.inferPlan(
+                rateLimitTier: account?.rateLimitTier
+                    ?? account?.organization?.rateLimitTier
+                    ?? credentials.rateLimitTierFromToken
+                    ?? credentials.rateLimitTier,
+                billingType: account?.billingType
+                    ?? account?.organization?.billingType
+                    ?? credentials.billingTypeFromToken,
+                subscriptionType: account?.subscriptionType
+                    ?? account?.plan
+                    ?? credentials.planFromToken),
             rawText: nil)
     }
 
@@ -354,12 +371,20 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         (used: used / 100.0, limit: limit / 100.0)
     }
 
-    private static func inferPlan(rateLimitTier: String?) -> String? {
+    private static func inferPlan(rateLimitTier: String?, billingType: String?, subscriptionType: String?) -> String? {
+        let subscription = subscriptionType?.lowercased() ?? ""
+        if subscription.contains("max") { return "Claude Max" }
+        if subscription.contains("pro") { return "Claude Pro" }
+        if subscription.contains("team") { return "Claude Team" }
+        if subscription.contains("enterprise") { return "Claude Enterprise" }
+
         let tier = rateLimitTier?.lowercased() ?? ""
         if tier.contains("max") { return "Claude Max" }
         if tier.contains("pro") { return "Claude Pro" }
         if tier.contains("team") { return "Claude Team" }
         if tier.contains("enterprise") { return "Claude Enterprise" }
+        let billing = billingType?.lowercased() ?? ""
+        if billing.contains("stripe"), tier.contains("claude") { return "Claude Pro" }
         return nil
     }
 
@@ -390,7 +415,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 resetDescription: webData.weeklyResetsAt.map { Self.formatResetDate($0) })
         }
 
-        let opus: RateWindow? = webData.opusPercentUsed.map { opusPct in
+        let opus: RateWindow? = webData.sonnetPercentUsed.map { opusPct in
             RateWindow(
                 usedPercent: opusPct,
                 windowMinutes: 7 * 24 * 60,
@@ -522,16 +547,18 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 extension ClaudeUsageFetcher {
     public static func _mapOAuthUsageForTesting(
         _ data: Data,
-        rateLimitTier: String? = nil) throws -> ClaudeUsageSnapshot
+        rateLimitTier: String? = nil,
+        accountData: Data? = nil) throws -> ClaudeUsageSnapshot
     {
         let usage = try ClaudeOAuthUsageFetcher.decodeUsageResponse(data)
+        let account = try accountData.map { try ClaudeOAuthUsageFetcher.decodeAccountResponse($0) }
         let creds = ClaudeOAuthCredentials(
             accessToken: "test",
             refreshToken: nil,
             expiresAt: Date().addingTimeInterval(3600),
             scopes: [],
             rateLimitTier: rateLimitTier)
-        return try Self.mapOAuthUsage(usage, credentials: creds)
+        return try Self.mapOAuthUsage(usage, account: account, credentials: creds)
     }
 }
 #endif

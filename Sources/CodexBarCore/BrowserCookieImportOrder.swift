@@ -15,7 +15,7 @@ extension [Browser] {
     ///
     /// This is intentionally stricter than "app installed": it aims to avoid unnecessary Keychain prompts.
     public func cookieImportCandidates(using detection: BrowserDetection) -> [Browser] {
-        self.filter { detection.isCookieSourceAvailable($0) }
+        self.filter { detection.isBrowserAllowed($0) && detection.isCookieSourceAvailable($0) }
     }
 
     /// Filters a browser list to sources with usable profile data on disk.

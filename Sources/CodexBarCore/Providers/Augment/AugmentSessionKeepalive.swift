@@ -10,8 +10,8 @@ import Foundation
 public final class AugmentSessionKeepalive {
     // MARK: - Configuration
 
-    /// How often to check if session needs refresh (default: 5 minutes)
-    private let checkInterval: TimeInterval = 300
+    /// How often to check if session needs refresh (default: 10 minutes)
+    private let checkInterval: TimeInterval = 600
 
     /// Refresh session this many seconds before cookie expiration (default: 5 minutes)
     private let refreshBufferSeconds: TimeInterval = 300
@@ -29,6 +29,7 @@ public final class AugmentSessionKeepalive {
     private var lastSuccessfulRefresh: Date?
     private var isRefreshing = false
     private let logger: ((String) -> Void)?
+    private static let codexLog = CodexBarLog.logger("augment-keepalive")
 
     // MARK: - Initialization
 
@@ -49,14 +50,15 @@ public final class AugmentSessionKeepalive {
             return
         }
 
+        let checkInterval = self.checkInterval
         self.log("🚀 Starting Augment session keepalive")
-        self.log("   - Check interval: \(Int(self.checkInterval))s (every 5 minutes)")
+        self.log("   - Check interval: \(Int(checkInterval))s (every \(Int(checkInterval / 60)) minutes)")
         self.log("   - Refresh buffer: \(Int(self.refreshBufferSeconds))s (5 minutes before expiry)")
         self.log("   - Min refresh interval: \(Int(self.minRefreshInterval))s (2 minutes)")
 
         self.timerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(self?.checkInterval ?? 300))
+                try? await Task.sleep(for: .seconds(checkInterval))
                 await self?.checkAndRefreshIfNeeded()
             }
         }
@@ -145,7 +147,10 @@ public final class AugmentSessionKeepalive {
                 }
             }
 
-            let earliestExpiration = expirationDates.min()!
+            guard let earliestExpiration = expirationDates.min() else {
+                self.log("   ✓ No cookie expiration dates available")
+                return false
+            }
             let timeUntilExpiration = earliestExpiration.timeIntervalSinceNow
             let expiringCookie = session.cookies.first { $0.expiresDate == earliestExpiration }
 
@@ -205,7 +210,7 @@ public final class AugmentSessionKeepalive {
         }
 
         self.log("🔄 Attempting session refresh...")
-        self.log("   Cookies being sent: \(cookieHeader.prefix(100))...")
+        self.log("   Cookies: \(Self.cookieNameSummary(fromHeader: cookieHeader))")
 
         // Try multiple endpoints - Augment might use different auth patterns
         let endpoints = [
@@ -220,6 +225,7 @@ public final class AugmentSessionKeepalive {
             guard let sessionURL = URL(string: urlString) else { continue }
             var request = URLRequest(url: sessionURL)
             request.timeoutInterval = self.refreshTimeout
+            request.httpShouldHandleCookies = false
             request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             request.setValue("https://app.augmentcode.com", forHTTPHeaderField: "Origin")
@@ -237,7 +243,7 @@ public final class AugmentSessionKeepalive {
 
                 // Log Set-Cookie headers if present
                 if let setCookies = httpResponse.allHeaderFields["Set-Cookie"] as? String {
-                    self.log("   Set-Cookie headers received: \(setCookies.prefix(100))...")
+                    self.log("   Set-Cookie header received (\(setCookies.count) chars)")
                 }
 
                 if httpResponse.statusCode == 200 {
@@ -254,10 +260,7 @@ public final class AugmentSessionKeepalive {
                             continue
                         }
                     } else {
-                        self.log("   ⚠️ 200 OK but response is not JSON")
-                        if let responseText = String(data: data, encoding: .utf8) {
-                            self.log("   Response text: \(responseText.prefix(200))...")
-                        }
+                        self.log("   ⚠️ 200 OK but response is not JSON (\(data.count) bytes)")
                         continue
                     }
                 } else if httpResponse.statusCode == 401 {
@@ -280,11 +283,25 @@ public final class AugmentSessionKeepalive {
         return false
     }
 
+    private static func cookieNameSummary(fromHeader header: String, limit: Int = 8) -> String {
+        let names = header.split(separator: ";").compactMap { pair in
+            pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: true)
+                .first?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let unique = Array(Set(names)).sorted()
+        if unique.isEmpty { return "<none>" }
+        let visible = unique.prefix(limit).joined(separator: ", ")
+        if unique.count > limit {
+            return "\(visible) …(+\(unique.count - limit))"
+        }
+        return visible
+    }
+
     private func log(_ message: String) {
-        let timestamp = Date().formatted(date: .omitted, time: .standard)
-        let fullMessage = "[\(timestamp)] [AugmentKeepalive] \(message)"
+        let fullMessage = "[AugmentKeepalive] \(message)"
         self.logger?(fullMessage)
-        print("[CodexBar] \(fullMessage)")
+        Self.codexLog.debug(fullMessage)
     }
 }
 

@@ -33,6 +33,7 @@ public enum ClaudeOAuthFetchError: LocalizedError, Sendable {
 enum ClaudeOAuthUsageFetcher {
     private static let baseURL = "https://api.anthropic.com"
     private static let usagePath = "/api/oauth/usage"
+    private static let accountPaths = ["/api/oauth/me", "/api/oauth/account"]
     private static let betaHeader = "oauth-2025-04-20"
 
     static func fetchUsage(accessToken: String) async throws -> OAuthUsageResponse {
@@ -79,6 +80,53 @@ enum ClaudeOAuthUsageFetcher {
         return try decoder.decode(OAuthUsageResponse.self, from: data)
     }
 
+    static func fetchAccount(accessToken: String) async throws -> OAuthAccountResponse {
+        var lastError: ClaudeOAuthFetchError?
+        for path in Self.accountPaths {
+            guard let url = URL(string: baseURL + path) else { continue }
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 30
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(Self.betaHeader, forHTTPHeaderField: "anthropic-beta")
+            request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    throw ClaudeOAuthFetchError.invalidResponse
+                }
+                switch http.statusCode {
+                case 200:
+                    return try Self.decodeAccountResponse(data)
+                case 401, 403:
+                    throw ClaudeOAuthFetchError.unauthorized
+                case 404:
+                    continue
+                default:
+                    let body = String(data: data, encoding: .utf8)
+                    throw ClaudeOAuthFetchError.serverError(http.statusCode, body)
+                }
+            } catch let error as ClaudeOAuthFetchError {
+                lastError = error
+                if case .unauthorized = error { break }
+                continue
+            } catch {
+                lastError = ClaudeOAuthFetchError.networkError(error)
+                continue
+            }
+        }
+        if let lastError { throw lastError }
+        throw ClaudeOAuthFetchError.invalidResponse
+    }
+
+    static func decodeAccountResponse(_ data: Data) throws -> OAuthAccountResponse {
+        let decoder = JSONDecoder()
+        return try decoder.decode(OAuthAccountResponse.self, from: data)
+    }
+
     static func parseISO8601Date(_ string: String?) -> Date? {
         guard let string, !string.isEmpty else { return nil }
         let formatter = ISO8601DateFormatter()
@@ -93,7 +141,6 @@ struct OAuthUsageResponse: Decodable, Sendable {
     let fiveHour: OAuthUsageWindow?
     let sevenDay: OAuthUsageWindow?
     let sevenDayOAuthApps: OAuthUsageWindow?
-    let sevenDayOpus: OAuthUsageWindow?
     let sevenDaySonnet: OAuthUsageWindow?
     let iguanaNecktie: OAuthUsageWindow?
     let extraUsage: OAuthExtraUsage?
@@ -102,10 +149,71 @@ struct OAuthUsageResponse: Decodable, Sendable {
         case fiveHour = "five_hour"
         case sevenDay = "seven_day"
         case sevenDayOAuthApps = "seven_day_oauth_apps"
-        case sevenDayOpus = "seven_day_opus"
         case sevenDaySonnet = "seven_day_sonnet"
         case iguanaNecktie = "iguana_necktie"
         case extraUsage = "extra_usage"
+    }
+}
+
+struct OAuthAccountResponse: Decodable, Sendable {
+    let id: String?
+    let email: String?
+    let subscriptionType: String?
+    let plan: String?
+    let rateLimitTier: String?
+    let billingType: String?
+    let organization: OAuthOrganization?
+    let organizations: [OAuthOrganization]?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case email
+        case emailAddress = "email_address"
+        case accountEmail = "account_email"
+        case subscriptionType = "subscription_type"
+        case plan
+        case rateLimitTier = "rate_limit_tier"
+        case billingType = "billing_type"
+        case organization
+        case organizations
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id)
+        self.email = try container.decodeIfPresent(String.self, forKey: .email)
+            ?? container.decodeIfPresent(String.self, forKey: .emailAddress)
+            ?? container.decodeIfPresent(String.self, forKey: .accountEmail)
+        self.subscriptionType = try container.decodeIfPresent(String.self, forKey: .subscriptionType)
+        self.plan = try container.decodeIfPresent(String.self, forKey: .plan)
+        self.rateLimitTier = try container.decodeIfPresent(String.self, forKey: .rateLimitTier)
+        self.billingType = try container.decodeIfPresent(String.self, forKey: .billingType)
+        self.organization = try container.decodeIfPresent(OAuthOrganization.self, forKey: .organization)
+        self.organizations = try container.decodeIfPresent([OAuthOrganization].self, forKey: .organizations)
+    }
+}
+
+struct OAuthOrganization: Decodable, Sendable {
+    let id: String?
+    let name: String?
+    let rateLimitTier: String?
+    let billingType: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case uuid
+        case name
+        case rateLimitTier = "rate_limit_tier"
+        case billingType = "billing_type"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id)
+            ?? container.decodeIfPresent(String.self, forKey: .uuid)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.rateLimitTier = try container.decodeIfPresent(String.self, forKey: .rateLimitTier)
+        self.billingType = try container.decodeIfPresent(String.self, forKey: .billingType)
     }
 }
 
@@ -139,6 +247,10 @@ struct OAuthExtraUsage: Decodable, Sendable {
 extension ClaudeOAuthUsageFetcher {
     static func _decodeUsageResponseForTesting(_ data: Data) throws -> OAuthUsageResponse {
         try self.decodeUsageResponse(data)
+    }
+
+    static func _decodeAccountResponseForTesting(_ data: Data) throws -> OAuthAccountResponse {
+        try self.decodeAccountResponse(data)
     }
 }
 #endif
