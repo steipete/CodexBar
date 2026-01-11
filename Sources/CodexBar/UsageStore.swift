@@ -464,6 +464,7 @@ final class UsageStore {
             if SyntheticSettingsReader.apiKey(environment: ProcessInfo.processInfo.environment) != nil {
                 return true
             }
+            self.settings.ensureSyntheticAPITokenLoaded()
             return !self.settings.syntheticAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         return true
