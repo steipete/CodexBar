@@ -245,12 +245,14 @@ public final class SessionKeepaliveManager {
         self.log(provider, "✅ Session refresh completed (placeholder)")
     }
 
+    private static let log = CodexBarLog.logger("session-keepalive")
+
     /// Log a message with provider context.
     private func log(_ provider: UsageProvider, _ message: String) {
         let timestamp = Date().formatted(date: .omitted, time: .standard)
         let fullMessage = "[\(timestamp)] [SessionKeepalive:\(provider.rawValue)] \(message)"
         self.logger?(fullMessage)
-        print("[CodexBar] \(fullMessage)")
+        Self.log.debug(fullMessage)
     }
 }
 

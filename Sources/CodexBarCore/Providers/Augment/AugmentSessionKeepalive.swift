@@ -433,11 +433,13 @@ public final class AugmentSessionKeepalive {
         return false
     }
 
+    private static let log = CodexBarLog.logger("augment-keepalive")
+
     private func log(_ message: String) {
         let timestamp = Date().formatted(date: .omitted, time: .standard)
         let fullMessage = "[\(timestamp)] [AugmentKeepalive] \(message)"
         self.logger?(fullMessage)
-        print("[CodexBar] \(fullMessage)")
+        Self.log.debug(fullMessage)
     }
 }
 
