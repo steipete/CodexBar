@@ -35,6 +35,7 @@ struct MenuDescriptor {
     enum MenuAction {
         case installUpdate
         case refresh
+        case refreshAugmentSession
         case dashboard
         case statusPage
         case switchAccount(UsageProvider)
@@ -275,6 +276,9 @@ struct MenuDescriptor {
 
         // Show Augment session management options
         if let targetProvider, targetProvider == .augment {
+            // Always show "Refresh Session" button for Augment
+            entries.append(.action("Refresh Session", .refreshAugmentSession))
+
             // Show login prompt for session/cookie errors
             if let error = store.error(for: .augment) {
                 if error.contains("session has expired") ||
@@ -408,6 +412,7 @@ extension MenuDescriptor.MenuAction {
         case .installUpdate, .settings, .about, .quit:
             nil
         case .refresh: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
+        case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue

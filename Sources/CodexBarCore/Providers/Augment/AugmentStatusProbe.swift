@@ -11,14 +11,18 @@ private let augmentCookieImportOrder: BrowserCookieImportOrder =
 /// Imports Augment session cookies from browser cookies.
 public enum AugmentCookieImporter {
     private static let cookieClient = BrowserCookieClient()
+    // Auth0 session cookies used by Augment
+    // NOTE: This list may not be exhaustive. If authentication fails with cookies present,
+    // check debug logs for cookie names and report them.
     private static let sessionCookieNames: Set<String> = [
-        "session",
-        "_session",
-        "web_rpc_proxy_session",
-        "__Secure-next-auth.session-token",
-        "next-auth.session-token",
-        "__Secure-authjs.session-token",
-        "authjs.session-token",
+        "_session",                    // Legacy session cookie
+        "auth0",                       // Auth0 session
+        "auth0.is.authenticated",      // Auth0 authentication flag
+        "a0.spajs.txs",                // Auth0 SPA transaction state
+        "__Secure-next-auth.session-token",  // NextAuth secure session
+        "next-auth.session-token",     // NextAuth session
+        "__Host-authjs.csrf-token",    // AuthJS CSRF token
+        "authjs.session-token",        // AuthJS session
     ]
 
     public struct SessionInfo: Sendable {
@@ -70,16 +74,20 @@ public enum AugmentCookieImporter {
                 for source in sources where !source.records.isEmpty {
                     let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
 
-                    // Log all cookie names for debugging
-                    let cookieNames = httpCookies.map(\.name).joined(separator: ", ")
-                    log("\(source.label) has cookies: \(cookieNames)")
+                    // Log all cookies found for debugging
+                    let cookieNames = httpCookies.map { $0.name }.joined(separator: ", ")
+                    log("Found \(httpCookies.count) cookies in \(source.label): \(cookieNames)")
 
-                    if httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
-                        log("Found \(httpCookies.count) Augment cookies in \(source.label)")
+                    // Check if we have any session cookies
+                    let matchingCookies = httpCookies.filter { Self.sessionCookieNames.contains($0.name) }
+                    if !matchingCookies.isEmpty {
+                        log("✓ Found Augment session cookies in \(source.label): \(matchingCookies.map { $0.name }.joined(separator: ", "))")
                         return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
-                    } else {
-                        log("\(source.label) cookies found, but no Augment session cookie present")
-                        log("Expected one of: \(Self.sessionCookieNames.joined(separator: ", "))")
+                    } else if !httpCookies.isEmpty {
+                        // Log unrecognized cookies to help discover missing session cookie names
+                        log("⚠️ \(source.label) has \(httpCookies.count) cookies but none match known session cookies")
+                        log("   Cookie names found: \(cookieNames)")
+                        log("   If you're logged into Augment, please report these cookie names to help improve detection")
                     }
                 }
             } catch {
@@ -457,7 +465,12 @@ public struct AugmentStatusProbe: Sendable {
             throw AugmentStatusProbeError.networkError("Invalid response")
         }
 
-        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+        if httpResponse.statusCode == 401 {
+            // Session expired - trigger automatic recovery
+            throw AugmentStatusProbeError.sessionExpired
+        }
+
+        if httpResponse.statusCode == 403 {
             let responseBody = String(data: data, encoding: .utf8) ?? ""
             throw AugmentStatusProbeError.networkError("HTTP \(httpResponse.statusCode): \(responseBody)")
         }
@@ -490,7 +503,12 @@ public struct AugmentStatusProbe: Sendable {
             throw AugmentStatusProbeError.networkError("Invalid response")
         }
 
-        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+        if httpResponse.statusCode == 401 {
+            // Session expired - trigger automatic recovery
+            throw AugmentStatusProbeError.sessionExpired
+        }
+
+        if httpResponse.statusCode == 403 {
             throw AugmentStatusProbeError.notLoggedIn
         }
 

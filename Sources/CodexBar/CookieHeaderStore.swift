@@ -28,12 +28,34 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
     private let account: String
     private let promptKind: KeychainPromptContext.Kind
 
+    // Cache to reduce keychain access frequency
+    private nonisolated(unsafe) static var cache: [String: CachedValue] = [:]
+    private static let cacheLock = NSLock()
+    private static let cacheTTL: TimeInterval = 1800  // 30 minutes
+
+    private struct CachedValue {
+        let value: String?
+        let timestamp: Date
+
+        var isExpired: Bool {
+            Date().timeIntervalSince(timestamp) > KeychainCookieHeaderStore.cacheTTL
+        }
+    }
+
     init(account: String, promptKind: KeychainPromptContext.Kind) {
         self.account = account
         self.promptKind = promptKind
     }
 
     func loadCookieHeader() throws -> String? {
+        // Check cache first
+        Self.cacheLock.lock()
+        if let cached = Self.cache[self.account], !cached.isExpired {
+            Self.cacheLock.unlock()
+            Self.log.debug("Using cached cookie header for \(self.account)")
+            return cached.value
+        }
+        Self.cacheLock.unlock()
         var result: CFTypeRef?
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -54,6 +76,10 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
 
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound {
+            // Cache the nil result
+            Self.cacheLock.lock()
+            Self.cache[self.account] = CachedValue(value: nil, timestamp: Date())
+            Self.cacheLock.unlock()
             return nil
         }
         guard status == errSecSuccess else {
@@ -65,10 +91,14 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             throw CookieHeaderStoreError.invalidData
         }
         let header = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let header, !header.isEmpty {
-            return header
-        }
-        return nil
+        let finalValue = (header?.isEmpty == false) ? header : nil
+
+        // Cache the result
+        Self.cacheLock.lock()
+        Self.cache[self.account] = CachedValue(value: finalValue, timestamp: Date())
+        Self.cacheLock.unlock()
+
+        return finalValue
     }
 
     func storeCookieHeader(_ header: String?) throws {
@@ -76,10 +106,18 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
               !raw.isEmpty
         else {
             try self.deleteIfPresent()
+            // Invalidate cache
+            Self.cacheLock.lock()
+            Self.cache.removeValue(forKey: self.account)
+            Self.cacheLock.unlock()
             return
         }
         guard CookieHeaderNormalizer.normalize(raw) != nil else {
             try self.deleteIfPresent()
+            // Invalidate cache
+            Self.cacheLock.lock()
+            Self.cache.removeValue(forKey: self.account)
+            Self.cacheLock.unlock()
             return
         }
 
@@ -96,6 +134,10 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
 
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         if updateStatus == errSecSuccess {
+            // Update cache
+            Self.cacheLock.lock()
+            Self.cache[self.account] = CachedValue(value: raw, timestamp: Date())
+            Self.cacheLock.unlock()
             return
         }
         if updateStatus != errSecItemNotFound {
@@ -112,6 +154,11 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             Self.log.error("Keychain add failed: \(addStatus)")
             throw CookieHeaderStoreError.keychainStatus(addStatus)
         }
+
+        // Update cache
+        Self.cacheLock.lock()
+        Self.cache[self.account] = CachedValue(value: raw, timestamp: Date())
+        Self.cacheLock.unlock()
     }
 
     private func deleteIfPresent() throws {
@@ -122,6 +169,10 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
         ]
         let status = SecItemDelete(query as CFDictionary)
         if status == errSecSuccess || status == errSecItemNotFound {
+            // Invalidate cache
+            Self.cacheLock.lock()
+            Self.cache.removeValue(forKey: self.account)
+            Self.cacheLock.unlock()
             return
         }
         Self.log.error("Keychain delete failed: \(status)")
