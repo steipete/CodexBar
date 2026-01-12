@@ -159,9 +159,10 @@ struct DebugPane: View {
                     }
 
                     ScrollView {
-                        Text(self.store.openAIDashboardCookieImportDebugLog?.isEmpty == false
-                            ? (self.store.openAIDashboardCookieImportDebugLog ?? "")
-                            : "No log yet. Update OpenAI cookies in Providers → Codex to run an import.")
+                        Text(
+                            self.store.openAIDashboardCookieImportDebugLog?.isEmpty == false
+                                ? (self.store.openAIDashboardCookieImportDebugLog ?? "")
+                                : "No log yet. Update OpenAI cookies in Providers → Codex to run an import.")
                             .font(.system(.footnote, design: .monospaced))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -293,9 +294,10 @@ struct DebugPane: View {
                         Text("Effective PATH")
                             .font(.callout.weight(.semibold))
                         ScrollView {
-                            Text(self.store.pathDebugInfo.effectivePATH.isEmpty
-                                ? "Unavailable"
-                                : self.store.pathDebugInfo.effectivePATH)
+                            Text(
+                                self.store.pathDebugInfo.effectivePATH.isEmpty
+                                    ? "Unavailable"
+                                    : self.store.pathDebugInfo.effectivePATH)
                                 .font(.system(.footnote, design: .monospaced))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)

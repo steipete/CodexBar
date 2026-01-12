@@ -51,7 +51,7 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
             return true
         }
         #if os(macOS)
-        return MiniMaxCookieImporter.hasSession()
+        return MiniMaxCookieImporter.hasSession(browserDetection: context.browserDetection)
         #else
         return false
         #endif
@@ -70,12 +70,17 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         }
 
         #if os(macOS)
-        let sessions = (try? MiniMaxCookieImporter.importSessions()) ?? []
+        let sessions = (try? MiniMaxCookieImporter.importSessions(
+            browserDetection: context.browserDetection)) ?? []
         guard !sessions.isEmpty else { throw MiniMaxSettingsError.missingCookie }
 
         let tokenLog: (String) -> Void = { msg in Self.log.debug(msg) }
-        let accessTokens = MiniMaxLocalStorageImporter.importAccessTokens(logger: tokenLog)
-        let groupIDs = MiniMaxLocalStorageImporter.importGroupIDs(logger: tokenLog)
+        let accessTokens = MiniMaxLocalStorageImporter.importAccessTokens(
+            browserDetection: context.browserDetection,
+            logger: tokenLog)
+        let groupIDs = MiniMaxLocalStorageImporter.importGroupIDs(
+            browserDetection: context.browserDetection,
+            logger: tokenLog)
         var tokensByLabel: [String: [String]] = [:]
         var groupIDByLabel: [String: String] = [:]
         for token in accessTokens {

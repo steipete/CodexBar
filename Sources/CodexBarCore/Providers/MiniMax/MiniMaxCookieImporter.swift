@@ -25,9 +25,15 @@ public enum MiniMaxCookieImporter {
         }
     }
 
-    public static func importSessions(logger: ((String) -> Void)? = nil) throws -> [SessionInfo] {
+    public static func importSessions(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
         var sessions: [SessionInfo] = []
-        for browserSource in minimaxCookieImportOrder {
+
+        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
+        let installedBrowsers = minimaxCookieImportOrder.cookieImportCandidates(using: browserDetection)
+        for browserSource in installedBrowsers {
             do {
                 let perSource = try self.importSessions(from: browserSource, logger: logger)
                 sessions.append(contentsOf: perSource)
@@ -78,17 +84,20 @@ public enum MiniMaxCookieImporter {
         return sessions
     }
 
-    public static func importSession(logger: ((String) -> Void)? = nil) throws -> SessionInfo {
-        let sessions = try self.importSessions(logger: logger)
+    public static func importSession(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionInfo
+    {
+        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
         guard let first = sessions.first else {
             throw MiniMaxCookieImportError.noCookies
         }
         return first
     }
 
-    public static func hasSession(logger: ((String) -> Void)? = nil) -> Bool {
+    public static func hasSession(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
         do {
-            return try !self.importSessions(logger: logger).isEmpty
+            return try !self.importSessions(browserDetection: browserDetection, logger: logger).isEmpty
         } catch {
             return false
         }

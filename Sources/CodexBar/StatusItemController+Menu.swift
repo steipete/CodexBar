@@ -1467,8 +1467,9 @@ private final class ProviderSwitcherView: NSView {
                self.segments.indices.contains(index)
             {
                 let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-                let titleWidth = ceil((self.segments[index].title as NSString).size(withAttributes: [.font: font])
-                    .width)
+                let titleWidth = ceil(
+                    (self.segments[index].title as NSString).size(withAttributes: [.font: font])
+                        .width)
                 let contentPadding: CGFloat = 4 + 4
                 let extraSlack: CGFloat = 1
                 desiredWidths.append(ceil(titleWidth + contentPadding + extraSlack))

@@ -12,7 +12,10 @@ struct ProviderSettingsDescriptorTests {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-unique")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-unique")
         let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
-        let store = UsageStore(fetcher: UsageFetcher(environment: [:]), settings: settings)
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
 
         var statusByID: [String: String] = [:]
         var lastRunAtByID: [String: Date] = [:]
@@ -78,7 +81,10 @@ struct ProviderSettingsDescriptorTests {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-codex")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-codex")
         let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
-        let store = UsageStore(fetcher: UsageFetcher(environment: [:]), settings: settings)
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
 
         let context = ProviderSettingsContext(
             provider: .codex,
@@ -110,7 +116,10 @@ struct ProviderSettingsDescriptorTests {
         let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-claude")!
         defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-claude")
         let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
-        let store = UsageStore(fetcher: UsageFetcher(environment: [:]), settings: settings)
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
 
         let context = ProviderSettingsContext(
             provider: .claude,

@@ -215,25 +215,44 @@ private struct UsageMenuCardHeaderView: View {
                     .font(.subheadline)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
             }
-            let subtitleAlignment: VerticalAlignment = self.model.subtitleStyle == .error ? .top : .firstTextBaseline
-            HStack(alignment: subtitleAlignment) {
-                Text(self.model.subtitleText)
-                    .font(.footnote)
-                    .foregroundStyle(self.subtitleColor)
-                    .lineLimit(self.model.subtitleStyle == .error ? 4 : 1)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .layoutPriority(1)
-                    .padding(.bottom, self.model.subtitleStyle == .error ? 4 : 0)
-                Spacer()
-                if self.model.subtitleStyle == .error, !self.model.subtitleText.isEmpty {
-                    CopyIconButton(copyText: self.model.subtitleText, isHighlighted: self.isHighlighted)
-                }
-                if let plan = self.model.planText {
-                    Text(plan)
+            if self.model.subtitleStyle == .error {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(self.model.subtitleText)
                         .font(.footnote)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .foregroundStyle(self.subtitleColor)
+                        .lineLimit(6)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(alignment: .firstTextBaseline) {
+                        if !self.model.subtitleText.isEmpty {
+                            CopyIconButton(copyText: self.model.subtitleText, isHighlighted: self.isHighlighted)
+                        }
+                        Spacer()
+                        if let plan = self.model.planText {
+                            Text(plan)
+                                .font(.footnote)
+                                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(self.model.subtitleText)
+                        .font(.footnote)
+                        .foregroundStyle(self.subtitleColor)
                         .lineLimit(1)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+                    Spacer()
+                    if let plan = self.model.planText {
+                        Text(plan)
+                            .font(.footnote)
+                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                            .lineLimit(1)
+                    }
                 }
             }
         }

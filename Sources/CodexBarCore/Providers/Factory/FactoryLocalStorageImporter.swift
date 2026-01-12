@@ -13,12 +13,15 @@ enum FactoryLocalStorageImporter {
         let sourceLabel: String
     }
 
-    static func importWorkOSTokens(logger: ((String) -> Void)? = nil) -> [TokenInfo] {
+    static func importWorkOSTokens(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> [TokenInfo]
+    {
         let log: (String) -> Void = { msg in logger?("[factory-storage] \(msg)") }
         var tokens: [TokenInfo] = []
 
         let safariCandidates = self.safariLocalStorageCandidates()
-        let chromeCandidates = self.chromeLocalStorageCandidates()
+        let chromeCandidates = self.chromeLocalStorageCandidates(browserDetection: browserDetection)
         if !safariCandidates.isEmpty {
             log("Safari local storage candidates: \(safariCandidates.count)")
         }
@@ -72,7 +75,7 @@ enum FactoryLocalStorageImporter {
         let kind: LocalStorageSourceKind
     }
 
-    private static func chromeLocalStorageCandidates() -> [LocalStorageCandidate] {
+    private static func chromeLocalStorageCandidates(browserDetection: BrowserDetection) -> [LocalStorageCandidate] {
         let browsers: [Browser] = [
             .chrome,
             .chromeBeta,
@@ -84,8 +87,12 @@ enum FactoryLocalStorageImporter {
             .chromium,
             .helium,
         ]
+
+        // Filter to browsers with profile data to avoid unnecessary filesystem access.
+        let installedBrowsers = browsers.browsersWithProfileData(using: browserDetection)
+
         let roots = ChromiumProfileLocator
-            .roots(for: browsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
+            .roots(for: installedBrowsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
             .map { (url: $0.url, labelPrefix: $0.labelPrefix) }
 
         var candidates: [LocalStorageCandidate] = []

@@ -121,7 +121,7 @@ struct CursorStatusProbeTests {
 
     @Test
     func prefersPlanRatioOverPercentField() {
-        let snapshot = CursorStatusProbe()
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
             .parseUsageSummary(
                 CursorUsageSummary(
                     billingCycleStart: nil,
@@ -151,7 +151,7 @@ struct CursorStatusProbeTests {
 
     @Test
     func usesPercentFieldWhenLimitMissing() {
-        let snapshot = CursorStatusProbe()
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
             .parseUsageSummary(
                 CursorUsageSummary(
                     billingCycleStart: nil,
@@ -372,7 +372,7 @@ struct CursorStatusProbeTests {
                 maxTokenUsage: nil),
             startOfMonth: nil)
 
-        let snapshot = CursorStatusProbe().parseUsageSummary(
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0)).parseUsageSummary(
             summary,
             userInfo: nil,
             rawJSON: nil,

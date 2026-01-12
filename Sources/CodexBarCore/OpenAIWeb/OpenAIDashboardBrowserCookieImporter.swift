@@ -65,7 +65,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
     }
 
-    public init() {}
+    public init(browserDetection: BrowserDetection) {
+        self.browserDetection = browserDetection
+    }
+
+    private let browserDetection: BrowserDetection
 
     private struct ImportDiagnostics {
         var mismatches: [FoundAccount] = []
@@ -110,7 +114,9 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         var diagnostics = ImportDiagnostics()
 
-        for browserSource in Self.cookieImportOrder {
+        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
+        let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: self.browserDetection)
+        for browserSource in installedBrowsers {
             if let match = await self.trySource(
                 browserSource,
                 targetEmail: normalizedTarget,
@@ -701,6 +707,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         case browserAccessDenied(details: String)
         case dashboardStillRequiresLogin
         case noMatchingAccount(found: [FoundAccount])
+        case manualCookieHeaderInvalid
 
         public var errorDescription: String? {
             switch self {

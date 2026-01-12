@@ -109,7 +109,7 @@ struct ClaudeUsageTests {
         guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_FETCH"] == "1" else {
             return
         }
-        let fetcher = ClaudeUsageFetcher(dataSource: .cli)
+        let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .cli)
         do {
             let snap = try await fetcher.loadLatestUsage()
             let opusUsed = snap.opus?.usedPercent ?? -1
@@ -167,7 +167,7 @@ struct ClaudeUsageTests {
         guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_WEB_FETCH"] == "1" else {
             return
         }
-        let fetcher = ClaudeUsageFetcher(dataSource: .web)
+        let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .web)
         let snap = try await fetcher.loadLatestUsage()
         let weeklyUsed = snap.secondary?.usedPercent ?? -1
         let opusUsed = snap.opus?.usedPercent ?? -1
@@ -185,7 +185,7 @@ struct ClaudeUsageTests {
     @Test
     func claudeWebAPIHasSessionKeyCheck() {
         // Quick check that hasSessionKey returns a boolean (doesn't crash)
-        let hasKey = ClaudeWebAPIFetcher.hasSessionKey()
+        let hasKey = ClaudeWebAPIFetcher.hasSessionKey(browserDetection: BrowserDetection(cacheTTL: 0))
         // We can't assert the value since it depends on the test environment
         #expect(hasKey == true || hasKey == false)
     }
@@ -356,9 +356,10 @@ struct ClaudeUsageTests {
     @Test
     func claudeUsageFetcherInitWithDataSources() {
         // Verify we can create fetchers with both configurations
-        let defaultFetcher = ClaudeUsageFetcher()
-        let webFetcher = ClaudeUsageFetcher(dataSource: .web)
-        let cliFetcher = ClaudeUsageFetcher(dataSource: .cli)
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        let defaultFetcher = ClaudeUsageFetcher(browserDetection: browserDetection)
+        let webFetcher = ClaudeUsageFetcher(browserDetection: browserDetection, dataSource: .web)
+        let cliFetcher = ClaudeUsageFetcher(browserDetection: browserDetection, dataSource: .cli)
         // Both should be valid instances (no crashes)
         let defaultVersion = defaultFetcher.detectVersion()
         let webVersion = webFetcher.detectVersion()

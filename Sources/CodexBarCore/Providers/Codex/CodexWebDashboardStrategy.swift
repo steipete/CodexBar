@@ -20,12 +20,15 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
 
         let accountEmail = context.fetcher.loadAccountInfo().email?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let result = try await Self.fetchOpenAIWebCodex(
-            accountEmail: accountEmail,
-            fetcher: context.fetcher,
+        let options = OpenAIWebOptions(
             timeout: context.webTimeout,
             debugDumpHTML: context.webDebugDumpHTML,
             verbose: context.verbose)
+        let result = try await Self.fetchOpenAIWebCodex(
+            accountEmail: accountEmail,
+            fetcher: context.fetcher,
+            options: options,
+            browserDetection: context.browserDetection)
         return self.makeResult(
             usage: result.usage,
             credits: result.credits,
@@ -94,12 +97,10 @@ extension CodexWebDashboardStrategy {
     fileprivate static func fetchOpenAIWebCodex(
         accountEmail: String?,
         fetcher: UsageFetcher,
-        timeout: TimeInterval,
-        debugDumpHTML: Bool,
-        verbose: Bool) async throws -> OpenAIWebCodexResult
+        options: OpenAIWebOptions,
+        browserDetection: BrowserDetection) async throws -> OpenAIWebCodexResult
     {
-        let options = OpenAIWebOptions(timeout: timeout, debugDumpHTML: debugDumpHTML, verbose: verbose)
-        let logger = WebLogBuffer(verbose: verbose)
+        let logger = WebLogBuffer(verbose: options.verbose)
         let log: @MainActor (String) -> Void = { line in
             logger.append(line)
         }
@@ -107,6 +108,7 @@ extension CodexWebDashboardStrategy {
             accountEmail: accountEmail,
             fetcher: fetcher,
             options: options,
+            browserDetection: browserDetection,
             logger: log)
         guard let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: accountEmail) else {
             throw OpenAIWebCodexError.missingUsage
@@ -120,6 +122,7 @@ extension CodexWebDashboardStrategy {
         accountEmail: String?,
         fetcher: UsageFetcher,
         options: OpenAIWebOptions,
+        browserDetection: BrowserDetection,
         logger: @MainActor @escaping (String) -> Void) async throws -> OpenAIDashboardSnapshot
     {
         let trimmed = accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -127,7 +130,7 @@ extension CodexWebDashboardStrategy {
         let codexEmail = trimmed?.isEmpty == false ? trimmed : (fallback?.isEmpty == false ? fallback : nil)
         let allowAnyAccount = codexEmail == nil
 
-        let importResult = try await OpenAIDashboardBrowserCookieImporter()
+        let importResult = try await OpenAIDashboardBrowserCookieImporter(browserDetection: browserDetection)
             .importBestCookies(intoAccountEmail: codexEmail, allowAnyAccount: allowAnyAccount, logger: logger)
         let effectiveEmail = codexEmail ?? importResult.signedInEmail?
             .trimmingCharacters(in: .whitespacesAndNewlines)

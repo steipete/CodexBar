@@ -643,7 +643,10 @@ public struct AugmentStatusProbe: Sendable {
         _ = timeout
     }
 
-    public func fetch(logger: ((String) -> Void)? = nil) async throws -> AugmentStatusSnapshot {
+    public func fetch(cookieHeaderOverride: String? = nil, logger: ((String) -> Void)? = nil)
+        async throws -> AugmentStatusSnapshot
+    {
+        _ = cookieHeaderOverride
         _ = logger
         throw AugmentStatusProbeError.notSupported
     }

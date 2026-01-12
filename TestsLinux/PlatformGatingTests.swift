@@ -22,7 +22,7 @@ struct PlatformGatingTests {
     @Test
     func claudeWebFetcher_hasSessionKey_isFalseOnLinux() {
         #if os(Linux)
-        #expect(ClaudeWebAPIFetcher.hasSessionKey() == false)
+        #expect(ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: nil) == false)
         #else
         #expect(Bool(true))
         #endif

@@ -51,7 +51,7 @@ struct CursorStatusFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let probe = CursorStatusProbe()
+        let probe = CursorStatusProbe(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
         let snap = try await probe.fetch(cookieHeaderOverride: manual)
         return self.makeResult(

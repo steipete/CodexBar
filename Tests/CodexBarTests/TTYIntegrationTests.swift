@@ -28,7 +28,7 @@ struct TTYIntegrationTests {
             return
         }
 
-        let fetcher = ClaudeUsageFetcher(dataSource: .cli)
+        let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .cli)
 
         var shouldAssert = true
         do {

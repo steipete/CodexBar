@@ -62,6 +62,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     private let dataSource: ClaudeUsageDataSource
     private let useWebExtras: Bool
     private let manualCookieHeader: String?
+    private let browserDetection: BrowserDetection
     private static let log = CodexBarLog.logger("claude-usage")
 
     /// Creates a new ClaudeUsageFetcher.
@@ -70,11 +71,13 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     ///   - dataSource: Usage data source (default: OAuth API).
     ///   - useWebExtras: If true, attempts to enrich usage with Claude web data (cookies).
     public init(
+        browserDetection: BrowserDetection,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         dataSource: ClaudeUsageDataSource = .oauth,
         useWebExtras: Bool = false,
         manualCookieHeader: String? = nil)
     {
+        self.browserDetection = browserDetection
         self.environment = environment
         self.dataSource = dataSource
         self.useWebExtras = useWebExtras
@@ -220,7 +223,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             let hasWebSession = if let header = self.manualCookieHeader {
                 ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
             } else {
-                ClaudeWebAPIFetcher.hasSessionKey()
+                ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection)
             }
             if hasOAuthCredentials {
                 var snap = try await self.loadViaOAuth()
@@ -264,7 +267,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             if !creds.scopes.contains("user:profile") {
                 throw ClaudeUsageError.oauthFailed(
                     "Claude OAuth token missing 'user:profile' scope (has: \(creds.scopes.joined(separator: ", "))). "
-                        + "Rate limit data unavailable.")
+                        + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to Web/CLI.")
             }
             let usage = try await ClaudeOAuthUsageFetcher.fetchUsage(accessToken: creds.accessToken)
             return try Self.mapOAuthUsage(usage, credentials: creds)
@@ -273,6 +276,15 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         } catch let error as ClaudeOAuthCredentialsError {
             throw ClaudeUsageError.oauthFailed(error.localizedDescription)
         } catch let error as ClaudeOAuthFetchError {
+            ClaudeOAuthCredentialsStore.invalidateCache()
+            if case let .serverError(statusCode, body) = error,
+               statusCode == 403,
+               body?.contains("user:profile") ?? false
+            {
+                throw ClaudeUsageError.oauthFailed(
+                    "Claude OAuth token does not meet scope requirement 'user:profile'. "
+                        + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to Web/CLI.")
+            }
             throw ClaudeUsageError.oauthFailed(error.localizedDescription)
         } catch {
             throw ClaudeUsageError.oauthFailed(error.localizedDescription)
@@ -359,7 +371,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 Self.log.debug(msg)
             }
         } else {
-            try await ClaudeWebAPIFetcher.fetchUsage { msg in
+            try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: self.browserDetection) { msg in
                 Self.log.debug(msg)
             }
         }
@@ -451,7 +463,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     Self.log.debug(msg)
                 }
             } else {
-                try await ClaudeWebAPIFetcher.fetchUsage { msg in
+                try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: self.browserDetection) { msg in
                     Self.log.debug(msg)
                 }
             }

@@ -21,7 +21,8 @@ struct ProviderRegistry {
         settings: SettingsStore,
         metadata: [UsageProvider: ProviderMetadata],
         codexFetcher: UsageFetcher,
-        claudeFetcher: any ClaudeUsageFetching) -> [UsageProvider: ProviderSpec]
+        claudeFetcher: any ClaudeUsageFetching,
+        browserDetection: BrowserDetection) -> [UsageProvider: ProviderSpec]
     {
         var specs: [UsageProvider: ProviderSpec] = [:]
         specs.reserveCapacity(UsageProvider.allCases.count)
@@ -87,7 +88,8 @@ struct ProviderRegistry {
                         env: ProcessInfo.processInfo.environment,
                         settings: snapshot,
                         fetcher: codexFetcher,
-                        claudeFetcher: claudeFetcher)
+                        claudeFetcher: claudeFetcher,
+                        browserDetection: browserDetection)
                     return await descriptor.fetchOutcome(context: context)
                 })
             specs[provider] = spec
