@@ -6,7 +6,7 @@ import FoundationNetworking
 /// Probe that uses OAuth tokens to make direct API calls to Antigravity services
 public struct AntigravityAPIProbe: Sendable {
     public var timeout: TimeInterval = 8.0
-    public let account: AntigravityAccountStore.AntigravityAccount
+    public let account: AntigravityAccount
 
     private static let getUserStatusPath = "/exa.language_server_pb.LanguageServerService/GetUserStatus"
     private static let commandModelConfigPath =
@@ -14,13 +14,13 @@ public struct AntigravityAPIProbe: Sendable {
     private static let unleashPath = "/exa.language_server_pb.LanguageServerService/GetUnleashData"
     private static let log = CodexBarLog.logger("antigravity-api")
 
-    public init(timeout: TimeInterval = 8.0, account: AntigravityAccountStore.AntigravityAccount) {
+    public init(timeout: TimeInterval = 8.0, account: AntigravityAccount) {
         self.timeout = timeout
         self.account = account
     }
 
     public func fetch() async throws -> AntigravityStatusSnapshot {
-        let accessToken = try await Self.refreshAccessToken()
+        let accessToken = try await self.refreshAccessToken()
 
         let baseURL = "https://daily-cloudcode-pa.sandbox.googleapis.com"
 
@@ -42,7 +42,7 @@ public struct AntigravityAPIProbe: Sendable {
     }
 
     public func fetchPlanInfoSummary() async throws -> AntigravityPlanInfoSummary? {
-        let accessToken = try await Self.refreshAccessToken()
+        let accessToken = try await self.refreshAccessToken()
         let baseURL = "https://daily-cloudcode-pa.sandbox.googleapis.com"
 
         let response = try await Self.makeAPIRequest(
@@ -55,13 +55,13 @@ public struct AntigravityAPIProbe: Sendable {
 
     // MARK: - Token Refresh
 
-    private static func refreshAccessToken() async throws -> String {
+    private func refreshAccessToken() async throws -> String {
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
         request.httpMethod = "POST"
         request.timeoutInterval = 30.0
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-        let parts = account.refreshTokenWithProjectId.split(separator: "|", maxSplits: 1)
+        let parts = self.account.refreshTokenWithProjectId.split(separator: "|", maxSplits: 1)
         let refreshToken = String(parts[0])
 
         let body = [

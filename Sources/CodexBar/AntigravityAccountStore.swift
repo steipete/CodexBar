@@ -3,37 +3,8 @@ import Foundation
 import Security
 
 protocol AntigravityAccountStoring: Sendable {
-    func loadAccounts() throws -> AntigravityAccountStore?
-    func storeAccounts(_ accounts: AntigravityAccountStore?) throws
-}
-
-struct AntigravityAccountStore: Codable, Sendable {
-    let version: Int
-    let accounts: [AntigravityAccount]
-    let activeIndex: Int
-    let activeIndexByFamily: [String: Int]
-
-    struct AntigravityAccount: Codable, Sendable {
-        let email: String
-        let refreshToken: String
-        let projectId: String?
-        let addedAt: TimeInterval
-        let lastUsed: TimeInterval?
-        let rateLimitResetTimes: [String: TimeInterval]
-        let coolingDownUntil: TimeInterval?
-        let cooldownReason: String?
-
-        var displayName: String {
-            email
-        }
-
-        var refreshTokenWithProjectId: String {
-            if let projectId = projectId, !projectId.isEmpty {
-                return "\(refreshToken)|\(projectId)"
-            }
-            return "\(refreshToken)|"
-        }
-    }
+    func loadAccounts() throws -> AntigravityAccountData?
+    func storeAccounts(_ accounts: AntigravityAccountData?) throws
 }
 
 enum AntigravityAccountStoreError: LocalizedError {
@@ -59,7 +30,7 @@ struct KeychainAntigravityAccountStore: AntigravityAccountStoring {
     private let service = "com.steipete.CodexBar"
     private let account = "antigravity-accounts"
 
-    func loadAccounts() throws -> AntigravityAccountStore? {
+    func loadAccounts() throws -> AntigravityAccountData? {
         var result: CFTypeRef?
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -84,7 +55,7 @@ struct KeychainAntigravityAccountStore: AntigravityAccountStoring {
 
         do {
             let decoder = JSONDecoder()
-            let accounts = try decoder.decode(AntigravityAccountStore.self, from: data)
+            let accounts = try decoder.decode(AntigravityAccountData.self, from: data)
             return accounts
         } catch {
             Self.log.error("Failed to decode accounts data: \(error)")
@@ -92,7 +63,7 @@ struct KeychainAntigravityAccountStore: AntigravityAccountStoring {
         }
     }
 
-    func storeAccounts(_ accounts: AntigravityAccountStore?) throws {
+    func storeAccounts(_ accounts: AntigravityAccountData?) throws {
         guard let accounts = accounts else {
             try self.deleteAccountsIfPresent()
             return

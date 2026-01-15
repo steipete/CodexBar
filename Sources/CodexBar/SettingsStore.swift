@@ -255,7 +255,7 @@ final class SettingsStore {
     }
 
     /// Antigravity accounts (stored in Keychain).
-    var antigravityAccounts: AntigravityAccountStore? {
+    var antigravityAccounts: AntigravityAccountData? {
         didSet { self.schedulePersistAntigravityAccounts() }
     }
 
@@ -372,9 +372,9 @@ final class SettingsStore {
         _ = self.claudeCookieHeader
         _ = self.cursorCookieHeader
         _ = self.factoryCookieHeader
-         _ = self.minimaxCookieHeader
-         _ = self.copilotAPIToken
-         _ = self.antigravityCurrentAccountIndex
+        _ = self.minimaxCookieHeader
+        _ = self.copilotAPIToken
+        _ = self.antigravityCurrentAccountIndex
         _ = self.debugLoadingPattern
         _ = self.selectedMenuProvider
         _ = self.providerToggleRevision

@@ -68,13 +68,16 @@ struct AntigravityAPIFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .apiFetch
 
     func isAvailable(context: ProviderFetchContext) async -> Bool {
-        let hasAccounts = (try? context.settings.antigravityAccounts)?.accounts.isEmpty == false
+        let hasAccounts = context.settings?.antigravity?.accounts.isEmpty == false
         return hasAccounts
     }
 
     func fetch(context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let accounts = context.settings.antigravityAccounts?.accounts ?? []
-        let currentIndex = context.settings.antigravityCurrentAccountIndex
+        guard let antigravitySettings = context.settings?.antigravity else {
+            throw AntigravityStatusProbeError.parseFailed("No Antigravity settings available")
+        }
+        let accounts = antigravitySettings.accounts
+        let currentIndex = antigravitySettings.currentAccountIndex
         guard currentIndex < accounts.count else {
             throw AntigravityStatusProbeError.parseFailed("No account selected")
         }

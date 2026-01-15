@@ -84,6 +84,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct AntigravityProviderSettings: Sendable {
+        public let accounts: [AntigravityAccount]
+        public let currentAccountIndex: Int
+
+        public init(accounts: [AntigravityAccount], currentAccountIndex: Int) {
+            self.accounts = accounts
+            self.currentAccountIndex = currentAccountIndex
+        }
+    }
+
     public let debugMenuEnabled: Bool
     public let codex: CodexProviderSettings?
     public let claude: ClaudeProviderSettings?
@@ -93,6 +103,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let zai: ZaiProviderSettings?
     public let copilot: CopilotProviderSettings?
     public let augment: AugmentProviderSettings?
+    public let antigravity: AntigravityProviderSettings?
 
     public init(
         debugMenuEnabled: Bool,
@@ -103,7 +114,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         minimax: MiniMaxProviderSettings?,
         zai: ZaiProviderSettings?,
         copilot: CopilotProviderSettings?,
-        augment: AugmentProviderSettings?)
+        augment: AugmentProviderSettings?,
+        antigravity: AntigravityProviderSettings?)
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.codex = codex
@@ -114,5 +126,6 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.zai = zai
         self.copilot = copilot
         self.augment = augment
+        self.antigravity = antigravity
     }
 }

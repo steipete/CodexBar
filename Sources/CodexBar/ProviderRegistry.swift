@@ -52,7 +52,14 @@ struct ProviderRegistry {
                         .auto
                     }
                     let snapshot = await MainActor.run {
-                        ProviderSettingsSnapshot(
+                        settings.ensureAntigravityAccountsLoaded()
+                        let antigravitySettings: ProviderSettingsSnapshot.AntigravityProviderSettings? = {
+                            guard let accounts = settings.antigravityAccounts else { return nil }
+                            return ProviderSettingsSnapshot.AntigravityProviderSettings(
+                                accounts: accounts.accounts,
+                                currentAccountIndex: settings.antigravityCurrentAccountIndex)
+                        }()
+                        return ProviderSettingsSnapshot(
                             debugMenuEnabled: settings.debugMenuEnabled,
                             codex: ProviderSettingsSnapshot.CodexProviderSettings(
                                 usageDataSource: settings.codexUsageDataSource,
@@ -76,7 +83,8 @@ struct ProviderRegistry {
                             copilot: ProviderSettingsSnapshot.CopilotProviderSettings(),
                             augment: ProviderSettingsSnapshot.AugmentProviderSettings(
                                 cookieSource: settings.augmentCookieSource,
-                                manualCookieHeader: settings.augmentCookieHeader))
+                                manualCookieHeader: settings.augmentCookieHeader),
+                            antigravity: antigravitySettings)
                     }
                     let context = ProviderFetchContext(
                         runtime: .app,

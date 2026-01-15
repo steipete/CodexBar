@@ -21,20 +21,25 @@ extension StatusItemController {
 
     func removeCurrentAntigravityAccount() async {
         self.settings.ensureAntigravityAccountsLoaded()
-        guard var accounts = self.settings.antigravityAccounts else { return }
+        guard let existingData = self.settings.antigravityAccounts else { return }
 
         let index = self.settings.antigravityCurrentAccountIndex
-        guard index < accounts.accounts.count else { return }
+        guard index < existingData.accounts.count else { return }
 
-        let account = accounts.accounts[index]
-        accounts.accounts.remove(at: index)
+        let account = existingData.accounts[index]
+        var updatedAccounts = existingData.accounts
+        updatedAccounts.remove(at: index)
 
-        if accounts.accounts.isEmpty {
+        if updatedAccounts.isEmpty {
             self.settings.antigravityAccounts = nil
             self.settings.antigravityCurrentAccountIndex = 0
         } else {
-            self.settings.antigravityAccounts = accounts
-            self.settings.antigravityCurrentAccountIndex = min(index, accounts.accounts.count - 1)
+            self.settings.antigravityAccounts = AntigravityAccountData(
+                version: existingData.version,
+                accounts: updatedAccounts,
+                activeIndex: min(index, updatedAccounts.count - 1),
+                activeIndexByFamily: existingData.activeIndexByFamily)
+            self.settings.antigravityCurrentAccountIndex = min(index, updatedAccounts.count - 1)
         }
 
         await self.store.refresh()
@@ -56,7 +61,7 @@ extension StatusItemController {
         }
 
         let now = Date().timeIntervalSince1970
-        let newAccount = AntigravityAccountStore.AntigravityAccount(
+        let newAccount = AntigravityAccount(
             email: email,
             refreshToken: refreshToken,
             projectId: projectId,
@@ -68,7 +73,7 @@ extension StatusItemController {
 
         existingAccounts.append(newAccount)
 
-        self.settings.antigravityAccounts = AntigravityAccountStore(
+        self.settings.antigravityAccounts = AntigravityAccountData(
             version: 3,
             accounts: existingAccounts,
             activeIndex: 0,

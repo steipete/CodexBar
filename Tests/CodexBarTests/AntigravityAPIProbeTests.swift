@@ -4,7 +4,7 @@ import Testing
 @Test("AntigravityAPIProbe initialization")
 func antigravityAPIProbeInit() throws {
     let now = Date().timeIntervalSince1970
-    let account = AntigravityAccountStore.AntigravityAccount(
+    let account = AntigravityAccount(
         email: "test@example.com",
         refreshToken: "test-refresh-token",
         projectId: "test-project",
@@ -12,8 +12,7 @@ func antigravityAPIProbeInit() throws {
         lastUsed: now,
         rateLimitResetTimes: [:],
         coolingDownUntil: nil,
-        cooldownReason: nil
-    )
+        cooldownReason: nil)
 
     let probe = AntigravityAPIProbe(timeout: 10.0, account: account)
 
@@ -21,17 +20,30 @@ func antigravityAPIProbeInit() throws {
     #expect(probe.account.email == "test@example.com")
 }
 
-@Test("AntigravityAPIProbe request body construction")
-func antigravityAPIProbeRequestBody() throws {
-    let requestBody = type(of: AntigravityAPIProbe).method(named: "defaultRequestBody")?()
+@Test("AntigravityAccount refreshTokenWithProjectId format")
+func antigravityAccountRefreshTokenFormat() throws {
+    let now = Date().timeIntervalSince1970
 
-    #expect(requestBody != nil)
-    if let body = requestBody {
-        let dict = body as? [String: Any]
-        #expect(dict != nil)
-        if let dict = dict {
-            let metadata = dict["metadata"] as? [String: Any]
-            #expect(metadata != nil)
-        }
-    }
+    let accountWithProjectId = AntigravityAccount(
+        email: "user@example.com",
+        refreshToken: "my-refresh-token",
+        projectId: "project-123",
+        addedAt: now,
+        lastUsed: now,
+        rateLimitResetTimes: [:],
+        coolingDownUntil: nil,
+        cooldownReason: nil)
+
+    let accountWithoutProjectId = AntigravityAccount(
+        email: "user@example.com",
+        refreshToken: "my-refresh-token",
+        projectId: nil,
+        addedAt: now,
+        lastUsed: now,
+        rateLimitResetTimes: [:],
+        coolingDownUntil: nil,
+        cooldownReason: nil)
+
+    #expect(accountWithProjectId.refreshTokenWithProjectId == "my-refresh-token|project-123")
+    #expect(accountWithoutProjectId.refreshTokenWithProjectId == "my-refresh-token|")
 }
