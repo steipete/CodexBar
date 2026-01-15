@@ -254,6 +254,16 @@ final class SettingsStore {
         didSet { self.schedulePersistCopilotAPIToken() }
     }
 
+    /// Antigravity accounts (stored in Keychain).
+    var antigravityAccounts: AntigravityAccountStore? {
+        didSet { self.schedulePersistAntigravityAccounts() }
+    }
+
+    /// Current Antigravity account index.
+    var antigravityCurrentAccountIndex: Int {
+        didSet { self.userDefaults.set(self.antigravityCurrentAccountIndex, forKey: "antigravityCurrentAccountIndex") }
+    }
+
     private var selectedMenuProviderRaw: String? {
         didSet {
             if let raw = self.selectedMenuProviderRaw {
@@ -362,8 +372,9 @@ final class SettingsStore {
         _ = self.claudeCookieHeader
         _ = self.cursorCookieHeader
         _ = self.factoryCookieHeader
-        _ = self.minimaxCookieHeader
-        _ = self.copilotAPIToken
+         _ = self.minimaxCookieHeader
+         _ = self.copilotAPIToken
+         _ = self.antigravityCurrentAccountIndex
         _ = self.debugLoadingPattern
         _ = self.selectedMenuProvider
         _ = self.providerToggleRevision
@@ -408,6 +419,9 @@ final class SettingsStore {
     @ObservationIgnored private var copilotTokenPersistTask: Task<Void, Never>?
     @ObservationIgnored private var copilotTokenLoaded = false
     @ObservationIgnored private var copilotTokenLoading = false
+    @ObservationIgnored private let antigravityAccountStore: any AntigravityAccountStoring
+    @ObservationIgnored private var antigravityAccountsLoaded = false
+    @ObservationIgnored private var antigravityAccountsLoading = false
     // Cache enablement so tight UI loops (menu bar animations) don't hit UserDefaults each tick.
     @ObservationIgnored private var cachedProviderEnablement: [UsageProvider: Bool] = [:]
     @ObservationIgnored private var cachedProviderEnablementRevision: Int = -1
@@ -438,7 +452,8 @@ final class SettingsStore {
         augmentCookieStore: any CookieHeaderStoring = KeychainCookieHeaderStore(
             account: "augment-cookie",
             promptKind: .augmentCookie),
-        copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore())
+        copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
+        antigravityAccountStore: any AntigravityAccountStoring = KeychainAntigravityAccountStore())
     {
         self.userDefaults = userDefaults
         self.zaiTokenStore = zaiTokenStore
@@ -449,6 +464,7 @@ final class SettingsStore {
         self.minimaxCookieStore = minimaxCookieStore
         self.augmentCookieStore = augmentCookieStore
         self.copilotTokenStore = copilotTokenStore
+        self.antigravityAccountStore = antigravityAccountStore
         self.providerOrderRaw = userDefaults.stringArray(forKey: "providerOrder") ?? []
         let raw = userDefaults.string(forKey: "refreshFrequency") ?? RefreshFrequency.fiveMinutes.rawValue
         self.refreshFrequency = RefreshFrequency(rawValue: raw) ?? .fiveMinutes
@@ -511,6 +527,8 @@ final class SettingsStore {
         self.minimaxCookieHeader = ""
         self.augmentCookieHeader = ""
         self.copilotAPIToken = ""
+        self.antigravityAccounts = nil
+        self.antigravityCurrentAccountIndex = userDefaults.object(forKey: "antigravityCurrentAccountIndex") as? Int ?? 0
         self.selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         self.providerDetectionCompleted = userDefaults.object(
             forKey: "providerDetectionCompleted") as? Bool ?? false
@@ -958,6 +976,31 @@ extension SettingsStore {
             }
         }
     }
+
+    private func schedulePersistAntigravityAccounts() {
+        if self.antigravityAccountsLoading { return }
+        let accountStore = self.antigravityAccountStore
+        let accounts = self.antigravityAccounts
+        let persistTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: 350_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            let error: (any Error)? = await Task.detached(priority: .utility) { () -> (any Error)? in
+                do {
+                    try accountStore.storeAccounts(accounts)
+                    return nil
+                } catch {
+                    return error
+                }
+            }.value
+            if let error {
+                CodexBarLog.logger("antigravity-account-store").error("Failed to persist accounts: \(error)")
+            }
+        }
+    }
 }
 
 extension SettingsStore {
@@ -1023,6 +1066,14 @@ extension SettingsStore {
         self.copilotAPIToken = (try? self.copilotTokenStore.loadToken()) ?? ""
         self.copilotTokenLoading = false
         self.copilotTokenLoaded = true
+    }
+
+    func ensureAntigravityAccountsLoaded() {
+        guard !self.antigravityAccountsLoaded else { return }
+        self.antigravityAccountsLoading = true
+        self.antigravityAccounts = (try? self.antigravityAccountStore.loadAccounts())
+        self.antigravityAccountsLoading = false
+        self.antigravityAccountsLoaded = true
     }
 }
 

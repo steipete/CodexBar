@@ -34,7 +34,9 @@ public enum AntigravityProviderDescriptor {
                 noDataMessage: { "Antigravity cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [AntigravityStatusFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                    [AntigravityAPIFetchStrategy(), AntigravityStatusFetchStrategy()]
+                })),
             cli: ProviderCLIConfig(
                 name: "antigravity",
                 versionDetector: nil))
@@ -47,7 +49,7 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
 
     func isAvailable(_: ProviderFetchContext) async -> Bool { true }
 
-    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+    func fetch(context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = AntigravityStatusProbe()
         let snap = try await probe.fetch()
         let usage = try snap.toUsageSnapshot()
@@ -57,6 +59,36 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+struct AntigravityAPIFetchStrategy: ProviderFetchStrategy {
+    let id: String = "antigravity.api"
+    let kind: ProviderFetchKind = .apiFetch
+
+    func isAvailable(context: ProviderFetchContext) async -> Bool {
+        let hasAccounts = (try? context.settings.antigravityAccounts)?.accounts.isEmpty == false
+        return hasAccounts
+    }
+
+    func fetch(context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let accounts = context.settings.antigravityAccounts?.accounts ?? []
+        let currentIndex = context.settings.antigravityCurrentAccountIndex
+        guard currentIndex < accounts.count else {
+            throw AntigravityStatusProbeError.parseFailed("No account selected")
+        }
+        let account = accounts[currentIndex]
+
+        let probe = AntigravityAPIProbe(account: account)
+        let snap = try await probe.fetch()
+        let usage = try snap.toUsageSnapshot()
+        return self.makeResult(
+            usage: usage,
+            sourceLabel: account.email)
+    }
+
+    func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
         false
     }
 }
