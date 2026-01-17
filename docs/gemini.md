@@ -40,9 +40,10 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
   - `POST https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota`
   - Body: `{ "project": "<projectId>" }` (or `{}` if unknown)
   - Header: `Authorization: Bearer <access_token>`
-- Project discovery:
-  - `GET https://cloudresourcemanager.googleapis.com/v1/projects`
-  - Picks `gen-lang-client*` or label `generative-language` for the project ID.
+- Project discovery (quota project ID):
+  - Primary: `cloudaicompanionProject` from `loadCodeAssist`.
+  - Fallback: `GET https://cloudresourcemanager.googleapis.com/v1/projects`
+    - Picks `gen-lang-client*` or label `generative-language`.
 - Tier detection:
   - `POST https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist`
   - Body: `{ "metadata": { "ideType": "GEMINI_CLI", "pluginType": "GEMINI" } }`

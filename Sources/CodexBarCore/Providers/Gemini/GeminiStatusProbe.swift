@@ -337,6 +337,8 @@ public struct GeminiStatusProbe: Sendable {
     private struct CodeAssistStatus: Sendable {
         let tier: GeminiUserTierId?
         let projectId: String?
+
+        static let empty = CodeAssistStatus(tier: nil, projectId: nil)
     }
 
     private static func loadCodeAssistStatus(
@@ -346,7 +348,7 @@ public struct GeminiStatusProbe: Sendable {
     {
         guard let url = URL(string: loadCodeAssistEndpoint) else {
             self.log.warning("loadCodeAssist: invalid endpoint URL")
-            return CodeAssistStatus(tier: nil, projectId: nil)
+            return .empty
         }
 
         var request = URLRequest(url: url)
@@ -362,12 +364,12 @@ public struct GeminiStatusProbe: Sendable {
             (data, response) = try await dataLoader(request)
         } catch {
             Self.log.warning("loadCodeAssist: request failed", metadata: ["error": "\(error)"])
-            return CodeAssistStatus(tier: nil, projectId: nil)
+            return .empty
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             Self.log.warning("loadCodeAssist: invalid response type")
-            return CodeAssistStatus(tier: nil, projectId: nil)
+            return .empty
         }
 
         guard httpResponse.statusCode == 200 else {
@@ -375,14 +377,14 @@ public struct GeminiStatusProbe: Sendable {
                 "statusCode": "\(httpResponse.statusCode)",
                 "body": String(data: data, encoding: .utf8) ?? "<binary>",
             ])
-            return CodeAssistStatus(tier: nil, projectId: nil)
+            return .empty
         }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             Self.log.warning("loadCodeAssist: failed to parse JSON", metadata: [
                 "body": String(data: data, encoding: .utf8) ?? "<binary>",
             ])
-            return CodeAssistStatus(tier: nil, projectId: nil)
+            return .empty
         }
 
         // Extract Project ID (cloudaicompanionProject)
