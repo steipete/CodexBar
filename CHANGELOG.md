@@ -48,6 +48,7 @@
 - Menu: add “Hide personal information” toggle and redact emails in menu UI (#137). Thanks @t3dotgg!
 - Menu: reduce provider-switch flicker and avoid redundant menu card sizing for faster opens (#132). Thanks @ibehnam!
 - Menu: keep background refresh on open without forcing token usage (#158). Thanks @weequan93!
+- Menu: Cursor switcher shows On-Demand remaining when Plan is exhausted in show-remaining mode (#193). Thanks @vltansky!
 
 ### CLI
 - CLI: respect the reset time display setting.

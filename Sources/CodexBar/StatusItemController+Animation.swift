@@ -268,6 +268,7 @@ extension StatusItemController {
         // user setting we pass either "percent left" or "percent used".
         let showUsed = self.settings.usageBarsShowUsed
         let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
+
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: provider)
         {
