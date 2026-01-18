@@ -103,7 +103,10 @@ public enum JetBrainsIDEDetector {
     }
 
     private static func parseIDEDirectory(dirname: String, basePath: String) -> JetBrainsIDEInfo? {
-        for (prefix, displayName) in self.idePatterns where dirname.hasPrefix(prefix) {
+        let dirnameLower = dirname.lowercased()
+        for (prefix, displayName) in self.idePatterns {
+            let prefixLower = prefix.lowercased()
+            guard dirnameLower.hasPrefix(prefixLower) else { continue }
             let versionPart = String(dirname.dropFirst(prefix.count))
             let version = versionPart.isEmpty ? "Unknown" : versionPart
             let idePath = "\(basePath)/\(dirname)"
