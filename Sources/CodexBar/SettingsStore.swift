@@ -115,6 +115,12 @@ final class SettingsStore {
         copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore())
     {
+        // Register defaults first, before any properties are initialized or accessed
+        userDefaults.register(defaults: [
+            "hideStatusItemBelowThreshold": false,
+            "statusItemThresholdPercent": 80,
+        ])
+        let configStore = CodexBarConfigStore()
         let legacyStores = CodexBarConfigMigrator.LegacyStores(
             zaiTokenStore: zaiTokenStore,
             syntheticTokenStore: syntheticTokenStore,
@@ -176,6 +182,11 @@ extension SettingsStore {
         if sessionQuotaDefault == nil {
             userDefaults.set(true, forKey: "sessionQuotaNotificationsEnabled")
         }
+        let hideStatusItemBelowThreshold = userDefaults.bool(forKey: "hideStatusItemBelowThreshold")
+        let statusItemThresholdPercent = max(
+            0,
+            min(100, userDefaults.integer(forKey: "statusItemThresholdPercent"))
+        )
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
         let menuBarShowsBrandIconWithPercent = userDefaults.object(
@@ -217,6 +228,8 @@ extension SettingsStore {
             debugLoadingPatternRaw: debugLoadingPatternRaw,
             statusChecksEnabled: statusChecksEnabled,
             sessionQuotaNotificationsEnabled: sessionQuotaNotificationsEnabled,
+            hideStatusItemBelowThreshold: hideStatusItemBelowThreshold,
+            statusItemThresholdPercent: statusItemThresholdPercent,
             usageBarsShowUsed: usageBarsShowUsed,
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,

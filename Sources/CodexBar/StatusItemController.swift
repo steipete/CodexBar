@@ -42,6 +42,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var blinkTask: Task<Void, Never>?
+    var launchVisibilityTask: Task<Void, Never>?
     var loginTask: Task<Void, Never>? {
         didSet { self.refreshMenusForLoginStateChange() }
     }
@@ -162,6 +163,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             selector: #selector(self.handleDebugBlinkNotification),
             name: .codexbarDebugBlinkNow,
             object: nil)
+        self.scheduleLaunchVisibilityUpdate()
+    }
+
+    private func scheduleLaunchVisibilityUpdate() {
+        self.launchVisibilityTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(15))
+            self.updateVisibility()
+        }
     }
 
     private func wireBindings() {
@@ -179,6 +188,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 guard let self else { return }
                 self.observeStoreChanges()
                 self.invalidateMenus()
+                self.updateVisibility()
                 self.updateIcons()
                 self.updateBlinkingState()
             }
@@ -298,11 +308,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         return item
     }
 
-    private func updateVisibility() {
-        let anyEnabled = !self.store.enabledProviders().isEmpty
+    func updateVisibility() {
         let force = self.store.debugForceAnimation
         if self.shouldMergeIcons {
-            self.statusItem.isVisible = anyEnabled || force
+            let shouldBeVisible = self.mergedIconMeetsThreshold() || force
+            self.statusItem.isVisible = shouldBeVisible
             for item in self.statusItems.values {
                 item.isVisible = false
             }
@@ -311,8 +321,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.statusItem.isVisible = false
             let fallback = self.fallbackProvider
             for provider in UsageProvider.allCases {
-                let isEnabled = self.isEnabled(provider)
-                let shouldBeVisible = isEnabled || fallback == provider || force
+                let shouldBeVisible = self.isVisible(provider) || force
                 if shouldBeVisible {
                     let item = self.lazyStatusItem(for: provider)
                     item.isVisible = true
@@ -400,7 +409,55 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     func isVisible(_ provider: UsageProvider) -> Bool {
-        self.store.debugForceAnimation || self.isEnabled(provider) || self.fallbackProvider == provider
+        if self.store.debugForceAnimation || self.fallbackProvider == provider {
+            return true
+        }
+        guard self.isEnabled(provider) else {
+            return false
+        }
+        return self.meetsThreshold(provider)
+    }
+
+    private func meetsThreshold(_ provider: UsageProvider) -> Bool {
+        guard self.settings.hideStatusItemBelowThreshold else {
+            return true
+        }
+        // Show while any menu is open
+        if !self.openMenus.isEmpty {
+            return true
+        }
+        guard let snapshot = self.store.snapshot(for: provider),
+              let primary = snapshot.primary
+        else {
+            return true
+        }
+        return primary.usedPercent >= Double(self.settings.statusItemThresholdPercent)
+    }
+
+    private func mergedIconMeetsThreshold() -> Bool {
+        let enabledProviders = self.store.enabledProviders()
+        guard !enabledProviders.isEmpty else {
+            return !self.settings.hideStatusItemBelowThreshold
+        }
+
+        guard self.settings.hideStatusItemBelowThreshold else {
+            return true
+        }
+
+        // Show while any menu is open
+        if !self.openMenus.isEmpty {
+            return true
+        }
+
+        // Show if at least one enabled provider meets the threshold
+        return enabledProviders.contains { provider in
+            guard let snapshot = self.store.snapshot(for: provider),
+                  let primary = snapshot.primary
+            else {
+                return true
+            }
+            return primary.usedPercent >= Double(self.settings.statusItemThresholdPercent)
+        }
     }
 
     var shouldMergeIcons: Bool {
@@ -421,6 +478,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     deinit {
         self.blinkTask?.cancel()
+        self.launchVisibilityTask?.cancel()
         self.loginTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }

@@ -96,6 +96,45 @@ struct GeneralPane: View {
                         subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +
                             "available again.",
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle(isOn: self.$settings.hideStatusItemBelowThreshold) {
+                                Text("Hide status item below threshold")
+                                    .font(.body)
+                            }
+                            .toggleStyle(.checkbox)
+
+                            Text("Only show status items when session usage exceeds the threshold.")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if self.settings.hideStatusItemBelowThreshold {
+                                HStack(spacing: 8) {
+                                    Text("Threshold:")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+
+                                    TextField(
+                                        "80",
+                                        value: Binding(
+                                            get: { self.settings.statusItemThresholdPercent },
+                                            set: { self.settings.statusItemThresholdPercent = max(0, min(100, $0)) }
+                                        ),
+                                        format: .number
+                                    )
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 60)
+
+                                    Text("%")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.leading, 20)
+                            }
+                        }
+                    }
                 }
 
                 Divider()
