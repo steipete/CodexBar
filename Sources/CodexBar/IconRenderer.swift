@@ -701,22 +701,16 @@ enum IconRenderer {
         return Int((clamped * 10).rounded())
     }
 
-    private static func styleKey(_ style: IconStyle) -> Int {
-        switch style {
-        case .codex: 0
-        case .claude: 1
-        case .zai: 2
-        case .minimax: 3
-        case .gemini: 4
-        case .antigravity: 5
-        case .cursor: 6
-        case .factory: 7
-        case .copilot: 8
-        case .kiro: 9
-        case .vertexai: 10
-        case .augment: 11
-        case .combined: 99
+    private static let styleKeyLookup: [IconStyle: Int] = {
+        var lookup: [IconStyle: Int] = [:]
+        for (index, style) in IconStyle.allCases.enumerated() {
+            lookup[style] = index
         }
+        return lookup
+    }()
+
+    private static func styleKey(_ style: IconStyle) -> Int {
+        self.styleKeyLookup[style] ?? 0
     }
 
     private static func indicatorKey(_ indicator: ProviderStatusIndicator) -> Int {

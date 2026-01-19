@@ -52,19 +52,33 @@ public enum ProviderDescriptorRegistry {
 
     private static let lock = NSLock()
     private static let store = Store()
+    private static let descriptorsByID: [UsageProvider: ProviderDescriptor] = [
+        .codex: CodexProviderDescriptor.descriptor,
+        .claude: ClaudeProviderDescriptor.descriptor,
+        .cursor: CursorProviderDescriptor.descriptor,
+        .opencode: OpenCodeProviderDescriptor.descriptor,
+        .factory: FactoryProviderDescriptor.descriptor,
+        .gemini: GeminiProviderDescriptor.descriptor,
+        .antigravity: AntigravityProviderDescriptor.descriptor,
+        .copilot: CopilotProviderDescriptor.descriptor,
+        .zai: ZaiProviderDescriptor.descriptor,
+        .minimax: MiniMaxProviderDescriptor.descriptor,
+        .kimi: KimiProviderDescriptor.descriptor,
+        .kiro: KiroProviderDescriptor.descriptor,
+        .vertexai: VertexAIProviderDescriptor.descriptor,
+        .augment: AugmentProviderDescriptor.descriptor,
+        .jetbrains: JetBrainsProviderDescriptor.descriptor,
+        .kimik2: KimiK2ProviderDescriptor.descriptor,
+        .amp: AmpProviderDescriptor.descriptor,
+        .synthetic: SyntheticProviderDescriptor.descriptor,
+    ]
     private static let bootstrap: Void = {
-        _ = ProviderDescriptorRegistry.register(CodexProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(ClaudeProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(FactoryProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(ZaiProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(MiniMaxProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(AugmentProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(CursorProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(GeminiProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(AntigravityProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(CopilotProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(VertexAIProviderDescriptor.descriptor)
-        _ = ProviderDescriptorRegistry.register(KiroProviderDescriptor.descriptor)
+        for provider in UsageProvider.allCases {
+            guard let descriptor = descriptorsByID[provider] else {
+                preconditionFailure("Missing ProviderDescriptor for \(provider.rawValue)")
+            }
+            _ = ProviderDescriptorRegistry.register(descriptor)
+        }
     }()
 
     private static func ensureBootstrapped() {

@@ -17,9 +17,8 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API. No bro
    - Token polling:
      - `POST https://github.com/login/oauth/access_token`
    - Scope: `read:user`.
-   - Token stored in Keychain:
-     - Service: `com.steipete.CodexBar`
-     - Account: `copilot-api-token`
+   - Token stored in config:
+     - `~/.codexbar/config.json` → `providers[].apiKey` for `copilot`
 
 2) **Usage fetch**
    - `GET https://api.github.com/copilot_internal/user`
@@ -41,4 +40,4 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API. No bro
 - `Sources/CodexBarCore/Providers/Copilot/CopilotUsageFetcher.swift`
 - `Sources/CodexBarCore/Providers/Copilot/CopilotDeviceFlow.swift`
 - `Sources/CodexBar/Providers/Copilot/CopilotLoginFlow.swift`
-- `Sources/CodexBar/CopilotTokenStore.swift`
+- `Sources/CodexBar/CopilotTokenStore.swift` (legacy migration helper)

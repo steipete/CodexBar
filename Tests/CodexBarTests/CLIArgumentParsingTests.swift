@@ -54,4 +54,15 @@ struct CLIArgumentParsingTests {
         #expect(parsed.options["format"] == ["text"])
         #expect(CodexBarCLI._decodeFormatForTesting(from: parsed) == .text)
     }
+
+    @Test
+    func jsonOnlyEnablesJsonFormat() throws {
+        let signature = CodexBarCLI._usageSignatureForTesting()
+        let parser = CommandParser(signature: signature)
+        let parsed = try parser.parse(arguments: ["--json-only"])
+
+        #expect(parsed.flags.contains("jsonOnly"))
+        #expect(!parsed.flags.contains("jsonOutput"))
+        #expect(CodexBarCLI._decodeFormatForTesting(from: parsed) == .json)
+    }
 }

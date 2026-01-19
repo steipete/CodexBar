@@ -28,6 +28,7 @@ debug_*.swift
 
 # Debug/analysis docs
 docs/*-analysis.md
+docs/.astro/
 
 # Swift Package Manager metadata (leave sources tracked)
 # Packages/

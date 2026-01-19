@@ -114,6 +114,7 @@ public struct KiroStatusProbe: Sendable {
         let stdout: String
         let stderr: String
         let terminationStatus: Int32
+        let terminatedForIdle: Bool
     }
 
     private func ensureLoggedIn() async throws {
@@ -147,7 +148,10 @@ public struct KiroStatusProbe: Sendable {
     }
 
     private func runUsageCommand() async throws -> String {
-        let result = try await self.runCommand(arguments: ["chat", "--no-interactive", "/usage"], timeout: 10.0)
+        let result = try await self.runCommand(
+            arguments: ["chat", "--no-interactive", "/usage"],
+            timeout: 20.0,
+            idleTimeout: 10.0)
         let trimmedStdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedStderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         let combinedOutput = trimmedStderr.isEmpty ? trimmedStdout : trimmedStderr
@@ -160,6 +164,10 @@ public struct KiroStatusProbe: Sendable {
             || combinedStripped.contains("oauth error")
         {
             throw KiroStatusProbeError.notLoggedIn
+        }
+
+        if result.terminatedForIdle, !Self.isUsageOutputComplete(combinedOutput) {
+            throw KiroStatusProbeError.timeout
         }
 
         if !trimmedStdout.isEmpty {
@@ -180,7 +188,11 @@ public struct KiroStatusProbe: Sendable {
         return result.stdout
     }
 
-    private func runCommand(arguments: [String], timeout: TimeInterval) async throws -> KiroCLIResult {
+    private func runCommand(
+        arguments: [String],
+        timeout: TimeInterval,
+        idleTimeout: TimeInterval = 5.0) async throws -> KiroCLIResult
+    {
         guard let binary = TTYCommandRunner.which("kiro-cli") else {
             throw KiroStatusProbeError.cliNotFound
         }
@@ -199,35 +211,124 @@ public struct KiroStatusProbe: Sendable {
         env["TERM"] = "xterm-256color"
         process.environment = env
 
+        // Thread-safe state for activity tracking
+        final class ActivityState: @unchecked Sendable {
+            private let lock = NSLock()
+            private var _lastActivityAt = Date()
+            private var _hasReceivedOutput = false
+            private var _stdoutData = Data()
+            private var _stderrData = Data()
+
+            var lastActivityAt: Date {
+                self.lock.lock()
+                defer { lock.unlock() }
+                return self._lastActivityAt
+            }
+
+            var hasReceivedOutput: Bool {
+                self.lock.lock()
+                defer { lock.unlock() }
+                return self._hasReceivedOutput
+            }
+
+            func appendStdout(_ data: Data) {
+                self.lock.lock()
+                defer { lock.unlock() }
+                self._stdoutData.append(data)
+                self._lastActivityAt = Date()
+                self._hasReceivedOutput = true
+            }
+
+            func appendStderr(_ data: Data) {
+                self.lock.lock()
+                defer { lock.unlock() }
+                self._stderrData.append(data)
+                self._lastActivityAt = Date()
+                self._hasReceivedOutput = true
+            }
+
+            func getOutput() -> (stdout: Data, stderr: Data) {
+                self.lock.lock()
+                defer { lock.unlock() }
+                return (self._stdoutData, self._stderrData)
+            }
+        }
+
+        let state = ActivityState()
+
+        // Set up readability handlers to track activity
+        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if !data.isEmpty {
+                state.appendStdout(data)
+            }
+        }
+        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if !data.isEmpty {
+                state.appendStderr(data)
+            }
+        }
+
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global().async {
                 do {
                     try process.run()
                 } catch {
+                    stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                    stderrPipe.fileHandleForReading.readabilityHandler = nil
                     continuation.resume(throwing: error)
                     return
                 }
 
                 let deadline = Date().addingTimeInterval(timeout)
-                while process.isRunning, Date() < deadline {
+                var didHitDeadline = false
+                var didTerminateForIdle = false
+
+                while process.isRunning {
+                    if Date() >= deadline {
+                        didHitDeadline = true
+                        break
+                    }
+                    // Idle timeout: if we got output but then it went silent
+                    if state.hasReceivedOutput,
+                       Date().timeIntervalSince(state.lastActivityAt) >= idleTimeout
+                    {
+                        // Process went idle after producing output - likely done or stuck
+                        didTerminateForIdle = true
+                        break
+                    }
                     Thread.sleep(forTimeInterval: 0.1)
                 }
+
+                // Clean up handlers
+                stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                stderrPipe.fileHandleForReading.readabilityHandler = nil
 
                 if process.isRunning {
                     process.terminate()
                     process.waitUntilExit()
-                    continuation.resume(throwing: KiroStatusProbeError.timeout)
-                    return
+                    if didHitDeadline || !state.hasReceivedOutput {
+                        continuation.resume(throwing: KiroStatusProbeError.timeout)
+                        return
+                    }
                 }
 
-                let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-                let stdoutOutput = String(data: stdoutData, encoding: .utf8) ?? ""
-                let stderrOutput = String(data: stderrData, encoding: .utf8) ?? ""
+                // Read any remaining data
+                let remainingStdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                let remainingStderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+
+                var output = state.getOutput()
+                output.stdout.append(remainingStdout)
+                output.stderr.append(remainingStderr)
+
+                let stdoutOutput = String(data: output.stdout, encoding: .utf8) ?? ""
+                let stderrOutput = String(data: output.stderr, encoding: .utf8) ?? ""
                 continuation.resume(returning: KiroCLIResult(
                     stdout: stdoutOutput,
                     stderr: stderrOutput,
-                    terminationStatus: process.terminationStatus))
+                    terminationStatus: process.terminationStatus,
+                    terminatedForIdle: didTerminateForIdle))
             }
         }
     }
@@ -256,7 +357,6 @@ public struct KiroStatusProbe: Sendable {
         }
 
         // Track which key patterns matched to detect format changes
-        var matchedPlanName = false
         var matchedPercent = false
         var matchedCredits = false
 
@@ -265,7 +365,6 @@ public struct KiroStatusProbe: Sendable {
         if let planMatch = stripped.range(of: #"\|\s*(KIRO\s+\w+)"#, options: .regularExpression) {
             let raw = String(stripped[planMatch]).replacingOccurrences(of: "|", with: "")
             planName = raw.trimmingCharacters(in: .whitespaces)
-            matchedPlanName = true
         }
 
         // Parse reset date from "resets on 01/01"
@@ -325,7 +424,7 @@ public struct KiroStatusProbe: Sendable {
         }
 
         // Require at least one key pattern to match to avoid silent failures
-        if !matchedPlanName, !matchedPercent, !matchedCredits {
+        if !matchedPercent, !matchedCredits {
             throw KiroStatusProbeError.parseError(
                 "No recognizable usage patterns found. Kiro CLI output format may have changed.")
         }
@@ -376,5 +475,12 @@ public struct KiroStatusProbe: Sendable {
         // If the date is in the past, it's next year
         components.year = currentYear + 1
         return calendar.date(from: components)
+    }
+
+    private static func isUsageOutputComplete(_ output: String) -> Bool {
+        let stripped = self.stripANSI(output).lowercased()
+        return stripped.contains("covered in plan")
+            || stripped.contains("resets on")
+            || stripped.contains("bonus credits")
     }
 }

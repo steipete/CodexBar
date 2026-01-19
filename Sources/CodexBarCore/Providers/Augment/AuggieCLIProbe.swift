@@ -1,5 +1,7 @@
 import Foundation
 
+#if os(macOS)
+
 /// Fetches Augment usage via `auggie account status` CLI command
 public struct AuggieCLIProbe: Sendable {
     private static let log = CodexBarLog.logger("auggie-cli")
@@ -72,7 +74,7 @@ public struct AuggieCLIProbe: Sendable {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             // Parse "Max Plan 450,000 credits / month"
-            if trimmed.contains("Max Plan") && trimmed.contains("credits") {
+            if trimmed.contains("Max Plan"), trimmed.contains("credits") {
                 if let match = trimmed.range(of: #"([\d,]+)\s+credits"#, options: .regularExpression) {
                     let numberStr = String(trimmed[match]).replacingOccurrences(of: ",", with: "")
                         .replacingOccurrences(of: " credits", with: "")
@@ -81,7 +83,7 @@ public struct AuggieCLIProbe: Sendable {
             }
 
             // Parse "11,657 remaining · 953,170 / 964,827 credits used"
-            if trimmed.contains("remaining") && trimmed.contains("credits used") {
+            if trimmed.contains("remaining"), trimmed.contains("credits used") {
                 // Extract remaining
                 if let remMatch = trimmed.range(of: #"([\d,]+)\s+remaining"#, options: .regularExpression) {
                     let numStr = String(trimmed[remMatch])
@@ -91,19 +93,24 @@ public struct AuggieCLIProbe: Sendable {
                 }
 
                 // Extract used / total
-                if let usedMatch = trimmed.range(of: #"([\d,]+)\s*/\s*([\d,]+)\s+credits used"#, options: .regularExpression) {
+                if let usedMatch = trimmed.range(
+                    of: #"([\d,]+)\s*/\s*([\d,]+)\s+credits used"#,
+                    options: .regularExpression)
+                {
                     let parts = String(trimmed[usedMatch])
                         .replacingOccurrences(of: " credits used", with: "")
                         .split(separator: "/")
                     if parts.count == 2 {
-                        used = Int(parts[0].replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
-                        total = Int(parts[1].replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
+                        used = Int(parts[0].replacingOccurrences(of: ",", with: "")
+                            .trimmingCharacters(in: .whitespaces))
+                        total = Int(parts[1].replacingOccurrences(of: ",", with: "")
+                            .trimmingCharacters(in: .whitespaces))
                     }
                 }
             }
 
             // Parse "2 days remaining in this billing cycle (ends 1/8/2026)"
-            if trimmed.contains("billing cycle") && trimmed.contains("ends") {
+            if trimmed.contains("billing cycle"), trimmed.contains("ends") {
                 // Extract date from "(ends 1/8/2026)"
                 if let dateMatch = trimmed.range(of: #"ends\s+([\d/]+)"#, options: .regularExpression) {
                     let dateStr = String(trimmed[dateMatch])
@@ -136,6 +143,18 @@ public struct AuggieCLIProbe: Sendable {
     }
 }
 
+#else
+
+public struct AuggieCLIProbe: Sendable {
+    public init() {}
+
+    public func fetch() async throws -> AugmentStatusSnapshot {
+        throw AugmentStatusProbeError.notSupported
+    }
+}
+
+#endif
+
 public enum AuggieCLIError: LocalizedError {
     case noOutput
     case notAuthenticated
@@ -152,4 +171,3 @@ public enum AuggieCLIError: LocalizedError {
         }
     }
 }
-

@@ -10,7 +10,12 @@ struct StatusMenuTests {
         let suite = "StatusMenuTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
-        return SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+        let configStore = testConfigStore(suiteName: suite)
+        return SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
     }
 
     @Test
@@ -53,6 +58,43 @@ struct StatusMenuTests {
         let unmappedMenu = controller.makeMenu()
         controller.menuWillOpen(unmappedMenu)
         #expect(controller.lastMenuProvider == .codex)
+    }
+
+    @Test
+    func providerToggleUpdatesStatusItemVisibility() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.providerDetectionCompleted = true
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+        if let geminiMeta = registry.metadata[.gemini] {
+            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection())
+
+        #expect(controller.statusItems[.claude]?.isVisible == true)
+
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+        controller.handleProviderConfigChange(reason: "test")
+        #expect(controller.statusItems[.claude]?.isVisible == false)
     }
 
     @Test
@@ -101,7 +143,10 @@ struct StatusMenuTests {
 
     @Test
     func showsOpenAIWebSubmenusWhenHistoryExists() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusMenuTests-history"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true

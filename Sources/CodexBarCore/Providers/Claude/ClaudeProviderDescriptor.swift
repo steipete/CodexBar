@@ -55,6 +55,8 @@ public enum ClaudeProviderDescriptor {
                     useWebExtras: false,
                     manualCookieHeader: nil,
                     browserDetection: context.browserDetection)]
+            case .api:
+                return []
             case .auto:
                 return [
                     ClaudeWebFetchStrategy(browserDetection: context.browserDetection),
@@ -84,6 +86,8 @@ public enum ClaudeProviderDescriptor {
                     useWebExtras: webExtrasEnabled,
                     manualCookieHeader: manualCookieHeader,
                     browserDetection: context.browserDetection)]
+            case .api:
+                return []
             case .auto:
                 return [
                     ClaudeOAuthFetchStrategy(),
@@ -132,7 +136,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .oauth
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        guard let creds = try? ClaudeOAuthCredentialsStore.load() else { return false }
+        guard let creds = try? ClaudeOAuthCredentialsStore.load(environment: context.env) else { return false }
         // In Auto mode, only prefer OAuth when we know the scope is present.
         // In OAuth-only mode, still show a useful error message even when the scope is missing.
         // (The strategy can fall back to Web/CLI when allowed by the fetch plan.)
@@ -145,6 +149,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let fetcher = ClaudeUsageFetcher(
             browserDetection: context.browserDetection,
+            environment: context.env,
             dataSource: .oauth,
             useWebExtras: false)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")

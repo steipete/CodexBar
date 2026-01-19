@@ -209,11 +209,26 @@ public struct GeminiStatusProbe: Sendable {
                 dataLoader: dataLoader)
         }
 
-        // Discover the Gemini project ID for accurate quota data
-        let projectId = try? await Self.discoverGeminiProjectId(
+        // Extract account info from JWT
+        let claims = Self.extractClaimsFromToken(creds.idToken)
+
+        // Load Code Assist status to get project ID and tier (aligned with CLI setupUser logic)
+        let caStatus = await Self.loadCodeAssistStatus(
             accessToken: accessToken,
             timeout: timeout,
             dataLoader: dataLoader)
+
+        // Determine the project ID to use for quota fetching.
+        // Priority:
+        // 1. Project ID returned by loadCodeAssist (e.g. managed project for free tier)
+        // 2. Discovered project ID from cloud resource manager (e.g. user's own project)
+        var projectId = caStatus.projectId
+        if projectId == nil {
+            projectId = try? await Self.discoverGeminiProjectId(
+                accessToken: accessToken,
+                timeout: timeout,
+                dataLoader: dataLoader)
+        }
 
         guard let url = URL(string: Self.quotaEndpoint) else {
             throw GeminiStatusProbeError.apiError("Invalid endpoint URL")
@@ -224,7 +239,7 @@ public struct GeminiStatusProbe: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Include project ID if discovered for accurate quota
+        // Include project ID for accurate quota
         if let projectId {
             request.httpBody = Data("{\"project\": \"\(projectId)\"}".utf8)
         } else {
@@ -246,15 +261,7 @@ public struct GeminiStatusProbe: Sendable {
             throw GeminiStatusProbeError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
-        // Extract account info from JWT
-        let claims = Self.extractClaimsFromToken(creds.idToken)
         let snapshot = try Self.parseAPIResponse(data, email: claims.email)
-
-        // Detect plan via loadCodeAssist API (most reliable method)
-        let userTier = await Self.fetchUserTier(
-            accessToken: accessToken,
-            timeout: timeout,
-            dataLoader: dataLoader)
 
         // Plan display strings with tier mapping:
         // - standard-tier: Paid subscription (AI Pro, AI Ultra, Code Assist
@@ -263,7 +270,7 @@ public struct GeminiStatusProbe: Sendable {
         // - free-tier: Personal free account (1000 req/day limit)
         // - legacy-tier: Unknown legacy/grandfathered tier
         // - nil (API failed): Leave blank (no display)
-        let plan: String? = switch (userTier, claims.hostedDomain) {
+        let plan: String? = switch (caStatus.tier, claims.hostedDomain) {
         case (.standard, _):
             "Paid"
         case let (.free, .some(domain)):
@@ -327,14 +334,21 @@ public struct GeminiStatusProbe: Sendable {
         return nil
     }
 
-    private static func fetchUserTier(
+    private struct CodeAssistStatus: Sendable {
+        let tier: GeminiUserTierId?
+        let projectId: String?
+
+        static let empty = CodeAssistStatus(tier: nil, projectId: nil)
+    }
+
+    private static func loadCodeAssistStatus(
         accessToken: String,
         timeout: TimeInterval,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async -> GeminiUserTierId?
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async -> CodeAssistStatus
     {
         guard let url = URL(string: loadCodeAssistEndpoint) else {
             self.log.warning("loadCodeAssist: invalid endpoint URL")
-            return nil
+            return .empty
         }
 
         var request = URLRequest(url: url)
@@ -350,12 +364,12 @@ public struct GeminiStatusProbe: Sendable {
             (data, response) = try await dataLoader(request)
         } catch {
             Self.log.warning("loadCodeAssist: request failed", metadata: ["error": "\(error)"])
-            return nil
+            return .empty
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             Self.log.warning("loadCodeAssist: invalid response type")
-            return nil
+            return .empty
         }
 
         guard httpResponse.statusCode == 200 else {
@@ -363,32 +377,51 @@ public struct GeminiStatusProbe: Sendable {
                 "statusCode": "\(httpResponse.statusCode)",
                 "body": String(data: data, encoding: .utf8) ?? "<binary>",
             ])
-            return nil
+            return .empty
         }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             Self.log.warning("loadCodeAssist: failed to parse JSON", metadata: [
                 "body": String(data: data, encoding: .utf8) ?? "<binary>",
             ])
-            return nil
+            return .empty
         }
 
-        guard let currentTier = json["currentTier"] as? [String: Any],
-              let tierId = currentTier["id"] as? String
-        else {
+        let rawProjectId: String? = {
+            if let project = json["cloudaicompanionProject"] as? String {
+                return project
+            }
+            if let project = json["cloudaicompanionProject"] as? [String: Any] {
+                if let projectId = project["id"] as? String {
+                    return projectId
+                }
+                if let projectId = project["projectId"] as? String {
+                    return projectId
+                }
+            }
+            return nil
+        }()
+        let trimmedProjectId = rawProjectId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let projectId = trimmedProjectId?.isEmpty == true ? nil : trimmedProjectId
+        if let projectId {
+            Self.log.info("loadCodeAssist: project detected", metadata: ["projectId": projectId])
+        }
+
+        let tierId = (json["currentTier"] as? [String: Any])?["id"] as? String
+        guard let tierId else {
             Self.log.warning("loadCodeAssist: no currentTier.id in response", metadata: [
                 "json": "\(json)",
             ])
-            return nil
+            return CodeAssistStatus(tier: nil, projectId: projectId)
         }
 
         guard let tier = GeminiUserTierId(rawValue: tierId) else {
             Self.log.warning("loadCodeAssist: unknown tier ID", metadata: ["tierId": tierId])
-            return nil
+            return CodeAssistStatus(tier: nil, projectId: projectId)
         }
 
-        Self.log.info("loadCodeAssist: tier detected", metadata: ["tier": tierId])
-        return tier
+        Self.log.info("loadCodeAssist: success", metadata: ["tier": tierId, "projectId": projectId ?? "nil"])
+        return CodeAssistStatus(tier: tier, projectId: projectId)
     }
 
     private struct OAuthCredentials {
@@ -434,11 +467,15 @@ public struct GeminiStatusProbe: Sendable {
 
         let oauthSubpath =
             "node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js"
+        let nixShareSubpath =
+            "share/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js"
         let oauthFile = "dist/src/code_assist/oauth2.js"
         let possiblePaths = [
             // Homebrew nested structure
             "\(baseDir)/libexec/lib/\(oauthSubpath)",
             "\(baseDir)/lib/\(oauthSubpath)",
+            // Nix package layout
+            "\(baseDir)/\(nixShareSubpath)",
             // Bun/npm sibling structure: gemini-cli-core is a sibling to gemini-cli
             "\(baseDir)/../gemini-cli-core/\(oauthFile)",
             // npm nested inside gemini-cli

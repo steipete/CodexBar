@@ -65,7 +65,9 @@ public enum CodexBarLog {
         }
 
         LoggingSystem.bootstrap { label in
-            var handler = baseFactory(label)
+            let primary = baseFactory(label)
+            let fileHandler = FileLogHandler(label: label)
+            var handler = CompositeLogHandler(primary: primary, secondary: fileHandler)
             handler.logLevel = config.level.asSwiftLogLevel
             return handler
         }
@@ -87,6 +89,17 @@ public enum CodexBarLog {
     public static func parseLevel(_ raw: String?) -> Level? {
         guard let raw, !raw.isEmpty else { return nil }
         return Level(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    public static var fileLogURL: URL {
+        FileLogSink.defaultURL
+    }
+
+    public static func setFileLoggingEnabled(_ enabled: Bool) {
+        FileLogSink.shared.setEnabled(enabled, fileURL: self.fileLogURL)
+        let state = enabled ? "enabled" : "disabled"
+        let logger = self.logger("logging")
+        logger.info("File logging \(state)", metadata: ["path": self.fileLogURL.path])
     }
 }
 

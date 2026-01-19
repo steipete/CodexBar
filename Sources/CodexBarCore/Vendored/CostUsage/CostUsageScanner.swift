@@ -65,6 +65,8 @@ enum CostUsageScanner {
             return CostUsageDailyReport(data: [], summary: nil)
         case .cursor:
             return CostUsageDailyReport(data: [], summary: nil)
+        case .opencode:
+            return CostUsageDailyReport(data: [], summary: nil)
         case .factory:
             return CostUsageDailyReport(data: [], summary: nil)
         case .copilot:
@@ -79,7 +81,17 @@ enum CostUsageScanner {
             return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
         case .kiro:
             return CostUsageDailyReport(data: [], summary: nil)
+        case .kimi:
+            return CostUsageDailyReport(data: [], summary: nil)
+        case .kimik2:
+            return CostUsageDailyReport(data: [], summary: nil)
         case .augment:
+            return CostUsageDailyReport(data: [], summary: nil)
+        case .jetbrains:
+            return CostUsageDailyReport(data: [], summary: nil)
+        case .amp:
+            return CostUsageDailyReport(data: [], summary: nil)
+        case .synthetic:
             return CostUsageDailyReport(data: [], summary: nil)
         }
     }

@@ -24,27 +24,17 @@ struct CodexProviderImplementation: ProviderImplementation {
         let usageOptions = CodexUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
-        let cookieOptions: [ProviderSettingsPickerOption] = [
-            ProviderSettingsPickerOption(
-                id: ProviderCookieSource.auto.rawValue,
-                title: ProviderCookieSource.auto.displayName),
-            ProviderSettingsPickerOption(
-                id: ProviderCookieSource.manual.rawValue,
-                title: ProviderCookieSource.manual.displayName),
-            ProviderSettingsPickerOption(
-                id: ProviderCookieSource.off.rawValue,
-                title: ProviderCookieSource.off.displayName),
-        ]
+        let cookieOptions = ProviderCookieSourceUI.options(
+            allowsOff: true,
+            keychainDisabled: context.settings.debugDisableKeychainAccess)
 
         let cookieSubtitle: () -> String? = {
-            switch context.settings.codexCookieSource {
-            case .auto:
-                "Automatic imports browser cookies for dashboard extras."
-            case .manual:
-                "Paste a Cookie header from a chatgpt.com request."
-            case .off:
-                "Disable OpenAI dashboard cookie usage."
-            }
+            ProviderCookieSourceUI.subtitle(
+                source: context.settings.codexCookieSource,
+                keychainDisabled: context.settings.debugDisableKeychainAccess,
+                auto: "Automatic imports browser cookies for dashboard extras.",
+                manual: "Paste a Cookie header from a chatgpt.com request.",
+                off: "Disable OpenAI dashboard cookie usage.")
         }
 
         return [
@@ -69,7 +59,12 @@ struct CodexProviderImplementation: ProviderImplementation {
                 binding: cookieBinding,
                 options: cookieOptions,
                 isVisible: nil,
-                onChange: nil),
+                onChange: nil,
+                trailingText: {
+                    guard let entry = CookieHeaderCache.load(provider: .codex) else { return nil }
+                    let when = entry.storedAt.relativeDescription()
+                    return "Cached: \(entry.sourceLabel) • \(when)"
+                }),
         ]
     }
 
@@ -84,7 +79,9 @@ struct CodexProviderImplementation: ProviderImplementation {
                 placeholder: "Cookie: …",
                 binding: context.stringBinding(\.codexCookieHeader),
                 actions: [],
-                isVisible: { context.settings.codexCookieSource == .manual },
+                isVisible: {
+                    context.settings.codexCookieSource == .manual
+                },
                 onActivate: { context.settings.ensureCodexCookieLoaded() }),
         ]
     }

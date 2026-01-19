@@ -45,6 +45,10 @@ Usage source picker:
 ## Web API (cookies)
 - Preferences → Providers → Claude → Cookie source (Automatic or Manual).
 - Manual mode accepts a `Cookie:` header from a claude.ai request.
+- Multi-account manual tokens: add entries to `~/.codexbar/config.json` (`tokenAccounts`) and set Claude cookies to
+  Manual. The menu can show all accounts stacked or a switcher bar (Preferences → Advanced → Display).
+- Claude token accounts accept either `sessionKey` cookies or OAuth access tokens (`sk-ant-oat...`). OAuth tokens use
+  the Anthropic OAuth usage endpoint; to force cookie mode, paste `sessionKey=<value>` or a full `Cookie:` header.
 - Cookie source order:
   1) Safari: `~/Library/Cookies/Cookies.binarycookies`
   2) Chrome/Chromium forks: `~/Library/Application Support/Google/Chrome/*/Cookies`
@@ -52,6 +56,8 @@ Usage source picker:
 - Domain: `claude.ai`.
 - Cookie name required:
   - `sessionKey` (value prefix `sk-ant-...`).
+- Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.claude`, source + timestamp).
+  Reused before re-importing from browsers.
 - API calls (all include `Cookie: sessionKey=<value>`):
   - `GET https://claude.ai/api/organizations` → org UUID.
   - `GET https://claude.ai/api/organizations/{orgId}/usage` → session/weekly/opus.

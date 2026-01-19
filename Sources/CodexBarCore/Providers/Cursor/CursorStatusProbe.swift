@@ -58,6 +58,7 @@ public enum CursorCookieImporter {
                     }
                 }
             } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
                 log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
             }
         }
@@ -516,11 +517,33 @@ public struct CursorStatusProbe: Sendable {
             return try await self.fetchWithCookieHeader(override)
         }
 
+        if let cached = CookieHeaderCache.load(provider: .cursor),
+           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            log("Using cached cookie header from \(cached.sourceLabel)")
+            do {
+                return try await self.fetchWithCookieHeader(cached.cookieHeader)
+            } catch let error as CursorStatusProbeError {
+                if case .notLoggedIn = error {
+                    CookieHeaderCache.clear(provider: .cursor)
+                } else {
+                    throw error
+                }
+            } catch {
+                throw error
+            }
+        }
+
         // Try importing cookies from the configured browser order first.
         do {
             let session = try CursorCookieImporter.importSession(browserDetection: self.browserDetection, logger: log)
             log("Using cookies from \(session.sourceLabel)")
-            return try await self.fetchWithCookieHeader(session.cookieHeader)
+            let snapshot = try await self.fetchWithCookieHeader(session.cookieHeader)
+            CookieHeaderCache.store(
+                provider: .cursor,
+                cookieHeader: session.cookieHeader,
+                sourceLabel: session.sourceLabel)
+            return snapshot
         } catch {
             log("Browser cookie import failed: \(error.localizedDescription)")
         }
@@ -555,16 +578,28 @@ public struct CursorStatusProbe: Sendable {
 
         // Fetch legacy request usage only if user has a sub ID.
         // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
-        let requestUsage: CursorUsageResponse? = if let userId = userInfo?.sub {
-            try? await self.fetchRequestUsage(userId: userId, cookieHeader: cookieHeader)
-        } else {
-            nil
+        var requestUsage: CursorUsageResponse?
+        var requestUsageRawJSON: String?
+        if let userId = userInfo?.sub {
+            do {
+                let (usage, usageRawJSON) = try await self.fetchRequestUsage(userId: userId, cookieHeader: cookieHeader)
+                requestUsage = usage
+                requestUsageRawJSON = usageRawJSON
+            } catch {
+                // Silently ignore - not all plans have this endpoint
+            }
+        }
+
+        // Combine raw JSON for debugging
+        var combinedRawJSON: String? = rawJSON
+        if let usageJSON = requestUsageRawJSON {
+            combinedRawJSON = (combinedRawJSON ?? "") + "\n\n--- /api/usage response ---\n" + usageJSON
         }
 
         return self.parseUsageSummary(
             usageSummary,
             userInfo: userInfo,
-            rawJSON: rawJSON,
+            rawJSON: combinedRawJSON,
             requestUsage: requestUsage)
     }
 
@@ -618,7 +653,10 @@ public struct CursorStatusProbe: Sendable {
         return try decoder.decode(CursorUserInfo.self, from: data)
     }
 
-    private func fetchRequestUsage(userId: String, cookieHeader: String) async throws -> CursorUsageResponse {
+    private func fetchRequestUsage(
+        userId: String,
+        cookieHeader: String) async throws -> (CursorUsageResponse, String)
+    {
         let url = self.baseURL.appendingPathComponent("/api/usage")
             .appending(queryItems: [URLQueryItem(name: "user", value: userId)])
         var request = URLRequest(url: url)
@@ -632,8 +670,10 @@ public struct CursorStatusProbe: Sendable {
             throw CursorStatusProbeError.networkError("Failed to fetch request usage")
         }
 
+        let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
         let decoder = JSONDecoder()
-        return try decoder.decode(CursorUsageResponse.self, from: data)
+        let usage = try decoder.decode(CursorUsageResponse.self, from: data)
+        return (usage, rawJSON)
     }
 
     func parseUsageSummary(

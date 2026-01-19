@@ -1,3 +1,10 @@
+---
+summary: "Upstream strategy for forks: remotes, cherry-picks, and contribution policy."
+read_when:
+  - Managing fork/upstream workflow
+  - Planning contributions or syncs
+---
+
 # Multi-Upstream Fork Management Strategy
 
 **Fork:** topoffunnel/CodexBar  
@@ -629,4 +636,3 @@ git log --oneline upstream-tracking..main
 ---
 
 **Remember:** Your fork is independent. Upstream contributions are optional. Learn from others, but implement independently. Credit sources appropriately.
-

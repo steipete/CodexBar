@@ -66,6 +66,32 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func rendersPaceLineWhenWeeklyHasReset() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: .init(
+                usedPercent: 50,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 0.0.0 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(output.contains("Pace:"))
+    }
+
+    @Test
     func rendersJSONPayload() throws {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
@@ -75,6 +101,7 @@ struct CLISnapshotTests {
 
         let payload = ProviderPayload(
             provider: .codex,
+            account: nil,
             version: "1.2.3",
             source: "codex-cli",
             status: ProviderStatusPayload(
@@ -85,7 +112,8 @@ struct CLISnapshotTests {
             usage: snap,
             credits: nil,
             antigravityPlanInfo: nil,
-            openaiDashboard: nil)
+            openaiDashboard: nil,
+            error: nil)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
         let data = try encoder.encode(payload)
@@ -208,7 +236,7 @@ struct CLISnapshotTests {
                 useColor: true,
                 resetStyle: .absolute))
 
-        #expect(output.contains("\u{001B}[1;36mCodex 0.0.0 (codex-cli)\u{001B}[0m"))
+        #expect(output.contains("\u{001B}[1;95m== Codex 0.0.0 (codex-cli) ==\u{001B}[0m"))
         #expect(output.contains("Session: \u{001B}[31m5% left\u{001B}[0m")) // red <10% left
         #expect(output.contains("Weekly: \u{001B}[33m20% left\u{001B}[0m")) // yellow <25% left
     }

@@ -71,13 +71,17 @@ enum GeminiAPITestHelpers {
         return "header.\(encoded).sig"
     }
 
-    static func loadCodeAssistResponse(tierId: String) -> Data {
-        self.jsonData([
+    static func loadCodeAssistResponse(tierId: String, projectId: String? = nil) -> Data {
+        var payload: [String: Any] = [
             "currentTier": [
                 "id": tierId,
                 "name": tierId.replacingOccurrences(of: "-tier", with: ""),
             ],
-        ])
+        ]
+        if let projectId {
+            payload["cloudaicompanionProject"] = projectId
+        }
+        return self.jsonData(payload)
     }
 
     static func loadCodeAssistFreeTierResponse() -> Data {

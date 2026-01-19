@@ -31,13 +31,18 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
     private nonisolated(unsafe) static var cachedToken: String?
     private nonisolated(unsafe) static var cacheTimestamp: Date?
     private static let cacheLock = NSLock()
-    private static let cacheTTL: TimeInterval = 1800  // 30 minutes
+    private static let cacheTTL: TimeInterval = 1800 // 30 minutes
 
     func loadToken() throws -> String? {
+        guard !KeychainAccessGate.isDisabled else {
+            Self.log.debug("Keychain access disabled; skipping token load")
+            return nil
+        }
         // Check cache first
         Self.cacheLock.lock()
         if let timestamp = Self.cacheTimestamp,
-           Date().timeIntervalSince(timestamp) < Self.cacheTTL {
+           Date().timeIntervalSince(timestamp) < Self.cacheTTL
+        {
             let cached = Self.cachedToken
             Self.cacheLock.unlock()
             Self.log.debug("Using cached Zai token")
@@ -92,6 +97,10 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
     }
 
     func storeToken(_ token: String?) throws {
+        guard !KeychainAccessGate.isDisabled else {
+            Self.log.debug("Keychain access disabled; skipping token store")
+            return
+        }
         let cleaned = token?.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleaned == nil || cleaned?.isEmpty == true {
             try self.deleteTokenIfPresent()
@@ -146,6 +155,7 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
     }
 
     private func deleteTokenIfPresent() throws {
+        guard !KeychainAccessGate.isDisabled else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,

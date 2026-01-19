@@ -15,9 +15,49 @@ WAIT_FOR_LOCK=0
 RUN_TESTS=0
 DEBUG_LLDB=0
 RELEASE_ARCHES=""
+SIGNING_MODE="${CODEXBAR_SIGNING:-}"
 
 log()  { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+has_signing_identity() {
+  local identity="${1:-}"
+  if [[ -z "${identity}" ]]; then
+    return 1
+  fi
+  security find-identity -p codesigning -v 2>/dev/null | grep -F "${identity}" >/dev/null 2>&1
+}
+
+resolve_signing_mode() {
+  if [[ -n "${SIGNING_MODE}" ]]; then
+    return
+  fi
+
+  if [[ -n "${APP_IDENTITY:-}" ]]; then
+    if has_signing_identity "${APP_IDENTITY}"; then
+      SIGNING_MODE="identity"
+      return
+    fi
+    log "WARN: APP_IDENTITY not found in Keychain; falling back to adhoc signing."
+    SIGNING_MODE="adhoc"
+    return
+  fi
+
+  local candidate=""
+  for candidate in \
+    "Developer ID Application: Peter Steinberger (Y5PE65HELJ)" \
+    "CodexBar Development"
+  do
+    if has_signing_identity "${candidate}"; then
+      APP_IDENTITY="${candidate}"
+      export APP_IDENTITY
+      SIGNING_MODE="identity"
+      return
+    fi
+  done
+
+  SIGNING_MODE="adhoc"
+}
 
 run_step() {
   local label="$1"; shift
@@ -123,12 +163,30 @@ for arg in "$@"; do
   esac
 done
 
+resolve_signing_mode
+if [[ "${SIGNING_MODE}" == "adhoc" ]]; then
+  log "==> Signing: adhoc (set APP_IDENTITY or install a dev cert to avoid keychain prompts)"
+else
+  log "==> Signing: ${APP_IDENTITY:-Developer ID Application}"
+fi
+
 acquire_lock
 
 # 2) Kill all running CodexBar instances (debug, release, bundled).
 log "==> Killing existing CodexBar instances"
 kill_all_codexbar
 kill_claude_probes
+
+# 2.5) Delete keychain entries to avoid permission prompts with adhoc signing
+# (adhoc signature changes on every build, making old keychain entries inaccessible)
+if [[ "${SIGNING_MODE:-adhoc}" == "adhoc" ]]; then
+  log "==> Clearing keychain entries (adhoc signing)"
+  security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null || true
+  # Clear all keychain items for the app to avoid multiple prompts
+  while security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null; do
+    :
+  done
+fi
 
 # 3) Package (release build happens inside package_app.sh).
 if [[ "${RUN_TESTS}" == "1" ]]; then
@@ -145,7 +203,11 @@ fi
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
   run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh" debug
 else
-  run_step "package app" env CODEXBAR_SIGNING=adhoc ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
+  if [[ -n "${SIGNING_MODE}" ]]; then
+    run_step "package app" env CODEXBAR_SIGNING="${SIGNING_MODE}" ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
+  else
+    run_step "package app" env ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
+  fi
 fi
 
 # 4) Launch the packaged app.

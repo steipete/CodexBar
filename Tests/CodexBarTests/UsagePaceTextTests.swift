@@ -6,7 +6,7 @@ import Testing
 @Suite
 struct UsagePaceTextTests {
     @Test
-    func weeklyPaceText_includesEtaWhenRunningOutBeforeReset() {
+    func weeklyPaceDetail_providesLeftRightLabels() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 50,
@@ -14,13 +14,14 @@ struct UsagePaceTextTests {
             resetsAt: now.addingTimeInterval(4 * 24 * 3600),
             resetDescription: nil)
 
-        let text = UsagePaceText.weekly(provider: .codex, window: window, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: .codex, window: window, now: now)
 
-        #expect(text == "Pace: Ahead (+7%) · Runs out in 3d")
+        #expect(detail?.leftLabel == "7% in deficit")
+        #expect(detail?.rightLabel == "Runs out in 3d")
     }
 
     @Test
-    func weeklyPaceText_showsResetSafeWhenPaceIsSlow() {
+    func weeklyPaceDetail_reportsLastsUntilReset() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 10,
@@ -28,13 +29,28 @@ struct UsagePaceTextTests {
             resetsAt: now.addingTimeInterval(4 * 24 * 3600),
             resetDescription: nil)
 
-        let text = UsagePaceText.weekly(provider: .codex, window: window, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: .codex, window: window, now: now)
 
-        #expect(text == "Pace: Behind (-33%) · Lasts to reset")
+        #expect(detail?.leftLabel == "33% in reserve")
+        #expect(detail?.rightLabel == "Lasts until reset")
     }
 
     @Test
-    func weeklyPaceText_hidesWhenResetIsMissing() {
+    func weeklyPaceSummary_formatsSingleLineText() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 3600),
+            resetDescription: nil)
+
+        let summary = UsagePaceText.weeklySummary(provider: .codex, window: window, now: now)
+
+        #expect(summary == "Pace: 7% in deficit · Runs out in 3d")
+    }
+
+    @Test
+    func weeklyPaceDetail_hidesWhenResetIsMissing() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 10,
@@ -42,13 +58,13 @@ struct UsagePaceTextTests {
             resetsAt: nil,
             resetDescription: nil)
 
-        let text = UsagePaceText.weekly(provider: .codex, window: window, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: .codex, window: window, now: now)
 
-        #expect(text == nil)
+        #expect(detail == nil)
     }
 
     @Test
-    func weeklyPaceText_hidesWhenResetIsInPastOrTooFar() {
+    func weeklyPaceDetail_hidesWhenResetIsInPastOrTooFar() {
         let now = Date(timeIntervalSince1970: 0)
         let pastWindow = RateWindow(
             usedPercent: 10,
@@ -61,12 +77,12 @@ struct UsagePaceTextTests {
             resetsAt: now.addingTimeInterval(9 * 24 * 3600),
             resetDescription: nil)
 
-        #expect(UsagePaceText.weekly(provider: .codex, window: pastWindow, now: now) == nil)
-        #expect(UsagePaceText.weekly(provider: .codex, window: farFutureWindow, now: now) == nil)
+        #expect(UsagePaceText.weeklyDetail(provider: .codex, window: pastWindow, now: now) == nil)
+        #expect(UsagePaceText.weeklyDetail(provider: .codex, window: farFutureWindow, now: now) == nil)
     }
 
     @Test
-    func weeklyPaceText_hidesWhenNoElapsedButUsageExists() {
+    func weeklyPaceDetail_hidesWhenNoElapsedButUsageExists() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 5,
@@ -74,13 +90,13 @@ struct UsagePaceTextTests {
             resetsAt: now.addingTimeInterval(7 * 24 * 3600),
             resetDescription: nil)
 
-        let text = UsagePaceText.weekly(provider: .codex, window: window, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: .codex, window: window, now: now)
 
-        #expect(text == nil)
+        #expect(detail == nil)
     }
 
     @Test
-    func weeklyPaceText_hidesWhenTooEarlyInWindow() {
+    func weeklyPaceDetail_hidesWhenTooEarlyInWindow() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 40,
@@ -88,13 +104,13 @@ struct UsagePaceTextTests {
             resetsAt: now.addingTimeInterval((7 * 24 * 3600) - (60 * 60)),
             resetDescription: nil)
 
-        let text = UsagePaceText.weekly(provider: .codex, window: window, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: .codex, window: window, now: now)
 
-        #expect(text == nil)
+        #expect(detail == nil)
     }
 
     @Test
-    func weeklyPaceText_hidesWhenUsageIsDepleted() {
+    func weeklyPaceDetail_hidesWhenUsageIsDepleted() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 100,
@@ -102,8 +118,8 @@ struct UsagePaceTextTests {
             resetsAt: now.addingTimeInterval(2 * 24 * 3600),
             resetDescription: nil)
 
-        let text = UsagePaceText.weekly(provider: .codex, window: window, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: .codex, window: window, now: now)
 
-        #expect(text == nil)
+        #expect(detail == nil)
     }
 }

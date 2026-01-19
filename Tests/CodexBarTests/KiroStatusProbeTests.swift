@@ -110,6 +110,18 @@ struct KiroStatusProbeTests {
         #expect(snapshot.bonusExpiryDays == 1)
     }
 
+    @Test
+    func rejectsOutputMissingUsageMarkers() throws {
+        let output = """
+        | KIRO FREE                                          |
+        """
+
+        let probe = KiroStatusProbe()
+        #expect(throws: KiroStatusProbeError.self) {
+            try probe.parse(output: output)
+        }
+    }
+
     // MARK: - Snapshot Conversion
 
     @Test

@@ -218,7 +218,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     public func loadLatestUsage(model: String = "sonnet") async throws -> ClaudeUsageSnapshot {
         switch self.dataSource {
         case .auto:
-            let oauthCreds = try? ClaudeOAuthCredentialsStore.load()
+            let oauthCreds = try? ClaudeOAuthCredentialsStore.load(environment: self.environment)
             let hasOAuthCredentials = oauthCreds?.scopes.contains("user:profile") ?? false
             let hasWebSession = if let header = self.manualCookieHeader {
                 ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
@@ -259,7 +259,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private func loadViaOAuth() async throws -> ClaudeUsageSnapshot {
         do {
-            let creds = try ClaudeOAuthCredentialsStore.load()
+            let creds = try ClaudeOAuthCredentialsStore.load(environment: self.environment)
             if creds.isExpired {
                 throw ClaudeUsageError.oauthFailed("Claude OAuth token expired. Run `claude` to refresh.")
             }
@@ -317,32 +317,39 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             usage.sevenDaySonnet ?? usage.sevenDayOpus,
             windowMinutes: 7 * 24 * 60)
 
+        let loginMethod = Self.inferPlan(rateLimitTier: credentials.rateLimitTier)
+        let providerCost = Self.oauthExtraUsageCost(usage.extraUsage, loginMethod: loginMethod)
+
         return ClaudeUsageSnapshot(
             primary: primary,
             secondary: weekly,
             opus: modelSpecific,
-            providerCost: Self.oauthExtraUsageCost(usage.extraUsage),
+            providerCost: providerCost,
             updatedAt: Date(),
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: Self.inferPlan(rateLimitTier: credentials.rateLimitTier),
+            loginMethod: loginMethod,
             rawText: nil)
     }
 
-    private static func oauthExtraUsageCost(_ extra: OAuthExtraUsage?) -> ProviderCostSnapshot? {
+    private static func oauthExtraUsageCost(
+        _ extra: OAuthExtraUsage?,
+        loginMethod: String?) -> ProviderCostSnapshot?
+    {
         guard let extra, extra.isEnabled == true else { return nil }
         guard let used = extra.usedCredits,
               let limit = extra.monthlyLimit else { return nil }
         let currency = extra.currency?.trimmingCharacters(in: .whitespacesAndNewlines)
         let code = (currency?.isEmpty ?? true) ? "USD" : currency!
         let normalized = Self.normalizeClaudeExtraUsageAmounts(used: used, limit: limit)
-        return ProviderCostSnapshot(
+        let snapshot = ProviderCostSnapshot(
             used: normalized.used,
             limit: normalized.limit,
             currencyCode: code,
             period: "Monthly",
             resetsAt: nil,
             updatedAt: Date())
+        return Self.rescaleClaudeExtraUsageCostIfNeeded(snapshot, loginMethod: loginMethod)
     }
 
     private static func normalizeClaudeExtraUsageAmounts(used: Double, limit: Double) -> (used: Double, limit: Double) {
@@ -352,6 +359,33 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         // (e.g., 5472.50 cents would not be detected as needing conversion).
         // See: ClaudeWebAPIFetcher.swift which always divides by 100.
         (used: used / 100.0, limit: limit / 100.0)
+    }
+
+    /// Some non-enterprise plans report extra usage amounts 100x too high.
+    /// Scale down again when limits are implausible.
+    private static func rescaleClaudeExtraUsageCostIfNeeded(
+        _ cost: ProviderCostSnapshot?,
+        loginMethod: String?) -> ProviderCostSnapshot?
+    {
+        guard let cost else { return nil }
+        guard let threshold = Self.extraUsageRescaleThreshold(for: loginMethod) else { return cost }
+        guard cost.limit >= threshold else { return cost }
+
+        return ProviderCostSnapshot(
+            used: cost.used / 100.0,
+            limit: cost.limit / 100.0,
+            currencyCode: cost.currencyCode,
+            period: cost.period,
+            resetsAt: cost.resetsAt,
+            updatedAt: cost.updatedAt)
+    }
+
+    private static func extraUsageRescaleThreshold(for loginMethod: String?) -> Double? {
+        let normalized = loginMethod?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
+        if normalized.contains("enterprise") { return nil }
+        return 1000
     }
 
     private static func inferPlan(rateLimitTier: String?) -> String? {
@@ -398,11 +432,15 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 resetDescription: webData.weeklyResetsAt.map { Self.formatResetDate($0) })
         }
 
+        let providerCost = Self.rescaleClaudeExtraUsageCostIfNeeded(
+            webData.extraUsageCost,
+            loginMethod: webData.loginMethod)
+
         return ClaudeUsageSnapshot(
             primary: primary,
             secondary: secondary,
             opus: opus,
-            providerCost: webData.extraUsageCost,
+            providerCost: providerCost,
             updatedAt: Date(),
             accountEmail: webData.accountEmail,
             accountOrganization: webData.accountOrganization,
@@ -469,11 +507,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             }
             // Only merge cost extras; keep identity fields from the primary data source.
             if snapshot.providerCost == nil, let extra = webData.extraUsageCost {
+                let normalizedExtra = Self.rescaleClaudeExtraUsageCostIfNeeded(
+                    extra,
+                    loginMethod: snapshot.loginMethod ?? webData.loginMethod)
                 return ClaudeUsageSnapshot(
                     primary: snapshot.primary,
                     secondary: snapshot.secondary,
                     opus: snapshot.opus,
-                    providerCost: extra,
+                    providerCost: normalizedExtra,
                     updatedAt: snapshot.updatedAt,
                     accountEmail: snapshot.accountEmail,
                     accountOrganization: snapshot.accountOrganization,
@@ -532,6 +573,15 @@ extension ClaudeUsageFetcher {
             scopes: [],
             rateLimitTier: rateLimitTier)
         return try Self.mapOAuthUsage(usage, credentials: creds)
+    }
+
+    public static func _rescaleExtraUsageForTesting(
+        _ cost: ProviderCostSnapshot?,
+        snapshotLoginMethod: String?,
+        webLoginMethod: String?) -> ProviderCostSnapshot?
+    {
+        let loginMethod = snapshotLoginMethod ?? webLoginMethod
+        return Self.rescaleClaudeExtraUsageCostIfNeeded(cost, loginMethod: loginMethod)
     }
 }
 #endif

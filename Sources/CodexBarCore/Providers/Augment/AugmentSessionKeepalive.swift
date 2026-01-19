@@ -35,7 +35,7 @@ public final class AugmentSessionKeepalive {
 
     /// Track consecutive failures to stop retrying after too many failures
     private var consecutiveFailures = 0
-    private let maxConsecutiveFailures = 3  // Stop after 3 failures
+    private let maxConsecutiveFailures = 3 // Stop after 3 failures
     private var hasGivenUp = false
 
     // MARK: - Initialization
@@ -256,7 +256,7 @@ public final class AugmentSessionKeepalive {
         // Open the Augment dashboard in the default browser
         // This will trigger the browser to re-authenticate if the user is still logged in
         if let url = URL(string: "https://app.augmentcode.com") {
-            let _ = await MainActor.run {
+            _ = await MainActor.run {
                 NSWorkspace.shared.open(url)
             }
             self.log("   ✅ Opened Augment dashboard in browser")

@@ -1,3 +1,11 @@
+---
+summary: "Augment provider notes: cookie auth, keepalive, and credits parsing."
+read_when:
+  - Debugging Augment cookie import or keepalive
+  - Updating Augment usage or credits parsing
+  - Adjusting Augment menu labels or settings
+---
+
 # Augment Provider
 
 The Augment provider tracks your Augment Code usage and credits through browser cookie-based authentication.
@@ -7,6 +15,7 @@ The Augment provider tracks your Augment Code usage and credits through browser 
 - **Credits Tracking**: Monitor your remaining credits and monthly limits
 - **Usage Monitoring**: Track credits consumed in the current billing cycle
 - **Plan Information**: Display your current subscription plan
+- **CLI Integration**: Uses `auggie account status` when the Auggie CLI is installed (falls back to web)
 - **Automatic Session Keepalive**: Prevents cookie expiration with proactive refresh
 - **Multi-Browser Support**: Chrome, Chrome Beta, Chrome Canary, Arc, Safari
 
@@ -57,6 +66,15 @@ Recognized cookie names:
 - `__Host-authjs.csrf-token`, `authjs.session-token` (AuthJS)
 - `session`, `web_rpc_proxy_session` (Augment-specific)
 
+Cached cookies:
+- Keychain cache `com.steipete.codexbar.cache` (account `cookie.augment`, source + timestamp). Reused before re-importing
+  from browsers.
+
+### Auggie CLI Integration
+
+If the `auggie` CLI is installed, CodexBar will prefer `auggie account status` for usage data and avoid browser prompts.
+When the CLI is unavailable or not authenticated, CodexBar falls back to browser cookies.
+
 ### Automatic Session Keepalive
 
 The provider includes an automatic session keepalive system:
@@ -93,6 +111,7 @@ The provider fetches data from:
 1. Visit [app.augmentcode.com](https://app.augmentcode.com)
 2. Log out and log back in
 3. Return to CodexBar - it will automatically import fresh cookies
+4. If needed, use the menu action **Refresh Session** to force a re-import
 
 ### Cookies not importing from Chrome Beta
 
@@ -162,4 +181,3 @@ This prevents cookies from other subdomains being sent to the API.
 
 - [Provider Authoring Guide](provider.md) - How to create new providers
 - [Development Guide](DEVELOPMENT.md) - Build and test instructions
-

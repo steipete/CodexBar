@@ -110,6 +110,8 @@ struct MiniMaxUsageParserTests {
 
         #expect(snapshot.planName == "Max")
         #expect(snapshot.availablePrompts == 1000)
+        #expect(snapshot.currentPrompts == 750)
+        #expect(snapshot.remainingPrompts == 250)
         #expect(snapshot.windowMinutes == 300)
         #expect(snapshot.usedPercent == 75)
         #expect(snapshot.resetsAt == expectedReset)
@@ -144,6 +146,8 @@ struct MiniMaxUsageParserTests {
 
         #expect(snapshot.planName == "Max")
         #expect(snapshot.availablePrompts == 15000)
+        #expect(snapshot.currentPrompts == 11)
+        #expect(snapshot.remainingPrompts == 14989)
         #expect(snapshot.windowMinutes == 300)
         #expect(abs((snapshot.usedPercent ?? 0) - expectedUsed) < 0.01)
         #expect(snapshot.resetsAt == expectedReset)
@@ -186,6 +190,8 @@ struct MiniMaxUsageParserTests {
 
         #expect(snapshot.planName == "Max")
         #expect(snapshot.availablePrompts == 1000)
+        #expect(snapshot.currentPrompts == 750)
+        #expect(snapshot.remainingPrompts == 250)
         #expect(snapshot.windowMinutes == 300)
         #expect(snapshot.usedPercent == 75)
         #expect(snapshot.resetsAt == expectedReset)
@@ -238,5 +244,72 @@ struct MiniMaxUsageParserTests {
         #expect(throws: MiniMaxUsageError.invalidCredentials) {
             try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8))
         }
+    }
+
+    @Test
+    func throwsOnErrorInDataWrapper() {
+        let json = """
+        {
+          "data": {
+            "base_resp": { "status_code": 1004, "status_msg": "unauthorized" }
+          }
+        }
+        """
+
+        #expect(throws: MiniMaxUsageError.invalidCredentials) {
+            try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8))
+        }
+    }
+}
+
+@Suite
+struct MiniMaxAPIRegionTests {
+    @Test
+    func defaultsToGlobalHosts() {
+        let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: [:])
+        let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: [:])
+        #expect(codingPlan.host == "platform.minimax.io")
+        #expect(remains.host == "platform.minimax.io")
+    }
+
+    @Test
+    func usesChinaMainlandHosts() {
+        let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .chinaMainland, environment: [:])
+        let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .chinaMainland, environment: [:])
+        #expect(codingPlan.host == "platform.minimaxi.com")
+        #expect(remains.host == "platform.minimaxi.com")
+        #expect(codingPlan.query == "cycle_type=3")
+    }
+
+    @Test
+    func hostOverrideWinsForRemainsAndCodingPlan() {
+        let env = [MiniMaxSettingsReader.hostKey: "api.minimaxi.com"]
+        let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env)
+        let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
+        #expect(codingPlan.host == "api.minimaxi.com")
+        #expect(remains.host == "api.minimaxi.com")
+    }
+
+    @Test
+    func remainsUrlOverrideBeatsHost() {
+        let env = [MiniMaxSettingsReader.remainsURLKey: "https://platform.minimaxi.com/custom/remains"]
+        let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
+        #expect(remains.absoluteString == "https://platform.minimaxi.com/custom/remains")
+    }
+
+    @Test
+    func originUsesCodingPlanOverrideHost() {
+        let env = [MiniMaxSettingsReader.codingPlanURLKey: "https://api.minimaxi.com/custom/path?cycle_type=3"]
+        let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env)
+        let origin = MiniMaxUsageFetcher.originURL(from: codingPlan)
+        #expect(origin.absoluteString == "https://api.minimaxi.com")
+    }
+
+    @Test
+    func originStripsHostOverridePath() {
+        let env = [MiniMaxSettingsReader.hostKey: "https://api.minimaxi.com/custom/path"]
+        let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env)
+        let origin = MiniMaxUsageFetcher.originURL(from: codingPlan)
+        #expect(origin.absoluteString == "https://api.minimaxi.com")
     }
 }

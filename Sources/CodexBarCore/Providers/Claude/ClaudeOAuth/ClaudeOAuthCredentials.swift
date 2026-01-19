@@ -106,50 +106,105 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
 
 public enum ClaudeOAuthCredentialsStore {
     private static let credentialsPath = ".claude/.credentials.json"
-    private static let keychainService = "Claude Code-credentials"
+    private static let claudeKeychainService = "Claude Code-credentials"
+    private static let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+    public static let environmentTokenKey = "CODEXBAR_CLAUDE_OAUTH_TOKEN"
+    public static let environmentScopesKey = "CODEXBAR_CLAUDE_OAUTH_SCOPES"
 
-    // Cache to avoid repeated keychain prompts (nonisolated for synchronous access)
+    struct CacheEntry: Codable, Sendable {
+        let data: Data
+        let storedAt: Date
+    }
+
+    private nonisolated(unsafe) static var credentialsURLOverride: URL?
+    // In-memory cache (nonisolated for synchronous access)
     private nonisolated(unsafe) static var cachedCredentials: ClaudeOAuthCredentials?
     private nonisolated(unsafe) static var cacheTimestamp: Date?
-    private static let cacheValidityDuration: TimeInterval = 60 // 1 minute cache
+    private static let memoryCacheValidityDuration: TimeInterval = 1800
 
-    public static func load() throws -> ClaudeOAuthCredentials {
-        // Check cache first to avoid repeated keychain access
+    public static func load(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws -> ClaudeOAuthCredentials
+    {
+        if let credentials = self.loadFromEnvironment(environment) {
+            return credentials
+        }
+
+        // 1. Check in-memory cache first
         if let cached = self.cachedCredentials,
            let timestamp = self.cacheTimestamp,
-           Date().timeIntervalSince(timestamp) < self.cacheValidityDuration
+           Date().timeIntervalSince(timestamp) < self.memoryCacheValidityDuration,
+           !cached.isExpired
         {
             return cached
         }
 
-        // Prefer Keychain (CLI writes there on macOS), but fall back to the JSON file when missing.
         var lastError: Error?
-        if let keychainData = try? self.loadFromKeychain() {
+        var expiredCredentials: ClaudeOAuthCredentials?
+
+        // 2. Try CodexBar's keychain cache (no prompts)
+        switch KeychainCacheStore.load(key: self.cacheKey, as: CacheEntry.self) {
+        case let .found(entry):
+            if let creds = try? ClaudeOAuthCredentials.parse(data: entry.data) {
+                if creds.isExpired {
+                    expiredCredentials = creds
+                } else {
+                    self.cachedCredentials = creds
+                    self.cacheTimestamp = Date()
+                    return creds
+                }
+            } else {
+                KeychainCacheStore.clear(key: self.cacheKey)
+            }
+        case .invalid:
+            KeychainCacheStore.clear(key: self.cacheKey)
+        case .missing:
+            break
+        }
+
+        // 3. Try file (no keychain prompt)
+        do {
+            let fileData = try self.loadFromFile()
+            let creds = try ClaudeOAuthCredentials.parse(data: fileData)
+            if creds.isExpired {
+                expiredCredentials = creds
+            } else {
+                self.cachedCredentials = creds
+                self.cacheTimestamp = Date()
+                self.saveToCacheKeychain(fileData)
+                return creds
+            }
+        } catch let error as ClaudeOAuthCredentialsError {
+            if case .notFound = error {
+                // Ignore missing file
+            } else {
+                lastError = error
+            }
+        } catch {
+            lastError = error
+        }
+
+        // 4. Fall back to Claude's keychain (may prompt user)
+        if let keychainData = try? self.loadFromClaudeKeychain() {
             do {
                 let creds = try ClaudeOAuthCredentials.parse(data: keychainData)
                 self.cachedCredentials = creds
                 self.cacheTimestamp = Date()
+                self.saveToCacheKeychain(keychainData)
                 return creds
             } catch {
-                // Keep the Keychain parse error so we can surface it if the file is also invalid.
                 lastError = error
             }
         }
-        do {
-            let fileData = try self.loadFromFile()
-            let creds = try ClaudeOAuthCredentials.parse(data: fileData)
-            self.cachedCredentials = creds
-            self.cacheTimestamp = Date()
-            return creds
-        } catch {
-            if let lastError { throw lastError }
-            throw error
+
+        if let expiredCredentials {
+            return expiredCredentials
         }
+        if let lastError { throw lastError }
+        throw ClaudeOAuthCredentialsError.notFound
     }
 
     public static func loadFromFile() throws -> Data {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let url = home.appendingPathComponent(self.credentialsPath)
+        let url = self.credentialsURLOverride ?? Self.defaultCredentialsURL()
         do {
             return try Data(contentsOf: url)
         } catch {
@@ -164,21 +219,25 @@ public enum ClaudeOAuthCredentialsStore {
     public static func invalidateCache() {
         self.cachedCredentials = nil
         self.cacheTimestamp = nil
+        self.clearCacheKeychain()
     }
 
-    public static func loadFromKeychain() throws -> Data {
+    public static func loadFromClaudeKeychain() throws -> Data {
         #if os(macOS)
+        if KeychainAccessGate.isDisabled {
+            throw ClaudeOAuthCredentialsError.notFound
+        }
         if case .interactionRequired = KeychainAccessPreflight
-            .checkGenericPassword(service: self.keychainService, account: nil)
+            .checkGenericPassword(service: self.claudeKeychainService, account: nil)
         {
             KeychainPromptHandler.handler?(KeychainPromptContext(
                 kind: .claudeOAuth,
-                service: self.keychainService,
+                service: self.claudeKeychainService,
                 account: nil))
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: self.keychainService,
+            kSecAttrService as String: self.claudeKeychainService,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true,
         ]
@@ -200,5 +259,52 @@ public enum ClaudeOAuthCredentialsStore {
         #else
         throw ClaudeOAuthCredentialsError.notFound
         #endif
+    }
+
+    /// Legacy alias for backward compatibility
+    public static func loadFromKeychain() throws -> Data {
+        try self.loadFromClaudeKeychain()
+    }
+
+    private static func loadFromEnvironment(_ environment: [String: String]) -> ClaudeOAuthCredentials? {
+        guard let token = environment[self.environmentTokenKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !token.isEmpty
+        else {
+            return nil
+        }
+
+        let scopes: [String] = {
+            guard let raw = environment[self.environmentScopesKey] else { return ["user:profile"] }
+            let parsed = raw
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            return parsed.isEmpty ? ["user:profile"] : parsed
+        }()
+
+        return ClaudeOAuthCredentials(
+            accessToken: token,
+            refreshToken: nil,
+            expiresAt: Date.distantFuture,
+            scopes: scopes,
+            rateLimitTier: nil)
+    }
+
+    static func setCredentialsURLOverrideForTesting(_ url: URL?) {
+        self.credentialsURLOverride = url
+    }
+
+    private static func saveToCacheKeychain(_ data: Data) {
+        let entry = CacheEntry(data: data, storedAt: Date())
+        KeychainCacheStore.store(key: self.cacheKey, entry: entry)
+    }
+
+    private static func clearCacheKeychain() {
+        KeychainCacheStore.clear(key: self.cacheKey)
+    }
+
+    private static func defaultCredentialsURL() -> URL {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return home.appendingPathComponent(self.credentialsPath)
     }
 }

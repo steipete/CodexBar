@@ -66,7 +66,8 @@ struct CLICostTests {
                 cacheReadTokens: 2,
                 cacheCreationTokens: 3,
                 totalTokens: 15,
-                totalCostUSD: 0.01))
+                totalCostUSD: 0.01),
+            error: nil)
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970

@@ -375,6 +375,16 @@ public enum PathBuilder {
             effectivePATH: effective,
             loginShellPATH: loginString)
     }
+
+    public static func debugSnapshotAsync(
+        purposes: Set<PathPurpose>,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        home: String = NSHomeDirectory()) async -> PathDebugSnapshot
+    {
+        await Task.detached(priority: .userInitiated) {
+            self.debugSnapshot(purposes: purposes, env: env, home: home)
+        }.value
+    }
 }
 
 enum LoginShellPathCapturer {

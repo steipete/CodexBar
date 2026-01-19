@@ -22,10 +22,8 @@ struct CodexBarApp: App {
             level: level,
             json: false))
 
+        KeychainAccessGate.isDisabled = UserDefaults.standard.bool(forKey: "debugDisableKeychainAccess")
         KeychainPromptCoordinator.install()
-
-        // Migrate keychain items to reduce permission prompts during development
-        KeychainMigration.migrateIfNeeded()
 
         let preferencesSelection = PreferencesSelection()
         let settings = SettingsStore()
@@ -61,7 +59,7 @@ struct CodexBarApp: App {
                 updater: self.appDelegate.updaterController,
                 selection: self.preferencesSelection)
         }
-        .defaultSize(width: PreferencesTab.windowWidth, height: PreferencesTab.general.preferredHeight)
+        .defaultSize(width: PreferencesTab.general.preferredWidth, height: PreferencesTab.general.preferredHeight)
         .windowResizability(.contentSize)
     }
 
@@ -182,6 +180,10 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
             }
         }
     }
+
+    nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        UpdateChannel.current.allowedSparkleChannels
+    }
 }
 
 private func isDeveloperIDSigned(bundleURL: URL) -> Bool {
@@ -270,6 +272,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Defensive fallback: this should not be hit in normal app lifecycle.
+        CodexBarLog.logger("app")
+            .error("StatusItemController fallback path used; settings/store mismatch likely.")
+        assertionFailure("StatusItemController fallback path used; check app lifecycle wiring.")
         let fallbackSettings = SettingsStore()
         let fetcher = UsageFetcher()
         let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)

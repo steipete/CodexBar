@@ -3,6 +3,8 @@ import Foundation
 public struct MiniMaxUsageSnapshot: Sendable {
     public let planName: String?
     public let availablePrompts: Int?
+    public let currentPrompts: Int?
+    public let remainingPrompts: Int?
     public let windowMinutes: Int?
     public let usedPercent: Double?
     public let resetsAt: Date?
@@ -11,6 +13,8 @@ public struct MiniMaxUsageSnapshot: Sendable {
     public init(
         planName: String?,
         availablePrompts: Int?,
+        currentPrompts: Int?,
+        remainingPrompts: Int?,
         windowMinutes: Int?,
         usedPercent: Double?,
         resetsAt: Date?,
@@ -18,6 +22,8 @@ public struct MiniMaxUsageSnapshot: Sendable {
     {
         self.planName = planName
         self.availablePrompts = availablePrompts
+        self.currentPrompts = currentPrompts
+        self.remainingPrompts = remainingPrompts
         self.windowMinutes = windowMinutes
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
@@ -48,6 +54,7 @@ extension MiniMaxUsageSnapshot {
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
+            minimaxUsage: self,
             updatedAt: self.updatedAt,
             identity: identity)
     }

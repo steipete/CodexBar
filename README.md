@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, and Augment limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, and JetBrains AI limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
 
@@ -22,6 +22,7 @@ brew install --cask steipete/tap/codexbar
 brew install steipete/tap/codexbar
 ```
 Or download `CodexBarCLI-v<tag>-linux-<arch>.tar.gz` from GitHub Releases.
+Linux support via Omarchy: community Waybar module and TUI, driven by the `codexbar` executable.
 
 ### First run
 - Open Settings → Providers and enable what you use.
@@ -38,9 +39,13 @@ Or download `CodexBarCLI-v<tag>-linux-<arch>.tar.gz` from GitHub Releases.
 - [Droid](docs/factory.md) — Browser cookies + WorkOS token flows for Factory usage + billing.
 - [Copilot](docs/copilot.md) — GitHub device flow + Copilot internal usage API.
 - [z.ai](docs/zai.md) — API token (Keychain) for quota + MCP windows.
+- [Kimi](docs/kimi.md) — Auth token (JWT from `kimi-auth` cookie) for weekly quota + 5‑hour rate limit.
+- [Kimi K2](docs/kimi-k2.md) — API key for credit-based usage totals.
 - [Kiro](docs/kiro.md) — CLI-based usage via `kiro-cli /usage` command; monthly credits + bonus credits.
 - [Vertex AI](docs/vertexai.md) — Google Cloud gcloud OAuth with token cost tracking from local Claude logs.
 - [Augment](docs/augment.md) — Browser cookie-based authentication with automatic session keepalive; credits tracking and usage monitoring.
+- [Amp](docs/amp.md) — Browser cookie-based authentication with Amp Free usage tracking.
+- [JetBrains AI](docs/jetbrains.md) — Local XML-based quota from JetBrains IDE configuration; monthly credits tracking.
 - Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot
@@ -70,6 +75,16 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
   - Chrome cookie import needs the “Chrome Safe Storage” key to decrypt cookies.
   - Claude OAuth credentials (written by the Claude CLI) are read from Keychain when present.
   - z.ai API token is stored in Keychain from Preferences → Providers; Copilot stores its API token in Keychain during device flow.
+  - **How do I prevent those keychain alerts?**
+    - Open **Keychain Access.app** → login keychain → search the item (e.g., “Claude Code-credentials”).
+    - Open the item → **Access Control** → add `CodexBar.app` under “Always allow access by these applications”.
+    - Prefer adding just CodexBar (avoid “Allow all applications” unless you want it wide open).
+    - Relaunch CodexBar after saving.
+    - Reference screenshot: ![Keychain access control](docs/keychain-allow.png)
+  - **How to do the same for the browser?**
+    - Find the browser’s “Safe Storage” key (e.g., “Chrome Safe Storage”, “Brave Safe Storage”, “Firefox”, “Microsoft Edge Safe Storage”).
+    - Open the item → **Access Control** → add `CodexBar.app` under “Always allow access by these applications”.
+    - This removes the prompt when CodexBar decrypts cookies for that browser.
 - **Files & Folders prompts (folder/volume access)**: CodexBar launches provider CLIs (codex/claude/gemini/antigravity). If those CLIs read a project directory or external drive, macOS may ask CodexBar for that folder/volume (e.g., Desktop or an external volume). This is driven by the CLI’s working directory, not background disk scanning.
 - **What we do not request**: no Screen Recording, Accessibility, or Automation permissions; no passwords are stored (browser cookies are reused when you opt in).
 
@@ -107,6 +122,9 @@ Dev loop:
 - ✂️ [Trimmy](https://github.com/steipete/Trimmy) — “Paste once, run once.” Flatten multi-line shell snippets so they paste and run.
 - 🧳 [MCPorter](https://mcporter.dev) — TypeScript toolkit + CLI for Model Context Protocol servers.
 - 🧿 [oracle](https://askoracle.dev) — Ask the oracle when you're stuck. Invoke GPT-5 Pro with a custom context and files.
+
+## Looking for a Windows version?
+- [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar)
 
 ## Credits
 Inspired by [ccusage](https://github.com/ryoppippi/ccusage) (MIT), specifically the cost usage tracking.

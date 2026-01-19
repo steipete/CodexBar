@@ -12,7 +12,11 @@ Cursor is web-only. Usage is fetched via browser cookies or a stored WebKit sess
 
 ## Data sources + fallback order
 
-1) **Browser cookie import** (preferred)
+1) **Cached cookie header** (preferred)
+   - Stored after successful browser import.
+   - Keychain cache: `com.steipete.codexbar.cache` (account `cookie.cursor`).
+
+2) **Browser cookie import**
    - Cookie order from provider metadata (default: Safari → Chrome → Firefox).
    - Domain filters: `cursor.com`, `cursor.sh`.
    - Cookie names required (any one counts):
@@ -20,7 +24,7 @@ Cursor is web-only. Usage is fetched via browser cookies or a stored WebKit sess
      - `__Secure-next-auth.session-token`
      - `next-auth.session-token`
 
-2) **Stored session cookies** (fallback)
+3) **Stored session cookies** (fallback)
    - Captured by the "Add Account" WebKit login flow.
    - Login teardown uses `WebKitTeardown` to avoid Intel WebKit crashes.
    - Stored at: `~/Library/Application Support/CodexBar/cursor-session.json`.

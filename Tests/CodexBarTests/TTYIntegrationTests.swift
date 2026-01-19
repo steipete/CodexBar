@@ -24,11 +24,15 @@ struct TTYIntegrationTests {
 
     @Test
     func claudeTTYUsageProbeLive() async throws {
+        guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_TTY"] == "1" else {
+            return
+        }
         guard TTYCommandRunner.which("claude") != nil else {
             return
         }
 
         let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .cli)
+        defer { Task { await ClaudeCLISession.shared.reset() } }
 
         var shouldAssert = true
         do {
@@ -49,7 +53,6 @@ struct TTYIntegrationTests {
             shouldAssert = false
         }
 
-        await ClaudeCLISession.shared.reset()
         if !shouldAssert { return }
     }
 }

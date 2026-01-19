@@ -22,6 +22,10 @@ read_when:
 - Session + weekly rows with resets (countdown by default; optional absolute clock display).
 - Codex-only: Credits + “Buy Credits…” in-card action.
 - Web-only rows (when OpenAI cookies are enabled): code review remaining, usage breakdown submenu.
+- Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.
+
+## Preferences notes
+- Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.
 
 ## Widgets (high level)
 - Widget entries mirror the menu card; detailed pipeline in `docs/widgets.md`.

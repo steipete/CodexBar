@@ -66,6 +66,18 @@ final class InlineIconToggleButton: NSButton {
         self.titleField.textColor = color
     }
 
+    func setTitleFontSize(_ size: CGFloat) {
+        self.titleField.font = NSFont.systemFont(ofSize: size)
+    }
+
+    func setAllowsTwoLineTitle(_ allow: Bool) {
+        let hasWhitespace = self.titleField.stringValue.rangeOfCharacter(from: .whitespacesAndNewlines) != nil
+        let shouldWrap = allow && hasWhitespace
+        self.titleField.maximumNumberOfLines = shouldWrap ? 2 : 1
+        self.titleField.usesSingleLineMode = !shouldWrap
+        self.titleField.lineBreakMode = shouldWrap ? .byWordWrapping : .byTruncatingTail
+    }
+
     override var intrinsicContentSize: NSSize {
         let size = self.stack.fittingSize
         return NSSize(
@@ -183,6 +195,18 @@ final class StackedToggleButton: NSButton {
         self.titleField.textColor = color
     }
 
+    func setTitleFontSize(_ size: CGFloat) {
+        self.titleField.font = NSFont.systemFont(ofSize: size)
+    }
+
+    func setAllowsTwoLineTitle(_ allow: Bool) {
+        let hasWhitespace = self.titleField.stringValue.rangeOfCharacter(from: .whitespacesAndNewlines) != nil
+        let shouldWrap = allow && hasWhitespace
+        self.titleField.maximumNumberOfLines = shouldWrap ? 2 : 1
+        self.titleField.usesSingleLineMode = !shouldWrap
+        self.titleField.lineBreakMode = shouldWrap ? .byWordWrapping : .byTruncatingTail
+    }
+
     override var intrinsicContentSize: NSSize {
         let size = self.stack.fittingSize
         return NSSize(
@@ -219,6 +243,8 @@ final class StackedToggleButton: NSButton {
         self.titleField.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize - 2)
         self.titleField.alignment = .center
         self.titleField.lineBreakMode = .byTruncatingTail
+        self.titleField.maximumNumberOfLines = 1
+        self.titleField.usesSingleLineMode = true
         self.setContentTintColor(NSColor.secondaryLabelColor)
 
         self.stack.orientation = .vertical

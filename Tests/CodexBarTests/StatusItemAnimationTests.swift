@@ -8,7 +8,10 @@ import Testing
 struct StatusItemAnimationTests {
     @Test
     func mergedIconLoadingAnimationTracksSelectedProviderOnly() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-merged"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
@@ -49,7 +52,10 @@ struct StatusItemAnimationTests {
 
     @Test
     func mergedIconLoadingAnimationDoesNotFlipLayoutWhenWeeklyHitsZero() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-weekly"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
@@ -106,5 +112,147 @@ struct StatusItemAnimationTests {
 
         let alpha = (rep.colorAt(x: 18, y: 12) ?? .clear).alphaComponent
         #expect(alpha > 0.05)
+    }
+
+    @Test
+    func menuBarPercentUsesConfiguredMetric() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-metric"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.setMenuBarMetricPreference(.secondary, for: .codex)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 42, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let window = controller.menuBarMetricWindow(for: .codex, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 42)
+    }
+
+    @Test
+    func menuBarPercentUsesAverageForGemini() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-average"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .gemini
+        settings.setMenuBarMetricPreference(.average, for: .gemini)
+
+        let registry = ProviderRegistry.shared
+        if let geminiMeta = registry.metadata[.gemini] {
+            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .gemini)
+        store._setErrorForTesting(nil, provider: .gemini)
+
+        let window = controller.menuBarMetricWindow(for: .gemini, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 40)
+    }
+
+    @Test
+    func menuBarDisplayTextFormatsPercentAndPace() {
+        let now = Date(timeIntervalSince1970: 0)
+        let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let paceWindow = RateWindow(
+            usedPercent: 30,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(60 * 60 * 24 * 6),
+            resetDescription: nil)
+
+        let percent = MenuBarDisplayText.displayText(
+            mode: .percent,
+            provider: .codex,
+            percentWindow: percentWindow,
+            paceWindow: paceWindow,
+            showUsed: true,
+            now: now)
+        let pace = MenuBarDisplayText.displayText(
+            mode: .pace,
+            provider: .codex,
+            percentWindow: percentWindow,
+            paceWindow: paceWindow,
+            showUsed: true,
+            now: now)
+        let both = MenuBarDisplayText.displayText(
+            mode: .both,
+            provider: .codex,
+            percentWindow: percentWindow,
+            paceWindow: paceWindow,
+            showUsed: true,
+            now: now)
+
+        #expect(percent == "40%")
+        #expect(pace == "+16%")
+        #expect(both == "40% · +16%")
+    }
+
+    @Test
+    func menuBarDisplayTextHidesWhenPaceUnavailable() {
+        let now = Date(timeIntervalSince1970: 0)
+        let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let paceWindow = RateWindow(
+            usedPercent: 30,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(60 * 60 * 24 * 6),
+            resetDescription: nil)
+
+        let pace = MenuBarDisplayText.displayText(
+            mode: .pace,
+            provider: .gemini,
+            percentWindow: percentWindow,
+            paceWindow: paceWindow,
+            showUsed: true,
+            now: now)
+        let both = MenuBarDisplayText.displayText(
+            mode: .both,
+            provider: .gemini,
+            percentWindow: percentWindow,
+            paceWindow: paceWindow,
+            showUsed: true,
+            now: now)
+
+        #expect(pace == nil)
+        #expect(both == nil)
     }
 }

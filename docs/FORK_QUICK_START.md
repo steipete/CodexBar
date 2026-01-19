@@ -1,3 +1,11 @@
+---
+summary: "Fork quick start: differences, commands, and planned features."
+read_when:
+  - Onboarding to the fork workflow
+  - Reviewing fork-specific changes
+  - Running fork maintenance commands
+---
+
 # CodexBar Fork - Quick Start Guide
 
 **Fork Maintainer:** Brandon Charleson ([topoffunnel.com](https://topoffunnel.com))  
@@ -249,4 +257,3 @@ Want to contribute but not sure where to start? Try these:
 - [ ] Suggest UI improvements
 
 Happy coding! 🚀
-

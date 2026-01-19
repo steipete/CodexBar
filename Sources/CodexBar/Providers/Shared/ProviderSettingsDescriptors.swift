@@ -84,6 +84,24 @@ struct ProviderSettingsFieldDescriptor: Identifiable {
     let onActivate: (() -> Void)?
 }
 
+/// Shared token account descriptor rendered in the Providers settings pane.
+@MainActor
+struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let placeholder: String
+    let provider: UsageProvider
+    let isVisible: (() -> Bool)?
+    let accounts: () -> [ProviderTokenAccount]
+    let activeIndex: () -> Int
+    let setActiveIndex: (Int) -> Void
+    let addAccount: (_ label: String, _ token: String) -> Void
+    let removeAccount: (_ accountID: UUID) -> Void
+    let openConfigFile: () -> Void
+    let reloadFromDisk: () -> Void
+}
+
 /// Shared picker descriptor rendered in the Providers settings pane.
 @MainActor
 struct ProviderSettingsPickerDescriptor: Identifiable {

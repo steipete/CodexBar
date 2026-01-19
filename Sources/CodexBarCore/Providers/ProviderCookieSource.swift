@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ProviderCookieSource: String, CaseIterable, Identifiable, Sendable {
+public enum ProviderCookieSource: String, CaseIterable, Identifiable, Sendable, Codable {
     case auto
     case manual
     case off

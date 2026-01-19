@@ -33,7 +33,7 @@ public enum GeminiProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Gemini cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .cli],
+                sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [GeminiStatusFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "gemini",

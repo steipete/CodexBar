@@ -10,7 +10,18 @@ struct ProviderIconResourcesTests {
         let root = try Self.repoRoot()
         let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
 
-        let slugs = ["codex", "claude", "zai", "minimax", "cursor", "gemini", "antigravity", "factory", "copilot", "augment", "kiro", "vertexai"]
+        let slugs = [
+            "codex",
+            "claude",
+            "zai",
+            "minimax",
+            "cursor",
+            "opencode",
+            "gemini",
+            "antigravity",
+            "factory",
+            "copilot",
+        ]
         for slug in slugs {
             let url = resources.appending(path: "ProviderIcon-\(slug).svg")
             #expect(

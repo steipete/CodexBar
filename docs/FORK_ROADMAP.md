@@ -1,3 +1,10 @@
+---
+summary: "Fork roadmap: phases, milestones, and planned improvements."
+read_when:
+  - Planning fork work
+  - Reviewing fork milestones
+---
+
 # CodexBar Fork Roadmap
 
 This document outlines the development roadmap for the CodexBar fork maintained by Brandon Charleson.
@@ -223,4 +230,3 @@ This document outlines the development roadmap for the CodexBar fork maintained 
 - [Provider Authoring](provider.md) - How to create new providers
 - [Upstream Sync](UPSTREAM_SYNC.md) - Syncing with original repository (TBD)
 - [Quotio Analysis](QUOTIO_ANALYSIS.md) - Feature comparison (TBD)
-

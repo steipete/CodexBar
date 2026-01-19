@@ -57,7 +57,7 @@ public enum AugmentProviderDescriptor {
                 noDataMessage: { "Augment cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
                     var strategies: [any ProviderFetchStrategy] = []
                     // Try CLI first (no browser prompts!)
                     strategies.append(AugmentCLIFetchStrategy())
@@ -97,7 +97,7 @@ struct AugmentCLIFetchStrategy: ProviderFetchStrategy {
             case .notAuthenticated, .noOutput:
                 return true
             case .parseError:
-                return false  // Don't fallback on parse errors - something is wrong
+                return false // Don't fallback on parse errors - something is wrong
             }
         }
         return true

@@ -187,7 +187,7 @@ extension ZaiUsageSnapshot {
 private struct ZaiQuotaLimitResponse: Decodable {
     let code: Int
     let msg: String
-    let data: ZaiQuotaLimitData
+    let data: ZaiQuotaLimitData?
     let success: Bool
 
     var isSuccess: Bool { self.success && self.code == 200 }
@@ -199,7 +199,7 @@ private struct ZaiQuotaLimitData: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.limits = try container.decode([ZaiLimitRaw].self, forKey: .limits)
+        self.limits = try container.decodeIfPresent([ZaiLimitRaw].self, forKey: .limits) ?? []
         let rawPlan = try [
             container.decodeIfPresent(String.self, forKey: .planName),
             container.decodeIfPresent(String.self, forKey: .plan),
@@ -251,16 +251,41 @@ private struct ZaiLimitRaw: Codable {
 public struct ZaiUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger("zai-usage")
 
-    /// Base URL for z.ai quota API
-    private static let quotaAPIURL = "https://api.z.ai/api/monitor/usage/quota/limit"
+    /// Path for z.ai quota API
+    private static let quotaAPIPath = "api/monitor/usage/quota/limit"
+
+    /// Resolves the quota URL using (in order):
+    /// 1) `Z_AI_QUOTA_URL` environment override (full URL).
+    /// 2) `Z_AI_API_HOST` environment override (host/base URL).
+    /// 3) Region selection (global default).
+    public static func resolveQuotaURL(
+        region: ZaiAPIRegion,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
+    {
+        if let override = ZaiSettingsReader.quotaURL(environment: environment) {
+            return override
+        }
+        if let host = ZaiSettingsReader.apiHost(environment: environment),
+           let hostURL = self.quotaURL(baseURLString: host)
+        {
+            return hostURL
+        }
+        return region.quotaLimitURL
+    }
 
     /// Fetches usage stats from z.ai using the provided API key
-    public static func fetchUsage(apiKey: String) async throws -> ZaiUsageSnapshot {
+    public static func fetchUsage(
+        apiKey: String,
+        region: ZaiAPIRegion = .global,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> ZaiUsageSnapshot
+    {
         guard !apiKey.isEmpty else {
             throw ZaiUsageError.invalidCredentials
         }
 
-        var request = URLRequest(url: URL(string: quotaAPIURL)!)
+        let quotaURL = self.resolveQuotaURL(region: region, environment: environment)
+
+        var request = URLRequest(url: quotaURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "authorization")
         request.setValue("application/json", forHTTPHeaderField: "accept")
@@ -282,33 +307,8 @@ public struct ZaiUsageFetcher: Sendable {
             Self.log.debug("z.ai API response: \(jsonString)")
         }
 
-        let decoder = JSONDecoder()
         do {
-            let apiResponse = try decoder.decode(ZaiQuotaLimitResponse.self, from: data)
-
-            guard apiResponse.isSuccess else {
-                throw ZaiUsageError.apiError(apiResponse.msg)
-            }
-
-            var tokenLimit: ZaiLimitEntry?
-            var timeLimit: ZaiLimitEntry?
-
-            for limit in apiResponse.data.limits {
-                if let entry = limit.toLimitEntry() {
-                    switch entry.type {
-                    case .tokensLimit:
-                        tokenLimit = entry
-                    case .timeLimit:
-                        timeLimit = entry
-                    }
-                }
-            }
-
-            return ZaiUsageSnapshot(
-                tokenLimit: tokenLimit,
-                timeLimit: timeLimit,
-                planName: apiResponse.data.planName,
-                updatedAt: Date())
+            return try Self.parseUsageSnapshot(from: data)
         } catch let error as DecodingError {
             Self.log.error("z.ai JSON decoding error: \(error.localizedDescription)")
             throw ZaiUsageError.parseFailed(error.localizedDescription)
@@ -318,6 +318,55 @@ public struct ZaiUsageFetcher: Sendable {
             Self.log.error("z.ai parsing error: \(error.localizedDescription)")
             throw ZaiUsageError.parseFailed(error.localizedDescription)
         }
+    }
+
+    static func parseUsageSnapshot(from data: Data) throws -> ZaiUsageSnapshot {
+        let decoder = JSONDecoder()
+        let apiResponse = try decoder.decode(ZaiQuotaLimitResponse.self, from: data)
+
+        guard apiResponse.isSuccess else {
+            throw ZaiUsageError.apiError(apiResponse.msg)
+        }
+
+        guard let responseData = apiResponse.data else {
+            throw ZaiUsageError.parseFailed("Missing data")
+        }
+
+        var tokenLimit: ZaiLimitEntry?
+        var timeLimit: ZaiLimitEntry?
+
+        for limit in responseData.limits {
+            if let entry = limit.toLimitEntry() {
+                switch entry.type {
+                case .tokensLimit:
+                    tokenLimit = entry
+                case .timeLimit:
+                    timeLimit = entry
+                }
+            }
+        }
+
+        return ZaiUsageSnapshot(
+            tokenLimit: tokenLimit,
+            timeLimit: timeLimit,
+            planName: responseData.planName,
+            updatedAt: Date())
+    }
+
+    private static func quotaURL(baseURLString: String) -> URL? {
+        guard let cleaned = ZaiSettingsReader.cleaned(baseURLString) else { return nil }
+
+        if let url = URL(string: cleaned), url.scheme != nil {
+            if url.path.isEmpty || url.path == "/" {
+                return url.appendingPathComponent(Self.quotaAPIPath)
+            }
+            return url
+        }
+        guard let base = URL(string: "https://\(cleaned)") else { return nil }
+        if base.path.isEmpty || base.path == "/" {
+            return base.appendingPathComponent(Self.quotaAPIPath)
+        }
+        return base
     }
 }
 

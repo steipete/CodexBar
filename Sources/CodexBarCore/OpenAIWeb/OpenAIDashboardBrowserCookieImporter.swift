@@ -114,6 +114,28 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         var diagnostics = ImportDiagnostics()
 
+        if let cached = CookieHeaderCache.load(provider: .codex),
+           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            log("Using cached cookie header from \(cached.sourceLabel)")
+            do {
+                return try await self.importManualCookies(
+                    cookieHeader: cached.cookieHeader,
+                    intoAccountEmail: normalizedTarget,
+                    allowAnyAccount: allowAnyAccount,
+                    logger: log)
+            } catch let error as ImportError {
+                switch error {
+                case .manualCookieHeaderInvalid, .noMatchingAccount, .dashboardStillRequiresLogin:
+                    CookieHeaderCache.clear(provider: .codex)
+                default:
+                    throw error
+                }
+            } catch {
+                throw error
+            }
+        }
+
         // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
         let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: self.browserDetection)
         for browserSource in installedBrowsers {
@@ -234,6 +256,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
             return nil
         } catch let error as BrowserCookieError {
+            BrowserCookieAccessGate.recordIfNeeded(error)
             if let hint = error.accessDeniedHint {
                 diagnostics.accessDeniedHints.append(hint)
             }
@@ -278,6 +301,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
             return nil
         } catch let error as BrowserCookieError {
+            BrowserCookieAccessGate.recordIfNeeded(error)
             if let hint = error.accessDeniedHint {
                 diagnostics.accessDeniedHints.append(hint)
             }
@@ -322,6 +346,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
             return nil
         } catch let error as BrowserCookieError {
+            BrowserCookieAccessGate.recordIfNeeded(error)
             if let hint = error.accessDeniedHint {
                 diagnostics.accessDeniedHints.append(hint)
             }
@@ -380,7 +405,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
         case let .match(candidate, signedInEmail):
             log("Selected \(candidate.label) (matches Codex: \(signedInEmail))")
             guard let targetEmail else { return nil }
-            return try? await self.persist(candidate: candidate, targetEmail: targetEmail, logger: log)
+            if let result = try? await self.persist(candidate: candidate, targetEmail: targetEmail, logger: log) {
+                self.cacheCookies(candidate: candidate)
+                return result
+            }
+            return nil
         case let .mismatch(candidate, signedInEmail):
             await self.handleMismatch(
                 candidate: candidate,
@@ -390,11 +419,19 @@ public struct OpenAIDashboardBrowserCookieImporter {
             return nil
         case let .loggedIn(candidate, signedInEmail):
             log("Selected \(candidate.label) (signed in: \(signedInEmail))")
-            return try? await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log)
+            if let result = try? await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log) {
+                self.cacheCookies(candidate: candidate)
+                return result
+            }
+            return nil
         case .unknown:
             if allowAnyAccount {
                 log("Selected \(candidate.label) (signed in: unknown)")
-                return try? await self.persistToDefaultStore(candidate: candidate, logger: log)
+                if let result = try? await self.persistToDefaultStore(candidate: candidate, logger: log) {
+                    self.cacheCookies(candidate: candidate)
+                    return result
+                }
+                return nil
             }
             diagnostics.foundUnknownEmail = true
             return nil
@@ -631,6 +668,16 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
         }
         return cookies
+    }
+
+    private func cacheCookies(candidate: Candidate) {
+        let header = self.cookieHeader(from: candidate.cookies)
+        guard !header.isEmpty else { return }
+        CookieHeaderCache.store(provider: .codex, cookieHeader: header, sourceLabel: candidate.label)
+    }
+
+    private func cookieHeader(from cookies: [HTTPCookie]) -> String {
+        cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
     }
 
     private struct Candidate: Sendable {

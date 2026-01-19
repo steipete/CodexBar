@@ -1,3 +1,10 @@
+---
+summary: "Fork setup: remote configuration and multi-upstream workflow."
+read_when:
+  - Setting up fork remotes
+  - Syncing with upstreams
+---
+
 # Fork Setup & Initial Configuration
 
 **One-time setup for managing your CodexBar fork with multiple upstreams**
@@ -325,4 +332,3 @@ After setup, verify:
 ---
 
 **Setup Complete!** You now have a robust system for managing your fork while learning from multiple sources.
-

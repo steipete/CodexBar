@@ -57,24 +57,40 @@ struct GeneralPane: View {
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {
-                    Text("Status")
+                    Text("Automation")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Refresh cadence")
+                                    .font(.body)
+                                Text("How often CodexBar polls providers in the background.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Picker("Refresh cadence", selection: self.$settings.refreshFrequency) {
+                                ForEach(RefreshFrequency.allCases) { option in
+                                    Text(option.label).tag(option)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 200)
+                        }
+                        if self.settings.refreshFrequency == .manual {
+                            Text("Auto-refresh is off; use the menu's Refresh command.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     PreferenceToggleRow(
                         title: "Check provider status",
                         subtitle: "Polls OpenAI/Claude status pages and Google Workspace for " +
                             "Gemini/Antigravity, surfacing incidents in the icon and menu.",
                         binding: self.$settings.statusChecksEnabled)
-                }
-
-                Divider()
-
-                SettingsSection(contentSpacing: 12) {
-                    Text("Notifications")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
                     PreferenceToggleRow(
                         title: "Session quota notifications",
                         subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +

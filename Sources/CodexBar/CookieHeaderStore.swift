@@ -31,14 +31,14 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
     // Cache to reduce keychain access frequency
     private nonisolated(unsafe) static var cache: [String: CachedValue] = [:]
     private static let cacheLock = NSLock()
-    private static let cacheTTL: TimeInterval = 1800  // 30 minutes
+    private static let cacheTTL: TimeInterval = 1800 // 30 minutes
 
     private struct CachedValue {
         let value: String?
         let timestamp: Date
 
         var isExpired: Bool {
-            Date().timeIntervalSince(timestamp) > KeychainCookieHeaderStore.cacheTTL
+            Date().timeIntervalSince(self.timestamp) > KeychainCookieHeaderStore.cacheTTL
         }
     }
 
@@ -48,6 +48,10 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
     }
 
     func loadCookieHeader() throws -> String? {
+        guard !KeychainAccessGate.isDisabled else {
+            Self.log.debug("Keychain access disabled; skipping cookie load")
+            return nil
+        }
         // Check cache first
         Self.cacheLock.lock()
         if let cached = Self.cache[self.account], !cached.isExpired {
@@ -102,6 +106,10 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
     }
 
     func storeCookieHeader(_ header: String?) throws {
+        guard !KeychainAccessGate.isDisabled else {
+            Self.log.debug("Keychain access disabled; skipping cookie store")
+            return
+        }
         guard let raw = header?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty
         else {
@@ -162,6 +170,7 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
     }
 
     private func deleteIfPresent() throws {
+        guard !KeychainAccessGate.isDisabled else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,

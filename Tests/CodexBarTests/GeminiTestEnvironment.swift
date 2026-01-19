@@ -1,6 +1,11 @@
 import Foundation
 
 struct GeminiTestEnvironment {
+    enum GeminiCLILayout {
+        case npmNested
+        case nixShare
+    }
+
     let homeURL: URL
     private let geminiDir: URL
 
@@ -47,23 +52,37 @@ struct GeminiTestEnvironment {
         return object as? [String: Any] ?? [:]
     }
 
-    func writeFakeGeminiCLI(includeOAuth: Bool = true) throws -> URL {
+    func writeFakeGeminiCLI(includeOAuth: Bool = true, layout: GeminiCLILayout = .npmNested) throws -> URL {
         let base = self.homeURL.appendingPathComponent("gemini-cli")
         let binDir = base.appendingPathComponent("bin")
         try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
 
-        let oauthPath = base
-            .appendingPathComponent("lib")
-            .appendingPathComponent("node_modules")
-            .appendingPathComponent("@google")
-            .appendingPathComponent("gemini-cli")
-            .appendingPathComponent("node_modules")
-            .appendingPathComponent("@google")
-            .appendingPathComponent("gemini-cli-core")
-            .appendingPathComponent("dist")
-            .appendingPathComponent("src")
-            .appendingPathComponent("code_assist")
-            .appendingPathComponent("oauth2.js")
+        let oauthPath: URL = switch layout {
+        case .npmNested:
+            base
+                .appendingPathComponent("lib")
+                .appendingPathComponent("node_modules")
+                .appendingPathComponent("@google")
+                .appendingPathComponent("gemini-cli")
+                .appendingPathComponent("node_modules")
+                .appendingPathComponent("@google")
+                .appendingPathComponent("gemini-cli-core")
+                .appendingPathComponent("dist")
+                .appendingPathComponent("src")
+                .appendingPathComponent("code_assist")
+                .appendingPathComponent("oauth2.js")
+        case .nixShare:
+            base
+                .appendingPathComponent("share")
+                .appendingPathComponent("gemini-cli")
+                .appendingPathComponent("node_modules")
+                .appendingPathComponent("@google")
+                .appendingPathComponent("gemini-cli-core")
+                .appendingPathComponent("dist")
+                .appendingPathComponent("src")
+                .appendingPathComponent("code_assist")
+                .appendingPathComponent("oauth2.js")
+        }
 
         if includeOAuth {
             try FileManager.default.createDirectory(

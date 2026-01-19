@@ -28,6 +28,10 @@ struct KeychainCopilotTokenStore: CopilotTokenStoring {
     private let account = "copilot-api-token"
 
     func loadToken() throws -> String? {
+        guard !KeychainAccessGate.isDisabled else {
+            Self.log.debug("Keychain access disabled; skipping token load")
+            return nil
+        }
         var result: CFTypeRef?
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -66,6 +70,10 @@ struct KeychainCopilotTokenStore: CopilotTokenStoring {
     }
 
     func storeToken(_ token: String?) throws {
+        guard !KeychainAccessGate.isDisabled else {
+            Self.log.debug("Keychain access disabled; skipping token store")
+            return
+        }
         let cleaned = token?.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleaned == nil || cleaned?.isEmpty == true {
             try self.deleteTokenIfPresent()
@@ -104,6 +112,7 @@ struct KeychainCopilotTokenStore: CopilotTokenStoring {
     }
 
     private func deleteTokenIfPresent() throws {
+        guard !KeychainAccessGate.isDisabled else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,

@@ -9,19 +9,34 @@ enum ProviderImplementationRegistry {
 
     private static let lock = NSLock()
     private static let store = Store()
+
+    private static func makeImplementation(for provider: UsageProvider) -> (any ProviderImplementation) {
+        switch provider {
+        case .codex: CodexProviderImplementation()
+        case .claude: ClaudeProviderImplementation()
+        case .cursor: CursorProviderImplementation()
+        case .opencode: OpenCodeProviderImplementation()
+        case .factory: FactoryProviderImplementation()
+        case .gemini: GeminiProviderImplementation()
+        case .antigravity: AntigravityProviderImplementation()
+        case .copilot: CopilotProviderImplementation()
+        case .zai: ZaiProviderImplementation()
+        case .minimax: MiniMaxProviderImplementation()
+        case .kimi: KimiProviderImplementation()
+        case .kiro: KiroProviderImplementation()
+        case .vertexai: VertexAIProviderImplementation()
+        case .augment: AugmentProviderImplementation()
+        case .jetbrains: JetBrainsProviderImplementation()
+        case .kimik2: KimiK2ProviderImplementation()
+        case .amp: AmpProviderImplementation()
+        case .synthetic: SyntheticProviderImplementation()
+        }
+    }
+
     private static let bootstrap: Void = {
-        _ = ProviderImplementationRegistry.register(CodexProviderImplementation())
-        _ = ProviderImplementationRegistry.register(ClaudeProviderImplementation())
-        _ = ProviderImplementationRegistry.register(FactoryProviderImplementation())
-        _ = ProviderImplementationRegistry.register(ZaiProviderImplementation())
-        _ = ProviderImplementationRegistry.register(MiniMaxProviderImplementation())
-        _ = ProviderImplementationRegistry.register(AugmentProviderImplementation())
-        _ = ProviderImplementationRegistry.register(CursorProviderImplementation())
-        _ = ProviderImplementationRegistry.register(GeminiProviderImplementation())
-        _ = ProviderImplementationRegistry.register(AntigravityProviderImplementation())
-        _ = ProviderImplementationRegistry.register(CopilotProviderImplementation())
-        _ = ProviderImplementationRegistry.register(KiroProviderImplementation())
-        _ = ProviderImplementationRegistry.register(VertexAIProviderImplementation())
+        for provider in UsageProvider.allCases {
+            _ = ProviderImplementationRegistry.register(makeImplementation(for: provider))
+        }
     }()
 
     private static func ensureBootstrapped() {

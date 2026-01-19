@@ -236,9 +236,9 @@ extension StatusItemController {
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
-            let percentText = self.menuBarPercentText(for: primaryProvider, snapshot: snapshot)
+            let displayText = self.menuBarDisplayText(for: primaryProvider, snapshot: snapshot)
             self.setButtonImage(brand, for: button)
-            self.setButtonTitle(percentText, for: button)
+            self.setButtonTitle(displayText, for: button)
             return
         }
 
@@ -268,12 +268,13 @@ extension StatusItemController {
         // user setting we pass either "percent left" or "percent used".
         let showUsed = self.settings.usageBarsShowUsed
         let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
+
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: provider)
         {
-            let percentText = self.menuBarPercentText(for: provider, snapshot: snapshot)
+            let displayText = self.menuBarDisplayText(for: provider, snapshot: snapshot)
             self.setButtonImage(brand, for: button)
-            self.setButtonTitle(percentText, for: button)
+            self.setButtonTitle(displayText, for: button)
             return
         }
         var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
@@ -341,21 +342,27 @@ extension StatusItemController {
         }
     }
 
-    private func menuBarPercentText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
-        guard let window = self.menuBarPercentWindow(for: provider, snapshot: snapshot) else { return nil }
-        let percent = self.settings.usageBarsShowUsed ? window.usedPercent : window.remainingPercent
-        let clamped = min(100, max(0, percent))
-        return String(format: "%.0f%%", clamped)
+    func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        MenuBarDisplayText.displayText(
+            mode: self.settings.menuBarDisplayMode,
+            provider: provider,
+            percentWindow: self.menuBarPercentWindow(for: provider, snapshot: snapshot),
+            paceWindow: snapshot?.secondary,
+            showUsed: self.settings.usageBarsShowUsed)
     }
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
-        if provider == .factory {
-            return snapshot?.secondary ?? snapshot?.primary
-        }
-        return snapshot?.primary ?? snapshot?.secondary
+        self.menuBarMetricWindow(for: provider, snapshot: snapshot)
     }
 
     private func primaryProviderForUnifiedIcon() -> UsageProvider {
+        // When "show highest usage" is enabled, auto-select the provider closest to rate limit.
+        if self.settings.menuBarShowsHighestUsage,
+           self.shouldMergeIcons,
+           let highest = self.store.providerWithHighestUsage()
+        {
+            return highest.provider
+        }
         if self.shouldMergeIcons,
            let selected = self.selectedMenuProvider,
            self.store.isEnabled(selected)

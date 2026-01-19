@@ -51,6 +51,11 @@ enum KeychainPromptCoordinator {
                 "CodexBar will ask macOS Keychain for your Cursor cookie header",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
+        case .opencodeCookie:
+            return (title, [
+                "CodexBar will ask macOS Keychain for your OpenCode cookie header",
+                "so it can fetch usage. Click OK to continue.",
+            ].joined(separator: " "))
         case .factoryCookie:
             return (title, [
                 "CodexBar will ask macOS Keychain for your Factory cookie header",
@@ -61,19 +66,44 @@ enum KeychainPromptCoordinator {
                 "CodexBar will ask macOS Keychain for your z.ai API token",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
+        case .syntheticToken:
+            return (title, [
+                "CodexBar will ask macOS Keychain for your Synthetic API key",
+                "so it can fetch usage. Click OK to continue.",
+            ].joined(separator: " "))
         case .copilotToken:
             return (title, [
                 "CodexBar will ask macOS Keychain for your GitHub Copilot token",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
+        case .kimiToken:
+            return (title, [
+                "CodexBar will ask macOS Keychain for your Kimi auth token",
+                "so it can fetch usage. Click OK to continue.",
+            ].joined(separator: " "))
+        case .kimiK2Token:
+            return (title, [
+                "CodexBar will ask macOS Keychain for your Kimi K2 API key",
+                "so it can fetch usage. Click OK to continue.",
+            ].joined(separator: " "))
         case .minimaxCookie:
             return (title, [
-                "CodexBar will ask macOS Keychain for your MiniMax session cookie",
+                "CodexBar will ask macOS Keychain for your MiniMax cookie header",
+                "so it can fetch usage. Click OK to continue.",
+            ].joined(separator: " "))
+        case .minimaxToken:
+            return (title, [
+                "CodexBar will ask macOS Keychain for your MiniMax API token",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
         case .augmentCookie:
             return (title, [
                 "CodexBar will ask macOS Keychain for your Augment cookie header",
+                "so it can fetch usage. Click OK to continue.",
+            ].joined(separator: " "))
+        case .ampCookie:
+            return (title, [
+                "CodexBar will ask macOS Keychain for your Amp cookie header",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
         }

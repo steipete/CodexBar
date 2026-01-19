@@ -5,11 +5,12 @@ public enum ProviderRuntime: Sendable {
     case cli
 }
 
-public enum ProviderSourceMode: String, CaseIterable, Sendable {
+public enum ProviderSourceMode: String, CaseIterable, Sendable, Codable {
     case auto
     case web
     case cli
     case oauth
+    case api
 
     public var usesWeb: Bool {
         self == .auto || self == .web
@@ -164,6 +165,7 @@ public struct ProviderFetchPipeline: Sendable {
 
         for strategy in strategies {
             let available = await strategy.isAvailable(context)
+
             guard available else {
                 attempts.append(ProviderFetchAttempt(
                     strategyID: strategy.id,

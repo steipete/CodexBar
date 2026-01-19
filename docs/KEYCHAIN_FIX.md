@@ -1,3 +1,11 @@
+---
+summary: "Keychain prompt reduction: ThisDeviceOnly migration and rationale."
+read_when:
+  - Investigating Keychain prompts
+  - Auditing Keychain accessibility changes
+  - Reviewing migration behavior
+---
+
 # Keychain Permission Prompts Fix
 
 ## Problem
@@ -58,6 +66,11 @@ User sees **one keychain prompt per stored credential** during the one-time migr
 
 ### Subsequent Rebuilds
 **Zero prompts!** The migration flag prevents re-running, and the new accessibility level prevents prompts on code signature changes.
+
+### Disable Keychain Access (Advanced)
+Turning on **Advanced → Disable Keychain access** disables all Keychain reads/writes. Browser cookie import is
+disabled and every provider must use manual Cookie headers instead. Manual cookies are not persisted while the toggle
+is enabled, so paste them again after a relaunch.
 
 ## Verification
 

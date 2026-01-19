@@ -6,6 +6,7 @@ import SwiftUI
 struct DebugPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
+    @AppStorage("debugFileLoggingEnabled") private var debugFileLoggingEnabled = false
     @State private var currentLogProvider: UsageProvider = .codex
     @State private var currentFetchProvider: UsageProvider = .codex
     @State private var isLoadingLog = false
@@ -25,6 +26,18 @@ struct DebugPane: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 20) {
+                SettingsSection(title: "Logging") {
+                    PreferenceToggleRow(
+                        title: "Enable file logging",
+                        subtitle: "Write logs to \(self.fileLogPath) for debugging.",
+                        binding: self.$debugFileLoggingEnabled)
+                        .onChange(of: self.debugFileLoggingEnabled) { _, newValue in
+                            if self.settings.debugFileLoggingEnabled != newValue {
+                                self.settings.debugFileLoggingEnabled = newValue
+                            }
+                        }
+                }
+
                 SettingsSection {
                     PreferenceToggleRow(
                         title: "Force animation on next refresh",
@@ -66,9 +79,10 @@ struct DebugPane: View {
                         Text("Claude").tag(UsageProvider.claude)
                         Text("Cursor").tag(UsageProvider.cursor)
                         Text("Augment").tag(UsageProvider.augment)
+                        Text("Amp").tag(UsageProvider.amp)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 400)
+                    .frame(width: 460)
 
                     HStack(spacing: 12) {
                         Button { self.loadLog(self.currentLogProvider) } label: {
@@ -147,30 +161,34 @@ struct DebugPane: View {
                     .cornerRadius(6)
                 }
 
-                SettingsSection(
-                    title: "OpenAI cookies",
-                    caption: "Cookie import + WebKit scrape logs from the last OpenAI cookies attempt.")
-                {
-                    HStack(spacing: 12) {
-                        Button { self.copyToPasteboard(self.store.openAIDashboardCookieImportDebugLog ?? "") } label: {
-                            Label("Copy", systemImage: "doc.on.doc")
+                if !self.settings.debugDisableKeychainAccess {
+                    SettingsSection(
+                        title: "OpenAI cookies",
+                        caption: "Cookie import + WebKit scrape logs from the last OpenAI cookies attempt.")
+                    {
+                        HStack(spacing: 12) {
+                            Button {
+                                self.copyToPasteboard(self.store.openAIDashboardCookieImportDebugLog ?? "")
+                            } label: {
+                                Label("Copy", systemImage: "doc.on.doc")
+                            }
+                            .disabled((self.store.openAIDashboardCookieImportDebugLog ?? "").isEmpty)
                         }
-                        .disabled((self.store.openAIDashboardCookieImportDebugLog ?? "").isEmpty)
-                    }
 
-                    ScrollView {
-                        Text(
-                            self.store.openAIDashboardCookieImportDebugLog?.isEmpty == false
-                                ? (self.store.openAIDashboardCookieImportDebugLog ?? "")
-                                : "No log yet. Update OpenAI cookies in Providers → Codex to run an import.")
-                            .font(.system(.footnote, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(8)
+                        ScrollView {
+                            Text(
+                                self.store.openAIDashboardCookieImportDebugLog?.isEmpty == false
+                                    ? (self.store.openAIDashboardCookieImportDebugLog ?? "")
+                                    : "No log yet. Update OpenAI cookies in Providers → Codex to run an import.")
+                                .font(.system(.footnote, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(8)
+                        }
+                        .frame(minHeight: 120, maxHeight: 180)
+                        .background(Color(NSColor.textBackgroundColor))
+                        .cornerRadius(6)
                     }
-                    .frame(minHeight: 120, maxHeight: 180)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
                 }
 
                 SettingsSection(
@@ -235,9 +253,10 @@ struct DebugPane: View {
                         Text("Gemini").tag(UsageProvider.gemini)
                         Text("Antigravity").tag(UsageProvider.antigravity)
                         Text("Augment").tag(UsageProvider.augment)
+                        Text("Amp").tag(UsageProvider.amp)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 300)
+                    .frame(width: 360)
 
                     TextField("Simulated error text", text: self.$simulatedErrorText, axis: .vertical)
                         .lineLimit(4)
@@ -330,6 +349,10 @@ struct DebugPane: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
+    }
+
+    private var fileLogPath: String {
+        CodexBarLog.fileLogURL.path
     }
 
     private var animationPatternBinding: Binding<LoadingPattern?> {

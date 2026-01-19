@@ -56,6 +56,7 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.providerName == "Codex")
@@ -116,6 +117,7 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.metrics.first?.title == "Session")
@@ -165,6 +167,7 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 73 })
@@ -206,6 +209,7 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.metrics.count == 1)
@@ -233,6 +237,7 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: Date()))
 
         #expect(model.subtitleStyle == .error)
@@ -273,6 +278,7 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.tokenUsage?.monthLine.contains("456") == true)
@@ -299,6 +305,7 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: Date()))
 
         #expect(model.planText == nil)
@@ -338,6 +345,7 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.creditsText == nil)
@@ -377,8 +385,51 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.providerCost == nil)
+    }
+
+    @Test
+    func hidesEmailWhenPersonalInfoHidden() {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "codex@example.com",
+            accountOrganization: nil,
+            loginMethod: nil)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+        let metadata = ProviderDefaults.metadata[.codex]!
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: "OpenAI dashboard signed in as codex@example.com.",
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "codex@example.com", plan: nil),
+            isRefreshing: false,
+            lastError: "OpenAI dashboard signed in as codex@example.com.",
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: true,
+            now: now))
+
+        #expect(model.email == "Hidden")
+        #expect(model.subtitleText.contains("codex@example.com") == false)
+        #expect(model.creditsHintCopyText?.isEmpty == true)
+        #expect(model.creditsHintText?.contains("codex@example.com") == false)
     }
 }

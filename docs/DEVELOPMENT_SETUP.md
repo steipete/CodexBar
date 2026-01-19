@@ -1,3 +1,11 @@
+---
+summary: "Development setup: stable signing and reducing Keychain prompts."
+read_when:
+  - Setting up local development
+  - Reducing Keychain prompts during rebuilds
+  - Configuring dev signing
+---
+
 # Development Setup Guide
 
 ## Reducing Keychain Permission Prompts
@@ -54,6 +62,9 @@ source ~/.zshrc
 ```
 
 Now your builds will use the stable certificate, and keychain prompts will be much less frequent!
+
+> Note: `compile_and_run.sh` now auto-detects a valid signing identity (Developer ID or CodexBar Development).
+> Set `APP_IDENTITY` to override the auto-detected choice.
 
 ---
 
@@ -151,4 +162,3 @@ Or manually:
 pkill -x CodexBar || pkill -f CodexBar.app || true
 open -n CodexBar.app
 ```
-

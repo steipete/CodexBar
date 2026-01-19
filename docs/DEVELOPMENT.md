@@ -1,3 +1,11 @@
+---
+summary: "Development workflow: build/run scripts, logging, and keychain migration notes."
+read_when:
+  - Starting local development
+  - Running build/test scripts
+  - Troubleshooting Keychain prompts in dev
+---
+
 # CodexBar Development Guide
 
 ## Quick Start

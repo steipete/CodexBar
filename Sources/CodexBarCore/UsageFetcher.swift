@@ -53,6 +53,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let tertiary: RateWindow?
     public let providerCost: ProviderCostSnapshot?
     public let zaiUsage: ZaiUsageSnapshot?
+    public let minimaxUsage: MiniMaxUsageSnapshot?
     public let cursorRequests: CursorRequestUsage?
     public let updatedAt: Date
     public let identity: ProviderIdentitySnapshot?
@@ -75,6 +76,7 @@ public struct UsageSnapshot: Codable, Sendable {
         tertiary: RateWindow? = nil,
         providerCost: ProviderCostSnapshot? = nil,
         zaiUsage: ZaiUsageSnapshot? = nil,
+        minimaxUsage: MiniMaxUsageSnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
         updatedAt: Date,
         identity: ProviderIdentitySnapshot? = nil)
@@ -84,6 +86,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.tertiary = tertiary
         self.providerCost = providerCost
         self.zaiUsage = zaiUsage
+        self.minimaxUsage = minimaxUsage
         self.cursorRequests = cursorRequests
         self.updatedAt = updatedAt
         self.identity = identity
@@ -96,6 +99,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.zaiUsage = nil // Not persisted, fetched fresh each time
+        self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.cursorRequests = nil // Not persisted, fetched fresh each time
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
@@ -135,6 +139,27 @@ public struct UsageSnapshot: Codable, Sendable {
         return identity
     }
 
+    public func switcherWeeklyWindow(for provider: UsageProvider, showUsed: Bool) -> RateWindow? {
+        switch provider {
+        case .factory:
+            // Factory prefers secondary window
+            return self.secondary ?? self.primary
+        case .cursor:
+            // Cursor: fall back to On-Demand when Plan is exhausted (only in "show remaining" mode).
+            // In "show used" mode, keep showing primary so 100% used Plan is visible.
+            if !showUsed,
+               let primary = self.primary,
+               primary.remainingPercent <= 0,
+               let secondary = self.secondary
+            {
+                return secondary
+            }
+            return self.primary ?? self.secondary
+        default:
+            return self.primary ?? self.secondary
+        }
+    }
+
     public func accountEmail(for provider: UsageProvider) -> String? {
         self.identity(for: provider)?.accountEmail
     }
@@ -157,6 +182,7 @@ public struct UsageSnapshot: Codable, Sendable {
             tertiary: self.tertiary,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
+            minimaxUsage: self.minimaxUsage,
             cursorRequests: self.cursorRequests,
             updatedAt: self.updatedAt,
             identity: scopedIdentity)

@@ -13,14 +13,15 @@ Factory (displayed as "Droid") is web-based. We authenticate via cookies or Work
 ## Data sources + fallback order
 
 Fetch attempts run in this exact order:
-1) **Browser cookies (Safari only)** for Factory domains.
+1) **Cached cookie header** (Keychain cache `com.steipete.codexbar.cache`, account `cookie.factory`).
 2) **Stored session** (`~/Library/Application Support/CodexBar/factory-session.json`).
 3) **Stored bearer token** (same session file).
 4) **Stored WorkOS refresh token** (same session file).
 5) **Local storage WorkOS tokens** (Safari + Chrome/Chromium/Arc leveldb).
-6) **WorkOS cookies (Safari)** to mint tokens.
-7) **Browser cookies (Chrome, Firefox)** for Factory domains.
-8) **WorkOS cookies (Chrome, Firefox)** to mint tokens.
+6) **Browser cookies (Safari only)** for Factory domains.
+7) **WorkOS cookies (Safari)** to mint tokens.
+8) **Browser cookies (Chrome, Firefox)** for Factory domains.
+9) **WorkOS cookies (Chrome, Firefox)** to mint tokens.
 
 If a step succeeds, we cache cookies/tokens back into the session store.
 

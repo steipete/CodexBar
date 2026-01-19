@@ -1,3 +1,10 @@
+---
+summary: "Quotio analysis: UX and architecture patterns for inspiration."
+read_when:
+  - Evaluating external inspiration
+  - Planning UX or architecture improvements
+---
+
 # Quotio Analysis & Pattern Adaptation
 
 **Purpose:** Learn from quotio's implementation patterns without copying code  
@@ -343,4 +350,3 @@ Implemented independently using CodexBar patterns and conventions.
 **Last Updated:** [Date]  
 **Analyzed By:** [Your Name]  
 **Status:** [In Progress / Complete]
-

@@ -31,7 +31,7 @@ public enum CopilotProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Copilot cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .cli],
+                sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CopilotAPIFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "copilot",
