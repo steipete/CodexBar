@@ -185,8 +185,7 @@ public struct JetBrainsStatusProbe: Sendable {
             .first?
             .stringValue
         #else
-        let parser = JetBrainsXMLParser()
-        let parseResult = parser.parse(data: data)
+        let parseResult = JetBrainsXMLParser.parse(data: data)
         let quotaInfoRaw = parseResult.quotaInfo
         let nextRefillRaw = parseResult.nextRefill
         #endif
@@ -285,51 +284,72 @@ public struct JetBrainsStatusProbe: Sendable {
 }
 
 #if !os(macOS)
-private final class JetBrainsXMLParser: NSObject, XMLParserDelegate {
-    private var quotaInfo: String?
-    private var nextRefill: String?
-    private var currentElement: String = ""
-    private var inComponent = false
-
+/// Simple regex-based XML parser to avoid libxml2 dependency on Linux.
+/// Only extracts quotaInfo and nextRefill values from AIAssistantQuotaManager2 component.
+private enum JetBrainsXMLParser {
     struct ParseResult {
         let quotaInfo: String?
         let nextRefill: String?
     }
 
-    func parse(data: Data) -> ParseResult {
-        let parser = XMLParser(data: data)
-        parser.delegate = self
-        parser.parse()
-        return ParseResult(quotaInfo: self.quotaInfo, nextRefill: self.nextRefill)
+    static func parse(data: Data) -> ParseResult {
+        guard let content = String(data: data, encoding: .utf8) else {
+            return ParseResult(quotaInfo: nil, nextRefill: nil)
+        }
+
+        // Find the AIAssistantQuotaManager2 component block
+        guard let componentRange = self.findComponentRange(in: content) else {
+            return ParseResult(quotaInfo: nil, nextRefill: nil)
+        }
+
+        let componentContent = String(content[componentRange])
+
+        let quotaInfo = self.extractOptionValue(named: "quotaInfo", from: componentContent)
+        let nextRefill = self.extractOptionValue(named: "nextRefill", from: componentContent)
+
+        return ParseResult(quotaInfo: quotaInfo, nextRefill: nextRefill)
     }
 
-    func parser(
-        _: XMLParser,
-        didStartElement elementName: String,
-        namespaceURI _: String?,
-        qualifiedName _: String?,
-        attributes attributeDict: [String: String] = [:])
-    {
-        if elementName == "component", attributeDict["name"] == "AIAssistantQuotaManager2" {
-            self.inComponent = true
-        } else if self.inComponent, elementName == "option" {
-            if attributeDict["name"] == "quotaInfo" {
-                self.quotaInfo = attributeDict["value"]
-            } else if attributeDict["name"] == "nextRefill" {
-                self.nextRefill = attributeDict["value"]
+    private static func findComponentRange(in content: String) -> Range<String.Index>? {
+        // Match <component name="AIAssistantQuotaManager2"> ... </component>
+        let pattern = #"<component[^>]*name\s*=\s*["']AIAssistantQuotaManager2["'][^>]*>[\s\S]*?</component>"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
+              let match = regex.firstMatch(
+                  in: content,
+                  options: [],
+                  range: NSRange(content.startIndex..., in: content)),
+              let range = Range(match.range, in: content)
+        else {
+            return nil
+        }
+        return range
+    }
+
+    private static func extractOptionValue(named name: String, from content: String) -> String? {
+        // Match <option name="NAME" value="VALUE"/> or <option value="VALUE" name="NAME"/>
+        let patterns = [
+            #"<option[^>]*name\s*=\s*["']\#(name)["'][^>]*value\s*=\s*["']([^"']*)["']"#,
+            #"<option[^>]*value\s*=\s*["']([^"']*)["'][^>]*name\s*=\s*["']\#(name)["']"#,
+        ]
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
+                  let match = regex.firstMatch(
+                      in: content,
+                      options: [],
+                      range: NSRange(content.startIndex..., in: content))
+            else {
+                continue
+            }
+
+            // The value is in capture group 1 for first pattern, group 1 for second pattern
+            let valueRange = match.range(at: 1)
+            if let range = Range(valueRange, in: content) {
+                return String(content[range])
             }
         }
-    }
 
-    func parser(
-        _: XMLParser,
-        didEndElement elementName: String,
-        namespaceURI _: String?,
-        qualifiedName _: String?)
-    {
-        if elementName == "component" {
-            self.inComponent = false
-        }
+        return nil
     }
 }
 #endif
