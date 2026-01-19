@@ -97,10 +97,18 @@ enum CodexBarCLI {
     // MARK: - Helpers
 
     private static func bootstrapLogging(values: ParsedValues) {
-        let isJSON = values.flags.contains("jsonOutput") || values.flags.contains("jsonOnly")
+        let jsonOnly = values.flags.contains("jsonOnly")
+        let isJSON = values.flags.contains("jsonOutput") || jsonOnly
         let verbose = values.flags.contains("verbose")
         let rawLevel = values.options["logLevel"]?.last
-        let level = Self.resolvedLogLevel(verbose: verbose, rawLevel: rawLevel)
+        // When jsonOnly is set, suppress stderr logging by default.
+        // Errors are already captured in the JSON payload.
+        // However, if --verbose or --log-level is explicitly set, respect that for debugging.
+        let level: CodexBarLog.Level = if jsonOnly && !verbose && rawLevel == nil {
+            .critical
+        } else {
+            Self.resolvedLogLevel(verbose: verbose, rawLevel: rawLevel)
+        }
         CodexBarLog.bootstrapIfNeeded(.init(destination: .stderr, level: level, json: isJSON))
     }
 
