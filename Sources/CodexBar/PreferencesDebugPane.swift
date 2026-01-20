@@ -276,6 +276,15 @@ struct DebugPane: View {
                         title: "Keep CLI sessions alive",
                         subtitle: "Skip teardown between probes (debug-only).",
                         binding: self.$settings.debugKeepCLISessionsAlive)
+
+                    Button {
+                        Task {
+                            await CLIProbeSessionResetter.resetAll()
+                        }
+                    } label: {
+                        Label("Reset CLI sessions", systemImage: "arrow.counterclockwise")
+                    }
+                    .controlSize(.small)
                 }
 
                 #if DEBUG

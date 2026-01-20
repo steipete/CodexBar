@@ -9,6 +9,7 @@
 ### Menu & Menu Bar
 - Menu: opening OpenAI web submenus triggers a refresh when the data is stale.
 - Debug: add a toggle to keep Codex/Claude CLI sessions alive between probes.
+- Debug: add a button to reset CLI probe sessions.
 
 ## 0.18.0-beta.1 — 2026-01-18
 ### Highlights
