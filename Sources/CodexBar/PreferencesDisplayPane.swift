@@ -52,6 +52,45 @@ struct DisplayPane: View {
                     }
                     .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
                     .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle(isOn: self.$settings.hideStatusItemBelowThreshold) {
+                                Text("Hide status item below threshold")
+                                    .font(.body)
+                            }
+                            .toggleStyle(.checkbox)
+
+                            Text("Only show status items when session usage exceeds the threshold.")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if self.settings.hideStatusItemBelowThreshold {
+                                HStack(spacing: 8) {
+                                    Text("Threshold:")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+
+                                    TextField(
+                                        "80",
+                                        value: Binding(
+                                            get: { self.settings.statusItemThresholdPercent },
+                                            set: { self.settings.statusItemThresholdPercent = max(0, min(100, $0)) }
+                                        ),
+                                        format: .number
+                                    )
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 60)
+
+                                    Text("%")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.leading, 20)
+                            }
+                        }
+                    }
                 }
 
                 Divider()

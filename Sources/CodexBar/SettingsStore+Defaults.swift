@@ -99,6 +99,23 @@ extension SettingsStore {
         }
     }
 
+    var hideStatusItemBelowThreshold: Bool {
+        get { self.defaultsState.hideStatusItemBelowThreshold }
+        set {
+            self.defaultsState.hideStatusItemBelowThreshold = newValue
+            self.userDefaults.set(newValue, forKey: "hideStatusItemBelowThreshold")
+        }
+    }
+
+    var statusItemThresholdPercent: Int {
+        get { self.defaultsState.statusItemThresholdPercent }
+        set {
+            let clamped = max(0, min(100, newValue))
+            self.defaultsState.statusItemThresholdPercent = clamped
+            self.userDefaults.set(clamped, forKey: "statusItemThresholdPercent")
+        }
+    }
+
     var usageBarsShowUsed: Bool {
         get { self.defaultsState.usageBarsShowUsed }
         set {

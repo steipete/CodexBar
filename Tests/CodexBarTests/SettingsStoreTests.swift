@@ -274,4 +274,96 @@ struct SettingsStoreTests {
 
         #expect(storeB.orderedProviders().first == .antigravity)
     }
+
+    @Test
+    func defaultsHideStatusItemBelowThresholdToFalse() {
+        let suite = "SettingsStoreTests-hideStatusItem"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let store = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+
+        #expect(store.hideStatusItemBelowThreshold == false)
+    }
+
+    @Test
+    func defaultsStatusItemThresholdPercentTo80() {
+        let suite = "SettingsStoreTests-thresholdPercent"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let store = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+
+        #expect(store.statusItemThresholdPercent == 80)
+    }
+
+    @Test
+    func persistsHideStatusItemBelowThresholdAcrossInstances() {
+        let suite = "SettingsStoreTests-hideStatusItemPersist"
+        let defaultsA = UserDefaults(suiteName: suite)!
+        defaultsA.removePersistentDomain(forName: suite)
+        let storeA = SettingsStore(userDefaults: defaultsA, zaiTokenStore: NoopZaiTokenStore())
+
+        storeA.hideStatusItemBelowThreshold = true
+
+        let defaultsB = UserDefaults(suiteName: suite)!
+        let storeB = SettingsStore(userDefaults: defaultsB, zaiTokenStore: NoopZaiTokenStore())
+
+        #expect(storeB.hideStatusItemBelowThreshold == true)
+    }
+
+    @Test
+    func persistsStatusItemThresholdPercentAcrossInstances() {
+        let suite = "SettingsStoreTests-thresholdPercentPersist"
+        let defaultsA = UserDefaults(suiteName: suite)!
+        defaultsA.removePersistentDomain(forName: suite)
+        let storeA = SettingsStore(userDefaults: defaultsA, zaiTokenStore: NoopZaiTokenStore())
+
+        storeA.statusItemThresholdPercent = 90
+
+        let defaultsB = UserDefaults(suiteName: suite)!
+        let storeB = SettingsStore(userDefaults: defaultsB, zaiTokenStore: NoopZaiTokenStore())
+
+        #expect(storeB.statusItemThresholdPercent == 90)
+    }
+
+    @Test
+    func statusItemThresholdPercentClampsValueAbove100() {
+        let suite = "SettingsStoreTests-thresholdClampHigh"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let store = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+
+        store.statusItemThresholdPercent = 150
+
+        #expect(store.statusItemThresholdPercent == 100)
+        #expect(defaults.integer(forKey: "statusItemThresholdPercent") == 100)
+    }
+
+    @Test
+    func statusItemThresholdPercentClampsValueBelow0() {
+        let suite = "SettingsStoreTests-thresholdClampLow"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let store = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+
+        store.statusItemThresholdPercent = -10
+
+        #expect(store.statusItemThresholdPercent == 0)
+        #expect(defaults.integer(forKey: "statusItemThresholdPercent") == 0)
+    }
+
+    @Test
+    func statusItemThresholdPercentAcceptsBoundaryValues() {
+        let suite = "SettingsStoreTests-thresholdBoundary"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let store = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+
+        store.statusItemThresholdPercent = 0
+        #expect(store.statusItemThresholdPercent == 0)
+
+        store.statusItemThresholdPercent = 100
+        #expect(store.statusItemThresholdPercent == 100)
+    }
 }
