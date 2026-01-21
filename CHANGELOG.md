@@ -188,7 +188,6 @@
 ## 0.15.0 — 2025-12-28
 - New providers: Droid (Factory), Cursor, z.ai, Copilot.
 - macOS: CodexBar now supports Intel Macs (x86_64 builds + Sonoma fallbacks). Thanks @epoyraz!
->>>>>>> origin/main
 - Droid (Factory): new provider with Standard + Premium usage via browser cookies, plus dashboard + status links. Thanks @shashank-factory!
 - Menu: allow multi-line error messages in the provider subtitle (up to 4 lines).
 - Menu: fix subtitle sizing for multi-line error states.

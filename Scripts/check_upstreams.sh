@@ -16,11 +16,11 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}==> Fetching upstream changes...${NC}"
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "upstream" ]; then
-    git fetch upstream 2>/dev/null || {
+    if ! git fetch upstream 2>/dev/null; then
         echo -e "${YELLOW}Adding upstream remote...${NC}"
-        git remote add upstream https://github.com/steipete/CodexBar.git
-        git fetch upstream
-    }
+        git remote add upstream https://github.com/steipete/CodexBar.git 2>/dev/null || true
+        git fetch upstream || echo -e "${YELLOW}Warning: Could not fetch upstream${NC}"
+    fi
 fi
 
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "quotio" ]; then
@@ -56,12 +56,12 @@ fi
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "quotio" ]; then
     echo -e "${BLUE}==> Quotio changes (last $DAYS days):${NC}"
     
-    QUOTIO_COUNT=$(git log --oneline --all --remotes=quotio/main --since="$DAYS days ago" 2>/dev/null | wc -l | tr -d ' ')
+    QUOTIO_COUNT=$(git log --oneline quotio/main --since="$DAYS days ago" 2>/dev/null | wc -l | tr -d ' ')
     
     if [ "$QUOTIO_COUNT" -gt 0 ]; then
         echo -e "${GREEN}Found $QUOTIO_COUNT commits in last $DAYS days${NC}"
         echo ""
-        git log --oneline --graph --remotes=quotio/main --since="$DAYS days ago" | head -20
+        git log --oneline --graph quotio/main --since="$DAYS days ago" | head -20
         echo ""
         echo -e "${YELLOW}Recent file changes:${NC}"
         # Show changes from last 10 commits

@@ -4,7 +4,7 @@
 
 set -e
 
-FEATURE_NAME=$1
+FEATURE_NAME="${1:-}"
 
 # Colors
 RED='\033[0;31m'

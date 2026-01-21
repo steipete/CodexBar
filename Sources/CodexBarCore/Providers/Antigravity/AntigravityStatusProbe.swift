@@ -516,14 +516,14 @@ public struct AntigravityStatusProbe: Sendable {
         context: RequestContext) async throws -> Data
     {
         #if os(macOS)
-        return try await sendRequestURLSession(scheme: scheme, port: port, payload: payload, context: context)
+        return try await self.sendRequestURLSession(scheme: scheme, port: port, payload: payload, context: context)
         #else
         // On Linux, FoundationNetworking doesn't support delegate-based TLS certificate bypass,
         // so use curl with -k flag for HTTPS requests to local servers with self-signed certs.
         if scheme == "https" {
-            return try await sendRequestCurl(port: port, payload: payload, context: context)
+            return try await self.sendRequestCurl(port: port, payload: payload, context: context)
         }
-        return try await sendRequestURLSession(scheme: scheme, port: port, payload: payload, context: context)
+        return try await self.sendRequestURLSession(scheme: scheme, port: port, payload: payload, context: context)
         #endif
     }
 

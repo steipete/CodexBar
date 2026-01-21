@@ -9,7 +9,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_PATH="$PROJECT_ROOT/CodexBar.app"
 
 echo "==> Killing existing CodexBar instances"
-pkill -x CodexBar || pkill -f CodexBar.app || true
+pkill -x CodexBar 2>/dev/null || true
+pkill -f CodexBar.app 2>/dev/null || true
 sleep 0.5
 
 if [[ ! -d "$APP_PATH" ]]; then

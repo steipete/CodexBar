@@ -26,7 +26,7 @@ echo ""
 
 # Create a temporary config file for the certificate
 TEMP_CONFIG=$(mktemp)
-trap "rm -f $TEMP_CONFIG" EXIT
+trap "rm -f $TEMP_CONFIG /tmp/codexbar-dev.key /tmp/codexbar-dev.crt /tmp/codexbar-dev.p12" EXIT
 
 cat > "$TEMP_CONFIG" <<EOF
 [ req ]
@@ -47,15 +47,16 @@ EOF
 # Generate the certificate
 openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 \
     -nodes -keyout /tmp/codexbar-dev.key -out /tmp/codexbar-dev.crt \
-    -config "$TEMP_CONFIG" 2>/dev/null
+    -config "$TEMP_CONFIG"
 
 # Convert to PKCS12 format
 openssl pkcs12 -export -out /tmp/codexbar-dev.p12 \
     -inkey /tmp/codexbar-dev.key -in /tmp/codexbar-dev.crt \
-    -passout pass: 2>/dev/null
+    -passout pass:
 
 # Import into keychain
-security import /tmp/codexbar-dev.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -T /usr/bin/security
+KEYCHAIN_PATH=$(security default-keychain | sed -E 's/^"(.*)"$/\1/')
+security import /tmp/codexbar-dev.p12 -k "$KEYCHAIN_PATH" -T /usr/bin/codesign -T /usr/bin/security
 
 # Clean up temporary files
 rm -f /tmp/codexbar-dev.{key,crt,p12}

@@ -14,11 +14,13 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}==> Fetching latest quotio...${NC}"
-git fetch quotio 2>/dev/null || {
-    echo -e "${YELLOW}Adding quotio remote...${NC}"
-    git remote add quotio https://github.com/nguyenphutrong/quotio.git
+if ! git fetch quotio 2>/dev/null; then
+    if ! git remote | grep -q '^quotio$'; then
+        echo -e "${YELLOW}Adding quotio remote...${NC}"
+        git remote add quotio https://github.com/nguyenphutrong/quotio.git
+    fi
     git fetch quotio
-}
+fi
 
 echo ""
 echo -e "${GREEN}==> Quotio Repository Analysis${NC}"
@@ -26,7 +28,7 @@ echo ""
 
 # Show recent activity
 echo -e "${BLUE}Recent Activity (last 30 days):${NC}"
-git log --oneline --graph --remotes=quotio/main --since="30 days ago" | head -20
+git log --oneline --graph quotio/main --since="30 days ago" | head -20
 echo ""
 
 # Analyze file structure
@@ -73,7 +75,7 @@ cat > "$REPORT_FILE" << EOF
 
 ## Recent Activity
 \`\`\`
-$(git log --oneline --graph --remotes=quotio/main --since="30 days ago" | head -20)
+$(git log --oneline --graph quotio/main --since="30 days ago" | head -20)
 \`\`\`
 
 ## File Structure

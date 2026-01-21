@@ -331,7 +331,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             updatedAt: Date(),
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: Self.inferPlan(rateLimitTier: credentials.rateLimitTier, subscriptionType: credentials.subscriptionType),
+            loginMethod: Self.inferPlan(
+                rateLimitTier: credentials.rateLimitTier,
+                subscriptionType: credentials.subscriptionType),
             rawText: nil)
     }
 

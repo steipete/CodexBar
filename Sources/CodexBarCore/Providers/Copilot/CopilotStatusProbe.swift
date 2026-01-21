@@ -716,7 +716,7 @@ public struct CopilotStatusProbe: Sendable {
         if let end = tail.range(of: "<copilot-user-settings", options: [.caseInsensitive]) {
             return String(tail[..<end.lowerBound])
         }
-        return String(tail.prefix(12_000))
+        return String(tail.prefix(12000))
     }
 
     private static func parseUsageEntries(from html: String) -> [CopilotUsageEntry] {

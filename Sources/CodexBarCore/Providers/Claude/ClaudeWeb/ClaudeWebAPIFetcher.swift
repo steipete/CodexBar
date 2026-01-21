@@ -664,8 +664,6 @@ public enum ClaudeWebAPIFetcher {
         return OrganizationInfo(id: selected.uuid, name: sanitized)
     }
 
-
-
     private static func fetchAccountInfo(
         sessionKey: String,
         orgId: String?,
@@ -933,7 +931,7 @@ public enum ClaudeWebAPIFetcher {
     }
 
     public static func hasSessionKey(browserDetection: BrowserDetection) -> Bool {
-        return (try? self.sessionKeyInfo()) != nil
+        (try? self.sessionKeyInfo()) != nil
     }
 
     public static func sessionKeyInfo(
@@ -992,8 +990,6 @@ public enum ClaudeWebAPIFetcher {
             }
         }
     }
-
-
 
     private static func extractSessionKeyInfo(logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo {
         let log: (String) -> Void = { msg in logger?(msg) }
@@ -1435,8 +1431,6 @@ public enum ClaudeWebAPIFetcher {
         let sanitized = (name?.isEmpty ?? true) ? nil : name
         return OrganizationInfo(id: first.uuid, name: sanitized)
     }
-
-
 
     private static func fetchAccountInfo(
         sessionKey: String,

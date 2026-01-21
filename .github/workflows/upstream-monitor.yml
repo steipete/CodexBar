@@ -40,25 +40,52 @@ jobs:
           git remote add quotio https://github.com/nguyenphutrong/quotio.git || true
           git fetch upstream
           git fetch quotio
+
+      - name: Respect workflow_dispatch target
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.target != 'all'
+        run: |
+          set -euo pipefail
+          target="${{ github.event.inputs.target }}"
+          if [[ "$target" == "upstream" ]]; then
+            git remote remove quotio 2>/dev/null || true
+          elif [[ "$target" == "quotio" ]]; then
+            git remote remove upstream 2>/dev/null || true
+          fi
       
       - name: Check for new commits
         id: check
         run: |
           # Count new commits in upstream
-          UPSTREAM_NEW=$(git log --oneline main..upstream/main --no-merges 2>/dev/null | wc -l | tr -d ' ')
+          if git show-ref --verify --quiet refs/remotes/upstream/main; then
+            UPSTREAM_NEW=$(git log --oneline main..upstream/main --no-merges 2>/dev/null | wc -l | tr -d ' ')
+          else
+            UPSTREAM_NEW=0
+          fi
           echo "upstream_commits=$UPSTREAM_NEW" >> $GITHUB_OUTPUT
           
           # Count new commits in quotio (last 7 days)
-          QUOTIO_NEW=$(git log --oneline --all --remotes=quotio/main --since="7 days ago" 2>/dev/null | wc -l | tr -d ' ')
+          if git show-ref --verify --quiet refs/remotes/quotio/main; then
+            QUOTIO_NEW=$(git log --oneline quotio/main --since="7 days ago" 2>/dev/null | wc -l | tr -d ' ')
+          else
+            QUOTIO_NEW=0
+          fi
           echo "quotio_commits=$QUOTIO_NEW" >> $GITHUB_OUTPUT
           
           # Get commit summaries
           echo "upstream_summary<<EOF" >> $GITHUB_OUTPUT
-          git log --oneline main..upstream/main --no-merges 2>/dev/null | head -10 >> $GITHUB_OUTPUT || echo "No commits" >> $GITHUB_OUTPUT
+          if git show-ref --verify --quiet refs/remotes/upstream/main; then
+            git log --oneline main..upstream/main --no-merges 2>/dev/null | head -10 >> $GITHUB_OUTPUT || echo "No commits" >> $GITHUB_OUTPUT
+          else
+            echo "No commits" >> $GITHUB_OUTPUT
+          fi
           echo "EOF" >> $GITHUB_OUTPUT
           
           echo "quotio_summary<<EOF" >> $GITHUB_OUTPUT
-          git log --oneline --remotes=quotio/main --since="7 days ago" 2>/dev/null | head -10 >> $GITHUB_OUTPUT || echo "No commits" >> $GITHUB_OUTPUT
+          if git show-ref --verify --quiet refs/remotes/quotio/main; then
+            git log --oneline quotio/main --since="7 days ago" 2>/dev/null | head -10 >> $GITHUB_OUTPUT || echo "No commits" >> $GITHUB_OUTPUT
+          else
+            echo "No commits" >> $GITHUB_OUTPUT
+          fi
           echo "EOF" >> $GITHUB_OUTPUT
       
       - name: Create or update issue
@@ -105,7 +132,7 @@ jobs:
             \`\`\`
             
             ### 🔗 Links
-            - [steipete commits](https://github.com/steipete/CodexBar/compare/${context.sha}...steipete:CodexBar:main)
+            - [steipete commits](https://github.com/steipete/CodexBar/compare/main...steipete:CodexBar:main)
             - [quotio commits](https://github.com/nguyenphutrong/quotio/commits/main)
             
             ---

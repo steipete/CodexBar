@@ -21,12 +21,12 @@ if [ "$UPSTREAM" != "upstream" ] && [ "$UPSTREAM" != "quotio" ]; then
     exit 1
 fi
 
+echo -e "${BLUE}==> Fetching latest from $UPSTREAM...${NC}"
+git fetch "$UPSTREAM"
+
 echo -e "${BLUE}==> Creating review branch for $UPSTREAM...${NC}"
 git checkout main
 git checkout -b "$BRANCH_NAME"
-
-echo -e "${BLUE}==> Fetching latest from $UPSTREAM...${NC}"
-git fetch "$UPSTREAM"
 
 echo ""
 echo -e "${GREEN}==> Commits to review:${NC}"
@@ -42,25 +42,25 @@ echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo ""
 echo "1. Review commits in detail:"
-echo "   ${GREEN}git log -p main..$UPSTREAM/main${NC}"
+echo -e "   ${GREEN}git log -p main..$UPSTREAM/main${NC}"
 echo ""
 echo "2. View specific files:"
-echo "   ${GREEN}git show $UPSTREAM/main:path/to/file${NC}"
+echo -e "   ${GREEN}git show $UPSTREAM/main:path/to/file${NC}"
 echo ""
 echo "3. Cherry-pick specific commits:"
-echo "   ${GREEN}git cherry-pick <commit-hash>${NC}"
+echo -e "   ${GREEN}git cherry-pick <commit-hash>${NC}"
 echo ""
 echo "4. Or merge all changes:"
-echo "   ${GREEN}git merge $UPSTREAM/main${NC}"
+echo -e "   ${GREEN}git merge $UPSTREAM/main${NC}"
 echo ""
 echo "5. Test thoroughly:"
-echo "   ${GREEN}./Scripts/compile_and_run.sh${NC}"
+echo -e "   ${GREEN}./Scripts/compile_and_run.sh${NC}"
 echo ""
 echo "6. If satisfied, merge to main:"
-echo "   ${GREEN}git checkout main && git merge $BRANCH_NAME${NC}"
+echo -e "   ${GREEN}git checkout main && git merge $BRANCH_NAME${NC}"
 echo ""
 echo "7. Or discard review branch:"
-echo "   ${GREEN}git checkout main && git branch -D $BRANCH_NAME${NC}"
+echo -e "   ${GREEN}git checkout main && git branch -D $BRANCH_NAME${NC}"
 echo ""
 
 # Create a review log file

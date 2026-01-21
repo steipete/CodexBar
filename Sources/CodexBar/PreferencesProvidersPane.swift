@@ -126,7 +126,6 @@ struct ProvidersPane: View {
             ?? ProviderPresentation(detailLine: ProviderPresentation.standardDetailLine)
         let detailLine = presentation.detailLine(presentationContext)
 
-
         // Web-only providers don't have CLI versions to detect.
         if !ProviderDescriptorRegistry.descriptor(for: provider).isNative {
             return "web • \(usageText)"
@@ -136,11 +135,11 @@ struct ProvidersPane: View {
         }
 
         if let line = detailLine {
-             var detail = "\(line) • \(usageText)"
-             if provider == .antigravity {
-                 detail += " • experimental"
-             }
-             return detail
+            var detail = "\(line) • \(usageText)"
+            if provider == .antigravity {
+                detail += " • experimental"
+            }
+            return detail
         }
         return usageText
     }
@@ -169,10 +168,10 @@ struct ProvidersPane: View {
         case .copilot:
             return "web"
         default:
-             if !ProviderDescriptorRegistry.descriptor(for: provider).isNative {
-                 return "web"
-             }
-             return "auto"
+            if !ProviderDescriptorRegistry.descriptor(for: provider).isNative {
+                return "web"
+            }
+            return "auto"
         }
     }
 

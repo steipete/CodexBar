@@ -972,7 +972,6 @@ extension UsageMenuCardView.Model {
     }
 
     private static func progressColor(for provider: UsageProvider) -> Color {
-    private static func progressColor(for provider: UsageProvider) -> Color {
         switch provider {
         case .codex:
             Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
@@ -997,7 +996,6 @@ extension UsageMenuCardView.Model {
             let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
             Color(red: color.red, green: color.green, blue: color.blue)
         }
-    }
     }
 
     private static func resetText(

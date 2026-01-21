@@ -764,7 +764,7 @@ public struct WindsurfStatusProbe: Sendable {
                 log("Bearer token failed: \(error.localizedDescription)")
             }
         }
-        
+
         // Try automated extraction from browser IndexedDB (Linux/macOS)
         if let automatedToken = await Self.extractTokenFromBrowser() {
             log("Using automated token from browser IndexedDB")
@@ -834,7 +834,8 @@ public struct WindsurfStatusProbe: Sendable {
                                 log("Stored fresh session cookies for future use")
                                 return result
                             } catch {
-                                log("Retry: Fresh cookies from \(session.sourceLabel) failed: \(error.localizedDescription)")
+                                log(
+                                    "Retry: Fresh cookies from \(session.sourceLabel) failed: \(error.localizedDescription)")
                             }
                         }
                     } catch {
@@ -919,7 +920,8 @@ public struct WindsurfStatusProbe: Sendable {
 
         guard httpResponse.statusCode == 200 else {
             let responseString = String(data: data, encoding: .utf8) ?? "<binary>"
-            throw WindsurfStatusProbeError.networkError("HTTP \(httpResponse.statusCode): \(responseString.prefix(200))")
+            throw WindsurfStatusProbeError
+                .networkError("HTTP \(httpResponse.statusCode): \(responseString.prefix(200))")
         }
 
         // Parse the Connect/Protobuf response (raw binary, not base64)
@@ -996,15 +998,15 @@ public struct WindsurfStatusProbe: Sendable {
         } else if let userPromptCredits = context.creditsValuesByType[391] {
             creditsUsed = Double(userPromptCredits)
         } else if let altCredits = context.creditsValuesByType[400] {
-             // Fallback to 400 if 391 missing
-             creditsUsed = Double(altCredits)
+            // Fallback to 400 if 391 missing
+            creditsUsed = Double(altCredits)
         }
 
         // If still 0 and we have float values, try to find a reasonable one
         // The third float often appears to be the credits used (fallback)
-        if creditsUsed == 0 && context.floatValues.count >= 3 {
+        if creditsUsed == 0, context.floatValues.count >= 3 {
             let thirdFloat = context.floatValues[2]
-            if thirdFloat > 0 && thirdFloat < 500 {
+            if thirdFloat > 0, thirdFloat < 500 {
                 creditsUsed = Double(thirdFloat)
             }
         }
@@ -1071,7 +1073,7 @@ public struct WindsurfStatusProbe: Sendable {
                 context.varintValues.append(intVal)
 
                 // Track this varint for potential credit type ID
-                if intVal > 0 && intVal < 1000 {
+                if intVal > 0, intVal < 1000 {
                     context.lastVarintInNestedMessage = intVal
                 }
 
@@ -1082,20 +1084,20 @@ public struct WindsurfStatusProbe: Sendable {
 
                 // Look for credits total (usually 500 or 600 for pro)
                 if fieldNumber == 8 {
-                    if intVal >= 400 && intVal <= 1000 {
+                    if intVal >= 400, intVal <= 1000 {
                         context.creditsTotal = Double(intVal)
-                    } else if intVal >= 40000 && intVal <= 200000 {
-                         // Scaled value (cents), e.g. 50000 -> 500.0
-                         context.creditsTotal = Double(intVal) / 100.0
+                    } else if intVal >= 40000, intVal <= 200_000 {
+                        // Scaled value (cents), e.g. 50000 -> 500.0
+                        context.creditsTotal = Double(intVal) / 100.0
                     }
                 }
 
                 // Look for Unix timestamp (billing cycle end)
                 // Valid timestamps for 2024-2027: ~1704067200 to ~1798761600
-                if context.billingCycleEnd == nil && value >= 1704067200 && value <= 1798761600 {
+                if context.billingCycleEnd == nil, value >= 1_704_067_200, value <= 1_798_761_600 {
                     // This is likely a future date (billing cycle end)
                     let date = Date(timeIntervalSince1970: TimeInterval(value))
-                    if date > Date() && date < Date().addingTimeInterval(60 * 24 * 3600) {
+                    if date > Date(), date < Date().addingTimeInterval(60 * 24 * 3600) {
                         // Within 60 days in the future - likely billing cycle
                         context.billingCycleEnd = date
                     }
@@ -1108,7 +1110,7 @@ public struct WindsurfStatusProbe: Sendable {
                 let doubleValue = doubleBytes.withUnsafeBytes { $0.load(as: Double.self) }
 
                 // Check if it's a reasonable credit value (could be credits used)
-                if doubleValue >= 0 && doubleValue <= 10000 && !doubleValue.isNaN && !doubleValue.isInfinite {
+                if doubleValue >= 0, doubleValue <= 10000, !doubleValue.isNaN, !doubleValue.isInfinite {
                     // If we saw a varint ID recently, associate it with this double
                     if context.lastVarintInNestedMessage > 0 {
                         context.creditsValuesByType[context.lastVarintInNestedMessage] = Float(doubleValue)
@@ -1117,7 +1119,7 @@ public struct WindsurfStatusProbe: Sendable {
                 }
 
             case 2: // Length-delimited (string, bytes, embedded messages)
-                var length: Int = 0
+                var length = 0
                 var shift = 0
                 while offset < endOffset {
                     let byte = bytes[offset]
@@ -1136,10 +1138,11 @@ public struct WindsurfStatusProbe: Sendable {
                     if str.contains("@") && str.contains(".") && str.count < 100 {
                         context.email = str
                     } else if str == "Pro" || str == "Free" || str == "Team" || str == "Enterprise" ||
-                              str.lowercased().contains("free tier") || str.lowercased().contains("pro tier") {
+                        str.lowercased().contains("free tier") || str.lowercased().contains("pro tier")
+                    {
                         context.planName = str
                     }
-                } else if contentBytes.count > 2 && depth < 5 {
+                } else if contentBytes.count > 2, depth < 5 {
                     // Try to parse as nested message
                     self.parseProtobufMessage(
                         bytes: bytes,
@@ -1158,7 +1161,7 @@ public struct WindsurfStatusProbe: Sendable {
                 let floatValue = floatBytes.withUnsafeBytes { $0.load(as: Float.self) }
 
                 // Only consider reasonable float values
-                if floatValue >= 0 && floatValue <= 10000 && !floatValue.isNaN && !floatValue.isInfinite {
+                if floatValue >= 0, floatValue <= 10000, !floatValue.isNaN, !floatValue.isInfinite {
                     context.floatValues.append(floatValue)
 
                     // If we saw a varint ID recently, associate it with this float
@@ -1182,7 +1185,7 @@ public struct WindsurfStatusProbe: Sendable {
         // Check if string contains only printable ASCII characters
         for char in str.unicodeScalars {
             if char.value < 32 || char.value > 126 {
-                if char.value != 9 && char.value != 10 && char.value != 13 { // Allow tab, newline, CR
+                if char.value != 9, char.value != 10, char.value != 13 { // Allow tab, newline, CR
                     return false
                 }
             }
@@ -1195,7 +1198,7 @@ public struct WindsurfStatusProbe: Sendable {
     private static func extractTokenFromBrowser() async -> String? {
         // Run python script to extract token from IndexedDB
         let script = self.linuxTokenScript
-        
+
         var tempFile: URL?
         do {
             let tempDir = FileManager.default.temporaryDirectory
@@ -1203,94 +1206,95 @@ public struct WindsurfStatusProbe: Sendable {
             let fileURL = tempDir.appendingPathComponent(fileName)
             try script.write(to: fileURL, atomically: true, encoding: String.Encoding.utf8)
             tempFile = fileURL
-            
+
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             process.arguments = ["python3", fileURL.path]
-            
+
             let pipe = Pipe()
             process.standardOutput = pipe
-            
+
             try process.run()
             process.waitUntilExit()
-            
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !output.isEmpty && output.count > 100 {
+               !output.isEmpty, output.count > 100
+            {
                 return output
             }
         } catch {
-             // Silently fail or log debug
-             #if DEBUG
-             print("[windsurf] Failed to run token extraction script: \(error)")
-             #endif
+            // Silently fail or log debug
+            #if DEBUG
+            print("[windsurf] Failed to run token extraction script: \(error)")
+            #endif
         }
-        
+
         if let tempFile {
             try? FileManager.default.removeItem(at: tempFile)
         }
-        
+
         return nil
     }
 
     private static let linuxTokenScript = """
-import os, glob, re, sys
+    import os, glob, re, sys
 
-# Common browser data paths
-dirs = [
-    os.path.expanduser("~/.config/google-chrome"),
-    os.path.expanduser("~/.config/chromium"),
-    os.path.expanduser("~/.config/BraveSoftware/Brave-Browser"),
-    os.path.expanduser("~/.config/microsoft-edge-dev"),
-    os.path.expanduser("~/Library/Application Support/Google/Chrome"),
-    os.path.expanduser("~/Library/Application Support/BraveSoftware/Brave-Browser"),
-    os.path.expanduser("~/Library/Application Support/Chromium"),
-    os.path.expanduser("~/snap/chromium/common/chromium"), 
-]
-
-# Regex for JWT token (starts with eyJ, contains dots, alphanumeric)
-token_re = re.compile(br'eyJ[a-zA-Z0-9_-]+[.][a-zA-Z0-9_-]+[.][a-zA-Z0-9_-]+')
-
-candidates = []
-
-for d in dirs:
-    if not os.path.exists(d): continue
-    
-    patterns = [
-        os.path.join(d, "*", "IndexedDB", "https_windsurf.com_0.indexeddb.leveldb", "*"),
-        os.path.join(d, "Default", "IndexedDB", "https_windsurf.com_0.indexeddb.leveldb", "*"),
-        os.path.join(d, "Profile *", "IndexedDB", "https_windsurf.com_0.indexeddb.leveldb", "*")
+    # Common browser data paths
+    dirs = [
+        os.path.expanduser("~/.config/google-chrome"),
+        os.path.expanduser("~/.config/chromium"),
+        os.path.expanduser("~/.config/BraveSoftware/Brave-Browser"),
+        os.path.expanduser("~/.config/microsoft-edge-dev"),
+        os.path.expanduser("~/Library/Application Support/Google/Chrome"),
+        os.path.expanduser("~/Library/Application Support/BraveSoftware/Brave-Browser"),
+        os.path.expanduser("~/Library/Application Support/Chromium"),
+        os.path.expanduser("~/snap/chromium/common/chromium"), 
     ]
-    
-    files = []
-    for p in patterns:
-        files.extend(glob.glob(p))
-    
-    seen_files = set()
-    for fpath in files:
-        if fpath in seen_files: continue
-        seen_files.add(fpath)
-        if not os.path.isfile(fpath): continue
 
-        try:
-            with open(fpath, "rb") as f:
-                content = f.read()
-                matches = token_re.findall(content)
-                for m in matches:
-                    if len(m) > 800: # Filter short tokens
-                        try:
-                            s = m.decode('ascii')
-                            candidates.append(s)
-                        except:
-                            pass
-        except:
-             pass
+    # Regex for JWT token (starts with eyJ, contains dots, alphanumeric)
+    token_re = re.compile(br'eyJ[a-zA-Z0-9_-]+[.][a-zA-Z0-9_-]+[.][a-zA-Z0-9_-]+')
 
-if candidates:
-    # Return the longest one
-    candidates.sort(key=len, reverse=True)
-    print(candidates[0])
-"""
+    candidates = []
+
+    for d in dirs:
+        if not os.path.exists(d): continue
+        
+        patterns = [
+            os.path.join(d, "*", "IndexedDB", "https_windsurf.com_0.indexeddb.leveldb", "*"),
+            os.path.join(d, "Default", "IndexedDB", "https_windsurf.com_0.indexeddb.leveldb", "*"),
+            os.path.join(d, "Profile *", "IndexedDB", "https_windsurf.com_0.indexeddb.leveldb", "*")
+        ]
+        
+        files = []
+        for p in patterns:
+            files.extend(glob.glob(p))
+        
+        seen_files = set()
+        for fpath in files:
+            if fpath in seen_files: continue
+            seen_files.add(fpath)
+            if not os.path.isfile(fpath): continue
+
+            try:
+                with open(fpath, "rb") as f:
+                    content = f.read()
+                    matches = token_re.findall(content)
+                    for m in matches:
+                        if len(m) > 800: # Filter short tokens
+                            try:
+                                s = m.decode('ascii')
+                                candidates.append(s)
+                            except:
+                                pass
+            except:
+                 pass
+
+    if candidates:
+        # Return the longest one
+        candidates.sort(key=len, reverse=True)
+        print(candidates[0])
+    """
 }
 
 #else

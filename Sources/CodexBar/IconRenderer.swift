@@ -706,7 +706,6 @@ enum IconRenderer {
         for (index, style) in IconStyle.allCases.enumerated() {
             lookup[style] = index
         }
-        }
         return lookup
     }()
 

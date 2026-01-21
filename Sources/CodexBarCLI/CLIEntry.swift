@@ -92,7 +92,6 @@ enum CodexBarCLI {
                 ],
                 defaultSubcommandName: "validate"),
         ]
-
     }
 
     // MARK: - Helpers
@@ -114,5 +113,4 @@ enum CodexBarCLI {
         if first.hasPrefix("-") { return ["usage"] + argv }
         return argv
     }
-
 }

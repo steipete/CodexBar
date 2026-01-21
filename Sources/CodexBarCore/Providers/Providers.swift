@@ -120,7 +120,7 @@ public enum ProviderDefaults {
     public static func getMetadata() -> [UsageProvider: ProviderMetadata] {
         ProviderDescriptorRegistry.metadata
     }
-        
+
     public static var metadata: [UsageProvider: ProviderMetadata] {
         getMetadata()
     }

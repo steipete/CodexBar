@@ -178,6 +178,14 @@ log "==> Killing existing CodexBar instances"
 kill_all_codexbar
 kill_claude_probes
 
+if [[ "${HOST_OS}" != "Darwin" ]]; then
+  if [[ "${RUN_TESTS}" == "1" ]]; then
+    run_step "swift test" swift test -q
+  fi
+  log "==> Non-macOS host; skipping app packaging and launch."
+  exit 0
+fi
+
 # 2.5) Delete keychain entries to avoid permission prompts with adhoc signing
 # (adhoc signature changes on every build, making old keychain entries inaccessible)
 if [[ "${SIGNING_MODE:-adhoc}" == "adhoc" ]]; then
@@ -193,10 +201,6 @@ fi
 if [[ "${RUN_TESTS}" == "1" ]]; then
   run_step "swift test" swift test -q
 fi
-if [[ "${HOST_OS}" != "Darwin" ]]; then
-  log "==> Non-macOS host; skipping app packaging and launch."
-  exit 0
-fi
 if [[ "${DEBUG_LLDB}" == "1" && -n "${RELEASE_ARCHES}" ]]; then
   fail "--release-arches is only supported for release packaging"
 fi
@@ -206,14 +210,13 @@ if [[ -n "${RELEASE_ARCHES}" ]]; then
   ARCHES_VALUE="${RELEASE_ARCHES}"
 fi
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
-  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh" debug
+  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh" debug
 else
   if [[ -n "${SIGNING_MODE}" ]]; then
-    run_step "package app" env CODEXBAR_SIGNING="${SIGNING_MODE}" ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
+    run_step "package app" env CODEXBAR_SIGNING="${SIGNING_MODE}" ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh"
   else
-    run_step "package app" env ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
+    run_step "package app" env ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh"
   fi
-fi
 fi
 
 # 4) Launch the packaged app.
