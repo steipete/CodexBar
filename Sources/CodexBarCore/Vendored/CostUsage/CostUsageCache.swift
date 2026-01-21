@@ -13,18 +13,9 @@ enum CostUsageCacheIO {
             .appendingPathComponent("\(provider.rawValue)-v1.json", isDirectory: false)
     }
 
-    private static func legacyCacheFileURL(provider: UsageProvider, cacheRoot: URL? = nil) -> URL {
-        let root = cacheRoot ?? self.defaultCacheRoot()
-        return root
-            .appendingPathComponent("ccusage-min", isDirectory: true)
-            .appendingPathComponent("\(provider.rawValue)-v1.json", isDirectory: false)
-    }
-
     static func load(provider: UsageProvider, cacheRoot: URL? = nil) -> CostUsageCache {
         let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
         if let decoded = self.loadCache(at: url) { return decoded }
-        let legacyURL = self.legacyCacheFileURL(provider: provider, cacheRoot: cacheRoot)
-        if let legacy = self.loadCache(at: legacyURL) { return legacy }
         return CostUsageCache()
     }
 
@@ -73,6 +64,7 @@ struct CostUsageFileUsage: Codable, Sendable {
     var parsedBytes: Int64?
     var lastModel: String?
     var lastTotals: CostUsageCodexTotals?
+    var sessionId: String?
 }
 
 struct CostUsageCodexTotals: Codable, Sendable {

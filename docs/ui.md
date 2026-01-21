@@ -12,15 +12,20 @@ read_when:
 - Merge Icons toggle combines providers into one status item with a switcher.
 
 ## Icon rendering
-- 20×18 template image.
+- 18×18 template image.
 - Top bar = 5-hour window; bottom hairline = weekly window.
 - Fill represents percent remaining by default; “Show usage as used” flips to percent used.
 - Dimmed when last refresh failed; status overlays render incident indicators.
+- Advanced: menu bar can show provider branding icons with a percent label instead of critter bars.
 
 ## Menu card
-- Session + weekly rows with resets (relative countdown when available).
+- Session + weekly rows with resets (countdown by default; optional absolute clock display).
 - Codex-only: Credits + “Buy Credits…” in-card action.
-- Web-only rows (when OpenAI web enabled): code review remaining, usage breakdown submenu.
+- Web-only rows (when OpenAI cookies are enabled): code review remaining, usage breakdown submenu.
+- Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.
+
+## Preferences notes
+- Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.
 
 ## Widgets (high level)
 - Widget entries mirror the menu card; detailed pipeline in `docs/widgets.md`.

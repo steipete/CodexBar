@@ -1,8 +1,16 @@
 import Foundation
 
+public enum ResetTimeDisplayStyle: String, Codable, Sendable {
+    case countdown
+    case absolute
+}
+
 public enum UsageFormatter {
-    public static func usageLine(remaining: Double, used: Double) -> String {
-        String(format: "%.0f%% left", remaining)
+    public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
+        let percent = showUsed ? used : remaining
+        let clamped = min(100, max(0, percent))
+        let suffix = showUsed ? "used" : "left"
+        return String(format: "%.0f%% %@", clamped, suffix)
     }
 
     public static func resetCountdownDescription(from date: Date, now: Date = .init()) -> String {
@@ -39,6 +47,27 @@ public enum UsageFormatter {
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 
+    public static func resetLine(
+        for window: RateWindow,
+        style: ResetTimeDisplayStyle,
+        now: Date = .init()) -> String?
+    {
+        if let date = window.resetsAt {
+            let text = style == .countdown
+                ? self.resetCountdownDescription(from: date, now: now)
+                : self.resetDescription(from: date, now: now)
+            return "Resets \(text)"
+        }
+
+        if let desc = window.resetDescription {
+            let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            if trimmed.lowercased().hasPrefix("resets") { return trimmed }
+            return "Resets \(trimmed)"
+        }
+        return nil
+    }
+
     public static func updatedString(from date: Date, now: Date = .init()) -> String {
         let delta = now.timeIntervalSince(date)
         if abs(delta) < 60 {
@@ -67,28 +96,23 @@ public enum UsageFormatter {
         let number = NumberFormatter()
         number.numberStyle = .decimal
         number.maximumFractionDigits = 2
-        let formatted = number.string(from: NSNumber(value: value)) ?? String(Int(value))
+        // Use explicit locale for consistent formatting on all systems
+        number.locale = Locale(identifier: "en_US_POSIX")
+        let formatted = number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
         return "\(formatted) left"
     }
 
+    /// Formats a USD value with proper negative handling and thousand separators.
+    /// Uses Swift's modern FormatStyle API (iOS 15+/macOS 12+) for robust, locale-aware formatting.
     public static func usdString(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
-        formatter.maximumFractionDigits = 2
-        formatter.minimumFractionDigits = 2
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
+        value.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")))
     }
 
+    /// Formats a currency value with the specified currency code.
+    /// Uses FormatStyle with explicit en_US locale to ensure consistent formatting
+    /// regardless of the user's system locale (e.g., pt-BR users see $54.72 not US$ 54,72).
     public static func currencyString(_ value: Double, currencyCode: String) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = currencyCode
-        formatter.maximumFractionDigits = 2
-        formatter.minimumFractionDigits = 2
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter.string(from: NSNumber(value: value)) ?? "\(currencyCode) \(String(format: "%.2f", value))"
+        value.formatted(.currency(code: currencyCode).locale(Locale(identifier: "en_US")))
     }
 
     public static func tokenCountString(_ value: Int) -> String {
@@ -199,6 +223,9 @@ public enum UsageFormatter {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if cleaned.isEmpty {
             cleaned = stripped.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if cleaned.lowercased() == "oauth" {
+            return "Ollama"
         }
         // Capitalize first letter only if lowercase, preserving acronyms like "AI"
         if let first = cleaned.first, first.isLowercase {

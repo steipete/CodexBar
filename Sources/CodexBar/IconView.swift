@@ -25,7 +25,7 @@ struct IconView: View {
         Group {
             if let snapshot {
                 Image(nsImage: IconRenderer.makeIcon(
-                    primaryRemaining: snapshot.primary.remainingPercent,
+                    primaryRemaining: snapshot.primary?.remainingPercent,
                     weeklyRemaining: snapshot.secondary?.remainingPercent,
                     creditsRemaining: self.creditsRemaining,
                     stale: self.isStale,

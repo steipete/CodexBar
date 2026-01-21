@@ -37,16 +37,44 @@ public struct RateWindow: Codable, Equatable, Sendable {
     }
 }
 
+public struct ProviderIdentitySnapshot: Codable, Sendable {
+    public let providerID: UsageProvider?
+    public let accountEmail: String?
+    public let accountOrganization: String?
+    public let loginMethod: String?
+
+    public init(
+        providerID: UsageProvider?,
+        accountEmail: String?,
+        accountOrganization: String?,
+        loginMethod: String?)
+    {
+        self.providerID = providerID
+        self.accountEmail = accountEmail
+        self.accountOrganization = accountOrganization
+        self.loginMethod = loginMethod
+    }
+
+    public func scoped(to provider: UsageProvider) -> ProviderIdentitySnapshot {
+        if self.providerID == provider { return self }
+        return ProviderIdentitySnapshot(
+            providerID: provider,
+            accountEmail: self.accountEmail,
+            accountOrganization: self.accountOrganization,
+            loginMethod: self.loginMethod)
+    }
+}
+
 public struct UsageSnapshot: Codable, Sendable {
-    public let primary: RateWindow
+    public let primary: RateWindow?
     public let secondary: RateWindow?
     public let tertiary: RateWindow?
     public let providerCost: ProviderCostSnapshot?
     public let zaiUsage: ZaiUsageSnapshot?
+    public let minimaxUsage: MiniMaxUsageSnapshot?
+    public let cursorRequests: CursorRequestUsage?
     public let updatedAt: Date
-    public let accountEmail: String?
-    public let accountOrganization: String?
-    public let loginMethod: String?
+    public let identity: ProviderIdentitySnapshot?
 
     private enum CodingKeys: String, CodingKey {
         case primary
@@ -54,60 +82,128 @@ public struct UsageSnapshot: Codable, Sendable {
         case tertiary
         case providerCost
         case updatedAt
+        case identity
         case accountEmail
         case accountOrganization
         case loginMethod
     }
 
     public init(
-        primary: RateWindow,
+        primary: RateWindow?,
         secondary: RateWindow?,
         tertiary: RateWindow? = nil,
         providerCost: ProviderCostSnapshot? = nil,
         zaiUsage: ZaiUsageSnapshot? = nil,
+        minimaxUsage: MiniMaxUsageSnapshot? = nil,
+        cursorRequests: CursorRequestUsage? = nil,
         updatedAt: Date,
-        accountEmail: String? = nil,
-        accountOrganization: String? = nil,
-        loginMethod: String? = nil)
+        identity: ProviderIdentitySnapshot? = nil)
     {
         self.primary = primary
         self.secondary = secondary
         self.tertiary = tertiary
         self.providerCost = providerCost
         self.zaiUsage = zaiUsage
+        self.minimaxUsage = minimaxUsage
+        self.cursorRequests = cursorRequests
         self.updatedAt = updatedAt
-        self.accountEmail = accountEmail
-        self.accountOrganization = accountOrganization
-        self.loginMethod = loginMethod
+        self.identity = identity
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.primary = try container.decode(RateWindow.self, forKey: .primary)
+        self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
         self.secondary = try container.decodeIfPresent(RateWindow.self, forKey: .secondary)
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.zaiUsage = nil // Not persisted, fetched fresh each time
+        self.minimaxUsage = nil // Not persisted, fetched fresh each time
+        self.cursorRequests = nil // Not persisted, fetched fresh each time
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
-        self.accountEmail = try container.decodeIfPresent(String.self, forKey: .accountEmail)
-        self.accountOrganization = try container.decodeIfPresent(String.self, forKey: .accountOrganization)
-        self.loginMethod = try container.decodeIfPresent(String.self, forKey: .loginMethod)
+        if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
+            self.identity = identity
+        } else {
+            let email = try container.decodeIfPresent(String.self, forKey: .accountEmail)
+            let organization = try container.decodeIfPresent(String.self, forKey: .accountOrganization)
+            let loginMethod = try container.decodeIfPresent(String.self, forKey: .loginMethod)
+            if email != nil || organization != nil || loginMethod != nil {
+                self.identity = ProviderIdentitySnapshot(
+                    providerID: nil,
+                    accountEmail: email,
+                    accountOrganization: organization,
+                    loginMethod: loginMethod)
+            } else {
+                self.identity = nil
+            }
+        }
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        // Stable JSON schema: keep window keys present (encode `nil` as `null`).
         try container.encode(self.primary, forKey: .primary)
-        if let secondary = self.secondary {
-            try container.encode(secondary, forKey: .secondary)
-        } else {
-            try container.encodeNil(forKey: .secondary)
-        }
-        try container.encodeIfPresent(self.tertiary, forKey: .tertiary)
+        try container.encode(self.secondary, forKey: .secondary)
+        try container.encode(self.tertiary, forKey: .tertiary)
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
         try container.encode(self.updatedAt, forKey: .updatedAt)
-        try container.encodeIfPresent(self.accountEmail, forKey: .accountEmail)
-        try container.encodeIfPresent(self.accountOrganization, forKey: .accountOrganization)
-        try container.encodeIfPresent(self.loginMethod, forKey: .loginMethod)
+        try container.encodeIfPresent(self.identity, forKey: .identity)
+        try container.encodeIfPresent(self.identity?.accountEmail, forKey: .accountEmail)
+        try container.encodeIfPresent(self.identity?.accountOrganization, forKey: .accountOrganization)
+        try container.encodeIfPresent(self.identity?.loginMethod, forKey: .loginMethod)
+    }
+
+    public func identity(for provider: UsageProvider) -> ProviderIdentitySnapshot? {
+        guard let identity, identity.providerID == provider else { return nil }
+        return identity
+    }
+
+    public func switcherWeeklyWindow(for provider: UsageProvider, showUsed: Bool) -> RateWindow? {
+        switch provider {
+        case .factory:
+            // Factory prefers secondary window
+            return self.secondary ?? self.primary
+        case .cursor:
+            // Cursor: fall back to On-Demand when Plan is exhausted (only in "show remaining" mode).
+            // In "show used" mode, keep showing primary so 100% used Plan is visible.
+            if !showUsed,
+               let primary = self.primary,
+               primary.remainingPercent <= 0,
+               let secondary = self.secondary
+            {
+                return secondary
+            }
+            return self.primary ?? self.secondary
+        default:
+            return self.primary ?? self.secondary
+        }
+    }
+
+    public func accountEmail(for provider: UsageProvider) -> String? {
+        self.identity(for: provider)?.accountEmail
+    }
+
+    public func accountOrganization(for provider: UsageProvider) -> String? {
+        self.identity(for: provider)?.accountOrganization
+    }
+
+    public func loginMethod(for provider: UsageProvider) -> String? {
+        self.identity(for: provider)?.loginMethod
+    }
+
+    public func scoped(to provider: UsageProvider) -> UsageSnapshot {
+        guard let identity else { return self }
+        let scopedIdentity = identity.scoped(to: provider)
+        if scopedIdentity.providerID == identity.providerID { return self }
+        return UsageSnapshot(
+            primary: self.primary,
+            secondary: self.secondary,
+            tertiary: self.tertiary,
+            providerCost: self.providerCost,
+            zaiUsage: self.zaiUsage,
+            minimaxUsage: self.minimaxUsage,
+            cursorRequests: self.cursorRequests,
+            updatedAt: self.updatedAt,
+            identity: scopedIdentity)
     }
 }
 
@@ -196,25 +292,26 @@ private struct RPCCreditsSnapshot: Decodable, Encodable {
     let balance: String?
 }
 
-private enum RPCWireError: Error, CustomStringConvertible {
+private enum RPCWireError: Error, LocalizedError {
     case startFailed(String)
     case requestFailed(String)
     case malformed(String)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .startFailed(message):
-            "Failed to start codex app-server: \(message)"
+            "Codex not running. Try running a Codex command first. (\(message))"
         case let .requestFailed(message):
-            "RPC request failed: \(message)"
+            "Codex connection failed: \(message)"
         case let .malformed(message):
-            "Malformed response: \(message)"
+            "Codex returned invalid data: \(message)"
         }
     }
 }
 
 // RPC helper used on background tasks; safe because we confine it to the owning task.
 private final class CodexRPCClient: @unchecked Sendable {
+    private static let log = CodexBarLog.logger(LogCategories.codexRPC)
     private let process = Process()
     private let stdinPipe = Pipe()
     private let stdoutPipe = Pipe()
@@ -264,6 +361,7 @@ private final class CodexRPCClient: @unchecked Sendable {
             ?? TTYCommandRunner.which(executable)
 
         guard let resolvedExec else {
+            Self.log.warning("Codex RPC binary not found", metadata: ["binary": executable])
             throw RPCWireError.startFailed(
                 "Codex CLI not found. Install with `npm i -g @openai/codex` (or bun) then relaunch CodexBar.")
         }
@@ -281,7 +379,9 @@ private final class CodexRPCClient: @unchecked Sendable {
 
         do {
             try self.process.run()
+            Self.log.debug("Codex RPC started", metadata: ["binary": resolvedExec])
         } catch {
+            Self.log.warning("Codex RPC failed to start", metadata: ["error": error.localizedDescription])
             throw RPCWireError.startFailed(error.localizedDescription)
         }
 
@@ -338,6 +438,7 @@ private final class CodexRPCClient: @unchecked Sendable {
 
     func shutdown() {
         if self.process.isRunning {
+            Self.log.debug("Codex RPC stopping")
             self.process.terminate()
         }
     }
@@ -425,8 +526,10 @@ public struct UsageFetcher: Sendable {
         LoginShellPathCache.shared.captureOnce()
     }
 
-    public func loadLatestUsage() async throws -> UsageSnapshot {
-        try await self.withFallback(primary: self.loadRPCUsage, secondary: self.loadTTYUsage)
+    public func loadLatestUsage(keepCLISessionsAlive: Bool = false) async throws -> UsageSnapshot {
+        try await self.withFallback(
+            primary: self.loadRPCUsage,
+            secondary: { try await self.loadTTYUsage(keepCLISessionsAlive: keepCLISessionsAlive) })
     }
 
     private func loadRPCUsage() async throws -> UsageSnapshot {
@@ -446,11 +549,8 @@ public struct UsageFetcher: Sendable {
             throw UsageError.noRateLimitsFound
         }
 
-        return UsageSnapshot(
-            primary: primary,
-            secondary: secondary,
-            tertiary: nil,
-            updatedAt: Date(),
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
             accountEmail: account?.account.flatMap { details in
                 if case let .chatgpt(email, _) = details { email } else { nil }
             },
@@ -458,10 +558,16 @@ public struct UsageFetcher: Sendable {
             loginMethod: account?.account.flatMap { details in
                 if case let .chatgpt(_, plan) = details { plan } else { nil }
             })
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: nil,
+            updatedAt: Date(),
+            identity: identity)
     }
 
-    private func loadTTYUsage() async throws -> UsageSnapshot {
-        let status = try await CodexStatusProbe().fetch()
+    private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
+        let status = try await CodexStatusProbe(keepCLISessionsAlive: keepCLISessionsAlive).fetch()
         guard let fiveLeft = status.fiveHourPercentLeft, let weekLeft = status.weeklyPercentLeft else {
             throw UsageError.noRateLimitsFound
         }
@@ -482,13 +588,13 @@ public struct UsageFetcher: Sendable {
             secondary: secondary,
             tertiary: nil,
             updatedAt: Date(),
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: nil)
+            identity: nil)
     }
 
-    public func loadLatestCredits() async throws -> CreditsSnapshot {
-        try await self.withFallback(primary: self.loadRPCCredits, secondary: self.loadTTYCredits)
+    public func loadLatestCredits(keepCLISessionsAlive: Bool = false) async throws -> CreditsSnapshot {
+        try await self.withFallback(
+            primary: self.loadRPCCredits,
+            secondary: { try await self.loadTTYCredits(keepCLISessionsAlive: keepCLISessionsAlive) })
     }
 
     private func loadRPCCredits() async throws -> CreditsSnapshot {
@@ -501,8 +607,8 @@ public struct UsageFetcher: Sendable {
         return CreditsSnapshot(remaining: remaining, events: [], updatedAt: Date())
     }
 
-    private func loadTTYCredits() async throws -> CreditsSnapshot {
-        let status = try await CodexStatusProbe().fetch()
+    private func loadTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
+        let status = try await CodexStatusProbe(keepCLISessionsAlive: keepCLISessionsAlive).fetch()
         guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
         return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
     }

@@ -8,10 +8,16 @@ import Testing
 struct OpenAIWebAccountSwitchTests {
     @Test
     func clearsDashboardWhenCodexEmailChanges() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-clears"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         settings.refreshFrequency = .manual
 
-        let store = UsageStore(fetcher: UsageFetcher(), settings: settings)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
 
         store.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: "a@example.com")
         store.openAIDashboard = OpenAIDashboardSnapshot(
@@ -31,10 +37,16 @@ struct OpenAIWebAccountSwitchTests {
 
     @Test
     func keepsDashboardWhenCodexEmailStaysSame() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-keeps"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         settings.refreshFrequency = .manual
 
-        let store = UsageStore(fetcher: UsageFetcher(), settings: settings)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
 
         store.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: "a@example.com")
         let dash = OpenAIDashboardSnapshot(

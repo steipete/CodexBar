@@ -1,5 +1,6 @@
 import AppKit
 import CodexBarCore
+import KeyboardShortcuts
 import Observation
 import QuartzCore
 import Security
@@ -15,21 +16,40 @@ struct CodexBarApp: App {
 
     init() {
         let env = ProcessInfo.processInfo.environment
-        let level = CodexBarLog.parseLevel(env["CODEXBAR_LOG_LEVEL"]) ?? .info
+        let storedLevel = CodexBarLog.parseLevel(UserDefaults.standard.string(forKey: "debugLogLevel")) ?? .verbose
+        let level = CodexBarLog.parseLevel(env["CODEXBAR_LOG_LEVEL"]) ?? storedLevel
         CodexBarLog.bootstrapIfNeeded(.init(
             destination: .oslog(subsystem: "com.steipete.codexbar"),
             level: level,
             json: false))
 
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+        let gitCommit = Bundle.main.object(forInfoDictionaryKey: "CodexGitCommit") as? String ?? "unknown"
+        let buildTimestamp = Bundle.main.object(forInfoDictionaryKey: "CodexBuildTimestamp") as? String ?? "unknown"
+        CodexBarLog.logger(LogCategories.app).info(
+            "CodexBar starting",
+            metadata: [
+                "version": version,
+                "build": build,
+                "git": gitCommit,
+                "built": buildTimestamp,
+            ])
+
+        KeychainAccessGate.isDisabled = UserDefaults.standard.bool(forKey: "debugDisableKeychainAccess")
+        KeychainPromptCoordinator.install()
+
         let preferencesSelection = PreferencesSelection()
         let settings = SettingsStore()
         let fetcher = UsageFetcher()
+        let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)
         let account = fetcher.loadAccountInfo()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: settings)
         self.preferencesSelection = preferencesSelection
         _settings = State(wrappedValue: settings)
         _store = State(wrappedValue: store)
         self.account = account
+        CodexBarLog.setLogLevel(settings.debugLogLevel)
         self.appDelegate.configure(
             store: store,
             settings: settings,
@@ -54,7 +74,7 @@ struct CodexBarApp: App {
                 updater: self.appDelegate.updaterController,
                 selection: self.preferencesSelection)
         }
-        .defaultSize(width: PreferencesTab.windowWidth, height: PreferencesTab.general.preferredHeight)
+        .defaultSize(width: PreferencesTab.general.preferredWidth, height: PreferencesTab.general.preferredHeight)
         .windowResizability(.contentSize)
     }
 
@@ -175,6 +195,10 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
             }
         }
     }
+
+    nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        UpdateChannel.current.allowedSparkleChannels
+    }
 }
 
 private func isDeveloperIDSigned(bundleURL: URL) -> Bool {
@@ -239,9 +263,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.preferencesSelection = selection
     }
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        self.configureAppIconForMacOSVersion()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppNotifications.shared.requestAuthorizationOnStartup()
         self.ensureStatusController()
+        KeyboardShortcuts.onKeyUp(for: .openMenu) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.statusController?.openMenuFromShortcut()
+            }
+        }
+    }
+
+    /// Use the classic (non-Liquid Glass) app icon on macOS versions before 26.
+    private func configureAppIconForMacOSVersion() {
+        if #unavailable(macOS 26) {
+            self.applyClassicAppIcon()
+        }
+    }
+
+    private func applyClassicAppIcon() {
+        guard let classicIcon = Self.loadClassicIcon() else { return }
+        NSApp.applicationIconImage = classicIcon
+    }
+
+    private static func loadClassicIcon() -> NSImage? {
+        if let url = Bundle.module.url(forResource: "Icon-classic", withExtension: "icns"),
+           let image = NSImage(contentsOf: url)
+        {
+            return image
+        }
+        if let url = Bundle.main.url(forResource: "Icon-classic", withExtension: "icns"),
+           let image = NSImage(contentsOf: url)
+        {
+            return image
+        }
+        return nil
     }
 
     private func ensureStatusController() {
@@ -258,10 +317,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Defensive fallback: this should not be hit in normal app lifecycle.
+        CodexBarLog.logger(LogCategories.app)
+            .error("StatusItemController fallback path used; settings/store mismatch likely.")
+        assertionFailure("StatusItemController fallback path used; check app lifecycle wiring.")
         let fallbackSettings = SettingsStore()
         let fetcher = UsageFetcher()
+        let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)
         let fallbackAccount = fetcher.loadAccountInfo()
-        let fallbackStore = UsageStore(fetcher: fetcher, settings: fallbackSettings)
+        let fallbackStore = UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: fallbackSettings)
         self.statusController = StatusItemController.factory(
             fallbackStore,
             fallbackSettings,

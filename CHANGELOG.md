@@ -1,8 +1,6 @@
 # Changelog
 
-## Fork Changes (zoomcharts/CodexBar)
-
-This fork extends the upstream CodexBar with enhanced Linux support and additional providers.
+## 0.18.0-beta.2 (Fork) — 2026-01-21
 
 ### New Providers
 - **Windsurf**: Firebase-based usage fetching with auto-token extraction from Chrome IndexedDB. Shows credits usage in cents with reset timing. Auto-retries when tokens expire.
@@ -33,26 +31,184 @@ This fork extends the upstream CodexBar with enhanced Linux support and addition
 - Updated `docs/cli.md` with Linux tray instructions
 - Updated `docs/providers.md` with Windsurf and Copilot details
 
----
+## 0.18.0-beta.2 — 2026-01-21
+### Highlights
+- OpenAI web dashboard refresh cadence now follows 5× the base refresh interval.
+- OpenAI web dashboard WebView is torn down after each scrape to reduce idle CPU.
+- Codex settings now include a toggle to disable OpenAI web extras.
 
-## 0.15.0 — Unreleased
+### Providers
+- Providers: add Dia browser support across cookie import and profile detection (#209). Thanks @validatedev!
+- Codex: include archived session logs in local token cost scanning and dedupe by session id.
+- Claude: harden CLI /usage parsing and avoid ANTHROPIC_* env interference during probes.
+
+### Menu & Menu Bar
+- Menu: opening OpenAI web submenus triggers a refresh when the data is stale.
+- Menu: fix usage line labels to honor “Show usage as used”.
+- Debug: add a toggle to keep Codex/Claude CLI sessions alive between probes.
+- Debug: add a button to reset CLI probe sessions.
+- App icon: use the classic icon on macOS 15 and earlier while keeping Liquid Glass for macOS 26+ (#178). Thanks @zerone0x!
+
+## 0.18.0-beta.1 — 2026-01-18
+### Highlights
+- New providers: OpenCode (web usage), Vertex AI, Kiro, Kimi, Kimi K2, Augment, Amp, Synthetic.
+- Provider source controls: usage source pickers for Codex/Claude, manual cookie headers, cookie caching with source/timestamp.
+- Menu bar upgrades: display mode picker (percent/pace/both), auto-select near limit, absolute reset times, pace summary line.
+- CLI/config revamp: config-backed provider settings, JSON-only errors, config validate/dump.
+
+### Providers
+- OpenCode: add web usage provider with workspace override + Chrome-first cookie import (#188). Thanks @anthnykr!
+- OpenCode: refresh provider logo (#190). Thanks @anthnykr!
+- Vertex AI: add provider with quota-based usage from gcloud ADC. Thanks @bahag-chaurasiak!
+- Vertex AI: token costs are shown via the Claude provider (same local logs).
+- Vertex AI: harden quota usage parsing for edge-case responses.
+- Kiro: add CLI-based usage provider via kiro-cli. Thanks @neror!
+- Kiro: clean up provider wiring and show plan name in the menu.
+- Kiro: harden CLI idle handling to avoid partial usage snapshots (#145). Thanks @chadneal!
+- Kimi: add usage provider with cookie-based API token stored in Keychain (#146). Thanks @rehanchrl!
+- Kimi K2: add API-key usage provider for credit totals (#147). Thanks @0-CYBERDYNE-SYSTEMS-0!
+- Augment: add provider with browser-cookie usage tracking.
+- Augment: prefer Auggie CLI usage with web fallback, plus session refresh + recovery tools (#142). Thanks @bcharleson!
+- Amp: add provider with Amp Free usage tracking (#167). Thanks @duailibe!
+- Synthetic: add API-key usage provider with quota snapshots (#171). Thanks @monotykamary!
+- JetBrains AI: include IDEs missing quota files, expand custom paths, and add Android Studio base paths (#194). Thanks @steipete!
+- JetBrains AI: detect IDE directories case-insensitively (#200). Thanks @zerone0x!
+- Cursor: support legacy request-based plans and show individual on-demand usage (#125) — thanks @vltansky
+- Cursor: avoid Intel crash when opening login and harden WebKit teardown. Thanks @meghanto!
+- Cursor: load stored session cookies before reads to make relaunches deterministic.
+- z.ai: add BigModel CN region option for API endpoint selection (#140). Thanks @nailuoGG!
+- MiniMax: add China mainland region option + host overrides (#143). Thanks @nailuoGG!
+- MiniMax: support API token or cookie auth; API token takes precedence and hides cookie UI (#149). Thanks @aonsyed!
+- Gemini: prefer loadCodeAssist project IDs for quota fetches (#172). Thanks @lolwierd!
+- Gemini: honor loadCodeAssist project IDs for quota + support Nix CLI layout (#184). Thanks @HaukeSchnau!
+- Claude: fix OAuth “Extra usage” spend/limit units when the API returns minor currency units (#97).
+- Claude: rescale extra usage costs when plan hints are missing and prefer web plan hints for extras (#181). Thanks @jorda0mega!
+- Usage formatting: fix currency parsing/formatting on non-US locales (e.g., pt-BR). Thanks @mneves75!
+
+### Provider Sources & Security
+- Providers: cache browser cookies in Keychain (per provider) and show cached source/time in settings.
+- Codex/Claude/Cursor/Factory/MiniMax: cookie sources now include Manual (paste a Cookie header) in addition to Automatic.
+- Codex/Claude/Cursor/Factory/MiniMax: skip cookie imports from browsers without usable cookie stores (profile/cookie DB) to avoid unnecessary Keychain prompts.
+- Providers: suppress repeated Chromium Keychain prompts after access denied and honor disabled Keychain access.
+
+### Preferences & Settings
+- Preferences: swap provider refresh button and enable toggle order.
+- Preferences: animate settings width and widen Providers on selection.
+- Preferences: shrink default settings size and reduce overall height.
+- Preferences: move “Hide personal information” to Advanced.
+- Providers: shorten fetch subtitle to relative time only.
+- Preferences: soften provider sidebar background and stabilize drag reordering.
+- Preferences: restrict provider drag handle to handle-only.
+- Preferences: move provider refresh timing to a dedicated second line.
+- Preferences: tighten provider usage metrics spacing.
+- Preferences: show refresh timing inline in provider detail subtitle.
+- Preferences: move “Access OpenAI via web” into Providers → Codex.
+- Preferences: add usage source pickers for Codex + Claude with auto fallback.
+- Preferences: add cookie source pickers with contextual helper text for the selected mode.
+- Preferences: move “Disable Keychain access” to Advanced and require manual cookies when enabled.
+- Preferences: add per-provider menu bar metric picker (#185) — thanks @HaukeSchnau
+- Preferences: tighten provider rows (inline pickers, compact layout, inline refresh + auto-source status).
+- Preferences: remove the “experimental” label from Antigravity.
+
+### Menu & Menu Bar
+- Menu: add a toggle to show reset times as absolute clock values (instead of countdowns).
+- Menu: show an “Open Terminal” action when Claude OAuth fails.
+- Menu: add “Hide personal information” toggle and redact emails in menu UI (#137). Thanks @t3dotgg!
+- Menu: keep a pace summary line alongside the visual marker (#155). Thanks @antons!
+- Menu: reduce provider-switch flicker and avoid redundant menu card sizing for faster opens (#132). Thanks @ibehnam!
+- Menu: keep background refresh on open without forcing token usage (#158). Thanks @weequan93!
+- Menu: Cursor switcher shows On-Demand remaining when Plan is exhausted in show-remaining mode (#193). Thanks @vltansky!
+- Menu: avoid single-letter wraps in provider switcher titles.
+- Menu: widen provider switcher buttons to avoid clipped titles.
+- Menu bar: rebuild provider status items on reorder so icons update correctly.
+- Menu bar: optional auto-select provider closest to its rate limit and keep switcher progress visible (#159). Thanks @phillco!
+- Menu bar: add display mode picker for percent/pace/both in the menu bar icon (#169). Thanks @PhilETaylor!
+- Menu bar: fix combined loading indicator flicker during loading animation (incl. debug replay).
+- Menu bar: prevent blink updates from clobbering the loading animation.
+
+### CLI & Config
+- CLI: respect the reset time display setting.
+- CLI: add pink accents, usage bars, and weekly pace lines to text output.
+- CLI: add config-backed provider settings, `--json-only`, and `--source api` for key-based providers.
+- CLI: add `config validate`/`config dump` commands and per-provider JSON error payloads.
+- CLI/App: move provider secrets + ordering to `~/.codexbar/config.json` (no Keychain persistence).
+- Providers: resolve API tokens from config/env only (no Keychain fallback).
+
+### Dev & Tests
+- Dev: move Chromium profile discovery into SweetCookieKit (adds Helium net.imput.helium). Thanks @hhushhas!
+- Dev: bump SweetCookieKit to 0.2.0.
+- Dev: migrate stored Keychain items to reduce rebuild prompts.
+- Dev: move path debug snapshot off the main thread and debounce refreshes to avoid startup hitches (#131). Thanks @ibehnam!
+- Tests: expand Kiro CLI coverage.
+- Tests: stabilize Claude PTY integration cleanup and reset CLI sessions after probes.
+- Tests: kill leaked codex app-server after tests.
+- Tests: add regression coverage for merged loading icon layout stability.
+- Tests: cover config validation and JSON-only CLI errors.
+- Build: stabilize Swift test runtime.
+
+## 0.17.0 — 2025-12-31
+- New providers: MiniMax.
+- Keychain: show a preflight explanation before macOS prompts for OAuth tokens or cookie decryption.
+- Providers: defer z.ai + Copilot Keychain reads until the user interacts with the token field.
+- Menu bar: avoid status item menu reattachment and layout flips during refresh to reduce icon flicker.
+- Dev: align SweetCookieKit local-storage tests with Swift Testing.
+- Charts: align hover selection bands with visible bars in credits + usage breakdown history.
+- About: fix website link in the About panel. Thanks @felipeorlando!
+
+## 0.16.1 — 2025-12-29
+- Menu: reduce layout thrash when opening menus and sizing charts. Thanks @ibehnam!
+- Packaging: default release notarization builds universal (arm64 + x86_64) zip.
+- OpenAI web: reduce idle CPU by suspending cached WebViews when not scraping. Thanks @douglascamata!
+- Icons: switch provider brand icons to SVGs for sharper rendering. Thanks @vandamd!
+
+## 0.16.0 — 2025-12-29
+- Menu bar: optional “percent mode” (provider brand icons + percentage labels) via Advanced toggle.
+- CLI: add `codexbar cost` to print local cost usage (text/JSON) for Codex + Claude.
+- Cost: align local cost scanner with ccusage; stabilize parsing/decoding and handle large JSONL lines.
+- Claude: skip pricing for unknown models (tokens still tracked) to avoid hard-coded legacy prices.
+- Performance: reduce menu bar CPU usage by caching morph icons, skipping redundant status-item updates, and caching provider enablement/order during animations.
+- Menu: improve provider switcher hover contrast in light mode.
+- Icons: refresh Droid + Claude brand assets to better match menu sizing.
+- CI: avoid interactive login-shell probes to reduce noisy “CLI missing” errors.
+
+## 0.15.3 — 2025-12-28
+- Codex: default to OAuth usage API (ChatGPT backend) with CLI-only override in Debug.
+- Codex: map OAuth credits balance directly, avoiding web fallback for credits.
+- Preferences: add optional “Access OpenAI via web” toggle and show blended source labels when web extras are active.
+- Copilot: replace blocking auth wait dialog with a non-modal sheet to avoid stuck login.
+
+## 0.15.2 — 2025-12-28
+- Copilot: fix device-flow waiting modal to close reliably after auth (and avoid stuck waits).
+- Packaging: include the KeyboardShortcuts resource bundle to prevent Settings → Keyboard shortcut crashes in packaged builds.
+
+## 0.15.1 — 2025-12-28
+- Preferences: fix provider API key fields reusing the wrong input when switching rows.
+- Preferences: avoid Advanced tab crash when opening settings.
+
+## 0.15.0 — 2025-12-28
+- New providers: Droid (Factory), Cursor, z.ai, Copilot.
+- macOS: CodexBar now supports Intel Macs (x86_64 builds + Sonoma fallbacks). Thanks @epoyraz!
+>>>>>>> origin/main
 - Droid (Factory): new provider with Standard + Premium usage via browser cookies, plus dashboard + status links. Thanks @shashank-factory!
 - Menu: allow multi-line error messages in the provider subtitle (up to 4 lines).
 - Menu: fix subtitle sizing for multi-line error states.
 - Menu: avoid clipping on multi-line error subtitles.
 - Menu: widen the menu card when 7+ providers are enabled.
 - Providers: Codex, Claude Code, Cursor, Gemini, Antigravity, z.ai.
+- Gemini: switch plan detection to loadCodeAssist tier lookup (Paid/Workspace/Free/Legacy). Thanks @381181295!
 - Codex: OpenAI web dashboard is now the primary source for usage + credits; CLI fallback only when no matching cookies exist.
-- Claude: prefer claude.ai web API via cookies with CLI fallback when no session cookies are found; OAuth is debug-only.
+- Claude: prefer OAuth when credentials exist; fall back to web cookies or CLI (thanks @ibehnam).
 - CLI: replace `--web`/`--claude-source` with `--source` (auto/web/cli/oauth); auto falls back only when cookies are missing.
+- Homebrew: cask now installs the `codexbar` CLI symlink. Thanks @dalisoft!
 - Cursor: add new usage provider with browser cookie auth (cursor.com + cursor.sh), on-demand bar support, and dashboard access.
 - Cursor: keep stored sessions on transient failures; clear only on invalid auth.
 - z.ai: new provider support with Tokens + MCP usage bars and MCP details submenu; API token now lives in Preferences (stored in Keychain); usage bars respect the show-used toggle. Thanks @uwe-schwarz for the initial work!
+- Copilot: new GitHub Copilot provider with device flow login plus Premium + Chat usage bars (including CLI support). Thanks @roshan-c!
 - Preferences: fix Advanced Display checkboxes and move the Quit button to the bottom of General.
 - Preferences: hide “Augment Claude via web” unless Claude usage source is CLI; rename the cost toggle to “Show cost summary”.
 - Preferences: add an Advanced toggle to show/hide optional Codex Credits + Claude Extra usage sections (on by default).
 - Widgets: add a new “CodexBar Switcher” widget that lets you switch providers and remember the selection.
-- Menu: provider switcher now uses crisp brand icons with equal-width segments and a per-provider weekly remaining indicator.
+- Menu: provider switcher now uses crisp brand icons with equal-width segments and a per-provider usage indicator.
 - Menu: tighten provider switcher sizing and increase spacing between label and weekly indicator bar.
 - Menu: provider switcher no longer forces a wider menu when many providers are enabled; segments clamp to the menu width.
 - Menu: provider switcher now aligns to the same horizontal padding grid as the menu cards when space allows.
@@ -71,7 +227,10 @@ This fork extends the upstream CodexBar with enhanced Linux support and addition
 - Droid: fall back to auth.factory.ai endpoints when cookies live on the auth host.
 - Droid: use WorkOS refresh tokens from browser local storage when cookies fail.
 - Droid: read WorkOS refresh tokens from Safari local storage.
-- Droid: avoid Chrome Safe Storage prompts when Safari sessions are available.
+- Droid: try stored/WorkOS tokens before Chrome cookies to reduce Chrome Safe Storage prompts.
+- Menu: provider switcher bars now track primary quotas (Plan/Tokens/Pro), with Premium shown for Droid.
+- Menu: avoid duplicate summary blocks when a provider has no action rows.
+- OpenAI web: ignore cookie sets without session tokens to avoid false-positive dashboard fetches.
 - Providers: hide z.ai in the menu until an API key is set.
 - Menu: refresh runs automatically when opening the menu with a short retry (refresh row removed).
 - Menu: hide the Status Page row when a provider has no status URL.
@@ -88,6 +247,7 @@ This fork extends the upstream CodexBar with enhanced Linux support and addition
 - Docs: expand CLI docs for Linux install + flags.
 
 ## 0.14.0 — 2025-12-25
+- New providers: Antigravity.
 - Antigravity: new local provider for the Antigravity language server (Claude + Gemini quotas) with an experimental toggle; improved plan display + debug output; clearer not-running/port errors; hide account switch.
 - Status: poll Google Workspace incidents for Gemini + Antigravity; Status Page opens the Workspace status page.
 - Settings: add Providers tab; move ccusage + status toggles to General; keep display controls in Advanced.
@@ -111,7 +271,7 @@ This fork extends the upstream CodexBar with enhanced Linux support and addition
 
 ## 0.12.0 — 2025-12-23
 - Widgets: add WidgetKit extension backed by a shared app‑group usage snapshot.
-- New local cost usage tracking (Codex + Claude) via a lightweight scanner inspired by ccusage (MIT) — computes cost from local JSONL logs without Node CLIs. Thanks @ryoppippi!
+- New local cost usage tracking (Codex + Claude) via a lightweight scanner — inspired by ccusage (MIT). Computes cost from local JSONL logs without Node CLIs. Thanks @ryoppippi!
 - Cost summary now includes last‑30‑days tokens; weekly pace indicators (with runout copy) hide when usage is fully depleted. Thanks @Remedy92!
 - Claude: PTY probes now stop after idle, auto‑clean on restart, and run under a watchdog to avoid runaway CLI processes.
 - Menu polish: group history under card sections, simplify history labels, and refresh menus live while open.

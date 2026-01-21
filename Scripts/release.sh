@@ -23,6 +23,7 @@ swiftformat Sources Tests >/dev/null
 swiftlint --strict
 swift test
 
+# Note: run this script in the foreground; do not background it so it waits to completion.
 "$ROOT/Scripts/sign-and-notarize.sh"
 
 KEY_FILE=$(clean_key "$SPARKLE_PRIVATE_KEY_FILE")

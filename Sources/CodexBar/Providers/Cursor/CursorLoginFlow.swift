@@ -3,7 +3,7 @@ import CodexBarCore
 @MainActor
 extension StatusItemController {
     func runCursorLoginFlow() async {
-        let cursorRunner = CursorLoginRunner()
+        let cursorRunner = CursorLoginRunner(browserDetection: self.store.browserDetection)
         let phaseHandler: @Sendable (CursorLoginRunner.Phase) -> Void = { [weak self] phase in
             Task { @MainActor in
                 switch phase {
@@ -20,7 +20,6 @@ extension StatusItemController {
         self.presentCursorLoginResult(result)
         let outcome = self.describe(result.outcome)
         self.loginLogger.info("Cursor login", metadata: ["outcome": outcome])
-        print("[CodexBar] Cursor login outcome=\(outcome)")
         if case .success = result.outcome {
             self.postLoginNotification(for: .cursor)
         }

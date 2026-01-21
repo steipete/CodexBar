@@ -17,4 +17,8 @@ extension UsageStore {
     func statusIndicator(for provider: UsageProvider) -> ProviderStatusIndicator {
         self.status(for: provider)?.indicator ?? .none
     }
+
+    func accountInfo() -> AccountInfo {
+        self.codexFetcher.loadAccountInfo()
+    }
 }

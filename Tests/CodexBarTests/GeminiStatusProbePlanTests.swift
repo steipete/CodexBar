@@ -28,6 +28,12 @@ struct GeminiStatusProbePlanTests {
                 ])
                 return GeminiAPITestHelpers.response(url: url.absoluteString, status: 200, body: json)
             case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistFreeTierResponse())
+                }
                 if url.path != "/v1internal:retrieveUserQuota" {
                     return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
                 }
@@ -39,11 +45,6 @@ struct GeminiStatusProbePlanTests {
                     url: url.absoluteString,
                     status: 200,
                     body: GeminiAPITestHelpers.sampleFlashQuotaResponse())
-            case "www.googleapis.com":
-                if url.path != "/drive/v3/about" {
-                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
-                }
-                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 500, body: Data())
             default:
                 return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
             }
@@ -55,7 +56,7 @@ struct GeminiStatusProbePlanTests {
     }
 
     @Test
-    func detectsAIUltraFromDriveQuota() async throws {
+    func prefersLoadCodeAssistProjectForQuotaRequests() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -64,30 +65,40 @@ struct GeminiStatusProbePlanTests {
             expiry: Date().addingTimeInterval(3600),
             idToken: nil)
 
+        let loadCodeAssistProject = "cloudaicompanion-123"
+        let fallbackProject = "gen-lang-client-should-not-use"
         let dataLoader = GeminiAPITestHelpers.dataLoader { request in
             guard let url = request.url, let host = url.host else {
                 throw URLError(.badURL)
             }
             switch host {
             case "cloudresourcemanager.googleapis.com":
-                return GeminiAPITestHelpers.response(
-                    url: url.absoluteString,
-                    status: 200,
-                    body: GeminiAPITestHelpers.jsonData(["projects": []]))
-            case "cloudcode-pa.googleapis.com":
-                if url.path != "/v1internal:retrieveUserQuota" {
-                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
-                }
-                return GeminiAPITestHelpers.response(
-                    url: url.absoluteString,
-                    status: 200,
-                    body: GeminiAPITestHelpers.sampleQuotaResponse())
-            case "www.googleapis.com":
-                if url.path != "/drive/v3/about" {
-                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
-                }
-                let json = GeminiAPITestHelpers.jsonData(["storageQuota": ["limit": "32985348833280"]])
+                let json = GeminiAPITestHelpers.jsonData([
+                    "projects": [
+                        ["projectId": fallbackProject],
+                    ],
+                ])
                 return GeminiAPITestHelpers.response(url: url.absoluteString, status: 200, body: json)
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistResponse(
+                            tierId: "free-tier",
+                            projectId: loadCodeAssistProject))
+                }
+                if url.path != "/v1internal:retrieveUserQuota" {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+                }
+                let bodyText = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                if !bodyText.contains(loadCodeAssistProject) {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 400, body: Data())
+                }
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.sampleFlashQuotaResponse())
             default:
                 return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
             }
@@ -95,11 +106,11 @@ struct GeminiStatusProbePlanTests {
 
         let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
         let snapshot = try await probe.fetch()
-        #expect(snapshot.accountPlan == "AI Ultra")
+        #expect(snapshot.modelQuotas.contains { $0.percentLeft == 40 })
     }
 
     @Test
-    func usesModelFallbackWhenDriveQuotaUnavailable() async throws {
+    func detectsPaidFromStandardTier() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -119,6 +130,12 @@ struct GeminiStatusProbePlanTests {
                     status: 200,
                     body: GeminiAPITestHelpers.jsonData(["projects": []]))
             case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistStandardTierResponse())
+                }
                 if url.path != "/v1internal:retrieveUserQuota" {
                     return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
                 }
@@ -126,11 +143,6 @@ struct GeminiStatusProbePlanTests {
                     url: url.absoluteString,
                     status: 200,
                     body: GeminiAPITestHelpers.sampleQuotaResponse())
-            case "www.googleapis.com":
-                if url.path != "/drive/v3/about" {
-                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
-                }
-                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 500, body: Data())
             default:
                 return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
             }
@@ -138,18 +150,19 @@ struct GeminiStatusProbePlanTests {
 
         let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
         let snapshot = try await probe.fetch()
-        #expect(snapshot.accountPlan == "AI Pro")
+        #expect(snapshot.accountPlan == "Paid")
     }
 
     @Test
-    func returnsNilPlanWhenNoProModels() async throws {
+    func detectsWorkspaceFromFreeTierWithHostedDomain() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
+        let idToken = GeminiAPITestHelpers.makeIDToken(email: "user@company.com", hostedDomain: "company.com")
         try env.writeCredentials(
             accessToken: "token",
             refreshToken: nil,
             expiry: Date().addingTimeInterval(3600),
-            idToken: nil)
+            idToken: idToken)
 
         let dataLoader = GeminiAPITestHelpers.dataLoader { request in
             guard let url = request.url, let host = url.host else {
@@ -162,6 +175,57 @@ struct GeminiStatusProbePlanTests {
                     status: 200,
                     body: GeminiAPITestHelpers.jsonData(["projects": []]))
             case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistFreeTierResponse())
+                }
+                if url.path != "/v1internal:retrieveUserQuota" {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+                }
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.sampleQuotaResponse())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        #expect(snapshot.accountPlan == "Workspace")
+    }
+
+    @Test
+    func detectsFreeFromFreeTierWithoutHostedDomain() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let idToken = GeminiAPITestHelpers.makeIDToken(email: "user@gmail.com")
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: idToken)
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+            switch host {
+            case "cloudresourcemanager.googleapis.com":
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.jsonData(["projects": []]))
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistFreeTierResponse())
+                }
                 if url.path != "/v1internal:retrieveUserQuota" {
                     return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
                 }
@@ -169,11 +233,94 @@ struct GeminiStatusProbePlanTests {
                     url: url.absoluteString,
                     status: 200,
                     body: GeminiAPITestHelpers.sampleFlashQuotaResponse())
-            case "www.googleapis.com":
-                if url.path != "/drive/v3/about" {
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        #expect(snapshot.accountPlan == "Free")
+    }
+
+    @Test
+    func detectsLegacyFromLegacyTier() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: nil)
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+            switch host {
+            case "cloudresourcemanager.googleapis.com":
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.jsonData(["projects": []]))
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistLegacyTierResponse())
+                }
+                if url.path != "/v1internal:retrieveUserQuota" {
                     return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
                 }
-                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 500, body: Data())
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.sampleQuotaResponse())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        #expect(snapshot.accountPlan == "Legacy")
+    }
+
+    @Test
+    func leavesBlankWhenLoadCodeAssistFails() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: nil)
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+            switch host {
+            case "cloudresourcemanager.googleapis.com":
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.jsonData(["projects": []]))
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 500,
+                        body: Data())
+                }
+                if url.path != "/v1internal:retrieveUserQuota" {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+                }
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.sampleQuotaResponse())
             default:
                 return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
             }

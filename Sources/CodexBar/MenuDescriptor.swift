@@ -18,6 +18,8 @@ struct MenuDescriptor {
         case dashboard = "chart.bar"
         case statusPage = "waveform.path.ecg"
         case switchAccount = "key"
+        case openTerminal = "terminal"
+        case loginToProvider = "arrow.right.square"
         case settings = "gearshape"
         case about = "info.circle"
         case quit = "xmark.rectangle"
@@ -33,9 +35,12 @@ struct MenuDescriptor {
     enum MenuAction {
         case installUpdate
         case refresh
+        case refreshAugmentSession
         case dashboard
         case statusPage
         case switchAccount(UsageProvider)
+        case openTerminal(command: String)
+        case loginToProvider(url: String)
         case settings
         case about
         case quit
@@ -53,64 +58,39 @@ struct MenuDescriptor {
     {
         var sections: [Section] = []
 
-        switch provider {
-        case .codex?:
-            sections.append(Self.usageSection(for: .codex, store: store, settings: settings))
-            sections.append(Self.accountSection(
-                claude: nil,
-                codex: store.snapshot(for: .codex),
-                account: account,
-                preferClaude: false))
-        case .claude?:
-            sections.append(Self.usageSection(for: .claude, store: store, settings: settings))
-            sections.append(Self.accountSection(
-                claude: store.snapshot(for: .claude),
-                codex: store.snapshot(for: .codex),
-                account: account,
-                preferClaude: true))
-        case .zai?:
-            sections.append(Self.usageSection(for: .zai, store: store, settings: settings))
-            sections.append(Self.accountSectionForSnapshot(store.snapshot(for: .zai)))
-        case .gemini?:
-            sections.append(Self.usageSection(for: .gemini, store: store, settings: settings))
-            sections.append(Self.accountSection(
-                claude: nil,
-                codex: nil,
-                account: account,
-                preferClaude: false))
-        case .antigravity?:
-            sections.append(Self.usageSection(for: .antigravity, store: store, settings: settings))
-            sections.append(Self.accountSectionForSnapshot(store.snapshot(for: .antigravity)))
-        case .cursor?:
-            sections.append(Self.usageSection(for: .cursor, store: store, settings: settings))
-            sections.append(Self.accountSectionForSnapshot(store.snapshot(for: .cursor)))
-        case .factory?:
-            sections.append(Self.usageSection(for: .factory, store: store, settings: settings))
-            sections.append(Self.accountSectionForSnapshot(store.snapshot(for: .factory)))
-        case .windsurf?:
-            sections.append(Self.usageSection(for: .windsurf, store: store, settings: settings))
-            sections.append(Self.accountSectionForSnapshot(store.snapshot(for: .windsurf)))
-        case .copilot?:
-            sections.append(Self.usageSection(for: .copilot, store: store, settings: settings))
-            sections.append(Self.accountSectionForSnapshot(store.snapshot(for: .copilot)))
-        case nil:
+        if let provider {
+            sections.append(Self.usageSection(for: provider, store: store, settings: settings))
+            if let accountSection = Self.accountSection(
+                for: provider,
+                store: store,
+                settings: settings,
+                account: account)
+            {
+                sections.append(accountSection)
+            }
+        } else {
             var addedUsage = false
+
             for enabledProvider in store.enabledProviders() {
                 sections.append(Self.usageSection(for: enabledProvider, store: store, settings: settings))
                 addedUsage = true
             }
             if addedUsage {
-                sections.append(Self.accountSection(
-                    claude: store.snapshot(for: .claude),
-                    codex: store.snapshot(for: .codex),
-                    account: account,
-                    preferClaude: store.isEnabled(.claude)))
+                if let accountProvider = Self.accountProviderForCombined(store: store),
+                   let accountSection = Self.accountSection(
+                       for: accountProvider,
+                       store: store,
+                       settings: settings,
+                       account: account)
+                {
+                    sections.append(accountSection)
+                }
             } else {
                 sections.append(Section(entries: [.text("No usage configured.", .secondary)]))
             }
         }
 
-        let actions = Self.actionsSection(for: provider, store: store)
+        let actions = Self.actionsSection(for: provider, store: store, account: account)
         if !actions.entries.isEmpty {
             sections.append(actions)
         }
@@ -133,132 +113,167 @@ struct MenuDescriptor {
         entries.append(.text(headlineText, .headline))
 
         if let snap = store.snapshot(for: provider) {
-            Self.appendRateWindow(entries: &entries, title: meta.sessionLabel, window: snap.primary)
+            let resetStyle = settings.resetTimeDisplayStyle
+            if let primary = snap.primary {
+                Self.appendRateWindow(
+                    entries: &entries,
+                    title: meta.sessionLabel,
+                    window: primary,
+                    resetStyle: resetStyle,
+                    showUsed: settings.usageBarsShowUsed)
+            }
             if let weekly = snap.secondary {
-                Self.appendRateWindow(entries: &entries, title: meta.weeklyLabel, window: weekly)
-                if let paceText = UsagePaceText.weekly(provider: provider, window: weekly) {
-                    entries.append(.text(paceText, .secondary))
+                Self.appendRateWindow(
+                    entries: &entries,
+                    title: meta.weeklyLabel,
+                    window: weekly,
+                    resetStyle: resetStyle,
+                    showUsed: settings.usageBarsShowUsed)
+                if let paceSummary = UsagePaceText.weeklySummary(provider: provider, window: weekly) {
+                    entries.append(.text(paceSummary, .secondary))
                 }
-            } else if provider == .claude {
-                entries.append(.text("Weekly usage unavailable for this account.", .secondary))
             }
             if meta.supportsOpus, let opus = snap.tertiary {
-                Self.appendRateWindow(entries: &entries, title: meta.opusLabel ?? "Sonnet", window: opus)
+                Self.appendRateWindow(
+                    entries: &entries,
+                    title: meta.opusLabel ?? "Sonnet",
+                    window: opus,
+                    resetStyle: resetStyle,
+                    showUsed: settings.usageBarsShowUsed)
             }
 
-            if settings.showOptionalCreditsAndExtraUsage,
-               provider == .claude,
-               let cost = snap.providerCost
-            {
-                let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-                let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-                entries.append(.text("Extra usage: \(used) / \(limit)", .primary))
-            }
-
-            if provider == .cursor, let cost = snap.providerCost {
-                let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-                if cost.limit > 0 {
-                    let limitStr = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-                    entries.append(.text("On-Demand: \(used) / \(limitStr)", .primary))
-                } else {
-                    entries.append(.text("On-Demand: \(used)", .primary))
+            if let cost = snap.providerCost {
+                if cost.currencyCode == "Quota" {
+                    let used = String(format: "%.0f", cost.used)
+                    let limit = String(format: "%.0f", cost.limit)
+                    entries.append(.text("Quota: \(used) / \(limit)", .primary))
                 }
             }
         } else {
             entries.append(.text("No usage yet", .secondary))
-            if let err = store.error(for: provider), !err.isEmpty {
-                let title = UsageFormatter.truncatedSingleLine(err, max: 80)
-                entries.append(.action(title, .copyError(err)))
-            }
         }
 
-        if settings.showOptionalCreditsAndExtraUsage,
-           meta.supportsCredits,
-           provider == .codex
-        {
-            if let credits = store.credits {
-                entries.append(.text("Credits: \(UsageFormatter.creditsString(from: credits.remaining))", .primary))
-                if let latest = credits.events.first {
-                    entries.append(.text("Last spend: \(UsageFormatter.creditEventSummary(latest))", .secondary))
-                }
-            } else {
-                let hint = store.lastCreditsError ?? meta.creditsHint
-                entries.append(.text(hint, .secondary))
-            }
-        }
+        let usageContext = ProviderMenuUsageContext(
+            provider: provider,
+            store: store,
+            settings: settings,
+            metadata: meta,
+            snapshot: store.snapshot(for: provider))
+        ProviderCatalog.implementation(for: provider)?
+            .appendUsageMenuEntries(context: usageContext, entries: &entries)
 
         return Section(entries: entries)
     }
 
-    private static func accountSectionForSnapshot(_ snapshot: UsageSnapshot?) -> Section {
-        var entries: [Entry] = []
-        let emailText = snapshot?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-        entries.append(.text("Account: \(emailText?.isEmpty == false ? emailText! : "Unknown")", .secondary))
-
-        if let plan = snapshot?.loginMethod, !plan.isEmpty {
-            entries.append(.text("Plan: \(AccountFormatter.plan(plan))", .secondary))
-        }
-        return Section(entries: entries)
-    }
-
-    /// Builds the account section.
-    /// - Claude snapshot is preferred when `preferClaude` is true.
-    /// - Otherwise Codex snapshot wins; falls back to stored auth info.
     private static func accountSection(
-        claude: UsageSnapshot?,
-        codex: UsageSnapshot?,
-        account: AccountInfo,
-        preferClaude: Bool) -> Section
+        for provider: UsageProvider,
+        store: UsageStore,
+        settings: SettingsStore,
+        account: AccountInfo) -> Section?
+    {
+        let snapshot = store.snapshot(for: provider)
+        let metadata = store.metadata(for: provider)
+        let entries = Self.accountEntries(
+            provider: provider,
+            snapshot: snapshot,
+            metadata: metadata,
+            fallback: account,
+            hidePersonalInfo: settings.hidePersonalInfo)
+        guard !entries.isEmpty else { return nil }
+        return Section(entries: entries)
+    }
+
+    private static func accountEntries(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        metadata: ProviderMetadata,
+        fallback: AccountInfo,
+        hidePersonalInfo: Bool) -> [Entry]
     {
         var entries: [Entry] = []
-        let emailFromClaude = claude?.accountEmail
-        let emailFromCodex = codex?.accountEmail
-        let planFromClaude = claude?.loginMethod
-        let planFromCodex = codex?.loginMethod
+        let emailText = snapshot?.accountEmail(for: provider)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let planText = snapshot?.loginMethod(for: provider)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let redactedEmail = PersonalInfoRedactor.redactEmail(emailText, isEnabled: hidePersonalInfo)
 
-        // Email: Claude wins when requested; otherwise Codex snapshot then auth.json fallback.
-        let emailText: String = {
-            if preferClaude, let e = emailFromClaude, !e.isEmpty { return e }
-            if let e = emailFromCodex, !e.isEmpty { return e }
-            if let codexEmail = account.email, !codexEmail.isEmpty { return codexEmail }
-            if let e = emailFromClaude, !e.isEmpty { return e }
-            return "Unknown"
-        }()
-        entries.append(.text("Account: \(emailText)", .secondary))
-
-        // Plan: show only Claude plan when in Claude mode; otherwise Codex plan.
-        if preferClaude {
-            if let plan = planFromClaude, !plan.isEmpty {
-                entries.append(.text("Plan: \(AccountFormatter.plan(plan))", .secondary))
-            }
-        } else if let plan = planFromCodex, !plan.isEmpty {
-            entries.append(.text("Plan: \(AccountFormatter.plan(plan))", .secondary))
-        } else if let plan = account.plan, !plan.isEmpty {
-            entries.append(.text("Plan: \(AccountFormatter.plan(plan))", .secondary))
+        if let emailText, !emailText.isEmpty {
+            entries.append(.text("Account: \(redactedEmail)", .secondary))
+        }
+        if let planText, !planText.isEmpty {
+            entries.append(.text("Plan: \(AccountFormatter.plan(planText))", .secondary))
         }
 
-        return Section(entries: entries)
+        if metadata.usesAccountFallback {
+            if emailText?.isEmpty ?? true, let fallbackEmail = fallback.email, !fallbackEmail.isEmpty {
+                let redacted = PersonalInfoRedactor.redactEmail(fallbackEmail, isEnabled: hidePersonalInfo)
+                entries.append(.text("Account: \(redacted)", .secondary))
+            }
+            if planText?.isEmpty ?? true, let fallbackPlan = fallback.plan, !fallbackPlan.isEmpty {
+                entries.append(.text("Plan: \(AccountFormatter.plan(fallbackPlan))", .secondary))
+            }
+        }
+
+        return entries
     }
 
-    private static func actionsSection(for provider: UsageProvider?, store: UsageStore) -> Section {
+    private static func accountProviderForCombined(store: UsageStore) -> UsageProvider? {
+        for provider in store.enabledProviders() {
+            let metadata = store.metadata(for: provider)
+            if store.snapshot(for: provider)?.identity(for: provider) != nil {
+                return provider
+            }
+            if metadata.usesAccountFallback {
+                return provider
+            }
+        }
+        return nil
+    }
+
+    private static func actionsSection(
+        for provider: UsageProvider?,
+        store: UsageStore,
+        account: AccountInfo) -> Section
+    {
         var entries: [Entry] = []
         let targetProvider = provider ?? store.enabledProviders().first
         let metadata = targetProvider.map { store.metadata(for: $0) }
-
-        // Show "Add Account" if no account, "Switch Account" if logged in
-        if (provider ?? store.enabledProviders().first) != .antigravity,
-           (provider ?? store.enabledProviders().first) != .zai
-        {
-            let loginAction = self.switchAccountTarget(for: provider, store: store)
-            let hasAccount = self.hasAccount(for: provider, store: store)
-            let accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
-            entries.append(.action(accountLabel, loginAction))
+        let loginContext = targetProvider.map {
+            ProviderMenuLoginContext(
+                provider: $0,
+                store: store,
+                settings: store.settings,
+                account: account)
         }
 
-        if let dashboardTarget = targetProvider,
-           dashboardTarget == .codex || dashboardTarget == .claude || dashboardTarget == .cursor ||
-           dashboardTarget == .factory || dashboardTarget == .windsurf || dashboardTarget == .copilot
+        // Show "Add Account" if no account, "Switch Account" if logged in
+        if let targetProvider,
+           let implementation = ProviderCatalog.implementation(for: targetProvider),
+           implementation.supportsLoginFlow
         {
+            if let loginContext,
+               let override = implementation.loginMenuAction(context: loginContext)
+            {
+                entries.append(.action(override.label, override.action))
+            } else {
+                let loginAction = self.switchAccountTarget(for: provider, store: store)
+                let hasAccount = self.hasAccount(for: provider, store: store, account: account)
+                let accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
+                entries.append(.action(accountLabel, loginAction))
+            }
+        }
+
+        if let targetProvider {
+            let actionContext = ProviderMenuActionContext(
+                provider: targetProvider,
+                store: store,
+                settings: store.settings,
+                account: account)
+            ProviderCatalog.implementation(for: targetProvider)?
+                .appendActionMenuEntries(context: actionContext, entries: &entries)
+        }
+
+        if metadata?.dashboardURL != nil {
             entries.append(.action("Usage Dashboard", .dashboard))
         }
         if metadata?.statusPageURL != nil || metadata?.statusLinkURL != nil {
@@ -306,27 +321,36 @@ struct MenuDescriptor {
         return .switchAccount(.codex)
     }
 
-    private static func hasAccount(for provider: UsageProvider?, store: UsageStore) -> Bool {
+    private static func hasAccount(for provider: UsageProvider?, store: UsageStore, account: AccountInfo) -> Bool {
         let target = provider ?? store.enabledProviders().first ?? .codex
-        return store.snapshot(for: target)?.accountEmail != nil
-    }
-
-    private static func appendRateWindow(entries: inout [Entry], title: String, window: RateWindow) {
-        let line = UsageFormatter
-            .usageLine(remaining: window.remainingPercent, used: window.usedPercent)
-        entries.append(.text("\(title): \(line)", .primary))
-        if let date = window.resetsAt {
-            let countdown = UsageFormatter.resetCountdownDescription(from: date)
-            entries.append(.text("Resets \(countdown)", .secondary))
-        } else if let reset = window.resetDescription {
-            entries.append(.text(Self.resetLine(reset), .secondary))
+        if let email = store.snapshot(for: target)?.accountEmail(for: target),
+           !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            return true
         }
+        let metadata = store.metadata(for: target)
+        if metadata.usesAccountFallback,
+           let fallback = account.email?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !fallback.isEmpty
+        {
+            return true
+        }
+        return false
     }
 
-    private static func resetLine(_ reset: String) -> String {
-        let trimmed = reset.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.lowercased().hasPrefix("resets") { return trimmed }
-        return "Resets \(trimmed)"
+    private static func appendRateWindow(
+        entries: inout [Entry],
+        title: String,
+        window: RateWindow,
+        resetStyle: ResetTimeDisplayStyle,
+        showUsed: Bool)
+    {
+        let line = UsageFormatter
+            .usageLine(remaining: window.remainingPercent, used: window.usedPercent, showUsed: showUsed)
+        entries.append(.text("\(title): \(line)", .primary))
+        if let reset = UsageFormatter.resetLine(for: window, style: resetStyle) {
+            entries.append(.text(reset, .secondary))
+        }
     }
 
     private static func versionNumber(for provider: UsageProvider, store: UsageStore) -> String? {
@@ -355,9 +379,12 @@ extension MenuDescriptor.MenuAction {
         case .installUpdate, .settings, .about, .quit:
             nil
         case .refresh: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
+        case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
+        case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
+        case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue
         }
     }

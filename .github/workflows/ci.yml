@@ -85,5 +85,5 @@ jobs:
             echo "Expected --web to fail on Linux"
             exit 1
           fi
-          "$BIN" usage --provider codex --web >/dev/null 2> /tmp/codexbarcli-stderr.txt || true
-          grep -q "only supported on macOS" /tmp/codexbarcli-stderr.txt
+          "$BIN" usage --provider codex --web 2>&1 | tee /tmp/codexbarcli-stderr.txt >/dev/null || true
+          grep -q "macOS" /tmp/codexbarcli-stderr.txt

@@ -31,24 +31,14 @@ enum SessionQuotaNotificationLogic {
 
 @MainActor
 final class SessionQuotaNotifier {
-    private let logger = CodexBarLog.logger("sessionQuotaNotifications")
+    private let logger = CodexBarLog.logger(LogCategories.sessionQuotaNotifications)
 
     init() {}
 
     func post(transition: SessionQuotaTransition, provider: UsageProvider, badge: NSNumber? = nil) {
         guard transition != .none else { return }
 
-        let providerName = switch provider {
-        case .codex: "Codex"
-        case .claude: "Claude"
-        case .zai: "z.ai"
-        case .gemini: "Gemini"
-        case .antigravity: "Antigravity"
-        case .cursor: "Cursor"
-        case .factory: "Droid"
-        case .windsurf: "Windsurf"
-        case .copilot: "GitHub Copilot"
-        }
+        let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
 
         let (title, body) = switch transition {
         case .none:

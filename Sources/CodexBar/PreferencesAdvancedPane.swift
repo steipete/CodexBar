@@ -1,5 +1,4 @@
-import AppKit
-import CodexBarCore
+import KeyboardShortcuts
 import SwiftUI
 
 @MainActor
@@ -11,53 +10,20 @@ struct AdvancedPane: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
-                SettingsSection(contentSpacing: 6) {
-                    Text("Refresh cadence")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                    Picker("", selection: self.$settings.refreshFrequency) {
-                        ForEach(RefreshFrequency.allCases) { option in
-                            Text(option.label).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    if self.settings.refreshFrequency == .manual {
-                        Text("Auto-refresh is off; use the menu's Refresh command.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Divider()
-
-                SettingsSection(contentSpacing: 12) {
-                    Text("Display")
+                SettingsSection(contentSpacing: 8) {
+                    Text("Keyboard shortcut")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
-                    PreferenceToggleRow(
-                        title: "Show usage as used",
-                        subtitle: "Progress bars fill as you consume quota (instead of showing remaining).",
-                        binding: self.$settings.usageBarsShowUsed)
-                    PreferenceToggleRow(
-                        title: "Show credits + extra usage",
-                        subtitle: "Show Codex Credits and Claude Extra usage sections in the menu.",
-                        binding: self.$settings.showOptionalCreditsAndExtraUsage)
-                    PreferenceToggleRow(
-                        title: "Merge Icons",
-                        subtitle: "Use a single menu bar icon with a provider switcher.",
-                        binding: self.$settings.mergeIcons)
-                    PreferenceToggleRow(
-                        title: "Switcher shows icons",
-                        subtitle: "Show provider icons in the switcher (otherwise show a weekly progress line).",
-                        binding: self.$settings.switcherShowsIcons)
-                        .disabled(!self.settings.mergeIcons)
-                        .opacity(self.settings.mergeIcons ? 1 : 0.5)
-                    PreferenceToggleRow(
-                        title: "Surprise me",
-                        subtitle: "Check if you like your agents having some fun up there.",
-                        binding: self.$settings.randomBlinkEnabled)
+                    HStack(alignment: .center, spacing: 12) {
+                        Text("Open menu")
+                            .font(.body)
+                        Spacer()
+                        KeyboardShortcuts.Recorder(for: .openMenu)
+                    }
+                    Text("Trigger the menu bar menu from anywhere.")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
                 }
 
                 Divider()
@@ -94,7 +60,34 @@ struct AdvancedPane: View {
                         title: "Show Debug Settings",
                         subtitle: "Expose troubleshooting tools in the Debug tab.",
                         binding: self.$settings.debugMenuEnabled)
+                    PreferenceToggleRow(
+                        title: "Surprise me",
+                        subtitle: "Check if you like your agents having some fun up there.",
+                        binding: self.$settings.randomBlinkEnabled)
                 }
+
+                Divider()
+
+                SettingsSection(contentSpacing: 10) {
+                    PreferenceToggleRow(
+                        title: "Hide personal information",
+                        subtitle: "Obscure email addresses in the menu bar and menu UI.",
+                        binding: self.$settings.hidePersonalInfo)
+                }
+
+                Divider()
+
+                SettingsSection(
+                    title: "Keychain access",
+                    caption: """
+                    Disable all Keychain reads and writes. Browser cookie import is unavailable; paste Cookie \
+                    headers manually in Providers.
+                    """) {
+                        PreferenceToggleRow(
+                            title: "Disable Keychain access",
+                            subtitle: "Prevents any Keychain access while enabled.",
+                            binding: self.$settings.debugDisableKeychainAccess)
+                    }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)

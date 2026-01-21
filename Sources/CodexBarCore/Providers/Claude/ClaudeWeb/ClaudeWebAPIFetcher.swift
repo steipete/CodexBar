@@ -1,4 +1,5 @@
 import Foundation
+import SweetCookieKit
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -14,8 +15,13 @@ import FoundationNetworking
 public enum ClaudeWebAPIFetcher {
     private static let baseURL = "https://claude.ai/api"
     private static let maxProbeBytes = 200_000
+    #if os(macOS)
+    private static let cookieClient = BrowserCookieClient()
     private static let cookieImportOrder: BrowserCookieImportOrder =
-        ProviderDefaults.metadata[.claude]?.browserCookieOrder ?? .safariChromeFirefox
+        ProviderDefaults.metadata[.claude]?.browserCookieOrder ?? Browser.defaultImportOrder
+    #else
+    private static let cookieImportOrder: BrowserCookieImportOrder = []
+    #endif
 
     public struct OrganizationInfo: Sendable {
         public let id: String
@@ -161,12 +167,48 @@ public enum ClaudeWebAPIFetcher {
 
     /// Attempts to fetch Claude usage data using cookies extracted from browsers.
     /// Tries browser cookies using the standard import order.
-    public static func fetchUsage(logger: ((String) -> Void)? = nil) async throws -> WebUsageData {
+    public static func fetchUsage(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) async throws -> WebUsageData
+    {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
 
-        let sessionInfo = try extractSessionKeyInfo(logger: log)
-        log("Found session key: \(sessionInfo.key.prefix(20))...")
+        if let cached = CookieHeaderCache.load(provider: .claude),
+           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            log("Using cached cookie header from \(cached.sourceLabel)")
+            do {
+                return try await self.fetchUsage(cookieHeader: cached.cookieHeader, logger: log)
+            } catch let error as FetchError {
+                switch error {
+                case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
+                    CookieHeaderCache.clear(provider: .claude)
+                default:
+                    throw error
+                }
+            } catch {
+                throw error
+            }
+        }
 
+        let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
+        log("Found session key (\(sessionInfo.cookieCount) cookies)")
+
+        let usage = try await self.fetchUsage(using: sessionInfo, logger: log)
+        CookieHeaderCache.store(
+            provider: .claude,
+            cookieHeader: "sessionKey=\(sessionInfo.key)",
+            sourceLabel: sessionInfo.sourceLabel)
+        return usage
+    }
+
+    public static func fetchUsage(
+        cookieHeader: String,
+        logger: ((String) -> Void)? = nil) async throws -> WebUsageData
+    {
+        let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
+        let sessionInfo = try self.sessionKeyInfo(cookieHeader: cookieHeader)
+        log("Using manual session key (\(sessionInfo.cookieCount) cookies)")
         return try await self.fetchUsage(using: sessionInfo, logger: log)
     }
 
@@ -179,8 +221,7 @@ public enum ClaudeWebAPIFetcher {
 
         // Fetch organization info
         let organization = try await fetchOrganizationInfo(sessionKey: sessionKey, logger: log)
-        log("Organization ID: \(organization.id)")
-        if let name = organization.name { log("Organization name: \(name)") }
+        log("Organization resolved")
 
         var usage = try await fetchUsageData(orgId: organization.id, sessionKey: sessionKey, logger: log)
         if usage.extraUsageCost == nil,
@@ -230,11 +271,12 @@ public enum ClaudeWebAPIFetcher {
     ///   - includePreview: When true, includes a truncated response preview in results.
     public static func probeEndpoints(
         _ endpoints: [String],
+        browserDetection: BrowserDetection,
         includePreview: Bool = false,
         logger: ((String) -> Void)? = nil) async throws -> [ProbeResult]
     {
         let log: (String) -> Void = { msg in logger?("[claude-probe] \(msg)") }
-        let sessionInfo = try extractSessionKeyInfo(logger: log)
+        let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
         let sessionKey = sessionInfo.key
         let organization = try? await fetchOrganizationInfo(sessionKey: sessionKey, logger: log)
         let expanded = endpoints.map { endpoint -> String in
@@ -295,31 +337,61 @@ public enum ClaudeWebAPIFetcher {
     }
 
     /// Checks if we can find a Claude session key in browser cookies without making API calls.
-    public static func hasSessionKey(logger: ((String) -> Void)? = nil) -> Bool {
+    public static func hasSessionKey(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
+        if let cached = CookieHeaderCache.load(provider: .claude),
+           self.hasSessionKey(cookieHeader: cached.cookieHeader)
+        {
+            return true
+        }
         do {
-            _ = try self.sessionKeyInfo(logger: logger)
+            _ = try self.sessionKeyInfo(browserDetection: browserDetection, logger: logger)
             return true
         } catch {
             return false
         }
     }
 
-    public static func sessionKeyInfo(logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo {
-        try self.extractSessionKeyInfo(logger: logger)
+    public static func hasSessionKey(cookieHeader: String?) -> Bool {
+        guard let cookieHeader else { return false }
+        return (try? self.sessionKeyInfo(cookieHeader: cookieHeader)) != nil
+    }
+
+    public static func sessionKeyInfo(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
+    {
+        try self.extractSessionKeyInfo(browserDetection: browserDetection, logger: logger)
+    }
+
+    public static func sessionKeyInfo(cookieHeader: String) throws -> SessionKeyInfo {
+        let pairs = CookieHeaderNormalizer.pairs(from: cookieHeader)
+        if let sessionKey = self.findSessionKey(in: pairs) {
+            return SessionKeyInfo(
+                key: sessionKey,
+                sourceLabel: "Manual",
+                cookieCount: pairs.count)
+        }
+        throw FetchError.noSessionKeyFound
     }
 
     // MARK: - Session Key Extraction
 
-    private static func extractSessionKeyInfo(logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo {
+    private static func extractSessionKeyInfo(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
+    {
         let log: (String) -> Void = { msg in logger?(msg) }
 
         let cookieDomains = ["claude.ai"]
 
-        for browserSource in Self.cookieImportOrder.sources {
+        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
+        let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
+        for browserSource in installedBrowsers {
             do {
-                let sources = try BrowserCookieImporter.loadCookieSources(
-                    from: browserSource,
-                    matchingDomains: cookieDomains,
+                let query = BrowserCookieQuery(domains: cookieDomains)
+                let sources = try Self.cookieClient.records(
+                    matching: query,
+                    in: browserSource,
                     logger: log)
                 for source in sources {
                     if let sessionKey = findSessionKey(in: source.records.map { record in
@@ -333,6 +405,7 @@ public enum ClaudeWebAPIFetcher {
                     }
                 }
             } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
                 log("\(browserSource.displayName) cookie load failed: \(error.localizedDescription)")
             }
         }
@@ -560,16 +633,35 @@ public enum ClaudeWebAPIFetcher {
     private struct OrganizationResponse: Decodable {
         let uuid: String
         let name: String?
+        let capabilities: [String]?
+
+        var normalizedCapabilities: Set<String> {
+            Set((self.capabilities ?? []).map { $0.lowercased() })
+        }
+
+        var hasChatCapability: Bool {
+            self.normalizedCapabilities.contains("chat")
+        }
+
+        var isApiOnly: Bool {
+            let normalized = self.normalizedCapabilities
+            return !normalized.isEmpty && normalized == ["api"]
+        }
     }
 
     private static func parseOrganizationResponse(_ data: Data) throws -> OrganizationInfo {
         guard let organizations = try? JSONDecoder().decode([OrganizationResponse].self, from: data) else {
             throw FetchError.invalidResponse
         }
-        guard let first = organizations.first else { throw FetchError.noOrganization }
-        let name = first.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let selected = organizations.first(where: { $0.hasChatCapability })
+            ?? organizations.first(where: { !$0.isApiOnly })
+            ?? organizations.first
+        else {
+            throw FetchError.noOrganization
+        }
+        let name = selected.name?.trimmingCharacters(in: .whitespacesAndNewlines)
         let sanitized = (name?.isEmpty ?? true) ? nil : name
-        return OrganizationInfo(id: first.uuid, name: sanitized)
+        return OrganizationInfo(id: selected.uuid, name: sanitized)
     }
 
 
@@ -831,6 +923,45 @@ public enum ClaudeWebAPIFetcher {
 
     public static func sessionKeyInfo(logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo {
         try self.extractSessionKeyInfo(logger: logger)
+    }
+
+    // MARK: - Linux API Compat
+
+    public static func hasSessionKey(cookieHeader: String?) -> Bool {
+        guard let cookieHeader else { return false }
+        return (try? self.sessionKeyInfo(cookieHeader: cookieHeader)) != nil
+    }
+
+    public static func hasSessionKey(browserDetection: BrowserDetection) -> Bool {
+        return (try? self.sessionKeyInfo()) != nil
+    }
+
+    public static func sessionKeyInfo(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
+    {
+        try self.sessionKeyInfo(logger: logger)
+    }
+
+    public static func sessionKeyInfo(cookieHeader: String) throws -> SessionKeyInfo {
+        let pairs = CookieHeaderNormalizer.pairs(from: cookieHeader)
+        if let sessionKey = self.findSessionKey(in: pairs) {
+            return SessionKeyInfo(
+                key: sessionKey,
+                sourceLabel: "Manual",
+                cookieCount: pairs.count)
+        }
+        throw FetchError.noSessionKeyFound
+    }
+
+    private static func findSessionKey(in cookies: [(name: String, value: String)]) -> String? {
+        for cookie in cookies where cookie.name == "sessionKey" {
+            let value = cookie.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if value.hasPrefix("sk-ant-") {
+                return value
+            }
+        }
+        return nil
     }
 
     // MARK: - Linux Session Key Extraction
@@ -1379,6 +1510,24 @@ public enum ClaudeWebAPIFetcher {
     }
 
     public static func fetchUsage(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) async throws -> WebUsageData
+    {
+        _ = browserDetection
+        _ = logger
+        throw FetchError.notSupportedOnThisPlatform
+    }
+
+    public static func fetchUsage(
+        cookieHeader: String,
+        logger: ((String) -> Void)? = nil) async throws -> WebUsageData
+    {
+        _ = cookieHeader
+        _ = logger
+        throw FetchError.notSupportedOnThisPlatform
+    }
+
+    public static func fetchUsage(
         using sessionKeyInfo: SessionKeyInfo,
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
@@ -1393,8 +1542,21 @@ public enum ClaudeWebAPIFetcher {
         throw FetchError.notSupportedOnThisPlatform
     }
 
-    public static func hasSessionKey(logger: ((String) -> Void)? = nil) -> Bool {
-        false
+    public static func hasSessionKey(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
+        _ = browserDetection
+        _ = logger
+        return false
+    }
+
+    public static func hasSessionKey(cookieHeader: String?) -> Bool {
+        guard let cookieHeader else { return false }
+        for pair in CookieHeaderNormalizer.pairs(from: cookieHeader) where pair.name == "sessionKey" {
+            let value = pair.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if value.hasPrefix("sk-ant-") {
+                return true
+            }
+        }
+        return false
     }
 
     public static func sessionKeyInfo(logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo {

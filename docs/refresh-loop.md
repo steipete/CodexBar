@@ -8,7 +8,7 @@ read_when:
 # Refresh loop
 
 ## Cadence
-- `RefreshFrequency`: Manual, 1m, 2m, 5m (default), 15m.
+- `RefreshFrequency`: Manual, 1m, 2m, 5m (default), 15m, 30m.
 - Stored in `UserDefaults` via `SettingsStore`.
 
 ## Behavior

@@ -16,7 +16,7 @@ read_when:
 - `Sources/CodexBarWidget` contains timeline + views.
 - Keep data shape in sync with `WidgetSnapshot` in the main app.
 
-## Visibility troubleshooting (macOS 15+)
+## Visibility troubleshooting (macOS 14+)
 When widgets do not appear in the gallery at all, the issue is almost always
 registration, signing, or daemon caching (not SwiftUI code).
 

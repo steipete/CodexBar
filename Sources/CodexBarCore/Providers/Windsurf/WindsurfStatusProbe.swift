@@ -595,15 +595,19 @@ public struct WindsurfStatusSnapshot: Sendable {
             return "Windsurf \(plan)"
         }()
 
+        let identity = ProviderIdentitySnapshot(
+            providerID: .windsurf,
+            accountEmail: self.accountEmail,
+            accountOrganization: nil,
+            loginMethod: loginMethod)
+
         return UsageSnapshot(
             primary: primary,
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
             updatedAt: Date(),
-            accountEmail: self.accountEmail,
-            accountOrganization: nil,
-            loginMethod: loginMethod)
+            identity: identity)
     }
 
     private static func formatResetDate(_ date: Date) -> String {

@@ -1,137 +1,171 @@
 import CodexBarCore
-import Foundation
+import CodexBarMacroSupport
+import SwiftUI
 
-struct ClaudeUsageStrategy: Equatable, Sendable {
-    let dataSource: ClaudeUsageDataSource
-    let useWebExtras: Bool
-}
-
+@ProviderImplementationRegistration
 struct ClaudeProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .claude
-    let style: IconStyle = .claude
+    let supportsLoginFlow: Bool = true
 
     @MainActor
-    func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
-        let id = "claude.webExtras"
-        let metadata = context.store.metadata(for: .claude)
-        let browserOrder = metadata.browserCookieOrder
-
-        let statusText: () -> String? = { context.statusText(id) }
-
-        var subtitleLines = [
-            "Uses \(browserOrder?.shortLabel ?? "browser") session cookies to add extra dashboard fields " +
-                "on top of OAuth.",
-            "Adds extra usage spend/limit.",
-        ]
-        if let browserOrder {
-            subtitleLines.append("\(browserOrder.displayLabel).")
+    func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
+        ProviderPresentation { context in
+            var versionText = context.store.version(for: context.provider) ?? "not detected"
+            if let parenRange = versionText.range(of: "(") {
+                versionText = versionText[..<parenRange.lowerBound].trimmingCharacters(in: .whitespaces)
+            }
+            return "\(context.metadata.cliName) \(versionText)"
         }
+    }
 
-        let toggle = ProviderSettingsToggleDescriptor(
-            id: id,
-            title: "Augment Claude via web",
-            subtitle: subtitleLines.joined(separator: " "),
-            binding: context.boolBinding(\.claudeWebExtrasEnabled),
-            statusText: statusText,
-            actions: [],
-            isVisible: { context.settings.claudeUsageDataSource == .cli },
-            onChange: { enabled in
-                if !enabled {
-                    context.setStatusText(id, nil)
-                }
-            },
-            onAppDidBecomeActive: nil,
-            onAppearWhenEnabled: {
-                await Self.refreshWebExtrasStatus(context: context, id: id)
+    @MainActor
+    func observeSettings(_ settings: SettingsStore) {
+        _ = settings.claudeUsageDataSource
+        _ = settings.claudeCookieSource
+        _ = settings.claudeCookieHeader
+        _ = settings.claudeWebExtrasEnabled
+    }
+
+    @MainActor
+    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
+        .claude(context.settings.claudeSettingsSnapshot(tokenOverride: context.tokenOverride))
+    }
+
+    @MainActor
+    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
+        guard support.requiresManualCookieSource else { return true }
+        if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
+        return context.settings.claudeCookieSource == .manual
+    }
+
+    @MainActor
+    func applyTokenAccountCookieSource(settings: SettingsStore) {
+        if settings.claudeCookieSource != .manual {
+            settings.claudeCookieSource = .manual
+        }
+    }
+
+    @MainActor
+    func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
+        context.settings.claudeUsageDataSource.rawValue
+    }
+
+    @MainActor
+    func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        switch context.settings.claudeUsageDataSource {
+        case .auto: .auto
+        case .oauth: .oauth
+        case .web: .web
+        case .cli: .cli
+        }
+    }
+
+    @MainActor
+    func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
+        let usageBinding = Binding(
+            get: { context.settings.claudeUsageDataSource.rawValue },
+            set: { raw in
+                context.settings.claudeUsageDataSource = ClaudeUsageDataSource(rawValue: raw) ?? .auto
+            })
+        let cookieBinding = Binding(
+            get: { context.settings.claudeCookieSource.rawValue },
+            set: { raw in
+                context.settings.claudeCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
             })
 
-        return [toggle]
+        let usageOptions = ClaudeUsageDataSource.allCases.map {
+            ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+        }
+        let cookieOptions = ProviderCookieSourceUI.options(
+            allowsOff: false,
+            keychainDisabled: context.settings.debugDisableKeychainAccess)
+
+        let cookieSubtitle: () -> String? = {
+            ProviderCookieSourceUI.subtitle(
+                source: context.settings.claudeCookieSource,
+                keychainDisabled: context.settings.debugDisableKeychainAccess,
+                auto: "Automatic imports browser cookies for the web API.",
+                manual: "Paste a Cookie header from a claude.ai request.",
+                off: "Claude cookies are disabled.")
+        }
+
+        return [
+            ProviderSettingsPickerDescriptor(
+                id: "claude-usage-source",
+                title: "Usage source",
+                subtitle: "Auto falls back to the next source if the preferred one fails.",
+                binding: usageBinding,
+                options: usageOptions,
+                isVisible: nil,
+                onChange: nil,
+                trailingText: {
+                    guard context.settings.claudeUsageDataSource == .auto else { return nil }
+                    let label = context.store.sourceLabel(for: .claude)
+                    return label == "auto" ? nil : label
+                }),
+            ProviderSettingsPickerDescriptor(
+                id: "claude-cookie-source",
+                title: "Claude cookies",
+                subtitle: "Automatic imports browser cookies for the web API.",
+                dynamicSubtitle: cookieSubtitle,
+                binding: cookieBinding,
+                options: cookieOptions,
+                isVisible: nil,
+                onChange: nil,
+                trailingText: {
+                    guard let entry = CookieHeaderCache.load(provider: .claude) else { return nil }
+                    let when = entry.storedAt.relativeDescription()
+                    return "Cached: \(entry.sourceLabel) • \(when)"
+                }),
+        ]
     }
 
     @MainActor
-    static func usageStrategy(
-        settings: SettingsStore,
-        hasWebSession: () -> Bool = { ClaudeWebAPIFetcher.hasSessionKey() }) -> ClaudeUsageStrategy
-    {
-        if settings.debugMenuEnabled {
-            let dataSource = settings.claudeUsageDataSource
-            if dataSource == .oauth {
-                return ClaudeUsageStrategy(dataSource: dataSource, useWebExtras: false)
-            }
-            let hasSession = hasWebSession()
-            if dataSource == .web, !hasSession {
-                return ClaudeUsageStrategy(dataSource: .cli, useWebExtras: false)
-            }
-            let useWebExtras = dataSource == .cli && settings.claudeWebExtrasEnabled && hasSession
-            return ClaudeUsageStrategy(dataSource: dataSource, useWebExtras: useWebExtras)
-        }
-
-        let hasSession = hasWebSession()
-        let dataSource: ClaudeUsageDataSource = hasSession ? .web : .cli
-        return ClaudeUsageStrategy(dataSource: dataSource, useWebExtras: false)
+    func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
+        _ = context
+        return []
     }
 
-    func makeFetch(context: ProviderBuildContext) -> @Sendable () async throws -> UsageSnapshot {
+    @MainActor
+    func runLoginFlow(context: ProviderLoginContext) async -> Bool {
+        await context.controller.runClaudeLoginFlow()
+        return true
+    }
+
+    @MainActor
+    func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
+        if context.snapshot?.secondary == nil {
+            entries.append(.text("Weekly usage unavailable for this account.", .secondary))
+        }
+
+        if let cost = context.snapshot?.providerCost,
+           context.settings.showOptionalCreditsAndExtraUsage,
+           cost.currencyCode != "Quota"
         {
-            let strategy = await MainActor.run { Self.usageStrategy(settings: context.settings) }
-
-            let fetcher: any ClaudeUsageFetching = if context.claudeFetcher is ClaudeUsageFetcher {
-                ClaudeUsageFetcher(dataSource: strategy.dataSource, useWebExtras: strategy.useWebExtras)
-            } else {
-                context.claudeFetcher
-            }
-
-            let usage = try await fetcher.loadLatestUsage(model: "sonnet")
-            return UsageSnapshot(
-                primary: usage.primary,
-                secondary: usage.secondary,
-                tertiary: usage.opus,
-                providerCost: usage.providerCost,
-                updatedAt: usage.updatedAt,
-                accountEmail: usage.accountEmail,
-                accountOrganization: usage.accountOrganization,
-                loginMethod: usage.loginMethod)
+            let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+            entries.append(.text("Extra usage: \(used) / \(limit)", .primary))
         }
     }
 
-    // MARK: - Web extras status
-
     @MainActor
-    private static func refreshWebExtrasStatus(context: ProviderSettingsContext, id: String) async {
-        let expectedEmail = context.store.snapshot(for: .claude)?.accountEmail?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        context.setStatusText(id, "Checking Claude cookies…")
-        let status = await Self.loadClaudeWebStatus(expectedEmail: expectedEmail)
-        context.setStatusText(id, status)
+    func loginMenuAction(context: ProviderMenuLoginContext)
+        -> (label: String, action: MenuDescriptor.MenuAction)?
+    {
+        guard self.shouldOpenTerminalForOAuthError(store: context.store) else { return nil }
+        return ("Open Terminal", .openTerminal(command: "claude"))
     }
 
-    private static func loadClaudeWebStatus(expectedEmail: String?) async -> String {
-        await Task.detached(priority: .utility) {
-            do {
-                let info = try ClaudeWebAPIFetcher.sessionKeyInfo()
-                var parts = ["Using \(info.sourceLabel) cookies (\(info.cookieCount))."]
-
-                do {
-                    let usage = try await ClaudeWebAPIFetcher.fetchUsage(using: info)
-                    if let rawEmail = usage.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !rawEmail.isEmpty
-                    {
-                        if let expectedEmail, !expectedEmail.isEmpty {
-                            let matches = rawEmail.lowercased() == expectedEmail.lowercased()
-                            let matchText = matches ? "matches Claude" : "does not match Claude"
-                            parts.append("Signed in as \(rawEmail) (\(matchText)).")
-                        } else {
-                            parts.append("Signed in as \(rawEmail).")
-                        }
-                    }
-                } catch {
-                    parts.append("Signed-in status unavailable: \(error.localizedDescription)")
-                }
-
-                return parts.joined(separator: " ")
-            } catch {
-                return "Browser cookie import failed: \(error.localizedDescription)"
-            }
-        }.value
+    @MainActor
+    private func shouldOpenTerminalForOAuthError(store: UsageStore) -> Bool {
+        guard store.error(for: .claude) != nil else { return false }
+        let attempts = store.fetchAttempts(for: .claude)
+        if attempts.contains(where: { $0.kind == .oauth && ($0.errorDescription?.isEmpty == false) }) {
+            return true
+        }
+        if let error = store.error(for: .claude)?.lowercased(), error.contains("oauth") {
+            return true
+        }
+        return false
     }
 }

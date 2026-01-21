@@ -35,6 +35,8 @@ public struct SubprocessResult: Sendable {
 }
 
 public enum SubprocessRunner {
+    private static let log = CodexBarLog.logger(LogCategories.subprocess)
+
     public static func run(
         binary: String,
         arguments: [String],
@@ -45,6 +47,12 @@ public enum SubprocessRunner {
         guard FileManager.default.isExecutableFile(atPath: binary) else {
             throw SubprocessRunnerError.binaryNotFound(binary)
         }
+
+        let start = Date()
+        let binaryName = URL(fileURLWithPath: binary).lastPathComponent
+        self.log.debug(
+            "Subprocess start",
+            metadata: ["label": label, "binary": binaryName, "timeout": "\(timeout)"])
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
@@ -103,11 +111,37 @@ public enum SubprocessRunner {
             let stderr = String(data: stderrData, encoding: .utf8) ?? ""
 
             if exitCode != 0 {
+                let duration = Date().timeIntervalSince(start)
+                self.log.warning(
+                    "Subprocess failed",
+                    metadata: [
+                        "label": label,
+                        "binary": binaryName,
+                        "status": "\(exitCode)",
+                        "duration_ms": "\(Int(duration * 1000))",
+                    ])
                 throw SubprocessRunnerError.nonZeroExit(code: exitCode, stderr: stderr)
             }
 
+            let duration = Date().timeIntervalSince(start)
+            self.log.debug(
+                "Subprocess exit",
+                metadata: [
+                    "label": label,
+                    "binary": binaryName,
+                    "status": "\(exitCode)",
+                    "duration_ms": "\(Int(duration * 1000))",
+                ])
             return SubprocessResult(stdout: stdout, stderr: stderr)
         } catch {
+            let duration = Date().timeIntervalSince(start)
+            self.log.warning(
+                "Subprocess error",
+                metadata: [
+                    "label": label,
+                    "binary": binaryName,
+                    "duration_ms": "\(Int(duration * 1000))",
+                ])
             if process.isRunning {
                 process.terminate()
                 if let pgid = processGroup {

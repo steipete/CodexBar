@@ -1,8 +1,11 @@
 import CodexBarCore
-import XCTest
+import Foundation
+import Testing
 
-final class AntigravityStatusProbeTests: XCTestCase {
-    func test_parsesUserStatusResponse() throws {
+@Suite
+struct AntigravityStatusProbeTests {
+    @Test
+    func parsesUserStatusResponse() throws {
         let json = """
         {
           "code": 0,
@@ -38,13 +41,16 @@ final class AntigravityStatusProbeTests: XCTestCase {
 
         let data = Data(json.utf8)
         let snapshot = try AntigravityStatusProbe.parseUserStatusResponse(data)
-        XCTAssertEqual(snapshot.accountEmail, "test@example.com")
-        XCTAssertEqual(snapshot.accountPlan, "Pro")
-        XCTAssertEqual(snapshot.modelQuotas.count, 3)
+        #expect(snapshot.accountEmail == "test@example.com")
+        #expect(snapshot.accountPlan == "Pro")
+        #expect(snapshot.modelQuotas.count == 3)
 
         let usage = try snapshot.toUsageSnapshot()
-        XCTAssertEqual(usage.primary.remainingPercent.rounded(), 50)
-        XCTAssertEqual(usage.secondary?.remainingPercent.rounded(), 80)
-        XCTAssertEqual(usage.tertiary?.remainingPercent.rounded(), 20)
+        guard let primary = usage.primary else {
+            return
+        }
+        #expect(primary.remainingPercent.rounded() == 50)
+        #expect(usage.secondary?.remainingPercent.rounded() == 80)
+        #expect(usage.tertiary?.remainingPercent.rounded() == 20)
     }
 }

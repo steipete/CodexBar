@@ -4,8 +4,20 @@ import CodexBarCore
 extension StatusItemController {
     // MARK: - Actions reachable from menus
 
+    func refreshStore(forceTokenUsage: Bool) {
+        Task { await self.store.refresh(forceTokenUsage: forceTokenUsage) }
+    }
+
     @objc func refreshNow() {
-        Task { await self.store.refresh(forceTokenUsage: true) }
+        self.refreshStore(forceTokenUsage: true)
+    }
+
+    @objc func refreshAugmentSession() {
+        Task {
+            await self.store.forceRefreshAugmentSession()
+            // Also trigger a full refresh to update the menu and clear any stale errors
+            await self.store.refresh(forceTokenUsage: false)
+        }
     }
 
     @objc func installUpdate() {
@@ -69,17 +81,26 @@ extension StatusItemController {
         NSWorkspace.shared.open(url)
     }
 
+    @objc func openTerminalCommand(_ sender: NSMenuItem) {
+        let command = sender.representedObject as? String ?? "claude"
+        Self.openTerminal(command: command)
+    }
+
+    @objc func openLoginToProvider(_ sender: NSMenuItem) {
+        guard let urlString = sender.representedObject as? String,
+              let url = URL(string: urlString) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     @objc func runSwitchAccount(_ sender: NSMenuItem) {
         if self.loginTask != nil {
             self.loginLogger.info("Switch Account tap ignored: login already in-flight")
-            print("[CodexBar] Switch Account ignored (busy)")
             return
         }
 
         let rawProvider = sender.representedObject as? String
         let provider = rawProvider.flatMap(UsageProvider.init(rawValue:)) ?? self.lastMenuProvider ?? .codex
         self.loginLogger.info("Switch Account tapped", metadata: ["provider": provider.rawValue])
-        print("[CodexBar] Switch Account tapped for provider=\(provider.rawValue)")
 
         self.loginTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -90,12 +111,11 @@ extension StatusItemController {
             self.activeLoginProvider = provider
             self.loginPhase = .requesting
             self.loginLogger.info("Starting login task", metadata: ["provider": provider.rawValue])
-            print("[CodexBar] Starting login task for \(provider.rawValue)")
 
             let shouldRefresh = await self.runLoginFlow(provider: provider)
             if shouldRefresh {
                 await self.store.refresh()
-                print("[CodexBar] Triggered refresh after login")
+                self.loginLogger.info("Triggered refresh after login", metadata: ["provider": provider.rawValue])
             }
         }
     }
@@ -103,6 +123,18 @@ extension StatusItemController {
     @objc func showSettingsGeneral() { self.openSettings(tab: .general) }
 
     @objc func showSettingsAbout() { self.openSettings(tab: .about) }
+
+    func openMenuFromShortcut() {
+        if self.shouldMergeIcons {
+            self.statusItem.button?.performClick(nil)
+            return
+        }
+
+        let provider = self.resolvedShortcutProvider()
+        // Use the lazy accessor to ensure the item exists
+        let item = self.lazyStatusItem(for: provider)
+        item.button?.performClick(nil)
+    }
 
     private func openSettings(tab: PreferencesTab) {
         DispatchQueue.main.async {
@@ -125,6 +157,37 @@ extension StatusItemController {
             pb.clearContents()
             pb.setString(err, forType: .string)
         }
+    }
+
+    private static func openTerminal(command: String) {
+        let escaped = command
+            .replacingOccurrences(of: "\\\\", with: "\\\\\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "\(escaped)"
+        end tell
+        """
+        if let appleScript = NSAppleScript(source: script) {
+            var error: NSDictionary?
+            appleScript.executeAndReturnError(&error)
+            if let error {
+                CodexBarLog.logger(LogCategories.terminal).error(
+                    "Failed to open Terminal",
+                    metadata: ["error": String(describing: error)])
+            }
+        }
+    }
+
+    private func resolvedShortcutProvider() -> UsageProvider {
+        if let last = self.lastMenuProvider, self.isEnabled(last) {
+            return last
+        }
+        if let first = self.store.enabledProviders().first {
+            return first
+        }
+        return .codex
     }
 
     func presentCodexLoginResult(_ result: CodexLoginRunner.Result) {
@@ -238,17 +301,8 @@ extension StatusItemController {
     }
 
     func postLoginNotification(for provider: UsageProvider) {
-        let title = switch provider {
-        case .codex: "Codex login successful"
-        case .claude: "Claude login successful"
-        case .zai: "z.ai login successful"
-        case .gemini: "Gemini login successful"
-        case .antigravity: "Antigravity login successful"
-        case .cursor: "Cursor login successful"
-        case .factory: "Droid login successful"
-        case .windsurf: "Windsurf login successful"
-        case .copilot: "GitHub Copilot login successful"
-        }
+        let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        let title = "\(name) login successful"
         let body = "You can return to the app; authentication finished."
         AppNotifications.shared.post(idPrefix: "login-\(provider.rawValue)", title: title, body: body)
     }

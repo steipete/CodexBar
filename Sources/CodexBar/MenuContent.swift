@@ -76,6 +76,8 @@ struct MenuContent: View {
         switch action {
         case .refresh:
             self.actions.refresh()
+        case .refreshAugmentSession:
+            self.actions.refreshAugmentSession()
         case .installUpdate:
             self.actions.installUpdate()
         case .dashboard:
@@ -84,6 +86,12 @@ struct MenuContent: View {
             self.actions.openStatusPage()
         case let .switchAccount(provider):
             self.actions.switchAccount(provider)
+        case let .openTerminal(command):
+            self.actions.openTerminal(command)
+        case let .loginToProvider(url):
+            if let urlObj = URL(string: url) {
+                NSWorkspace.shared.open(urlObj)
+            }
         case .settings:
             self.actions.openSettings()
         case .about:
@@ -99,9 +107,11 @@ struct MenuContent: View {
 struct MenuActions {
     let installUpdate: () -> Void
     let refresh: () -> Void
+    let refreshAugmentSession: () -> Void
     let openDashboard: () -> Void
     let openStatusPage: () -> Void
     let switchAccount: (UsageProvider) -> Void
+    let openTerminal: (String) -> Void
     let openSettings: () -> Void
     let openAbout: () -> Void
     let quit: () -> Void
@@ -121,7 +131,7 @@ struct StatusIconView: View {
 
     private var icon: NSImage {
         IconRenderer.makeIcon(
-            primaryRemaining: self.store.snapshot(for: self.provider)?.primary.remainingPercent,
+            primaryRemaining: self.store.snapshot(for: self.provider)?.primary?.remainingPercent,
             weeklyRemaining: self.store.snapshot(for: self.provider)?.secondary?.remainingPercent,
             creditsRemaining: self.provider == .codex ? self.store.credits?.remaining : nil,
             stale: self.store.isStale(provider: self.provider),

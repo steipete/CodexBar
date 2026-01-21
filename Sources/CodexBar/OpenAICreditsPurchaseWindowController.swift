@@ -358,7 +358,7 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
     })();
     """
 
-    private let logger = CodexBarLog.logger("creditsPurchase")
+    private let logger = CodexBarLog.logger(LogCategories.creditsPurchase)
     private var webView: WKWebView?
     private var accountEmail: String?
     private var pendingAutoStart = false
@@ -381,13 +381,14 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
             self.buildWindow()
         }
         Self.resetDebugLog()
-        let accountValue = normalizedEmail ?? "nil"
+        let accountValue = normalizedEmail == nil ? "none" : "set"
+        let sanitizedURL = Self.sanitizedURLString(purchaseURL)
         Self.appendDebugLog(
-            "show autoStart=\(autoStartPurchase) url=\(purchaseURL.absoluteString) account=\(accountValue)")
-        self.logger.debug("Show buy credits window")
+            "show autoStart=\(autoStartPurchase) url=\(sanitizedURL) account=\(accountValue)")
+        self.logger.info("Buy credits window opened")
         self.logger.debug("Auto-start purchase", metadata: ["enabled": autoStartPurchase ? "1" : "0"])
-        self.logger.debug("Purchase URL", metadata: ["url": purchaseURL.absoluteString])
-        self.logger.debug("Account email", metadata: ["email": accountValue])
+        self.logger.debug("Purchase URL", metadata: ["url": sanitizedURL])
+        self.logger.debug("Account email", metadata: ["state": accountValue])
         self.pendingAutoStart = autoStartPurchase
         self.load(url: purchaseURL)
         self.window?.center()
@@ -424,6 +425,7 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.contentView = container
         window.center()
+        window.delegate = self
 
         self.window = window
         self.webView = webView
@@ -476,7 +478,7 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
 
     private static func appendDebugLog(_ message: String) {
         let timestamp = ISO8601DateFormatter().string(from: Date())
-        let line = "[\(timestamp)] \(message)\n"
+        let line = "[\(timestamp)] \(LogRedactor.redact(message))\n"
         guard let data = line.data(using: .utf8) else { return }
         if FileManager.default.fileExists(atPath: Self.debugLogURL.path) {
             if let handle = try? FileHandle(forWritingTo: Self.debugLogURL) {
@@ -492,6 +494,15 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
     private static func resetDebugLog() {
         try? FileManager.default.removeItem(at: self.debugLogURL)
     }
+
+    private static func sanitizedURLString(_ url: URL) -> String {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url.absoluteString
+        }
+        components.query = nil
+        components.fragment = nil
+        return components.string ?? url.absoluteString
+    }
 }
 
 private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
@@ -499,5 +510,19 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         self.delegate?.userContentController(userContentController, didReceive: message)
+    }
+}
+
+// MARK: - NSWindowDelegate
+
+extension OpenAICreditsPurchaseWindowController: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        guard let window = self.window else { return }
+        let webView = self.webView
+        self.pendingAutoStart = false
+        self.webView = nil
+        self.window = nil
+        self.logger.info("Buy credits window closing")
+        WebKitTeardown.scheduleCleanup(owner: window, window: window, webView: webView)
     }
 }

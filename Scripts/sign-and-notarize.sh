@@ -30,8 +30,13 @@ fi
 echo "$APP_STORE_CONNECT_API_KEY_P8" | sed 's/\\n/\n/g' > /tmp/codexbar-api-key.p8
 trap 'rm -f /tmp/codexbar-api-key.p8 /tmp/${APP_NAME}Notarize.zip' EXIT
 
-swift build -c release --arch arm64
-./Scripts/package_app.sh release
+# Allow building a universal binary if ARCHES is provided; default to universal (arm64 + x86_64).
+ARCHES_VALUE=${ARCHES:-"arm64 x86_64"}
+ARCH_LIST=( ${ARCHES_VALUE} )
+for ARCH in "${ARCH_LIST[@]}"; do
+  swift build -c release --arch "$ARCH"
+done
+ARCHES="${ARCHES_VALUE}" ./Scripts/package_app.sh release
 
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"
@@ -81,10 +86,29 @@ spctl -a -t exec -vv "$APP_BUNDLE"
 stapler validate "$APP_BUNDLE"
 
 echo "Packaging dSYM"
-DSYM_PATH=".build/arm64-apple-macosx/release/${APP_NAME}.dSYM"
+FIRST_ARCH="${ARCH_LIST[0]}"
+PREFERRED_ARCH_DIR=".build/${FIRST_ARCH}-apple-macosx/release"
+DSYM_PATH="${PREFERRED_ARCH_DIR}/${APP_NAME}.dSYM"
 if [[ ! -d "$DSYM_PATH" ]]; then
   echo "Missing dSYM at $DSYM_PATH" >&2
   exit 1
+fi
+if [[ ${#ARCH_LIST[@]} -gt 1 ]]; then
+  MERGED_DSYM="${PREFERRED_ARCH_DIR}/${APP_NAME}.dSYM-universal"
+  rm -rf "$MERGED_DSYM"
+  cp -R "$DSYM_PATH" "$MERGED_DSYM"
+  DWARF_PATH="${MERGED_DSYM}/Contents/Resources/DWARF/${APP_NAME}"
+  BINARIES=()
+  for ARCH in "${ARCH_LIST[@]}"; do
+    ARCH_DSYM=".build/${ARCH}-apple-macosx/release/${APP_NAME}.dSYM/Contents/Resources/DWARF/${APP_NAME}"
+    if [[ ! -f "$ARCH_DSYM" ]]; then
+      echo "Missing dSYM for ${ARCH} at $ARCH_DSYM" >&2
+      exit 1
+    fi
+    BINARIES+=("$ARCH_DSYM")
+  done
+  lipo -create "${BINARIES[@]}" -output "$DWARF_PATH"
+  DSYM_PATH="$MERGED_DSYM"
 fi
 "$DITTO_BIN" --norsrc -c -k --keepParent "$DSYM_PATH" "$DSYM_ZIP"
 

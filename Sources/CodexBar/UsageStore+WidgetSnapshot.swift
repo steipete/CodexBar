@@ -53,7 +53,7 @@ extension UsageStore {
     }
 
     private nonisolated static func widgetTokenUsageSummary(
-        from snapshot: CCUsageTokenSnapshot?) -> WidgetSnapshot.TokenUsageSummary?
+        from snapshot: CostUsageTokenSnapshot?) -> WidgetSnapshot.TokenUsageSummary?
     {
         guard let snapshot else { return nil }
         let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)

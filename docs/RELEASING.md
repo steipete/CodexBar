@@ -36,12 +36,12 @@ SwiftPM-only; package/sign/notarize manually (no Xcode project). Sparkle feed is
 ```
 Uses Xcode’s `ictool` + transparent padding + iconset → Icon.icns.
 
-## Build, sign, notarize (arm64)
+## Build, sign, notarize (universal: arm64 + x86_64)
 ```
 ./Scripts/sign-and-notarize.sh
 ```
 What it does:
-- `swift build -c release --arch arm64`
+- `swift build -c release --arch arm64` and `swift build -c release --arch x86_64`
 - Packages `CodexBar.app` with Info.plist and Icon.icns
 - Embeds Sparkle.framework, Updater, Autoupdate, XPCs
 - Codesigns **everything** with runtime + timestamp (deep) and adds rpath
@@ -76,7 +76,7 @@ git tag v<version>
 CodexBar ships a Homebrew **Cask** in `../homebrew-tap`. When installed via Homebrew, CodexBar disables Sparkle and the app
 must be updated via `brew`.
 
-After publishing the GitHub release, update the tap cask (see `docs/releasing-homebrew.md`).
+After publishing the GitHub release, update the tap cask + Linux CLI formula (see `docs/releasing-homebrew.md`).
 
 ## Checklist (quick)
 - [ ] Read both this file and `~/Projects/agent-scripts/docs/RELEASING-MAC.md`; resolve any conflicts toward CodexBar’s specifics.
@@ -89,9 +89,10 @@ After publishing the GitHub release, update the tap cask (see `docs/releasing-ho
   - Upload the dSYM archive alongside the app zip on the GitHub release; the release script now automates this and will fail if it’s missing.
   - After publishing the release, run `Scripts/check-release-assets.sh <tag>` to confirm both the app zip and dSYM zip are present on GitHub.
   - Generate the appcast + HTML release notes: `./Scripts/make_appcast.sh CodexBar-<ver>.zip https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml`
+  - Beta channel: prefix the command with `SPARKLE_CHANNEL=beta` to tag the entry.
   - Verify the enclosure signature + size: `SPARKLE_PRIVATE_KEY_FILE=... ./Scripts/verify_appcast.sh <ver>`
 - [ ] Upload zip + appcast to feed; publish tag + GitHub release so Sparkle URL is live (avoid 404)
-- [ ] Homebrew tap: update `../homebrew-tap/Casks/codexbar.rb` (url + sha256), then verify:
+- [ ] Homebrew tap: update `../homebrew-tap/Casks/codexbar.rb` (url + sha256) and `../homebrew-tap/Formula/codexbar.rb` (Linux CLI tarball urls + sha256), then verify:
   - `brew uninstall --cask codexbar || true`
   - `brew untap steipete/tap || true; brew tap steipete/tap`
   - `brew install --cask steipete/tap/codexbar && open -a CodexBar`

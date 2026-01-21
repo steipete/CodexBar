@@ -110,19 +110,26 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
 }
 
 extension OpenAIDashboardSnapshot {
-    public func toUsageSnapshot(accountEmail: String? = nil, accountPlan: String? = nil) -> UsageSnapshot? {
+    public func toUsageSnapshot(
+        provider: UsageProvider = .codex,
+        accountEmail: String? = nil,
+        accountPlan: String? = nil) -> UsageSnapshot?
+    {
         guard let primaryLimit else { return nil }
         let resolvedEmail = accountEmail ?? self.signedInEmail
         let resolvedPlan = accountPlan ?? self.accountPlan
+        let identity = ProviderIdentitySnapshot(
+            providerID: provider,
+            accountEmail: resolvedEmail,
+            accountOrganization: nil,
+            loginMethod: resolvedPlan)
         return UsageSnapshot(
             primary: primaryLimit,
             secondary: self.secondaryLimit,
             tertiary: nil,
             providerCost: nil,
             updatedAt: self.updatedAt,
-            accountEmail: resolvedEmail,
-            accountOrganization: nil,
-            loginMethod: resolvedPlan)
+            identity: identity)
     }
 
     public func toCreditsSnapshot() -> CreditsSnapshot? {

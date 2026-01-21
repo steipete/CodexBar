@@ -1,6 +1,7 @@
 import Foundation
 #if os(macOS)
 import SQLite3
+import SweetCookieKit
 #endif
 
 #if os(macOS)
@@ -12,12 +13,15 @@ enum FactoryLocalStorageImporter {
         let sourceLabel: String
     }
 
-    static func importWorkOSTokens(logger: ((String) -> Void)? = nil) -> [TokenInfo] {
+    static func importWorkOSTokens(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> [TokenInfo]
+    {
         let log: (String) -> Void = { msg in logger?("[factory-storage] \(msg)") }
         var tokens: [TokenInfo] = []
 
         let safariCandidates = self.safariLocalStorageCandidates()
-        let chromeCandidates = self.chromeLocalStorageCandidates()
+        let chromeCandidates = self.chromeLocalStorageCandidates(browserDetection: browserDetection)
         if !safariCandidates.isEmpty {
             log("Safari local storage candidates: \(safariCandidates.count)")
         }
@@ -71,27 +75,26 @@ enum FactoryLocalStorageImporter {
         let kind: LocalStorageSourceKind
     }
 
-    private static func chromeLocalStorageCandidates() -> [LocalStorageCandidate] {
-        let roots: [(url: URL, labelPrefix: String)] = self.candidateHomes().flatMap { home in
-            let appSupport = home
-                .appendingPathComponent("Library")
-                .appendingPathComponent("Application Support")
-            return [
-                (appSupport.appendingPathComponent("Google").appendingPathComponent("Chrome"), "Chrome"),
-                (appSupport.appendingPathComponent("Google").appendingPathComponent("Chrome Beta"), "Chrome Beta"),
-                (appSupport.appendingPathComponent("Google").appendingPathComponent("Chrome Canary"), "Chrome Canary"),
-                (appSupport.appendingPathComponent("Arc").appendingPathComponent("User Data"), "Arc"),
-                (appSupport.appendingPathComponent("Arc Beta").appendingPathComponent("User Data"), "Arc Beta"),
-                (appSupport.appendingPathComponent("Arc Canary").appendingPathComponent("User Data"), "Arc Canary"),
-                (
-                    appSupport
-                        .appendingPathComponent("com.openai.atlas")
-                        .appendingPathComponent("browser-data")
-                        .appendingPathComponent("host"),
-                    "ChatGPT Atlas"),
-                (appSupport.appendingPathComponent("Chromium"), "Chromium"),
-            ]
-        }
+    private static func chromeLocalStorageCandidates(browserDetection: BrowserDetection) -> [LocalStorageCandidate] {
+        let browsers: [Browser] = [
+            .chrome,
+            .chromeBeta,
+            .chromeCanary,
+            .arc,
+            .arcBeta,
+            .arcCanary,
+            .dia,
+            .chatgptAtlas,
+            .chromium,
+            .helium,
+        ]
+
+        // Filter to browsers with profile data to avoid unnecessary filesystem access.
+        let installedBrowsers = browsers.browsersWithProfileData(using: browserDetection)
+
+        let roots = ChromiumProfileLocator
+            .roots(for: installedBrowsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
+            .map { (url: $0.url, labelPrefix: $0.labelPrefix) }
 
         var candidates: [LocalStorageCandidate] = []
         for root in roots {
@@ -187,24 +190,6 @@ enum FactoryLocalStorageImporter {
         return nil
     }
 
-    private static func candidateHomes() -> [URL] {
-        var homes: [URL] = []
-        homes.append(FileManager.default.homeDirectoryForCurrentUser)
-        if let userHome = NSHomeDirectoryForUser(NSUserName()) {
-            homes.append(URL(fileURLWithPath: userHome))
-        }
-        if let envHome = ProcessInfo.processInfo.environment["HOME"], !envHome.isEmpty {
-            homes.append(URL(fileURLWithPath: envHome))
-        }
-        var seen = Set<String>()
-        return homes.filter { home in
-            let path = home.path
-            guard !seen.contains(path) else { return false }
-            seen.insert(path)
-            return true
-        }
-    }
-
     // MARK: - Token extraction
 
     private struct WorkOSTokenMatch: Sendable {
@@ -274,11 +259,15 @@ enum FactoryLocalStorageImporter {
         }
         defer { sqlite3_close(db) }
 
-        let tables = self.fetchTableNames(db: db)
+        sqlite3_busy_timeout(db, 250)
+        let tables = self.fetchTableNames(db: db, logger: logger)
+        if tables.isEmpty {
+            logger?("Safari local storage table lookup returned no tables")
+        }
         let table = tables
             .contains("ItemTable") ? "ItemTable" : (tables.contains("localstorage") ? "localstorage" : nil)
         guard let table else {
-            logger?("Safari local storage missing ItemTable/localstorage tables")
+            logger?("Safari local storage missing ItemTable/localstorage tables (found: \(tables.sorted()))")
             return nil
         }
 
@@ -312,15 +301,28 @@ enum FactoryLocalStorageImporter {
         return json["org_id"] as? String
     }
 
-    private static func fetchTableNames(db: OpaquePointer?) -> Set<String> {
+    private static func fetchTableNames(db: OpaquePointer?, logger: ((String) -> Void)? = nil) -> Set<String> {
         let sql = "SELECT name FROM sqlite_master WHERE type='table'"
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            if let c = sqlite3_errmsg(db) {
+                logger?("Safari local storage table query failed: \(String(cString: c))")
+            }
+            return []
+        }
         defer { sqlite3_finalize(stmt) }
         var names = Set<String>()
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if let c = sqlite3_column_text(stmt, 0) {
-                names.insert(String(cString: c))
+        while true {
+            let step = sqlite3_step(stmt)
+            if step == SQLITE_ROW {
+                if let c = sqlite3_column_text(stmt, 0) {
+                    names.insert(String(cString: c))
+                }
+            } else {
+                if step != SQLITE_DONE, let c = sqlite3_errmsg(db) {
+                    logger?("Safari local storage table query failed: \(String(cString: c))")
+                }
+                break
             }
         }
         return names

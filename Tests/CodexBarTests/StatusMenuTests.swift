@@ -6,9 +6,27 @@ import Testing
 @MainActor
 @Suite
 struct StatusMenuTests {
+    private func disableMenuCardsForTesting() {
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.menuRefreshEnabled = false
+    }
+
+    private func makeSettings() -> SettingsStore {
+        let suite = "StatusMenuTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        return SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+    }
+
     @Test
     func remembersProviderWhenMenuOpens() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
@@ -25,21 +43,24 @@ struct StatusMenuTests {
         }
 
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection())
+            preferencesSelection: PreferencesSelection(),
+            statusBar: NSStatusBar())
 
         let claudeMenu = controller.makeMenu()
         controller.menuWillOpen(claudeMenu)
         #expect(controller.lastMenuProvider == .claude)
 
         // No providers enabled: fall back to Codex.
-        if let claudeMeta = registry.metadata[.claude] {
-            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        for provider in UsageProvider.allCases {
+            if let meta = registry.metadata[provider] {
+                settings.setProviderEnabled(provider: provider, metadata: meta, enabled: false)
+            }
         }
         let unmappedMenu = controller.makeMenu()
         controller.menuWillOpen(unmappedMenu)
@@ -47,8 +68,48 @@ struct StatusMenuTests {
     }
 
     @Test
+    func providerToggleUpdatesStatusItemVisibility() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.providerDetectionCompleted = true
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+        if let geminiMeta = registry.metadata[.gemini] {
+            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: NSStatusBar())
+
+        #expect(controller.statusItems[.claude]?.isVisible == true)
+
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+        controller.handleProviderConfigChange(reason: "test")
+        #expect(controller.statusItems[.claude]?.isVisible == false)
+    }
+
+    @Test
     func hidesOpenAIWebSubmenusWhenNoHistory() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
@@ -66,7 +127,7 @@ struct StatusMenuTests {
         }
 
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         store.openAIDashboard = OpenAIDashboardSnapshot(
             signedInEmail: "user@example.com",
             codeReviewRemainingPercent: 100,
@@ -81,7 +142,8 @@ struct StatusMenuTests {
             settings: settings,
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection())
+            preferencesSelection: PreferencesSelection(),
+            statusBar: NSStatusBar())
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -92,7 +154,11 @@ struct StatusMenuTests {
 
     @Test
     func showsOpenAIWebSubmenusWhenHistoryExists() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        self.disableMenuCardsForTesting()
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusMenuTests-history"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
@@ -110,7 +176,7 @@ struct StatusMenuTests {
         }
 
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
 
         let calendar = Calendar(identifier: .gregorian)
         var components = DateComponents()
@@ -137,26 +203,30 @@ struct StatusMenuTests {
             settings: settings,
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection())
+            preferencesSelection: PreferencesSelection(),
+            statusBar: NSStatusBar())
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
         let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
         let creditsItem = menu.items.first { ($0.representedObject as? String) == "menuCardCredits" }
-        #expect(usageItem?.submenu?.items
-            .contains { ($0.representedObject as? String) == "usageBreakdownChart" } == true)
-        #expect(creditsItem?.submenu?.items
-            .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true)
+        #expect(
+            usageItem?.submenu?.items
+                .contains { ($0.representedObject as? String) == "usageBreakdownChart" } == true)
+        #expect(
+            creditsItem?.submenu?.items
+                .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true)
     }
 
     @Test
     func showsCreditsBeforeCostInCodexMenuCardSections() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
-        settings.ccusageCostUsageEnabled = true
+        settings.costUsageEnabled = true
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
@@ -170,7 +240,7 @@ struct StatusMenuTests {
         }
 
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         store.credits = CreditsSnapshot(remaining: 100, events: [], updatedAt: Date())
         store.openAIDashboard = OpenAIDashboardSnapshot(
             signedInEmail: "user@example.com",
@@ -180,13 +250,13 @@ struct StatusMenuTests {
             usageBreakdown: [],
             creditsPurchaseURL: nil,
             updatedAt: Date())
-        store._setTokenSnapshotForTesting(CCUsageTokenSnapshot(
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 0.12,
             last30DaysTokens: 123,
             last30DaysCostUSD: 1.23,
             daily: [
-                CCUsageDailyReport.Entry(
+                CostUsageDailyReport.Entry(
                     date: "2025-12-23",
                     inputTokens: nil,
                     outputTokens: nil,
@@ -202,7 +272,8 @@ struct StatusMenuTests {
             settings: settings,
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection())
+            preferencesSelection: PreferencesSelection(),
+            statusBar: NSStatusBar())
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -216,12 +287,13 @@ struct StatusMenuTests {
 
     @Test
     func showsExtraUsageForClaudeWhenUsingMenuCardSections() {
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.selectedMenuProvider = .claude
-        settings.ccusageCostUsageEnabled = true
+        settings.costUsageEnabled = true
         settings.claudeWebExtrasEnabled = true
 
         let registry = ProviderRegistry.shared
@@ -236,7 +308,12 @@ struct StatusMenuTests {
         }
 
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "web")
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets soon"),
             secondary: nil,
@@ -249,17 +326,15 @@ struct StatusMenuTests {
                 resetsAt: nil,
                 updatedAt: Date()),
             updatedAt: Date(),
-            accountEmail: "user@example.com",
-            accountOrganization: nil,
-            loginMethod: "web")
+            identity: identity)
         store._setSnapshotForTesting(snapshot, provider: .claude)
-        store._setTokenSnapshotForTesting(CCUsageTokenSnapshot(
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 0.12,
             last30DaysTokens: 123,
             last30DaysCostUSD: 1.23,
             daily: [
-                CCUsageDailyReport.Entry(
+                CostUsageDailyReport.Entry(
                     date: "2025-12-23",
                     inputTokens: nil,
                     outputTokens: nil,
@@ -275,11 +350,67 @@ struct StatusMenuTests {
             settings: settings,
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection())
+            preferencesSelection: PreferencesSelection(),
+            statusBar: NSStatusBar())
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
         let ids = menu.items.compactMap { $0.representedObject as? String }
         #expect(ids.contains("menuCardExtraUsage"))
+    }
+
+    @Test
+    func showsVertexCostWhenUsageErrorPresent() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .vertexai
+        settings.costUsageEnabled = true
+
+        let registry = ProviderRegistry.shared
+        if let vertexMeta = registry.metadata[.vertexai] {
+            settings.setProviderEnabled(provider: .vertexai, metadata: vertexMeta, enabled: true)
+        }
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: false)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setErrorForTesting("No Vertex AI usage data found for the current project.", provider: .vertexai)
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: 10,
+            sessionCostUSD: 0.01,
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 1.0,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-12-23",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 100,
+                    costUSD: 1.0,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date()), provider: .vertexai)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: NSStatusBar())
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let ids = menu.items.compactMap { $0.representedObject as? String }
+        #expect(ids.contains("menuCardCost"))
     }
 }

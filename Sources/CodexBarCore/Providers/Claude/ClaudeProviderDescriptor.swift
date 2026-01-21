@@ -1,0 +1,244 @@
+import CodexBarMacroSupport
+import Foundation
+
+@ProviderDescriptorRegistration
+@ProviderDescriptorDefinition
+public enum ClaudeProviderDescriptor {
+    static func makeDescriptor() -> ProviderDescriptor {
+        ProviderDescriptor(
+            id: .claude,
+            metadata: ProviderMetadata(
+                id: .claude,
+                displayName: "Claude",
+                sessionLabel: "Session",
+                weeklyLabel: "Weekly",
+                opusLabel: "Sonnet",
+                supportsOpus: true,
+                supportsCredits: false,
+                creditsHint: "",
+                toggleTitle: "Show Claude Code usage",
+                cliName: "claude",
+                defaultEnabled: false,
+                isPrimaryProvider: true,
+                usesAccountFallback: false,
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
+                dashboardURL: "https://console.anthropic.com/settings/billing",
+                subscriptionDashboardURL: "https://claude.ai/settings/usage",
+                statusPageURL: "https://status.claude.com/"),
+            branding: ProviderBranding(
+                iconStyle: .claude,
+                iconResourceName: "ProviderIcon-claude",
+                color: ProviderColor(red: 204 / 255, green: 124 / 255, blue: 94 / 255)),
+            tokenCost: ProviderTokenCostConfig(
+                supportsTokenCost: true,
+                noDataMessage: self.noDataMessage),
+            fetchPlan: ProviderFetchPlan(
+                sourceModes: [.auto, .web, .cli, .oauth],
+                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
+            cli: ProviderCLIConfig(
+                name: "claude",
+                versionDetector: { browserDetection in
+                    ClaudeUsageFetcher(browserDetection: browserDetection).detectVersion()
+                }))
+    }
+
+    private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
+        switch context.runtime {
+        case .cli:
+            switch context.sourceMode {
+            case .oauth:
+                return [ClaudeOAuthFetchStrategy()]
+            case .web:
+                return [ClaudeWebFetchStrategy(browserDetection: context.browserDetection)]
+            case .cli:
+                return [ClaudeCLIFetchStrategy(
+                    useWebExtras: false,
+                    manualCookieHeader: nil,
+                    browserDetection: context.browserDetection)]
+            case .api:
+                return []
+            case .auto:
+                return [
+                    ClaudeWebFetchStrategy(browserDetection: context.browserDetection),
+                    ClaudeCLIFetchStrategy(
+                        useWebExtras: false,
+                        manualCookieHeader: nil,
+                        browserDetection: context.browserDetection),
+                ]
+            }
+        case .app:
+            let webExtrasEnabled = context.settings?.claude?.webExtrasEnabled ?? false
+            let manualCookieHeader = CookieHeaderNormalizer.normalize(context.settings?.claude?.manualCookieHeader)
+            switch context.sourceMode {
+            case .oauth:
+                return [
+                    ClaudeOAuthFetchStrategy(),
+                    ClaudeWebFetchStrategy(browserDetection: context.browserDetection),
+                    ClaudeCLIFetchStrategy(
+                        useWebExtras: webExtrasEnabled,
+                        manualCookieHeader: manualCookieHeader,
+                        browserDetection: context.browserDetection),
+                ]
+            case .web:
+                return [ClaudeWebFetchStrategy(browserDetection: context.browserDetection)]
+            case .cli:
+                return [ClaudeCLIFetchStrategy(
+                    useWebExtras: webExtrasEnabled,
+                    manualCookieHeader: manualCookieHeader,
+                    browserDetection: context.browserDetection)]
+            case .api:
+                return []
+            case .auto:
+                return [
+                    ClaudeOAuthFetchStrategy(),
+                    ClaudeWebFetchStrategy(browserDetection: context.browserDetection),
+                    ClaudeCLIFetchStrategy(
+                        useWebExtras: webExtrasEnabled,
+                        manualCookieHeader: manualCookieHeader,
+                        browserDetection: context.browserDetection),
+                ]
+            }
+        }
+    }
+
+    private static func noDataMessage() -> String {
+        "No Claude usage logs found in ~/.config/claude/projects or ~/.claude/projects."
+    }
+
+    public static func resolveUsageStrategy(
+        selectedDataSource: ClaudeUsageDataSource,
+        webExtrasEnabled: Bool,
+        hasWebSession: Bool,
+        hasOAuthCredentials: Bool) -> ClaudeUsageStrategy
+    {
+        if selectedDataSource == .auto {
+            if hasOAuthCredentials {
+                return ClaudeUsageStrategy(dataSource: .oauth, useWebExtras: false)
+            }
+            if hasWebSession {
+                return ClaudeUsageStrategy(dataSource: .web, useWebExtras: false)
+            }
+            return ClaudeUsageStrategy(dataSource: .cli, useWebExtras: false)
+        }
+
+        let useWebExtras = selectedDataSource == .cli && webExtrasEnabled && hasWebSession
+        return ClaudeUsageStrategy(dataSource: selectedDataSource, useWebExtras: useWebExtras)
+    }
+}
+
+public struct ClaudeUsageStrategy: Equatable, Sendable {
+    public let dataSource: ClaudeUsageDataSource
+    public let useWebExtras: Bool
+}
+
+struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
+    let id: String = "claude.oauth"
+    let kind: ProviderFetchKind = .oauth
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        guard let creds = try? ClaudeOAuthCredentialsStore.load(environment: context.env) else { return false }
+        // In Auto mode, only prefer OAuth when we know the scope is present.
+        // In OAuth-only mode, still show a useful error message even when the scope is missing.
+        // (The strategy can fall back to Web/CLI when allowed by the fetch plan.)
+        if context.sourceMode == .auto {
+            return creds.scopes.contains("user:profile")
+        }
+        return true
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: context.browserDetection,
+            environment: context.env,
+            dataSource: .oauth,
+            useWebExtras: false)
+        let usage = try await fetcher.loadLatestUsage(model: "sonnet")
+        return self.makeResult(
+            usage: Self.snapshot(from: usage),
+            sourceLabel: "oauth")
+    }
+
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.runtime == .app && (context.sourceMode == .auto || context.sourceMode == .oauth)
+    }
+
+    fileprivate static func snapshot(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: usage.accountEmail,
+            accountOrganization: usage.accountOrganization,
+            loginMethod: usage.loginMethod)
+        return UsageSnapshot(
+            primary: usage.primary,
+            secondary: usage.secondary,
+            tertiary: usage.opus,
+            providerCost: usage.providerCost,
+            updatedAt: usage.updatedAt,
+            identity: identity)
+    }
+}
+
+struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
+    let id: String = "claude.web"
+    let kind: ProviderFetchKind = .web
+    let browserDetection: BrowserDetection
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        if let header = Self.manualCookieHeader(from: context) {
+            return ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
+        }
+        guard context.settings?.claude?.cookieSource != .off else { return false }
+        return ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection)
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: browserDetection,
+            dataSource: .web,
+            useWebExtras: false,
+            manualCookieHeader: Self.manualCookieHeader(from: context))
+        let usage = try await fetcher.loadLatestUsage(model: "sonnet")
+        return self.makeResult(
+            usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
+            sourceLabel: "web")
+    }
+
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto else { return false }
+        _ = error
+        return true
+    }
+
+    private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
+        guard context.settings?.claude?.cookieSource == .manual else { return nil }
+        return CookieHeaderNormalizer.normalize(context.settings?.claude?.manualCookieHeader)
+    }
+}
+
+struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
+    let id: String = "claude.cli"
+    let kind: ProviderFetchKind = .cli
+    let useWebExtras: Bool
+    let manualCookieHeader: String?
+    let browserDetection: BrowserDetection
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool { true }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let keepAlive = context.settings?.debugKeepCLISessionsAlive ?? false
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: browserDetection,
+            dataSource: .cli,
+            useWebExtras: self.useWebExtras,
+            manualCookieHeader: self.manualCookieHeader,
+            keepCLISessionsAlive: keepAlive)
+        let usage = try await fetcher.loadLatestUsage(model: "sonnet")
+        return self.makeResult(
+            usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
+            sourceLabel: "claude")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}

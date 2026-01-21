@@ -6,6 +6,8 @@ struct AboutPane: View {
     let updater: UpdaterProviding
     @State private var iconHover = false
     @AppStorage("autoUpdateEnabled") private var autoUpdateEnabled: Bool = true
+    @AppStorage(UpdateChannel.userDefaultsKey)
+    private var updateChannelRaw: String = UpdateChannel.defaultChannel.rawValue
     @State private var didLoadUpdaterState = false
 
     private var versionString: String {
@@ -56,7 +58,7 @@ struct AboutPane: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                Text("May your tokens never run out—keep Codex limits in view.")
+                Text("May your tokens never run out—keep agent limits in view.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -81,6 +83,25 @@ struct AboutPane: View {
                     Toggle("Check for updates automatically", isOn: self.$autoUpdateEnabled)
                         .toggleStyle(.checkbox)
                         .frame(maxWidth: .infinity, alignment: .center)
+                    VStack(spacing: 6) {
+                        HStack(spacing: 12) {
+                            Text("Update Channel")
+                            Spacer()
+                            Picker("", selection: self.updateChannelBinding) {
+                                ForEach(UpdateChannel.allCases) { channel in
+                                    Text(channel.displayName).tag(channel)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        }
+                        .frame(maxWidth: 280)
+                        Text(self.updateChannel.description)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 280)
+                    }
                     Button("Check for Updates…") { self.updater.checkForUpdates(nil) }
                 }
             } else {
@@ -110,6 +131,19 @@ struct AboutPane: View {
             self.updater.automaticallyChecksForUpdates = newValue
             self.updater.automaticallyDownloadsUpdates = newValue
         }
+    }
+
+    private var updateChannel: UpdateChannel {
+        UpdateChannel(rawValue: self.updateChannelRaw) ?? .stable
+    }
+
+    private var updateChannelBinding: Binding<UpdateChannel> {
+        Binding(
+            get: { self.updateChannel },
+            set: { newValue in
+                self.updateChannelRaw = newValue.rawValue
+                self.updater.checkForUpdates(nil)
+            })
     }
 
     private func openProjectHome() {

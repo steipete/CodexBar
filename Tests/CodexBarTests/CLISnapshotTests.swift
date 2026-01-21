@@ -7,14 +7,17 @@ import Testing
 struct CLISnapshotTests {
     @Test
     func rendersTextSnapshotForCodex() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "pro")
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: "today at 3:00 PM"),
             secondary: .init(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: "Fri at 9:00 AM"),
             tertiary: nil,
             updatedAt: Date(timeIntervalSince1970: 0),
-            accountEmail: "user@example.com",
-            accountOrganization: nil,
-            loginMethod: "pro")
+            identity: identity)
 
         let output = CLIRenderer.renderText(
             provider: .codex,
@@ -27,7 +30,8 @@ struct CLISnapshotTests {
                     description: "Degraded performance",
                     updatedAt: Date(timeIntervalSince1970: 0),
                     url: "https://status.example.com"),
-                useColor: false))
+                useColor: false,
+                resetStyle: .absolute))
 
         #expect(output.contains("Codex 1.2.3 (codex-cli)"))
         #expect(output.contains("Status: Partial outage – Degraded performance"))
@@ -45,10 +49,7 @@ struct CLISnapshotTests {
             primary: .init(usedPercent: 2, windowMinutes: nil, resetsAt: nil, resetDescription: "3pm (Europe/Vienna)"),
             secondary: nil,
             tertiary: nil,
-            updatedAt: Date(timeIntervalSince1970: 0),
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: nil)
+            updatedAt: Date(timeIntervalSince1970: 0))
 
         let output = CLIRenderer.renderText(
             provider: .claude,
@@ -57,10 +58,37 @@ struct CLISnapshotTests {
             context: RenderContext(
                 header: "Claude Code 2.0.69 (claude)",
                 status: nil,
-                useColor: false))
+                useColor: false,
+                resetStyle: .absolute))
 
         #expect(output.contains("Session: 98% left"))
         #expect(!output.contains("Weekly:"))
+    }
+
+    @Test
+    func rendersPaceLineWhenWeeklyHasReset() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: .init(
+                usedPercent: 50,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 0.0.0 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(output.contains("Pace:"))
     }
 
     @Test
@@ -69,13 +97,11 @@ struct CLISnapshotTests {
             primary: .init(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: .init(usedPercent: 10, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
             tertiary: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: nil)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
 
         let payload = ProviderPayload(
             provider: .codex,
+            account: nil,
             version: "1.2.3",
             source: "codex-cli",
             status: ProviderStatusPayload(
@@ -86,7 +112,8 @@ struct CLISnapshotTests {
             usage: snap,
             credits: nil,
             antigravityPlanInfo: nil,
-            openaiDashboard: nil)
+            openaiDashboard: nil,
+            error: nil)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
         let data = try encoder.encode(payload)
@@ -110,10 +137,7 @@ struct CLISnapshotTests {
             primary: .init(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             tertiary: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: nil)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
@@ -142,14 +166,17 @@ struct CLISnapshotTests {
 
     @Test
     func statusLineIsLastAndColoredWhenTTY() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "pro")
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: .init(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
             tertiary: nil,
             updatedAt: Date(),
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: "pro")
+            identity: identity)
 
         let output = CLIRenderer.renderText(
             provider: .claude,
@@ -162,7 +189,8 @@ struct CLISnapshotTests {
                     description: "Major outage",
                     updatedAt: nil,
                     url: "https://status.claude.com"),
-                useColor: true))
+                useColor: true,
+                resetStyle: .absolute))
 
         let lines = output.split(separator: "\n")
         #expect(lines.last?.contains("Status: Critical issue – Major outage") == true)
@@ -170,15 +198,62 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func outputHasAnsiWhenTTYEvenWithoutStatus() {
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 0.0.0 (codex-cli)",
+                status: nil,
+                useColor: true,
+                resetStyle: .absolute))
+
+        #expect(output.contains("\u{001B}["))
+    }
+
+    @Test
+    func ttyOutputColorsHeaderAndUsage() {
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 95, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: .init(usedPercent: 80, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 0.0.0 (codex-cli)",
+                status: nil,
+                useColor: true,
+                resetStyle: .absolute))
+
+        #expect(output.contains("\u{001B}[1;95m== Codex 0.0.0 (codex-cli) ==\u{001B}[0m"))
+        #expect(output.contains("Session: \u{001B}[31m5% left\u{001B}[0m")) // red <10% left
+        #expect(output.contains("Weekly: \u{001B}[33m20% left\u{001B}[0m")) // yellow <25% left
+    }
+
+    @Test
     func statusLineIsPlainWhenNoTTY() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "pro")
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: .init(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
             tertiary: nil,
             updatedAt: Date(),
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: "pro")
+            identity: identity)
 
         let output = CLIRenderer.renderText(
             provider: .codex,
@@ -191,7 +266,8 @@ struct CLISnapshotTests {
                     description: "Operational",
                     updatedAt: nil,
                     url: "https://status.openai.com/"),
-                useColor: false))
+                useColor: false,
+                resetStyle: .absolute))
 
         #expect(!output.contains("\u{001B}["))
         #expect(output.contains("Status: Operational – Operational"))

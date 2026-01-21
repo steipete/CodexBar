@@ -7,7 +7,7 @@ public enum CodexBarLog {
         case oslog(subsystem: String)
     }
 
-    public enum Level: String, Sendable {
+    public enum Level: String, CaseIterable, Identifiable, Sendable {
         case trace
         case verbose
         case debug
@@ -15,6 +15,32 @@ public enum CodexBarLog {
         case warning
         case error
         case critical
+
+        public var id: String { self.rawValue }
+
+        public var displayName: String {
+            switch self {
+            case .trace: "Trace"
+            case .verbose: "Verbose"
+            case .debug: "Debug"
+            case .info: "Info"
+            case .warning: "Warning"
+            case .error: "Error"
+            case .critical: "Critical"
+            }
+        }
+
+        public var rank: Int {
+            switch self {
+            case .trace: 0
+            case .verbose: 1
+            case .debug: 2
+            case .info: 3
+            case .warning: 4
+            case .error: 5
+            case .critical: 6
+            }
+        }
 
         public var asSwiftLogLevel: Logger.Level {
             switch self {
@@ -42,12 +68,15 @@ public enum CodexBarLog {
     }
 
     private static let lock = NSLock()
+    private static let levelLock = NSLock()
     private nonisolated(unsafe) static var isBootstrapped = false
+    private nonisolated(unsafe) static var currentLevel: Level = .info
 
     public static func bootstrapIfNeeded(_ config: Configuration) {
         self.lock.lock()
         defer { lock.unlock() }
         guard !self.isBootstrapped else { return }
+        self.currentLevel = config.level
 
         let baseFactory: @Sendable (String) -> any LogHandler = { label in
             switch config.destination {
@@ -65,8 +94,10 @@ public enum CodexBarLog {
         }
 
         LoggingSystem.bootstrap { label in
-            var handler = baseFactory(label)
-            handler.logLevel = config.level.asSwiftLogLevel
+            let primary = baseFactory(label)
+            let fileHandler = FileLogHandler(label: label)
+            var handler = CompositeLogHandler(primary: primary, secondary: fileHandler)
+            handler.logLevel = .trace
             return handler
         }
 
@@ -76,17 +107,48 @@ public enum CodexBarLog {
     public static func logger(_ category: String) -> CodexBarLogger {
         let logger = Logger(label: "com.steipete.codexbar.\(category)")
         return CodexBarLogger { level, message, metadata in
+            guard self.shouldLog(level) else { return }
             let swiftLogLevel = level.asSwiftLogLevel
+            let safeMessage = LogRedactor.redact(message)
             let meta = metadata?.reduce(into: Logger.Metadata()) { partial, entry in
-                partial[entry.key] = .string(entry.value)
+                partial[entry.key] = .string(LogRedactor.redact(entry.value))
             }
-            logger.log(level: swiftLogLevel, "\(message)", metadata: meta)
+            logger.log(level: swiftLogLevel, "\(safeMessage)", metadata: meta)
         }
     }
 
     public static func parseLevel(_ raw: String?) -> Level? {
         guard let raw, !raw.isEmpty else { return nil }
         return Level(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    public static func setLogLevel(_ level: Level) {
+        self.levelLock.lock()
+        self.currentLevel = level
+        self.levelLock.unlock()
+        let logger = self.logger(LogCategories.logging)
+        logger.info("Log level set to \(level.rawValue)")
+    }
+
+    public static func currentLogLevel() -> Level {
+        self.levelLock.lock()
+        defer { self.levelLock.unlock() }
+        return self.currentLevel
+    }
+
+    private static func shouldLog(_ level: Level) -> Bool {
+        level.rank >= self.currentLogLevel().rank
+    }
+
+    public static var fileLogURL: URL {
+        FileLogSink.defaultURL
+    }
+
+    public static func setFileLoggingEnabled(_ enabled: Bool) {
+        FileLogSink.shared.setEnabled(enabled, fileURL: self.fileLogURL)
+        let state = enabled ? "enabled" : "disabled"
+        let logger = self.logger(LogCategories.logging)
+        logger.info("File logging \(state)", metadata: ["path": self.fileLogURL.path])
     }
 }
 
@@ -99,6 +161,10 @@ public struct CodexBarLogger: Sendable {
 
     public func trace(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {
         self.logFn(.trace, message(), metadata)
+    }
+
+    public func verbose(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {
+        self.logFn(.verbose, message(), metadata)
     }
 
     public func debug(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {

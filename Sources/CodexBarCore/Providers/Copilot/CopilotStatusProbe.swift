@@ -545,15 +545,18 @@ public struct CopilotStatusSnapshot: Sendable, Equatable {
                 usedCount: entry.usedCount,
                 totalCount: entry.totalCount)
         }
+        let identity = ProviderIdentitySnapshot(
+            providerID: .copilot,
+            accountEmail: self.accountLogin,
+            accountOrganization: nil,
+            loginMethod: self.plan)
         return UsageSnapshot(
             primary: primaryWindow,
             secondary: secondaryWindow,
             tertiary: nil,
             providerCost: nil,
             updatedAt: self.updatedAt,
-            accountEmail: self.accountLogin,
-            accountOrganization: nil,
-            loginMethod: self.plan)
+            identity: identity)
     }
 
     private static func formatResetDate(_ date: Date) -> String {

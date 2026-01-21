@@ -9,15 +9,25 @@ import Testing
 struct ProviderSettingsDescriptorTests {
     @Test
     func toggleIDsAreUniqueAcrossProviders() {
-        let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-unique")!
-        defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-unique")
-        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
-        let store = UsageStore(fetcher: UsageFetcher(environment: [:]), settings: settings)
+        let suite = "ProviderSettingsDescriptorTests-unique"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
 
         var statusByID: [String: String] = [:]
         var lastRunAtByID: [String: Date] = [:]
         var seenToggleIDs: Set<String> = []
         var seenActionIDs: Set<String> = []
+        var seenPickerIDs: Set<String> = []
 
         for provider in UsageProvider.allCases {
             let context = ProviderSettingsContext(
@@ -63,15 +73,30 @@ struct ProviderSettingsDescriptorTests {
                     seenActionIDs.insert(action.id)
                 }
             }
+
+            let pickers = impl.settingsPickers(context: context)
+            for picker in pickers {
+                #expect(!seenPickerIDs.contains(picker.id))
+                seenPickerIDs.insert(picker.id)
+            }
         }
     }
 
     @Test
-    func codexDoesNotExposeOpenAIWebToggle() {
-        let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-codex")!
-        defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-codex")
-        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
-        let store = UsageStore(fetcher: UsageFetcher(environment: [:]), settings: settings)
+    func codexExposesUsageAndCookiePickers() {
+        let suite = "ProviderSettingsDescriptorTests-codex"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
 
         let context = ProviderSettingsContext(
             provider: .codex,
@@ -93,16 +118,26 @@ struct ProviderSettingsDescriptorTests {
             setLastAppActiveRunAt: { _, _ in },
             requestConfirmation: { _ in })
 
-        let toggles = CodexProviderImplementation().settingsToggles(context: context)
-        #expect(toggles.isEmpty)
+        let pickers = CodexProviderImplementation().settingsPickers(context: context)
+        #expect(pickers.contains(where: { $0.id == "codex-usage-source" }))
+        #expect(pickers.contains(where: { $0.id == "codex-cookie-source" }))
     }
 
     @Test
-    func claudeWebExtrasToggleIsVisibleOnlyForCLIDataSource() {
-        let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-claude")!
-        defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-claude")
-        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
-        let store = UsageStore(fetcher: UsageFetcher(environment: [:]), settings: settings)
+    func claudeExposesUsageAndCookiePickers() {
+        let suite = "ProviderSettingsDescriptorTests-claude"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
 
         let context = ProviderSettingsContext(
             provider: .claude,
@@ -123,23 +158,22 @@ struct ProviderSettingsDescriptorTests {
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
             requestConfirmation: { _ in })
-
-        let toggle = ClaudeProviderImplementation().settingsToggles(context: context)
-            .first { $0.id == "claude.webExtras" }!
-
-        settings.debugMenuEnabled = true
-        settings.claudeUsageDataSource = .web
-        #expect((toggle.isVisible?() ?? true) == false)
-
-        settings.claudeUsageDataSource = .cli
-        #expect((toggle.isVisible?() ?? true) == true)
+        let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
+        #expect(pickers.contains(where: { $0.id == "claude-usage-source" }))
+        #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
     }
 
     @Test
     func claudeWebExtrasAutoDisablesWhenLeavingCLI() {
-        let defaults = UserDefaults(suiteName: "ProviderSettingsDescriptorTests-claude-invariant")!
-        defaults.removePersistentDomain(forName: "ProviderSettingsDescriptorTests-claude-invariant")
-        let settings = SettingsStore(userDefaults: defaults, zaiTokenStore: NoopZaiTokenStore())
+        let suite = "ProviderSettingsDescriptorTests-claude-invariant"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         settings.debugMenuEnabled = true
         settings.claudeUsageDataSource = .cli
         settings.claudeWebExtrasEnabled = true

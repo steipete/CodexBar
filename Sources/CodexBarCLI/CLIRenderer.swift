@@ -2,44 +2,64 @@ import CodexBarCore
 import Foundation
 
 enum CLIRenderer {
+    private static let accentColor = "95"
+    private static let accentBoldColor = "1;95"
+    private static let subtleColor = "90"
+    private static let paceMinimumExpectedPercent: Double = 3
+    private static let usageBarWidth = 12
+
     static func renderText(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
         credits: CreditsSnapshot?,
         context: RenderContext) -> String
     {
-        let meta = ProviderDefaults.metadata[provider]!
+        let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
+        let now = Date()
         var lines: [String] = []
-        lines.append(context.header)
+        lines.append(self.headerLine(context.header, useColor: context.useColor))
 
-        lines.append(self.rateLine(title: meta.sessionLabel, window: snapshot.primary))
-        if let reset = snapshot.primary.resetDescription {
-            lines.append(self.resetLine(reset))
+        if let primary = snapshot.primary {
+            lines.append(self.rateLine(title: meta.sessionLabel, window: primary, useColor: context.useColor))
+            if let reset = self.resetLine(for: primary, style: context.resetStyle, now: now) {
+                lines.append(self.subtleLine(reset, useColor: context.useColor))
+            }
+        } else if let cost = snapshot.providerCost {
+            // Fallback to cost/quota display if no primary rate window
+            let label = cost.currencyCode == "Quota" ? "Quota" : "Cost"
+            let value = "\(String(format: "%.1f", cost.used)) / \(String(format: "%.1f", cost.limit))"
+            lines.append(self.labelValueLine(label, value: value, useColor: context.useColor))
         }
 
         if let weekly = snapshot.secondary {
-            lines.append(self.rateLine(title: meta.weeklyLabel, window: weekly))
-            if let reset = weekly.resetDescription {
-                lines.append(self.resetLine(reset))
+            lines.append(self.rateLine(title: meta.weeklyLabel, window: weekly, useColor: context.useColor))
+            if let pace = self.paceLine(provider: provider, window: weekly, useColor: context.useColor, now: now) {
+                lines.append(pace)
+            }
+            if let reset = self.resetLine(for: weekly, style: context.resetStyle, now: now) {
+                lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
         }
 
         if meta.supportsOpus, let opus = snapshot.tertiary {
-            lines.append(self.rateLine(title: meta.opusLabel ?? "Sonnet", window: opus))
-            if let reset = opus.resetDescription {
-                lines.append(self.resetLine(reset))
+            lines.append(self.rateLine(title: meta.opusLabel ?? "Sonnet", window: opus, useColor: context.useColor))
+            if let reset = self.resetLine(for: opus, style: context.resetStyle, now: now) {
+                lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
         }
 
         if provider == .codex, let credits {
-            lines.append("Credits: \(UsageFormatter.creditsString(from: credits.remaining))")
+            lines.append(self.labelValueLine(
+                "Credits",
+                value: UsageFormatter.creditsString(from: credits.remaining),
+                useColor: context.useColor))
         }
 
-        if let email = snapshot.accountEmail, !email.isEmpty {
-            lines.append("Account: \(email)")
+        if let email = snapshot.accountEmail(for: provider), !email.isEmpty {
+            lines.append(self.labelValueLine("Account", value: email, useColor: context.useColor))
         }
-        if let plan = snapshot.loginMethod, !plan.isEmpty {
-            lines.append("Plan: \(plan.capitalized)")
+        if let plan = snapshot.loginMethod(for: provider), !plan.isEmpty {
+            lines.append(self.labelValueLine("Plan", value: plan.capitalized, useColor: context.useColor))
         }
 
         if let status = context.status {
@@ -50,17 +70,6 @@ enum CLIRenderer {
         return lines.joined(separator: "\n")
     }
 
-    static func rateLine(title: String, window: RateWindow) -> String {
-        // If we have raw counts, show "X / Y used" format instead of percentage
-        if let used = window.usedCount, let total = window.totalCount {
-            let usedStr = Self.formatCount(used)
-            let totalStr = Self.formatCount(total)
-            return "\(title): \(usedStr) / \(totalStr) used"
-        }
-        let text = UsageFormatter.usageLine(remaining: window.remainingPercent, used: window.usedPercent)
-        return "\(title): \(text)"
-    }
-
     private static func formatCount(_ value: Double) -> String {
         if value == floor(value) {
             return String(Int(value))
@@ -68,10 +77,119 @@ enum CLIRenderer {
         return String(format: "%.1f", value)
     }
 
-    private static func resetLine(_ reset: String) -> String {
-        let trimmed = reset.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.lowercased().hasPrefix("resets") { return trimmed }
-        return "Resets \(trimmed)"
+    static func rateLine(title: String, window: RateWindow, useColor: Bool) -> String {
+        if let used = window.usedCount, let total = window.totalCount {
+            let usedStr = self.formatCount(used)
+            let totalStr = self.formatCount(total)
+            return "\(self.label(title, useColor: useColor)): \(usedStr) / \(totalStr) used"
+        }
+
+        let text = UsageFormatter.usageLine(
+            remaining: window.remainingPercent,
+            used: window.usedPercent,
+            showUsed: false)
+        let colored = self.colorizeUsage(text, remainingPercent: window.remainingPercent, useColor: useColor)
+        let bar = self.usageBar(remainingPercent: window.remainingPercent, useColor: useColor)
+        return "\(self.label(title, useColor: useColor)): \(colored) \(bar)"
+    }
+
+    private static func resetLine(for window: RateWindow, style: ResetTimeDisplayStyle, now: Date) -> String? {
+        UsageFormatter.resetLine(for: window, style: style, now: now)
+    }
+
+    private static func headerLine(_ header: String, useColor: Bool) -> String {
+        let decorated = "== \(header) =="
+        guard useColor else { return decorated }
+        return self.ansi(self.accentBoldColor, decorated)
+    }
+
+    private static func labelValueLine(_ label: String, value: String, useColor: Bool) -> String {
+        let labelText = self.label(label, useColor: useColor)
+        return "\(labelText): \(value)"
+    }
+
+    private static func label(_ text: String, useColor: Bool) -> String {
+        guard useColor else { return text }
+        return self.ansi(self.accentColor, text)
+    }
+
+    private static func subtleLine(_ text: String, useColor: Bool) -> String {
+        guard useColor else { return text }
+        return self.ansi(self.subtleColor, text)
+    }
+
+    private static func usageBar(remainingPercent: Double, useColor: Bool) -> String {
+        let clamped = max(0, min(100, remainingPercent))
+        let rawFilled = Int((clamped / 100) * Double(Self.usageBarWidth))
+        let filled = max(0, min(Self.usageBarWidth, rawFilled))
+        let empty = max(0, Self.usageBarWidth - filled)
+        let bar = "[\(String(repeating: "=", count: filled))\(String(repeating: "-", count: empty))]"
+        guard useColor else { return bar }
+        return self.ansi(self.accentColor, bar)
+    }
+
+    private static func paceLine(
+        provider: UsageProvider,
+        window: RateWindow,
+        useColor: Bool,
+        now: Date) -> String?
+    {
+        guard provider == .codex || provider == .claude else { return nil }
+        guard window.remainingPercent > 0 else { return nil }
+        guard let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080) else { return nil }
+        guard pace.expectedUsedPercent >= Self.paceMinimumExpectedPercent else { return nil }
+
+        let expected = Int(pace.expectedUsedPercent.rounded())
+        var parts: [String] = []
+        parts.append(Self.paceLeftLabel(for: pace))
+        parts.append("Expected \(expected)% used")
+        if let rightLabel = Self.paceRightLabel(for: pace, now: now) {
+            parts.append(rightLabel)
+        }
+        let label = self.label("Pace", useColor: useColor)
+        return "\(label): \(parts.joined(separator: " | "))"
+    }
+
+    private static func paceLeftLabel(for pace: UsagePace) -> String {
+        let deltaValue = Int(abs(pace.deltaPercent).rounded())
+        switch pace.stage {
+        case .onTrack:
+            return "On pace"
+        case .slightlyAhead, .ahead, .farAhead:
+            return "\(deltaValue)% in deficit"
+        case .slightlyBehind, .behind, .farBehind:
+            return "\(deltaValue)% in reserve"
+        }
+    }
+
+    private static func paceRightLabel(for pace: UsagePace, now: Date) -> String? {
+        if pace.willLastToReset { return "Lasts until reset" }
+        guard let etaSeconds = pace.etaSeconds else { return nil }
+        let etaText = Self.paceDurationText(seconds: etaSeconds, now: now)
+        if etaText == "now" { return "Runs out now" }
+        return "Runs out in \(etaText)"
+    }
+
+    private static func paceDurationText(seconds: TimeInterval, now: Date) -> String {
+        let date = now.addingTimeInterval(seconds)
+        let countdown = UsageFormatter.resetCountdownDescription(from: date, now: now)
+        if countdown == "now" { return "now" }
+        if countdown.hasPrefix("in ") { return String(countdown.dropFirst(3)) }
+        return countdown
+    }
+
+    private static func colorizeUsage(_ text: String, remainingPercent: Double, useColor: Bool) -> String {
+        guard useColor else { return text }
+
+        let code = switch remainingPercent {
+        case ..<10:
+            "31" // red
+        case ..<25:
+            "33" // yellow
+        default:
+            "32" // green
+        }
+        return self.ansi(code, text)
     }
 
     private static func colorize(
@@ -88,7 +206,11 @@ enum CLIRenderer {
         case .maintenance: "34" // blue
         case .unknown: "90" // gray
         }
-        return "\u{001B}[\(code)m\(text)\u{001B}[0m"
+        return self.ansi(code, text)
+    }
+
+    private static func ansi(_ code: String, _ text: String) -> String {
+        "\u{001B}[\(code)m\(text)\u{001B}[0m"
     }
 }
 
@@ -96,4 +218,5 @@ struct RenderContext {
     let header: String
     let status: ProviderStatusPayload?
     let useColor: Bool
+    let resetStyle: ResetTimeDisplayStyle
 }

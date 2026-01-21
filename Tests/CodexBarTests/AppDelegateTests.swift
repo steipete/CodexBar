@@ -18,9 +18,12 @@ struct AppDelegateTests {
         }
         defer { StatusItemController.factory = StatusItemController.defaultFactory }
 
-        let settings = SettingsStore(zaiTokenStore: NoopZaiTokenStore())
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "AppDelegateTests"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, settings: settings)
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         let account = fetcher.loadAccountInfo()
 
         // configure should not eagerly construct the status controller
@@ -37,4 +40,7 @@ struct AppDelegateTests {
     }
 }
 
-private final class DummyStatusController: StatusItemControlling {}
+@MainActor
+private final class DummyStatusController: StatusItemControlling {
+    func openMenuFromShortcut() {}
+}
