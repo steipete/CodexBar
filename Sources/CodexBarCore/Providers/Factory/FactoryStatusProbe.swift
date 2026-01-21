@@ -220,12 +220,16 @@ public struct FactoryStatusSnapshot: Sendable {
     public let standardOrgTokens: Int64
     /// Standard token allowance
     public let standardAllowance: Int64
+    /// Standard usage ratio from API (0.0-1.0), preferred over manual calculation
+    public let standardUsedRatio: Double?
     /// Premium token usage (user)
     public let premiumUserTokens: Int64
     /// Premium token usage (org total)
     public let premiumOrgTokens: Int64
     /// Premium token allowance
     public let premiumAllowance: Int64
+    /// Premium usage ratio from API (0.0-1.0), preferred over manual calculation
+    public let premiumUsedRatio: Double?
     /// Billing period start
     public let periodStart: Date?
     /// Billing period end
@@ -247,9 +251,11 @@ public struct FactoryStatusSnapshot: Sendable {
         standardUserTokens: Int64,
         standardOrgTokens: Int64,
         standardAllowance: Int64,
+        standardUsedRatio: Double? = nil,
         premiumUserTokens: Int64,
         premiumOrgTokens: Int64,
         premiumAllowance: Int64,
+        premiumUsedRatio: Double? = nil,
         periodStart: Date?,
         periodEnd: Date?,
         planName: String?,
@@ -262,9 +268,11 @@ public struct FactoryStatusSnapshot: Sendable {
         self.standardUserTokens = standardUserTokens
         self.standardOrgTokens = standardOrgTokens
         self.standardAllowance = standardAllowance
+        self.standardUsedRatio = standardUsedRatio
         self.premiumUserTokens = premiumUserTokens
         self.premiumOrgTokens = premiumOrgTokens
         self.premiumAllowance = premiumAllowance
+        self.premiumUsedRatio = premiumUsedRatio
         self.periodStart = periodStart
         self.periodEnd = periodEnd
         self.planName = planName
@@ -278,9 +286,11 @@ public struct FactoryStatusSnapshot: Sendable {
     /// Convert to UsageSnapshot for the common provider interface
     public func toUsageSnapshot() -> UsageSnapshot {
         // Primary: Standard tokens used (as percentage of allowance, capped reasonably)
+        // Prefer API-provided usedRatio when available (handles plan-specific limits server-side)
         let standardPercent = self.calculateUsagePercent(
             used: self.standardUserTokens,
-            allowance: self.standardAllowance)
+            allowance: self.standardAllowance,
+            apiRatio: self.standardUsedRatio)
 
         let primary = RateWindow(
             usedPercent: standardPercent,
@@ -291,7 +301,8 @@ public struct FactoryStatusSnapshot: Sendable {
         // Secondary: Premium tokens used
         let premiumPercent = self.calculateUsagePercent(
             used: self.premiumUserTokens,
-            allowance: self.premiumAllowance)
+            allowance: self.premiumAllowance,
+            apiRatio: self.premiumUsedRatio)
 
         let secondary = RateWindow(
             usedPercent: premiumPercent,
@@ -325,7 +336,16 @@ public struct FactoryStatusSnapshot: Sendable {
             identity: identity)
     }
 
-    private func calculateUsagePercent(used: Int64, allowance: Int64) -> Double {
+    private func calculateUsagePercent(used: Int64, allowance: Int64, apiRatio: Double?) -> Double {
+        // Prefer API-provided ratio when available and valid
+        // This handles plan-specific limits correctly on the server side,
+        // avoiding issues with missing/sentinel values in totalAllowance
+        if let ratio = apiRatio, ratio.isFinite, ratio >= -0.001, ratio <= 1.001 {
+            // Clamp to valid range (handles minor floating point rounding)
+            return min(100, max(0, ratio * 100))
+        }
+
+        // Fallback: calculate from used/allowance
         // Treat very large allowances (> 1 trillion) as unlimited
         let unlimitedThreshold: Int64 = 1_000_000_000_000
         if allowance > unlimitedThreshold {
@@ -1300,9 +1320,11 @@ public struct FactoryStatusProbe: Sendable {
             standardUserTokens: usage?.standard?.userTokens ?? 0,
             standardOrgTokens: usage?.standard?.orgTotalTokensUsed ?? 0,
             standardAllowance: usage?.standard?.totalAllowance ?? 0,
+            standardUsedRatio: usage?.standard?.usedRatio,
             premiumUserTokens: usage?.premium?.userTokens ?? 0,
             premiumOrgTokens: usage?.premium?.orgTotalTokensUsed ?? 0,
             premiumAllowance: usage?.premium?.totalAllowance ?? 0,
+            premiumUsedRatio: usage?.premium?.usedRatio,
             periodStart: periodStart,
             periodEnd: periodEnd,
             planName: authInfo.organization?.subscription?.orbSubscription?.plan?.name,

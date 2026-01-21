@@ -44,12 +44,14 @@ struct FactoryStatusProbeFetchTests {
                     "standard": {
                       "userTokens": 100,
                       "orgTotalTokensUsed": 250,
-                      "totalAllowance": 1000
+                      "totalAllowance": 1000,
+                      "usedRatio": 0.10
                     },
                     "premium": {
                       "userTokens": 10,
                       "orgTotalTokensUsed": 20,
-                      "totalAllowance": 100
+                      "totalAllowance": 100,
+                      "usedRatio": 0.10
                     }
                   },
                   "userId": "user-1"
@@ -65,9 +67,16 @@ struct FactoryStatusProbeFetchTests {
 
         #expect(snapshot.standardUserTokens == 100)
         #expect(snapshot.standardAllowance == 1000)
+        #expect(snapshot.standardUsedRatio == 0.10)
         #expect(snapshot.premiumUserTokens == 10)
+        #expect(snapshot.premiumUsedRatio == 0.10)
         #expect(snapshot.userId == "user-1")
         #expect(snapshot.planName == "Team")
+
+        // Verify usedRatio is used in percentage calculation (0.10 * 100 = 10%)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.usedPercent == 10)
+        #expect(usage.secondary?.usedPercent == 10)
     }
 
     private static func makeResponse(
