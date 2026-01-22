@@ -54,6 +54,132 @@ struct FactoryStatusSnapshotTests {
 
         #expect(usage.primary?.usedPercent == 50)
     }
+
+    @Test
+    func prefersAPIUsedRatioWhenAllowanceMissing() {
+        let snapshot = FactoryStatusSnapshot(
+            standardUserTokens: 72_311_737,
+            standardOrgTokens: 72_311_737,
+            standardAllowance: 0,
+            standardUsedRatio: 0.3615586850,
+            premiumUserTokens: 0,
+            premiumOrgTokens: 0,
+            premiumAllowance: 0,
+            premiumUsedRatio: 0.0,
+            periodStart: nil,
+            periodEnd: nil,
+            planName: "Max",
+            tier: nil,
+            organizationName: nil,
+            accountEmail: nil,
+            userId: nil,
+            rawJSON: nil)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent ?? 0 > 36)
+        #expect(usage.primary?.usedPercent ?? 0 < 37)
+    }
+
+    @Test
+    func usesPercentScaleRatioWhenAllowanceMissing() {
+        let snapshot = FactoryStatusSnapshot(
+            standardUserTokens: 0,
+            standardOrgTokens: 0,
+            standardAllowance: 0,
+            standardUsedRatio: 10.0,
+            premiumUserTokens: 0,
+            premiumOrgTokens: 0,
+            premiumAllowance: 0,
+            premiumUsedRatio: nil,
+            periodStart: nil,
+            periodEnd: nil,
+            planName: nil,
+            tier: nil,
+            organizationName: nil,
+            accountEmail: nil,
+            userId: nil,
+            rawJSON: nil)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 10)
+    }
+
+    @Test
+    func fallsBackToCalculationWhenAPIRatioMissing() {
+        let snapshot = FactoryStatusSnapshot(
+            standardUserTokens: 50_000_000,
+            standardOrgTokens: 0,
+            standardAllowance: 100_000_000,
+            standardUsedRatio: nil,
+            premiumUserTokens: 0,
+            premiumOrgTokens: 0,
+            premiumAllowance: 0,
+            premiumUsedRatio: nil,
+            periodStart: nil,
+            periodEnd: nil,
+            planName: nil,
+            tier: nil,
+            organizationName: nil,
+            accountEmail: nil,
+            userId: nil,
+            rawJSON: nil)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 50)
+    }
+
+    @Test
+    func fallsBackWhenAPIRatioIsInvalid() {
+        let snapshot = FactoryStatusSnapshot(
+            standardUserTokens: 50_000_000,
+            standardOrgTokens: 0,
+            standardAllowance: 100_000_000,
+            standardUsedRatio: 1.5,
+            premiumUserTokens: 0,
+            premiumOrgTokens: 0,
+            premiumAllowance: 0,
+            premiumUsedRatio: -0.5,
+            periodStart: nil,
+            periodEnd: nil,
+            planName: nil,
+            tier: nil,
+            organizationName: nil,
+            accountEmail: nil,
+            userId: nil,
+            rawJSON: nil)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 50)
+    }
+
+    @Test
+    func clampsSlightlyOutOfRangeRatios() {
+        let snapshot = FactoryStatusSnapshot(
+            standardUserTokens: 100_000_000,
+            standardOrgTokens: 0,
+            standardAllowance: 100_000_000,
+            standardUsedRatio: 1.0005,
+            premiumUserTokens: 0,
+            premiumOrgTokens: 0,
+            premiumAllowance: 0,
+            premiumUsedRatio: nil,
+            periodStart: nil,
+            periodEnd: nil,
+            planName: nil,
+            tier: nil,
+            organizationName: nil,
+            accountEmail: nil,
+            userId: nil,
+            rawJSON: nil)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 100)
+    }
 }
 
 @Suite

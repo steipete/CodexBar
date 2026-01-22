@@ -220,12 +220,18 @@ public struct FactoryStatusSnapshot: Sendable {
     public let standardOrgTokens: Int64
     /// Standard token allowance
     public let standardAllowance: Int64
+    /// Standard usage ratio from API (0.0-1.0), preferred over manual calculation
+    /// Falls back to percent-scale (0.0-100.0) when allowance is unavailable.
+    public let standardUsedRatio: Double?
     /// Premium token usage (user)
     public let premiumUserTokens: Int64
     /// Premium token usage (org total)
     public let premiumOrgTokens: Int64
     /// Premium token allowance
     public let premiumAllowance: Int64
+    /// Premium usage ratio from API (0.0-1.0), preferred over manual calculation
+    /// Falls back to percent-scale (0.0-100.0) when allowance is unavailable.
+    public let premiumUsedRatio: Double?
     /// Billing period start
     public let periodStart: Date?
     /// Billing period end
@@ -247,9 +253,11 @@ public struct FactoryStatusSnapshot: Sendable {
         standardUserTokens: Int64,
         standardOrgTokens: Int64,
         standardAllowance: Int64,
+        standardUsedRatio: Double? = nil,
         premiumUserTokens: Int64,
         premiumOrgTokens: Int64,
         premiumAllowance: Int64,
+        premiumUsedRatio: Double? = nil,
         periodStart: Date?,
         periodEnd: Date?,
         planName: String?,
@@ -262,9 +270,11 @@ public struct FactoryStatusSnapshot: Sendable {
         self.standardUserTokens = standardUserTokens
         self.standardOrgTokens = standardOrgTokens
         self.standardAllowance = standardAllowance
+        self.standardUsedRatio = standardUsedRatio
         self.premiumUserTokens = premiumUserTokens
         self.premiumOrgTokens = premiumOrgTokens
         self.premiumAllowance = premiumAllowance
+        self.premiumUsedRatio = premiumUsedRatio
         self.periodStart = periodStart
         self.periodEnd = periodEnd
         self.planName = planName
@@ -280,7 +290,8 @@ public struct FactoryStatusSnapshot: Sendable {
         // Primary: Standard tokens used (as percentage of allowance, capped reasonably)
         let standardPercent = self.calculateUsagePercent(
             used: self.standardUserTokens,
-            allowance: self.standardAllowance)
+            allowance: self.standardAllowance,
+            apiRatio: self.standardUsedRatio)
 
         let primary = RateWindow(
             usedPercent: standardPercent,
@@ -291,7 +302,8 @@ public struct FactoryStatusSnapshot: Sendable {
         // Secondary: Premium tokens used
         let premiumPercent = self.calculateUsagePercent(
             used: self.premiumUserTokens,
-            allowance: self.premiumAllowance)
+            allowance: self.premiumAllowance,
+            apiRatio: self.premiumUsedRatio)
 
         let secondary = RateWindow(
             usedPercent: premiumPercent,
@@ -325,17 +337,49 @@ public struct FactoryStatusSnapshot: Sendable {
             identity: identity)
     }
 
-    private func calculateUsagePercent(used: Int64, allowance: Int64) -> Double {
-        // Treat very large allowances (> 1 trillion) as unlimited
+    private func calculateUsagePercent(used: Int64, allowance: Int64, apiRatio: Double?) -> Double {
+        // Prefer API-provided ratio when available and valid.
+        // This handles plan-specific limits correctly on the server side,
+        // avoiding issues with missing/sentinel values in totalAllowance.
         let unlimitedThreshold: Int64 = 1_000_000_000_000
+        if let ratio = apiRatio,
+           let percent = Self.percentFromAPIRatio(ratio, allowance: allowance, unlimitedThreshold: unlimitedThreshold)
+        {
+            return percent
+        }
+
+        // Fallback: calculate from used/allowance.
+        // Treat very large allowances (> 1 trillion) as unlimited.
         if allowance > unlimitedThreshold {
-            // For unlimited, show a token count-based pseudo-percentage (capped at 100%)
-            // Use 100M tokens as a reference point for "100%"
+            // For unlimited, show a token count-based pseudo-percentage (capped at 100%).
+            // Use 100M tokens as a reference point for "100%".
             let referenceTokens: Double = 100_000_000
             return min(100, Double(used) / referenceTokens * 100)
         }
         guard allowance > 0 else { return 0 }
         return min(100, Double(used) / Double(allowance) * 100)
+    }
+
+    private static func percentFromAPIRatio(
+        _ ratio: Double,
+        allowance: Int64,
+        unlimitedThreshold: Int64) -> Double?
+    {
+        guard ratio.isFinite else { return nil }
+
+        // Primary: ratio scale (0.0 - 1.0). Clamp to account for rounding.
+        if ratio >= -0.001, ratio <= 1.001 {
+            return min(100, max(0, ratio * 100))
+        }
+
+        // Secondary: percent scale (0.0 - 100.0), only when allowance is missing/unreliable.
+        // This avoids misinterpreting slightly-over-1 ratios when we can calculate locally.
+        let allowanceIsReliable = allowance > 0 && allowance <= unlimitedThreshold
+        if !allowanceIsReliable, ratio >= -0.1, ratio <= 100.1 {
+            return min(100, max(0, ratio))
+        }
+
+        return nil
     }
 
     private static func formatResetDate(_ date: Date) -> String {
@@ -1300,9 +1344,11 @@ public struct FactoryStatusProbe: Sendable {
             standardUserTokens: usage?.standard?.userTokens ?? 0,
             standardOrgTokens: usage?.standard?.orgTotalTokensUsed ?? 0,
             standardAllowance: usage?.standard?.totalAllowance ?? 0,
+            standardUsedRatio: usage?.standard?.usedRatio,
             premiumUserTokens: usage?.premium?.userTokens ?? 0,
             premiumOrgTokens: usage?.premium?.orgTotalTokensUsed ?? 0,
             premiumAllowance: usage?.premium?.totalAllowance ?? 0,
+            premiumUsedRatio: usage?.premium?.usedRatio,
             periodStart: periodStart,
             periodEnd: periodEnd,
             planName: authInfo.organization?.subscription?.orbSubscription?.plan?.name,
