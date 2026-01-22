@@ -111,11 +111,14 @@ python3 Sources/CodexBarLinux/codexbar_tray.py
 - Auto-refresh every 60 seconds
 - Manual refresh via menu
 - Click "Copy CLI" to copy the CLI command to clipboard
-- Displays all configured providers with:
+- Displays enabled providers from `~/.codexbar/config.json` (same config the macOS app uses), with:
   - Provider name and plan type
   - Account email
   - Session/weekly usage with reset times
   - Visual progress bars
+
+Notes:
+- On Linux, CodexBarCLI does not support `--source auto`/`--source web`; the tray selects a safe per-provider source (typically `cli`, `oauth` for Claude, `api` for API-key providers) and honors any explicit `source` you’ve set in `config.json`.
 
 ### Autostart
 

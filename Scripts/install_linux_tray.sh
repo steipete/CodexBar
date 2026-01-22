@@ -60,9 +60,17 @@ install_python_deps() {
 
     log_info "Installing Python dependencies..."
     "$VENV_DIR/bin/pip" install --upgrade pip
+
+    # Core tray deps
     "$VENV_DIR/bin/pip" install pystray pillow || {
-        log_error "Failed to install Python packages."
+        log_error "Failed to install core Python packages (pystray, pillow)."
         exit 1
+    }
+
+    # Optional deps for some provider flows (e.g. IndexedDB/SQLite extraction).
+    # Don't fail installation if these are unavailable for the user's platform/Python.
+    "$VENV_DIR/bin/pip" install pysqlite3-binary || {
+        log_warn "Optional package 'pysqlite3-binary' failed to install. Some providers may require additional setup."
     }
     
     log_info "Python dependencies installed in venv."

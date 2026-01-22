@@ -15,6 +15,79 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+
+def _safe_iso_to_datetime(updated_at_str: Optional[str]) -> Optional[datetime]:
+    if not updated_at_str:
+        return None
+    try:
+        clean = updated_at_str.replace("Z", "").split("+")[0].split(".")[0]
+        return datetime.fromisoformat(clean)
+    except Exception:
+        return None
+
+
+def _provider_id_from_config_entry(entry: dict) -> Optional[str]:
+    raw = entry.get("id")
+    if not raw:
+        return None
+    if isinstance(raw, str):
+        return raw
+    # Swift Codable for enums typically encodes as a string, but keep a defensive fallback.
+    return str(raw)
+
+
+def _resolve_linux_source(provider_id: str, config_source: Optional[str]) -> str:
+    """Resolve a safe data source for Linux.
+
+    Linux CLI does not support ProviderSourceMode.auto/web; choose a stable fallback.
+    """
+    normalized = (config_source or "").strip().lower()
+    if normalized in {"cli", "oauth", "api"}:
+        return normalized
+
+    # If config asks for auto/web, map to Linux-safe equivalents.
+    if provider_id == "claude":
+        return "oauth"
+    if provider_id in {"zai", "minimax", "vertexai"}:
+        return "api"
+    return "cli"
+
+
+def _load_enabled_provider_configs(cli_path: str) -> list[dict]:
+    """Return provider configs (ordered) for enabled providers.
+
+    Falls back to an empty list if config can't be loaded.
+    """
+    try:
+        result = subprocess.run(
+            [cli_path, "config", "dump", "--format", "json", "--json-only"],
+            capture_output=True,
+            text=True,
+            timeout=CLI_TIMEOUT_SECONDS,
+        )
+        if not result.stdout.strip():
+            return []
+        decoded = json.loads(result.stdout)
+        providers = decoded.get("providers")
+        if not isinstance(providers, list):
+            return []
+
+        enabled: list[dict] = []
+        for entry in providers:
+            if not isinstance(entry, dict):
+                continue
+            provider_id = _provider_id_from_config_entry(entry)
+            if not provider_id:
+                continue
+            # If enabled is missing, keep it conservative and treat it as disabled.
+            # (CodexBar uses metadata defaults; the tray shouldn't guess.)
+            if entry.get("enabled") is not True:
+                continue
+            enabled.append(entry)
+        return enabled
+    except Exception:
+        return []
+
 # Try to import GTK/AppIndicator for proper Ubuntu tray support
 try:
     import gi
@@ -47,16 +120,28 @@ CLI_TIMEOUT_SECONDS = 30
 # Provider-specific labels for usage tiers
 PROVIDER_LABELS = {
     "antigravity": {"primary": "Claude", "secondary": "Gemini Pro", "tertiary": "Gemini Flash"},
+    "amp": {"primary": "Session", "secondary": "Weekly"},
+    "augment": {"primary": "Session", "secondary": "Weekly"},
     "claude": {"primary": "Session", "secondary": "Weekly"},
     "codex": {"primary": "Session", "secondary": "Weekly"},
     "copilot": {"primary": "Premium requests", "secondary": "Usage"},
+    "jetbrains": {"primary": "Monthly", "secondary": "Monthly"},
+    "kimi": {"primary": "Daily", "secondary": "Daily"},
+    "kimik2": {"primary": "Daily", "secondary": "Daily"},
+    "kiro": {"primary": "Session", "secondary": "Weekly"},
+    "minimax": {"primary": "Monthly", "secondary": "Monthly"},
+    "opencode": {"primary": "Session", "secondary": "Weekly"},
+    "vertexai": {"primary": "Monthly", "secondary": "Monthly"},
     "windsurf": {"primary": "Credits", "secondary": "Usage"},
     "gemini": {"primary": "Daily", "secondary": "Daily"},
     "cursor": {"primary": "Fast", "secondary": "Slow"},
+    "zai": {"primary": "Daily", "secondary": "Monthly"},
     "zed": {"primary": "Session", "secondary": "Weekly"},
 }
 
 PROVIDER_DISPLAY_NAMES = {
+    "amp": "Amp",
+    "augment": "Augment",
     "codex": "Codex",
     "claude": "Claude",
     "gemini": "Gemini",
@@ -65,6 +150,14 @@ PROVIDER_DISPLAY_NAMES = {
     "factory": "Factory",
     "windsurf": "Windsurf",
     "copilot": "Copilot",
+    "jetbrains": "JetBrains",
+    "kimi": "Kimi",
+    "kimik2": "Kimi K2",
+    "kiro": "Kiro",
+    "minimax": "MiniMax",
+    "opencode": "OpenCode",
+    "vertexai": "Vertex AI",
+    "zai": "z.ai",
     "zed": "Zed",
 }
 
@@ -77,6 +170,7 @@ class UsageData:
                  secondary_reset: Optional[str], tertiary_reset: Optional[str],
                  version: Optional[str], account_email: Optional[str],
                  login_method: Optional[str] = None, updated_at: Optional[str] = None,
+                 account_label: Optional[str] = None,
                  primary_used_count: Optional[float] = None, primary_total_count: Optional[float] = None,
                  secondary_used_count: Optional[float] = None, secondary_total_count: Optional[float] = None):
         self.provider = provider
@@ -90,6 +184,7 @@ class UsageData:
         self.account_email = account_email
         self.login_method = login_method
         self.updated_at = updated_at
+        self.account_label = account_label
         self.primary_used_count = primary_used_count
         self.primary_total_count = primary_total_count
         self.secondary_used_count = secondary_used_count
@@ -148,11 +243,27 @@ class CodexBarTray:
 
     def __init__(self):
         self.usage_data: dict[str, UsageData] = {}
+        self.provider_errors: dict[str, str] = {}
         self.last_error: Optional[str] = None
         self.last_update: Optional[datetime] = None
         self.running = True
         self.icon: Optional[pystray.Icon] = None
         self.cli_path = self._find_cli()
+
+        self._enabled_provider_configs: list[dict] = []
+
+    def _refresh_provider_config(self):
+        self._enabled_provider_configs = _load_enabled_provider_configs(self.cli_path)
+
+    def _enabled_provider_ids(self) -> list[str]:
+        if not self._enabled_provider_configs:
+            return []
+        ids: list[str] = []
+        for entry in self._enabled_provider_configs:
+            provider_id = _provider_id_from_config_entry(entry)
+            if provider_id:
+                ids.append(provider_id)
+        return ids
 
     def _find_cli(self) -> str:
         """Find the CodexBarCLI executable."""
@@ -171,7 +282,7 @@ class CodexBarTray:
         size = 22
         img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        usage = next(iter(self.usage_data.values()), None) if self.usage_data else None
+        usage = self._usage_for_icon()
 
         if usage:
             bar_width, bar_gap, bar_height = 6, 4, 18
@@ -205,6 +316,23 @@ class CodexBarTray:
 
         return img
 
+    def _usage_for_icon(self) -> Optional[UsageData]:
+        if not self.usage_data:
+            return None
+        # Prefer primary providers first, then fall back to any available.
+        priority = [
+            "codex",
+            "claude",
+            "gemini",
+            "cursor",
+            "copilot",
+            "windsurf",
+        ]
+        for pid in priority:
+            if pid in self.usage_data:
+                return self.usage_data[pid]
+        return next(iter(self.usage_data.values()))
+
     def _get_color(self, remaining: float) -> tuple:
         """Get color based on remaining percentage."""
         if remaining > 50:
@@ -215,31 +343,62 @@ class CodexBarTray:
 
     def _fetch_usage(self):
         """Fetch usage data from CodexBarCLI."""
-        all_data = []
-        errors = []
+        self._refresh_provider_config()
 
-        # Fetch each provider separately with appropriate source
-        # Claude: use oauth (gets plan info from credentials file)
-        # All others: use cli
-        provider_sources = [
-            ("claude", "oauth"),
-            ("codex", "cli"),
-            ("gemini", "cli"),
-            ("antigravity", "cli"),
-            ("cursor", "cli"),
-            ("copilot", "cli"),
-            ("windsurf", "cli"),
-        ]
+        enabled = self._enabled_provider_configs
+        provider_entries: list[tuple[str, str]] = []
+        if enabled:
+            for entry in enabled:
+                provider_id = _provider_id_from_config_entry(entry)
+                if not provider_id:
+                    continue
+                source = _resolve_linux_source(provider_id, entry.get("source"))
+                provider_entries.append((provider_id, source))
+        else:
+            # Backward-compatible fallback when config isn't present/readable.
+            provider_entries = [
+                ("claude", "oauth"),
+                ("codex", "cli"),
+                ("gemini", "cli"),
+                ("antigravity", "cli"),
+                ("cursor", "cli"),
+                ("copilot", "cli"),
+                ("windsurf", "cli"),
+            ]
 
-        for provider, source in provider_sources:
+        all_data: list[dict] = []
+        errors: list[str] = []
+        self.provider_errors.clear()
+
+        for provider, source in provider_entries:
             try:
                 result = subprocess.run(
-                    [self.cli_path, "usage", "--provider", provider, "--format", "json", "--source", source],
+                    [
+                        self.cli_path,
+                        "usage",
+                        "--provider",
+                        provider,
+                        "--format",
+                        "json",
+                        "--json-only",
+                        "--source",
+                        source,
+                    ],
                     capture_output=True, text=True, timeout=CLI_TIMEOUT_SECONDS,
                 )
                 if result.stdout.strip():
-                    data = json.loads(result.stdout)
-                    all_data.extend(data)
+                    payload = json.loads(result.stdout)
+                    if isinstance(payload, list):
+                        for item in payload:
+                            if not isinstance(item, dict):
+                                continue
+                            if item.get("error"):
+                                err = item.get("error", {})
+                                message = err.get("message") if isinstance(err, dict) else str(err)
+                                if message:
+                                    self.provider_errors[provider] = message
+                            else:
+                                all_data.append(item)
                 elif result.stderr.strip():
                     # Skip errors for providers that aren't configured
                     err = result.stderr.strip().split("\n")[0]
@@ -260,6 +419,10 @@ class CodexBarTray:
         if all_data:
             self._parse_usage_data(all_data)
             self.last_error = None
+        elif self.provider_errors:
+            # Show first two provider errors.
+            first = list(self.provider_errors.items())[:2]
+            self.last_error = "; ".join([f"{p}: {m}" for p, m in first])
         elif errors:
             self.last_error = "; ".join(errors[:2])  # Show first 2 errors
 
@@ -270,11 +433,17 @@ class CodexBarTray:
         self.usage_data.clear()
         for item in data:
             provider = item.get("provider", "unknown")
+            account_label = item.get("account")
             usage = item.get("usage", {})
             primary = usage.get("primary", {})
             secondary = usage.get("secondary")
             tertiary = usage.get("tertiary")
-            self.usage_data[provider] = UsageData(
+
+            key = provider
+            if account_label:
+                key = f"{provider}:{account_label}"
+
+            self.usage_data[key] = UsageData(
                 provider=provider,
                 primary_percent=primary.get("usedPercent", 0),
                 secondary_percent=secondary.get("usedPercent") if secondary else None,
@@ -284,6 +453,7 @@ class CodexBarTray:
                 tertiary_reset=tertiary.get("resetDescription") if tertiary else None,
                 version=item.get("version"),
                 account_email=usage.get("accountEmail"),
+                account_label=account_label,
                 primary_used_count=primary.get("usedCount"),
                 primary_total_count=primary.get("totalCount"),
                 secondary_used_count=secondary.get("usedCount") if secondary else None,
@@ -296,7 +466,8 @@ class CodexBarTray:
 
         # Usage entries for each provider
         if self.usage_data:
-            for provider, usage in self.usage_data.items():
+            for _, usage in self.usage_data.items():
+                provider = usage.provider
                 display_name = PROVIDER_DISPLAY_NAMES.get(provider, provider.capitalize())
                 labels = usage.get_labels()
 
@@ -322,7 +493,9 @@ class CodexBarTray:
                     if usage.tertiary_reset:
                         items.append(pystray.MenuItem(f"    └ {usage.tertiary_reset}", None, enabled=False))
 
-                if usage.account_email:
+                if usage.account_label:
+                    items.append(pystray.MenuItem(f"  Account: {usage.account_label}", None, enabled=False))
+                elif usage.account_email:
                     items.append(pystray.MenuItem(f"  Account: {usage.account_email}", None, enabled=False))
 
                 items.append(pystray.Menu.SEPARATOR)
@@ -403,6 +576,7 @@ class GtkTray:
 
     def __init__(self):
         self.usage_data: dict[str, UsageData] = {}
+        self.provider_errors: dict[str, str] = {}
         self.last_error: Optional[str] = None
         self.last_update: Optional[datetime] = None
         self.running = True
@@ -410,6 +584,11 @@ class GtkTray:
         self.indicator = None
         self.menu = None
         self.icon_path = "/tmp/codexbar_icon.png"
+
+        self._enabled_provider_configs: list[dict] = []
+
+    def _refresh_provider_config(self):
+        self._enabled_provider_configs = _load_enabled_provider_configs(self.cli_path)
 
     def _find_cli(self) -> str:
         """Find the CodexBarCLI executable."""
@@ -428,7 +607,7 @@ class GtkTray:
         size = 22
         img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        usage = next(iter(self.usage_data.values()), None) if self.usage_data else None
+        usage = self._usage_for_icon()
 
         if usage:
             bar_width, bar_gap, bar_height = 6, 4, 18
@@ -462,6 +641,23 @@ class GtkTray:
 
         img.save(self.icon_path)
 
+    def _usage_for_icon(self) -> Optional[UsageData]:
+        if not self.usage_data:
+            return None
+        priority = [
+            "codex",
+            "claude",
+            "gemini",
+            "cursor",
+            "copilot",
+            "windsurf",
+        ]
+        for pid in priority:
+            for usage in self.usage_data.values():
+                if usage.provider == pid:
+                    return usage
+        return next(iter(self.usage_data.values()))
+
     def _get_color(self, remaining: float) -> tuple:
         if remaining > 50:
             return (76, 175, 80, 255)
@@ -471,31 +667,61 @@ class GtkTray:
 
     def _fetch_usage(self):
         """Fetch usage data from CodexBarCLI."""
-        all_data = []
-        errors = []
+        self._refresh_provider_config()
 
-        # Fetch each provider separately with appropriate source
-        # Claude: use oauth (gets plan info from credentials file)
-        # All others: use cli
-        provider_sources = [
-            ("claude", "oauth"),
-            ("codex", "cli"),
-            ("gemini", "cli"),
-            ("antigravity", "cli"),
-            ("cursor", "cli"),
-            ("copilot", "cli"),
-            ("windsurf", "cli"),
-        ]
+        enabled = self._enabled_provider_configs
+        provider_entries: list[tuple[str, str]] = []
+        if enabled:
+            for entry in enabled:
+                provider_id = _provider_id_from_config_entry(entry)
+                if not provider_id:
+                    continue
+                source = _resolve_linux_source(provider_id, entry.get("source"))
+                provider_entries.append((provider_id, source))
+        else:
+            provider_entries = [
+                ("claude", "oauth"),
+                ("codex", "cli"),
+                ("gemini", "cli"),
+                ("antigravity", "cli"),
+                ("cursor", "cli"),
+                ("copilot", "cli"),
+                ("windsurf", "cli"),
+            ]
 
-        for provider, source in provider_sources:
+        all_data: list[dict] = []
+        errors: list[str] = []
+        self.provider_errors.clear()
+
+        for provider, source in provider_entries:
             try:
                 result = subprocess.run(
-                    [self.cli_path, "usage", "--provider", provider, "--format", "json", "--source", source],
+                    [
+                        self.cli_path,
+                        "usage",
+                        "--provider",
+                        provider,
+                        "--format",
+                        "json",
+                        "--json-only",
+                        "--source",
+                        source,
+                    ],
                     capture_output=True, text=True, timeout=CLI_TIMEOUT_SECONDS,
                 )
                 if result.stdout.strip():
-                    data = json.loads(result.stdout)
-                    all_data.extend(data)
+                    payload = json.loads(result.stdout)
+                    if isinstance(payload, list):
+                        for item in payload:
+                            if not isinstance(item, dict):
+                                continue
+                            if item.get("error"):
+                                err = item.get("error", {})
+                                message = err.get("message") if isinstance(err, dict) else str(err)
+                                if message:
+                                    self.provider_errors[provider] = message
+                            else:
+                                all_data.append(item)
                 elif result.stderr.strip():
                     # Skip errors for providers that aren't configured
                     err = result.stderr.strip().split("\n")[0]
@@ -516,6 +742,9 @@ class GtkTray:
         if all_data:
             self._parse_usage_data(all_data)
             self.last_error = None
+        elif self.provider_errors:
+            first = list(self.provider_errors.items())[:2]
+            self.last_error = "; ".join([f"{p}: {m}" for p, m in first])
         elif errors:
             self.last_error = "; ".join(errors[:2])  # Show first 2 errors
 
@@ -525,11 +754,15 @@ class GtkTray:
         self.usage_data.clear()
         for item in data:
             provider = item.get("provider", "unknown")
+            account_label = item.get("account")
             usage = item.get("usage", {})
             primary = usage.get("primary", {})
             secondary = usage.get("secondary")
             tertiary = usage.get("tertiary")
-            self.usage_data[provider] = UsageData(
+            key = provider
+            if account_label:
+                key = f"{provider}:{account_label}"
+            self.usage_data[key] = UsageData(
                 provider=provider,
                 primary_percent=primary.get("usedPercent", 0),
                 secondary_percent=secondary.get("usedPercent") if secondary else None,
@@ -541,6 +774,7 @@ class GtkTray:
                 account_email=usage.get("accountEmail"),
                 login_method=usage.get("loginMethod"),
                 updated_at=usage.get("updatedAt"),
+                account_label=account_label,
                 primary_used_count=primary.get("usedCount"),
                 primary_total_count=primary.get("totalCount"),
                 secondary_used_count=secondary.get("usedCount") if secondary else None,
@@ -549,26 +783,21 @@ class GtkTray:
 
     def _format_relative_time(self, updated_at_str: Optional[str]) -> str:
         """Format updated_at as relative time like 'just now', '2m ago', etc."""
-        if not updated_at_str:
+        dt = _safe_iso_to_datetime(updated_at_str)
+        if not dt:
             return ""
-        try:
-            # Parse ISO format: 2025-12-27T14:20:49Z - strip timezone for simple comparison
-            clean = updated_at_str.replace("Z", "").split("+")[0].split(".")[0]
-            dt = datetime.fromisoformat(clean)
-            now = datetime.utcnow()
-            seconds = int((now - dt).total_seconds())
-            if seconds < 0:
-                seconds = 0
-            if seconds < 60:
-                return "just now"
-            elif seconds < 3600:
-                return f"{seconds // 60}m ago"
-            elif seconds < 86400:
-                return f"{seconds // 3600}h ago"
-            else:
-                return f"{seconds // 86400}d ago"
-        except Exception:
-            return ""
+        now = datetime.utcnow()
+        seconds = int((now - dt).total_seconds())
+        if seconds < 0:
+            seconds = 0
+        if seconds < 60:
+            return "just now"
+        elif seconds < 3600:
+            return f"{seconds // 60}m ago"
+        elif seconds < 86400:
+            return f"{seconds // 3600}h ago"
+        else:
+            return f"{seconds // 86400}d ago"
 
     def _make_bar(self, remaining_pct: float) -> str:
         """Create a compact Unicode progress bar (8 chars)."""
@@ -578,15 +807,25 @@ class GtkTray:
     def _provider_icon(self, provider: str) -> str:
         """Get emoji icon for provider."""
         icons = {
+            "amp": "🧰",
+            "augment": "🧩",
             "codex": "🤖",
             "claude": "🟠",
             "antigravity": "🚀",
             "gemini": "💎",
             "cursor": "⚡",
+            "jetbrains": "🧠",
+            "kimi": "🌓",
+            "kimik2": "🌓",
+            "kiro": "🧷",
+            "minimax": "🧮",
+            "opencode": "🧾",
             "zed": "⚛",
             "factory": "🏭",
             "copilot": "🐙",
             "windsurf": "🌊",
+            "vertexai": "🔷",
+            "zai": "🧿",
         }
         return icons.get(provider.lower(), "●")
 
@@ -595,7 +834,8 @@ class GtkTray:
         menu = Gtk.Menu()
 
         if self.usage_data:
-            for provider, usage in self.usage_data.items():
+            for _, usage in self.usage_data.items():
+                provider = usage.provider
                 icon = self._provider_icon(provider)
                 name = PROVIDER_DISPLAY_NAMES.get(provider, provider.capitalize())
                 labels = usage.get_labels()
@@ -604,7 +844,9 @@ class GtkTray:
                 parts = [f"{icon} {name}"]
                 if usage.login_method:
                     parts[0] += f" ({usage.login_method})"
-                if usage.account_email:
+                if usage.account_label:
+                    parts.append(usage.account_label)
+                elif usage.account_email:
                     parts.append(usage.account_email)
                 updated = self._format_relative_time(usage.updated_at)
                 if updated:
