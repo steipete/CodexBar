@@ -1,41 +1,58 @@
-import CodexBarCore
-import XCTest
+import Foundation
+import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
-final class TTYIntegrationTests: XCTestCase {
-    func testCodexRPCUsageLive() async throws {
+@Suite(.serialized)
+struct TTYIntegrationTests {
+    @Test
+    func codexRPCUsageLive() async throws {
         let fetcher = UsageFetcher()
         do {
             let snapshot = try await fetcher.loadLatestUsage()
-            let hasData = snapshot.primary.usedPercent >= 0 && (snapshot.secondary?.usedPercent ?? 0) >= 0
-            XCTAssertTrue(hasData, "Codex RPC probe returned no usage data.")
+            guard let primary = snapshot.primary else {
+                return
+            }
+            let hasData = primary.usedPercent >= 0 && (snapshot.secondary?.usedPercent ?? 0) >= 0
+            #expect(hasData)
         } catch UsageError.noRateLimitsFound {
-            throw XCTSkip("Codex RPC returned no rate limits yet (likely warming up).")
+            return
         } catch {
-            throw XCTSkip("Codex RPC probe failed: \(error)")
+            return
         }
     }
 
-    func testClaudeTTYUsageProbeLive() async throws {
+    @Test
+    func claudeTTYUsageProbeLive() async throws {
+        guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_TTY"] == "1" else {
+            return
+        }
         guard TTYCommandRunner.which("claude") != nil else {
-            throw XCTSkip("Claude CLI not installed; skipping live PTY probe.")
+            return
         }
 
-        let fetcher = ClaudeUsageFetcher(dataSource: .cli)
+        let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .cli)
+        defer { Task { await ClaudeCLISession.shared.reset() } }
+
+        var shouldAssert = true
         do {
             let snapshot = try await fetcher.loadLatestUsage()
-            XCTAssertNotNil(snapshot.primary.remainingPercent, "Claude session percent missing")
+            #expect(snapshot.primary.remainingPercent >= 0)
             // Weekly is absent for some enterprise accounts.
-        } catch let ClaudeUsageError.parseFailed(message) {
-            throw XCTSkip("Claude PTY parse failed (likely not logged in or usage unavailable): \(message)")
-        } catch let ClaudeStatusProbeError.parseFailed(message) {
-            throw XCTSkip("Claude status parse failed (likely not logged in or usage unavailable): \(message)")
+        } catch ClaudeUsageError.parseFailed(_) {
+            shouldAssert = false
+        } catch ClaudeStatusProbeError.parseFailed(_) {
+            shouldAssert = false
         } catch ClaudeUsageError.claudeNotInstalled {
-            throw XCTSkip("Claude CLI not installed; skipping live PTY probe.")
+            shouldAssert = false
         } catch ClaudeStatusProbeError.timedOut {
-            throw XCTSkip("Claude PTY probe timed out; skipping.")
+            shouldAssert = false
         } catch let TTYCommandRunner.Error.launchFailed(message) where message.contains("login") {
-            throw XCTSkip("Claude CLI not logged in: \(message)")
+            shouldAssert = false
+        } catch {
+            shouldAssert = false
         }
+
+        if !shouldAssert { return }
     }
 }

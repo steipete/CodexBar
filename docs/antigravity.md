@@ -1,80 +1,75 @@
 ---
-summary: "Antigravity provider notes: local LSP probing, quota parsing, and UI mapping."
+summary: "Antigravity provider notes: local LSP probing, port discovery, quota parsing, and UI mapping."
 read_when:
   - Adding or modifying the Antigravity provider
   - Debugging Antigravity port detection or quota parsing
   - Adjusting Antigravity menu labels or model mapping
 ---
 
-# Antigravity provider notes
+# Antigravity provider
 
-CodexBar treats Antigravity as a local-provider quota source. Data is pulled from the Antigravity language server running on the machine (no Google/Gemini API usage here). The provider is modeled after the AntigravityQuotaWatcher extension behavior and is intentionally conservative because the APIs are internal and may change.
+Antigravity is a local-only provider. We talk directly to the Antigravity language server running on the same machine.
 
-## Data source overview
-- Process detection: scan `ps -ax -o pid=,command=` for `language_server_macos` with Antigravity markers.
-  - Marker heuristics: `--app_data_dir antigravity` OR a path containing `/antigravity/`.
-  - Extract flags: `--csrf_token` (required), `--extension_server_port` (HTTP fallback).
-- Port discovery: `lsof -nP -iTCP -sTCP:LISTEN -p <pid>` to list all listening ports.
-- Connect port selection: probe each listening port with:
-  - POST `https://127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/GetUnleashData`
-  - Header: `X-Codeium-Csrf-Token: <token>` + `Connect-Protocol-Version: 1`
-  - First 200 OK response is treated as the HTTPS "connect" port.
-- Quota fetch (primary):
-  - POST `.../GetUserStatus` on the connect port.
-  - Fallback: POST `.../GetCommandModelConfigs` if GetUserStatus fails.
-  - HTTPS first, fallback to HTTP on `extension_server_port`.
+## Data sources + fallback order
 
-## Request bodies (summary)
-- `GetUserStatus` / `GetCommandModelConfigs` use a minimal metadata payload:
-  - `ideName: antigravity`, `extensionName: antigravity`, `locale: en`, `ideVersion: unknown`.
-- `GetUnleashData` probe uses a lightweight context payload (enough to get a 200 without auth).
+1) **Process detection**
+   - Command: `ps -ax -o pid=,command=`.
+   - Match process name: `language_server_macos` plus Antigravity markers:
+     - `--app_data_dir antigravity` OR path contains `/antigravity/`.
+   - Extract CLI flags:
+     - `--csrf_token <token>` (required).
+     - `--extension_server_port <port>` (HTTP fallback).
+
+2) **Port discovery**
+   - Command: `lsof -nP -iTCP -sTCP:LISTEN -p <pid>`.
+   - All listening ports are probed.
+
+3) **Connect port probe (HTTPS)**
+   - `POST https://127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/GetUnleashData`
+   - Headers:
+     - `X-Codeium-Csrf-Token: <token>`
+     - `Connect-Protocol-Version: 1`
+   - First 200 OK response selects the connect port.
+
+4) **Quota fetch**
+   - Primary:
+     - `POST https://127.0.0.1:<connectPort>/exa.language_server_pb.LanguageServerService/GetUserStatus`
+   - Fallback:
+     - `POST https://127.0.0.1:<connectPort>/exa.language_server_pb.LanguageServerService/GetCommandModelConfigs`
+   - If HTTPS fails, retry over HTTP on `extension_server_port`.
+
+## Request body (summary)
+- Minimal metadata payload:
+  - `ideName: antigravity`
+  - `extensionName: antigravity`
+  - `locale: en`
+  - `ideVersion: unknown`
 
 ## Parsing and model mapping
 - Source fields:
   - `userStatus.cascadeModelConfigData.clientModelConfigs[].quotaInfo.remainingFraction`
   - `userStatus.cascadeModelConfigData.clientModelConfigs[].quotaInfo.resetTime`
-- Quota mapping in CodexBar:
-  - Primary: Claude (first model containing `claude` but not `thinking`).
-  - Secondary: Gemini Pro Low (label contains `pro` + `low`).
-  - Tertiary: Gemini Flash (label contains `gemini` + `flash`).
-  - If none match: fall back to lowest remaining percent.
+- Mapping priority:
+  1) Claude (label contains `claude` but not `thinking`)
+  2) Gemini Pro Low (label contains `pro` + `low`)
+  3) Gemini Flash (label contains `gemini` + `flash`)
+  4) Fallback: lowest remaining percent
 - `resetTime` parsing:
-  - ISO-8601 if possible; otherwise, tries numeric epoch seconds.
-- `accountEmail` and `planName` are only available via GetUserStatus (not CommandModelConfigs).
+  - ISO-8601 preferred; numeric epoch seconds as fallback.
+- Identity:
+  - `accountEmail` and `planName` only from `GetUserStatus`.
 
 ## UI mapping
 - Provider metadata:
   - Display: `Antigravity`
   - Labels: `Claude` (primary), `Gemini Pro` (secondary), `Gemini Flash` (tertiary)
-- Menu card + menu list use the same `UsageSnapshot` shape as other providers.
-- Icon styling:
-  - Uses Gemini sparkle eyes plus a small "orbit" dot to distinguish Antigravity.
+- Status badge: Google Workspace incidents for the Gemini product.
 
-## Settings and toggles
-- General: "Show Antigravity usage" toggle.
-- Autodetect: enabled if Antigravity language server is detected running.
-- Status checks: uses Google Workspace Gemini status incidents for the status badge.
-- No web scraping or login flow; switch account button surfaces a guidance alert.
+## Constraints
+- Internal protocol; fields may change.
+- Requires `lsof` for port detection.
+- Local HTTPS uses a self-signed cert; the probe allows insecure TLS.
 
-## CLI behavior
-- `codexbar` CLI accepts `antigravity` as a provider.
-- Output format mirrors other providers. Version string is `nil` (we only know "running").
-
-## Constraints and risks
-- Internal protocol: endpoints and fields are not public and may change.
-- Requires `lsof` on macOS for port detection.
-- TLS trust: local HTTPS uses a self-signed cert; CodexBar uses an insecure session delegate.
-- If Antigravity is not running, the provider is treated as unavailable.
-
-## Debugging checklist
-1. Confirm Antigravity is running and language server process is present.
-2. Ensure `lsof` is available.
-3. Verify `--csrf_token` is present in the process command line.
-4. Re-run provider autodetect in Debug pane.
-5. Check provider error in Settings -> General.
-
-## References
-- Implementation: `Sources/CodexBarCore/AntigravityStatusProbe.swift`
-- Provider wiring: `Sources/CodexBar/ProviderRegistry.swift`
-- UI toggle: `Sources/CodexBar/PreferencesGeneralPane.swift`
-- Changelog entry: `CHANGELOG.md`
+## Key files
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift`
+- `Sources/CodexBar/Providers/Antigravity/AntigravityProviderImplementation.swift`

@@ -1,6 +1,7 @@
 import AppKit
 import CodexBarCore
 import Observation
+import QuartzCore
 import SwiftUI
 
 // MARK: - NSMenu construction
@@ -14,11 +15,17 @@ extension StatusItemController {
         let hasCostHistory: Bool
     }
 
+    private struct TokenAccountMenuDisplay {
+        let provider: UsageProvider
+        let accounts: [ProviderTokenAccount]
+        let snapshots: [TokenAccountUsageSnapshot]
+        let activeIndex: Int
+        let showAll: Bool
+        let showSwitcher: Bool
+    }
+
     private func menuCardWidth(for providers: [UsageProvider], menu: NSMenu? = nil) -> CGFloat {
         _ = menu
-        if providers.count >= 7 {
-            return (Self.menuCardBaseWidth * 1.15).rounded()
-        }
         return Self.menuCardBaseWidth
     }
 
@@ -35,12 +42,11 @@ extension StatusItemController {
     func menuWillOpen(_ menu: NSMenu) {
         if self.isHostedSubviewMenu(menu) {
             self.refreshHostedSubviewHeights(in: menu)
-            self.openMenus[ObjectIdentifier(menu)] = menu
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
-                self.refreshHostedSubviewHeights(in: menu)
+            if Self.menuRefreshEnabled, self.isOpenAIWebSubviewMenu(menu) {
+                self.store.requestOpenAIDashboardRefreshIfStale(reason: "submenu open")
             }
+            self.openMenus[ObjectIdentifier(menu)] = menu
+            // Removed redundant async refresh - single pass is sufficient after initial layout
             return
         }
 
@@ -63,23 +69,32 @@ extension StatusItemController {
             }
         }
 
-        if self.menuNeedsRefresh(menu) {
+        let didRefresh = self.menuNeedsRefresh(menu)
+        if didRefresh {
             self.populateMenu(menu, provider: provider)
             self.markMenuFresh(menu)
+            // Heights are already set during populateMenu, no need to remeasure
         }
-        self.refreshMenuCardHeights(in: menu)
         self.openMenus[ObjectIdentifier(menu)] = menu
-        self.scheduleOpenMenuRefresh(for: menu)
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
-            self.refreshMenuCardHeights(in: menu)
+        // Only schedule refresh after menu is registered as open - refreshNow is called async
+        if Self.menuRefreshEnabled {
+            self.scheduleOpenMenuRefresh(for: menu)
         }
     }
 
     func menuDidClose(_ menu: NSMenu) {
-        self.openMenus.removeValue(forKey: ObjectIdentifier(menu))
-        self.menuRefreshTasks.removeValue(forKey: ObjectIdentifier(menu))?.cancel()
+        let key = ObjectIdentifier(menu)
+
+        self.openMenus.removeValue(forKey: key)
+        self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
+
+        let isPersistentMenu = menu === self.mergedMenu ||
+            menu === self.fallbackMenu ||
+            self.providerMenus.values.contains { $0 === menu }
+        if !isPersistentMenu {
+            self.menuProviders.removeValue(forKey: key)
+            self.menuVersions.removeValue(forKey: key)
+        }
         for menuItem in menu.items {
             (menuItem.view as? MenuCardHighlighting)?.setHighlighted(false)
         }
@@ -93,80 +108,263 @@ extension StatusItemController {
     }
 
     private func populateMenu(_ menu: NSMenu, provider: UsageProvider?) {
-        menu.removeAllItems()
-
         let selectedProvider = provider
         let enabledProviders = self.store.enabledProviders()
         let menuWidth = self.menuCardWidth(for: enabledProviders, menu: menu)
+        let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
+        let tokenAccountDisplay = self.tokenAccountMenuDisplay(for: currentProvider)
+        let showAllTokenAccounts = tokenAccountDisplay?.showAll ?? false
+        let openAIContext = self.openAIWebContext(
+            currentProvider: currentProvider,
+            showAllTokenAccounts: showAllTokenAccounts)
+
+        let hasTokenAccountSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
+        let switcherProvidersMatch = enabledProviders == self.lastSwitcherProviders
+        let canSmartUpdate = self.shouldMergeIcons &&
+            enabledProviders.count > 1 &&
+            switcherProvidersMatch &&
+            tokenAccountDisplay == nil &&
+            !hasTokenAccountSwitcher &&
+            !menu.items.isEmpty &&
+            menu.items.first?.view is ProviderSwitcherView
+
+        if canSmartUpdate {
+            self.updateMenuContent(
+                menu,
+                provider: selectedProvider,
+                currentProvider: currentProvider,
+                menuWidth: menuWidth,
+                openAIContext: openAIContext)
+            return
+        }
+
+        menu.removeAllItems()
+
         let descriptor = MenuDescriptor.build(
             provider: selectedProvider,
             store: self.store,
             settings: self.settings,
             account: self.account,
             updateReady: self.updater.updateStatus.isUpdateReady)
+
+        self.addProviderSwitcherIfNeeded(
+            to: menu,
+            enabledProviders: enabledProviders,
+            selectedProvider: selectedProvider)
+        // Track which providers the switcher was built with for smart update detection
+        if self.shouldMergeIcons, enabledProviders.count > 1 {
+            self.lastSwitcherProviders = enabledProviders
+        }
+        self.addTokenAccountSwitcherIfNeeded(to: menu, display: tokenAccountDisplay)
+        let menuContext = MenuCardContext(
+            currentProvider: currentProvider,
+            selectedProvider: selectedProvider,
+            menuWidth: menuWidth,
+            tokenAccountDisplay: tokenAccountDisplay,
+            openAIContext: openAIContext)
+        let addedOpenAIWebItems = self.addMenuCards(to: menu, context: menuContext)
+        self.addOpenAIWebItemsIfNeeded(
+            to: menu,
+            currentProvider: currentProvider,
+            context: openAIContext,
+            addedOpenAIWebItems: addedOpenAIWebItems)
+        self.addActionableSections(descriptor.sections, to: menu)
+    }
+
+    /// Smart update: only rebuild content sections when switching providers (keep the switcher intact).
+    private func updateMenuContent(
+        _ menu: NSMenu,
+        provider: UsageProvider?,
+        currentProvider: UsageProvider,
+        menuWidth: CGFloat,
+        openAIContext: OpenAIWebContext)
+    {
+        // Batch menu updates to prevent visual flickering during provider switch.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+
+        var contentStartIndex = 0
+        if menu.items.first?.view is ProviderSwitcherView {
+            contentStartIndex = 2
+        }
+        if menu.items.count > contentStartIndex,
+           menu.items[contentStartIndex].view is TokenAccountSwitcherView
+        {
+            contentStartIndex += 2
+        }
+        while menu.items.count > contentStartIndex {
+            menu.removeItem(at: contentStartIndex)
+        }
+
+        let descriptor = MenuDescriptor.build(
+            provider: provider,
+            store: self.store,
+            settings: self.settings,
+            account: self.account,
+            updateReady: self.updater.updateStatus.isUpdateReady)
+
+        let menuContext = MenuCardContext(
+            currentProvider: currentProvider,
+            selectedProvider: provider,
+            menuWidth: menuWidth,
+            tokenAccountDisplay: nil,
+            openAIContext: openAIContext)
+        let addedOpenAIWebItems = self.addMenuCards(to: menu, context: menuContext)
+        self.addOpenAIWebItemsIfNeeded(
+            to: menu,
+            currentProvider: currentProvider,
+            context: openAIContext,
+            addedOpenAIWebItems: addedOpenAIWebItems)
+        self.addActionableSections(descriptor.sections, to: menu)
+    }
+
+    private struct OpenAIWebContext {
+        let hasUsageBreakdown: Bool
+        let hasCreditsHistory: Bool
+        let hasCostHistory: Bool
+        let hasOpenAIWebMenuItems: Bool
+    }
+
+    private struct MenuCardContext {
+        let currentProvider: UsageProvider
+        let selectedProvider: UsageProvider?
+        let menuWidth: CGFloat
+        let tokenAccountDisplay: TokenAccountMenuDisplay?
+        let openAIContext: OpenAIWebContext
+    }
+
+    private func openAIWebContext(
+        currentProvider: UsageProvider,
+        showAllTokenAccounts: Bool) -> OpenAIWebContext
+    {
         let dashboard = self.store.openAIDashboard
-        let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
         let openAIWebEligible = currentProvider == .codex &&
             self.store.openAIDashboardRequiresLogin == false &&
             dashboard != nil
         let hasCreditsHistory = openAIWebEligible && !(dashboard?.dailyBreakdown ?? []).isEmpty
         let hasUsageBreakdown = openAIWebEligible && !(dashboard?.usageBreakdown ?? []).isEmpty
-        let hasCostHistory = self.settings.isCCUsageCostUsageEffectivelyEnabled(for: currentProvider) &&
+        let hasCostHistory = self.settings.isCostUsageEffectivelyEnabled(for: currentProvider) &&
             (self.store.tokenSnapshot(for: currentProvider)?.daily.isEmpty == false)
-        let hasOpenAIWebMenuItems = hasCreditsHistory || hasUsageBreakdown || hasCostHistory
-        var addedOpenAIWebItems = false
+        let hasOpenAIWebMenuItems = !showAllTokenAccounts &&
+            (hasCreditsHistory || hasUsageBreakdown || hasCostHistory)
+        return OpenAIWebContext(
+            hasUsageBreakdown: hasUsageBreakdown,
+            hasCreditsHistory: hasCreditsHistory,
+            hasCostHistory: hasCostHistory,
+            hasOpenAIWebMenuItems: hasOpenAIWebMenuItems)
+    }
 
-        if self.shouldMergeIcons, enabledProviders.count > 1 {
-            let switcherItem = self.makeProviderSwitcherItem(
-                providers: enabledProviders,
-                selected: selectedProvider,
-                menu: menu)
-            menu.addItem(switcherItem)
-            menu.addItem(.separator())
-        }
+    private func addProviderSwitcherIfNeeded(
+        to menu: NSMenu,
+        enabledProviders: [UsageProvider],
+        selectedProvider: UsageProvider?)
+    {
+        guard self.shouldMergeIcons, enabledProviders.count > 1 else { return }
+        let switcherItem = self.makeProviderSwitcherItem(
+            providers: enabledProviders,
+            selected: selectedProvider,
+            menu: menu)
+        menu.addItem(switcherItem)
+        menu.addItem(.separator())
+    }
 
-        if let model = self.menuCardModel(for: selectedProvider) {
-            if hasOpenAIWebMenuItems {
-                let webItems = OpenAIWebMenuItems(
-                    hasUsageBreakdown: hasUsageBreakdown,
-                    hasCreditsHistory: hasCreditsHistory,
-                    hasCostHistory: hasCostHistory)
-                self.addMenuCardSections(
-                    to: menu,
-                    model: model,
-                    provider: currentProvider,
-                    width: menuWidth,
-                    webItems: webItems)
-                addedOpenAIWebItems = true
-            } else {
+    private func addTokenAccountSwitcherIfNeeded(to menu: NSMenu, display: TokenAccountMenuDisplay?) {
+        guard let display, display.showSwitcher else { return }
+        let switcherItem = self.makeTokenAccountSwitcherItem(display: display, menu: menu)
+        menu.addItem(switcherItem)
+        menu.addItem(.separator())
+    }
+
+    private func addMenuCards(to menu: NSMenu, context: MenuCardContext) -> Bool {
+        if let tokenAccountDisplay = context.tokenAccountDisplay, tokenAccountDisplay.showAll {
+            let accountSnapshots = tokenAccountDisplay.snapshots
+            let cards = accountSnapshots.isEmpty
+                ? []
+                : accountSnapshots.compactMap { accountSnapshot in
+                    self.menuCardModel(
+                        for: context.currentProvider,
+                        snapshotOverride: accountSnapshot.snapshot,
+                        errorOverride: accountSnapshot.error)
+                }
+            if cards.isEmpty, let model = self.menuCardModel(for: context.selectedProvider) {
                 menu.addItem(self.makeMenuCardItem(
-                    UsageMenuCardView(model: model, width: menuWidth),
+                    UsageMenuCardView(model: model, width: context.menuWidth),
                     id: "menuCard",
-                    width: menuWidth))
-                if currentProvider == .codex, model.creditsText != nil {
-                    menu.addItem(self.makeBuyCreditsItem())
-                }
+                    width: context.menuWidth))
                 menu.addItem(.separator())
-            }
-        }
-
-        if hasOpenAIWebMenuItems {
-            if !addedOpenAIWebItems {
-                // Only show these when we actually have additional data.
-                if hasUsageBreakdown {
-                    _ = self.addUsageBreakdownSubmenu(to: menu)
+            } else {
+                for (index, model) in cards.enumerated() {
+                    menu.addItem(self.makeMenuCardItem(
+                        UsageMenuCardView(model: model, width: context.menuWidth),
+                        id: "menuCard-\(index)",
+                        width: context.menuWidth))
+                    if index < cards.count - 1 {
+                        menu.addItem(.separator())
+                    }
                 }
-                if hasCreditsHistory {
-                    _ = self.addCreditsHistorySubmenu(to: menu)
-                }
-                if hasCostHistory {
-                    _ = self.addCostHistorySubmenu(to: menu, provider: currentProvider)
+                if !cards.isEmpty {
+                    menu.addItem(.separator())
                 }
             }
-            menu.addItem(.separator())
+            return false
         }
 
-        let actionableSections = Array(descriptor.sections.suffix(2))
+        guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
+        if context.openAIContext.hasOpenAIWebMenuItems {
+            let webItems = OpenAIWebMenuItems(
+                hasUsageBreakdown: context.openAIContext.hasUsageBreakdown,
+                hasCreditsHistory: context.openAIContext.hasCreditsHistory,
+                hasCostHistory: context.openAIContext.hasCostHistory)
+            self.addMenuCardSections(
+                to: menu,
+                model: model,
+                provider: context.currentProvider,
+                width: context.menuWidth,
+                webItems: webItems)
+            return true
+        }
+
+        menu.addItem(self.makeMenuCardItem(
+            UsageMenuCardView(model: model, width: context.menuWidth),
+            id: "menuCard",
+            width: context.menuWidth))
+        if context.currentProvider == .codex, model.creditsText != nil {
+            menu.addItem(self.makeBuyCreditsItem())
+        }
+        menu.addItem(.separator())
+        return false
+    }
+
+    private func addOpenAIWebItemsIfNeeded(
+        to menu: NSMenu,
+        currentProvider: UsageProvider,
+        context: OpenAIWebContext,
+        addedOpenAIWebItems: Bool)
+    {
+        guard context.hasOpenAIWebMenuItems else { return }
+        if !addedOpenAIWebItems {
+            // Only show these when we actually have additional data.
+            if context.hasUsageBreakdown {
+                _ = self.addUsageBreakdownSubmenu(to: menu)
+            }
+            if context.hasCreditsHistory {
+                _ = self.addCreditsHistorySubmenu(to: menu)
+            }
+            if context.hasCostHistory {
+                _ = self.addCostHistorySubmenu(to: menu, provider: currentProvider)
+            }
+        }
+        menu.addItem(.separator())
+    }
+
+    private func addActionableSections(_ sections: [MenuDescriptor.Section], to menu: NSMenu) {
+        let actionableSections = sections.filter { section in
+            section.entries.contains { entry in
+                if case .action = entry { return true }
+                return false
+            }
+        }
         for (index, section) in actionableSections.enumerated() {
             for entry in section.entries {
                 switch entry {
@@ -198,8 +396,8 @@ extension StatusItemController {
                     if case let .switchAccount(targetProvider) = action,
                        let subtitle = self.switchAccountSubtitle(for: targetProvider)
                     {
-                        item.subtitle = subtitle
                         item.isEnabled = false
+                        self.applySubtitle(subtitle, to: item, title: title)
                     }
                     menu.addItem(item)
                 case .divider:
@@ -244,7 +442,30 @@ extension StatusItemController {
                 self.lastMenuProvider = provider
                 self.populateMenu(menu, provider: provider)
                 self.markMenuFresh(menu)
-                self.refreshMenuCardHeights(in: menu)
+                self.applyIcon(phase: nil)
+            })
+        let item = NSMenuItem()
+        item.view = view
+        item.isEnabled = false
+        return item
+    }
+
+    private func makeTokenAccountSwitcherItem(
+        display: TokenAccountMenuDisplay,
+        menu: NSMenu) -> NSMenuItem
+    {
+        let view = TokenAccountSwitcherView(
+            accounts: display.accounts,
+            selectedIndex: display.activeIndex,
+            width: self.menuCardWidth(for: self.store.enabledProviders(), menu: menu),
+            onSelect: { [weak self, weak menu] index in
+                guard let self, let menu else { return }
+                self.settings.setActiveTokenAccountIndex(index, for: display.provider)
+                Task { @MainActor in
+                    await self.store.refresh()
+                }
+                self.populateMenu(menu, provider: display.provider)
+                self.markMenuFresh(menu)
                 self.applyIcon(phase: nil)
             })
         let item = NSMenuItem()
@@ -262,6 +483,22 @@ extension StatusItemController {
         return enabled.first
     }
 
+    private func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
+        guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
+        let accounts = self.settings.tokenAccounts(for: provider)
+        guard accounts.count > 1 else { return nil }
+        let activeIndex = self.settings.tokenAccountsData(for: provider)?.clampedActiveIndex() ?? 0
+        let showAll = self.settings.showAllTokenAccountsInMenu
+        let snapshots = showAll ? (self.store.accountSnapshots[provider] ?? []) : []
+        return TokenAccountMenuDisplay(
+            provider: provider,
+            accounts: accounts,
+            snapshots: snapshots,
+            activeIndex: activeIndex,
+            showAll: showAll,
+            showSwitcher: !showAll)
+    }
+
     private func menuNeedsRefresh(_ menu: NSMenu) -> Bool {
         let key = ObjectIdentifier(menu)
         return self.menuVersions[key] != self.menuContentVersion
@@ -276,7 +513,11 @@ extension StatusItemController {
         guard !self.openMenus.isEmpty else { return }
         for (key, menu) in self.openMenus {
             guard key == ObjectIdentifier(menu) else {
+                // Clean up orphaned menu entries from all tracking dictionaries
                 self.openMenus.removeValue(forKey: key)
+                self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
+                self.menuProviders.removeValue(forKey: key)
+                self.menuVersions.removeValue(forKey: key)
                 continue
             }
 
@@ -289,7 +530,7 @@ extension StatusItemController {
                 let provider = self.menuProvider(for: menu)
                 self.populateMenu(menu, provider: provider)
                 self.markMenuFresh(menu)
-                self.refreshMenuCardHeights(in: menu)
+                // Heights are already set during populateMenu, no need to remeasure
             }
         }
     }
@@ -308,7 +549,11 @@ extension StatusItemController {
     }
 
     private func scheduleOpenMenuRefresh(for menu: NSMenu) {
-        self.refreshNow()
+        // Kick off a background refresh on open (non-forced) and re-check after a delay.
+        // NEVER block menu opening with network requests.
+        if !self.store.isRefreshing {
+            self.refreshStore(forceTokenUsage: false)
+        }
         let key = ObjectIdentifier(menu)
         self.menuRefreshTasks[key]?.cancel()
         self.menuRefreshTasks[key] = Task { @MainActor [weak self, weak menu] in
@@ -321,7 +566,7 @@ extension StatusItemController {
             let isStale = provider.map { self.store.isStale(provider: $0) } ?? self.store.isStale
             let hasSnapshot = provider.map { self.store.snapshot(for: $0) != nil } ?? true
             guard isStale || !hasSnapshot else { return }
-            self.refreshNow()
+            self.refreshStore(forceTokenUsage: false)
         }
     }
 
@@ -345,25 +590,34 @@ extension StatusItemController {
         _ view: some View,
         id: String,
         width: CGFloat,
-        submenu: NSMenu? = nil,
-        highlightExclusionHeight: CGFloat = 0) -> NSMenuItem
+        submenu: NSMenu? = nil) -> NSMenuItem
     {
+        if !Self.menuCardRenderingEnabled {
+            let item = NSMenuItem()
+            item.isEnabled = true
+            item.representedObject = id
+            item.submenu = submenu
+            if submenu != nil {
+                item.target = self
+                item.action = #selector(self.menuCardNoOp(_:))
+            }
+            return item
+        }
+
         let highlightState = MenuCardHighlightState()
         let wrapped = MenuCardSectionContainerView(
             highlightState: highlightState,
-            showsSubmenuIndicator: submenu != nil,
-            highlightExclusionHeight: highlightExclusionHeight)
+            showsSubmenuIndicator: submenu != nil)
         {
             view
         }
         let hosting = MenuCardItemHostingView(rootView: wrapped, highlightState: highlightState)
-        // Important: constrain width before asking SwiftUI for the fitting height, otherwise text wrapping
-        // changes the required height and the menu item becomes visually "squeezed".
+        // Set frame with target width immediately
         let height = self.menuCardHeight(for: hosting, width: width)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
         let item = NSMenuItem()
         item.view = hosting
-        item.isEnabled = submenu != nil
+        item.isEnabled = true
         item.representedObject = id
         item.submenu = submenu
         if submenu != nil {
@@ -374,12 +628,21 @@ extension StatusItemController {
     }
 
     private func menuCardHeight(for view: NSView, width: CGFloat) -> CGFloat {
-        let maxHeight = CGFloat(10000)
-        view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: maxHeight))
-        view.invalidateIntrinsicContentSize()
-        view.layoutSubtreeIfNeeded()
-        let fitting = view.fittingSize.height
-        return max(1, ceil(fitting + 6))
+        let basePadding: CGFloat = 6
+        let descenderSafety: CGFloat = 1
+
+        // Fast path: use protocol-based measurement when available (avoids layout passes)
+        if let measured = view as? MenuCardMeasuring {
+            return max(1, ceil(measured.measuredHeight(width: width) + basePadding + descenderSafety))
+        }
+
+        // Set frame with target width before measuring.
+        view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+
+        // Use fittingSize directly - SwiftUI hosting views respect the frame width for wrapping
+        let fitted = view.fittingSize
+
+        return max(1, ceil(fitted.height + basePadding + descenderSafety))
     }
 
     private func addMenuCardSections(
@@ -393,8 +656,8 @@ extension StatusItemController {
         let hasCredits = model.creditsText != nil
         let hasExtraUsage = model.providerCost != nil
         let hasCost = model.tokenUsage != nil
-        let bottomPadding = CGFloat(hasCredits ? 4 : 10)
-        let sectionSpacing = CGFloat(8)
+        let bottomPadding = CGFloat(hasCredits ? 4 : 6)
+        let sectionSpacing = CGFloat(6)
         let usageBottomPadding = bottomPadding
         let creditsBottomPadding = bottomPadding
 
@@ -485,7 +748,7 @@ extension StatusItemController {
         // Fallback to the dynamic icon renderer if resources are missing (e.g. dev bundle mismatch).
         let snapshot = self.store.snapshot(for: provider)
         let showUsed = self.settings.usageBarsShowUsed
-        let primary = showUsed ? snapshot?.primary.usedPercent : snapshot?.primary.remainingPercent
+        let primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
         let weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
         let credits = provider == .codex ? self.store.credits?.remaining : nil
         let stale = self.store.isStale(provider: provider)
@@ -505,23 +768,33 @@ extension StatusItemController {
         return image
     }
 
-    private func switcherWeeklyRemaining(for provider: UsageProvider) -> Double? {
-        let snapshot = self.store.snapshot(for: provider)
-        let window = snapshot?.secondary ?? snapshot?.primary
+    nonisolated static func switcherWeeklyMetricPercent(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        showUsed: Bool) -> Double?
+    {
+        let window = snapshot?.switcherWeeklyWindow(for: provider, showUsed: showUsed)
         guard let window else { return nil }
-        if self.settings.usageBarsShowUsed {
-            return window.usedPercent
-        }
-        return window.remainingPercent
+        return showUsed ? window.usedPercent : window.remainingPercent
+    }
+
+    private func switcherWeeklyRemaining(for provider: UsageProvider) -> Double? {
+        Self.switcherWeeklyMetricPercent(
+            for: provider,
+            snapshot: self.store.snapshot(for: provider),
+            showUsed: self.settings.usageBarsShowUsed)
     }
 
     private func selector(for action: MenuDescriptor.MenuAction) -> (Selector, Any?) {
         switch action {
         case .installUpdate: (#selector(self.installUpdate), nil)
         case .refresh: (#selector(self.refreshNow), nil)
+        case .refreshAugmentSession: (#selector(self.refreshAugmentSession), nil)
         case .dashboard: (#selector(self.openDashboard), nil)
         case .statusPage: (#selector(self.openStatusPage), nil)
         case let .switchAccount(provider): (#selector(self.runSwitchAccount(_:)), provider.rawValue)
+        case let .openTerminal(command): (#selector(self.openTerminalCommand(_:)), command)
+        case let .loginToProvider(url): (#selector(self.openLoginToProvider(_:)), url)
         case .settings: (#selector(self.showSettingsGeneral), nil)
         case .about: (#selector(self.showSettingsAbout), nil)
         case .quit: (#selector(self.quit), nil)
@@ -535,6 +808,11 @@ extension StatusItemController {
     }
 
     @MainActor
+    private protocol MenuCardMeasuring: AnyObject {
+        func measuredHeight(width: CGFloat) -> CGFloat
+    }
+
+    @MainActor
     @Observable
     fileprivate final class MenuCardHighlightState {
         var isHighlighted = false
@@ -545,9 +823,16 @@ extension StatusItemController {
     }
 
     @MainActor
-    private final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, MenuCardHighlighting {
+    private final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, MenuCardHighlighting,
+    MenuCardMeasuring {
         private let highlightState: MenuCardHighlightState
         override var allowsVibrancy: Bool { true }
+
+        override var intrinsicContentSize: NSSize {
+            let size = super.intrinsicContentSize
+            guard self.frame.width > 0 else { return size }
+            return NSSize(width: self.frame.width, height: size.height)
+        }
 
         init(rootView: Content, highlightState: MenuCardHighlightState) {
             self.highlightState = highlightState
@@ -564,6 +849,12 @@ extension StatusItemController {
             fatalError("init(coder:) has not been implemented")
         }
 
+        func measuredHeight(width: CGFloat) -> CGFloat {
+            let controller = NSHostingController(rootView: self.rootView)
+            let measured = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+            return measured.height
+        }
+
         func setHighlighted(_ highlighted: Bool) {
             guard self.highlightState.isHighlighted != highlighted else { return }
             self.highlightState.isHighlighted = highlighted
@@ -573,18 +864,15 @@ extension StatusItemController {
     private struct MenuCardSectionContainerView<Content: View>: View {
         @Bindable var highlightState: MenuCardHighlightState
         let showsSubmenuIndicator: Bool
-        let highlightExclusionHeight: CGFloat
         let content: Content
 
         init(
             highlightState: MenuCardHighlightState,
             showsSubmenuIndicator: Bool,
-            highlightExclusionHeight: CGFloat = 0,
             @ViewBuilder content: () -> Content)
         {
             self.highlightState = highlightState
             self.showsSubmenuIndicator = showsSubmenuIndicator
-            self.highlightExclusionHeight = highlightExclusionHeight
             self.content = content()
         }
 
@@ -594,7 +882,10 @@ extension StatusItemController {
                 .foregroundStyle(MenuHighlightStyle.primary(self.highlightState.isHighlighted))
                 .background(alignment: .topLeading) {
                     if self.highlightState.isHighlighted {
-                        self.highlightBackground
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(MenuHighlightStyle.selectionBackground(true))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
                     }
                 }
                 .overlay(alignment: .topTrailing) {
@@ -606,23 +897,6 @@ extension StatusItemController {
                             .padding(.trailing, 10)
                     }
                 }
-        }
-
-        @ViewBuilder
-        private var highlightBackground: some View {
-            GeometryReader { proxy in
-                let topInset: CGFloat = 1
-                let bottomInset: CGFloat = 1
-                let height = max(0, proxy.size.height - self.highlightExclusionHeight - topInset - bottomInset)
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(MenuHighlightStyle.selectionBackground(self.highlightState.isHighlighted))
-                    .frame(height: height, alignment: .top)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .padding(.horizontal, 6)
-                    .padding(.top, topInset)
-                    .padding(.bottom, bottomInset)
-            }
-            .allowsHitTesting(false)
         }
     }
 
@@ -686,6 +960,7 @@ extension StatusItemController {
         guard !timeLimit.usageDetails.isEmpty else { return nil }
 
         let submenu = NSMenu()
+        submenu.delegate = self
         let titleItem = NSMenuItem(title: "MCP details", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         submenu.addItem(titleItem)
@@ -696,7 +971,9 @@ extension StatusItemController {
             submenu.addItem(item)
         }
         if let resetTime = timeLimit.nextResetTime {
-            let reset = UsageFormatter.resetDescription(from: resetTime)
+            let reset = self.settings.resetTimeDisplayStyle == .absolute
+                ? UsageFormatter.resetDescription(from: resetTime)
+                : UsageFormatter.resetCountdownDescription(from: resetTime)
             let item = NSMenuItem(title: "Resets: \(reset)", action: nil, keyEquivalent: "")
             item.isEnabled = false
             submenu.addItem(item)
@@ -719,13 +996,23 @@ extension StatusItemController {
         let width = Self.menuCardBaseWidth
         guard !breakdown.isEmpty else { return nil }
 
+        if !Self.menuCardRenderingEnabled {
+            let submenu = NSMenu()
+            submenu.delegate = self
+            let chartItem = NSMenuItem()
+            chartItem.isEnabled = false
+            chartItem.representedObject = "usageBreakdownChart"
+            submenu.addItem(chartItem)
+            return submenu
+        }
+
         let submenu = NSMenu()
         submenu.delegate = self
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
-        hosting.layoutSubtreeIfNeeded()
-        let size = hosting.fittingSize
+        // Use NSHostingController for efficient size calculation without multiple layout passes
+        let controller = NSHostingController(rootView: chartView)
+        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
 
         let chartItem = NSMenuItem()
@@ -741,13 +1028,23 @@ extension StatusItemController {
         let width = Self.menuCardBaseWidth
         guard !breakdown.isEmpty else { return nil }
 
+        if !Self.menuCardRenderingEnabled {
+            let submenu = NSMenu()
+            submenu.delegate = self
+            let chartItem = NSMenuItem()
+            chartItem.isEnabled = false
+            chartItem.representedObject = "creditsHistoryChart"
+            submenu.addItem(chartItem)
+            return submenu
+        }
+
         let submenu = NSMenu()
         submenu.delegate = self
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
-        hosting.layoutSubtreeIfNeeded()
-        let size = hosting.fittingSize
+        // Use NSHostingController for efficient size calculation without multiple layout passes
+        let controller = NSHostingController(rootView: chartView)
+        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
 
         let chartItem = NSMenuItem()
@@ -759,10 +1056,20 @@ extension StatusItemController {
     }
 
     private func makeCostHistorySubmenu(provider: UsageProvider) -> NSMenu? {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
         let width = Self.menuCardBaseWidth
         guard let tokenSnapshot = self.store.tokenSnapshot(for: provider) else { return nil }
         guard !tokenSnapshot.daily.isEmpty else { return nil }
+
+        if !Self.menuCardRenderingEnabled {
+            let submenu = NSMenu()
+            submenu.delegate = self
+            let chartItem = NSMenuItem()
+            chartItem.isEnabled = false
+            chartItem.representedObject = "costHistoryChart"
+            submenu.addItem(chartItem)
+            return submenu
+        }
 
         let submenu = NSMenu()
         submenu.delegate = self
@@ -772,9 +1079,9 @@ extension StatusItemController {
             totalCostUSD: tokenSnapshot.last30DaysCostUSD,
             width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
-        hosting.layoutSubtreeIfNeeded()
-        let size = hosting.fittingSize
+        // Use NSHostingController for efficient size calculation without multiple layout passes
+        let controller = NSHostingController(rootView: chartView)
+        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
 
         let chartItem = NSMenuItem()
@@ -797,6 +1104,17 @@ extension StatusItemController {
         }
     }
 
+    private func isOpenAIWebSubviewMenu(_ menu: NSMenu) -> Bool {
+        let ids: Set<String> = [
+            "usageBreakdownChart",
+            "creditsHistoryChart",
+        ]
+        return menu.items.contains { item in
+            guard let id = item.representedObject as? String else { return false }
+            return ids.contains(id)
+        }
+    }
+
     private func refreshHostedSubviewHeights(in menu: NSMenu) {
         let enabledProviders = self.store.enabledProviders()
         let width = self.menuCardWidth(for: enabledProviders, menu: menu)
@@ -810,25 +1128,29 @@ extension StatusItemController {
         }
     }
 
-    private func menuCardModel(for provider: UsageProvider?) -> UsageMenuCardView.Model? {
+    private func menuCardModel(
+        for provider: UsageProvider?,
+        snapshotOverride: UsageSnapshot? = nil,
+        errorOverride: String? = nil) -> UsageMenuCardView.Model?
+    {
         let target = provider ?? self.store.enabledProviders().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
-        let snapshot = self.store.snapshot(for: target)
+        let snapshot = snapshotOverride ?? self.store.snapshot(for: target)
         let credits: CreditsSnapshot?
         let creditsError: String?
         let dashboard: OpenAIDashboardSnapshot?
         let dashboardError: String?
-        let tokenSnapshot: CCUsageTokenSnapshot?
+        let tokenSnapshot: CostUsageTokenSnapshot?
         let tokenError: String?
-        if target == .codex {
+        if target == .codex, snapshotOverride == nil {
             credits = self.store.credits
             creditsError = self.store.lastCreditsError
             dashboard = self.store.openAIDashboardRequiresLogin ? nil : self.store.openAIDashboard
             dashboardError = self.store.lastOpenAIDashboardError
             tokenSnapshot = self.store.tokenSnapshot(for: target)
             tokenError = self.store.tokenError(for: target)
-        } else if target == .claude {
+        } else if target == .claude || target == .vertexai, snapshotOverride == nil {
             credits = nil
             creditsError = nil
             dashboard = nil
@@ -856,10 +1178,12 @@ extension StatusItemController {
             tokenError: tokenError,
             account: self.account,
             isRefreshing: self.store.isRefreshing,
-            lastError: self.store.error(for: target),
+            lastError: errorOverride ?? self.store.error(for: target),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
-            tokenCostUsageEnabled: self.settings.isCCUsageCostUsageEffectivelyEnabled(for: target),
+            resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+            tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            hidePersonalInfo: self.settings.hidePersonalInfo,
             now: Date())
         return UsageMenuCardView.Model.make(input)
     }
@@ -867,733 +1191,50 @@ extension StatusItemController {
     @objc private func menuCardNoOp(_ sender: NSMenuItem) {
         _ = sender
     }
-}
 
-private final class ProviderSwitcherView: NSView {
-    private struct Segment {
-        let provider: UsageProvider
-        let image: NSImage
-        let title: String
-    }
-
-    private struct WeeklyIndicator {
-        let provider: UsageProvider
-        let track: NSView
-        let fill: NSView
-    }
-
-    private let segments: [Segment]
-    private let onSelect: (UsageProvider) -> Void
-    private let showsIcons: Bool
-    private let weeklyRemainingProvider: (UsageProvider) -> Double?
-    private var buttons: [NSButton] = []
-    private var weeklyIndicators: [ObjectIdentifier: WeeklyIndicator] = [:]
-    private let selectedBackground = NSColor.controlAccentColor.cgColor
-    private let unselectedBackground = NSColor.clear.cgColor
-    private let selectedTextColor = NSColor.white
-    private let unselectedTextColor = NSColor.secondaryLabelColor
-    private let stackedIcons: Bool
-    private var preferredWidth: CGFloat = 0
-
-    init(
-        providers: [UsageProvider],
-        selected: UsageProvider?,
-        width: CGFloat,
-        showsIcons: Bool,
-        iconProvider: (UsageProvider) -> NSImage,
-        weeklyRemainingProvider: @escaping (UsageProvider) -> Double?,
-        onSelect: @escaping (UsageProvider) -> Void)
-    {
-        self.segments = providers.map { provider in
-            let fullTitle = Self.switcherTitle(for: provider)
-            let icon = iconProvider(provider)
-            icon.isTemplate = true
-            // Avoid any resampling: we ship exact 16pt/32px assets for crisp rendering.
-            icon.size = NSSize(width: 16, height: 16)
-            return Segment(
-                provider: provider,
-                image: icon,
-                title: fullTitle)
-        }
-        self.onSelect = onSelect
-        self.showsIcons = showsIcons
-        self.weeklyRemainingProvider = weeklyRemainingProvider
-        self.stackedIcons = showsIcons && providers.count > 3
-        let height: CGFloat = self.stackedIcons ? 36 : 30
-        self.preferredWidth = width
-        super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
-
-        let outerPadding: CGFloat = Self.switcherOuterPadding(
-            for: width,
-            count: self.segments.count,
-            minimumGap: 1)
-        let minimumGap: CGFloat = 1
-        let maxAllowedSegmentWidth = Self.maxAllowedUniformSegmentWidth(
-            for: width,
-            count: self.segments.count,
-            outerPadding: outerPadding,
-            minimumGap: minimumGap)
-
-        func makeButton(index: Int, segment: Segment) -> NSButton {
-            let button: NSButton
-            if self.stackedIcons {
-                let stacked = StackedToggleButton(
-                    title: segment.title,
-                    image: segment.image,
-                    target: self,
-                    action: #selector(self.handleSelection(_:)))
-                button = stacked
-            } else if self.showsIcons {
-                let inline = InlineIconToggleButton(
-                    title: segment.title,
-                    image: segment.image,
-                    target: self,
-                    action: #selector(self.handleSelection(_:)))
-                button = inline
-            } else {
-                button = PaddedToggleButton(
-                    title: segment.title,
-                    target: self,
-                    action: #selector(self.handleSelection(_:)))
-            }
-            button.tag = index
-            if self.showsIcons {
-                if self.stackedIcons {
-                    // StackedToggleButton manages its own image view.
-                } else {
-                    // InlineIconToggleButton manages its own image view.
-                }
-            } else {
-                button.image = nil
-                button.imagePosition = .noImage
-            }
-
-            let remaining = self.weeklyRemainingProvider(segment.provider)
-            self.addWeeklyIndicator(to: button, provider: segment.provider, remainingPercent: remaining)
-            button.bezelStyle = .regularSquare
-            button.isBordered = false
-            button.controlSize = .small
-            button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-            button.setButtonType(.toggle)
-            button.contentTintColor = self.unselectedTextColor
-            button.alignment = .center
-            button.wantsLayer = true
-            button.layer?.cornerRadius = 6
-            button.state = (selected == segment.provider) ? .on : .off
-            button.toolTip = nil
-            button.translatesAutoresizingMaskIntoConstraints = false
-            self.buttons.append(button)
-            return button
-        }
-
-        for (index, segment) in self.segments.enumerated() {
-            let button = makeButton(index: index, segment: segment)
-            self.addSubview(button)
-        }
-
-        if self.stackedIcons {
-            self.applyNonUniformSegmentWidths(
-                totalWidth: width,
-                outerPadding: outerPadding,
-                minimumGap: minimumGap)
+    private func applySubtitle(_ subtitle: String, to item: NSMenuItem, title: String) {
+        if #available(macOS 14.4, *) {
+            // NSMenuItem.subtitle is only available on macOS 14.4+.
+            item.subtitle = subtitle
         } else {
-            _ = self.applyUniformSegmentWidth(maxAllowedWidth: maxAllowedSegmentWidth)
-        }
-
-        if self.buttons.count == 2 {
-            let left = self.buttons[0]
-            let right = self.buttons[1]
-            let gap = right.leadingAnchor.constraint(greaterThanOrEqualTo: left.trailingAnchor, constant: minimumGap)
-            gap.priority = .defaultHigh
-            NSLayoutConstraint.activate([
-                left.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: outerPadding),
-                left.centerYAnchor.constraint(equalTo: self.centerYAnchor),
-                right.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -outerPadding),
-                right.centerYAnchor.constraint(equalTo: self.centerYAnchor),
-                gap,
-            ])
-        } else if self.buttons.count == 3 {
-            let left = self.buttons[0]
-            let mid = self.buttons[1]
-            let right = self.buttons[2]
-
-            let leftGap = mid.leadingAnchor.constraint(greaterThanOrEqualTo: left.trailingAnchor, constant: minimumGap)
-            leftGap.priority = .defaultHigh
-            let rightGap = right.leadingAnchor.constraint(
-                greaterThanOrEqualTo: mid.trailingAnchor,
-                constant: minimumGap)
-            rightGap.priority = .defaultHigh
-
-            NSLayoutConstraint.activate([
-                left.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: outerPadding),
-                left.centerYAnchor.constraint(equalTo: self.centerYAnchor),
-                mid.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                mid.centerYAnchor.constraint(equalTo: self.centerYAnchor),
-                right.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -outerPadding),
-                right.centerYAnchor.constraint(equalTo: self.centerYAnchor),
-                leftGap,
-                rightGap,
-            ])
-        } else if self.buttons.count >= 4 {
-            let stack = NSStackView(views: self.buttons)
-            stack.orientation = .horizontal
-            stack.alignment = self.stackedIcons ? .top : .centerY
-            stack.distribution = .fill
-            stack.spacing = minimumGap
-            stack.translatesAutoresizingMaskIntoConstraints = false
-            self.addSubview(stack)
-
-            NSLayoutConstraint.activate([
-                stack.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: outerPadding),
-                stack.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -outerPadding),
-                stack.topAnchor.constraint(equalTo: self.topAnchor),
-                stack.bottomAnchor.constraint(equalTo: self.bottomAnchor),
-            ])
-        } else if let first = self.buttons.first {
-            NSLayoutConstraint.activate([
-                first.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                first.centerYAnchor.constraint(equalTo: self.centerYAnchor),
-            ])
-        }
-        if width > 0 {
-            self.preferredWidth = width
-            self.frame.size.width = width
-        }
-
-        self.updateButtonStyles()
-    }
-
-    private static func switcherOuterPadding(for width: CGFloat, count: Int, minimumGap: CGFloat) -> CGFloat {
-        // Align with the card's left/right content grid when possible.
-        let preferred: CGFloat = 16
-        let reduced: CGFloat = 10
-        let minimal: CGFloat = 6
-
-        func averageButtonWidth(outerPadding: CGFloat) -> CGFloat {
-            let available = width - outerPadding * 2 - minimumGap * CGFloat(max(0, count - 1))
-            guard count > 0 else { return 0 }
-            return available / CGFloat(count)
-        }
-
-        // Only sacrifice padding when we'd otherwise squeeze buttons into unreadable widths.
-        let minimumComfortableAverage: CGFloat = count >= 5 ? 46 : 54
-
-        if averageButtonWidth(outerPadding: preferred) >= minimumComfortableAverage { return preferred }
-        if averageButtonWidth(outerPadding: reduced) >= minimumComfortableAverage { return reduced }
-        return minimal
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: self.preferredWidth, height: self.frame.size.height)
-    }
-
-    @objc private func handleSelection(_ sender: NSButton) {
-        let index = sender.tag
-        guard self.segments.indices.contains(index) else { return }
-        for (idx, button) in self.buttons.enumerated() {
-            button.state = (idx == index) ? .on : .off
-        }
-        self.updateButtonStyles()
-        self.onSelect(self.segments[index].provider)
-    }
-
-    private func updateButtonStyles() {
-        for button in self.buttons {
-            let isSelected = button.state == .on
-            button.contentTintColor = isSelected ? self.selectedTextColor : self.unselectedTextColor
-            button.layer?.backgroundColor = isSelected ? self.selectedBackground : self.unselectedBackground
-            self.updateWeeklyIndicatorVisibility(for: button)
-            (button as? StackedToggleButton)?.setContentTintColor(button.contentTintColor)
-            (button as? InlineIconToggleButton)?.setContentTintColor(button.contentTintColor)
+            item.view = self.makeMenuSubtitleView(title: title, subtitle: subtitle, isEnabled: item.isEnabled)
+            item.toolTip = "\(title) — \(subtitle)"
         }
     }
 
-    private static func maxToggleWidth(for button: NSButton) -> CGFloat {
-        let originalState = button.state
-        defer { button.state = originalState }
+    private func makeMenuSubtitleView(title: String, subtitle: String, isEnabled: Bool) -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.alphaValue = isEnabled ? 1.0 : 0.7
 
-        button.state = .off
-        button.layoutSubtreeIfNeeded()
-        let offWidth = button.fittingSize.width
+        let titleField = NSTextField(labelWithString: title)
+        titleField.font = NSFont.menuFont(ofSize: NSFont.systemFontSize)
+        titleField.textColor = NSColor.labelColor
+        titleField.lineBreakMode = .byTruncatingTail
+        titleField.maximumNumberOfLines = 1
+        titleField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        button.state = .on
-        button.layoutSubtreeIfNeeded()
-        let onWidth = button.fittingSize.width
+        let subtitleField = NSTextField(labelWithString: subtitle)
+        subtitleField.font = NSFont.menuFont(ofSize: NSFont.smallSystemFontSize)
+        subtitleField.textColor = NSColor.secondaryLabelColor
+        subtitleField.lineBreakMode = .byTruncatingTail
+        subtitleField.maximumNumberOfLines = 1
+        subtitleField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        return max(offWidth, onWidth)
-    }
-
-    private func applyUniformSegmentWidth(maxAllowedWidth: CGFloat) -> CGFloat {
-        guard !self.buttons.isEmpty else { return 0 }
-
-        var desiredWidths: [CGFloat] = []
-        desiredWidths.reserveCapacity(self.buttons.count)
-
-        for (index, button) in self.buttons.enumerated() {
-            if self.stackedIcons,
-               self.segments.indices.contains(index)
-            {
-                let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-                let titleWidth = ceil((self.segments[index].title as NSString).size(withAttributes: [.font: font])
-                    .width)
-                let contentPadding: CGFloat = 4 + 4
-                let extraSlack: CGFloat = 1
-                desiredWidths.append(ceil(titleWidth + contentPadding + extraSlack))
-            } else {
-                desiredWidths.append(ceil(Self.maxToggleWidth(for: button)))
-            }
-        }
-
-        let maxDesired = desiredWidths.max() ?? 0
-        let evenMaxDesired = maxDesired.truncatingRemainder(dividingBy: 2) == 0 ? maxDesired : maxDesired + 1
-        let evenMaxAllowed = maxAllowedWidth > 0
-            ? (maxAllowedWidth.truncatingRemainder(dividingBy: 2) == 0 ? maxAllowedWidth : maxAllowedWidth - 1)
-            : 0
-        let finalWidth: CGFloat = if evenMaxAllowed > 0 {
-            min(evenMaxDesired, evenMaxAllowed)
-        } else {
-            evenMaxDesired
-        }
-
-        if finalWidth > 0 {
-            for button in self.buttons {
-                button.widthAnchor.constraint(equalToConstant: finalWidth).isActive = true
-            }
-        }
-
-        return finalWidth
-    }
-
-    private func applyNonUniformSegmentWidths(
-        totalWidth: CGFloat,
-        outerPadding: CGFloat,
-        minimumGap: CGFloat)
-    {
-        guard !self.buttons.isEmpty else { return }
-
-        let count = self.buttons.count
-        let available = totalWidth -
-            outerPadding * 2 -
-            minimumGap * CGFloat(max(0, count - 1))
-        guard available > 0 else { return }
-
-        func evenFloor(_ value: CGFloat) -> CGFloat {
-            var v = floor(value)
-            if Int(v) % 2 != 0 { v -= 1 }
-            return v
-        }
-
-        let desired = self.buttons.map { ceil(Self.maxToggleWidth(for: $0)) }
-        let desiredSum = desired.reduce(0, +)
-        let avg = floor(available / CGFloat(count))
-        let minWidth = max(24, min(40, avg))
-
-        var widths: [CGFloat]
-        if desiredSum <= available {
-            widths = desired
-        } else {
-            let totalCapacity = max(0, desiredSum - minWidth * CGFloat(count))
-            if totalCapacity <= 0 {
-                widths = Array(repeating: available / CGFloat(count), count: count)
-            } else {
-                let overflow = desiredSum - available
-                widths = desired.map { desiredWidth in
-                    let capacity = max(0, desiredWidth - minWidth)
-                    let shrink = overflow * (capacity / totalCapacity)
-                    return desiredWidth - shrink
-                }
-            }
-        }
-
-        widths = widths.map { max(minWidth, evenFloor($0)) }
-        var used = widths.reduce(0, +)
-
-        while available - used >= 2 {
-            if let best = widths.indices
-                .filter({ desired[$0] - widths[$0] >= 2 })
-                .max(by: { lhs, rhs in
-                    (desired[lhs] - widths[lhs]) < (desired[rhs] - widths[rhs])
-                })
-            {
-                widths[best] += 2
-                used += 2
-                continue
-            }
-
-            guard let best = widths.indices.min(by: { lhs, rhs in widths[lhs] < widths[rhs] }) else { break }
-            widths[best] += 2
-            used += 2
-        }
-
-        for (index, button) in self.buttons.enumerated() where index < widths.count {
-            button.widthAnchor.constraint(equalToConstant: widths[index]).isActive = true
-        }
-    }
-
-    private static func maxAllowedUniformSegmentWidth(
-        for totalWidth: CGFloat,
-        count: Int,
-        outerPadding: CGFloat,
-        minimumGap: CGFloat) -> CGFloat
-    {
-        guard count > 0 else { return 0 }
-        let available = totalWidth -
-            outerPadding * 2 -
-            minimumGap * CGFloat(max(0, count - 1))
-        guard available > 0 else { return 0 }
-        return floor(available / CGFloat(count))
-    }
-
-    private static func paddedImage(_ image: NSImage, leading: CGFloat) -> NSImage {
-        let size = NSSize(width: image.size.width + leading, height: image.size.height)
-        let newImage = NSImage(size: size)
-        newImage.lockFocus()
-        let y = (size.height - image.size.height) / 2
-        image.draw(
-            at: NSPoint(x: leading, y: y),
-            from: NSRect(origin: .zero, size: image.size),
-            operation: .sourceOver,
-            fraction: 1.0)
-        newImage.unlockFocus()
-        newImage.isTemplate = image.isTemplate
-        return newImage
-    }
-
-    private func addWeeklyIndicator(to view: NSView, provider: UsageProvider, remainingPercent: Double?) {
-        guard let remainingPercent else { return }
-
-        let track = NSView()
-        track.wantsLayer = true
-        track.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.55).cgColor
-        track.layer?.cornerRadius = 2
-        track.layer?.masksToBounds = true
-        track.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(track)
-
-        let fill = NSView()
-        fill.wantsLayer = true
-        fill.layer?.backgroundColor = Self.weeklyIndicatorColor(for: provider).cgColor
-        fill.layer?.cornerRadius = 2
-        fill.translatesAutoresizingMaskIntoConstraints = false
-        track.addSubview(fill)
-
-        let ratio = CGFloat(max(0, min(1, remainingPercent / 100)))
+        let stack = NSStackView(views: [titleField, subtitleField])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 1
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            track.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
-            track.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-            track.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -1),
-            track.heightAnchor.constraint(equalToConstant: 4),
-            fill.leadingAnchor.constraint(equalTo: track.leadingAnchor),
-            fill.topAnchor.constraint(equalTo: track.topAnchor),
-            fill.bottomAnchor.constraint(equalTo: track.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 18),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+            stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
+            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2),
         ])
 
-        fill.widthAnchor.constraint(equalTo: track.widthAnchor, multiplier: ratio).isActive = true
-
-        self.weeklyIndicators[ObjectIdentifier(view)] = WeeklyIndicator(provider: provider, track: track, fill: fill)
-        self.updateWeeklyIndicatorVisibility(for: view)
+        return container
     }
-
-    private func updateWeeklyIndicatorVisibility(for view: NSView) {
-        guard let indicator = self.weeklyIndicators[ObjectIdentifier(view)] else { return }
-        let isSelected = (view as? NSButton)?.state == .on
-
-        // Hide indicator on selected segment; also hide when we have no data.
-        indicator.track.isHidden = isSelected
-        indicator.fill.isHidden = isSelected
-    }
-
-    private static func weeklyIndicatorColor(for provider: UsageProvider) -> NSColor {
-        switch provider {
-        case .codex:
-            NSColor(deviceRed: 73 / 255, green: 163 / 255, blue: 176 / 255, alpha: 1)
-        case .claude:
-            NSColor(deviceRed: 204 / 255, green: 124 / 255, blue: 94 / 255, alpha: 1)
-        case .zai:
-            NSColor(deviceRed: 232 / 255, green: 90 / 255, blue: 106 / 255, alpha: 1)
-        case .gemini:
-            NSColor(deviceRed: 171 / 255, green: 135 / 255, blue: 234 / 255, alpha: 1) // #AB87EA
-        case .antigravity:
-            NSColor(deviceRed: 96 / 255, green: 186 / 255, blue: 126 / 255, alpha: 1)
-        case .cursor:
-            NSColor(deviceRed: 0 / 255, green: 191 / 255, blue: 165 / 255, alpha: 1) // #00BFA5
-        case .factory:
-            NSColor(deviceRed: 255 / 255, green: 107 / 255, blue: 53 / 255, alpha: 1) // Factory orange
-        case .windsurf:
-            NSColor(deviceRed: 92 / 255, green: 135 / 255, blue: 255 / 255, alpha: 1)
-        case .copilot:
-            NSColor(deviceRed: 45 / 255, green: 164 / 255, blue: 78 / 255, alpha: 1)
-        }
-    }
-
-    private static func switcherTitle(for provider: UsageProvider) -> String {
-        switch provider {
-        case .codex: "Codex"
-        case .claude: "Claude"
-        case .zai: "z.ai"
-        case .gemini: "Gemini"
-        case .antigravity: "Antigravity"
-        case .cursor: "Cursor"
-        case .factory: "Droid"
-        case .windsurf: "Windsurf"
-        case .copilot: "GitHub Copilot"
-        }
-    }
-}
-
-private final class PaddedToggleButton: NSButton {
-    var contentPadding = NSEdgeInsets(top: 4, left: 7, bottom: 4, right: 7) {
-        didSet {
-            if oldValue.top != self.contentPadding.top ||
-                oldValue.left != self.contentPadding.left ||
-                oldValue.bottom != self.contentPadding.bottom ||
-                oldValue.right != self.contentPadding.right
-            {
-                self.invalidateIntrinsicContentSize()
-            }
-        }
-    }
-
-    override var intrinsicContentSize: NSSize {
-        let size = super.intrinsicContentSize
-        return NSSize(
-            width: size.width + self.contentPadding.left + self.contentPadding.right,
-            height: size.height + self.contentPadding.top + self.contentPadding.bottom)
-    }
-}
-
-private final class InlineIconToggleButton: NSButton {
-    private let iconView = NSImageView()
-    private let titleField = NSTextField(labelWithString: "")
-    private let stack = NSStackView()
-    private var paddingConstraints: [NSLayoutConstraint] = []
-    private var iconSizeConstraints: [NSLayoutConstraint] = []
-
-    var contentPadding = NSEdgeInsets(top: 4, left: 7, bottom: 4, right: 7) {
-        didSet {
-            self.paddingConstraints.first { $0.firstAttribute == .top }?.constant = self.contentPadding.top
-            self.paddingConstraints.first { $0.firstAttribute == .leading }?.constant = self.contentPadding.left
-            self.paddingConstraints.first { $0.firstAttribute == .trailing }?.constant = -self.contentPadding.right
-            self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant = -(self.contentPadding.bottom + 4)
-            self.invalidateIntrinsicContentSize()
-        }
-    }
-
-    override var title: String {
-        get { "" }
-        set {
-            super.title = ""
-            super.alternateTitle = ""
-            super.attributedTitle = NSAttributedString(string: "")
-            super.attributedAlternateTitle = NSAttributedString(string: "")
-            self.titleField.stringValue = newValue
-            self.invalidateIntrinsicContentSize()
-        }
-    }
-
-    override var image: NSImage? {
-        get { nil }
-        set {
-            super.image = nil
-            super.alternateImage = nil
-            self.iconView.image = newValue
-            self.invalidateIntrinsicContentSize()
-        }
-    }
-
-    func setContentTintColor(_ color: NSColor?) {
-        self.iconView.contentTintColor = color
-        self.titleField.textColor = color
-    }
-
-    override var intrinsicContentSize: NSSize {
-        let size = self.stack.fittingSize
-        return NSSize(
-            width: size.width + self.contentPadding.left + self.contentPadding.right,
-            height: size.height + self.contentPadding.top + self.contentPadding.bottom)
-    }
-
-    init(title: String, image: NSImage, target: AnyObject?, action: Selector?) {
-        super.init(frame: .zero)
-        self.target = target
-        self.action = action
-        self.configure()
-        self.title = title
-        self.image = image
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    private func configure() {
-        self.bezelStyle = .regularSquare
-        self.isBordered = false
-        self.setButtonType(.toggle)
-        self.controlSize = .small
-        self.wantsLayer = true
-
-        self.iconView.imageScaling = .scaleNone
-        self.iconView.translatesAutoresizingMaskIntoConstraints = false
-        self.titleField.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-        self.titleField.alignment = .left
-        self.titleField.lineBreakMode = .byTruncatingTail
-        self.titleField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        self.titleField.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        self.setContentTintColor(NSColor.secondaryLabelColor)
-
-        self.stack.orientation = .horizontal
-        self.stack.alignment = .centerY
-        self.stack.spacing = 1
-        self.stack.translatesAutoresizingMaskIntoConstraints = false
-        self.stack.addArrangedSubview(self.iconView)
-        self.stack.addArrangedSubview(self.titleField)
-        self.addSubview(self.stack)
-
-        let iconWidth = self.iconView.widthAnchor.constraint(equalToConstant: 16)
-        let iconHeight = self.iconView.heightAnchor.constraint(equalToConstant: 16)
-        self.iconSizeConstraints = [iconWidth, iconHeight]
-
-        let top = self.stack.topAnchor.constraint(
-            equalTo: self.topAnchor,
-            constant: self.contentPadding.top)
-        let leading = self.stack.leadingAnchor.constraint(
-            greaterThanOrEqualTo: self.leadingAnchor,
-            constant: self.contentPadding.left)
-        let trailing = self.stack.trailingAnchor.constraint(
-            lessThanOrEqualTo: self.trailingAnchor,
-            constant: -self.contentPadding.right)
-        let centerX = self.stack.centerXAnchor.constraint(equalTo: self.centerXAnchor)
-        centerX.priority = .defaultHigh
-        let bottom = self.stack.bottomAnchor.constraint(
-            lessThanOrEqualTo: self.bottomAnchor,
-            constant: -(self.contentPadding.bottom + 4))
-        self.paddingConstraints = [top, leading, trailing, bottom, centerX]
-
-        NSLayoutConstraint.activate(self.paddingConstraints + self.iconSizeConstraints)
-    }
-}
-
-private final class StackedToggleButton: NSButton {
-    private let iconView = NSImageView()
-    private let titleField = NSTextField(labelWithString: "")
-    private let stack = NSStackView()
-    private var paddingConstraints: [NSLayoutConstraint] = []
-    private var iconSizeConstraints: [NSLayoutConstraint] = []
-
-    var contentPadding = NSEdgeInsets(top: 2, left: 4, bottom: 2, right: 4) {
-        didSet {
-            self.paddingConstraints.first { $0.firstAttribute == .top }?.constant = self.contentPadding.top
-            self.paddingConstraints.first { $0.firstAttribute == .leading }?.constant = self.contentPadding.left
-            self.paddingConstraints.first { $0.firstAttribute == .trailing }?.constant = -self.contentPadding.right
-            self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant = -self.contentPadding.bottom
-            self.invalidateIntrinsicContentSize()
-        }
-    }
-
-    override var title: String {
-        get { "" }
-        set {
-            super.title = ""
-            super.alternateTitle = ""
-            super.attributedTitle = NSAttributedString(string: "")
-            super.attributedAlternateTitle = NSAttributedString(string: "")
-            self.titleField.stringValue = newValue
-            self.invalidateIntrinsicContentSize()
-        }
-    }
-
-    override var image: NSImage? {
-        get { nil }
-        set {
-            super.image = nil
-            super.alternateImage = nil
-            self.iconView.image = newValue
-            self.invalidateIntrinsicContentSize()
-        }
-    }
-
-    func setContentTintColor(_ color: NSColor?) {
-        self.iconView.contentTintColor = color
-        self.titleField.textColor = color
-    }
-
-    override var intrinsicContentSize: NSSize {
-        let size = self.stack.fittingSize
-        return NSSize(
-            width: size.width + self.contentPadding.left + self.contentPadding.right,
-            height: size.height + self.contentPadding.top + self.contentPadding.bottom)
-    }
-
-    init(title: String, image: NSImage, target: AnyObject?, action: Selector?) {
-        super.init(frame: .zero)
-        self.target = target
-        self.action = action
-        self.configure()
-        self.title = title
-        self.image = image
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    private func configure() {
-        self.bezelStyle = .regularSquare
-        self.isBordered = false
-        self.setButtonType(.toggle)
-        self.controlSize = .small
-        self.wantsLayer = true
-
-        self.iconView.imageScaling = .scaleNone
-        self.iconView.translatesAutoresizingMaskIntoConstraints = false
-        self.titleField.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize - 2)
-        self.titleField.alignment = .center
-        self.titleField.lineBreakMode = .byTruncatingTail
-        self.setContentTintColor(NSColor.secondaryLabelColor)
-
-        self.stack.orientation = .vertical
-        self.stack.alignment = .centerX
-        self.stack.spacing = 0
-        self.stack.translatesAutoresizingMaskIntoConstraints = false
-        self.stack.addArrangedSubview(self.iconView)
-        self.stack.addArrangedSubview(self.titleField)
-        self.addSubview(self.stack)
-
-        let iconWidth = self.iconView.widthAnchor.constraint(equalToConstant: 16)
-        let iconHeight = self.iconView.heightAnchor.constraint(equalToConstant: 16)
-        self.iconSizeConstraints = [iconWidth, iconHeight]
-
-        // Avoid subpixel centering: pin from the top so the icon sits on whole-point coordinates.
-        // Force an even layout width (button width minus padding) so the icon doesn't land on 0.5pt centers.
-        // Reserve some bottom space for the "weekly remaining" indicator line.
-        let top = self.stack.topAnchor.constraint(
-            equalTo: self.topAnchor,
-            constant: self.contentPadding.top)
-        let leading = self.stack.leadingAnchor.constraint(
-            equalTo: self.leadingAnchor,
-            constant: self.contentPadding.left)
-        let trailing = self.stack.trailingAnchor.constraint(
-            equalTo: self.trailingAnchor,
-            constant: -self.contentPadding.right)
-        let bottom = self.stack.bottomAnchor.constraint(
-            lessThanOrEqualTo: self.bottomAnchor,
-            constant: -(self.contentPadding.bottom + 4))
-        self.paddingConstraints = [top, leading, trailing, bottom]
-
-        NSLayoutConstraint.activate(self.paddingConstraints + self.iconSizeConstraints)
-    }
-}
-
-extension Notification.Name {
-    static let codexbarOpenSettings = Notification.Name("codexbarOpenSettings")
-    static let codexbarDebugBlinkNow = Notification.Name("codexbarDebugBlinkNow")
 }

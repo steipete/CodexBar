@@ -262,8 +262,19 @@ private struct ProviderSwitchChip: View {
         case .gemini: "Gemini"
         case .antigravity: "Anti"
         case .cursor: "Cursor"
+        case .opencode: "OpenCode"
         case .zai: "z.ai"
         case .factory: "Droid"
+        case .copilot: "Copilot"
+        case .minimax: "MiniMax"
+        case .vertexai: "Vertex"
+        case .kiro: "Kiro"
+        case .augment: "Augment"
+        case .jetbrains: "JetBrains"
+        case .kimi: "Kimi"
+        case .kimik2: "Kimi K2"
+        case .amp: "Amp"
+        case .synthetic: "Synthetic"
         }
     }
 }
@@ -568,10 +579,32 @@ enum WidgetColors {
             Color(red: 96 / 255, green: 186 / 255, blue: 126 / 255)
         case .cursor:
             Color(red: 0 / 255, green: 191 / 255, blue: 165 / 255) // #00BFA5 - Cursor teal
+        case .opencode:
+            Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
         case .zai:
             Color(red: 232 / 255, green: 90 / 255, blue: 106 / 255)
         case .factory:
             Color(red: 255 / 255, green: 107 / 255, blue: 53 / 255) // Factory orange
+        case .copilot:
+            Color(red: 168 / 255, green: 85 / 255, blue: 247 / 255) // Purple
+        case .minimax:
+            Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255)
+        case .vertexai:
+            Color(red: 66 / 255, green: 133 / 255, blue: 244 / 255) // Google Blue
+        case .kiro:
+            Color(red: 255 / 255, green: 153 / 255, blue: 0 / 255) // AWS orange
+        case .augment:
+            Color(red: 99 / 255, green: 102 / 255, blue: 241 / 255) // Augment purple
+        case .jetbrains:
+            Color(red: 255 / 255, green: 51 / 255, blue: 153 / 255) // JetBrains pink
+        case .kimi:
+            Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255) // Kimi orange
+        case .kimik2:
+            Color(red: 76 / 255, green: 0 / 255, blue: 255 / 255) // Kimi K2 purple
+        case .amp:
+            Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255) // Amp red
+        case .synthetic:
+            Color(red: 20 / 255, green: 20 / 255, blue: 20 / 255) // Synthetic charcoal
         }
     }
 }

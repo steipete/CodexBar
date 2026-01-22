@@ -4,7 +4,7 @@ import SwiftUI
 
 @MainActor
 struct CostHistoryChartMenuView: View {
-    typealias DailyEntry = CCUsageDailyReport.Entry
+    typealias DailyEntry = CostUsageDailyReport.Entry
 
     private struct Point: Identifiable {
         let id: String
@@ -204,6 +204,10 @@ struct CostHistoryChartMenuView: View {
             Color(red: 92 / 255, green: 135 / 255, blue: 255 / 255)
         case .copilot:
             Color(red: 45 / 255, green: 164 / 255, blue: 78 / 255)
+        case .minimax, .kimi, .kimik2, .kiro, .vertexai, .augment, .jetbrains, .amp, .opencode, .synthetic:
+            // Fallback to brand color from descriptor
+            let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+            Color(red: color.red, green: color.green, blue: color.blue)
         }
     }
 

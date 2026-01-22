@@ -2,18 +2,7 @@ import AppKit
 import CodexBarCore
 import Foundation
 import Observation
-
-enum IconStyle {
-    case codex
-    case claude
-    case zai
-    case gemini
-    case antigravity
-    case cursor
-    case factory
-    case windsurf
-    case combined
-}
+import SweetCookieKit
 
 // MARK: - Observation helpers
 
@@ -22,6 +11,9 @@ extension UsageStore {
     var menuObservationToken: Int {
         _ = self.snapshots
         _ = self.errors
+        _ = self.lastSourceLabels
+        _ = self.lastFetchAttempts
+        _ = self.accountSnapshots
         _ = self.tokenSnapshots
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
@@ -32,13 +24,7 @@ extension UsageStore {
         _ = self.openAIDashboardRequiresLogin
         _ = self.openAIDashboardCookieImportStatus
         _ = self.openAIDashboardCookieImportDebugLog
-        _ = self.codexVersion
-        _ = self.claudeVersion
-        _ = self.geminiVersion
-        _ = self.zaiVersion
-        _ = self.antigravityVersion
-        _ = self.claudeAccountEmail
-        _ = self.claudeAccountOrganization
+        _ = self.versions
         _ = self.isRefreshing
         _ = self.refreshingProviders
         _ = self.pathDebugInfo
@@ -53,18 +39,24 @@ extension UsageStore {
             _ = self.settings.statusChecksEnabled
             _ = self.settings.sessionQuotaNotificationsEnabled
             _ = self.settings.usageBarsShowUsed
-            _ = self.settings.ccusageCostUsageEnabled
+            _ = self.settings.costUsageEnabled
             _ = self.settings.randomBlinkEnabled
-            _ = self.settings.claudeWebExtrasEnabled
-            _ = self.settings.claudeUsageDataSource
+            _ = self.settings.configRevision
+            for implementation in ProviderCatalog.all {
+                implementation.observeSettings(self.settings)
+            }
+            _ = self.settings.showAllTokenAccountsInMenu
+            _ = self.settings.tokenAccountsByProvider
             _ = self.settings.mergeIcons
             _ = self.settings.selectedMenuProvider
             _ = self.settings.debugLoadingPattern
+            _ = self.settings.debugKeepCLISessionsAlive
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeSettingsChanges()
                 self.startTimer()
+                self.updateProviderRuntimes()
                 await self.refresh()
             }
         }
@@ -101,10 +93,10 @@ enum ProviderStatusIndicator: String {
 #if DEBUG
 extension UsageStore {
     func _setSnapshotForTesting(_ snapshot: UsageSnapshot?, provider: UsageProvider) {
-        self.snapshots[provider] = snapshot
+        self.snapshots[provider] = snapshot?.scoped(to: provider)
     }
 
-    func _setTokenSnapshotForTesting(_ snapshot: CCUsageTokenSnapshot?, provider: UsageProvider) {
+    func _setTokenSnapshotForTesting(_ snapshot: CostUsageTokenSnapshot?, provider: UsageProvider) {
         self.tokenSnapshots[provider] = snapshot
     }
 
@@ -147,32 +139,28 @@ struct ConsecutiveFailureGate {
 @MainActor
 @Observable
 final class UsageStore {
-    private(set) var snapshots: [UsageProvider: UsageSnapshot] = [:]
-    private(set) var errors: [UsageProvider: String] = [:]
-    private(set) var tokenSnapshots: [UsageProvider: CCUsageTokenSnapshot] = [:]
-    private(set) var tokenErrors: [UsageProvider: String] = [:]
-    private(set) var tokenRefreshInFlight: Set<UsageProvider> = []
+    var snapshots: [UsageProvider: UsageSnapshot] = [:]
+    var errors: [UsageProvider: String] = [:]
+    var lastSourceLabels: [UsageProvider: String] = [:]
+    var lastFetchAttempts: [UsageProvider: [ProviderFetchAttempt]] = [:]
+    var accountSnapshots: [UsageProvider: [TokenAccountUsageSnapshot]] = [:]
+    var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
+    var tokenErrors: [UsageProvider: String] = [:]
+    var tokenRefreshInFlight: Set<UsageProvider> = []
     var credits: CreditsSnapshot?
     var lastCreditsError: String?
     var openAIDashboard: OpenAIDashboardSnapshot?
     var lastOpenAIDashboardError: String?
-    private(set) var openAIDashboardRequiresLogin: Bool = false
+    var openAIDashboardRequiresLogin: Bool = false
     var openAIDashboardCookieImportStatus: String?
     var openAIDashboardCookieImportDebugLog: String?
-    var codexVersion: String?
-    var claudeVersion: String?
-    var geminiVersion: String?
-    var zaiVersion: String?
-    var antigravityVersion: String?
-    var cursorVersion: String?
-    var claudeAccountEmail: String?
-    var claudeAccountOrganization: String?
+    var versions: [UsageProvider: String] = [:]
     var isRefreshing = false
-    private(set) var refreshingProviders: Set<UsageProvider> = []
+    var refreshingProviders: Set<UsageProvider> = []
     var debugForceAnimation = false
     var pathDebugInfo: PathDebugSnapshot = .empty
-    private(set) var statuses: [UsageProvider: ProviderStatus] = [:]
-    private(set) var probeLogs: [UsageProvider: String] = [:]
+    var statuses: [UsageProvider: ProviderStatus] = [:]
+    var probeLogs: [UsageProvider: String] = [:]
     @ObservationIgnored private var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored private var creditsFailureStreak: Int = 0
     @ObservationIgnored private var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
@@ -181,58 +169,83 @@ final class UsageStore {
     @ObservationIgnored private var lastOpenAIDashboardCookieImportEmail: String?
     @ObservationIgnored private var openAIWebAccountDidChange: Bool = false
 
-    @ObservationIgnored private let codexFetcher: UsageFetcher
-    @ObservationIgnored private let claudeFetcher: any ClaudeUsageFetching
-    @ObservationIgnored private let ccusageFetcher: CCUsageFetcher
+    @ObservationIgnored let codexFetcher: UsageFetcher
+    @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
+    @ObservationIgnored private let costUsageFetcher: CostUsageFetcher
+    @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
-    @ObservationIgnored private let settings: SettingsStore
+    @ObservationIgnored let settings: SettingsStore
     @ObservationIgnored private let sessionQuotaNotifier: SessionQuotaNotifier
-    @ObservationIgnored private let sessionQuotaLogger = CodexBarLog.logger("sessionQuota")
-    @ObservationIgnored private let openAIWebLogger = CodexBarLog.logger("openai-web")
-    @ObservationIgnored private let tokenCostLogger = CodexBarLog.logger("token-cost")
+    @ObservationIgnored private let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
+    @ObservationIgnored private let openAIWebLogger = CodexBarLog.logger(LogCategories.openAIWeb)
+    @ObservationIgnored private let tokenCostLogger = CodexBarLog.logger(LogCategories.tokenCost)
+    @ObservationIgnored let augmentLogger = CodexBarLog.logger(LogCategories.augment)
+    @ObservationIgnored let providerLogger = CodexBarLog.logger(LogCategories.providers)
     @ObservationIgnored private var openAIWebDebugLines: [String] = []
-    @ObservationIgnored private var failureGates: [UsageProvider: ConsecutiveFailureGate] = [:]
-    @ObservationIgnored private var tokenFailureGates: [UsageProvider: ConsecutiveFailureGate] = [:]
-    @ObservationIgnored private var providerSpecs: [UsageProvider: ProviderSpec] = [:]
-    @ObservationIgnored private let providerMetadata: [UsageProvider: ProviderMetadata]
+    @ObservationIgnored var failureGates: [UsageProvider: ConsecutiveFailureGate] = [:]
+    @ObservationIgnored var tokenFailureGates: [UsageProvider: ConsecutiveFailureGate] = [:]
+    @ObservationIgnored var providerSpecs: [UsageProvider: ProviderSpec] = [:]
+    @ObservationIgnored let providerMetadata: [UsageProvider: ProviderMetadata]
+    @ObservationIgnored var providerRuntimes: [UsageProvider: any ProviderRuntime] = [:]
     @ObservationIgnored private var timerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
-    @ObservationIgnored private var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
-    @ObservationIgnored private(set) var lastTokenFetchAt: [UsageProvider: Date] = [:]
+    @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
+    @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
 
     init(
         fetcher: UsageFetcher,
-        claudeFetcher: any ClaudeUsageFetching = ClaudeUsageFetcher(),
-        ccusageFetcher: CCUsageFetcher = CCUsageFetcher(),
+        browserDetection: BrowserDetection,
+        claudeFetcher: (any ClaudeUsageFetching)? = nil,
+        costUsageFetcher: CostUsageFetcher = CostUsageFetcher(),
         settings: SettingsStore,
         registry: ProviderRegistry = .shared,
         sessionQuotaNotifier: SessionQuotaNotifier = SessionQuotaNotifier())
     {
         self.codexFetcher = fetcher
-        self.claudeFetcher = claudeFetcher
-        self.ccusageFetcher = ccusageFetcher
+        self.browserDetection = browserDetection
+        self.claudeFetcher = claudeFetcher ?? ClaudeUsageFetcher(browserDetection: browserDetection)
+        self.costUsageFetcher = costUsageFetcher
         self.settings = settings
         self.registry = registry
         self.sessionQuotaNotifier = sessionQuotaNotifier
         self.providerMetadata = registry.metadata
         self
-            .failureGates = Dictionary(uniqueKeysWithValues: UsageProvider.allCases
+            .failureGates = Dictionary(
+                uniqueKeysWithValues: UsageProvider.allCases
+                    .map { ($0, ConsecutiveFailureGate()) })
+        self.tokenFailureGates = Dictionary(
+            uniqueKeysWithValues: UsageProvider.allCases
                 .map { ($0, ConsecutiveFailureGate()) })
-        self.tokenFailureGates = Dictionary(uniqueKeysWithValues: UsageProvider.allCases
-            .map { ($0, ConsecutiveFailureGate()) })
         self.providerSpecs = registry.specs(
             settings: settings,
             metadata: self.providerMetadata,
             codexFetcher: fetcher,
-            claudeFetcher: claudeFetcher)
+            claudeFetcher: self.claudeFetcher,
+            browserDetection: browserDetection)
+        self.providerRuntimes = Dictionary(uniqueKeysWithValues: ProviderCatalog.all.compactMap { implementation in
+            implementation.makeRuntime().map { (implementation.id, $0) }
+        })
+        self.logStartupState()
         self.bindSettings()
         self.detectVersions()
-        self.refreshPathDebugInfo()
+        self.updateProviderRuntimes()
+        self.pathDebugInfo = PathDebugSnapshot(
+            codexBinary: nil,
+            claudeBinary: nil,
+            geminiBinary: nil,
+            effectivePATH: PathBuilder.effectivePATH(purposes: [.rpc, .tty, .nodeTooling]),
+            loginShellPATH: LoginShellPathCache.shared.current?.joined(separator: ":"))
+        Task { @MainActor [weak self] in
+            self?.schedulePathDebugInfoRefresh()
+        }
         LoginShellPathCache.shared.captureOnce { [weak self] _ in
-            Task { @MainActor in self?.refreshPathDebugInfo() }
+            Task { @MainActor [weak self] in
+                self?.schedulePathDebugInfoRefresh()
+            }
         }
         Task { await self.refresh() }
         self.startTimer()
@@ -241,7 +254,7 @@ final class UsageStore {
 
     /// Returns the login method (plan type) for the specified provider, if available.
     private func loginMethod(for provider: UsageProvider) -> String? {
-        self.snapshots[provider]?.loginMethod
+        self.snapshots[provider]?.loginMethod(for: provider)
     }
 
     /// Returns true if the Claude account appears to be a subscription (Max, Pro, Ultra, Team).
@@ -261,37 +274,12 @@ final class UsageStore {
     }
 
     func version(for provider: UsageProvider) -> String? {
-        switch provider {
-        case .codex: self.codexVersion
-        case .claude: self.claudeVersion
-        case .zai: self.zaiVersion
-        case .gemini: self.geminiVersion
-        case .antigravity: self.antigravityVersion
-        case .cursor: self.cursorVersion
-        case .factory: nil
-        case .windsurf: nil
-        case .copilot: nil
-        }
+        self.versions[provider]
     }
 
     var preferredSnapshot: UsageSnapshot? {
-        if self.isEnabled(.codex), let codexSnapshot {
-            return codexSnapshot
-        }
-        if self.isEnabled(.claude), let claudeSnapshot {
-            return claudeSnapshot
-        }
-        if self.isEnabled(.zai), let snap = self.snapshots[.zai] {
-            return snap
-        }
-        if self.isEnabled(.gemini), let snap = self.snapshots[.gemini] {
-            return snap
-        }
-        if self.isEnabled(.antigravity), let snap = self.snapshots[.antigravity] {
-            return snap
-        }
-        if self.isEnabled(.cursor), let snap = self.snapshots[.cursor] {
-            return snap
+        for provider in self.enabledProviders() {
+            if let snap = self.snapshots[provider] { return snap }
         }
         if self.isEnabled(.windsurf), let snap = self.snapshots[.windsurf] {
             return snap
@@ -305,29 +293,46 @@ final class UsageStore {
     var iconStyle: IconStyle {
         let enabled = self.enabledProviders()
         if enabled.count > 1 { return .combined }
-        if self.isEnabled(.copilot) { return .codex }
-        if self.isEnabled(.windsurf) { return .windsurf }
-        if self.isEnabled(.cursor) { return .cursor }
-        if self.isEnabled(.antigravity) { return .antigravity }
-        if self.isEnabled(.gemini) { return .gemini }
-        if self.isEnabled(.zai) { return .zai }
-        if self.isEnabled(.claude) { return .claude }
+        if let provider = enabled.first {
+            return self.style(for: provider)
+        }
         return .codex
     }
 
     var isStale: Bool {
-        (self.isEnabled(.codex) && self.lastCodexError != nil) ||
-            (self.isEnabled(.claude) && self.lastClaudeError != nil) ||
-            (self.isEnabled(.zai) && self.errors[.zai] != nil) ||
-            (self.isEnabled(.gemini) && self.errors[.gemini] != nil) ||
-            (self.isEnabled(.antigravity) && self.errors[.antigravity] != nil) ||
-            (self.isEnabled(.cursor) && self.errors[.cursor] != nil) ||
-            (self.isEnabled(.windsurf) && self.errors[.windsurf] != nil) ||
-            (self.isEnabled(.copilot) && self.errors[.copilot] != nil)
+        for provider in self.enabledProviders() where self.errors[provider] != nil {
+            return true
+        }
+        return false
     }
 
     func enabledProviders() -> [UsageProvider] {
-        self.settings.orderedProviders().filter { self.isEnabled($0) }
+        // Use cached enablement to avoid repeated UserDefaults lookups in animation ticks.
+        let enabled = self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata)
+        return enabled.filter { self.isProviderAvailable($0) }
+    }
+
+    /// Returns the enabled provider with the highest usage percentage (closest to rate limit).
+    /// Excludes providers already at 100% since they're fully rate-limited.
+    func providerWithHighestUsage() -> (provider: UsageProvider, usedPercent: Double)? {
+        var highest: (provider: UsageProvider, usedPercent: Double)?
+        for provider in self.enabledProviders() {
+            guard let snapshot = self.snapshots[provider] else { continue }
+            // Use the same window selection logic as menuBarPercentWindow:
+            // Factory uses secondary (premium) first, others use primary (session) first.
+            let window: RateWindow? = if provider == .factory {
+                snapshot.secondary ?? snapshot.primary
+            } else {
+                snapshot.primary ?? snapshot.secondary
+            }
+            let percent = window?.usedPercent ?? 0
+            // Skip providers already at 100% - they're fully rate-limited
+            guard percent < 100 else { continue }
+            if highest == nil || percent > highest!.usedPercent {
+                highest = (provider, percent)
+            }
+        }
+        return highest
     }
 
     var statusChecksEnabled: Bool {
@@ -339,11 +344,44 @@ final class UsageStore {
     }
 
     private var codexBrowserCookieOrder: BrowserCookieImportOrder {
-        self.metadata(for: .codex).browserCookieOrder ?? .safariChromeFirefox
+        self.metadata(for: .codex).browserCookieOrder ?? Browser.defaultImportOrder
     }
 
     func snapshot(for provider: UsageProvider) -> UsageSnapshot? {
         self.snapshots[provider]
+    }
+
+    func sourceLabel(for provider: UsageProvider) -> String {
+        var label = self.lastSourceLabels[provider] ?? ""
+        if label.isEmpty {
+            let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+            let modes = descriptor.fetchPlan.sourceModes
+            if modes.count == 1, let mode = modes.first {
+                label = mode.rawValue
+            } else {
+                let context = ProviderSourceLabelContext(
+                    provider: provider,
+                    settings: self.settings,
+                    store: self,
+                    descriptor: descriptor)
+                label = ProviderCatalog.implementation(for: provider)?
+                    .defaultSourceLabel(context: context)
+                    ?? "auto"
+            }
+        }
+
+        let context = ProviderSourceLabelContext(
+            provider: provider,
+            settings: self.settings,
+            store: self,
+            descriptor: ProviderDescriptorRegistry.descriptor(for: provider))
+        return ProviderCatalog.implementation(for: provider)?
+            .decorateSourceLabel(context: context, baseLabel: label)
+            ?? label
+    }
+
+    func fetchAttempts(for provider: UsageProvider) -> [ProviderFetchAttempt] {
+        self.lastFetchAttempts[provider] ?? []
     }
 
     func style(for provider: UsageProvider) -> IconStyle {
@@ -355,14 +393,39 @@ final class UsageStore {
     }
 
     func isEnabled(_ provider: UsageProvider) -> Bool {
-        let enabled = self.settings.isProviderEnabled(provider: provider, metadata: self.metadata(for: provider))
+        let enabled = self.settings.isProviderEnabledCached(
+            provider: provider,
+            metadataByProvider: self.providerMetadata)
         guard enabled else { return false }
-        if provider == .zai {
-            let settingsToken = self.settings.zaiAPIToken.trimmingCharacters(in: .whitespacesAndNewlines)
-            let envToken = ZaiSettingsReader.apiToken()
-            return !settingsToken.isEmpty || envToken != nil
+        return self.isProviderAvailable(provider)
+    }
+
+    func isProviderAvailable(_ provider: UsageProvider) -> Bool {
+        let context = ProviderAvailabilityContext(
+            provider: provider,
+            settings: self.settings,
+            environment: ProcessInfo.processInfo.environment)
+        return ProviderCatalog.implementation(for: provider)?
+            .isAvailable(context: context)
+            ?? true
+    }
+
+    func performRuntimeAction(_ action: ProviderRuntimeAction, for provider: UsageProvider) async {
+        guard let runtime = self.providerRuntimes[provider] else { return }
+        let context = ProviderRuntimeContext(provider: provider, settings: self.settings, store: self)
+        await runtime.perform(action: action, context: context)
+    }
+
+    private func updateProviderRuntimes() {
+        for (provider, runtime) in self.providerRuntimes {
+            let context = ProviderRuntimeContext(provider: provider, settings: self.settings, store: self)
+            if self.isEnabled(provider) {
+                runtime.start(context: context)
+            } else {
+                runtime.stop(context: context)
+            }
+            runtime.settingsDidChange(context: context)
         }
-        return true
     }
 
     func refresh(forceTokenUsage: Bool = false) async {
@@ -400,12 +463,8 @@ final class UsageStore {
         self.debugForceAnimation = true
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(duration))
-            if let current {
-                if self.isEnabled(.codex) {
-                    self.snapshots[.codex] = current
-                } else if self.isEnabled(.claude) {
-                    self.snapshots[.claude] = current
-                }
+            if let current, let provider = self.enabledProviders().first {
+                self.snapshots[provider] = current
             }
             self.debugForceAnimation = false
         }
@@ -469,61 +528,9 @@ final class UsageStore {
         self.tokenRefreshSequenceTask?.cancel()
     }
 
-    private func refreshProvider(_ provider: UsageProvider) async {
-        guard let spec = self.providerSpecs[provider] else { return }
-
-        if !spec.isEnabled() {
-            self.refreshingProviders.remove(provider)
-            await MainActor.run {
-                self.snapshots.removeValue(forKey: provider)
-                self.errors[provider] = nil
-                self.tokenSnapshots.removeValue(forKey: provider)
-                self.tokenErrors[provider] = nil
-                self.failureGates[provider]?.reset()
-                self.tokenFailureGates[provider]?.reset()
-                self.statuses.removeValue(forKey: provider)
-                self.lastKnownSessionRemaining.removeValue(forKey: provider)
-                self.lastTokenFetchAt.removeValue(forKey: provider)
-            }
-            return
-        }
-
-        self.refreshingProviders.insert(provider)
-        defer { self.refreshingProviders.remove(provider) }
-
-        do {
-            let fetchClosure = spec.fetch
-            let task = Task(priority: .utility) { () -> UsageSnapshot in
-                try await fetchClosure()
-            }
-            let snapshot = try await task.value
-            await MainActor.run {
-                self.handleSessionQuotaTransition(provider: provider, snapshot: snapshot)
-                self.snapshots[provider] = snapshot
-                self.errors[provider] = nil
-                self.failureGates[provider]?.recordSuccess()
-                if provider == .claude {
-                    self.claudeAccountEmail = snapshot.accountEmail
-                    self.claudeAccountOrganization = snapshot.accountOrganization
-                }
-            }
-        } catch {
-            await MainActor.run {
-                let hadPriorData = self.snapshots[provider] != nil
-                let shouldSurface = self.failureGates[provider]?
-                    .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
-                if shouldSurface {
-                    self.errors[provider] = error.localizedDescription
-                    self.snapshots.removeValue(forKey: provider)
-                } else {
-                    self.errors[provider] = nil
-                }
-            }
-        }
-    }
-
-    private func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
-        let currentRemaining = snapshot.primary.remainingPercent
+    func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
+        guard let primary = snapshot.primary else { return }
+        let currentRemaining = primary.remainingPercent
         let previousRemaining = self.lastKnownSessionRemaining[provider]
 
         defer { self.lastKnownSessionRemaining[provider] = currentRemaining }
@@ -607,7 +614,8 @@ final class UsageStore {
     private func refreshCreditsIfNeeded() async {
         guard self.isEnabled(.codex) else { return }
         do {
-            let credits = try await self.codexFetcher.loadLatestCredits()
+            let credits = try await self.codexFetcher.loadLatestCredits(
+                keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)
             await MainActor.run {
                 self.credits = credits
                 self.lastCreditsError = nil
@@ -643,6 +651,26 @@ final class UsageStore {
             }
         }
     }
+}
+
+extension UsageStore {
+    private static let openAIWebRefreshMultiplier: TimeInterval = 5
+
+    private func openAIWebRefreshIntervalSeconds() -> TimeInterval {
+        let base = max(self.settings.refreshFrequency.seconds ?? 0, 120)
+        return base * Self.openAIWebRefreshMultiplier
+    }
+
+    func requestOpenAIDashboardRefreshIfStale(reason: String) {
+        guard self.isEnabled(.codex), self.settings.codexCookieSource.isEnabled else { return }
+        let now = Date()
+        let refreshInterval = self.openAIWebRefreshIntervalSeconds()
+        let lastUpdatedAt = self.openAIDashboard?.updatedAt ?? self.lastOpenAIDashboardSnapshot?.updatedAt
+        if let lastUpdatedAt, now.timeIntervalSince(lastUpdatedAt) < refreshInterval { return }
+        let stamp = now.formatted(date: .abbreviated, time: .shortened)
+        self.logOpenAIWeb("[\(stamp)] OpenAI web refresh request: \(reason)")
+        Task { await self.refreshOpenAIDashboardIfNeeded(force: true) }
+    }
 
     private func applyOpenAIDashboard(_ dash: OpenAIDashboardSnapshot, targetEmail: String?) async {
         await MainActor.run {
@@ -650,12 +678,16 @@ final class UsageStore {
             self.lastOpenAIDashboardError = nil
             self.lastOpenAIDashboardSnapshot = dash
             self.openAIDashboardRequiresLogin = false
-            if let usage = dash.toUsageSnapshot(accountEmail: targetEmail) {
+            // Only fill gaps; OAuth/CLI remain the primary sources for usage + credits.
+            if self.snapshots[.codex] == nil,
+               let usage = dash.toUsageSnapshot(provider: .codex, accountEmail: targetEmail)
+            {
                 self.snapshots[.codex] = usage
                 self.errors[.codex] = nil
                 self.failureGates[.codex]?.recordSuccess()
+                self.lastSourceLabels[.codex] = "openai-web"
             }
-            if let credits = dash.toCreditsSnapshot() {
+            if self.credits == nil, let credits = dash.toCreditsSnapshot() {
                 self.credits = credits
                 self.lastCreditsSnapshot = credits
                 self.lastCreditsError = nil
@@ -683,18 +715,8 @@ final class UsageStore {
     }
 
     private func refreshOpenAIDashboardIfNeeded(force: Bool = false) async {
-        guard self.isEnabled(.codex) else {
-            await MainActor.run {
-                self.openAIDashboard = nil
-                self.lastOpenAIDashboardError = nil
-                self.lastOpenAIDashboardSnapshot = nil
-                self.lastOpenAIDashboardTargetEmail = nil
-                self.openAIDashboardRequiresLogin = false
-                self.openAIDashboardCookieImportStatus = nil
-                self.openAIDashboardCookieImportDebugLog = nil
-                self.lastOpenAIDashboardCookieImportAttemptAt = nil
-                self.lastOpenAIDashboardCookieImportEmail = nil
-            }
+        guard self.isEnabled(.codex), self.settings.codexCookieSource.isEnabled else {
+            self.resetOpenAIWebState()
             return
         }
 
@@ -702,7 +724,7 @@ final class UsageStore {
         self.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: targetEmail)
 
         let now = Date()
-        let minInterval = max(self.settings.refreshFrequency.seconds ?? 0, 120)
+        let minInterval = self.openAIWebRefreshIntervalSeconds()
         if !force,
            !self.openAIWebAccountDidChange,
            self.lastOpenAIDashboardError == nil,
@@ -769,7 +791,7 @@ final class UsageStore {
                     self.openAIDashboard = nil
                     self.lastOpenAIDashboardError = [
                         "OpenAI dashboard signed in as \(signedIn), but Codex uses \(normalized ?? "unknown").",
-                        "Switch accounts in your browser and re-enable “Access OpenAI via web”.",
+                        "Switch accounts in your browser and update OpenAI cookies in Providers → Codex.",
                     ].joined(separator: " ")
                     self.openAIDashboardRequiresLogin = true
                 }
@@ -777,7 +799,7 @@ final class UsageStore {
             }
 
             await self.applyOpenAIDashboard(dash, targetEmail: effectiveEmail)
-        } catch OpenAIDashboardFetcher.FetchError.noDashboardData {
+        } catch let OpenAIDashboardFetcher.FetchError.noDashboardData(body) {
             // Often indicates a missing/stale session without an obvious login prompt. Retry once after
             // importing cookies from the user's browser.
             let targetEmail = self.codexAccountEmailForOpenAIDashboard()
@@ -791,6 +813,14 @@ final class UsageStore {
                     logger: log,
                     debugDumpHTML: true)
                 await self.applyOpenAIDashboard(dash, targetEmail: effectiveEmail)
+            } catch let OpenAIDashboardFetcher.FetchError.noDashboardData(retryBody) {
+                let finalBody = retryBody.isEmpty ? body : retryBody
+                let message = self.openAIDashboardFriendlyError(
+                    body: finalBody,
+                    targetEmail: targetEmail,
+                    cookieImportStatus: self.openAIDashboardCookieImportStatus)
+                    ?? OpenAIDashboardFetcher.FetchError.noDashboardData(body: finalBody).localizedDescription
+                await self.applyOpenAIDashboardFailure(message: message)
             } catch {
                 await self.applyOpenAIDashboardFailure(message: error.localizedDescription)
             }
@@ -811,7 +841,7 @@ final class UsageStore {
                     self.lastOpenAIDashboardError = [
                         "OpenAI web access requires a signed-in chatgpt.com session.",
                         "Sign in using \(self.codexBrowserCookieOrder.loginHint), " +
-                            "then re-enable “Access OpenAI via web”.",
+                            "then update OpenAI cookies in Providers → Codex.",
                     ].joined(separator: " ")
                     self.openAIDashboard = self.lastOpenAIDashboardSnapshot
                     self.openAIDashboardRequiresLogin = true
@@ -867,6 +897,7 @@ final class UsageStore {
     private func importOpenAIDashboardCookiesIfNeeded(targetEmail: String?, force: Bool) async -> String? {
         let normalizedTarget = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let allowAnyAccount = normalizedTarget == nil || normalizedTarget?.isEmpty == true
+        let cookieSource = self.settings.codexCookieSource
 
         let now = Date()
         let lastEmail = self.lastOpenAIDashboardCookieImportEmail
@@ -879,8 +910,9 @@ final class UsageStore {
                 now.timeIntervalSince(lastAttempt) > 300
             } else {
                 self.openAIDashboardRequiresLogin &&
-                    (lastEmail?.lowercased() != normalizedTarget?.lowercased() || now
-                        .timeIntervalSince(lastAttempt) > 300)
+                    (
+                        lastEmail?.lowercased() != normalizedTarget?.lowercased() || now
+                            .timeIntervalSince(lastAttempt) > 300)
             }
         }
 
@@ -898,11 +930,32 @@ final class UsageStore {
                 self.logOpenAIWeb(message)
             }
 
-            let result = try await OpenAIDashboardBrowserCookieImporter()
-                .importBestCookies(
+            let importer = OpenAIDashboardBrowserCookieImporter(browserDetection: self.browserDetection)
+            let result: OpenAIDashboardBrowserCookieImporter.ImportResult
+            switch cookieSource {
+            case .manual:
+                self.settings.ensureCodexCookieLoaded()
+                let manualHeader = self.settings.codexCookieHeader
+                guard CookieHeaderNormalizer.normalize(manualHeader) != nil else {
+                    throw OpenAIDashboardBrowserCookieImporter.ImportError.manualCookieHeaderInvalid
+                }
+                result = try await importer.importManualCookies(
+                    cookieHeader: manualHeader,
                     intoAccountEmail: normalizedTarget,
                     allowAnyAccount: allowAnyAccount,
                     logger: log)
+            case .auto:
+                result = try await importer.importBestCookies(
+                    intoAccountEmail: normalizedTarget,
+                    allowAnyAccount: allowAnyAccount,
+                    logger: log)
+            case .off:
+                result = OpenAIDashboardBrowserCookieImporter.ImportResult(
+                    sourceLabel: "Off",
+                    cookieCount: 0,
+                    signedInEmail: normalizedTarget,
+                    matchesCodexEmail: true)
+            }
             let effectiveEmail = result.signedInEmail?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty == false
@@ -912,20 +965,28 @@ final class UsageStore {
             await MainActor.run {
                 let signed = result.signedInEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let matchText = result.matchesCodexEmail ? "matches Codex" : "does not match Codex"
+                let sourceLabel = switch cookieSource {
+                case .manual:
+                    "Manual cookie header"
+                case .auto:
+                    "\(result.sourceLabel) cookies"
+                case .off:
+                    "OpenAI cookies disabled"
+                }
                 if let signed, !signed.isEmpty {
                     self.openAIDashboardCookieImportStatus =
                         allowAnyAccount
                             ? [
-                                "Using \(result.sourceLabel) cookies (\(result.cookieCount)).",
+                                "Using \(sourceLabel) (\(result.cookieCount)).",
                                 "Signed in as \(signed).",
                             ].joined(separator: " ")
                             : [
-                                "Using \(result.sourceLabel) cookies (\(result.cookieCount)).",
+                                "Using \(sourceLabel) (\(result.cookieCount)).",
                                 "Signed in as \(signed) (\(matchText)).",
                             ].joined(separator: " ")
                 } else {
                     self.openAIDashboardCookieImportStatus =
-                        "Using \(result.sourceLabel) cookies (\(result.cookieCount))."
+                        "Using \(sourceLabel) (\(result.cookieCount))."
                 }
             }
             return effectiveEmail
@@ -960,11 +1021,12 @@ final class UsageStore {
                 }
             case .noCookiesFound,
                  .browserAccessDenied,
-                 .dashboardStillRequiresLogin:
+                 .dashboardStillRequiresLogin,
+                 .manualCookieHeaderInvalid:
                 self.logOpenAIWeb("[\(stamp)] import failed: \(err.localizedDescription)")
                 await MainActor.run {
                     self.openAIDashboardCookieImportStatus =
-                        "Browser cookie import failed: \(err.localizedDescription)"
+                        "OpenAI cookie import failed: \(err.localizedDescription)"
                     self.openAIDashboardRequiresLogin = true
                 }
             }
@@ -986,12 +1048,25 @@ final class UsageStore {
     }
 
     private func logOpenAIWeb(_ message: String) {
-        self.openAIWebLogger.debug(message)
-        self.openAIWebDebugLines.append(message)
+        let safeMessage = LogRedactor.redact(message)
+        self.openAIWebLogger.debug(safeMessage)
+        self.openAIWebDebugLines.append(safeMessage)
         if self.openAIWebDebugLines.count > 240 {
             self.openAIWebDebugLines.removeFirst(self.openAIWebDebugLines.count - 240)
         }
         self.openAIDashboardCookieImportDebugLog = self.openAIWebDebugLines.joined(separator: "\n")
+    }
+
+    func resetOpenAIWebState() {
+        self.openAIDashboard = nil
+        self.lastOpenAIDashboardError = nil
+        self.lastOpenAIDashboardSnapshot = nil
+        self.lastOpenAIDashboardTargetEmail = nil
+        self.openAIDashboardRequiresLogin = false
+        self.openAIDashboardCookieImportStatus = nil
+        self.openAIDashboardCookieImportDebugLog = nil
+        self.lastOpenAIDashboardCookieImportAttemptAt = nil
+        self.lastOpenAIDashboardCookieImportEmail = nil
     }
 
     private func dashboardEmailMismatch(expected: String?, actual: String?) -> Bool {
@@ -1001,7 +1076,8 @@ final class UsageStore {
     }
 
     func codexAccountEmailForOpenAIDashboard() -> String? {
-        let direct = self.snapshots[.codex]?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let direct = self.snapshots[.codex]?.accountEmail(for: .codex)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         if let direct, !direct.isEmpty { return direct }
         let fallback = self.codexFetcher.loadAccountInfo().email?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let fallback, !fallback.isEmpty { return fallback }
@@ -1015,7 +1091,10 @@ final class UsageStore {
 
 extension UsageStore {
     func debugDumpClaude() async {
-        let output = await self.claudeFetcher.debugRawProbe(model: "sonnet")
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: self.browserDetection,
+            keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)
+        let output = await fetcher.debugRawProbe(model: "sonnet")
         let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("codexbar-claude-probe.txt")
         try? output.write(to: url, atomically: true, encoding: .utf8)
         await MainActor.run {
@@ -1045,6 +1124,10 @@ extension UsageStore {
         await ClaudeStatusProbe.latestDumps()
     }
 
+    func debugAugmentDump() async -> String {
+        await AugmentStatusProbe.latestDumps()
+    }
+
     func debugLog(for provider: UsageProvider) async -> String {
         if let cached = self.probeLogs[provider], !cached.isEmpty {
             return cached
@@ -1052,7 +1135,11 @@ extension UsageStore {
 
         let claudeWebExtrasEnabled = self.settings.claudeWebExtrasEnabled
         let claudeUsageDataSource = self.settings.claudeUsageDataSource
-        let claudeDebugMenuEnabled = self.settings.debugMenuEnabled
+        let claudeCookieSource = self.settings.claudeCookieSource
+        let claudeCookieHeader = self.settings.claudeCookieHeader
+        let keepCLISessionsAlive = self.settings.debugKeepCLISessionsAlive
+        let cursorCookieSource = self.settings.cursorCookieSource
+        let cursorCookieHeader = self.settings.cursorCookieHeader
         return await Task.detached(priority: .utility) { () -> String in
             switch provider {
             case .codex:
@@ -1060,87 +1147,27 @@ extension UsageStore {
                 await MainActor.run { self.probeLogs[.codex] = raw }
                 return raw
             case .claude:
-                let text = await self.runWithTimeout(seconds: 15) {
-                    var lines: [String] = []
-                    let hasKey = ClaudeWebAPIFetcher.hasSessionKey { msg in lines.append(msg) }
-
-                    let strategy: ClaudeUsageStrategy = {
-                        if claudeDebugMenuEnabled {
-                            let selected = claudeUsageDataSource
-                            if selected == .oauth {
-                                return ClaudeUsageStrategy(dataSource: .oauth, useWebExtras: false)
-                            }
-                            if selected == .web, !hasKey {
-                                return ClaudeUsageStrategy(dataSource: .cli, useWebExtras: false)
-                            }
-                            let useExtras = selected == .cli && claudeWebExtrasEnabled && hasKey
-                            return ClaudeUsageStrategy(dataSource: selected, useWebExtras: useExtras)
-                        }
-                        return ClaudeUsageStrategy(dataSource: hasKey ? .web : .cli, useWebExtras: false)
-                    }()
-
-                    lines.append("strategy=\(strategy.dataSource.rawValue)")
-                    lines.append("hasSessionKey=\(hasKey)")
-                    if strategy.useWebExtras {
-                        lines.append("web_extras=enabled")
-                    }
-                    lines.append("")
-
-                    switch strategy.dataSource {
-                    case .web:
-                        do {
-                            let web = try await ClaudeWebAPIFetcher.fetchUsage { msg in lines.append(msg) }
-                            lines.append("")
-                            lines.append("Web API summary:")
-
-                            let sessionReset = web.sessionResetsAt?.description ?? "nil"
-                            lines.append("session_used=\(web.sessionPercentUsed)% resetsAt=\(sessionReset)")
-
-                            if let weekly = web.weeklyPercentUsed {
-                                let weeklyReset = web.weeklyResetsAt?.description ?? "nil"
-                                lines.append("weekly_used=\(weekly)% resetsAt=\(weeklyReset)")
-                            } else {
-                                lines.append("weekly_used=nil")
-                            }
-
-                            lines.append("opus_used=\(web.opusPercentUsed?.description ?? "nil")")
-
-                            if let extra = web.extraUsageCost {
-                                let resetsAt = extra.resetsAt?.description ?? "nil"
-                                let period = extra.period ?? "nil"
-                                let line =
-                                    "extra_usage used=\(extra.used) limit=\(extra.limit) " +
-                                    "currency=\(extra.currencyCode) period=\(period) resetsAt=\(resetsAt)"
-                                lines.append(line)
-                            } else {
-                                lines.append("extra_usage=nil")
-                            }
-
-                            return lines.joined(separator: "\n")
-                        } catch {
-                            lines.append("Web API failed: \(error.localizedDescription)")
-                            return lines.joined(separator: "\n")
-                        }
-                    case .cli:
-                        let cli = await self.claudeFetcher.debugRawProbe(model: "sonnet")
-                        lines.append(cli)
-                        return lines.joined(separator: "\n")
-                    case .oauth:
-                        lines.append("OAuth override selected (debug).")
-                        return lines.joined(separator: "\n")
-                    }
-                }
+                let text = await self.debugClaudeLog(
+                    claudeWebExtrasEnabled: claudeWebExtrasEnabled,
+                    claudeUsageDataSource: claudeUsageDataSource,
+                    claudeCookieSource: claudeCookieSource,
+                    claudeCookieHeader: claudeCookieHeader,
+                    keepCLISessionsAlive: keepCLISessionsAlive)
                 await MainActor.run { self.probeLogs[.claude] = text }
                 return text
             case .zai:
-                let settingsToken = await MainActor.run {
-                    self.settings.zaiAPIToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                let envToken = ZaiSettingsReader.apiToken()
-                let hasAny = !settingsToken.isEmpty || envToken != nil
-                let source = !settingsToken.isEmpty ? "keychain" : (envToken != nil ? "env" : "none")
+                let resolution = ProviderTokenResolver.zaiResolution()
+                let hasAny = resolution != nil
+                let source = resolution?.source.rawValue ?? "none"
                 let text = "Z_AI_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 await MainActor.run { self.probeLogs[.zai] = text }
+                return text
+            case .synthetic:
+                let resolution = ProviderTokenResolver.syntheticResolution()
+                let hasAny = resolution != nil
+                let source = resolution?.source.rawValue ?? "none"
+                let text = "SYNTHETIC_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                await MainActor.run { self.probeLogs[.synthetic] = text }
                 return text
             case .gemini:
                 let text = "Gemini debug log not yet implemented"
@@ -1151,23 +1178,225 @@ extension UsageStore {
                 await MainActor.run { self.probeLogs[.antigravity] = text }
                 return text
             case .cursor:
-                let text = "Cursor debug log not yet implemented"
+                let text = await self.debugCursorLog(
+                    cursorCookieSource: cursorCookieSource,
+                    cursorCookieHeader: cursorCookieHeader)
                 await MainActor.run { self.probeLogs[.cursor] = text }
+                return text
+            case .opencode:
+                let text = "OpenCode debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.opencode] = text }
                 return text
             case .factory:
                 let text = "Droid debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.factory] = text }
                 return text
+            case .copilot:
+                let text = "Copilot debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.copilot] = text }
+                return text
+            case .minimax:
+                let tokenResolution = ProviderTokenResolver.minimaxTokenResolution()
+                let cookieResolution = ProviderTokenResolver.minimaxCookieResolution()
+                let tokenSource = tokenResolution?.source.rawValue ?? "none"
+                let cookieSource = cookieResolution?.source.rawValue ?? "none"
+                let text = "MINIMAX_API_KEY=\(tokenResolution == nil ? "missing" : "present") " +
+                    "source=\(tokenSource) MINIMAX_COOKIE=\(cookieResolution == nil ? "missing" : "present") " +
+                    "source=\(cookieSource)"
+                await MainActor.run { self.probeLogs[.minimax] = text }
+                return text
+            case .vertexai:
+                let text = "Vertex AI debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.vertexai] = text }
+                return text
+            case .kiro:
+                let text = "Kiro debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.kiro] = text }
+                return text
+            case .augment:
+                let text = await self.debugAugmentLog()
+                await MainActor.run { self.probeLogs[.augment] = text }
+                return text
+            case .kimi:
+                let text = "Kimi debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.kimi] = text }
+                return text
+            case .kimik2:
+                let text = "Kimi K2 debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.kimik2] = text }
+                return text
+            case .amp:
+                let text = await self.debugAmpLog(
+                    ampCookieSource: self.settings.ampCookieSource,
+                    ampCookieHeader: self.settings.ampCookieHeader)
+                await MainActor.run { self.probeLogs[.amp] = text }
+                return text
+            case .jetbrains:
+                let text = "JetBrains AI debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.jetbrains] = text }
+                return text
             case .windsurf:
                 let text = "Windsurf debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.windsurf] = text }
                 return text
-            case .copilot:
-                let text = "GitHub Copilot debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.copilot] = text }
-                return text
             }
         }.value
+    }
+
+    private func debugClaudeLog(
+        claudeWebExtrasEnabled: Bool,
+        claudeUsageDataSource: ClaudeUsageDataSource,
+        claudeCookieSource: ProviderCookieSource,
+        claudeCookieHeader: String,
+        keepCLISessionsAlive: Bool) async -> String
+    {
+        await self.runWithTimeout(seconds: 15) {
+            var lines: [String] = []
+            let manualHeader = claudeCookieSource == .manual
+                ? CookieHeaderNormalizer.normalize(claudeCookieHeader)
+                : nil
+            let hasKey = if let manualHeader {
+                ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: manualHeader)
+            } else {
+                ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection) { msg in lines.append(msg) }
+            }
+            let hasOAuthCredentials = (try? ClaudeOAuthCredentialsStore.load()) != nil
+
+            let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
+                selectedDataSource: claudeUsageDataSource,
+                webExtrasEnabled: claudeWebExtrasEnabled,
+                hasWebSession: hasKey,
+                hasOAuthCredentials: hasOAuthCredentials)
+
+            lines.append("strategy=\(strategy.dataSource.rawValue)")
+            lines.append("hasSessionKey=\(hasKey)")
+            lines.append("hasOAuthCredentials=\(hasOAuthCredentials)")
+            if strategy.useWebExtras {
+                lines.append("web_extras=enabled")
+            }
+            lines.append("")
+
+            switch strategy.dataSource {
+            case .auto:
+                lines.append("Auto source selected.")
+                return lines.joined(separator: "\n")
+            case .web:
+                do {
+                    let web = try await ClaudeWebAPIFetcher
+                        .fetchUsage(browserDetection: self.browserDetection) { msg in lines.append(msg) }
+                    lines.append("")
+                    lines.append("Web API summary:")
+
+                    let sessionReset = web.sessionResetsAt?.description ?? "nil"
+                    lines.append("session_used=\(web.sessionPercentUsed)% resetsAt=\(sessionReset)")
+
+                    if let weekly = web.weeklyPercentUsed {
+                        let weeklyReset = web.weeklyResetsAt?.description ?? "nil"
+                        lines.append("weekly_used=\(weekly)% resetsAt=\(weeklyReset)")
+                    } else {
+                        lines.append("weekly_used=nil")
+                    }
+
+                    lines.append("opus_used=\(web.opusPercentUsed?.description ?? "nil")")
+
+                    if let extra = web.extraUsageCost {
+                        let resetsAt = extra.resetsAt?.description ?? "nil"
+                        let period = extra.period ?? "nil"
+                        let line =
+                            "extra_usage used=\(extra.used) limit=\(extra.limit) " +
+                            "currency=\(extra.currencyCode) period=\(period) resetsAt=\(resetsAt)"
+                        lines.append(line)
+                    } else {
+                        lines.append("extra_usage=nil")
+                    }
+
+                    return lines.joined(separator: "\n")
+                } catch {
+                    lines.append("Web API failed: \(error.localizedDescription)")
+                    return lines.joined(separator: "\n")
+                }
+            case .cli:
+                let fetcher = ClaudeUsageFetcher(
+                    browserDetection: self.browserDetection,
+                    keepCLISessionsAlive: keepCLISessionsAlive)
+                let cli = await fetcher.debugRawProbe(model: "sonnet")
+                lines.append(cli)
+                return lines.joined(separator: "\n")
+            case .oauth:
+                lines.append("OAuth source selected.")
+                return lines.joined(separator: "\n")
+            }
+        }
+    }
+
+    private func debugCursorLog(
+        cursorCookieSource: ProviderCookieSource,
+        cursorCookieHeader: String) async -> String
+    {
+        await self.runWithTimeout(seconds: 15) {
+            var lines: [String] = []
+
+            do {
+                let probe = CursorStatusProbe(browserDetection: self.browserDetection)
+                let snapshot: CursorStatusSnapshot = if cursorCookieSource == .manual,
+                                                        let normalizedHeader = CookieHeaderNormalizer
+                                                            .normalize(cursorCookieHeader)
+                {
+                    try await probe.fetchWithManualCookies(normalizedHeader)
+                } else {
+                    try await probe.fetch { msg in lines.append("[cursor-cookie] \(msg)") }
+                }
+
+                lines.append("")
+                lines.append("Cursor Status Summary:")
+                lines.append("membershipType=\(snapshot.membershipType ?? "nil")")
+                lines.append("accountEmail=\(snapshot.accountEmail ?? "nil")")
+                lines.append("planPercentUsed=\(snapshot.planPercentUsed)%")
+                lines.append("planUsedUSD=$\(snapshot.planUsedUSD)")
+                lines.append("planLimitUSD=$\(snapshot.planLimitUSD)")
+                lines.append("onDemandUsedUSD=$\(snapshot.onDemandUsedUSD)")
+                lines.append("onDemandLimitUSD=\(snapshot.onDemandLimitUSD.map { "$\($0)" } ?? "nil")")
+                if let teamUsed = snapshot.teamOnDemandUsedUSD {
+                    lines.append("teamOnDemandUsedUSD=$\(teamUsed)")
+                }
+                if let teamLimit = snapshot.teamOnDemandLimitUSD {
+                    lines.append("teamOnDemandLimitUSD=$\(teamLimit)")
+                }
+                lines.append("billingCycleEnd=\(snapshot.billingCycleEnd?.description ?? "nil")")
+
+                if let rawJSON = snapshot.rawJSON {
+                    lines.append("")
+                    lines.append("Raw API Response:")
+                    lines.append(rawJSON)
+                }
+
+                return lines.joined(separator: "\n")
+            } catch {
+                lines.append("")
+                lines.append("Cursor probe failed: \(error.localizedDescription)")
+                return lines.joined(separator: "\n")
+            }
+        }
+    }
+
+    private func debugAugmentLog() async -> String {
+        await self.runWithTimeout(seconds: 15) {
+            let probe = AugmentStatusProbe()
+            return await probe.debugRawProbe()
+        }
+    }
+
+    private func debugAmpLog(
+        ampCookieSource: ProviderCookieSource,
+        ampCookieHeader: String) async -> String
+    {
+        await self.runWithTimeout(seconds: 15) {
+            let fetcher = AmpUsageFetcher(browserDetection: self.browserDetection)
+            let manualHeader = ampCookieSource == .manual
+                ? CookieHeaderNormalizer.normalize(ampCookieHeader)
+                : nil
+            return await fetcher.debugRawProbe(cookieHeaderOverride: manualHeader)
+        }
     }
 
     private func runWithTimeout(seconds: Double, operation: @escaping @Sendable () async -> String) async -> String {
@@ -1184,54 +1413,57 @@ extension UsageStore {
     }
 
     private func detectVersions() {
-        Task.detached { [claudeFetcher] in
-            let codexVer = Self.readCLI("codex", args: ["-s", "read-only", "-a", "untrusted", "--version"])
-            let claudeVer = claudeFetcher.detectVersion()
-            let geminiVer = Self.readCLI("gemini", args: ["--version"])
-            let antigravityVer = await AntigravityStatusProbe.detectVersion()
-            await MainActor.run {
-                self.codexVersion = codexVer
-                self.claudeVersion = claudeVer
-                self.geminiVersion = geminiVer
-                self.zaiVersion = nil
-                self.antigravityVersion = antigravityVer
+        let implementations = ProviderCatalog.all
+        let browserDetection = self.browserDetection
+        Task { @MainActor [weak self] in
+            let resolved = await Task.detached { () -> [UsageProvider: String] in
+                var resolved: [UsageProvider: String] = [:]
+                await withTaskGroup(of: (UsageProvider, String?).self) { group in
+                    for implementation in implementations {
+                        let context = ProviderVersionContext(
+                            provider: implementation.id,
+                            browserDetection: browserDetection)
+                        group.addTask {
+                            await (implementation.id, implementation.detectVersion(context: context))
+                        }
+                    }
+                    for await (provider, version) in group {
+                        guard let version, !version.isEmpty else { continue }
+                        resolved[provider] = version
+                    }
+                }
+                return resolved
+            }.value
+            self?.versions = resolved
+        }
+    }
+
+    @MainActor
+    private func schedulePathDebugInfoRefresh() {
+        self.pathDebugRefreshTask?.cancel()
+        self.pathDebugRefreshTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 150_000_000)
+            } catch {
+                return
             }
+            await self?.refreshPathDebugInfo()
         }
     }
 
-    private nonisolated static func readCLI(_ cmd: String, args: [String]) -> String? {
-        let env = ProcessInfo.processInfo.environment
-        var pathEnv = env
-        pathEnv["PATH"] = PathBuilder.effectivePATH(purposes: [.rpc, .tty, .nodeTooling], env: env)
-        let loginPATH = LoginShellPathCache.shared.current
-
-        let resolved: String = switch cmd {
-        case "codex":
-            BinaryLocator.resolveCodexBinary(env: env, loginPATH: loginPATH) ?? cmd
-        case "gemini":
-            BinaryLocator.resolveGeminiBinary(env: env, loginPATH: loginPATH) ?? cmd
-        default:
-            cmd
+    private func runBackgroundSnapshot(
+        _ snapshot: @escaping @Sendable () async -> PathDebugSnapshot) async
+    {
+        let result = await snapshot()
+        await MainActor.run {
+            self.pathDebugInfo = result
         }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [resolved] + args
-        process.environment = pathEnv
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        try? process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let text = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !text.isEmpty else { return nil }
-        return text
     }
 
-    private func refreshPathDebugInfo() {
-        self.pathDebugInfo = PathBuilder.debugSnapshot(purposes: [.rpc, .tty, .nodeTooling])
+    private func refreshPathDebugInfo() async {
+        await self.runBackgroundSnapshot {
+            await PathBuilder.debugSnapshotAsync(purposes: [.rpc, .tty, .nodeTooling])
+        }
     }
 
     func clearCostUsageCache() async -> String? {
@@ -1239,7 +1471,6 @@ extension UsageStore {
             let fm = FileManager.default
             let cacheDirs = [
                 Self.costUsageCacheDirectory(fileManager: fm),
-                Self.legacyCCUsageCacheDirectory(fileManager: fm),
             ]
 
             for cacheDir in cacheDirs {
@@ -1264,7 +1495,7 @@ extension UsageStore {
     }
 
     private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
-        guard provider == .codex || provider == .claude else {
+        guard provider == .codex || provider == .claude || provider == .vertexai else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
@@ -1272,7 +1503,7 @@ extension UsageStore {
             return
         }
 
-        guard self.settings.ccusageCostUsageEnabled else {
+        guard self.settings.costUsageEnabled else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
@@ -1304,18 +1535,22 @@ extension UsageStore {
         let startedAt = Date()
         let providerText = provider.rawValue
         self.tokenCostLogger
-            .info("ccusage start provider=\(providerText) force=\(force)")
+            .debug("cost usage start provider=\(providerText) force=\(force)")
 
         do {
-            let fetcher = self.ccusageFetcher
+            let fetcher = self.costUsageFetcher
             let timeoutSeconds = self.tokenFetchTimeout
-            let snapshot = try await withThrowingTaskGroup(of: CCUsageTokenSnapshot.self) { group in
+            let snapshot = try await withThrowingTaskGroup(of: CostUsageTokenSnapshot.self) { group in
                 group.addTask(priority: .utility) {
-                    try await fetcher.loadTokenSnapshot(provider: provider, now: now, forceRefresh: force)
+                    try await fetcher.loadTokenSnapshot(
+                        provider: provider,
+                        now: now,
+                        forceRefresh: force,
+                        allowVertexClaudeFallback: !self.isEnabled(.claude))
                 }
                 group.addTask {
                     try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
-                    throw CCUsageError.timedOut(seconds: Int(timeoutSeconds))
+                    throw CostUsageError.timedOut(seconds: Int(timeoutSeconds))
                 }
                 defer { group.cancelAll() }
                 guard let snapshot = try await group.next() else { throw CancellationError() }
@@ -1333,7 +1568,7 @@ extension UsageStore {
             let monthCost = snapshot.last30DaysCostUSD.map(UsageFormatter.usdString) ?? "—"
             let durationText = String(format: "%.2f", duration)
             let message =
-                "ccusage success provider=\(providerText) " +
+                "cost usage success provider=\(providerText) " +
                 "duration=\(durationText)s " +
                 "today=\(sessionCost) " +
                 "30d=\(monthCost)"
@@ -1347,7 +1582,7 @@ extension UsageStore {
             let duration = Date().timeIntervalSince(startedAt)
             let msg = error.localizedDescription
             let durationText = String(format: "%.2f", duration)
-            let message = "ccusage failed provider=\(providerText) duration=\(durationText)s error=\(msg)"
+            let message = "cost usage failed provider=\(providerText) duration=\(durationText)s error=\(msg)"
             self.tokenCostLogger.error(message)
             let hadPriorData = self.tokenSnapshots[provider] != nil
             let shouldSurface = self.tokenFailureGates[provider]?

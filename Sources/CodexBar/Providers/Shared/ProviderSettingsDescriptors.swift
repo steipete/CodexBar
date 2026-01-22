@@ -81,6 +81,66 @@ struct ProviderSettingsFieldDescriptor: Identifiable {
     let binding: Binding<String>
     let actions: [ProviderSettingsActionDescriptor]
     let isVisible: (() -> Bool)?
+    let onActivate: (() -> Void)?
+}
+
+/// Shared token account descriptor rendered in the Providers settings pane.
+@MainActor
+struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let placeholder: String
+    let provider: UsageProvider
+    let isVisible: (() -> Bool)?
+    let accounts: () -> [ProviderTokenAccount]
+    let activeIndex: () -> Int
+    let setActiveIndex: (Int) -> Void
+    let addAccount: (_ label: String, _ token: String) -> Void
+    let removeAccount: (_ accountID: UUID) -> Void
+    let openConfigFile: () -> Void
+    let reloadFromDisk: () -> Void
+}
+
+/// Shared picker descriptor rendered in the Providers settings pane.
+@MainActor
+struct ProviderSettingsPickerDescriptor: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let dynamicSubtitle: (() -> String?)?
+    let binding: Binding<String>
+    let options: [ProviderSettingsPickerOption]
+    let isVisible: (() -> Bool)?
+    let onChange: ((_ selection: String) async -> Void)?
+    let trailingText: (() -> String?)?
+
+    init(
+        id: String,
+        title: String,
+        subtitle: String,
+        dynamicSubtitle: (() -> String?)? = nil,
+        binding: Binding<String>,
+        options: [ProviderSettingsPickerOption],
+        isVisible: (() -> Bool)?,
+        onChange: ((_ selection: String) async -> Void)?,
+        trailingText: (() -> String?)? = nil)
+    {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.dynamicSubtitle = dynamicSubtitle
+        self.binding = binding
+        self.options = options
+        self.isVisible = isVisible
+        self.onChange = onChange
+        self.trailingText = trailingText
+    }
+}
+
+struct ProviderSettingsPickerOption: Identifiable {
+    let id: String
+    let title: String
 }
 
 /// Shared action descriptor rendered under a settings toggle.

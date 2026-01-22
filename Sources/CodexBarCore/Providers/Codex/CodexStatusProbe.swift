@@ -49,23 +49,34 @@ public enum CodexStatusProbeError: LocalizedError, Sendable {
 public struct CodexStatusProbe {
     public var codexBinary: String = "codex"
     public var timeout: TimeInterval = 18.0
+    public var keepCLISessionsAlive: Bool = false
 
     public init() {}
 
-    public init(codexBinary: String = "codex", timeout: TimeInterval = 18.0) {
+    public init(codexBinary: String = "codex", timeout: TimeInterval = 18.0, keepCLISessionsAlive: Bool = false) {
         self.codexBinary = codexBinary
         self.timeout = timeout
+        self.keepCLISessionsAlive = keepCLISessionsAlive
     }
 
     public func fetch() async throws -> CodexStatusSnapshot {
-        guard TTYCommandRunner.which(self.codexBinary) != nil else { throw CodexStatusProbeError.codexNotInstalled }
+        let env = ProcessInfo.processInfo.environment
+        let resolved = BinaryLocator.resolveCodexBinary(env: env, loginPATH: LoginShellPathCache.shared.current)
+            ?? self.codexBinary
+        guard FileManager.default.isExecutableFile(atPath: resolved) || TTYCommandRunner.which(resolved) != nil else {
+            throw CodexStatusProbeError.codexNotInstalled
+        }
         do {
-            return try self.runAndParse(rows: 60, cols: 200, timeout: self.timeout)
+            return try await self.runAndParse(binary: resolved, rows: 60, cols: 200, timeout: self.timeout)
         } catch let error as CodexStatusProbeError {
             // Codex sometimes returns an incomplete screen on the first try; retry once with a longer window.
             switch error {
             case .parseFailed, .timedOut:
-                return try self.runAndParse(rows: 70, cols: 220, timeout: max(self.timeout, 24.0))
+                return try await self.runAndParse(
+                    binary: resolved,
+                    rows: 70,
+                    cols: 220,
+                    timeout: max(self.timeout, 24.0))
             default:
                 throw error
             }
@@ -104,18 +115,41 @@ public struct CodexStatusProbe {
             rawText: clean)
     }
 
-    private func runAndParse(rows: UInt16, cols: UInt16, timeout: TimeInterval) throws -> CodexStatusSnapshot {
-        let runner = TTYCommandRunner()
-        let script = "/status\n"
-        let result = try runner.run(
-            binary: self.codexBinary,
-            send: script,
-            options: .init(
-                rows: rows,
-                cols: cols,
-                timeout: timeout,
-                extraArgs: ["-s", "read-only", "-a", "untrusted"]))
-        return try Self.parse(text: result.text)
+    private func runAndParse(
+        binary: String,
+        rows: UInt16,
+        cols: UInt16,
+        timeout: TimeInterval) async throws -> CodexStatusSnapshot
+    {
+        let text: String
+        if self.keepCLISessionsAlive {
+            do {
+                text = try await CodexCLISession.shared.captureStatus(
+                    binary: binary,
+                    timeout: timeout,
+                    rows: rows,
+                    cols: cols)
+            } catch CodexCLISession.SessionError.processExited {
+                throw CodexStatusProbeError.timedOut
+            } catch CodexCLISession.SessionError.timedOut {
+                throw CodexStatusProbeError.timedOut
+            } catch CodexCLISession.SessionError.launchFailed(_) {
+                throw CodexStatusProbeError.codexNotInstalled
+            }
+        } else {
+            let runner = TTYCommandRunner()
+            let script = "/status\n"
+            let result = try runner.run(
+                binary: binary,
+                send: script,
+                options: .init(
+                    rows: rows,
+                    cols: cols,
+                    timeout: timeout,
+                    extraArgs: ["-s", "read-only", "-a", "untrusted"]))
+            text = result.text
+        }
+        return try Self.parse(text: text)
     }
 
     private static func containsUpdatePrompt(_ text: String) -> Bool {

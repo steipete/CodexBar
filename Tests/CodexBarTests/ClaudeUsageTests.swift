@@ -109,7 +109,7 @@ struct ClaudeUsageTests {
         guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_FETCH"] == "1" else {
             return
         }
-        let fetcher = ClaudeUsageFetcher(dataSource: .cli)
+        let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .cli)
         do {
             let snap = try await fetcher.loadLatestUsage()
             let opusUsed = snap.opus?.usedPercent ?? -1
@@ -119,7 +119,7 @@ struct ClaudeUsageTests {
             print(
                 """
                 Live Claude usage (PTY):
-                session used \(snap.primary.usedPercent)% 
+                session used \(snap.primary.usedPercent)%
                 week used \(weeklyUsed)% 
                 opus \(opusUsed)% 
                 email \(email) org \(org)
@@ -167,7 +167,7 @@ struct ClaudeUsageTests {
         guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_WEB_FETCH"] == "1" else {
             return
         }
-        let fetcher = ClaudeUsageFetcher(dataSource: .web)
+        let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .web)
         let snap = try await fetcher.loadLatestUsage()
         let weeklyUsed = snap.secondary?.usedPercent ?? -1
         let opusUsed = snap.opus?.usedPercent ?? -1
@@ -185,7 +185,7 @@ struct ClaudeUsageTests {
     @Test
     func claudeWebAPIHasSessionKeyCheck() {
         // Quick check that hasSessionKey returns a boolean (doesn't crash)
-        let hasKey = ClaudeWebAPIFetcher.hasSessionKey()
+        let hasKey = ClaudeWebAPIFetcher.hasSessionKey(browserDetection: BrowserDetection(cacheTTL: 0))
         // We can't assert the value since it depends on the test environment
         #expect(hasKey == true || hasKey == false)
     }
@@ -268,6 +268,34 @@ struct ClaudeUsageTests {
         let org = try ClaudeWebAPIFetcher._parseOrganizationsResponseForTesting(data)
         #expect(org.id == "org-123")
         #expect(org.name == "Example Org")
+    }
+
+    @Test
+    func parsesClaudeWebAPIOrganizationsPrefersChatCapabilityOverApiOnly() throws {
+        let json = """
+        [
+          { "uuid": "org-api", "name": "API Org", "capabilities": ["api"] },
+          { "uuid": "org-chat", "name": "Chat Org", "capabilities": ["chat"] }
+        ]
+        """
+        let data = Data(json.utf8)
+        let org = try ClaudeWebAPIFetcher._parseOrganizationsResponseForTesting(data)
+        #expect(org.id == "org-chat")
+        #expect(org.name == "Chat Org")
+    }
+
+    @Test
+    func parsesClaudeWebAPIOrganizationsPrefersHybridChatOrg() throws {
+        let json = """
+        [
+          { "uuid": "org-api", "name": "API Org", "capabilities": ["api"] },
+          { "uuid": "org-hybrid", "name": "Hybrid Org", "capabilities": ["api", "chat"] }
+        ]
+        """
+        let data = Data(json.utf8)
+        let org = try ClaudeWebAPIFetcher._parseOrganizationsResponseForTesting(data)
+        #expect(org.id == "org-hybrid")
+        #expect(org.name == "Hybrid Org")
     }
 
     @Test
@@ -356,12 +384,16 @@ struct ClaudeUsageTests {
     @Test
     func claudeUsageFetcherInitWithDataSources() {
         // Verify we can create fetchers with both configurations
-        let defaultFetcher = ClaudeUsageFetcher()
-        let webFetcher = ClaudeUsageFetcher(dataSource: .web)
-        let cliFetcher = ClaudeUsageFetcher(dataSource: .cli)
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        let defaultFetcher = ClaudeUsageFetcher(browserDetection: browserDetection)
+        let webFetcher = ClaudeUsageFetcher(browserDetection: browserDetection, dataSource: .web)
+        let cliFetcher = ClaudeUsageFetcher(browserDetection: browserDetection, dataSource: .cli)
         // Both should be valid instances (no crashes)
-        #expect(defaultFetcher.detectVersion() != nil || defaultFetcher.detectVersion() == nil)
-        #expect(webFetcher.detectVersion() != nil || webFetcher.detectVersion() == nil)
-        #expect(cliFetcher.detectVersion() != nil || cliFetcher.detectVersion() == nil)
+        let defaultVersion = defaultFetcher.detectVersion()
+        let webVersion = webFetcher.detectVersion()
+        let cliVersion = cliFetcher.detectVersion()
+        #expect(defaultVersion?.isEmpty != true)
+        #expect(webVersion?.isEmpty != true)
+        #expect(cliVersion?.isEmpty != true)
     }
 }

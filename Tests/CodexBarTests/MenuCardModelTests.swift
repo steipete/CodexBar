@@ -9,6 +9,11 @@ struct MenuCardModelTests {
     @Test
     func buildsMetricsUsingRemainingPercent() {
         let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "codex@example.com",
+            accountOrganization: nil,
+            loginMethod: "Plus Plan")
         let snapshot = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 22,
@@ -21,8 +26,7 @@ struct MenuCardModelTests {
                 resetsAt: now.addingTimeInterval(6000),
                 resetDescription: nil),
             updatedAt: now,
-            accountEmail: "codex@example.com",
-            loginMethod: "Plus Plan")
+            identity: identity)
         let metadata = ProviderDefaults.metadata[.codex]!
         let updatedSnap = UsageSnapshot(
             primary: snapshot.primary,
@@ -33,9 +37,7 @@ struct MenuCardModelTests {
                 resetDescription: nil),
             tertiary: snapshot.tertiary,
             updatedAt: now,
-            accountEmail: snapshot.accountEmail,
-            accountOrganization: snapshot.accountOrganization,
-            loginMethod: snapshot.loginMethod)
+            identity: identity)
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
@@ -51,8 +53,10 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.providerName == "Codex")
@@ -67,6 +71,11 @@ struct MenuCardModelTests {
     @Test
     func buildsMetricsUsingUsedPercentWhenEnabled() {
         let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "codex@example.com",
+            accountOrganization: nil,
+            loginMethod: "Plus Plan")
         let snapshot = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 22,
@@ -79,8 +88,7 @@ struct MenuCardModelTests {
                 resetsAt: now.addingTimeInterval(6000),
                 resetDescription: nil),
             updatedAt: now,
-            accountEmail: "codex@example.com",
-            loginMethod: "Plus Plan")
+            identity: identity)
         let metadata = ProviderDefaults.metadata[.codex]!
 
         let dashboard = OpenAIDashboardSnapshot(
@@ -106,8 +114,10 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.metrics.first?.title == "Session")
@@ -119,14 +129,17 @@ struct MenuCardModelTests {
     @Test
     func showsCodeReviewMetricWhenDashboardPresent() {
         let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "codex@example.com",
+            accountOrganization: nil,
+            loginMethod: nil)
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             tertiary: nil,
             updatedAt: now,
-            accountEmail: "codex@example.com",
-            accountOrganization: nil,
-            loginMethod: nil)
+            identity: identity)
         let metadata = ProviderDefaults.metadata[.codex]!
 
         let dashboard = OpenAIDashboardSnapshot(
@@ -151,8 +164,10 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 73 })
@@ -161,6 +176,11 @@ struct MenuCardModelTests {
     @Test
     func claudeModelHidesWeeklyWhenUnavailable() {
         let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "Max")
         let snapshot = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 2,
@@ -170,9 +190,7 @@ struct MenuCardModelTests {
             secondary: nil,
             tertiary: nil,
             updatedAt: now,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: "Max")
+            identity: identity)
         let metadata = ProviderDefaults.metadata[.claude]!
         let model = UsageMenuCardView.Model.make(.init(
             provider: .claude,
@@ -188,8 +206,10 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.metrics.count == 1)
@@ -214,8 +234,10 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: "Probe failed for Codex",
             usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: Date()))
 
         #expect(model.subtitleStyle == .error)
@@ -231,11 +253,8 @@ struct MenuCardModelTests {
             primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             tertiary: nil,
-            updatedAt: now,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: nil)
-        let tokenSnapshot = CCUsageTokenSnapshot(
+            updatedAt: now)
+        let tokenSnapshot = CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 1.23,
             last30DaysTokens: 456,
@@ -256,8 +275,10 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.tokenUsage?.monthLine.contains("456") == true)
@@ -281,8 +302,10 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
             now: Date()))
 
         #expect(model.planText == nil)
@@ -292,14 +315,17 @@ struct MenuCardModelTests {
     @Test
     func hidesCodexCreditsWhenDisabled() {
         let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "codex@example.com",
+            accountOrganization: nil,
+            loginMethod: nil)
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             tertiary: nil,
             updatedAt: now,
-            accountEmail: "codex@example.com",
-            accountOrganization: nil,
-            loginMethod: nil)
+            identity: identity)
         let metadata = ProviderDefaults.metadata[.codex]!
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -316,8 +342,10 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.creditsText == nil)
@@ -326,15 +354,18 @@ struct MenuCardModelTests {
     @Test
     func hidesClaudeExtraUsageWhenDisabled() {
         let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: "claude@example.com",
+            accountOrganization: nil,
+            loginMethod: nil)
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             tertiary: nil,
             providerCost: ProviderCostSnapshot(used: 12, limit: 200, currencyCode: "USD", updatedAt: now),
             updatedAt: now,
-            accountEmail: "claude@example.com",
-            accountOrganization: nil,
-            loginMethod: nil)
+            identity: identity)
         let metadata = ProviderDefaults.metadata[.claude]!
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -351,10 +382,54 @@ struct MenuCardModelTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: false,
             now: now))
 
         #expect(model.providerCost == nil)
+    }
+
+    @Test
+    func hidesEmailWhenPersonalInfoHidden() {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "codex@example.com",
+            accountOrganization: nil,
+            loginMethod: nil)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+        let metadata = ProviderDefaults.metadata[.codex]!
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: "OpenAI dashboard signed in as codex@example.com.",
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "codex@example.com", plan: nil),
+            isRefreshing: false,
+            lastError: "OpenAI dashboard signed in as codex@example.com.",
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: true,
+            now: now))
+
+        #expect(model.email == "Hidden")
+        #expect(model.subtitleText.contains("codex@example.com") == false)
+        #expect(model.creditsHintCopyText?.isEmpty == true)
+        #expect(model.creditsHintText?.contains("codex@example.com") == false)
     }
 }

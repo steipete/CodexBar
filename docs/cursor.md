@@ -1,81 +1,57 @@
 ---
-summary: "Cursor support in CodexBar: cookie-based API fetching and UX."
+summary: "Cursor provider data sources: browser cookies or stored session; usage + billing via cursor.com APIs."
 read_when:
   - Debugging Cursor usage parsing
+  - Updating Cursor cookie import or session storage
   - Adjusting Cursor provider UI/menu behavior
-  - Troubleshooting cookie import issues
 ---
 
-# Cursor support (CodexBar)
+# Cursor provider
 
-Cursor support is implemented: CodexBar can show Cursor usage alongside other providers. Unlike CLI-based providers, Cursor uses web-based cookie authentication.
+Cursor is web-only. Usage is fetched via browser cookies or a stored WebKit session.
 
-## UX
-- Settings → Providers: toggle for "Show Cursor usage".
-- No CLI detection required; works if browser cookies are available.
-- Menu: shows plan usage, on-demand usage, and billing cycle reset time.
+## Data sources + fallback order
 
-### Cursor menu-bar icon
-- Uses the same two-bar metaphor as other providers.
-- Brand color: teal (#00BFA5).
+1) **Cached cookie header** (preferred)
+   - Stored after successful browser import.
+   - Keychain cache: `com.steipete.codexbar.cache` (account `cookie.cursor`).
 
-## Data path (Cursor)
+2) **Browser cookie import**
+   - Cookie order from provider metadata (default: Safari → Chrome → Firefox).
+   - Domain filters: `cursor.com`, `cursor.sh`.
+   - Cookie names required (any one counts):
+     - `WorkosCursorSessionToken`
+     - `__Secure-next-auth.session-token`
+     - `next-auth.session-token`
 
-### How we fetch usage (cookie-based)
+3) **Stored session cookies** (fallback)
+   - Captured by the "Add Account" WebKit login flow.
+   - Login teardown uses `WebKitTeardown` to avoid Intel WebKit crashes.
+   - Stored at: `~/Library/Application Support/CodexBar/cursor-session.json`.
 
-1. **Primary: Browser cookie import**
-   - Import order follows provider metadata (currently Safari → Chrome → Firefox).
-   - Safari: reads `~/Library/Cookies/Cookies.binarycookies`
-   - Chrome: reads encrypted SQLite cookie DB from `~/Library/Application Support/Google/Chrome/*/Cookies`
-   - Firefox: reads SQLite cookie DB from `~/Library/Application Support/Firefox/Profiles/*/cookies.sqlite`
-   - Requires cookies for `cursor.com` + `cursor.sh` domains
+Manual option:
+- Preferences → Providers → Cursor → Cookie source → Manual.
+- Paste the `Cookie:` header from a cursor.com request.
 
-2. **Fallback: Stored session**
-   - If browser cookies unavailable, uses session stored via "Add Account" login flow
-   - WebKit-based browser window captures cookies after successful login
-   - Session persisted to `~/Library/Application Support/CodexBar/cursor-session.json`
+## API endpoints
+- `GET https://cursor.com/api/usage-summary`
+  - Plan usage (included), on-demand usage, billing cycle window.
+- `GET https://cursor.com/api/auth/me`
+  - User email + name.
+- `GET https://cursor.com/api/usage?user=ID`
+  - Legacy request-based plan usage (request counts + limits).
 
-### API endpoints used
-- `GET /api/usage-summary` — plan usage, on-demand usage, billing cycle
-- `GET /api/auth/me` — user email and name
+## Cookie file paths
+- Safari: `~/Library/Cookies/Cookies.binarycookies`
+- Chrome/Chromium forks: `~/Library/Application Support/Google/Chrome/*/Cookies`
+- Firefox: `~/Library/Application Support/Firefox/Profiles/*/cookies.sqlite`
 
-### What we display
-- **Plan**: included usage percentage with reset countdown
-- **On-Demand**: usage beyond included plan limits (when applicable)
-- **Account**: email and membership type (Pro, Enterprise, Team, Hobby)
+## Snapshot mapping
+- Primary: plan usage percent (included plan).
+- Secondary: on-demand usage percent (individual usage).
+- Provider cost: on-demand usage USD (limit when known).
+- Reset: billing cycle end date.
 
-## Cookie import details
-
-### Safari
-- Parses `binarycookies` format (big-endian header, little-endian pages)
-- May require Full Disk Access permission
-
-### Chrome
-- Decrypts cookies using "Chrome Safe Storage" key from macOS Keychain
-- Prompts for Keychain access on first use
-- Supports multiple Chrome profiles
-
-### Firefox
-- Reads `cookies.sqlite` (no Keychain prompt)
-- Supports multiple Firefox profiles
-
-## Notes
-- No CLI required: Cursor is entirely web-based.
-- Session cookies typically valid for extended periods; re-login rarely needed.
-- Provider identity stays siloed: Cursor email/plan never leak into other providers.
-
-## Debugging tips
-- Check browser login: visit `https://cursor.com/dashboard` in a supported browser
-  (order: Safari → Chrome → Firefox) to verify signed-in state.
-- Safari cookie permission: System Settings → Privacy & Security → Full Disk Access → enable CodexBar.
-- Chrome Keychain prompt: allow CodexBar to access "Chrome Safe Storage" when prompted.
-- Settings → Providers shows the last fetch error inline under the Cursor toggle.
-- "Add Account" opens a WebKit browser window for manual login if cookie import fails.
-
-## Membership types
-| API value | Display |
-|-----------|---------|
-| `pro` | Cursor Pro |
-| `hobby` | Cursor Hobby |
-| `team` | Cursor Team |
-| `enterprise` | Cursor Enterprise |
+## Key files
+- `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift`
+- `Sources/CodexBar/CursorLoginRunner.swift` (login flow)

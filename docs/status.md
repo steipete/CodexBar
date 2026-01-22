@@ -8,7 +8,7 @@ read_when:
 # Status checks
 
 ## Sources
-- OpenAI + Claude + Cursor: Statuspage.io `api/v2/status.json`.
+- OpenAI + Claude + Cursor + Factory + Copilot: Statuspage.io `api/v2/status.json`.
 - Gemini + Antigravity: Google Workspace incidents feed for the Gemini product.
 
 ## Behavior

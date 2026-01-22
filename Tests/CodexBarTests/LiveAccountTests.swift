@@ -1,7 +1,6 @@
 import CodexBarCore
 import Foundation
 import Testing
-import XCTest
 @testable import CodexBar
 
 @Suite("Live RPC account checks", .serialized)
@@ -12,7 +11,7 @@ struct LiveAccountTests {
 
         let fetcher = UsageFetcher()
         let usage = try await fetcher.loadLatestUsage()
-        guard let email = usage.accountEmail else {
+        guard let email = usage.accountEmail(for: .codex) else {
             Issue.record("Account email missing from RPC usage snapshot")
             return
         }

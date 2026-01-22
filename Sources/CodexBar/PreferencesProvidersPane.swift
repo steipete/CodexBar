@@ -2,13 +2,6 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
-private enum ProviderListMetrics {
-    static let rowSpacing: CGFloat = 12
-    static let rowInsets = EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0)
-    static let checkboxSize: CGFloat = 18
-    static let iconSize: CGFloat = 18
-}
-
 @MainActor
 struct ProvidersPane: View {
     @Bindable var settings: SettingsStore
@@ -17,30 +10,54 @@ struct ProvidersPane: View {
     @State private var settingsStatusTextByID: [String: String] = [:]
     @State private var settingsLastAppActiveRunAtByID: [String: Date] = [:]
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
+    @State private var selectedProvider: UsageProvider?
 
     private var providers: [UsageProvider] { self.settings.orderedProviders() }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            self.header
-
-            ProviderListView(
+        HStack(alignment: .top, spacing: 16) {
+            ProviderSidebarListView(
                 providers: self.providers,
                 store: self.store,
                 isEnabled: { provider in self.binding(for: provider) },
                 subtitle: { provider in self.providerSubtitle(provider) },
-                sourceLabel: { provider in self.providerSourceLabel(provider) },
-                statusLabel: { provider in self.providerStatusLabel(provider) },
-                settingsToggles: { provider in self.extraSettingsToggles(for: provider) },
-                settingsFields: { provider in self.extraSettingsFields(for: provider) },
-                errorDisplay: { provider in self.providerErrorDisplay(provider) },
-                isErrorExpanded: { provider in self.expandedBinding(for: provider) },
-                onCopyError: { text in self.copyToPasteboard(text) },
+                selection: self.$selectedProvider,
                 moveProviders: { fromOffsets, toOffset in
                     self.settings.moveProvider(fromOffsets: fromOffsets, toOffset: toOffset)
                 })
+
+            if let provider = self.selectedProvider ?? self.providers.first {
+                ProviderDetailView(
+                    provider: provider,
+                    store: self.store,
+                    isEnabled: self.binding(for: provider),
+                    subtitle: self.providerSubtitle(provider),
+                    model: self.menuCardModel(for: provider),
+                    settingsPickers: self.extraSettingsPickers(for: provider),
+                    settingsToggles: self.extraSettingsToggles(for: provider),
+                    settingsFields: self.extraSettingsFields(for: provider),
+                    settingsTokenAccounts: self.tokenAccountDescriptor(for: provider),
+                    errorDisplay: self.providerErrorDisplay(provider),
+                    isErrorExpanded: self.expandedBinding(for: provider),
+                    onCopyError: { text in self.copyToPasteboard(text) },
+                    onRefresh: {
+                        Task { @MainActor in
+                            await self.store.refreshProvider(provider, allowDisabled: true)
+                        }
+                    })
+            } else {
+                Text("Select a provider")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .onAppear {
+            self.ensureSelection()
+        }
+        .onChange(of: self.providers) { _, _ in
+            self.ensureSelection()
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             self.runSettingsDidBecomeActiveHooks()
         }
@@ -67,56 +84,64 @@ struct ProvidersPane: View {
             })
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Providers")
-                .font(.headline)
+    private func ensureSelection() {
+        guard !self.providers.isEmpty else {
+            self.selectedProvider = nil
+            return
         }
+        if let selected = self.selectedProvider, self.providers.contains(selected) {
+            return
+        }
+        self.selectedProvider = self.providers.first
     }
 
-    private func binding(for provider: UsageProvider) -> Binding<Bool> {
+    func binding(for provider: UsageProvider) -> Binding<Bool> {
         let meta = self.store.metadata(for: provider)
         return Binding(
             get: { self.settings.isProviderEnabled(provider: provider, metadata: meta) },
-            set: { self.settings.setProviderEnabled(provider: provider, metadata: meta, enabled: $0) })
+            set: { newValue in
+                self.settings.setProviderEnabled(provider: provider, metadata: meta, enabled: newValue)
+            })
     }
 
-    private func providerSubtitle(_ provider: UsageProvider) -> String {
+    func providerSubtitle(_ provider: UsageProvider) -> String {
         let meta = self.store.metadata(for: provider)
-        let cliName = meta.cliName
-        let version = self.store.version(for: provider)
-        var versionText = version ?? "not detected"
-        if provider == .claude, let parenRange = versionText.range(of: "(") {
-            versionText = versionText[..<parenRange.lowerBound].trimmingCharacters(in: .whitespaces)
-        }
-
         let usageText: String
         if let snapshot = self.store.snapshot(for: provider) {
             let relative = snapshot.updatedAt.relativeDescription()
-            usageText = "usage fetched \(relative)"
+            usageText = relative
         } else if self.store.isStale(provider: provider) {
             usageText = "last fetch failed"
         } else {
             usageText = "usage not fetched yet"
         }
 
-        if cliName == "codex" {
-            return "\(versionText) • \(usageText)"
-        }
+        let presentationContext = ProviderPresentationContext(
+            provider: provider,
+            settings: self.settings,
+            store: self.store,
+            metadata: meta)
+        let presentation = ProviderCatalog.implementation(for: provider)?
+            .presentation(context: presentationContext)
+            ?? ProviderPresentation(detailLine: ProviderPresentation.standardDetailLine)
+        let detailLine = presentation.detailLine(presentationContext)
 
         // Web-only providers don't have CLI versions to detect.
-        if provider == .cursor || provider == .windsurf || provider == .copilot {
+        if !ProviderDescriptorRegistry.descriptor(for: provider).isNative {
             return "web • \(usageText)"
         }
         if provider == .zai {
             return "api • \(usageText)"
         }
 
-        var detail = "\(cliName) \(versionText) • \(usageText)"
-        if provider == .antigravity {
-            detail += " • experimental"
+        if let line = detailLine {
+            var detail = "\(line) • \(usageText)"
+            if provider == .antigravity {
+                detail += " • experimental"
+            }
+            return detail
         }
-        return detail
+        return usageText
     }
 
     private func providerSourceLabel(_ provider: UsageProvider) -> String {
@@ -142,6 +167,11 @@ struct ProvidersPane: View {
             return "web"
         case .copilot:
             return "web"
+        default:
+            if !ProviderDescriptorRegistry.descriptor(for: provider).isNative {
+                return "web"
+            }
+            return "auto"
         }
     }
 
@@ -156,7 +186,7 @@ struct ProvidersPane: View {
     }
 
     private func providerErrorDisplay(_ provider: UsageProvider) -> ProviderErrorDisplay? {
-        guard self.store.isStale(provider: provider), let raw = self.store.error(for: provider) else { return nil }
+        guard let raw = self.store.error(for: provider), !raw.isEmpty else { return nil }
         return ProviderErrorDisplay(
             preview: self.truncated(raw, prefix: ""),
             full: raw)
@@ -169,11 +199,71 @@ struct ProvidersPane: View {
             .filter { $0.isVisible?() ?? true }
     }
 
+    private func extraSettingsPickers(for provider: UsageProvider) -> [ProviderSettingsPickerDescriptor] {
+        guard let impl = ProviderCatalog.implementation(for: provider) else { return [] }
+        let context = self.makeSettingsContext(provider: provider)
+        let providerPickers = impl.settingsPickers(context: context)
+            .filter { $0.isVisible?() ?? true }
+        if let menuBarPicker = self.menuBarMetricPicker(for: provider) {
+            return [menuBarPicker] + providerPickers
+        }
+        return providerPickers
+    }
+
     private func extraSettingsFields(for provider: UsageProvider) -> [ProviderSettingsFieldDescriptor] {
         guard let impl = ProviderCatalog.implementation(for: provider) else { return [] }
         let context = self.makeSettingsContext(provider: provider)
         return impl.settingsFields(context: context)
             .filter { $0.isVisible?() ?? true }
+    }
+
+    func tokenAccountDescriptor(for provider: UsageProvider) -> ProviderSettingsTokenAccountsDescriptor? {
+        guard let support = TokenAccountSupportCatalog.support(for: provider) else { return nil }
+        let context = self.makeSettingsContext(provider: provider)
+        return ProviderSettingsTokenAccountsDescriptor(
+            id: "token-accounts-\(provider.rawValue)",
+            title: support.title,
+            subtitle: support.subtitle,
+            placeholder: support.placeholder,
+            provider: provider,
+            isVisible: {
+                ProviderCatalog.implementation(for: provider)?
+                    .tokenAccountsVisibility(context: context, support: support)
+                    ?? (!support.requiresManualCookieSource ||
+                        !context.settings.tokenAccounts(for: provider).isEmpty)
+            },
+            accounts: { self.settings.tokenAccounts(for: provider) },
+            activeIndex: {
+                let data = self.settings.tokenAccountsData(for: provider)
+                return data?.clampedActiveIndex() ?? 0
+            },
+            setActiveIndex: { index in
+                self.settings.setActiveTokenAccountIndex(index, for: provider)
+                Task { @MainActor in
+                    await self.store.refreshProvider(provider, allowDisabled: true)
+                }
+            },
+            addAccount: { label, token in
+                self.settings.addTokenAccount(provider: provider, label: label, token: token)
+                Task { @MainActor in
+                    await self.store.refreshProvider(provider, allowDisabled: true)
+                }
+            },
+            removeAccount: { accountID in
+                self.settings.removeTokenAccount(provider: provider, accountID: accountID)
+                Task { @MainActor in
+                    await self.store.refreshProvider(provider, allowDisabled: true)
+                }
+            },
+            openConfigFile: {
+                self.settings.openTokenAccountsFile()
+            },
+            reloadFromDisk: {
+                self.settings.reloadTokenAccounts()
+                Task { @MainActor in
+                    await self.store.refreshProvider(provider, allowDisabled: true)
+                }
+            })
     }
 
     private func makeSettingsContext(provider: UsageProvider) -> ProviderSettingsContext {
@@ -216,6 +306,93 @@ struct ProvidersPane: View {
             })
     }
 
+    func menuBarMetricPicker(for provider: UsageProvider) -> ProviderSettingsPickerDescriptor? {
+        if provider == .zai { return nil }
+        let metadata = self.store.metadata(for: provider)
+        let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
+        var options: [ProviderSettingsPickerOption] = [
+            ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+            ProviderSettingsPickerOption(
+                id: MenuBarMetricPreference.primary.rawValue,
+                title: "Primary (\(metadata.sessionLabel))"),
+            ProviderSettingsPickerOption(
+                id: MenuBarMetricPreference.secondary.rawValue,
+                title: "Secondary (\(metadata.weeklyLabel))"),
+        ]
+        if supportsAverage {
+            options.append(ProviderSettingsPickerOption(
+                id: MenuBarMetricPreference.average.rawValue,
+                title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
+        }
+        return ProviderSettingsPickerDescriptor(
+            id: "menuBarMetric",
+            title: "Menu bar metric",
+            subtitle: "Choose which window drives the menu bar percent.",
+            binding: Binding(
+                get: { self.settings.menuBarMetricPreference(for: provider).rawValue },
+                set: { rawValue in
+                    guard let preference = MenuBarMetricPreference(rawValue: rawValue) else { return }
+                    self.settings.setMenuBarMetricPreference(preference, for: provider)
+                }),
+            options: options,
+            isVisible: { true },
+            onChange: nil)
+    }
+
+    func menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
+        let metadata = self.store.metadata(for: provider)
+        let snapshot = self.store.snapshot(for: provider)
+        let credits: CreditsSnapshot?
+        let creditsError: String?
+        let dashboard: OpenAIDashboardSnapshot?
+        let dashboardError: String?
+        let tokenSnapshot: CostUsageTokenSnapshot?
+        let tokenError: String?
+        if provider == .codex {
+            credits = self.store.credits
+            creditsError = self.store.lastCreditsError
+            dashboard = self.store.openAIDashboardRequiresLogin ? nil : self.store.openAIDashboard
+            dashboardError = self.store.lastOpenAIDashboardError
+            tokenSnapshot = self.store.tokenSnapshot(for: provider)
+            tokenError = self.store.tokenError(for: provider)
+        } else if provider == .claude || provider == .vertexai {
+            credits = nil
+            creditsError = nil
+            dashboard = nil
+            dashboardError = nil
+            tokenSnapshot = self.store.tokenSnapshot(for: provider)
+            tokenError = self.store.tokenError(for: provider)
+        } else {
+            credits = nil
+            creditsError = nil
+            dashboard = nil
+            dashboardError = nil
+            tokenSnapshot = nil
+            tokenError = nil
+        }
+
+        let input = UsageMenuCardView.Model.Input(
+            provider: provider,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: credits,
+            creditsError: creditsError,
+            dashboard: dashboard,
+            dashboardError: dashboardError,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: tokenError,
+            account: self.store.accountInfo(),
+            isRefreshing: self.store.refreshingProviders.contains(provider),
+            lastError: self.store.error(for: provider),
+            usageBarsShowUsed: self.settings.usageBarsShowUsed,
+            resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+            tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
+            showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            hidePersonalInfo: self.settings.hidePersonalInfo,
+            now: Date())
+        return UsageMenuCardView.Model.make(input)
+    }
+
     private func runSettingsDidBecomeActiveHooks() {
         for provider in UsageProvider.allCases {
             for toggle in self.extraSettingsToggles(for: provider) {
@@ -256,333 +433,7 @@ struct ProvidersPane: View {
 }
 
 @MainActor
-private struct ProviderListView: View {
-    let providers: [UsageProvider]
-    @Bindable var store: UsageStore
-    let isEnabled: (UsageProvider) -> Binding<Bool>
-    let subtitle: (UsageProvider) -> String
-    let sourceLabel: (UsageProvider) -> String
-    let statusLabel: (UsageProvider) -> String
-    let settingsToggles: (UsageProvider) -> [ProviderSettingsToggleDescriptor]
-    let settingsFields: (UsageProvider) -> [ProviderSettingsFieldDescriptor]
-    let errorDisplay: (UsageProvider) -> ProviderErrorDisplay?
-    let isErrorExpanded: (UsageProvider) -> Binding<Bool>
-    let onCopyError: (String) -> Void
-    let moveProviders: (IndexSet, Int) -> Void
-
-    var body: some View {
-        List {
-            ForEach(self.providers, id: \.self) { provider in
-                Section {
-                    ProviderListProviderRowView(
-                        provider: provider,
-                        store: self.store,
-                        isEnabled: self.isEnabled(provider),
-                        subtitle: self.subtitle(provider),
-                        sourceLabel: self.sourceLabel(provider),
-                        statusLabel: self.statusLabel(provider),
-                        errorDisplay: self.isEnabled(provider).wrappedValue ? self.errorDisplay(provider) : nil,
-                        isErrorExpanded: self.isErrorExpanded(provider),
-                        onCopyError: self.onCopyError)
-                        .listRowInsets(ProviderListMetrics.rowInsets)
-
-                    if self.isEnabled(provider).wrappedValue {
-                        ForEach(self.settingsFields(provider)) { field in
-                            ProviderListFieldRowView(provider: provider, field: field)
-                                .listRowInsets(ProviderListMetrics.rowInsets)
-                        }
-                        ForEach(self.settingsToggles(provider)) { toggle in
-                            ProviderListToggleRowView(provider: provider, toggle: toggle)
-                                .listRowInsets(ProviderListMetrics.rowInsets)
-                        }
-                    }
-                } header: {
-                    EmptyView()
-                }
-            }
-            .onMove { fromOffsets, toOffset in
-                self.moveProviders(fromOffsets, toOffset)
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-    }
-}
-
-@MainActor
-private struct ProviderListBrandIcon: View {
-    let provider: UsageProvider
-
-    var body: some View {
-        if let brand = ProviderBrandIcon.image(for: self.provider) {
-            Image(nsImage: brand)
-                .resizable()
-                .scaledToFit()
-                .frame(width: ProviderListMetrics.iconSize, height: ProviderListMetrics.iconSize)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-        } else {
-            Image(systemName: "circle.dotted")
-                .font(.system(size: ProviderListMetrics.iconSize, weight: .regular))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-        }
-    }
-}
-
-@MainActor
-private struct ProviderListProviderRowView: View {
-    let provider: UsageProvider
-    @Bindable var store: UsageStore
-    @Binding var isEnabled: Bool
-    let subtitle: String
-    let sourceLabel: String
-    let statusLabel: String
-    let errorDisplay: ProviderErrorDisplay?
-    @Binding var isErrorExpanded: Bool
-    let onCopyError: (String) -> Void
-
-    var body: some View {
-        let titleIndent = ProviderListMetrics.iconSize + 8
-        let isRefreshing = self.store.refreshingProviders.contains(self.provider)
-
-        HStack(alignment: .top, spacing: ProviderListMetrics.rowSpacing) {
-            Toggle("", isOn: self.$isEnabled)
-                .labelsHidden()
-                .toggleStyle(.checkbox)
-                .padding(.top, 2)
-
-            VStack(alignment: .leading, spacing: 4) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        ProviderListBrandIcon(provider: self.provider)
-                            .padding(.top, 1)
-                        Text(self.store.metadata(for: self.provider).displayName)
-                            .font(.subheadline.bold())
-                    }
-                    Text(self.subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.leading, titleIndent)
-                    HStack(spacing: 8) {
-                        Text(self.sourceLabel)
-                        if isRefreshing {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Refreshing…")
-                        } else {
-                            Text(self.statusLabel)
-                        }
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, titleIndent)
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { self.isEnabled.toggle() }
-
-                if let errorDisplay {
-                    ProviderErrorView(
-                        title: "Last \(self.store.metadata(for: self.provider).displayName) fetch failed:",
-                        display: errorDisplay,
-                        isExpanded: self.$isErrorExpanded,
-                        onCopy: { self.onCopyError(errorDisplay.full) })
-                        .padding(.top, 8)
-                        .padding(.leading, titleIndent)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-@MainActor
-private struct ProviderListToggleRowView: View {
-    let provider: UsageProvider
-    let toggle: ProviderSettingsToggleDescriptor
-
-    var body: some View {
-        HStack(alignment: .top, spacing: ProviderListMetrics.rowSpacing) {
-            Toggle("", isOn: self.toggle.binding)
-                .labelsHidden()
-                .toggleStyle(.checkbox)
-                .padding(.top, 2)
-
-            Color.clear
-                .frame(width: ProviderListMetrics.iconSize, height: ProviderListMetrics.iconSize)
-
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(self.toggle.title)
-                        .font(.subheadline.weight(.semibold))
-                    Text(self.toggle.subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if self.toggle.binding.wrappedValue {
-                    if let status = self.toggle.statusText?(), !status.isEmpty {
-                        Text(status)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(4)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    let actions = self.toggle.actions.filter { $0.isVisible?() ?? true }
-                    if !actions.isEmpty {
-                        HStack(spacing: 10) {
-                            ForEach(actions) { action in
-                                Button(action.title) {
-                                    Task { @MainActor in
-                                        await action.perform()
-                                    }
-                                }
-                                .applyProviderSettingsButtonStyle(action.style)
-                                .controlSize(.small)
-                            }
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .onChange(of: self.toggle.binding.wrappedValue) { _, enabled in
-            guard let onChange = self.toggle.onChange else { return }
-            Task { @MainActor in
-                await onChange(enabled)
-            }
-        }
-        .task(id: self.toggle.binding.wrappedValue) {
-            guard self.toggle.binding.wrappedValue else { return }
-            guard let onAppear = self.toggle.onAppearWhenEnabled else { return }
-            await onAppear()
-        }
-    }
-}
-
-@MainActor
-private struct ProviderListFieldRowView: View {
-    let provider: UsageProvider
-    let field: ProviderSettingsFieldDescriptor
-
-    var body: some View {
-        HStack(alignment: .top, spacing: ProviderListMetrics.rowSpacing) {
-            Color.clear
-                .frame(width: ProviderListMetrics.checkboxSize, height: ProviderListMetrics.checkboxSize)
-
-            Color.clear
-                .frame(width: ProviderListMetrics.iconSize, height: ProviderListMetrics.iconSize)
-
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(self.field.title)
-                        .font(.subheadline.weight(.semibold))
-                    Text(self.field.subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                switch self.field.kind {
-                case .plain:
-                    TextField(self.field.placeholder ?? "", text: self.field.binding)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.footnote)
-                case .secure:
-                    SecureField(self.field.placeholder ?? "", text: self.field.binding)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.footnote)
-                }
-
-                let actions = self.field.actions.filter { $0.isVisible?() ?? true }
-                if !actions.isEmpty {
-                    HStack(spacing: 10) {
-                        ForEach(actions) { action in
-                            Button(action.title) {
-                                Task { @MainActor in
-                                    await action.perform()
-                                }
-                            }
-                            .applyProviderSettingsButtonStyle(action.style)
-                            .controlSize(.small)
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-extension View {
-    @ViewBuilder
-    fileprivate func applyProviderSettingsButtonStyle(_ style: ProviderSettingsActionDescriptor.Style) -> some View {
-        switch style {
-        case .bordered:
-            self.buttonStyle(.bordered)
-        case .link:
-            self.buttonStyle(.link)
-        }
-    }
-}
-
-private struct ProviderErrorDisplay: Sendable {
-    let preview: String
-    let full: String
-}
-
-@MainActor
-private struct ProviderErrorView: View {
-    let title: String
-    let display: ProviderErrorDisplay
-    @Binding var isExpanded: Bool
-    let onCopy: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(self.title)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    self.onCopy()
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Copy error")
-            }
-
-            Text(self.display.preview)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if self.display.preview != self.display.full {
-                Button(self.isExpanded ? "Hide details" : "Show details") { self.isExpanded.toggle() }
-                    .buttonStyle(.link)
-                    .font(.footnote)
-            }
-
-            if self.isExpanded {
-                Text(self.display.full)
-                    .font(.footnote)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.leading, 2)
-    }
-}
-
-@MainActor
-private struct ProviderSettingsConfirmationState: Identifiable {
+struct ProviderSettingsConfirmationState: Identifiable {
     let id = UUID()
     let title: String
     let message: String

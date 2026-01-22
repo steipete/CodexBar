@@ -1,15 +1,15 @@
 import CodexBarCore
+import CodexBarMacroSupport
 import Foundation
 
+@ProviderImplementationRegistration
 struct GeminiProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .gemini
-    let style: IconStyle = .gemini
+    let supportsLoginFlow: Bool = true
 
-    func makeFetch(context: ProviderBuildContext) -> @Sendable () async throws -> UsageSnapshot {
-        {
-            let probe = GeminiStatusProbe()
-            let snap = try await probe.fetch()
-            return snap.toUsageSnapshot()
-        }
+    @MainActor
+    func runLoginFlow(context: ProviderLoginContext) async -> Bool {
+        await context.controller.runGeminiLoginFlow()
+        return false
     }
 }

@@ -4,7 +4,7 @@ import Foundation
 struct ProviderSpec {
     let style: IconStyle
     let isEnabled: @MainActor () -> Bool
-    let fetch: () async throws -> UsageSnapshot
+    let fetch: () async -> ProviderFetchOutcome
 }
 
 struct ProviderRegistry {
@@ -12,7 +12,7 @@ struct ProviderRegistry {
 
     static let shared: ProviderRegistry = .init()
 
-    init(metadata: [UsageProvider: ProviderMetadata] = ProviderDefaults.metadata) {
+    init(metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata) {
         self.metadata = metadata
     }
 
@@ -21,34 +21,94 @@ struct ProviderRegistry {
         settings: SettingsStore,
         metadata: [UsageProvider: ProviderMetadata],
         codexFetcher: UsageFetcher,
-        claudeFetcher: any ClaudeUsageFetching) -> [UsageProvider: ProviderSpec]
+        claudeFetcher: any ClaudeUsageFetching,
+        browserDetection: BrowserDetection) -> [UsageProvider: ProviderSpec]
     {
-        let context = ProviderBuildContext(
-            settings: settings,
-            metadata: metadata,
-            codexFetcher: codexFetcher,
-            claudeFetcher: claudeFetcher)
-
-        let implementationsByID: [UsageProvider: any ProviderImplementation] = Dictionary(
-            uniqueKeysWithValues: ProviderCatalog.all.map { ($0.id, $0) })
-
         var specs: [UsageProvider: ProviderSpec] = [:]
         specs.reserveCapacity(UsageProvider.allCases.count)
 
         for provider in UsageProvider.allCases {
-            guard let impl = implementationsByID[provider] else {
-                fatalError("Missing ProviderImplementation for \(provider.rawValue)")
-            }
+            let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
             let meta = metadata[provider]!
             let spec = ProviderSpec(
-                style: impl.style,
+                style: descriptor.branding.iconStyle,
                 isEnabled: { settings.isProviderEnabled(provider: provider, metadata: meta) },
-                fetch: impl.makeFetch(context: context))
+                fetch: {
+                    let sourceMode = ProviderCatalog.implementation(for: provider)?
+                        .sourceMode(context: ProviderSourceModeContext(provider: provider, settings: settings))
+                        ?? .auto
+                    let snapshot = await MainActor.run {
+                        Self.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+                    }
+                    let env = await MainActor.run {
+                        Self.makeEnvironment(
+                            base: ProcessInfo.processInfo.environment,
+                            provider: provider,
+                            settings: settings,
+                            tokenOverride: nil)
+                    }
+                    let verbose = settings.isVerboseLoggingEnabled
+                    let context = ProviderFetchContext(
+                        runtime: .app,
+                        sourceMode: sourceMode,
+                        includeCredits: false,
+                        webTimeout: 60,
+                        webDebugDumpHTML: false,
+                        verbose: verbose,
+                        env: env,
+                        settings: snapshot,
+                        fetcher: codexFetcher,
+                        claudeFetcher: claudeFetcher,
+                        browserDetection: browserDetection)
+                    return await descriptor.fetchOutcome(context: context)
+                })
             specs[provider] = spec
         }
 
         return specs
     }
 
-    private static let defaultMetadata: [UsageProvider: ProviderMetadata] = ProviderDefaults.metadata
+    @MainActor
+    static func makeSettingsSnapshot(
+        settings: SettingsStore,
+        tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
+    {
+        settings.ensureTokenAccountsLoaded()
+        var builder = ProviderSettingsSnapshotBuilder(
+            debugMenuEnabled: settings.debugMenuEnabled,
+            debugKeepCLISessionsAlive: settings.debugKeepCLISessionsAlive)
+        let context = ProviderSettingsSnapshotContext(settings: settings, tokenOverride: tokenOverride)
+        for implementation in ProviderCatalog.all {
+            if let contribution = implementation.settingsSnapshot(context: context) {
+                builder.apply(contribution)
+            }
+        }
+        return builder.build()
+    }
+
+    @MainActor
+    static func makeEnvironment(
+        base: [String: String],
+        provider: UsageProvider,
+        settings: SettingsStore,
+        tokenOverride: TokenAccountOverride?) -> [String: String]
+    {
+        let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: provider,
+            settings: settings,
+            override: tokenOverride)
+        var env = base
+        if let account, let override = TokenAccountSupportCatalog.envOverride(
+            for: provider,
+            token: account.token)
+        {
+            for (key, value) in override {
+                env[key] = value
+            }
+        }
+        return ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: env,
+            provider: provider,
+            config: settings.providerConfig(for: provider))
+    }
 }

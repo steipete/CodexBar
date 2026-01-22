@@ -8,6 +8,8 @@ import Foundation
 /// Executes an interactive CLI inside a pseudo-terminal and returns all captured text.
 /// Keeps it minimal so we can reuse for Codex and Claude without tmux.
 public struct TTYCommandRunner {
+    private static let log = CodexBarLog.logger(LogCategories.ttyRunner)
+
     public struct Result: Sendable {
         public let text: String
     }
@@ -181,13 +183,26 @@ public struct TTYCommandRunner {
         } else if let hit = Self.which(binary) {
             resolved = hit
         } else {
+            Self.log.warning("PTY binary not found", metadata: ["binary": binary])
             throw Error.binaryNotFound(binary)
         }
+
+        let binaryName = URL(fileURLWithPath: resolved).lastPathComponent
+        Self.log.debug(
+            "PTY start",
+            metadata: [
+                "binary": binaryName,
+                "timeout": "\(options.timeout)",
+                "rows": "\(options.rows)",
+                "cols": "\(options.cols)",
+                "args": "\(options.extraArgs.count)",
+            ])
 
         var primaryFD: Int32 = -1
         var secondaryFD: Int32 = -1
         var win = winsize(ws_row: options.rows, ws_col: options.cols, ws_xpixel: 0, ws_ypixel: 0)
         guard openpty(&primaryFD, &secondaryFD, nil, nil, &win) == 0 else {
+            Self.log.warning("PTY openpty failed", metadata: ["binary": binaryName])
             throw Error.launchFailed("openpty failed")
         }
         // Make primary side non-blocking so read loops don't hang when no data is available.
@@ -257,6 +272,7 @@ public struct TTYCommandRunner {
             cleanedUp = true
 
             if didLaunch, proc.isRunning {
+                Self.log.debug("PTY stopping", metadata: ["binary": binaryName])
                 let exitData = Data("/exit\n".utf8)
                 try? writeAllToPrimary(exitData)
             }
@@ -290,8 +306,16 @@ public struct TTYCommandRunner {
         // Ensure the PTY process is always torn down, even when we throw early (e.g. login prompt).
         defer { cleanup() }
 
-        try proc.run()
-        didLaunch = true
+        do {
+            try proc.run()
+            didLaunch = true
+            Self.log.debug("PTY launched", metadata: ["binary": binaryName])
+        } catch {
+            Self.log.warning(
+                "PTY launch failed",
+                metadata: ["binary": binaryName, "error": error.localizedDescription])
+            throw Error.launchFailed(error.localizedDescription)
+        }
 
         // Isolate the child into its own process group so descendant helpers can be
         // terminated together. If this fails (e.g. process already exec'ed), we
@@ -619,14 +643,6 @@ public struct TTYCommandRunner {
     public static func which(_ tool: String) -> String? {
         if tool == "codex", let located = BinaryLocator.resolveCodexBinary() { return located }
         if tool == "claude", let located = BinaryLocator.resolveClaudeBinary() { return located }
-        if tool == "ccusage" || tool == "ccusage-codex" {
-            let env = ProcessInfo.processInfo.environment
-            if let shellHit = ShellCommandLocator.commandV(tool, env["SHELL"], 2.0, .default),
-               FileManager.default.isExecutableFile(atPath: shellHit)
-            {
-                return shellHit
-            }
-        }
         return self.runWhich(tool)
     }
 

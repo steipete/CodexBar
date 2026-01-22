@@ -315,6 +315,7 @@ public enum CopilotCookieImporter {
         return stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // swiftlint:disable:next function_body_length
     private static func cookieImportScript() -> String {
         """
         import json
@@ -545,15 +546,18 @@ public struct CopilotStatusSnapshot: Sendable, Equatable {
                 usedCount: entry.usedCount,
                 totalCount: entry.totalCount)
         }
+        let identity = ProviderIdentitySnapshot(
+            providerID: .copilot,
+            accountEmail: self.accountLogin,
+            accountOrganization: nil,
+            loginMethod: self.plan)
         return UsageSnapshot(
             primary: primaryWindow,
             secondary: secondaryWindow,
             tertiary: nil,
             providerCost: nil,
             updatedAt: self.updatedAt,
-            accountEmail: self.accountLogin,
-            accountOrganization: nil,
-            loginMethod: self.plan)
+            identity: identity)
     }
 
     private static func formatResetDate(_ date: Date) -> String {
@@ -713,7 +717,7 @@ public struct CopilotStatusProbe: Sendable {
         if let end = tail.range(of: "<copilot-user-settings", options: [.caseInsensitive]) {
             return String(tail[..<end.lowerBound])
         }
-        return String(tail.prefix(12_000))
+        return String(tail.prefix(12000))
     }
 
     private static func parseUsageEntries(from html: String) -> [CopilotUsageEntry] {

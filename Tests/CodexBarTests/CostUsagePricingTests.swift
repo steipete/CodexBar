@@ -36,4 +36,15 @@ struct CostUsagePricingTests {
             outputTokens: 5)
         #expect(cost != nil)
     }
+
+    @Test
+    func claudeCostReturnsNilForUnknownModels() {
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "glm-4.6",
+            inputTokens: 100,
+            cacheReadInputTokens: 500,
+            cacheCreationInputTokens: 0,
+            outputTokens: 40)
+        #expect(cost == nil)
+    }
 }

@@ -15,9 +15,50 @@ LOCK_PID_FILE="${LOCK_DIR}/pid"
 WAIT_FOR_LOCK=0
 RUN_TESTS=0
 DEBUG_LLDB=0
+RELEASE_ARCHES=""
+SIGNING_MODE="${CODEXBAR_SIGNING:-}"
 
 log()  { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+has_signing_identity() {
+  local identity="${1:-}"
+  if [[ -z "${identity}" ]]; then
+    return 1
+  fi
+  security find-identity -p codesigning -v 2>/dev/null | grep -F "${identity}" >/dev/null 2>&1
+}
+
+resolve_signing_mode() {
+  if [[ -n "${SIGNING_MODE}" ]]; then
+    return
+  fi
+
+  if [[ -n "${APP_IDENTITY:-}" ]]; then
+    if has_signing_identity "${APP_IDENTITY}"; then
+      SIGNING_MODE="identity"
+      return
+    fi
+    log "WARN: APP_IDENTITY not found in Keychain; falling back to adhoc signing."
+    SIGNING_MODE="adhoc"
+    return
+  fi
+
+  local candidate=""
+  for candidate in \
+    "Developer ID Application: Peter Steinberger (Y5PE65HELJ)" \
+    "CodexBar Development"
+  do
+    if has_signing_identity "${candidate}"; then
+      APP_IDENTITY="${candidate}"
+      export APP_IDENTITY
+      SIGNING_MODE="identity"
+      return
+    fi
+  done
+
+  SIGNING_MODE="adhoc"
+}
 
 run_step() {
   local label="$1"; shift
@@ -112,14 +153,23 @@ for arg in "$@"; do
     --wait|-w) WAIT_FOR_LOCK=1 ;;
     --test|-t) RUN_TESTS=1 ;;
     --debug-lldb) DEBUG_LLDB=1 ;;
+    --release-universal) RELEASE_ARCHES="arm64 x86_64" ;;
+    --release-arches=*) RELEASE_ARCHES="${arg#*=}" ;;
     --help|-h)
-      log "Usage: $(basename "$0") [--wait] [--test] [--debug-lldb]"
+      log "Usage: $(basename "$0") [--wait] [--test] [--debug-lldb] [--release-universal] [--release-arches=\"arm64 x86_64\"]"
       exit 0
       ;;
     *)
       ;;
   esac
 done
+
+resolve_signing_mode
+if [[ "${SIGNING_MODE}" == "adhoc" ]]; then
+  log "==> Signing: adhoc (set APP_IDENTITY or install a dev cert to avoid keychain prompts)"
+else
+  log "==> Signing: ${APP_IDENTITY:-Developer ID Application}"
+fi
 
 acquire_lock
 
@@ -128,19 +178,45 @@ log "==> Killing existing CodexBar instances"
 kill_all_codexbar
 kill_claude_probes
 
-# 3) Build, package.
-run_step "swift build" swift build -q
-if [[ "${RUN_TESTS}" == "1" ]]; then
-  run_step "swift test" swift test -q
-fi
 if [[ "${HOST_OS}" != "Darwin" ]]; then
+  if [[ "${RUN_TESTS}" == "1" ]]; then
+    run_step "swift test" swift test -q
+  fi
   log "==> Non-macOS host; skipping app packaging and launch."
   exit 0
 fi
+
+# 2.5) Delete keychain entries to avoid permission prompts with adhoc signing
+# (adhoc signature changes on every build, making old keychain entries inaccessible)
+if [[ "${SIGNING_MODE:-adhoc}" == "adhoc" ]]; then
+  log "==> Clearing keychain entries (adhoc signing)"
+  security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null || true
+  # Clear all keychain items for the app to avoid multiple prompts
+  while security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null; do
+    :
+  done
+fi
+
+# 3) Package (release build happens inside package_app.sh).
+if [[ "${RUN_TESTS}" == "1" ]]; then
+  run_step "swift test" swift test -q
+fi
+if [[ "${DEBUG_LLDB}" == "1" && -n "${RELEASE_ARCHES}" ]]; then
+  fail "--release-arches is only supported for release packaging"
+fi
+HOST_ARCH="$(uname -m)"
+ARCHES_VALUE="${HOST_ARCH}"
+if [[ -n "${RELEASE_ARCHES}" ]]; then
+  ARCHES_VALUE="${RELEASE_ARCHES}"
+fi
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
-  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 "${ROOT_DIR}/Scripts/package_app.sh" debug
+  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh" debug
 else
-  run_step "package app" "${ROOT_DIR}/Scripts/package_app.sh"
+  if [[ -n "${SIGNING_MODE}" ]]; then
+    run_step "package app" env CODEXBAR_SIGNING="${SIGNING_MODE}" ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh"
+  else
+    run_step "package app" env ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh"
+  fi
 fi
 
 # 4) Launch the packaged app.

@@ -1,25 +1,52 @@
 // swift-tools-version: 6.2
+import CompilerPluginSupport
+import Foundation
 import PackageDescription
+
+let sweetCookieKitPath = "../SweetCookieKit"
+let useLocalSweetCookieKit =
+    ProcessInfo.processInfo.environment["CODEXBAR_USE_LOCAL_SWEETCOOKIEKIT"] == "1"
+let sweetCookieKitDependency: Package.Dependency =
+    useLocalSweetCookieKit && FileManager.default.fileExists(atPath: sweetCookieKitPath)
+    ? .package(path: sweetCookieKitPath)
+    : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0")
 
 let package = Package(
     name: "CodexBar",
     platforms: [
-        .macOS(.v15),
+        .macOS(.v14),
     ],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.8.1"),
-        .package(url: "https://github.com/steipete/Commander", from: "0.2.0"),
-        .package(url: "https://github.com/apple/swift-log", from: "1.8.0"),
+        .package(url: "https://github.com/steipete/Commander", from: "0.2.1"),
+        .package(url: "https://github.com/apple/swift-log", from: "1.9.1"),
+        .package(url: "https://github.com/apple/swift-syntax", from: "600.0.1"),
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.4.0"),
+        sweetCookieKitDependency,
     ],
     targets: {
         var targets: [Target] = [
             .target(
                 name: "CodexBarCore",
                 dependencies: [
+                    "CodexBarMacroSupport",
                     .product(name: "Logging", package: "swift-log"),
+                    .product(name: "SweetCookieKit", package: "SweetCookieKit"),
                 ],
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
+                ]),
+            .macro(
+                name: "CodexBarMacros",
+                dependencies: [
+                    .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+                    .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
+                    .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                ]),
+            .target(
+                name: "CodexBarMacroSupport",
+                dependencies: [
+                    "CodexBarMacros",
                 ]),
             .executableTarget(
                 name: "CodexBarCLI",
@@ -31,14 +58,14 @@ let package = Package(
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
                 ]),
-        .testTarget(
-            name: "CodexBarLinuxTests",
-            dependencies: ["CodexBarCore", "CodexBarCLI"],
-            path: "TestsLinux",
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency"),
-                .enableExperimentalFeature("SwiftTesting"),
-            ]),
+            .testTarget(
+                name: "CodexBarLinuxTests",
+                dependencies: ["CodexBarCore", "CodexBarCLI"],
+                path: "TestsLinux",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                    .enableExperimentalFeature("SwiftTesting"),
+                ]),
         ]
 
         #if os(macOS)
@@ -54,11 +81,13 @@ let package = Package(
                 name: "CodexBar",
                 dependencies: [
                     .product(name: "Sparkle", package: "Sparkle"),
+                    .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+                    "CodexBarMacroSupport",
                     "CodexBarCore",
                 ],
                 path: "Sources/CodexBar",
-                exclude: [
-                    "Resources",
+                resources: [
+                    .process("Resources"),
                 ],
                 swiftSettings: [
                     // Opt into Swift 6 strict concurrency (approachable migration path).

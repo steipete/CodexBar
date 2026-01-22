@@ -6,10 +6,16 @@ import SwiftUI
 
 // MARK: - Status item controller (AppKit-hosted icons, SwiftUI popovers)
 
-protocol StatusItemControlling: AnyObject {}
+@MainActor
+protocol StatusItemControlling: AnyObject {
+    func openMenuFromShortcut()
+}
 
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControlling {
+    // Disable SwiftUI menu cards + menu refresh work in tests to avoid swiftpm-testing-helper crashes.
+    static var menuCardRenderingEnabled = !SettingsStore.isRunningTests
+    static var menuRefreshEnabled = !SettingsStore.isRunningTests
     typealias Factory = (UsageStore, SettingsStore, AccountInfo, UpdaterProviding, PreferencesSelection)
         -> StatusItemControlling
     static let defaultFactory: Factory = { store, settings, account, updater, selection in
@@ -67,10 +73,16 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     let preferencesSelection: PreferencesSelection
-    var animationDisplayLink: CADisplayLink?
+    var animationDriver: DisplayLinkDriver?
     var animationPhase: Double = 0
     var animationPattern: LoadingPattern = .knightRider
-    let loginLogger = CodexBarLog.logger("login")
+    private var lastConfigRevision: Int
+    private var lastProviderOrder: [UsageProvider]
+    private var lastMergeIcons: Bool
+    private var lastSwitcherShowsIcons: Bool
+    /// Tracks which providers the merged menu's switcher was built with, to detect when it needs full rebuild.
+    var lastSwitcherProviders: [UsageProvider] = []
+    let loginLogger = CodexBarLog.logger(LogCategories.login)
     var selectedMenuProvider: UsageProvider? {
         get { self.settings.selectedMenuProvider }
         set { self.settings.selectedMenuProvider = newValue }
@@ -99,29 +111,48 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         case waitingBrowser
     }
 
+    func menuBarMetricWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
+        switch self.settings.menuBarMetricPreference(for: provider) {
+        case .primary:
+            return snapshot?.primary ?? snapshot?.secondary
+        case .secondary:
+            return snapshot?.secondary ?? snapshot?.primary
+        case .average:
+            guard let primary = snapshot?.primary, let secondary = snapshot?.secondary else {
+                return snapshot?.primary ?? snapshot?.secondary
+            }
+            let usedPercent = (primary.usedPercent + secondary.usedPercent) / 2
+            return RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        case .automatic:
+            if provider == .factory {
+                return snapshot?.secondary ?? snapshot?.primary
+            }
+            return snapshot?.primary ?? snapshot?.secondary
+        }
+    }
+
     init(
         store: UsageStore,
         settings: SettingsStore,
         account: AccountInfo,
         updater: UpdaterProviding,
-        preferencesSelection: PreferencesSelection)
+        preferencesSelection: PreferencesSelection,
+        statusBar: NSStatusBar = .system)
     {
         self.store = store
         self.settings = settings
         self.account = account
         self.updater = updater
         self.preferencesSelection = preferencesSelection
-        let bar = NSStatusBar.system
-        let item = bar.statusItem(withLength: NSStatusItem.variableLength)
+        self.lastConfigRevision = settings.configRevision
+        self.lastProviderOrder = settings.providerOrder
+        self.lastMergeIcons = settings.mergeIcons
+        self.lastSwitcherShowsIcons = settings.switcherShowsIcons
+        let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
         // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
         item.button?.imageScaling = .scaleNone
         self.statusItem = item
-        for provider in UsageProvider.allCases {
-            let providerItem = bar.statusItem(withLength: NSStatusItem.variableLength)
-            // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
-            providerItem.button?.imageScaling = .scaleNone
-            self.statusItems[provider] = providerItem
-        }
+        // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
         self.wireBindings()
         self.updateIcons()
@@ -135,6 +166,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self,
             selector: #selector(self.handleDebugBlinkNotification),
             name: .codexbarDebugBlinkNow,
+            object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.handleProviderConfigDidChange),
+            name: .codexbarProviderConfigDidChange,
             object: nil)
     }
 
@@ -179,11 +215,27 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeSettingsChanges()
-                self.invalidateMenus()
-                self.updateVisibility()
-                self.updateIcons()
+                self.handleSettingsChange(reason: "observation")
             }
         }
+    }
+
+    func handleProviderConfigChange(reason: String) {
+        self.handleSettingsChange(reason: "config:\(reason)")
+    }
+
+    @objc private func handleProviderConfigDidChange(_ notification: Notification) {
+        let reason = notification.userInfo?["reason"] as? String ?? "unknown"
+        if let source = notification.object as? SettingsStore,
+           source !== self.settings
+        {
+            if let config = notification.userInfo?["config"] as? CodexBarConfig {
+                self.settings.applyExternalConfig(config, reason: "external-\(reason)")
+            } else {
+                self.settings.reloadConfig(reason: "external-\(reason)")
+            }
+        }
+        self.handleProviderConfigChange(reason: "notification:\(reason)")
     }
 
     private func observeUpdaterChanges() {
@@ -200,30 +252,90 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     private func invalidateMenus() {
         self.menuContentVersion &+= 1
+        // Don't refresh menus while they're open - wait until they close and reopen
+        // This prevents expensive rebuilds while user is navigating the menu
+        guard self.openMenus.isEmpty else { return }
         self.refreshOpenMenusIfNeeded()
         Task { @MainActor in
             // AppKit can ignore menu mutations while tracking; retry on the next run loop.
             await Task.yield()
+            guard self.openMenus.isEmpty else { return }
+            self.refreshOpenMenusIfNeeded()
+        }
+    }
+
+    private func shouldRefreshOpenMenusForProviderSwitcher() -> Bool {
+        var shouldRefresh = false
+        let revision = self.settings.configRevision
+        if revision != self.lastConfigRevision {
+            self.lastConfigRevision = revision
+            shouldRefresh = true
+        }
+        let order = self.settings.providerOrder
+        if order != self.lastProviderOrder {
+            self.lastProviderOrder = order
+            shouldRefresh = true
+        }
+        let mergeIcons = self.settings.mergeIcons
+        if mergeIcons != self.lastMergeIcons {
+            self.lastMergeIcons = mergeIcons
+            shouldRefresh = true
+        }
+        let showsIcons = self.settings.switcherShowsIcons
+        if showsIcons != self.lastSwitcherShowsIcons {
+            self.lastSwitcherShowsIcons = showsIcons
+            shouldRefresh = true
+        }
+        return shouldRefresh
+    }
+
+    private func handleSettingsChange(reason: String) {
+        let configChanged = self.settings.configRevision != self.lastConfigRevision
+        let orderChanged = self.settings.providerOrder != self.lastProviderOrder
+        let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForProviderSwitcher()
+        self.invalidateMenus()
+        if orderChanged || configChanged {
+            self.rebuildProviderStatusItems()
+        }
+        self.updateVisibility()
+        self.updateIcons()
+        if shouldRefreshOpenMenus {
             self.refreshOpenMenusIfNeeded()
         }
     }
 
     private func updateIcons() {
+        // Avoid flicker: when an animation driver is active, store updates can call `updateIcons()` and
+        // briefly overwrite the animated frame with the static (phase=nil) icon.
+        let phase: Double? = self.needsMenuBarIconAnimation() ? self.animationPhase : nil
         if self.shouldMergeIcons {
-            self.applyIcon(phase: nil)
+            self.applyIcon(phase: phase)
             self.attachMenus()
         } else {
-            UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: nil) }
+            UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: phase) }
             self.attachMenus(fallback: self.fallbackProvider)
         }
         self.updateAnimationState()
         self.updateBlinkingState()
     }
 
+    /// Lazily retrieves or creates a status item for the given provider
+    func lazyStatusItem(for provider: UsageProvider) -> NSStatusItem {
+        if let existing = self.statusItems[provider] {
+            return existing
+        }
+        let bar = NSStatusBar.system
+        let item = bar.statusItem(withLength: NSStatusItem.variableLength)
+        item.button?.imageScaling = .scaleNone
+        self.statusItems[provider] = item
+        return item
+    }
+
     private func updateVisibility() {
         let anyEnabled = !self.store.enabledProviders().isEmpty
         let force = self.store.debugForceAnimation
-        if self.shouldMergeIcons {
+        let mergeIcons = self.shouldMergeIcons
+        if mergeIcons {
             self.statusItem.isVisible = anyEnabled || force
             for item in self.statusItems.values {
                 item.isVisible = false
@@ -233,9 +345,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.statusItem.isVisible = false
             let fallback = self.fallbackProvider
             for provider in UsageProvider.allCases {
-                let item = self.statusItems[provider]
                 let isEnabled = self.isEnabled(provider)
-                item?.isVisible = isEnabled || fallback == provider || force
+                let shouldBeVisible = isEnabled || fallback == provider || force
+                if shouldBeVisible {
+                    let item = self.lazyStatusItem(for: provider)
+                    item.isVisible = true
+                } else if let item = self.statusItems[provider] {
+                    item.isVisible = false
+                }
             }
             self.attachMenus(fallback: fallback)
         }
@@ -264,25 +381,55 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         if self.mergedMenu == nil {
             self.mergedMenu = self.makeMenu()
         }
-        self.statusItem.menu = self.mergedMenu
+        if self.statusItem.menu !== self.mergedMenu {
+            self.statusItem.menu = self.mergedMenu
+        }
     }
 
     private func attachMenus(fallback: UsageProvider? = nil) {
         for provider in UsageProvider.allCases {
-            guard let item = self.statusItems[provider] else { continue }
-            if self.isEnabled(provider) {
-                if self.providerMenus[provider] == nil {
-                    self.providerMenus[provider] = self.makeMenu(for: provider)
+            // Only access/create the status item if it's actually needed
+            let shouldHaveItem = self.isEnabled(provider) || fallback == provider
+
+            if shouldHaveItem {
+                let item = self.lazyStatusItem(for: provider)
+
+                if self.isEnabled(provider) {
+                    if self.providerMenus[provider] == nil {
+                        self.providerMenus[provider] = self.makeMenu(for: provider)
+                    }
+                    let menu = self.providerMenus[provider]
+                    if item.menu !== menu {
+                        item.menu = menu
+                    }
+                } else if fallback == provider {
+                    if self.fallbackMenu == nil {
+                        self.fallbackMenu = self.makeMenu(for: nil)
+                    }
+                    if item.menu !== self.fallbackMenu {
+                        item.menu = self.fallbackMenu
+                    }
                 }
-                item.menu = self.providerMenus[provider]
-            } else if fallback == provider {
-                if self.fallbackMenu == nil {
-                    self.fallbackMenu = self.makeMenu(for: nil)
+            } else if let item = self.statusItems[provider] {
+                // Item exists but is no longer needed - clear its menu
+                if item.menu != nil {
+                    item.menu = nil
                 }
-                item.menu = self.fallbackMenu
-            } else {
-                item.menu = nil
             }
+        }
+    }
+
+    private func rebuildProviderStatusItems() {
+        let bar = NSStatusBar.system
+        for item in self.statusItems.values {
+            bar.removeStatusItem(item)
+        }
+        self.statusItems.removeAll(keepingCapacity: true)
+
+        for provider in self.settings.orderedProviders() {
+            let item = bar.statusItem(withLength: NSStatusItem.variableLength)
+            item.button?.imageScaling = .scaleNone
+            self.statusItems[provider] = item
         }
     }
 
@@ -302,17 +449,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         case .requesting: base = "Requesting login…"
         case .waitingBrowser: base = "Waiting in browser…"
         }
-        let prefix = switch provider {
-        case .codex: "Codex"
-        case .claude: "Claude"
-        case .zai: "z.ai"
-        case .gemini: "Gemini"
-        case .antigravity: "Antigravity"
-        case .cursor: "Cursor"
-        case .factory: "Droid"
-        case .windsurf: "Windsurf"
-        case .copilot: "GitHub Copilot"
-        }
+        let prefix = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         return "\(prefix): \(base)"
     }
 

@@ -128,6 +128,7 @@ struct UsageBreakdownChartMenuView: View {
         let points: [Point]
         let breakdownByDayKey: [String: OpenAIDashboardDailyBreakdown]
         let dayDates: [(dayKey: String, date: Date)]
+        let selectableDayDates: [(dayKey: String, date: Date)]
         let peakPoint: (date: Date, creditsUsed: Double)?
         let services: [String]
         let serviceColors: [Color]
@@ -157,6 +158,9 @@ struct UsageBreakdownChartMenuView: View {
         var dayDates: [(dayKey: String, date: Date)] = []
         dayDates.reserveCapacity(sorted.count)
 
+        var selectableDayDates: [(dayKey: String, date: Date)] = []
+        selectableDayDates.reserveCapacity(sorted.count)
+
         var peak: (date: Date, creditsUsed: Double)?
         var maxCreditsUsed: Double = 0
 
@@ -172,8 +176,13 @@ struct UsageBreakdownChartMenuView: View {
                 }
                 maxCreditsUsed = max(maxCreditsUsed, day.totalCreditsUsed)
             }
+            var addedSelectable = false
             for service in day.services where service.creditsUsed > 0 {
                 points.append(Point(date: date, service: service.service, creditsUsed: service.creditsUsed))
+                if !addedSelectable {
+                    selectableDayDates.append((dayKey: day.day, date: date))
+                    addedSelectable = true
+                }
             }
         }
 
@@ -185,6 +194,7 @@ struct UsageBreakdownChartMenuView: View {
             points: points,
             breakdownByDayKey: breakdownByDayKey,
             dayDates: dayDates,
+            selectableDayDates: selectableDayDates,
             peakPoint: peak,
             services: services,
             serviceColors: colors,
@@ -280,6 +290,14 @@ struct UsageBreakdownChartMenuView: View {
         let xPrev = xForIndex(index - 1)
         let xNext = xForIndex(index + 1)
 
+        if model.dayDates.count <= 1 {
+            return CGRect(
+                x: plotFrame.origin.x,
+                y: plotFrame.origin.y,
+                width: plotFrame.width,
+                height: plotFrame.height)
+        }
+
         let leftInPlot: CGFloat = if let xPrev {
             (xPrev + x) / 2
         } else if let xNext {
@@ -326,9 +344,9 @@ struct UsageBreakdownChartMenuView: View {
     }
 
     private func nearestDayKey(to date: Date, model: Model) -> String? {
-        guard !model.dayDates.isEmpty else { return nil }
+        guard !model.selectableDayDates.isEmpty else { return nil }
         var best: (key: String, distance: TimeInterval)?
-        for entry in model.dayDates {
+        for entry in model.selectableDayDates {
             let dist = abs(entry.date.timeIntervalSince(date))
             if let cur = best {
                 if dist < cur.distance { best = (entry.dayKey, dist) }

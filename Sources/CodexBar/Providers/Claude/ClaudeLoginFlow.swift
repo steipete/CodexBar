@@ -18,7 +18,6 @@ extension StatusItemController {
         let outcome = self.describe(result.outcome)
         let length = result.output.count
         self.loginLogger.info("Claude login", metadata: ["outcome": outcome, "length": "\(length)"])
-        print("[CodexBar] Claude login outcome=\(outcome) len=\(length)")
         if case .success = result.outcome {
             self.postLoginNotification(for: .claude)
         }

@@ -12,6 +12,7 @@ struct OpenAIDashboardWebViewLease {
 @MainActor
 final class OpenAIDashboardWebViewCache {
     static let shared = OpenAIDashboardWebViewCache()
+    fileprivate static let log = CodexBarLog.logger(LogCategories.openAIWebview)
 
     private final class Entry {
         let webView: WKWebView
@@ -68,7 +69,9 @@ final class OpenAIDashboardWebViewCache {
             } catch {
                 entry.isBusy = false
                 entry.lastUsedAt = Date()
-                entry.host.hide()
+                entry.host.close()
+                self.entries.removeValue(forKey: key)
+                Self.log.warning("OpenAI webview prepare failed")
                 throw error
             }
 
@@ -79,8 +82,8 @@ final class OpenAIDashboardWebViewCache {
                     guard let self, let entry else { return }
                     entry.isBusy = false
                     entry.lastUsedAt = Date()
-                    entry.host.hide()
-                    self.prune(now: Date())
+                    entry.host.close()
+                    self.entries.removeValue(forKey: key)
                 })
         }
 
@@ -94,6 +97,7 @@ final class OpenAIDashboardWebViewCache {
         } catch {
             self.entries.removeValue(forKey: key)
             host.close()
+            Self.log.warning("OpenAI webview prepare failed")
             throw error
         }
 
@@ -104,14 +108,15 @@ final class OpenAIDashboardWebViewCache {
                 guard let self, let entry else { return }
                 entry.isBusy = false
                 entry.lastUsedAt = Date()
-                entry.host.hide()
-                self.prune(now: Date())
+                entry.host.close()
+                self.entries.removeValue(forKey: key)
             })
     }
 
     func evict(websiteDataStore: WKWebsiteDataStore) {
         let key = ObjectIdentifier(websiteDataStore)
         guard let entry = self.entries.removeValue(forKey: key) else { return }
+        Self.log.debug("OpenAI webview evicted")
         entry.host.close()
     }
 
@@ -122,12 +127,16 @@ final class OpenAIDashboardWebViewCache {
         for (key, entry) in expired {
             entry.host.close()
             self.entries.removeValue(forKey: key)
+            Self.log.debug("OpenAI webview pruned")
         }
     }
 
     private func makeWebView(websiteDataStore: WKWebsiteDataStore) -> (WKWebView, OffscreenWebViewHost) {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = websiteDataStore
+        if #available(macOS 14.0, *) {
+            config.preferences.inactiveSchedulingPolicy = .suspend
+        }
 
         let webView = WKWebView(frame: .zero, configuration: config)
         let host = OffscreenWebViewHost(webView: webView)
@@ -149,6 +158,7 @@ final class OpenAIDashboardWebViewCache {
 @MainActor
 private final class OffscreenWebViewHost {
     private let window: NSWindow
+    private weak var webView: WKWebView?
 
     init(webView: WKWebView) {
         // WebKit throttles timers/RAF aggressively when a WKWebView is not considered "visible".
@@ -178,19 +188,33 @@ private final class OffscreenWebViewHost {
         window.contentView = webView
 
         self.window = window
+        self.webView = webView
     }
 
     func show() {
+        OpenAIDashboardWebViewCache.log.debug("OpenAI webview show")
+        self.window.alphaValue = OpenAIDashboardFetcher.offscreenHostAlphaValue()
         self.window.orderFrontRegardless()
     }
 
     func hide() {
+        // Set alpha to 0 so WebKit recognizes the page as inactive and applies
+        // its scheduling policy (throttle/suspend), reducing CPU when idle.
+        OpenAIDashboardWebViewCache.log.debug("OpenAI webview hide")
+        self.window.alphaValue = 0.0
         self.window.orderOut(nil)
     }
 
     func close() {
-        self.window.orderOut(nil)
-        self.window.close()
+        OpenAIDashboardWebViewCache.log.debug("OpenAI webview close")
+        WebKitTeardown.scheduleCleanup(
+            owner: self,
+            window: self.window,
+            webView: self.webView,
+            closeWindow: { [window] in
+                window.orderOut(nil)
+                window.close()
+            })
     }
 }
 

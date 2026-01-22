@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 
 enum IconRenderer {
     private static let creditsCap: Double = 1000
@@ -66,6 +67,24 @@ enum IconRenderer {
 
     private static let iconCacheStore = IconCacheStore()
     private static let iconCacheLimit = 64
+    private static let morphBucketCount = 200
+    private static let morphCache = MorphCache(limit: 512)
+
+    private final class MorphCache: @unchecked Sendable {
+        private let cache = NSCache<NSNumber, NSImage>()
+
+        init(limit: Int) {
+            self.cache.countLimit = limit
+        }
+
+        func image(for key: NSNumber) -> NSImage? {
+            self.cache.object(forKey: key)
+        }
+
+        func set(_ image: NSImage, for key: NSNumber) {
+            self.cache.setObject(image, forKey: key)
+        }
+    }
 
     private struct RectPx: Hashable, Sendable {
         let x: Int
@@ -660,9 +679,14 @@ enum IconRenderer {
     /// Morph helper: unbraids a simplified knot into our bar icon.
     static func makeMorphIcon(progress: Double, style: IconStyle) -> NSImage {
         let clamped = max(0, min(progress, 1))
+        let key = self.morphCacheKey(progress: clamped, style: style)
+        if let cached = self.morphCache.image(for: key) {
+            return cached
+        }
         let image = self.renderImage {
             self.drawUnbraidMorph(t: clamped, style: style)
         }
+        self.morphCache.set(image, for: key)
         return image
     }
 
@@ -677,18 +701,16 @@ enum IconRenderer {
         return Int((clamped * 10).rounded())
     }
 
-    private static func styleKey(_ style: IconStyle) -> Int {
-        switch style {
-        case .codex: 0
-        case .claude: 1
-        case .zai: 2
-        case .gemini: 3
-        case .antigravity: 4
-        case .cursor: 5
-        case .combined: 6
-        case .factory: 7
-        case .windsurf: 8
+    private static let styleKeyLookup: [IconStyle: Int] = {
+        var lookup: [IconStyle: Int] = [:]
+        for (index, style) in IconStyle.allCases.enumerated() {
+            lookup[style] = index
         }
+        return lookup
+    }()
+
+    private static func styleKey(_ style: IconStyle) -> Int {
+        self.styleKeyLookup[style] ?? 0
     }
 
     private static func indicatorKey(_ indicator: ProviderStatusIndicator) -> Int {
@@ -700,6 +722,12 @@ enum IconRenderer {
         case .maintenance: 4
         case .unknown: 5
         }
+    }
+
+    private static func morphCacheKey(progress: Double, style: IconStyle) -> NSNumber {
+        let bucket = Int((progress * Double(self.morphBucketCount)).rounded())
+        let key = self.styleKey(style) * 1000 + bucket
+        return NSNumber(value: key)
     }
 
     private static func cachedIcon(for key: IconCacheKey) -> NSImage? {

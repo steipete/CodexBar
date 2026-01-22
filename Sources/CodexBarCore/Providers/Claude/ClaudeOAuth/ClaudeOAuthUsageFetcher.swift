@@ -17,7 +17,11 @@ public enum ClaudeOAuthFetchError: LocalizedError, Sendable {
             return "Claude OAuth response was invalid."
         case let .serverError(code, body):
             if let body, !body.isEmpty {
-                return "Claude OAuth error: HTTP \(code) – \(body)"
+                let cleaned = body
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let shortened = cleaned.count > 400 ? String(cleaned.prefix(400)) + "…" : cleaned
+                return "Claude OAuth error: HTTP \(code) – \(shortened)"
             }
             return "Claude OAuth error: HTTP \(code)"
         case let .networkError(error):
@@ -54,8 +58,11 @@ enum ClaudeOAuthUsageFetcher {
             switch http.statusCode {
             case 200:
                 return try Self.decodeUsageResponse(data)
-            case 401, 403:
+            case 401:
                 throw ClaudeOAuthFetchError.unauthorized
+            case 403:
+                let body = String(data: data, encoding: .utf8)
+                throw ClaudeOAuthFetchError.serverError(http.statusCode, body)
             default:
                 let body = String(data: data, encoding: .utf8)
                 throw ClaudeOAuthFetchError.serverError(http.statusCode, body)

@@ -121,7 +121,7 @@ struct CursorStatusProbeTests {
 
     @Test
     func prefersPlanRatioOverPercentField() {
-        let snapshot = CursorStatusProbe()
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
             .parseUsageSummary(
                 CursorUsageSummary(
                     billingCycleStart: nil,
@@ -143,14 +143,15 @@ struct CursorStatusProbeTests {
                             totalPercentUsed: 0.40625),
                         onDemand: nil),
                     teamUsage: nil),
-                userInfo: nil)
+                userInfo: nil,
+                rawJSON: nil)
 
         #expect(snapshot.planPercentUsed == 9.8)
     }
 
     @Test
     func usesPercentFieldWhenLimitMissing() {
-        let snapshot = CursorStatusProbe()
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
             .parseUsageSummary(
                 CursorUsageSummary(
                     billingCycleStart: nil,
@@ -172,7 +173,8 @@ struct CursorStatusProbeTests {
                             totalPercentUsed: 0.5),
                         onDemand: nil),
                     teamUsage: nil),
-                userInfo: nil)
+                userInfo: nil,
+                rawJSON: nil)
 
         #expect(snapshot.planPercentUsed == 50.0)
     }
@@ -195,13 +197,14 @@ struct CursorStatusProbeTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
-        #expect(usageSnapshot.primary.usedPercent == 45.0)
-        #expect(usageSnapshot.accountEmail == "user@example.com")
-        #expect(usageSnapshot.loginMethod == "Cursor Pro")
+        #expect(usageSnapshot.primary?.usedPercent == 45.0)
+        #expect(usageSnapshot.accountEmail(for: .cursor) == "user@example.com")
+        #expect(usageSnapshot.loginMethod(for: .cursor) == "Cursor Pro")
         #expect(usageSnapshot.secondary != nil)
+        // Uses individual on-demand values (what users see in their dashboard)
         #expect(usageSnapshot.secondary?.usedPercent == 5.0)
-        #expect(usageSnapshot.providerCost?.used == 25.0)
-        #expect(usageSnapshot.providerCost?.limit == 500.0)
+        #expect(usageSnapshot.providerCost?.used == 5.0)
+        #expect(usageSnapshot.providerCost?.limit == 100.0)
         #expect(usageSnapshot.providerCost?.currencyCode == "USD")
     }
 
@@ -254,7 +257,7 @@ struct CursorStatusProbeTests {
                 rawJSON: nil)
 
             let usageSnapshot = snapshot.toUsageSnapshot()
-            #expect(usageSnapshot.loginMethod == testCase.expected)
+            #expect(usageSnapshot.loginMethod(for: .cursor) == testCase.expected)
         }
     }
 
@@ -282,6 +285,125 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.providerCost?.limit == 0.0)
         // Secondary should be nil when no on-demand limit
         #expect(usageSnapshot.secondary == nil)
+    }
+
+    // MARK: - Legacy Request-Based Plan
+
+    @Test
+    func parsesLegacyRequestBasedPlan() {
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 100.0,
+            planUsedUSD: 0,
+            planLimitUSD: 0,
+            onDemandUsedUSD: 43.64,
+            onDemandLimitUSD: 200.0,
+            teamOnDemandUsedUSD: 92.91,
+            teamOnDemandLimitUSD: 20000.0,
+            billingCycleEnd: nil,
+            membershipType: "enterprise",
+            accountEmail: "user@company.com",
+            accountName: "Test User",
+            rawJSON: nil,
+            requestsUsed: 500,
+            requestsLimit: 500)
+
+        #expect(snapshot.isLegacyRequestPlan == true)
+        #expect(snapshot.requestsUsed == 500)
+        #expect(snapshot.requestsLimit == 500)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        #expect(usageSnapshot.cursorRequests != nil)
+        #expect(usageSnapshot.cursorRequests?.used == 500)
+        #expect(usageSnapshot.cursorRequests?.limit == 500)
+        #expect(usageSnapshot.cursorRequests?.usedPercent == 100.0)
+        #expect(usageSnapshot.cursorRequests?.remainingPercent == 0.0)
+
+        // Primary RateWindow should use request-based percentage for legacy plans
+        #expect(usageSnapshot.primary?.usedPercent == 100.0)
+    }
+
+    @Test
+    func legacyPlanPrimaryUsesRequestsNotDollars() {
+        // Regression: Legacy plans report planPercentUsed as 0 while requests are used
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 0.0, // Dollar-based shows 0
+            planUsedUSD: 0,
+            planLimitUSD: 0,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "enterprise",
+            accountEmail: "user@company.com",
+            accountName: nil,
+            rawJSON: nil,
+            requestsUsed: 250,
+            requestsLimit: 500)
+
+        #expect(snapshot.isLegacyRequestPlan == true)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        // Primary should reflect request usage (50%), not dollar usage (0%)
+        #expect(usageSnapshot.primary?.usedPercent == 50.0)
+        #expect(usageSnapshot.cursorRequests?.usedPercent == 50.0)
+    }
+
+    @Test
+    func parseUsageSummaryPrefersRequestTotal() {
+        let summary = CursorUsageSummary(
+            billingCycleStart: nil,
+            billingCycleEnd: nil,
+            membershipType: nil,
+            limitType: nil,
+            isUnlimited: nil,
+            autoModelSelectedDisplayMessage: nil,
+            namedModelSelectedDisplayMessage: nil,
+            individualUsage: nil,
+            teamUsage: nil)
+        let requestUsage = CursorUsageResponse(
+            gpt4: CursorModelUsage(
+                numRequests: 120,
+                numRequestsTotal: 240,
+                numTokens: nil,
+                maxRequestUsage: 500,
+                maxTokenUsage: nil),
+            startOfMonth: nil)
+
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0)).parseUsageSummary(
+            summary,
+            userInfo: nil,
+            rawJSON: nil,
+            requestUsage: requestUsage)
+
+        #expect(snapshot.requestsUsed == 240)
+        #expect(snapshot.requestsLimit == 500)
+    }
+
+    @Test
+    func detectsNonLegacyPlan() {
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 50.0,
+            planUsedUSD: 25.0,
+            planLimitUSD: 50.0,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: 100.0,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+
+        #expect(snapshot.isLegacyRequestPlan == false)
+        #expect(snapshot.requestsUsed == nil)
+        #expect(snapshot.requestsLimit == nil)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+        #expect(usageSnapshot.cursorRequests == nil)
     }
 
     // MARK: - Session Store Serialization
@@ -345,5 +467,63 @@ struct CursorStatusProbeTests {
             "CURSOR_COOKIE": "WorkosCursorSessionToken=token123",
         ])
         #expect(header == "WorkosCursorSessionToken=token123")
+    }
+
+    @Test
+    func sessionStoreReloadsFromDiskWhenNeeded() async throws {
+        let store = CursorSessionStore.shared
+        await store.resetForTesting()
+
+        let cookieProps: [HTTPCookiePropertyKey: Any] = [
+            .name: "diskCookie",
+            .value: "diskValue",
+            .domain: "cursor.com",
+            .path: "/",
+            .expires: Date(timeIntervalSince1970: 1_800_000_000),
+            .secure: true,
+        ]
+
+        guard let cookie = HTTPCookie(properties: cookieProps) else {
+            Issue.record("Failed to create test cookie")
+            return
+        }
+
+        await store.setCookies([cookie])
+        await store.resetForTesting(clearDisk: false)
+
+        let reloaded = await store.getCookies()
+        #expect(reloaded.count == 1)
+        #expect(reloaded.first?.name == "diskCookie")
+        #expect(reloaded.first?.value == "diskValue")
+
+        await store.clearCookies()
+    }
+
+    @Test
+    func sessionStoreHasValidSessionLoadsFromDisk() async throws {
+        let store = CursorSessionStore.shared
+        await store.resetForTesting()
+
+        let cookieProps: [HTTPCookiePropertyKey: Any] = [
+            .name: "validCookie",
+            .value: "validValue",
+            .domain: "cursor.com",
+            .path: "/",
+            .expires: Date(timeIntervalSince1970: 1_800_000_000),
+            .secure: true,
+        ]
+
+        guard let cookie = HTTPCookie(properties: cookieProps) else {
+            Issue.record("Failed to create test cookie")
+            return
+        }
+
+        await store.setCookies([cookie])
+        await store.resetForTesting(clearDisk: false)
+
+        let hasSession = await store.hasValidSession()
+        #expect(hasSession)
+
+        await store.clearCookies()
     }
 }

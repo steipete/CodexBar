@@ -46,11 +46,13 @@ public enum ClaudeStatusProbeError: LocalizedError, Sendable {
 public struct ClaudeStatusProbe: Sendable {
     public var claudeBinary: String = "claude"
     public var timeout: TimeInterval = 20.0
-    private static let log = CodexBarLog.logger("claude-probe")
+    public var keepCLISessionsAlive: Bool = false
+    private static let log = CodexBarLog.logger(LogCategories.claudeProbe)
 
-    public init(claudeBinary: String = "claude", timeout: TimeInterval = 20.0) {
+    public init(claudeBinary: String = "claude", timeout: TimeInterval = 20.0, keepCLISessionsAlive: Bool = false) {
         self.claudeBinary = claudeBinary
         self.timeout = timeout
+        self.keepCLISessionsAlive = keepCLISessionsAlive
     }
 
     public func fetch() async throws -> ClaudeStatusSnapshot {
@@ -64,16 +66,27 @@ public struct ClaudeStatusProbe: Sendable {
 
         // Run commands sequentially through a shared Claude session to avoid warm-up churn.
         let timeout = self.timeout
-        let usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: timeout)
-        let status = try? await Self.capture(subcommand: "/status", binary: resolved, timeout: min(timeout, 12))
-        let snap = try Self.parse(text: usage, statusText: status)
+        let keepAlive = self.keepCLISessionsAlive
+        do {
+            let usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: timeout)
+            let status = try? await Self.capture(subcommand: "/status", binary: resolved, timeout: min(timeout, 12))
+            let snap = try Self.parse(text: usage, statusText: status)
 
-        Self.log.info("Claude CLI scrape ok", metadata: [
-            "sessionPercentLeft": "\(snap.sessionPercentLeft ?? -1)",
-            "weeklyPercentLeft": "\(snap.weeklyPercentLeft ?? -1)",
-            "opusPercentLeft": "\(snap.opusPercentLeft ?? -1)",
-        ])
-        return snap
+            Self.log.info("Claude CLI scrape ok", metadata: [
+                "sessionPercentLeft": "\(snap.sessionPercentLeft ?? -1)",
+                "weeklyPercentLeft": "\(snap.weeklyPercentLeft ?? -1)",
+                "opusPercentLeft": "\(snap.opusPercentLeft ?? -1)",
+            ])
+            if !keepAlive {
+                await ClaudeCLISession.shared.reset()
+            }
+            return snap
+        } catch {
+            if !keepAlive {
+                await ClaudeCLISession.shared.reset()
+            }
+            throw error
+        }
     }
 
     // MARK: - Parsing helpers
@@ -204,7 +217,7 @@ public struct ClaudeStatusProbe: Sendable {
             // so scan a larger window than the original 3–4 lines.
             let window = lines.dropFirst(idx).prefix(12)
             for candidate in window {
-                if let pct = percentFromLine(candidate) { return pct }
+                if let pct = self.percentFromLine(candidate) { return pct }
             }
         }
         return nil
@@ -217,19 +230,27 @@ public struct ClaudeStatusProbe: Sendable {
         return nil
     }
 
-    private static func percentFromLine(_ line: String) -> Int? {
+    private static func percentFromLine(_ line: String, assumeRemainingWhenUnclear: Bool = false) -> Int? {
         // Allow optional Unicode whitespace before % to handle CLI formatting changes.
-        let pattern = #"([0-9]{1,3})\p{Zs}*%\s*(used|left)"#
+        let pattern = #"([0-9]{1,3}(?:\.[0-9]+)?)\p{Zs}*%"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
         let range = NSRange(line.startIndex..<line.endIndex, in: line)
         guard let match = regex.firstMatch(in: line, options: [], range: range),
-              match.numberOfRanges >= 3,
-              let valRange = Range(match.range(at: 1), in: line),
-              let kindRange = Range(match.range(at: 2), in: line)
+              match.numberOfRanges >= 2,
+              let valRange = Range(match.range(at: 1), in: line)
         else { return nil }
-        let rawVal = Int(line[valRange]) ?? 0
-        let isUsed = line[kindRange].lowercased().contains("used")
-        return isUsed ? max(0, 100 - rawVal) : rawVal
+        let rawVal = Double(line[valRange]) ?? 0
+        let clamped = max(0, min(100, rawVal))
+        let lower = line.lowercased()
+        let usedKeywords = ["used", "spent", "consumed"]
+        let remainingKeywords = ["left", "remaining", "available"]
+        if usedKeywords.contains(where: lower.contains) {
+            return Int(max(0, min(100, 100 - clamped)).rounded())
+        }
+        if remainingKeywords.contains(where: lower.contains) {
+            return Int(clamped.rounded())
+        }
+        return assumeRemainingWhenUnclear ? Int(clamped.rounded()) : nil
     }
 
     private static func extractFirst(pattern: String, text: String) -> String? {
@@ -328,21 +349,8 @@ public struct ClaudeStatusProbe: Sendable {
 
     // Collect remaining percentages in the order they appear; used as a backup when labels move/rename.
     private static func allPercents(_ text: String) -> [Int] {
-        let pat = #"([0-9]{1,3})\p{Zs}*%\s*(left|used)"#
-        guard let regex = try? NSRegularExpression(pattern: pat, options: [.caseInsensitive]) else { return [] }
-        let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
-        var results: [Int] = []
-        regex.enumerateMatches(in: text, options: [], range: nsrange) { match, _, _ in
-            guard let match,
-                  match.numberOfRanges >= 3,
-                  let valRange = Range(match.range(at: 1), in: text),
-                  let kindRange = Range(match.range(at: 2), in: text),
-                  let val = Int(text[valRange]) else { return }
-            let kind = text[kindRange].lowercased()
-            let remaining = kind.contains("used") ? max(0, 100 - val) : max(0, min(val, 100))
-            results.append(remaining)
-        }
-        return results
+        let lines = text.components(separatedBy: .newlines)
+        return lines.compactMap { self.percentFromLine($0, assumeRemainingWhenUnclear: true) }
     }
 
     private static func extractReset(labelSubstring: String, context: LabelSearchContext) -> String? {
@@ -587,7 +595,9 @@ public struct ClaudeStatusProbe: Sendable {
         }
 
         let jsonString = String(text[jsonRange])
-        guard let data = jsonString.data(using: .utf8),
+        let compactJSON = jsonString.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "")
+        let data = (compactJSON.isEmpty ? jsonString : compactJSON).data(using: .utf8)
+        guard let data,
               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let error = payload["error"] as? [String: Any]
         else {
@@ -629,16 +639,24 @@ public struct ClaudeStatusProbe: Sendable {
 
     // Run claude CLI inside a PTY so we can respond to interactive permission prompts.
     private static func capture(subcommand: String, binary: String, timeout: TimeInterval) async throws -> String {
-        let stopOnSubstrings = subcommand == "/usage" ? ["Current session"] : []
+        let stopOnSubstrings = subcommand == "/usage"
+            ? [
+                "Current session",
+                "Failed to load usage data",
+                "failed to load usage data",
+            ]
+            : []
+        let idleTimeout: TimeInterval? = subcommand == "/usage" ? nil : 3.0
+        let sendEnterEvery: TimeInterval? = subcommand == "/usage" ? 0.8 : nil
         do {
             return try await ClaudeCLISession.shared.capture(
                 subcommand: subcommand,
                 binary: binary,
                 timeout: timeout,
-                idleTimeout: 3.0,
+                idleTimeout: idleTimeout,
                 stopOnSubstrings: stopOnSubstrings,
                 settleAfterStop: subcommand == "/usage" ? 2.0 : 0.25,
-                sendEnterEvery: nil)
+                sendEnterEvery: sendEnterEvery)
         } catch ClaudeCLISession.SessionError.processExited {
             await ClaudeCLISession.shared.reset()
             throw ClaudeStatusProbeError.timedOut

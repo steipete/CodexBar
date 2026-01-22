@@ -7,7 +7,7 @@ final class AppNotifications {
     static let shared = AppNotifications()
 
     private let centerProvider: @Sendable () -> UNUserNotificationCenter
-    private let logger = CodexBarLog.logger("notifications")
+    private let logger = CodexBarLog.logger(LogCategories.notifications)
     private var authorizationTask: Task<Bool, Never>?
 
     init(centerProvider: @escaping @Sendable () -> UNUserNotificationCenter = { UNUserNotificationCenter.current() }) {
@@ -95,6 +95,11 @@ final class AppNotifications {
     }
 
     private static var isRunningUnderTests: Bool {
+        // Swift Testing doesn't always set XCTest env vars, and removing XCTest imports from
+        // the test target can make NSClassFromString("XCTestCase") return nil. If we're not
+        // running inside an app bundle, treat it as "tests/headless" to avoid crashes when
+        // accessing UNUserNotificationCenter.
+        if Bundle.main.bundleURL.pathExtension != "app" { return true }
         let env = ProcessInfo.processInfo.environment
         if env["XCTestConfigurationFilePath"] != nil { return true }
         if env["TESTING_LIBRARY_VERSION"] != nil { return true }

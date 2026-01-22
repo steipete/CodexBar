@@ -1,15 +1,52 @@
 import Foundation
+import SweetCookieKit
 
+// swiftformat:disable sortDeclarations
 public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case codex
     case claude
-    case factory
-    case zai
     case cursor
+    case opencode
+    case factory
     case gemini
     case antigravity
-    case windsurf
     case copilot
+    case zai
+    case minimax
+    case kimi
+    case kiro
+    case vertexai
+    case augment
+    case jetbrains
+    case kimik2
+    case amp
+    case synthetic
+    case windsurf
+}
+
+// swiftformat:enable sortDeclarations
+
+public enum IconStyle: Sendable, CaseIterable {
+    case codex
+    case claude
+    case zai
+    case minimax
+    case gemini
+    case antigravity
+    case cursor
+    case opencode
+    case factory
+    case copilot
+    case kimi
+    case kimik2
+    case kiro
+    case vertexai
+    case augment
+    case jetbrains
+    case amp
+    case synthetic
+    case windsurf
+    case combined
 }
 
 public struct ProviderMetadata: Sendable {
@@ -24,6 +61,8 @@ public struct ProviderMetadata: Sendable {
     public let toggleTitle: String
     public let cliName: String
     public let defaultEnabled: Bool
+    public let isPrimaryProvider: Bool
+    public let usesAccountFallback: Bool
     public let browserCookieOrder: BrowserCookieImportOrder?
     public let dashboardURL: String?
     public let subscriptionDashboardURL: String?
@@ -46,6 +85,8 @@ public struct ProviderMetadata: Sendable {
         toggleTitle: String,
         cliName: String,
         defaultEnabled: Bool,
+        isPrimaryProvider: Bool = false,
+        usesAccountFallback: Bool = false,
         browserCookieOrder: BrowserCookieImportOrder? = nil,
         dashboardURL: String?,
         subscriptionDashboardURL: String? = nil,
@@ -64,6 +105,8 @@ public struct ProviderMetadata: Sendable {
         self.toggleTitle = toggleTitle
         self.cliName = cliName
         self.defaultEnabled = defaultEnabled
+        self.isPrimaryProvider = isPrimaryProvider
+        self.usesAccountFallback = usesAccountFallback
         self.browserCookieOrder = browserCookieOrder
         self.dashboardURL = dashboardURL
         self.subscriptionDashboardURL = subscriptionDashboardURL
@@ -74,146 +117,21 @@ public struct ProviderMetadata: Sendable {
 }
 
 public enum ProviderDefaults {
-    public static let metadata: [UsageProvider: ProviderMetadata] = [
-        .codex: ProviderMetadata(
-            id: .codex,
-            displayName: "Codex",
-            sessionLabel: "Session",
-            weeklyLabel: "Weekly",
-            opusLabel: nil,
-            supportsOpus: false,
-            supportsCredits: true,
-            creditsHint: "Credits unavailable; keep Codex running to refresh.",
-            toggleTitle: "Show Codex usage",
-            cliName: "codex",
-            defaultEnabled: true,
-            browserCookieOrder: .safariChromeFirefox,
-            dashboardURL: "https://chatgpt.com/codex/settings/usage",
-            statusPageURL: "https://status.openai.com/"),
-        .claude: ProviderMetadata(
-            id: .claude,
-            displayName: "Claude",
-            sessionLabel: "Session",
-            weeklyLabel: "Weekly",
-            opusLabel: "Sonnet",
-            supportsOpus: true,
-            supportsCredits: false,
-            creditsHint: "",
-            toggleTitle: "Show Claude Code usage",
-            cliName: "claude",
-            defaultEnabled: false,
-            browserCookieOrder: .safariChromeFirefox,
-            dashboardURL: "https://console.anthropic.com/settings/billing",
-            subscriptionDashboardURL: "https://claude.ai/settings/usage",
-            statusPageURL: "https://status.claude.com/"),
-        .zai: ProviderMetadata(
-            id: .zai,
-            displayName: "z.ai",
-            sessionLabel: "Tokens",
-            weeklyLabel: "MCP",
-            opusLabel: nil,
-            supportsOpus: false,
-            supportsCredits: false,
-            creditsHint: "",
-            toggleTitle: "Show z.ai usage",
-            cliName: "zai",
-            defaultEnabled: false,
-            dashboardURL: "https://z.ai/manage-apikey/subscription",
-            statusPageURL: nil),
-        .cursor: ProviderMetadata(
-            id: .cursor,
-            displayName: "Cursor",
-            sessionLabel: "Plan",
-            weeklyLabel: "On-Demand",
-            opusLabel: nil,
-            supportsOpus: false,
-            supportsCredits: true,
-            creditsHint: "On-demand usage beyond included plan limits.",
-            toggleTitle: "Show Cursor usage",
-            cliName: "cursor",
-            defaultEnabled: false,
-            browserCookieOrder: .safariChromeFirefox,
-            dashboardURL: "https://cursor.com/dashboard?tab=usage",
-            statusPageURL: "https://status.cursor.com",
-            statusLinkURL: nil),
-        .gemini: ProviderMetadata(
-            id: .gemini,
-            displayName: "Gemini",
-            sessionLabel: "Pro",
-            weeklyLabel: "Flash",
-            opusLabel: nil,
-            supportsOpus: false,
-            supportsCredits: false,
-            creditsHint: "",
-            toggleTitle: "Show Gemini usage",
-            cliName: "gemini",
-            defaultEnabled: false,
-            dashboardURL: "https://gemini.google.com",
-            statusPageURL: nil,
-            statusLinkURL: "https://www.google.com/appsstatus/dashboard/products/npdyhgECDJ6tB66MxXyo/history",
-            statusWorkspaceProductID: "npdyhgECDJ6tB66MxXyo"),
-        .antigravity: ProviderMetadata(
-            id: .antigravity,
-            displayName: "Antigravity",
-            sessionLabel: "Claude",
-            weeklyLabel: "Gemini Pro",
-            opusLabel: "Gemini Flash",
-            supportsOpus: true,
-            supportsCredits: false,
-            creditsHint: "",
-            toggleTitle: "Show Antigravity usage (experimental)",
-            cliName: "antigravity",
-            defaultEnabled: false,
-            dashboardURL: nil,
-            statusPageURL: nil,
-            statusLinkURL: "https://www.google.com/appsstatus/dashboard/products/npdyhgECDJ6tB66MxXyo/history",
-            statusWorkspaceProductID: "npdyhgECDJ6tB66MxXyo"),
-        .factory: ProviderMetadata(
-            id: .factory,
-            displayName: "Droid",
-            sessionLabel: "Standard",
-            weeklyLabel: "Premium",
-            opusLabel: nil,
-            supportsOpus: false,
-            supportsCredits: false,
-            creditsHint: "",
-            toggleTitle: "Show Droid usage",
-            cliName: "factory",
-            defaultEnabled: false,
-            browserCookieOrder: .safariChromeFirefox,
-            dashboardURL: "https://app.factory.ai/settings/billing",
-            statusPageURL: "https://status.factory.ai",
-            statusLinkURL: nil),
-        .windsurf: ProviderMetadata(
-            id: .windsurf,
-            displayName: "Windsurf",
-            sessionLabel: "Credits",
-            weeklyLabel: "Usage",
-            opusLabel: nil,
-            supportsOpus: false,
-            supportsCredits: true,
-            creditsHint: "Prompt credits used this billing cycle.",
-            toggleTitle: "Show Windsurf usage",
-            cliName: "windsurf",
-            defaultEnabled: false,
-            browserCookieOrder: .safariChromeFirefox,
-            dashboardURL: "https://windsurf.com/subscription/usage",
-            statusPageURL: nil,
-            statusLinkURL: "https://status.codeium.com"),
-        .copilot: ProviderMetadata(
-            id: .copilot,
-            displayName: "GitHub Copilot",
-            sessionLabel: "Premium requests",
-            weeklyLabel: "Usage",
-            opusLabel: nil,
-            supportsOpus: false,
-            supportsCredits: false,
-            creditsHint: "",
-            toggleTitle: "Show GitHub Copilot usage",
-            cliName: "copilot",
-            defaultEnabled: false,
-            browserCookieOrder: .safariChromeFirefox,
-            dashboardURL: "https://github.com/settings/copilot",
-            statusPageURL: "https://www.githubstatus.com"),
-    ]
+    public static func getMetadata() -> [UsageProvider: ProviderMetadata] {
+        ProviderDescriptorRegistry.metadata
+    }
+
+    public static var metadata: [UsageProvider: ProviderMetadata] {
+        getMetadata()
+    }
+}
+
+public enum ProviderBrowserCookieDefaults {
+    public static var defaultImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        Browser.defaultImportOrder
+        #else
+        nil
+        #endif
+    }
 }

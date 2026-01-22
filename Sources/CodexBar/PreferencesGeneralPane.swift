@@ -29,20 +29,20 @@ struct GeneralPane: View {
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
 
-                    VStack(alignment: .leading, spacing: 5.4) {
-                        Toggle(isOn: self.$settings.ccusageCostUsageEnabled) {
-                            Text("Show cost summary")
-                                .font(.body)
-                        }
-                        .toggleStyle(.checkbox)
+                    VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle(isOn: self.$settings.costUsageEnabled) {
+                                Text("Show cost summary")
+                                    .font(.body)
+                            }
+                            .toggleStyle(.checkbox)
 
-                        VStack(alignment: .leading, spacing: 2) {
                             Text("Reads local usage logs. Shows today + last 30 days cost in the menu.")
                                 .font(.footnote)
                                 .foregroundStyle(.tertiary)
                                 .fixedSize(horizontal: false, vertical: true)
 
-                            if self.settings.ccusageCostUsageEnabled {
+                            if self.settings.costUsageEnabled {
                                 Text("Auto-refresh: hourly · Timeout: 10m")
                                     .font(.footnote)
                                     .foregroundStyle(.tertiary)
@@ -57,24 +57,40 @@ struct GeneralPane: View {
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {
-                    Text("Status")
+                    Text("Automation")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Refresh cadence")
+                                    .font(.body)
+                                Text("How often CodexBar polls providers in the background.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Picker("Refresh cadence", selection: self.$settings.refreshFrequency) {
+                                ForEach(RefreshFrequency.allCases) { option in
+                                    Text(option.label).tag(option)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 200)
+                        }
+                        if self.settings.refreshFrequency == .manual {
+                            Text("Auto-refresh is off; use the menu's Refresh command.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     PreferenceToggleRow(
                         title: "Check provider status",
                         subtitle: "Polls OpenAI/Claude status pages and Google Workspace for " +
                             "Gemini/Antigravity, surfacing incidents in the icon and menu.",
                         binding: self.$settings.statusChecksEnabled)
-                }
-
-                Divider()
-
-                SettingsSection(contentSpacing: 12) {
-                    Text("Notifications")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
                     PreferenceToggleRow(
                         title: "Session quota notifications",
                         subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +
@@ -100,26 +116,7 @@ struct GeneralPane: View {
     }
 
     private func costStatusLine(provider: UsageProvider) -> some View {
-        let name = switch provider {
-        case .claude:
-            "Claude"
-        case .codex:
-            "Codex"
-        case .zai:
-            "z.ai"
-        case .gemini:
-            "Gemini"
-        case .antigravity:
-            "Antigravity"
-        case .cursor:
-            "Cursor"
-        case .factory:
-            "Droid"
-        case .windsurf:
-            "Windsurf"
-        case .copilot:
-            "GitHub Copilot"
-        }
+        let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         guard provider == .claude || provider == .codex else {
             return Text("\(name): unsupported")
                 .font(.footnote)

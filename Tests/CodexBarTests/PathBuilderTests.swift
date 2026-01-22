@@ -33,6 +33,19 @@ struct PathBuilderTests {
     }
 
     @Test
+    func debugSnapshotAsyncMatchesSync() async {
+        let env = [
+            "CODEX_CLI_PATH": "/usr/bin/true",
+            "CLAUDE_CLI_PATH": "/usr/bin/true",
+            "GEMINI_CLI_PATH": "/usr/bin/true",
+            "PATH": "/usr/bin:/bin",
+        ]
+        let sync = PathBuilder.debugSnapshot(purposes: [.rpc], env: env, home: "/tmp")
+        let async = await PathBuilder.debugSnapshotAsync(purposes: [.rpc], env: env, home: "/tmp")
+        #expect(async == sync)
+    }
+
+    @Test
     func resolvesCodexFromEnvOverride() {
         let overridePath = "/custom/bin/codex"
         let fm = MockFileManager(executables: [overridePath])
