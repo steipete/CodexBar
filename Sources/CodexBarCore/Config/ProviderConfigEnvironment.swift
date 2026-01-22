@@ -21,6 +21,8 @@ public enum ProviderConfigEnvironment {
             }
         case .synthetic:
             env[SyntheticSettingsReader.apiKeyKey] = apiKey
+        case .firmware:
+            env[FirmwareSettingsReader.apiKeyKey] = apiKey
         default:
             break
         }
