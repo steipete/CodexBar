@@ -39,6 +39,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var menuProviders: [ObjectIdentifier: UsageProvider] = [:]
     var menuContentVersion: Int = 0
     var menuVersions: [ObjectIdentifier: Int] = [:]
+    var cliproxyapiAccountSelections: [String: String] = [:]
     var mergedMenu: NSMenu?
     var providerMenus: [UsageProvider: NSMenu] = [:]
     var fallbackMenu: NSMenu?

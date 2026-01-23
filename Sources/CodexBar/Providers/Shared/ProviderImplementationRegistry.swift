@@ -17,6 +17,7 @@ enum ProviderImplementationRegistry {
         case .cursor: CursorProviderImplementation()
         case .opencode: OpenCodeProviderImplementation()
         case .factory: FactoryProviderImplementation()
+        case .cliproxyapi: CLIProxyAPIProviderImplementation()
         case .gemini: GeminiProviderImplementation()
         case .antigravity: AntigravityProviderImplementation()
         case .copilot: CopilotProviderImplementation()

@@ -614,12 +614,18 @@ extension UsageMenuCardView.Model {
     }
 
     static func make(_ input: Input) -> UsageMenuCardView.Model {
+        let override = Self.cliproxyapiOverrides(input)
+        let effectiveProvider = override.provider ?? input.provider
+        let labelMetadata = override.metadata ?? input.metadata
         let planText = Self.plan(
             for: input.provider,
             snapshot: input.snapshot,
             account: input.account,
             metadata: input.metadata)
-        let metrics = Self.metrics(input: input)
+        let metrics = Self.metrics(
+            input: input,
+            labelProvider: effectiveProvider,
+            labelMetadata: labelMetadata)
         let creditsText: String? = if input.provider == .codex, !input.showOptionalCreditsAndExtraUsage {
             nil
         } else {
@@ -642,8 +648,9 @@ extension UsageMenuCardView.Model {
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
         let placeholder = input.snapshot == nil && !input.isRefreshing && input.lastError == nil ? "No usage yet" : nil
 
+        let providerName = override.displayName ?? input.metadata.displayName
         return UsageMenuCardView.Model(
-            providerName: input.metadata.displayName,
+            providerName: providerName,
             email: redacted.email,
             subtitleText: redacted.subtitleText,
             subtitleStyle: subtitle.style,
@@ -656,7 +663,7 @@ extension UsageMenuCardView.Model {
             providerCost: providerCost,
             tokenUsage: tokenUsage,
             placeholder: placeholder,
-            progressColor: Self.progressColor(for: input.provider))
+            progressColor: Self.progressColor(for: effectiveProvider))
     }
 
     private static func email(
@@ -754,22 +761,26 @@ extension UsageMenuCardView.Model {
         return hidePersonalInfo ? "" : dashboardError
     }
 
-    private static func metrics(input: Input) -> [Metric] {
+    private static func metrics(
+        input: Input,
+        labelProvider: UsageProvider,
+        labelMetadata: ProviderMetadata) -> [Metric]
+    {
         guard let snapshot = input.snapshot else { return [] }
         var metrics: [Metric] = []
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
-        let zaiUsage = input.provider == .zai ? snapshot.zaiUsage : nil
+        let zaiUsage = labelProvider == .zai ? snapshot.zaiUsage : nil
         let zaiTokenDetail = Self.zaiLimitDetailText(limit: zaiUsage?.tokenLimit)
         let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
         if let primary = snapshot.primary {
             metrics.append(Metric(
                 id: "primary",
-                title: input.metadata.sessionLabel,
+                title: labelMetadata.sessionLabel,
                 percent: Self.clamped(
                     input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now),
-                detailText: input.provider == .zai ? zaiTokenDetail : nil,
+                detailText: labelProvider == .zai ? zaiTokenDetail : nil,
                 detailLeftText: nil,
                 detailRightText: nil,
                 pacePercent: nil,
@@ -777,26 +788,26 @@ extension UsageMenuCardView.Model {
         }
         if let weekly = snapshot.secondary {
             let paceDetail = Self.weeklyPaceDetail(
-                provider: input.provider,
+                provider: labelProvider,
                 window: weekly,
                 now: input.now,
                 showUsed: input.usageBarsShowUsed)
             metrics.append(Metric(
                 id: "secondary",
-                title: input.metadata.weeklyLabel,
+                title: labelMetadata.weeklyLabel,
                 percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now),
-                detailText: input.provider == .zai ? zaiTimeDetail : nil,
+                detailText: labelProvider == .zai ? zaiTimeDetail : nil,
                 detailLeftText: paceDetail?.leftLabel,
                 detailRightText: paceDetail?.rightLabel,
                 pacePercent: paceDetail?.pacePercent,
                 paceOnTop: paceDetail?.paceOnTop ?? true))
         }
-        if input.metadata.supportsOpus, let opus = snapshot.tertiary {
+        if labelMetadata.supportsOpus, let opus = snapshot.tertiary {
             metrics.append(Metric(
                 id: "tertiary",
-                title: input.metadata.opusLabel ?? "Sonnet",
+                title: labelMetadata.opusLabel ?? "Sonnet",
                 percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now),
@@ -822,6 +833,50 @@ extension UsageMenuCardView.Model {
                 paceOnTop: true))
         }
         return metrics
+    }
+
+    private struct CLIProxyAPIOverrides {
+        let provider: UsageProvider?
+        let metadata: ProviderMetadata?
+        let displayName: String?
+    }
+
+    private static func cliproxyapiOverrides(_ input: Input) -> CLIProxyAPIOverrides {
+        guard input.provider == .cliproxyapi else {
+            return CLIProxyAPIOverrides(provider: nil, metadata: nil, displayName: nil)
+        }
+        guard let key = input.snapshot?.accountOrganization(for: input.provider)?.lowercased(), !key.isEmpty else {
+            return CLIProxyAPIOverrides(provider: nil, metadata: nil, displayName: nil)
+        }
+
+        let resolved: UsageProvider?
+        let displayName: String
+        switch key {
+        case "codex":
+            resolved = .codex
+            displayName = "Codex"
+        case "antigravity":
+            resolved = .antigravity
+            displayName = "Antigravity"
+        case "gemini-cli":
+            resolved = .gemini
+            displayName = "Gemini CLI"
+        case "gemini":
+            resolved = .gemini
+            displayName = "Gemini"
+        case "claude":
+            resolved = .claude
+            displayName = "Claude"
+        default:
+            resolved = nil
+            displayName = key.prefix(1).uppercased() + key.dropFirst()
+        }
+
+        if let resolved {
+            let metadata = ProviderDescriptorRegistry.descriptor(for: resolved).metadata
+            return CLIProxyAPIOverrides(provider: resolved, metadata: metadata, displayName: displayName)
+        }
+        return CLIProxyAPIOverrides(provider: nil, metadata: nil, displayName: displayName)
     }
 
     private static func zaiLimitDetailText(limit: ZaiLimitEntry?) -> String? {
