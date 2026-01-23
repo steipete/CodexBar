@@ -26,6 +26,15 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
         }
     }
 
+    public var apiBaseURLString: String {
+        switch self {
+        case .global:
+            "https://api.minimax.io"
+        case .chinaMainland:
+            "https://api.minimaxi.com"
+        }
+    }
+
     public var codingPlanURL: URL {
         var components = URLComponents(string: self.baseURLString)!
         components.path = "/" + Self.codingPlanPath
@@ -41,5 +50,9 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
 
     public var remainsURL: URL {
         URL(string: self.baseURLString)!.appendingPathComponent(Self.remainsPath)
+    }
+
+    public var apiRemainsURL: URL {
+        URL(string: self.apiBaseURLString)!.appendingPathComponent(Self.remainsPath)
     }
 }

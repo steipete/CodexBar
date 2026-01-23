@@ -8,7 +8,6 @@ public struct MiniMaxUsageFetcher: Sendable {
     private static let codingPlanPath = "user-center/payment/coding-plan"
     private static let codingPlanQuery = "cycle_type=3"
     private static let codingPlanRemainsPath = "v1/api/openplatform/coding_plan/remains"
-    private static let apiRemainsURL = URL(string: "https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains")!
     private struct RemainsContext: Sendable {
         let authorizationToken: String?
         let groupID: String?
@@ -51,6 +50,7 @@ public struct MiniMaxUsageFetcher: Sendable {
 
     public static func fetchUsage(
         apiToken: String,
+        region: MiniMaxAPIRegion = .global,
         now: Date = Date()) async throws -> MiniMaxUsageSnapshot
     {
         let cleaned = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,7 +58,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             throw MiniMaxUsageError.invalidCredentials
         }
 
-        var request = URLRequest(url: self.apiRemainsURL)
+        var request = URLRequest(url: region.apiRemainsURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(cleaned)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "accept")
