@@ -198,6 +198,8 @@ public struct CursorStatusSnapshot: Sendable {
     public let accountName: String?
     /// Raw API response for debugging
     public let rawJSON: String?
+    /// Plan tier for effective budget calculation
+    public let planTier: CursorPlanTier
 
     // MARK: - Legacy Plan (Request-Based) Fields
 
@@ -209,6 +211,29 @@ public struct CursorStatusSnapshot: Sendable {
     /// Whether this is a legacy request-based plan (vs token-based)
     public var isLegacyRequestPlan: Bool {
         self.requestsLimit != nil
+    }
+
+    // MARK: - Effective Budget Calculations
+
+    /// Total usage combining plan and on-demand in USD
+    public var totalUsedUSD: Double {
+        self.planUsedUSD + self.onDemandUsedUSD
+    }
+
+    /// Effective budget combining plan tier budget and on-demand limit in USD
+    public var effectiveBudgetUSD: Double {
+        self.planTier.effectiveBudgetUSD + (self.onDemandLimitUSD ?? 0)
+    }
+
+    /// Effective percentage used based on total usage / effective budget
+    public var effectivePercentUsed: Double {
+        guard self.effectiveBudgetUSD > 0 else { return 0 }
+        return min((self.totalUsedUSD / self.effectiveBudgetUSD) * 100, 100)
+    }
+
+    /// Whether the plan allowance is exhausted and on-demand is being used
+    public var isPlanExhausted: Bool {
+        self.onDemandUsedUSD > 0
     }
 
     public init(
@@ -225,7 +250,8 @@ public struct CursorStatusSnapshot: Sendable {
         accountName: String?,
         rawJSON: String?,
         requestsUsed: Int? = nil,
-        requestsLimit: Int? = nil)
+        requestsLimit: Int? = nil,
+        planTier: CursorPlanTier? = nil)
     {
         self.planPercentUsed = planPercentUsed
         self.planUsedUSD = planUsedUSD
@@ -241,11 +267,13 @@ public struct CursorStatusSnapshot: Sendable {
         self.rawJSON = rawJSON
         self.requestsUsed = requestsUsed
         self.requestsLimit = requestsLimit
+        self.planTier = planTier ?? CursorPlanTier(membershipType: membershipType)
     }
 
     /// Convert to UsageSnapshot for the common provider interface
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary: For legacy request-based plans, use request usage; otherwise use plan percentage
+        // Primary: For legacy request-based plans, use request usage; otherwise use effective percentage
+        // Effective percentage accounts for tier-based capacity (Ultra gets 20x, Pro+ gets 3x, etc.)
         let primaryUsedPercent: Double = if self.isLegacyRequestPlan,
                                             let used = self.requestsUsed,
                                             let limit = self.requestsLimit,
@@ -253,7 +281,7 @@ public struct CursorStatusSnapshot: Sendable {
         {
             (Double(used) / Double(limit)) * 100
         } else {
-            self.planPercentUsed
+            self.effectivePercentUsed
         }
 
         let primary = RateWindow(
@@ -302,6 +330,19 @@ public struct CursorStatusSnapshot: Sendable {
             nil
         }
 
+        // Effective usage for tier-aware display (non-legacy plans only)
+        let cursorEffectiveUsage: CursorEffectiveUsage? = if !self.isLegacyRequestPlan {
+            CursorEffectiveUsage(
+                totalUsedUSD: self.totalUsedUSD,
+                effectiveBudgetUSD: self.effectiveBudgetUSD,
+                planTier: self.planTier,
+                isPlanExhausted: self.isPlanExhausted,
+                onDemandUsedUSD: resolvedOnDemandUsed,
+                onDemandLimitUSD: resolvedOnDemandLimit)
+        } else {
+            nil
+        }
+
         let identity = ProviderIdentitySnapshot(
             providerID: .cursor,
             accountEmail: self.accountEmail,
@@ -313,6 +354,7 @@ public struct CursorStatusSnapshot: Sendable {
             tertiary: nil,
             providerCost: providerCost,
             cursorRequests: cursorRequests,
+            cursorEffectiveUsage: cursorEffectiveUsage,
             updatedAt: Date(),
             identity: identity)
     }
@@ -330,6 +372,10 @@ public struct CursorStatusSnapshot: Sendable {
             "Cursor Enterprise"
         case "pro":
             "Cursor Pro"
+        case "pro+", "pro_plus", "proplus":
+            "Cursor Pro+"
+        case "ultra":
+            "Cursor Ultra"
         case "hobby":
             "Cursor Hobby"
         case "team":
@@ -714,6 +760,9 @@ public struct CursorStatusProbe: Sendable {
         let requestsUsed: Int? = requestUsage?.gpt4?.numRequestsTotal ?? requestUsage?.gpt4?.numRequests
         let requestsLimit: Int? = requestUsage?.gpt4?.maxRequestUsage
 
+        // Detect plan tier from membership type
+        let planTier = CursorPlanTier(membershipType: summary.membershipType)
+
         return CursorStatusSnapshot(
             planPercentUsed: planPercentUsed,
             planUsedUSD: planUsed,
@@ -728,7 +777,8 @@ public struct CursorStatusProbe: Sendable {
             accountName: userInfo?.name,
             rawJSON: rawJSON,
             requestsUsed: requestsUsed,
-            requestsLimit: requestsLimit)
+            requestsLimit: requestsLimit,
+            planTier: planTier)
     }
 }
 
