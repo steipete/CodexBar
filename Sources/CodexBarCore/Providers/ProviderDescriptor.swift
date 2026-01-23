@@ -58,6 +58,7 @@ public enum ProviderDescriptorRegistry {
         .cursor: CursorProviderDescriptor.descriptor,
         .opencode: OpenCodeProviderDescriptor.descriptor,
         .factory: FactoryProviderDescriptor.descriptor,
+        .cliproxyapi: CLIProxyAPIProviderDescriptor.descriptor,
         .gemini: GeminiProviderDescriptor.descriptor,
         .antigravity: AntigravityProviderDescriptor.descriptor,
         .copilot: CopilotProviderDescriptor.descriptor,

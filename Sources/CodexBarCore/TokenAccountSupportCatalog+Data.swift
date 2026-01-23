@@ -37,6 +37,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .cliproxyapi: TokenAccountSupport(
+            title: "Auth indexes",
+            subtitle: "Store multiple CLIProxyAPI auth indexes.",
+            placeholder: "Paste auth_index…",
+            injection: .environment(key: CLIProxyAPISettingsReader.authIndexKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .minimax: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple MiniMax Cookie headers.",
