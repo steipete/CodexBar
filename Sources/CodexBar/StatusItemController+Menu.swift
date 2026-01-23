@@ -368,7 +368,8 @@ extension StatusItemController {
             if let model = self.menuCardModel(
                 for: context.currentProvider,
                 snapshotOverride: group.selected.snapshot,
-                errorOverride: group.selected.error)
+                errorOverride: group.selected.error,
+                allowFallbackSnapshot: false)
             {
                 menu.addItem(self.makeMenuCardItem(
                     UsageMenuCardView(model: model, width: context.menuWidth),
@@ -1270,12 +1271,15 @@ extension StatusItemController {
     private func menuCardModel(
         for provider: UsageProvider?,
         snapshotOverride: UsageSnapshot? = nil,
-        errorOverride: String? = nil) -> UsageMenuCardView.Model?
+        errorOverride: String? = nil,
+        allowFallbackSnapshot: Bool = true) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProviders().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
-        let snapshot = snapshotOverride ?? self.store.snapshot(for: target)
+        let snapshot = allowFallbackSnapshot
+            ? (snapshotOverride ?? self.store.snapshot(for: target))
+            : snapshotOverride
         let credits: CreditsSnapshot?
         let creditsError: String?
         let dashboard: OpenAIDashboardSnapshot?
