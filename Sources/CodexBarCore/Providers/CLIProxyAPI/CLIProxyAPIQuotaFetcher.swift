@@ -486,7 +486,8 @@ struct CLIProxyAPIQuotaFetcher: Sendable {
                 rawFraction: bucket.remainingFraction ?? bucket.remaining_fraction,
                 rawRemaining: bucket.remainingAmount ?? bucket.remaining_amount,
                 resetTime: bucket.resetTime ?? bucket.reset_time)
-            let percentLeft = remainingFraction.map { max(0, min(100, $0 * 100)) } ?? 0
+            guard let remainingFraction else { continue }
+            let percentLeft = max(0, min(100, remainingFraction * 100))
             let resetTime = self.parseISODate(bucket.resetTime ?? bucket.reset_time)
             let resetDescription = resetTime.map { UsageFormatter.resetDescription(from: $0) }
             quotas.append(GeminiModelQuota(

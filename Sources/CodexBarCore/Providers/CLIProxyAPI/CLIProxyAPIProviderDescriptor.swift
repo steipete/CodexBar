@@ -93,6 +93,9 @@ struct CLIProxyAPIManagementFetchStrategy: ProviderFetchStrategy {
             }
             throw CLIProxyAPIFetchError.authIndexNotFound
         }
+        if let active = files.first(where: { !$0.disabled && !$0.unavailable }) {
+            return active
+        }
         if let active = files.first(where: { !$0.disabled }) {
             return active
         }
