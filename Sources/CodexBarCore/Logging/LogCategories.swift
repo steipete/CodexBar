@@ -9,6 +9,7 @@ public enum LogCategories {
     public static let claudeCLI = "claude-cli"
     public static let claudeProbe = "claude-probe"
     public static let claudeUsage = "claude-usage"
+    public static let cliproxyapi = "cliproxyapi"
     public static let codexRPC = "codex-rpc"
     public static let configMigration = "config-migration"
     public static let configStore = "config-store"

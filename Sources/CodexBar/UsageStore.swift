@@ -1185,6 +1185,13 @@ extension UsageStore {
                 let text = "Droid debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.factory] = text }
                 return text
+            case .cliproxyapi:
+                let hasURL = CLIProxyAPISettingsReader.managementURL() != nil
+                let hasKey = CLIProxyAPISettingsReader.managementKey() != nil
+                let text = "CLIPROXYAPI_MANAGEMENT_URL=\(hasURL ? "present" : "missing") " +
+                    "CLIPROXYAPI_MANAGEMENT_KEY=\(hasKey ? "present" : "missing")"
+                await MainActor.run { self.probeLogs[.cliproxyapi] = text }
+                return text
             case .copilot:
                 let text = "Copilot debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.copilot] = text }
