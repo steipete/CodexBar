@@ -167,12 +167,17 @@ enum CostUsagePricing {
             + Double(max(0, outputTokens)) * pricing.outputCostPerToken
     }
 
+    /// Vertex AI regional endpoints include a 10% premium over global/Anthropic API pricing.
+    /// See: https://platform.claude.com/docs/en/about-claude/pricing
+    static let vertexAIRegionalPremium: Double = 1.10
+
     static func claudeCostUSD(
         model: String,
         inputTokens: Int,
         cacheReadInputTokens: Int,
         cacheCreationInputTokens: Int,
-        outputTokens: Int) -> Double?
+        outputTokens: Int,
+        isVertexAI: Bool = false) -> Double?
     {
         let key = self.normalizeClaudeModel(model)
         guard let pricing = self.claude[key] else { return nil }
@@ -184,7 +189,7 @@ enum CostUsagePricing {
             return Double(below) * base + Double(over) * above
         }
 
-        return tiered(
+        let baseCost = tiered(
             max(0, inputTokens),
             base: pricing.inputCostPerToken,
             above: pricing.inputCostPerTokenAboveThreshold,
@@ -204,5 +209,8 @@ enum CostUsagePricing {
                 base: pricing.outputCostPerToken,
                 above: pricing.outputCostPerTokenAboveThreshold,
                 threshold: pricing.thresholdTokens)
+
+        // Apply Vertex AI regional premium if applicable
+        return isVertexAI ? baseCost * self.vertexAIRegionalPremium : baseCost
     }
 }
