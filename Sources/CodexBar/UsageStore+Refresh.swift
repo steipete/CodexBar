@@ -43,6 +43,18 @@ extension UsageStore {
         }
 
         let outcome = await spec.fetch()
+        if provider == .claude, ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged() {
+            await MainActor.run {
+                self.snapshots.removeValue(forKey: .claude)
+                self.errors[.claude] = nil
+                self.lastSourceLabels.removeValue(forKey: .claude)
+                self.lastFetchAttempts.removeValue(forKey: .claude)
+                self.accountSnapshots.removeValue(forKey: .claude)
+                self.tokenSnapshots.removeValue(forKey: .claude)
+                self.tokenErrors[.claude] = nil
+                self.failureGates[.claude]?.reset()
+            }
+        }
         await MainActor.run {
             self.lastFetchAttempts[provider] = outcome.attempts
         }

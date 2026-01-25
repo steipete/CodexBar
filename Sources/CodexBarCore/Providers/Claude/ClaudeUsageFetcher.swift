@@ -262,7 +262,10 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private func loadViaOAuth() async throws -> ClaudeUsageSnapshot {
         do {
-            let creds = try ClaudeOAuthCredentialsStore.load(environment: self.environment)
+            // Don't prompt for keychain access during background refreshes
+            let creds = try ClaudeOAuthCredentialsStore.load(
+                environment: self.environment,
+                allowKeychainPrompt: false)
             if creds.isExpired {
                 throw ClaudeUsageError.oauthFailed("Claude OAuth token expired. Run `claude` to refresh.")
             }

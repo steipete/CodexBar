@@ -136,7 +136,10 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .oauth
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        guard let creds = try? ClaudeOAuthCredentialsStore.load(environment: context.env) else { return false }
+        // Don't prompt for keychain access during availability check
+        guard let creds = try? ClaudeOAuthCredentialsStore.load(
+            environment: context.env,
+            allowKeychainPrompt: false) else { return false }
         // In Auto mode, only prefer OAuth when we know the scope is present.
         // In OAuth-only mode, still show a useful error message even when the scope is missing.
         // (The strategy can fall back to Web/CLI when allowed by the fetch plan.)

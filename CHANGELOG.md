@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+### Fixes
+- Claude: reduce keychain password prompts even after granting "Always Allow".
+  - Add `allowKeychainPrompt` parameter to skip prompts during background refreshes and availability checks.
+  - Add silent keychain access using `LAContext.interactionNotAllowed` to avoid unexpected prompts.
+  - Cache credentials in CodexBar's own keychain after first successful access, avoiding repeated prompts to Claude Code's keychain.
+  - Re-migrate Claude credentials when they change to maintain proper accessibility settings.
+
 ## 0.18.0-beta.2 — 2026-01-21
 ### Highlights
 - OpenAI web dashboard refresh cadence now follows 5× the base refresh interval.
