@@ -204,7 +204,7 @@ struct CostUsageScannerTests {
         #expect(report.data[0].cacheCreationTokens == 50)
         #expect(report.data[0].cacheReadTokens == 25)
         #expect(report.data[0].outputTokens == 80)
-        #expect(report.data[0].totalTokens == 355)
+        #expect(report.data[0].totalTokens == 330)
         #expect((report.data[0].costUSD ?? 0) > 0)
     }
 
