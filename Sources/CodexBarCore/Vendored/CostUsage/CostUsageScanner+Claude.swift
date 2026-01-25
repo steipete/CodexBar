@@ -538,7 +538,9 @@ extension CostUsageScanner {
             breakdown.sort { lhs, rhs in (rhs.costUSD ?? -1) < (lhs.costUSD ?? -1) }
             let top = Array(breakdown.prefix(3))
 
-            let dayTotal = dayInput + dayCacheRead + dayCacheCreate + dayOutput
+            // Exclude cache read tokens from totalTokens since they're served from cache
+            // (not fresh computation). Include cache creation as those tokens are processed.
+            let dayTotal = dayInput + dayCacheCreate + dayOutput
             let entryCost = dayCostSeen ? dayCost : nil
             entries.append(CostUsageDailyReport.Entry(
                 date: day,
