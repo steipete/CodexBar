@@ -37,6 +37,7 @@ public struct CostUsageFetcher: Sendable {
         var options = CostUsageScanner.Options()
         if provider == .vertexai {
             options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
+            options.refreshMinIntervalSeconds = 0
         } else if provider == .claude {
             options.claudeLogProviderFilter = .excludeVertexAI
         }
