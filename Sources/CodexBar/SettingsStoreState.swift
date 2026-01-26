@@ -25,6 +25,7 @@ struct SettingsDefaultsState: Sendable {
     var showOptionalCreditsAndExtraUsage: Bool
     var openAIWebAccessEnabled: Bool
     var jetbrainsIDEBasePath: String
+    var qwenCodeDailyRequestLimit: String
     var mergeIcons: Bool
     var switcherShowsIcons: Bool
     var selectedMenuProviderRaw: String?
