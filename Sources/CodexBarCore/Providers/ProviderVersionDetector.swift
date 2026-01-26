@@ -28,6 +28,19 @@ public enum ProviderVersionDetector {
         return nil
     }
 
+    public static func qwenVersion() -> String? {
+        guard let path = TTYCommandRunner.which("qwen") else { return nil }
+        let candidates = [
+            ["--version"],
+            ["-v"],
+            ["version"],
+        ]
+        for args in candidates {
+            if let version = Self.run(path: path, args: args) { return version }
+        }
+        return nil
+    }
+
     private static func run(path: String, args: [String]) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)

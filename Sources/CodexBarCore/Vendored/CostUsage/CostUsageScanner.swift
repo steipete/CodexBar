@@ -87,6 +87,8 @@ enum CostUsageScanner {
             return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
         case .kiro:
             return CostUsageDailyReport(data: [], summary: nil)
+        case .qwencode:
+            return CostUsageDailyReport(data: [], summary: nil)
         case .kimi:
             return CostUsageDailyReport(data: [], summary: nil)
         case .kimik2:

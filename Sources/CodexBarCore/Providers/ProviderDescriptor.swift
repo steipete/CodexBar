@@ -65,6 +65,7 @@ public enum ProviderDescriptorRegistry {
         .minimax: MiniMaxProviderDescriptor.descriptor,
         .kimi: KimiProviderDescriptor.descriptor,
         .kiro: KiroProviderDescriptor.descriptor,
+        .qwencode: QwenCodeProviderDescriptor.descriptor,
         .vertexai: VertexAIProviderDescriptor.descriptor,
         .augment: AugmentProviderDescriptor.descriptor,
         .jetbrains: JetBrainsProviderDescriptor.descriptor,

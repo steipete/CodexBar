@@ -207,6 +207,7 @@ extension SettingsStore {
         let openAIWebAccessEnabled = openAIWebAccessDefault ?? true
         if openAIWebAccessDefault == nil { userDefaults.set(true, forKey: "openAIWebAccessEnabled") }
         let jetbrainsIDEBasePath = userDefaults.string(forKey: "jetbrainsIDEBasePath") ?? ""
+        let qwenCodeDailyRequestLimit = userDefaults.string(forKey: "qwenCodeDailyRequestLimit") ?? "2000"
         let mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
         let switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
@@ -237,6 +238,7 @@ extension SettingsStore {
             showOptionalCreditsAndExtraUsage: showOptionalCreditsAndExtraUsage,
             openAIWebAccessEnabled: openAIWebAccessEnabled,
             jetbrainsIDEBasePath: jetbrainsIDEBasePath,
+            qwenCodeDailyRequestLimit: qwenCodeDailyRequestLimit,
             mergeIcons: mergeIcons,
             switcherShowsIcons: switcherShowsIcons,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
