@@ -95,6 +95,9 @@ extension CostUsageScanner {
                 guard let model = message["model"] as? String else { return }
                 guard let usage = message["usage"] as? [String: Any] else { return }
 
+                // Check if this is a Vertex AI entry for pricing purposes
+                let isVertexAI = Self.isVertexAIUsageEntry(obj: obj)
+
                 // Deduplicate by message.id + requestId (streaming chunks have same usage).
                 let messageId = message["id"] as? String
                 let requestId = obj["requestId"] as? String
@@ -122,7 +125,8 @@ extension CostUsageScanner {
                     inputTokens: input,
                     cacheReadInputTokens: cacheRead,
                     cacheCreationInputTokens: cacheCreate,
-                    outputTokens: output)
+                    outputTokens: output,
+                    isVertexAI: isVertexAI)
                 let costNanos = cost.map { Int(($0 * costScale).rounded()) } ?? 0
                 let tokens = ClaudeTokens(
                     input: input,
