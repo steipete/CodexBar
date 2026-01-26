@@ -906,9 +906,9 @@ extension UsageMenuCardView.Model {
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
         let monthLine: String = {
             if let monthTokens {
-                return "Last 30 days: \(monthCost) · \(monthTokens) tokens"
+                return "This month: \(monthCost) · \(monthTokens) tokens"
             }
-            return "Last 30 days: \(monthCost)"
+            return "This month: \(monthCost)"
         }()
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(

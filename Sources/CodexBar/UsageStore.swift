@@ -1574,7 +1574,7 @@ extension UsageStore {
                 "cost usage success provider=\(providerText) " +
                 "duration=\(durationText)s " +
                 "today=\(sessionCost) " +
-                "30d=\(monthCost)"
+                "month=\(monthCost)"
             self.tokenCostLogger.info(message)
             self.tokenSnapshots[provider] = snapshot
             self.tokenErrors[provider] = nil
