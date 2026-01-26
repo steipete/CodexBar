@@ -11,19 +11,30 @@ enum UsagePaceText {
 
     private static let minimumExpectedPercent: Double = 3
 
-    static func weeklySummary(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> String? {
-        guard let detail = weeklyDetail(provider: provider, window: window, now: now) else { return nil }
+    static func weeklySummary(
+        provider: UsageProvider,
+        window: RateWindow,
+        resetStyle: ResetTimeDisplayStyle = .countdown,
+        now: Date = .init()) -> String?
+    {
+        guard let detail = weeklyDetail(provider: provider, window: window, resetStyle: resetStyle, now: now)
+        else { return nil }
         if let rightLabel = detail.rightLabel {
             return "Pace: \(detail.leftLabel) · \(rightLabel)"
         }
         return "Pace: \(detail.leftLabel)"
     }
 
-    static func weeklyDetail(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> WeeklyDetail? {
+    static func weeklyDetail(
+        provider: UsageProvider,
+        window: RateWindow,
+        resetStyle: ResetTimeDisplayStyle = .countdown,
+        now: Date = .init()) -> WeeklyDetail?
+    {
         guard let pace = weeklyPace(provider: provider, window: window, now: now) else { return nil }
         return WeeklyDetail(
             leftLabel: Self.detailLeftLabel(for: pace),
-            rightLabel: Self.detailRightLabel(for: pace, now: now),
+            rightLabel: Self.detailRightLabel(for: pace, now: now, resetStyle: resetStyle),
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }
@@ -40,16 +51,22 @@ enum UsagePaceText {
         }
     }
 
-    private static func detailRightLabel(for pace: UsagePace, now: Date) -> String? {
+    private static func detailRightLabel(for pace: UsagePace, now: Date, resetStyle: ResetTimeDisplayStyle) -> String? {
         if pace.willLastToReset { return "Lasts until reset" }
         guard let etaSeconds = pace.etaSeconds else { return nil }
-        let etaText = Self.durationText(seconds: etaSeconds, now: now)
-        if etaText == "now" { return "Runs out now" }
-        return "Runs out in \(etaText)"
+        let etaText = Self.durationText(seconds: etaSeconds, now: now, resetStyle: resetStyle)
+        if resetStyle == .countdown {
+            if etaText == "now" { return "Runs out now" }
+            return "Runs out in \(etaText)"
+        }
+        return "Runs out at \(etaText)"
     }
 
-    private static func durationText(seconds: TimeInterval, now: Date) -> String {
+    private static func durationText(seconds: TimeInterval, now: Date, resetStyle: ResetTimeDisplayStyle) -> String {
         let date = now.addingTimeInterval(seconds)
+        if resetStyle == .absolute {
+            return UsageFormatter.resetAbsoluteDescription(from: date, now: now)
+        }
         let countdown = UsageFormatter.resetCountdownDescription(from: date, now: now)
         if countdown == "now" { return "now" }
         if countdown.hasPrefix("in ") { return String(countdown.dropFirst(3)) }
