@@ -972,7 +972,7 @@ extension StatusItemController {
         }
         if let resetTime = timeLimit.nextResetTime {
             let reset = self.settings.resetTimeDisplayStyle == .absolute
-                ? UsageFormatter.resetDescription(from: resetTime)
+                ? UsageFormatter.resetAbsoluteDescription(from: resetTime)
                 : UsageFormatter.resetCountdownDescription(from: resetTime)
             let item = NSMenuItem(title: "Resets: \(reset)", action: nil, keyEquivalent: "")
             item.isEnabled = false

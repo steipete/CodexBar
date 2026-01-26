@@ -50,6 +50,20 @@ struct UsagePaceTextTests {
     }
 
     @Test
+    func weeklyPaceDetail_usesAbsoluteResetStyle() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 3600),
+            resetDescription: nil)
+
+        let detail = UsagePaceText.weeklyDetail(provider: .codex, window: window, resetStyle: .absolute, now: now)
+
+        #expect(detail?.rightLabel?.hasPrefix("Runs out at ") == true)
+    }
+
+    @Test
     func weeklyPaceDetail_hidesWhenResetIsMissing() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(

@@ -14,6 +14,7 @@
 ### Menu & Menu Bar
 - Menu: opening OpenAI web submenus triggers a refresh when the data is stale.
 - Menu: fix usage line labels to honor “Show usage as used”.
+- Menu: tighten absolute reset timestamps and move the toggle into Display settings.
 - Debug: add a toggle to keep Codex/Claude CLI sessions alive between probes.
 - Debug: add a button to reset CLI probe sessions.
 - App icon: use the classic icon on macOS 15 and earlier while keeping Liquid Glass for macOS 26+ (#178). Thanks @zerone0x!

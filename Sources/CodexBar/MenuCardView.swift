@@ -779,6 +779,7 @@ extension UsageMenuCardView.Model {
             let paceDetail = Self.weeklyPaceDetail(
                 provider: input.provider,
                 window: weekly,
+                resetStyle: input.resetTimeDisplayStyle,
                 now: input.now,
                 showUsed: input.usageBarsShowUsed)
             metrics.append(Metric(
@@ -842,10 +843,15 @@ extension UsageMenuCardView.Model {
     private static func weeklyPaceDetail(
         provider: UsageProvider,
         window: RateWindow,
+        resetStyle: ResetTimeDisplayStyle,
         now: Date,
         showUsed: Bool) -> PaceDetail?
     {
-        guard let detail = UsagePaceText.weeklyDetail(provider: provider, window: window, now: now) else { return nil }
+        guard let detail = UsagePaceText.weeklyDetail(
+            provider: provider,
+            window: window,
+            resetStyle: resetStyle,
+            now: now) else { return nil }
         let expectedUsed = detail.expectedUsedPercent
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
