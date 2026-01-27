@@ -125,6 +125,10 @@ Dev loop:
 
 ## Looking for a Windows version?
 - [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar)
+ 
+## Looking for a Electron version (Win/Linux)?
+- [CodexBar-Electron](https://github.com/SylTi/CodexBar-Electron)
+
 
 ## Credits
 Inspired by [ccusage](https://github.com/ryoppippi/ccusage) (MIT), specifically the cost usage tracking.
