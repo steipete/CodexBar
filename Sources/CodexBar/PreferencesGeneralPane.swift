@@ -43,7 +43,7 @@ struct GeneralPane: View {
                                 .fixedSize(horizontal: false, vertical: true)
 
                             if self.settings.costUsageEnabled {
-                                Text("Auto-refresh: hourly · Timeout: 10m")
+                                Text("Auto-refresh: \(self.costRefreshLabel) · Timeout: 10m")
                                     .font(.footnote)
                                     .foregroundStyle(.tertiary)
 
@@ -112,6 +112,15 @@ struct GeneralPane: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
+        }
+    }
+
+    private var costRefreshLabel: String {
+        switch self.settings.refreshFrequency {
+        case .manual:
+            return "off"
+        default:
+            return self.settings.refreshFrequency.label
         }
     }
 

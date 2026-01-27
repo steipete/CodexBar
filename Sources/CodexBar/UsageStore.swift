@@ -56,6 +56,7 @@ extension UsageStore {
                 guard let self else { return }
                 self.observeSettingsChanges()
                 self.startTimer()
+                self.startTokenTimer()
                 self.updateProviderRuntimes()
                 await self.refresh()
             }
@@ -193,7 +194,6 @@ final class UsageStore {
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
-    @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
 
     init(
@@ -485,7 +485,7 @@ final class UsageStore {
 
     private func startTokenTimer() {
         self.tokenTimerTask?.cancel()
-        let wait = self.tokenFetchTTL
+        guard let wait = self.settings.refreshFrequency.seconds else { return }
         self.tokenTimerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(wait))
