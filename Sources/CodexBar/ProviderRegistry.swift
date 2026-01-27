@@ -98,6 +98,7 @@ struct ProviderRegistry {
             settings: settings,
             override: tokenOverride)
         var env = base
+        // If token account is selected, use its token instead of config's apiKey
         if let account, let override = TokenAccountSupportCatalog.envOverride(
             for: provider,
             token: account.token)
@@ -105,6 +106,7 @@ struct ProviderRegistry {
             for (key, value) in override {
                 env[key] = value
             }
+            return env
         }
         return ProviderConfigEnvironment.applyAPIKeyOverride(
             base: env,

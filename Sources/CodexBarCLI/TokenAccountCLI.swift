@@ -185,12 +185,14 @@ struct TokenAccountCLIContext {
         account: ProviderTokenAccount?) -> [String: String]
     {
         var env = base
+        // If token account is selected, use its token instead of config's apiKey
         if let account,
            let override = TokenAccountSupportCatalog.envOverride(for: provider, token: account.token)
         {
             for (key, value) in override {
                 env[key] = value
             }
+            return env
         }
         let providerConfig = self.providerConfig(for: provider)
         env = ProviderConfigEnvironment.applyAPIKeyOverride(
