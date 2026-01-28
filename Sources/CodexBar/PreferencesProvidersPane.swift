@@ -303,7 +303,7 @@ struct ProvidersPane: View {
             }
         }
     }
-    
+
     @MainActor
     private func presentFullDiskAccessAlert() {
         let alert = NSAlert()
