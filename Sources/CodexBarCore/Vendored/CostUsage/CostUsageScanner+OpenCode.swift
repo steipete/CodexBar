@@ -3,13 +3,23 @@ import Foundation
 extension CostUsageScanner {
     // MARK: - OpenCode
 
+    /// Raw token data extracted from an OpenCode message file (provider-agnostic)
+    struct OpenCodeTokenData: Sendable {
+        let dayKey: String
+        let modelID: String
+        let providerID: String?
+        let inputTokens: Int
+        let outputTokens: Int
+        let cacheReadTokens: Int
+        let cacheWriteTokens: Int
+    }
+
     struct OpenCodeParseResult: Sendable {
-        let days: [String: [String: [Int]]]
-        let parsedCount: Int
+        let tokenData: OpenCodeTokenData?
         let providerID: String?
     }
 
-    /// Parses an OpenCode message JSON file and extracts token usage.
+    /// Parses an OpenCode message JSON file and extracts raw token usage (provider-agnostic).
     /// OpenCode stores each assistant message as a separate JSON file with structure:
     /// {
     ///   "time": { "created": 1769531159117 },
@@ -22,42 +32,38 @@ extension CostUsageScanner {
         fileURL: URL,
         range: CostUsageDayRange) -> OpenCodeParseResult
     {
-        var days: [String: [String: [Int]]] = [:]
-
         guard let data = try? Data(contentsOf: fileURL),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
-            return OpenCodeParseResult(days: [:], parsedCount: 0, providerID: nil)
+            return OpenCodeParseResult(tokenData: nil, providerID: nil)
         }
 
         // Only process assistant messages with token usage
         guard (obj["role"] as? String) == "assistant" else {
-            return OpenCodeParseResult(days: [:], parsedCount: 0, providerID: nil)
+            return OpenCodeParseResult(tokenData: nil, providerID: nil)
         }
 
         let providerID = obj["providerID"] as? String
 
         guard let tokens = obj["tokens"] as? [String: Any] else {
-            return OpenCodeParseResult(days: [:], parsedCount: 0, providerID: providerID)
+            return OpenCodeParseResult(tokenData: nil, providerID: providerID)
         }
 
         // Extract timestamp and convert to day key
         guard let time = obj["time"] as? [String: Any],
               let createdMs = time["created"] as? Int64
         else {
-            return OpenCodeParseResult(days: [:], parsedCount: 0, providerID: providerID)
+            return OpenCodeParseResult(tokenData: nil, providerID: providerID)
         }
 
         let createdDate = Date(timeIntervalSince1970: Double(createdMs) / 1000.0)
         let dayKey = CostUsageDayRange.dayKey(from: createdDate)
 
         guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey) else {
-            return OpenCodeParseResult(days: [:], parsedCount: 0, providerID: providerID)
+            return OpenCodeParseResult(tokenData: nil, providerID: providerID)
         }
 
-        // Extract model - OpenCode uses "modelID" like "claude-opus-4-5"
         let modelID = obj["modelID"] as? String ?? "unknown"
-        let normModel = self.normalizeOpenCodeModel(modelID)
 
         // Extract token counts
         func toInt(_ v: Any?) -> Int {
@@ -76,29 +82,24 @@ extension CostUsageScanner {
 
         // Skip if no tokens
         if input == 0, output == 0, cacheRead == 0, cacheWrite == 0, reasoning == 0 {
-            return OpenCodeParseResult(days: [:], parsedCount: 0, providerID: providerID)
+            return OpenCodeParseResult(tokenData: nil, providerID: providerID)
         }
 
-        // Calculate cost using Claude pricing (OpenCode uses Anthropic models)
-        let costScale = 1_000_000_000.0
-        let cost = CostUsagePricing.claudeCostUSD(
-            model: normModel,
+        let tokenData = OpenCodeTokenData(
+            dayKey: dayKey,
+            modelID: modelID,
+            providerID: providerID,
             inputTokens: input,
-            cacheReadInputTokens: cacheRead,
-            cacheCreationInputTokens: cacheWrite,
-            outputTokens: output + reasoning)
-        let costNanos = cost.map { Int(($0 * costScale).rounded()) } ?? 0
+            outputTokens: output + reasoning,
+            cacheReadTokens: cacheRead,
+            cacheWriteTokens: cacheWrite)
 
-        // Pack tokens: [input, cacheRead, cacheWrite, output, costNanos]
-        let packed = [input, cacheRead, cacheWrite, output + reasoning, costNanos]
-        days[dayKey] = [normModel: packed]
-
-        return OpenCodeParseResult(days: days, parsedCount: 1, providerID: providerID)
+        return OpenCodeParseResult(tokenData: tokenData, providerID: providerID)
     }
 
     /// Normalizes OpenCode model IDs to match Claude pricing keys.
     /// OpenCode uses names like "claude-opus-4-5" while pricing uses "claude-opus-4-5-20251101".
-    static func normalizeOpenCodeModel(_ raw: String) -> String {
+    private static func normalizeClaudeModelID(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Remove provider prefix if present
@@ -123,6 +124,24 @@ extension CostUsageScanner {
 
         // Fallback: use as-is (normalizeClaudeModel will handle it)
         return CostUsagePricing.normalizeClaudeModel(trimmed)
+    }
+
+    /// Converts raw token data to cache format with Claude pricing
+    private static func packTokenDataForClaude(_ data: OpenCodeTokenData) -> (dayKey: String, model: String, packed: [Int]) {
+        let normModel = self.normalizeClaudeModelID(data.modelID)
+
+        let costScale = 1_000_000_000.0
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: normModel,
+            inputTokens: data.inputTokens,
+            cacheReadInputTokens: data.cacheReadTokens,
+            cacheCreationInputTokens: data.cacheWriteTokens,
+            outputTokens: data.outputTokens)
+        let costNanos = cost.map { Int(($0 * costScale).rounded()) } ?? 0
+
+        // Pack tokens: [input, cacheRead, cacheWrite, output, costNanos]
+        let packed = [data.inputTokens, data.cacheReadTokens, data.cacheWriteTokens, data.outputTokens, costNanos]
+        return (data.dayKey, normModel, packed)
     }
 
     /// Process a single OpenCode message file directly into a cache
@@ -150,12 +169,16 @@ extension CostUsageScanner {
             Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
         }
 
-        // Parse the message file
+        // Parse the message file (provider-agnostic)
         let parsed = Self.parseOpenCodeMessageFile(fileURL: url, range: range)
 
         // Only include Anthropic provider messages when merging into Claude
         // For non-Anthropic files, store empty days to avoid re-parsing
-        let days = parsed.providerID == "anthropic" ? parsed.days : [:]
+        var days: [String: [String: [Int]]] = [:]
+        if parsed.providerID == "anthropic", let tokenData = parsed.tokenData {
+            let (dayKey, model, packed) = Self.packTokenDataForClaude(tokenData)
+            days[dayKey] = [model: packed]
+        }
 
         // Store in cache
         let usage = Self.makeFileUsage(
