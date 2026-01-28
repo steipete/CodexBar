@@ -97,32 +97,17 @@ extension CostUsageScanner {
         return OpenCodeParseResult(tokenData: tokenData, providerID: providerID)
     }
 
-    /// Normalizes OpenCode model IDs to match Claude pricing keys.
-    /// OpenCode uses names like "claude-opus-4-5" while pricing uses "claude-opus-4-5-20251101".
+    /// Normalizes OpenCode model IDs to match Claude pricing/storage keys.
+    /// Uses the same normalization as Claude logs for consistent model grouping.
     private static func normalizeClaudeModelID(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Remove provider prefix if present
+        // Remove provider prefix if present (OpenCode uses "anthropic/" prefix sometimes)
         if trimmed.hasPrefix("anthropic/") {
             trimmed = String(trimmed.dropFirst("anthropic/".count))
         }
 
-        // OpenCode model IDs don't have date suffixes, but the pricing table does.
-        // Map known models to their dated versions for accurate pricing lookup.
-        let modelMappings: [String: String] = [
-            "claude-opus-4-5": "claude-opus-4-5-20251101",
-            "claude-sonnet-4-5": "claude-sonnet-4-5-20250929",
-            "claude-haiku-4-5": "claude-haiku-4-5-20251001",
-            "claude-opus-4": "claude-opus-4-20250514",
-            "claude-sonnet-4": "claude-sonnet-4-20250514",
-            "claude-opus-4-1": "claude-opus-4-1",
-        ]
-
-        if let mapped = modelMappings[trimmed] {
-            return mapped
-        }
-
-        // Fallback: use as-is (normalizeClaudeModel will handle it)
+        // Use standard Claude normalization for consistent storage keys
         return CostUsagePricing.normalizeClaudeModel(trimmed)
     }
 
