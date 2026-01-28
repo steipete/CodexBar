@@ -203,6 +203,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
     let descriptor: ProviderSettingsTokenAccountsDescriptor
     @State private var newLabel: String = ""
     @State private var newToken: String = ""
+    @State private var newToken2: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -243,25 +244,79 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 .controlSize(.small)
             }
 
-            HStack(spacing: 8) {
-                TextField("Label", text: self.$newLabel)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.footnote)
-                SecureField(self.descriptor.placeholder, text: self.$newToken)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.footnote)
-                Button("Add") {
-                    let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !label.isEmpty, !token.isEmpty else { return }
-                    self.descriptor.addAccount(label, token)
-                    self.newLabel = ""
-                    self.newToken = ""
+            if self.descriptor.supportsManualEntry {
+                let trimmedLabel = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedToken = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedToken2 = self.newToken2.trimmingCharacters(in: .whitespacesAndNewlines)
+                let addDisabled = trimmedLabel.isEmpty || trimmedToken.isEmpty
+
+                if self.descriptor.supportsTwoFieldEntry {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            TextField("Label", text: self.$newLabel)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.footnote)
+                                .frame(maxWidth: .infinity)
+                        }
+                        HStack(spacing: 8) {
+                            SecureField("Access Token (ya29...)", text: self.$newToken)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.footnote)
+                            SecureField("Refresh Token - optional (1//...)", text: self.$newToken2)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.footnote)
+                        }
+                        Button("Add") {
+                            guard !addDisabled else { return }
+                            self.descriptor.addAccount(trimmedLabel, trimmedToken, trimmedToken2)
+                            self.newLabel = ""
+                            self.newToken = ""
+                            self.newToken2 = ""
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(addDisabled)
+                    }
+                } else {
+                    HStack(spacing: 8) {
+                        TextField("Label", text: self.$newLabel)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.footnote)
+                        SecureField(self.descriptor.placeholder, text: self.$newToken)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.footnote)
+                        Button("Add") {
+                            guard !addDisabled else { return }
+                            self.descriptor.addAccount(trimmedLabel, trimmedToken, "")
+                            self.newLabel = ""
+                            self.newToken = ""
+                            self.newToken2 = ""
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(addDisabled)
+                    }
+                }
+            }
+
+            if let addAction = self.descriptor.addAction {
+                Button(self.descriptor.addActionTitle ?? "Add account") {
+                    Task { @MainActor in
+                        await addAction()
+                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                    self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            if let importAction = self.descriptor.importAction {
+                Button(importAction.title) {
+                    Task { @MainActor in
+                        await importAction.action()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
 
             HStack(spacing: 10) {

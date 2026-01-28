@@ -87,6 +87,14 @@ extension UsageStore {
             settings: self.settings,
             tokenOverride: override)
         let verbose = self.settings.isVerboseLoggingEnabled
+
+        let onCredentialsRefreshed: (@Sendable (UsageProvider, String, String?) -> Void) = { [weak self] provider, accountLabel, newAccessToken in
+            Task { @MainActor in
+                guard let self = self else { return }
+                self.saveRefreshedCredentialsToConfig(provider: provider, accountLabel: accountLabel, newAccessToken: newAccessToken)
+            }
+        }
+        
         let context = ProviderFetchContext(
             runtime: .app,
             sourceMode: sourceMode,
@@ -98,7 +106,8 @@ extension UsageStore {
             settings: snapshot,
             fetcher: self.codexFetcher,
             claudeFetcher: self.claudeFetcher,
-            browserDetection: self.browserDetection)
+            browserDetection: self.browserDetection,
+            onCredentialsRefreshed: onCredentialsRefreshed)
         return await descriptor.fetchOutcome(context: context)
     }
 
@@ -201,5 +210,45 @@ extension UsageStore {
             cursorRequests: snapshot.cursorRequests,
             updatedAt: snapshot.updatedAt,
             identity: identity)
+    }
+
+    @MainActor
+    private func saveRefreshedCredentialsToConfig(provider: UsageProvider, accountLabel: String, newAccessToken: String?) {
+        guard provider == .antigravity else { return }
+        guard let normalizedLabel = AntigravityOAuthCredentialsStore.normalizedLabel(accountLabel) else { return }
+
+        let tokenAccounts = self.settings.tokenAccountsData(for: .antigravity)
+        guard let account = tokenAccounts?.accounts.first(where: { $0.label.lowercased() == normalizedLabel }) else { return }
+        guard let payload = AntigravityOAuthCredentialsStore.manualTokenPayload(from: account.token) else { return }
+
+        let accessToken = newAccessToken ?? payload.accessToken
+        let tokenValue = AntigravityOAuthCredentialsStore.manualTokenValue(
+            accessToken: accessToken,
+            refreshToken: payload.refreshToken)
+
+        guard var accounts = tokenAccounts?.accounts else { return }
+        guard let index = accounts.firstIndex(where: { $0.id == account.id }) else { return }
+
+        let updatedAccount = ProviderTokenAccount(
+            id: account.id,
+            label: account.label,
+            token: tokenValue,
+            addedAt: account.addedAt,
+            lastUsed: Date().timeIntervalSince1970)
+        accounts[index] = updatedAccount
+
+        let updatedData = ProviderTokenAccountData(
+            version: tokenAccounts?.version ?? 1,
+            accounts: accounts,
+            activeIndex: tokenAccounts?.activeIndex ?? 0)
+
+        self.settings.updateProviderConfig(provider: .antigravity) { entry in
+            entry.tokenAccounts = updatedData
+        }
+
+        self.providerLogger.info("Saved refreshed credentials to JSON config", metadata: [
+            "provider": "antigravity",
+            "account": normalizedLabel,
+        ])
     }
 }

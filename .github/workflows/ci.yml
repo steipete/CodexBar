@@ -61,6 +61,9 @@ jobs:
           uname -a
           uname -m
 
+      - name: Install SQLite3
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
       - name: Setup Swift 6.2.1
         uses: swift-actions/setup-swift@v3
         with:

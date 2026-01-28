@@ -61,6 +61,59 @@ extension UsageStore {
             }
         }
     }
+
+    private func debugAntigravityLog(
+        usageSource: AntigravityUsageSource,
+        accountLabel: String?) async -> String
+    {
+        let tokenAccounts = await MainActor.run { self.settings.tokenAccountsData(for: .antigravity) }
+
+        return await self.runWithTimeout(seconds: 15) {
+            var lines: [String] = []
+
+            let trimmedLabel = accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasAccountLabel = !(trimmedLabel?.isEmpty ?? true)
+
+            let keychainCreds = hasAccountLabel
+                ? AntigravityOAuthCredentialsStore.load(accountLabel: trimmedLabel ?? "")
+                : nil
+            let hasKeychainAccessToken = !(keychainCreds?.accessToken.isEmpty ?? true)
+            let hasKeychainRefreshToken = keychainCreds?.isRefreshable ?? false
+            let isKeychainExpired = keychainCreds?.isExpired ?? false
+
+            let normalizedLabel = trimmedLabel?.lowercased() ?? ""
+            let manualAccount = tokenAccounts?.accounts.first { $0.label.lowercased() == normalizedLabel }
+            let manualPayload = manualAccount.flatMap {
+                AntigravityOAuthCredentialsStore.manualTokenPayload(from: $0.token)
+            }
+            let hasManualAccessToken = manualPayload?.accessToken.isEmpty == false
+
+            let serverRunning = await AntigravityStatusProbe.isRunning()
+
+            let present = { $0 ? "present" : "missing" }
+            let available = { $0 ? "available" : "unavailable" }
+
+            lines.append("usageSource=\(usageSource.rawValue)")
+            lines.append("accountLabel=\(hasAccountLabel ? (trimmedLabel ?? "") : "none")")
+            lines.append("keychainCredentials=\(present(keychainCreds != nil))")
+            lines.append("keychainAccessToken=\(present(hasKeychainAccessToken))")
+            lines.append("keychainRefreshToken=\(present(hasKeychainRefreshToken))")
+            lines.append("keychainExpired=\(isKeychainExpired)")
+            if let email = keychainCreds?.email, !email.isEmpty {
+                lines.append("keychainEmail=\(email)")
+            }
+            lines.append("manualCredentials=\(present(manualPayload != nil))")
+            lines.append("manualAccessToken=\(present(hasManualAccessToken))")
+            lines.append("localServer=\(serverRunning ? "running" : "not_running")")
+
+            lines.append("")
+            let isAuthorizedAvailable = hasAccountLabel && (hasKeychainAccessToken || hasKeychainRefreshToken || manualPayload != nil)
+            lines.append("authorizedStrategy=\(available(isAuthorizedAvailable))")
+            lines.append("localStrategy=\(available(serverRunning))")
+
+            return lines.joined(separator: "\n")
+        }
+    }
 }
 
 enum ProviderStatusIndicator: String {
@@ -1134,6 +1187,8 @@ extension UsageStore {
         let keepCLISessionsAlive = self.settings.debugKeepCLISessionsAlive
         let cursorCookieSource = self.settings.cursorCookieSource
         let cursorCookieHeader = self.settings.cursorCookieHeader
+        let antigravityUsageSource = self.settings.antigravityUsageSource
+        let antigravityAccountLabel = self.settings.selectedTokenAccount(for: .antigravity)?.label
         return await Task.detached(priority: .utility) { () -> String in
             switch provider {
             case .codex:
@@ -1168,7 +1223,9 @@ extension UsageStore {
                 await MainActor.run { self.probeLogs[.gemini] = text }
                 return text
             case .antigravity:
-                let text = "Antigravity debug log not yet implemented"
+                let text = await self.debugAntigravityLog(
+                    usageSource: antigravityUsageSource,
+                    accountLabel: antigravityAccountLabel)
                 await MainActor.run { self.probeLogs[.antigravity] = text }
                 return text
             case .cursor:

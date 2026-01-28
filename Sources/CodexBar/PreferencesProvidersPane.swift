@@ -164,11 +164,36 @@ struct ProvidersPane: View {
     func tokenAccountDescriptor(for provider: UsageProvider) -> ProviderSettingsTokenAccountsDescriptor? {
         guard let support = TokenAccountSupportCatalog.support(for: provider) else { return nil }
         let context = self.makeSettingsContext(provider: provider)
+
+        let isAntigravity = provider == .antigravity
+        let keychainEnabled = !KeychainAccessGate.isDisabled
+
+        let supportsTwoFieldEntry = isAntigravity
+        let supportsManualEntry = !isAntigravity || !keychainEnabled
+        let addActionTitle = (isAntigravity && keychainEnabled) ? "Sign in with Google" : nil
+        let addAction: (() async -> Void)? = (isAntigravity && keychainEnabled)
+            ? {
+                _ = await AntigravityLoginFlow.runOAuthFlow(
+                    settings: self.settings,
+                    store: self.store)
+            }
+            : nil
+        let importAction: ProviderSettingsTokenAccountsDescriptor.ImportAction? = isAntigravity
+            ? ProviderSettingsTokenAccountsDescriptor.ImportAction(
+                title: "Import from Antigravity app",
+                action: { await self.importAntigravityCredentials() })
+            : nil
+
         return ProviderSettingsTokenAccountsDescriptor(
             id: "token-accounts-\(provider.rawValue)",
             title: support.title,
             subtitle: support.subtitle,
             placeholder: support.placeholder,
+            supportsManualEntry: supportsManualEntry,
+            supportsTwoFieldEntry: supportsTwoFieldEntry,
+            addActionTitle: addActionTitle,
+            addAction: addAction,
+            importAction: importAction,
             provider: provider,
             isVisible: {
                 ProviderCatalog.implementation(for: provider)?
@@ -187,14 +212,25 @@ struct ProvidersPane: View {
                     await self.store.refreshProvider(provider, allowDisabled: true)
                 }
             },
-            addAccount: { label, token in
-                self.settings.addTokenAccount(provider: provider, label: label, token: token)
+            addAccount: { label, token, token2 in
+                if isAntigravity {
+                    _ = self.settings.addManualAntigravityTokenAccount(
+                        label: label,
+                        accessToken: token,
+                        refreshToken: token2.isEmpty ? nil : token2)
+                } else {
+                    self.settings.addTokenAccount(provider: provider, label: label, token: token)
+                }
                 Task { @MainActor in
                     await self.store.refreshProvider(provider, allowDisabled: true)
                 }
             },
             removeAccount: { accountID in
-                self.settings.removeTokenAccount(provider: provider, accountID: accountID)
+                if isAntigravity {
+                    self.settings.removeAntigravityTokenAccount(accountID: accountID)
+                } else {
+                    self.settings.removeTokenAccount(provider: provider, accountID: accountID)
+                }
                 Task { @MainActor in
                     await self.store.refreshProvider(provider, allowDisabled: true)
                 }
@@ -208,6 +244,100 @@ struct ProvidersPane: View {
                     await self.store.refreshProvider(provider, allowDisabled: true)
                 }
             })
+    }
+
+    @MainActor
+    private func importAntigravityCredentials() async {
+        let log = CodexBarLog.logger(LogCategories.antigravity)
+        log.debug("Starting credentials import from Antigravity DB")
+
+        do {
+            let credentials = try await AntigravityLocalImporter.importCredentials()
+            log.debug("Import successful - email: \(credentials.email ?? "none"), hasAccessToken: \(credentials.hasAccessToken), hasRefreshToken: \(credentials.hasRefreshToken)")
+
+            guard let accessToken = credentials.accessToken, !accessToken.isEmpty else {
+                log.debug("Import failed: no access token found")
+                self.presentAlert(
+                    title: "Import Failed",
+                    message: "No access token found in Antigravity database.")
+                return
+            }
+
+            let label = credentials.email ?? credentials.name ?? "Imported Account"
+            log.debug("Creating manual token account with label: \(label)")
+
+            guard let account = self.settings.addManualAntigravityTokenAccount(
+                label: label,
+                accessToken: accessToken,
+                refreshToken: credentials.refreshToken) else {
+                log.debug("Import failed: unable to save imported credentials")
+                self.presentAlert(
+                    title: "Import Failed",
+                    message: "Unable to save imported credentials.")
+                return
+            }
+
+            log.debug("Account created successfully: \(account.label)")
+            await self.store.refreshProvider(.antigravity, allowDisabled: true)
+
+            let alert = NSAlert()
+            alert.messageText = "Import Successful"
+            alert.informativeText = "Imported account: \(account.label)"
+            alert.runModal()
+
+        } catch let error as AntigravityOAuthCredentialsError {
+            log.debug("Import failed with AntigravityOAuthCredentialsError: \(error)")
+            switch error {
+            case .notFound:
+                if AntigravityLocalImporter.isAvailable() {
+                    self.presentAlert(
+                        title: "No Credentials Found",
+                        message: "Antigravity database found, but no credentials were found inside.\n\nPlease ensure:\n1. You are signed in to Antigravity IDE (check the Account menu)\n2. Try restarting Antigravity IDE if you just signed in\n3. If the issue persists, paste your tokens manually below")
+                } else {
+                    self.presentAlert(
+                        title: "Import Failed",
+                        message: "Antigravity database not found. Ensure Antigravity app is installed.")
+                }
+            default:
+                self.presentAlert(
+                    title: "Import Failed",
+                    message: error.localizedDescription)
+            }
+        } catch {
+            log.debug("Import failed with error: \(error)")
+            let nsError = error as NSError
+            if nsError.domain == NSPOSIXErrorDomain && nsError.code == 1 {
+                self.presentFullDiskAccessAlert()
+            } else {
+                self.presentAlert(
+                    title: "Import Failed",
+                    message: error.localizedDescription)
+            }
+        }
+    }
+
+    @MainActor
+    private func presentFullDiskAccessAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Full Disk Access Required"
+        alert.informativeText = "Full Disk Access is required to read the Antigravity database. Please grant access in System Settings."
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+
+    @MainActor
+    private func presentAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.runModal()
     }
 
     private func makeSettingsContext(provider: UsageProvider) -> ProviderSettingsContext {
