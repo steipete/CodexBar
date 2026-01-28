@@ -456,6 +456,17 @@ extension CostUsageScanner {
                     state: scanState)
             }
 
+            // Also scan OpenCode message files for Claude/Anthropic usage
+            // (OpenCode users consuming Claude Max subscription)
+            // Skip when claudeProjectsRoots is explicitly set (test environment)
+            if provider == .claude, providerFilter != .vertexAIOnly, options.claudeProjectsRoots == nil {
+                Self.scanOpenCodeMessagesIntoClaude(
+                    cache: &scanState.cache,
+                    touched: &scanState.touched,
+                    range: scanState.range,
+                    options: options)
+            }
+
             cache = scanState.cache
             touched = scanState.touched
             cache.roots = scanState.rootCache.isEmpty ? nil : scanState.rootCache
