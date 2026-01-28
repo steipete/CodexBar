@@ -72,9 +72,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
-        _ = context
-        _ = support
-        return true
+    func tokenAccountsVisibility(context _: ProviderSettingsContext, support _: TokenAccountSupport) -> Bool {
+        true
     }
 }
