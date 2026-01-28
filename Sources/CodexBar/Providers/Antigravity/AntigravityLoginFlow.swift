@@ -62,11 +62,7 @@ struct AntigravityLoginFlow {
 
             let success = NSAlert()
             success.messageText = "Authorization Successful"
-            var info: [String] = []
-            info.append("Signed in as \(accountLabel).")
-            if !info.isEmpty {
-                success.informativeText = info.joined(separator: " ")
-            }
+            success.informativeText = "Signed in as \(accountLabel)."
             success.runModal()
             return true
         case let .failure(error):
