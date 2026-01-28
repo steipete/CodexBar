@@ -44,6 +44,10 @@ public struct AntigravityOAuthCredentials: Sendable, Codable {
 }
 
 public enum AntigravityOAuthConfig {
+    // Public OAuth client credentials for Antigravity service.
+    // These are meant to be embedded in client applications and are distributed with the app.
+    // They are visible in OAuth flows to users anyway; the actual security comes from
+    // the refresh/access tokens stored in Keychain, not these public client identifiers.
     public static let clientID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
     public static let clientSecret = "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"
     public static let scopes = [
