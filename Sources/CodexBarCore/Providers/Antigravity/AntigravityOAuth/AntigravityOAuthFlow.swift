@@ -17,13 +17,17 @@ public actor AntigravityOAuthFlow {
     public init() {}
 
     public func startAuthorization() async throws -> AntigravityOAuthCredentials {
+        Self.log.debug("Starting OAuth authorization flow")
+        
         let port = try await self.startCallbackServer()
         let redirectUri = "http://\(AntigravityOAuthConfig.callbackHost):\(port)"
         let state = self.generateState()
         self.pendingState = state
 
         let authURL = self.buildAuthURL(redirectUri: redirectUri, state: state)
-
+        
+        Self.log.debug("Requesting scopes: \(AntigravityOAuthConfig.scopes.joined(separator: ", "))")
+        Self.log.debug("Using access_type=offline and prompt=consent to ensure refresh token")
         Self.log.info("Opening Antigravity OAuth authorization URL")
         #if os(macOS)
         if let url = URL(string: authURL) {
@@ -158,6 +162,13 @@ public actor AntigravityOAuthFlow {
 
         let expiresAt = Date(timeIntervalSinceNow: TimeInterval(expiresIn))
         let email = try? await AntigravityTokenRefresher.fetchUserEmail(accessToken: accessToken)
+
+        Self.log.debug("Received OAuth response - access_token length: \(accessToken.count)")
+        Self.log.debug("Received OAuth response - refresh_token length: \(refreshToken.count)")
+        Self.log.debug("Token expires in: \(expiresIn) seconds")
+        if let email = email {
+            Self.log.debug("Resolved account email: \(email)")
+        }
 
         Self.log.info("Antigravity OAuth authorization successful", metadata: [
             "email": email ?? "unknown",

@@ -22,8 +22,9 @@ Antigravity supports OAuth-authorized Cloud Code quota and local language server
 - **Keychain**: stored from the OAuth browser flow
 - **Manual tokens**: stored in token accounts with `manual:` prefix (access `ya29.` + optional refresh `1//`)
 - **Local import**: `~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb`
-  - refresh token: `jetskiStateSync.agentManagerInitState` (protobuf field 6)
+  - refresh token: `jetskiStateSync.agentManagerInitState` (base64 protobuf, field 6 contains nested OAuthTokenInfo)
   - access token/email: `antigravityAuthStatus` JSON (`apiKey`, `email`)
+  - Import button always visible; storage adapts to Keychain setting (Keychain when enabled, config.json when disabled)
 - OAuth callback server listens on `http://127.0.0.1:11451+`
 
 ## Cloud Code API endpoints
@@ -98,6 +99,8 @@ Antigravity supports OAuth-authorized Cloud Code quota and local language server
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityOAuthCredentials.swift`
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityTokenRefresher.swift`
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityLocalImporter.swift`
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/antigravity_state.proto` (protobuf definition)
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/antigravity_state.pb.swift` (generated Swift)
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityCloudCodeClient.swift`
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityOAuthFlow.swift`
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityAuthorizedFetchStrategy.swift`

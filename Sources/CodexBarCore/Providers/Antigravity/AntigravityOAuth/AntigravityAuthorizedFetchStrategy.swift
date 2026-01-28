@@ -10,30 +10,44 @@ public struct AntigravityAuthorizedFetchStrategy: ProviderFetchStrategy {
 
     public func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard let accountLabel = context.settings?.antigravity?.accountLabel else {
+            Self.log.debug("Authorized strategy not available: no account label")
             return false
         }
 
+        Self.log.debug("Checking authorized strategy availability for account: \(accountLabel)")
+
         if let manualCredentials = self.loadManualCredentials(accountLabel: accountLabel, context: context) {
+            Self.log.debug("Manual credentials found")
             return !manualCredentials.accessToken.isEmpty
         }
 
         guard let credentials = AntigravityOAuthCredentialsStore.load(accountLabel: accountLabel) else {
+            Self.log.debug("Keychain credentials not found")
             return false
         }
+        
+        Self.log.debug("Keychain credentials found - hasAccessToken: \(!credentials.accessToken.isEmpty), isRefreshable: \(credentials.isRefreshable)")
+        
         if !credentials.accessToken.isEmpty { return true }
         return credentials.isRefreshable
     }
 
     public func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        Self.log.debug("Fetching with authorized strategy")
+        
         let resolved = try await self.resolveCredentials(context: context)
         let accountLabel = resolved.accountLabel
         let credentials = resolved.credentials
         let sourceLabel = resolved.sourceLabel
 
+        Self.log.debug("Resolved credentials - source: \(sourceLabel), needsRefresh: \(credentials.needsRefresh), isRefreshable: \(credentials.isRefreshable)")
+
         var refreshedCredentials: AntigravityOAuthCredentials?
         if credentials.needsRefresh || (credentials.accessToken.isEmpty && credentials.isRefreshable) {
+            Self.log.debug("Credentials need refresh, refreshing token...")
             let refreshed = try await self.refreshCredentials(credentials)
             refreshedCredentials = refreshed
+            Self.log.debug("Token refresh successful")
             if KeychainAccessGate.isDisabled {
                 context.onCredentialsRefreshed?(.antigravity, accountLabel, refreshed.accessToken)
             } else {
@@ -43,6 +57,8 @@ public struct AntigravityAuthorizedFetchStrategy: ProviderFetchStrategy {
 
         let activeCredentials = refreshedCredentials ?? credentials
         let quota = try await AntigravityCloudCodeClient.fetchQuota(accessToken: activeCredentials.accessToken)
+        Self.log.debug("Successfully fetched quota from Cloud Code API")
+        
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: quota.models,
             accountEmail: activeCredentials.email ?? quota.email,

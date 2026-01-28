@@ -1,4 +1,5 @@
 import Foundation
+import SwiftProtobuf
 
 #if os(macOS)
 import SQLite3
@@ -21,6 +22,8 @@ public enum AntigravityLocalImporter {
         }
     }
 
+    private static let log = CodexBarLog.logger(LogCategories.antigravity)
+
     public static func stateDbPath() -> URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home
@@ -33,32 +36,53 @@ public enum AntigravityLocalImporter {
     }
 
     public static func importCredentials() async throws -> LocalCredentialInfo {
+        Self.log.debug("Starting Antigravity DB import")
+        
         let dbPath = self.stateDbPath()
+        Self.log.debug("Database path: \(dbPath.path)")
+        
         guard FileManager.default.fileExists(atPath: dbPath.path) else {
+            Self.log.debug("Database file not found at path")
             throw AntigravityOAuthCredentialsError.notFound
         }
 
         var refreshToken: String?
-        if let protoInfo = try? self.readProtoTokenInfo(dbPath: dbPath) {
+        var accessToken: String?
+        
+        do {
+            let protoInfo = try self.readProtoTokenInfo(dbPath: dbPath)
             refreshToken = protoInfo.refreshToken
+            accessToken = protoInfo.accessToken
+            Self.log.debug("Extracted OAuth token info - access_token present: \(accessToken != nil && !accessToken!.isEmpty), refresh_token present: \(refreshToken != nil && !refreshToken!.isEmpty)")
+        } catch {
+            Self.log.debug("Failed to read proto token info: \(error)")
         }
 
         if let authStatus = try? self.readAuthStatus(dbPath: dbPath) {
+            Self.log.debug("Read auth status - email: \(authStatus.email ?? "none"), apiKey present: \(authStatus.apiKey != nil && !authStatus.apiKey!.isEmpty)")
+            
+            // Prefer accessToken from proto, fallback to apiKey from auth status
+            let finalAccessToken = accessToken ?? authStatus.apiKey
+            
+            Self.log.debug("Import result - email: \(authStatus.email ?? "none"), hasAccessToken: \(finalAccessToken != nil && !finalAccessToken!.isEmpty), hasRefreshToken: \(refreshToken != nil && !refreshToken!.isEmpty)")
+            
             return LocalCredentialInfo(
-                accessToken: authStatus.apiKey,
+                accessToken: finalAccessToken,
                 refreshToken: refreshToken,
                 email: authStatus.email,
                 name: authStatus.name)
         }
 
         if let refreshToken, !refreshToken.isEmpty {
+            Self.log.debug("Using refresh token only (no auth status found)")
             return LocalCredentialInfo(
-                accessToken: nil,
+                accessToken: accessToken,
                 refreshToken: refreshToken,
                 email: nil,
                 name: nil)
         }
 
+        Self.log.debug("No credentials found in database")
         throw AntigravityOAuthCredentialsError.notFound
     }
 
@@ -80,6 +104,7 @@ public enum AntigravityLocalImporter {
     }
 
     private static func readAuthStatus(dbPath: URL) throws -> AuthStatus {
+        Self.log.debug("Reading antigravityAuthStatus from DB")
         let json = try self.readStateValue(dbPath: dbPath, key: "antigravityAuthStatus")
         guard let data = json.data(using: .utf8),
               let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -95,10 +120,15 @@ public enum AntigravityLocalImporter {
     }
 
     private static func readProtoTokenInfo(dbPath: URL) throws -> ProtoTokenInfo {
+        Self.log.debug("Reading jetskiStateSync.agentManagerInitState from DB")
         let base64 = try self.readStateValue(dbPath: dbPath, key: "jetskiStateSync.agentManagerInitState")
-        guard let data = Data(base64Encoded: base64) else {
+        Self.log.debug("Read base64 value, length: \(base64.count)")
+        
+        guard let data = Data(base64Encoded: base64.trimmingCharacters(in: .whitespacesAndNewlines)) else {
             throw AntigravityOAuthCredentialsError.decodeFailed("Invalid base64 in agentManagerInitState")
         }
+        Self.log.debug("Decoded base64, data length: \(data.count)")
+        
         return try self.parseProtoTokenInfo(data: data)
     }
 
@@ -141,78 +171,35 @@ public enum AntigravityLocalImporter {
     }
 
     private static func parseProtoTokenInfo(data: Data) throws -> ProtoTokenInfo {
-        var accessToken: String?
-        var refreshToken: String?
-        var tokenType: String?
-        var expirySeconds: Int?
+        Self.log.debug("Parsing protobuf data using swift-protobuf")
 
-        var offset = 0
-        while offset < data.count {
-            let (fieldTag, newOffset) = try self.readVarint(data: data, offset: offset)
-            offset = newOffset
+        do {
+            let state = try AgentManagerInitState(serializedBytes: data)
+            Self.log.debug("Successfully parsed AgentManagerInitState")
 
-            let fieldNumber = fieldTag >> 3
-            let wireType = fieldTag & 0x07
-
-            switch wireType {
-            case 0:
-                let (value, nextOffset) = try self.readVarint(data: data, offset: offset)
-                offset = nextOffset
-                if fieldNumber == 4 {
-                    expirySeconds = value
-                }
-            case 2:
-                let (length, lengthOffset) = try self.readVarint(data: data, offset: offset)
-                offset = lengthOffset
-                let endOffset = offset + length
-                guard endOffset <= data.count else {
-                    throw AntigravityOAuthCredentialsError.decodeFailed("Invalid protobuf length")
-                }
-                let stringData = data[offset..<endOffset]
-                let stringValue = String(data: stringData, encoding: .utf8)
-                offset = endOffset
-
-                switch fieldNumber {
-                case 1:
-                    accessToken = stringValue
-                case 5:
-                    tokenType = stringValue
-                case 6:
-                    refreshToken = stringValue
-                default:
-                    break
-                }
-            default:
-                throw AntigravityOAuthCredentialsError.decodeFailed("Unsupported wire type: \(wireType)")
+            guard state.hasOauthToken else {
+                Self.log.debug("No oauth_token field (field 6) found in protobuf")
+                throw AntigravityOAuthCredentialsError.decodeFailed("No oauth_token field found")
             }
+
+            let oauthToken = state.oauthToken
+            Self.log.debug("Found OAuthTokenInfo - access_token length: \(oauthToken.accessToken.count), refresh_token length: \(oauthToken.refreshToken.count)")
+
+            var expirySeconds: Int?
+            if oauthToken.hasExpiry {
+                expirySeconds = Int(oauthToken.expiry.seconds)
+                Self.log.debug("Token expiry: \(expirySeconds!) seconds since epoch")
+            }
+
+            return ProtoTokenInfo(
+                accessToken: oauthToken.accessToken.isEmpty ? nil : oauthToken.accessToken,
+                refreshToken: oauthToken.refreshToken.isEmpty ? nil : oauthToken.refreshToken,
+                tokenType: oauthToken.tokenType.isEmpty ? nil : oauthToken.tokenType,
+                expirySeconds: expirySeconds)
+        } catch {
+            Self.log.debug("Protobuf parsing failed: \(error)")
+            throw AntigravityOAuthCredentialsError.decodeFailed("Failed to parse protobuf: \(error)")
         }
-
-        return ProtoTokenInfo(
-            accessToken: accessToken,
-            refreshToken: refreshToken,
-            tokenType: tokenType,
-            expirySeconds: expirySeconds)
-    }
-
-    private static func readVarint(data: Data, offset: Int) throws -> (Int, Int) {
-        var result = 0
-        var shift = 0
-        var pos = offset
-
-        while pos < data.count {
-            let byte = Int(data[pos])
-            result |= (byte & 0x7F) << shift
-            pos += 1
-            if (byte & 0x80) == 0 {
-                return (result, pos)
-            }
-            shift += 7
-            if shift > 63 {
-                throw AntigravityOAuthCredentialsError.decodeFailed("Varint too long")
-            }
-        }
-
-        throw AntigravityOAuthCredentialsError.decodeFailed("Incomplete varint")
     }
 }
 #endif

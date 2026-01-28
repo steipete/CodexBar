@@ -3,7 +3,12 @@ import CodexBarCore
 
 @MainActor
 struct AntigravityLoginFlow {
+    private static let log = CodexBarLog.logger(LogCategories.antigravity)
+
     static func runOAuthFlow(settings: SettingsStore, store: UsageStore? = nil) async -> Bool {
+        Self.log.debug("Starting Antigravity OAuth login flow")
+        Self.log.debug("Keychain access disabled: \(KeychainAccessGate.isDisabled)")
+
         if KeychainAccessGate.isDisabled {
             Self.presentAlert(
                 title: "Authorization Unavailable",
@@ -77,16 +82,21 @@ struct AntigravityLoginFlow {
         settings: SettingsStore) -> String?
     {
         guard let accountLabel = Self.resolveAccountLabel(credentials: credentials, settings: settings) else {
+            Self.log.debug("Failed to resolve account label")
             return nil
         }
+        Self.log.debug("Persisting credentials for account: \(accountLabel)")
         guard AntigravityOAuthCredentialsStore.save(credentials, accountLabel: accountLabel) else {
+            Self.log.debug("Failed to save credentials to Keychain")
             return nil
         }
+        Self.log.debug("Saved credentials to Keychain successfully")
         _ = settings.upsertAntigravityTokenAccount(label: accountLabel)
         settings.setProviderEnabled(
             provider: .antigravity,
             metadata: ProviderRegistry.shared.metadata[.antigravity]!,
             enabled: true)
+        Self.log.debug("Provider enabled and token account created")
         return accountLabel
     }
 

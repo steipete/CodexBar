@@ -22,6 +22,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log", from: "1.9.1"),
         .package(url: "https://github.com/apple/swift-syntax", from: "600.0.1"),
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.4.0"),
+        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.21.0"),
         sweetCookieKitDependency,
     ],
     targets: {
@@ -32,7 +33,9 @@ let package = Package(
                     "CodexBarMacroSupport",
                     .product(name: "Logging", package: "swift-log"),
                     .product(name: "SweetCookieKit", package: "SweetCookieKit"),
+                    .product(name: "SwiftProtobuf", package: "swift-protobuf"),
                 ],
+                exclude: ["Providers/Antigravity/AntigravityOAuth/antigravity_state.proto"],
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
                 ]),

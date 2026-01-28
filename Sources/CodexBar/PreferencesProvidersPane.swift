@@ -178,7 +178,7 @@ struct ProvidersPane: View {
                     store: self.store)
             }
             : nil
-        let importAction: ProviderSettingsTokenAccountsDescriptor.ImportAction? = (isAntigravity && !keychainEnabled)
+        let importAction: ProviderSettingsTokenAccountsDescriptor.ImportAction? = isAntigravity
             ? ProviderSettingsTokenAccountsDescriptor.ImportAction(
                 title: "Import from Antigravity app",
                 action: { await self.importAntigravityCredentials() })
@@ -248,9 +248,15 @@ struct ProvidersPane: View {
 
     @MainActor
     private func importAntigravityCredentials() async {
+        let log = CodexBarLog.logger(LogCategories.antigravity)
+        log.debug("Starting credentials import from Antigravity DB")
+
         do {
             let credentials = try await AntigravityLocalImporter.importCredentials()
+            log.debug("Import successful - email: \(credentials.email ?? "none"), hasAccessToken: \(credentials.hasAccessToken), hasRefreshToken: \(credentials.hasRefreshToken)")
+
             guard let accessToken = credentials.accessToken, !accessToken.isEmpty else {
+                log.debug("Import failed: no access token found")
                 self.presentAlert(
                     title: "Import Failed",
                     message: "No access token found in Antigravity database.")
@@ -258,16 +264,20 @@ struct ProvidersPane: View {
             }
 
             let label = credentials.email ?? credentials.name ?? "Imported Account"
+            log.debug("Creating manual token account with label: \(label)")
+
             guard let account = self.settings.addManualAntigravityTokenAccount(
                 label: label,
                 accessToken: accessToken,
                 refreshToken: credentials.refreshToken) else {
+                log.debug("Import failed: unable to save imported credentials")
                 self.presentAlert(
                     title: "Import Failed",
                     message: "Unable to save imported credentials.")
                 return
             }
 
+            log.debug("Account created successfully: \(account.label)")
             await self.store.refreshProvider(.antigravity, allowDisabled: true)
 
             let alert = NSAlert()
@@ -276,6 +286,7 @@ struct ProvidersPane: View {
             alert.runModal()
 
         } catch let error as AntigravityOAuthCredentialsError {
+            log.debug("Import failed with AntigravityOAuthCredentialsError: \(error)")
             switch error {
             case .notFound:
                 if AntigravityLocalImporter.isAvailable() {
@@ -293,6 +304,7 @@ struct ProvidersPane: View {
                     message: error.localizedDescription)
             }
         } catch {
+            log.debug("Import failed with error: \(error)")
             let nsError = error as NSError
             if nsError.domain == NSPOSIXErrorDomain && nsError.code == 1 {
                 self.presentFullDiskAccessAlert()
