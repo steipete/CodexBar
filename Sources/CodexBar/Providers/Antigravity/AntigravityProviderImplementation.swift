@@ -8,6 +8,21 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .antigravity
     let supportsLoginFlow: Bool = true
 
+    @MainActor
+    func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
+        ProviderPresentation { context in
+            let sourceLabel = context.store.sourceLabel(for: .antigravity)
+            switch sourceLabel.lowercased() {
+            case "oauth", "manual":
+                return "oauth"
+            case "local server":
+                return "local"
+            default:
+                return "not detected"
+            }
+        }
+    }
+
     func detectVersion(context _: ProviderVersionContext) async -> String? {
         await AntigravityStatusProbe.detectVersion()
     }
