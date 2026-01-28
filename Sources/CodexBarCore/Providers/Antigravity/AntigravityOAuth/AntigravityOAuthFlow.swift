@@ -184,7 +184,7 @@ private final class CallbackServer: @unchecked Sendable {
     }
 
     private func start(port: Int) throws {
-        self.serverSocket = socket(AF_INET, SOCK_STREAM, 0)
+        self.serverSocket = socket(AF_INET, Int32(SOCK_STREAM), 0)
         guard self.serverSocket >= 0 else {
             throw AntigravityOAuthCredentialsError.networkError("Failed to create socket")
         }
