@@ -1,4 +1,6 @@
 import Foundation
+
+#if os(macOS)
 import SQLite3
 
 public enum AntigravityLocalImporter {
@@ -213,3 +215,4 @@ public enum AntigravityLocalImporter {
         throw AntigravityOAuthCredentialsError.decodeFailed("Incomplete varint")
     }
 }
+#endif
