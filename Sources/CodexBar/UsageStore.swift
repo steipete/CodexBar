@@ -1250,7 +1250,7 @@ extension UsageStore {
             } else {
                 ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection) { msg in lines.append(msg) }
             }
-            let hasOAuthCredentials = (try? ClaudeOAuthCredentialsStore.load()) != nil
+            let hasOAuthCredentials = (try? ClaudeOAuthCredentialsStore.load(allowKeychainPrompt: false)) != nil
 
             let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
                 selectedDataSource: claudeUsageDataSource,
