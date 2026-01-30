@@ -440,7 +440,9 @@ final class UsageStore {
 
         // OpenAI web scrape depends on the current Codex account email (which can change after login/account switch).
         // Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
-        await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
+        await self.refreshOpenAIDashboardIfNeeded(
+            force: forceTokenUsage,
+            allowKeychainPrompt: forceTokenUsage)
 
         if self.openAIDashboardRequiresLogin {
             await self.refreshProvider(.codex)
@@ -663,7 +665,7 @@ extension UsageStore {
         if let lastUpdatedAt, now.timeIntervalSince(lastUpdatedAt) < refreshInterval { return }
         let stamp = now.formatted(date: .abbreviated, time: .shortened)
         self.logOpenAIWeb("[\(stamp)] OpenAI web refresh request: \(reason)")
-        Task { await self.refreshOpenAIDashboardIfNeeded(force: true) }
+        Task { await self.refreshOpenAIDashboardIfNeeded(force: true, allowKeychainPrompt: false) }
     }
 
     private func applyOpenAIDashboard(_ dash: OpenAIDashboardSnapshot, targetEmail: String?) async {
@@ -708,7 +710,10 @@ extension UsageStore {
         }
     }
 
-    private func refreshOpenAIDashboardIfNeeded(force: Bool = false) async {
+    private func refreshOpenAIDashboardIfNeeded(
+        force: Bool = false,
+        allowKeychainPrompt: Bool = false) async
+    {
         guard self.isEnabled(.codex), self.settings.codexCookieSource.isEnabled else {
             self.resetOpenAIWebState()
             return
@@ -754,7 +759,8 @@ extension UsageStore {
                 // user.
                 if let imported = await self.importOpenAIDashboardCookiesIfNeeded(
                     targetEmail: targetEmail,
-                    force: true)
+                    force: true,
+                    allowKeychainPrompt: allowKeychainPrompt)
                 {
                     effectiveEmail = imported
                 }
@@ -769,7 +775,8 @@ extension UsageStore {
             if self.dashboardEmailMismatch(expected: normalized, actual: dash.signedInEmail) {
                 if let imported = await self.importOpenAIDashboardCookiesIfNeeded(
                     targetEmail: targetEmail,
-                    force: true)
+                    force: true,
+                    allowKeychainPrompt: allowKeychainPrompt)
                 {
                     effectiveEmail = imported
                 }
@@ -798,7 +805,11 @@ extension UsageStore {
             // importing cookies from the user's browser.
             let targetEmail = self.codexAccountEmailForOpenAIDashboard()
             var effectiveEmail = targetEmail
-            if let imported = await self.importOpenAIDashboardCookiesIfNeeded(targetEmail: targetEmail, force: true) {
+            if let imported = await self.importOpenAIDashboardCookiesIfNeeded(
+                targetEmail: targetEmail,
+                force: true,
+                allowKeychainPrompt: allowKeychainPrompt)
+            {
                 effectiveEmail = imported
             }
             do {
@@ -821,7 +832,11 @@ extension UsageStore {
         } catch OpenAIDashboardFetcher.FetchError.loginRequired {
             let targetEmail = self.codexAccountEmailForOpenAIDashboard()
             var effectiveEmail = targetEmail
-            if let imported = await self.importOpenAIDashboardCookiesIfNeeded(targetEmail: targetEmail, force: true) {
+            if let imported = await self.importOpenAIDashboardCookiesIfNeeded(
+                targetEmail: targetEmail,
+                force: true,
+                allowKeychainPrompt: allowKeychainPrompt)
+            {
                 effectiveEmail = imported
             }
             do {
@@ -884,11 +899,18 @@ extension UsageStore {
     func importOpenAIDashboardBrowserCookiesNow() async {
         self.resetOpenAIWebDebugLog(context: "manual import")
         let targetEmail = self.codexAccountEmailForOpenAIDashboard()
-        _ = await self.importOpenAIDashboardCookiesIfNeeded(targetEmail: targetEmail, force: true)
-        await self.refreshOpenAIDashboardIfNeeded(force: true)
+        _ = await self.importOpenAIDashboardCookiesIfNeeded(
+            targetEmail: targetEmail,
+            force: true,
+            allowKeychainPrompt: true)
+        await self.refreshOpenAIDashboardIfNeeded(force: true, allowKeychainPrompt: true)
     }
 
-    private func importOpenAIDashboardCookiesIfNeeded(targetEmail: String?, force: Bool) async -> String? {
+    private func importOpenAIDashboardCookiesIfNeeded(
+        targetEmail: String?,
+        force: Bool,
+        allowKeychainPrompt: Bool) async -> String?
+    {
         let normalizedTarget = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let allowAnyAccount = normalizedTarget == nil || normalizedTarget?.isEmpty == true
         let cookieSource = self.settings.codexCookieSource
@@ -942,6 +964,7 @@ extension UsageStore {
                 result = try await importer.importBestCookies(
                     intoAccountEmail: normalizedTarget,
                     allowAnyAccount: allowAnyAccount,
+                    allowKeychainPrompt: allowKeychainPrompt,
                     logger: log)
             case .off:
                 result = OpenAIDashboardBrowserCookieImporter.ImportResult(

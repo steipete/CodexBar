@@ -10,7 +10,7 @@
 - Providers: add Dia browser support across cookie import and profile detection (#209). Thanks @validatedev!
 - Codex: include archived session logs in local token cost scanning and dedupe by session id.
 - Claude: harden CLI /usage parsing and avoid ANTHROPIC_* env interference during probes.
-- Claude: avoid background Keychain prompts during OAuth refresh and refresh cached credentials after file/keychain changes.
+- Claude/Codex: avoid background Keychain prompts during OAuth refresh and OpenAI web cookie imports; refresh cached credentials after file/keychain changes.
 
 ### Menu & Menu Bar
 - Menu: opening OpenAI web submenus triggers a refresh when the data is stale.
