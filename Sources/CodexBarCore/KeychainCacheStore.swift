@@ -94,10 +94,13 @@ public enum KeychainCacheStore {
             return
         }
 
+        let context = LAContext()
+        context.interactionNotAllowed = true
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.serviceName,
             kSecAttrAccount as String: key.account,
+            kSecUseAuthenticationContext as String: context,
         ]
         let updateAttrs: [String: Any] = [
             kSecValueData as String: data,
@@ -105,6 +108,10 @@ public enum KeychainCacheStore {
 
         let updateStatus = SecItemUpdate(query as CFDictionary, updateAttrs as CFDictionary)
         if updateStatus == errSecSuccess {
+            return
+        }
+        if updateStatus == errSecInteractionNotAllowed || updateStatus == errSecAuthFailed {
+            self.log.debug("Keychain cache update requires interaction; skipping", metadata: ["account": key.account])
             return
         }
         if updateStatus != errSecItemNotFound {
@@ -118,6 +125,10 @@ public enum KeychainCacheStore {
         addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        if addStatus == errSecInteractionNotAllowed || addStatus == errSecAuthFailed {
+            self.log.debug("Keychain cache add requires interaction; skipping", metadata: ["account": key.account])
+            return
+        }
         if addStatus != errSecSuccess {
             self.log.error("Keychain cache add failed (\(key.account)): \(addStatus)")
         }
