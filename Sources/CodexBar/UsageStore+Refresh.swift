@@ -7,7 +7,11 @@ extension UsageStore {
         await self.performRuntimeAction(.forceSessionRefresh, for: .augment)
     }
 
-    func refreshProvider(_ provider: UsageProvider, allowDisabled: Bool = false) async {
+    func refreshProvider(
+        _ provider: UsageProvider,
+        allowDisabled: Bool = false,
+        allowKeychainPrompt: Bool = false) async
+    {
         guard let spec = self.providerSpecs[provider] else { return }
 
         if !spec.isEnabled(), !allowDisabled {
@@ -42,7 +46,7 @@ extension UsageStore {
             }
         }
 
-        let outcome = await spec.fetch()
+        let outcome = await spec.fetch(allowKeychainPrompt)
         if provider == .claude, ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged() {
             await MainActor.run {
                 self.snapshots.removeValue(forKey: .claude)

@@ -63,6 +63,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     private let useWebExtras: Bool
     private let manualCookieHeader: String?
     private let keepCLISessionsAlive: Bool
+    private let allowKeychainPrompt: Bool
     private let browserDetection: BrowserDetection
     private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
 
@@ -77,7 +78,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         dataSource: ClaudeUsageDataSource = .oauth,
         useWebExtras: Bool = false,
         manualCookieHeader: String? = nil,
-        keepCLISessionsAlive: Bool = false)
+        keepCLISessionsAlive: Bool = false,
+        allowKeychainPrompt: Bool = false)
     {
         self.browserDetection = browserDetection
         self.environment = environment
@@ -85,6 +87,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         self.useWebExtras = useWebExtras
         self.manualCookieHeader = manualCookieHeader
         self.keepCLISessionsAlive = keepCLISessionsAlive
+        self.allowKeychainPrompt = allowKeychainPrompt
     }
 
     // MARK: - Parsing helpers
@@ -223,7 +226,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         case .auto:
             let oauthCreds = try? ClaudeOAuthCredentialsStore.load(
                 environment: self.environment,
-                allowKeychainPrompt: false)
+                allowKeychainPrompt: self.allowKeychainPrompt)
             let hasOAuthCredentials = oauthCreds?.scopes.contains("user:profile") ?? false
             let hasWebSession = if let header = self.manualCookieHeader {
                 ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
@@ -266,7 +269,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         do {
             let creds = try ClaudeOAuthCredentialsStore.load(
                 environment: self.environment,
-                allowKeychainPrompt: false)
+                allowKeychainPrompt: self.allowKeychainPrompt)
             if creds.isExpired {
                 throw ClaudeUsageError.oauthFailed("Claude OAuth token expired. Run `claude` to refresh.")
             }

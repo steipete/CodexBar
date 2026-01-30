@@ -429,7 +429,7 @@ final class UsageStore {
 
         await withTaskGroup(of: Void.self) { group in
             for provider in UsageProvider.allCases {
-                group.addTask { await self.refreshProvider(provider) }
+                group.addTask { await self.refreshProvider(provider, allowKeychainPrompt: forceTokenUsage) }
                 group.addTask { await self.refreshStatus(provider) }
             }
             group.addTask { await self.refreshCreditsIfNeeded() }
@@ -445,7 +445,7 @@ final class UsageStore {
             allowKeychainPrompt: forceTokenUsage)
 
         if self.openAIDashboardRequiresLogin {
-            await self.refreshProvider(.codex)
+            await self.refreshProvider(.codex, allowKeychainPrompt: false)
             await self.refreshCreditsIfNeeded()
         }
 

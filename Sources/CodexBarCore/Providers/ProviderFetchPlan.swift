@@ -20,6 +20,7 @@ public enum ProviderSourceMode: String, CaseIterable, Sendable, Codable {
 public struct ProviderFetchContext: Sendable {
     public let runtime: ProviderRuntime
     public let sourceMode: ProviderSourceMode
+    public let allowKeychainPrompt: Bool
     public let includeCredits: Bool
     public let webTimeout: TimeInterval
     public let webDebugDumpHTML: Bool
@@ -33,6 +34,7 @@ public struct ProviderFetchContext: Sendable {
     public init(
         runtime: ProviderRuntime,
         sourceMode: ProviderSourceMode,
+        allowKeychainPrompt: Bool = false,
         includeCredits: Bool,
         webTimeout: TimeInterval,
         webDebugDumpHTML: Bool,
@@ -45,6 +47,7 @@ public struct ProviderFetchContext: Sendable {
     {
         self.runtime = runtime
         self.sourceMode = sourceMode
+        self.allowKeychainPrompt = allowKeychainPrompt
         self.includeCredits = includeCredits
         self.webTimeout = webTimeout
         self.webDebugDumpHTML = webDebugDumpHTML

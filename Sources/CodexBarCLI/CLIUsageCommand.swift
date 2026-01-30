@@ -256,6 +256,7 @@ extension CodexBarCLI {
         let fetchContext = ProviderFetchContext(
             runtime: .cli,
             sourceMode: effectiveSourceMode,
+            allowKeychainPrompt: true,
             includeCredits: command.includeCredits,
             webTimeout: command.webTimeout,
             webDebugDumpHTML: command.webDebugDumpHTML,
