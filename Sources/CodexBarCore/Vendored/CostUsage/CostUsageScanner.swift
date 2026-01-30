@@ -99,6 +99,8 @@ enum CostUsageScanner {
             return CostUsageDailyReport(data: [], summary: nil)
         case .synthetic:
             return CostUsageDailyReport(data: [], summary: nil)
+        case .poe:
+            return CostUsageDailyReport(data: [], summary: nil)
         }
     }
 
