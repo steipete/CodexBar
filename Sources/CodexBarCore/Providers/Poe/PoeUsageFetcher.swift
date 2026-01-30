@@ -34,6 +34,7 @@ public struct PoeUsageFetcher: Sendable {
 
         var request = URLRequest(url: self.balanceURL)
         request.httpMethod = "GET"
+        request.timeoutInterval = 30
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
@@ -53,6 +54,15 @@ public struct PoeUsageFetcher: Sendable {
             Self.log.debug("Poe API response: \(jsonString)")
         }
 
+        return try Self.parseBalance(from: data)
+    }
+
+    /// Internal method for testing response parsing.
+    public static func _parseBalanceForTesting(_ data: Data) throws -> PoeUsageSnapshot {
+        try self.parseBalance(from: data)
+    }
+
+    private static func parseBalance(from data: Data) throws -> PoeUsageSnapshot {
         do {
             let decoded = try JSONDecoder().decode(PoeBalanceResponse.self, from: data)
             return PoeUsageSnapshot(pointBalance: decoded.currentPointBalance, updatedAt: Date())

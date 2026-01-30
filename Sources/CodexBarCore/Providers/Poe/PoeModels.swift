@@ -41,7 +41,7 @@ public struct PoeUsageSnapshot: Sendable {
             identity: identity)
     }
 
-    static func formatPoints(_ points: Int) -> String {
+    public static func formatPoints(_ points: Int) -> String {
         switch points {
         case 1_000_000_000...:
             return String(format: "%.1fB pts", Double(points) / 1_000_000_000)

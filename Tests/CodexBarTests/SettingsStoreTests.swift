@@ -364,6 +364,7 @@ struct SettingsStoreTests {
             .kimik2,
             .amp,
             .synthetic,
+            .poe,
         ])
 
         // Move one provider; ensure it's persisted across instances.

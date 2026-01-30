@@ -17,4 +17,33 @@ struct ProviderTokenResolverTests {
         let resolution = ProviderTokenResolver.copilotResolution(environment: env)
         #expect(resolution?.token == "token")
     }
+
+    @Test
+    func poeResolutionUsesEnvironmentToken() {
+        let env = ["POE_API_KEY": "sk-poe-token"]
+        let resolution = ProviderTokenResolver.poeResolution(environment: env)
+        #expect(resolution?.token == "sk-poe-token")
+        #expect(resolution?.source == .environment)
+    }
+
+    @Test
+    func poeResolutionTrimsToken() {
+        let env = ["POE_API_KEY": "  sk-poe-token  "]
+        let resolution = ProviderTokenResolver.poeResolution(environment: env)
+        #expect(resolution?.token == "sk-poe-token")
+    }
+
+    @Test
+    func poeResolutionReturnsNilForEmptyToken() {
+        let env = ["POE_API_KEY": "   "]
+        let resolution = ProviderTokenResolver.poeResolution(environment: env)
+        #expect(resolution == nil)
+    }
+
+    @Test
+    func poeResolutionReturnsNilForMissingKey() {
+        let env: [String: String] = [:]
+        let resolution = ProviderTokenResolver.poeResolution(environment: env)
+        #expect(resolution == nil)
+    }
 }

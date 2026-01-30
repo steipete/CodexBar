@@ -11,7 +11,7 @@ public enum PoeProviderDescriptor {
                 id: .poe,
                 displayName: "Poe",
                 sessionLabel: "Points",
-                weeklyLabel: "Points",
+                weeklyLabel: "",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
