@@ -1,5 +1,6 @@
 import Foundation
 #if os(macOS)
+import LocalAuthentication
 import Security
 #endif
 
@@ -34,19 +35,25 @@ public enum KeychainCacheStore {
 
     public static func load<Entry: Codable>(
         key: Key,
-        as type: Entry.Type = Entry.self) -> LoadResult<Entry>
+        as type: Entry.Type = Entry.self,
+        allowKeychainPrompt: Bool = false) -> LoadResult<Entry>
     {
         if let testResult = loadFromTestStore(key: key, as: type) {
             return testResult
         }
         #if os(macOS)
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.serviceName,
             kSecAttrAccount as String: key.account,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true,
         ]
+        if !allowKeychainPrompt {
+            let context = LAContext()
+            context.interactionNotAllowed = true
+            query[kSecUseAuthenticationContext as String] = context
+        }
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -63,6 +70,9 @@ public enum KeychainCacheStore {
             }
             return .found(decoded)
         case errSecItemNotFound:
+            return .missing
+        case errSecInteractionNotAllowed, errSecAuthFailed:
+            self.log.debug("Keychain cache requires interaction; skipping", metadata: ["account": key.account])
             return .missing
         default:
             self.log.error("Keychain cache read failed (\(key.account)): \(status)")
