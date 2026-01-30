@@ -72,6 +72,15 @@ public enum CodexBarLog {
     private nonisolated(unsafe) static var isBootstrapped = false
     private nonisolated(unsafe) static var currentLevel: Level = .info
 
+    /// True when running under XCTest or Swift Testing so we can bootstrap quietly and avoid log spam in CI.
+    private static var isRunningTests: Bool {
+        let env = ProcessInfo.processInfo.environment
+        if env["XCTestConfigurationFilePath"] != nil { return true }
+        if env["TESTING_LIBRARY_VERSION"] != nil { return true }
+        if env["SWIFT_TESTING"] != nil { return true }
+        return NSClassFromString("XCTestCase") != nil
+    }
+
     public static func bootstrapIfNeeded(_ config: Configuration) {
         self.lock.lock()
         defer { lock.unlock() }
@@ -105,6 +114,12 @@ public enum CodexBarLog {
     }
 
     public static func logger(_ category: String) -> CodexBarLogger {
+        if !self.isBootstrapped, self.isRunningTests {
+            self.bootstrapIfNeeded(.init(
+                destination: .stderr,
+                level: .critical,
+                json: false))
+        }
         let logger = Logger(label: "com.steipete.codexbar.\(category)")
         return CodexBarLogger { level, message, metadata in
             guard self.shouldLog(level) else { return }
