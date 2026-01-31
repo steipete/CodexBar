@@ -692,8 +692,17 @@ public struct CursorStatusProbe: Sendable {
         // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
         // Use breakdown.total if available (includes bonus credits), otherwise fall back to limit.
         let planUsedRaw = Double(summary.individualUsage?.plan?.used ?? 0)
-        let planLimitRaw = Double(summary.individualUsage?.plan?.breakdown?.total ?? summary.individualUsage?.plan?
+        var planLimitRaw = Double(summary.individualUsage?.plan?.breakdown?.total ?? summary.individualUsage?.plan?
             .limit ?? 0)
+
+        // Fix for plans where the API returns an incorrect limit (e.g., "Cursor Pro_Student" returning $2000 instead of $20)
+        if let membershipType = summary.membershipType,
+           membershipType.contains("Pro_Student"),
+           planLimitRaw > 2000
+        {
+            planLimitRaw = 2000
+        }
+
         let planUsed = planUsedRaw / 100.0
         let planLimit = planLimitRaw / 100.0
         let planPercentUsed: Double = if planLimitRaw > 0 {

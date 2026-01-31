@@ -51,6 +51,7 @@ public struct MiniMaxUsageFetcher: Sendable {
 
     public static func fetchUsage(
         apiToken: String,
+        region: MiniMaxAPIRegion = .global,
         now: Date = Date()) async throws -> MiniMaxUsageSnapshot
     {
         let cleaned = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,7 +59,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             throw MiniMaxUsageError.invalidCredentials
         }
 
-        var request = URLRequest(url: self.apiRemainsURL)
+        var request = URLRequest(url: region.remainsURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(cleaned)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "accept")
