@@ -690,10 +690,19 @@ public struct CursorStatusProbe: Sendable {
         }
 
         // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
-        // Use breakdown.total if available (includes bonus credits), otherwise fall back to limit.
+        //
+        // Cursor's `/api/usage-summary` returns `plan.breakdown.*` as a breakdown of USED spend (not the limit).
+        // Prefer `used + remaining` (includes bonus credits) when available; fall back to `limit`.
         let planUsedRaw = Double(summary.individualUsage?.plan?.used ?? 0)
-        let planLimitRaw = Double(summary.individualUsage?.plan?.breakdown?.total ?? summary.individualUsage?.plan?
-            .limit ?? 0)
+        let planLimitRaw: Double = {
+            if let remaining = summary.individualUsage?.plan?.remaining {
+                let total = planUsedRaw + Double(remaining)
+                if total > 0 {
+                    return total
+                }
+            }
+            return Double(summary.individualUsage?.plan?.limit ?? 0)
+        }()
         let planUsed = planUsedRaw / 100.0
         let planLimit = planLimitRaw / 100.0
         let planPercentUsed: Double = if planLimitRaw > 0 {
