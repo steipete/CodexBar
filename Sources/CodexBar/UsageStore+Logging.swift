@@ -14,6 +14,7 @@ extension UsageStore {
             "kimiCookieSource": self.settings.kimiCookieSource.rawValue,
             "augmentCookieSource": self.settings.augmentCookieSource.rawValue,
             "ampCookieSource": self.settings.ampCookieSource.rawValue,
+            "ollamaCookieSource": self.settings.ollamaCookieSource.rawValue,
             "openAIWebAccess": self.settings.openAIWebAccessEnabled ? "1" : "0",
             "claudeWebExtras": self.settings.claudeWebExtrasEnabled ? "1" : "0",
         ]

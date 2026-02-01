@@ -1,0 +1,92 @@
+import Foundation
+import Testing
+@testable import CodexBarCore
+
+@Suite
+struct OllamaUsageParserTests {
+    @Test
+    func parsesCloudUsageFromSettingsHTML() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <h2 class=\"text-xl\">
+            <span>Cloud Usage</span>
+            <span class=\"text-xs\">free</span>
+          </h2>
+          <h2 id=\"header-email\">user@example.com</h2>
+          <div>
+            <span>Session usage</span>
+            <span>0.1% used</span>
+            <div class=\"local-time\" data-time=\"2026-01-30T18:00:00Z\">Resets in 3 hours</div>
+          </div>
+          <div>
+            <span>Weekly usage</span>
+            <span>0.7% used</span>
+            <div class=\"local-time\" data-time=\"2026-02-02T00:00:00Z\">Resets in 2 days</div>
+          </div>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.planName == "free")
+        #expect(snapshot.accountEmail == "user@example.com")
+        #expect(snapshot.sessionUsedPercent == 0.1)
+        #expect(snapshot.weeklyUsedPercent == 0.7)
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let expectedSession = formatter.date(from: "2026-01-30T18:00:00Z")
+        let expectedWeekly = formatter.date(from: "2026-02-02T00:00:00Z")
+        #expect(snapshot.sessionResetsAt == expectedSession)
+        #expect(snapshot.weeklyResetsAt == expectedWeekly)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.identity?.loginMethod == "free")
+        #expect(usage.identity?.accountEmail == "user@example.com")
+    }
+
+    @Test
+    func missingUsageThrowsParseFailed() {
+        let html = "<html><body>No usage here.</body></html>"
+
+        #expect {
+            try OllamaUsageParser.parse(html: html)
+        } throws: { error in
+            guard case let OllamaUsageError.parseFailed(message) = error else { return false }
+            return message.contains("Missing Ollama usage data")
+        }
+    }
+
+    @Test
+    func signedOutThrowsNotLoggedIn() {
+        let html = "<html><body>Please sign in to Ollama.</body></html>"
+
+        #expect {
+            try OllamaUsageParser.parse(html: html)
+        } throws: { error in
+            guard case OllamaUsageError.notLoggedIn = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func parsesUsageWhenUsedIsCapitalized() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <span>Session usage</span>
+          <span>1.2% Used</span>
+          <div class=\"local-time\" data-time=\"2026-01-30T18:00:00Z\">Resets in 3 hours</div>
+          <span>Weekly usage</span>
+          <span>3.4% USED</span>
+          <div class=\"local-time\" data-time=\"2026-02-02T00:00:00Z\">Resets in 2 days</div>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.sessionUsedPercent == 1.2)
+        #expect(snapshot.weeklyUsedPercent == 3.4)
+    }
+}

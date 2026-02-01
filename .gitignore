@@ -25,6 +25,7 @@ debug_*.swift
 
 # Misc
 .DS_Store
+.swiftpm-cache/
 
 # Debug/analysis docs
 docs/*-analysis.md
