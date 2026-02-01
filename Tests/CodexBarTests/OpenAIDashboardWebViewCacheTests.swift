@@ -39,7 +39,7 @@ struct OpenAIDashboardWebViewCacheTests {
     func webViewCachedAfterRelease() async throws {
         let cache = OpenAIDashboardWebViewCache()
         let store = WKWebsiteDataStore.nonPersistent()
-        let url = URL(string: "https://example.com")!
+        let url = URL(string: "about:blank")!
         
         // First acquire
         let lease1 = try await cache.acquire(
@@ -73,7 +73,7 @@ struct OpenAIDashboardWebViewCacheTests {
         let cache = OpenAIDashboardWebViewCache()
         let store1 = WKWebsiteDataStore.nonPersistent()
         let store2 = WKWebsiteDataStore.nonPersistent()
-        let url = URL(string: "https://example.com")!
+        let url = URL(string: "about:blank")!
         
         // Acquire for first store
         let lease1 = try await cache.acquire(
@@ -103,7 +103,7 @@ struct OpenAIDashboardWebViewCacheTests {
     func webViewPrunedAfterIdleTimeout() async throws {
         let cache = OpenAIDashboardWebViewCache()
         let store = WKWebsiteDataStore.nonPersistent()
-        let url = URL(string: "https://example.com")!
+        let url = URL(string: "about:blank")!
         
         // Acquire and release
         let lease = try await cache.acquire(
@@ -126,7 +126,7 @@ struct OpenAIDashboardWebViewCacheTests {
     func recentlyUsedWebViewNotPruned() async throws {
         let cache = OpenAIDashboardWebViewCache()
         let store = WKWebsiteDataStore.nonPersistent()
-        let url = URL(string: "https://example.com")!
+        let url = URL(string: "about:blank")!
         
         // Acquire and release
         let lease = try await cache.acquire(
@@ -149,7 +149,7 @@ struct OpenAIDashboardWebViewCacheTests {
         let cache = OpenAIDashboardWebViewCache()
         let store1 = WKWebsiteDataStore.nonPersistent()
         let store2 = WKWebsiteDataStore.nonPersistent()
-        let url = URL(string: "https://example.com")!
+        let url = URL(string: "about:blank")!
         
         // Cache two WebViews
         let lease1 = try await cache.acquire(websiteDataStore: store1, usageURL: url, logger: nil)
@@ -175,7 +175,7 @@ struct OpenAIDashboardWebViewCacheTests {
     func busyWebViewCreatesTemporary() async throws {
         let cache = OpenAIDashboardWebViewCache()
         let store = WKWebsiteDataStore.nonPersistent()
-        let url = URL(string: "https://example.com")!
+        let url = URL(string: "about:blank")!
         
         var logMessages: [String] = []
         let logger: (String) -> Void = { logMessages.append($0) }
@@ -209,7 +209,7 @@ struct OpenAIDashboardWebViewCacheTests {
     func sequentialFetchesReuseWebView() async throws {
         let cache = OpenAIDashboardWebViewCache()
         let store = WKWebsiteDataStore.nonPersistent()
-        let url = URL(string: "https://example.com")!
+        let url = URL(string: "about:blank")!
         
         var webViews: [WKWebView] = []
         
@@ -242,7 +242,7 @@ struct OpenAIDashboardWebViewCacheTests {
     func sequentialFetchesWithRealDataStoreFactory() async throws {
         OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
         let cache = OpenAIDashboardWebViewCache()
-        let url = URL(string: "https://example.com")!
+        let url = URL(string: "about:blank")!
         let email = "integration-test@example.com"
         
         var webViews: [WKWebView] = []
