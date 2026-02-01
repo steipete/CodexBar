@@ -409,17 +409,28 @@ public struct OpenCodeUsageFetcher: Sendable {
 
     private static func extractServerErrorMessage(from text: String) -> String? {
         guard let data = text.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data, options: []),
-              let dict = object as? [String: Any]
+              let object = try? JSONSerialization.jsonObject(with: data, options: [])
         else {
+            // If it's not JSON, try to extract error from HTML if possible
+            if text.contains("<title>"),
+               let match = text.range(of: #"(?i)<title>([^<]+)</title>"#, options: .regularExpression)
+            {
+                return String(text[match].dropFirst(7).dropLast(8)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
             return nil
         }
+
+        guard let dict = object as? [String: Any] else { return nil }
 
         if let message = dict["message"] as? String, !message.isEmpty {
             return message
         }
         if let error = dict["error"] as? String, !error.isEmpty {
             return error
+        }
+        // Check for common error fields in some frameworks
+        if let detail = dict["detail"] as? String, !detail.isEmpty {
+            return detail
         }
         return nil
     }

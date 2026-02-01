@@ -86,7 +86,8 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
         guard let apiToken = ProviderTokenResolver.minimaxToken(environment: context.env) else {
             throw MiniMaxAPISettingsError.missingToken
         }
-        let usage = try await MiniMaxUsageFetcher.fetchUsage(apiToken: apiToken)
+        let region = context.settings?.minimax?.apiRegion ?? .global
+        let usage = try await MiniMaxUsageFetcher.fetchUsage(apiToken: apiToken, region: region)
         return self.makeResult(
             usage: usage.toUsageSnapshot(),
             sourceLabel: "api")
