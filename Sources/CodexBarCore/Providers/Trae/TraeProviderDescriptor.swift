@@ -66,9 +66,7 @@ struct TraeStatusFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func manualJWTToken(from context: ProviderFetchContext) -> String? {
-        guard context.settings?.trae?.cookieSource == .manual else { return nil }
-        // For JWT tokens, don't use CookieHeaderNormalizer as it expects cookie format (name=value pairs)
-        // Just return the raw value directly
+        // Return the JWT token if provided (manual entry only)
         return context.settings?.trae?.manualCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
