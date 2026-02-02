@@ -99,37 +99,40 @@ enum TraeUsageParser {
                 isUnlimited: isUnlimited,
                 isActive: status == 1))
 
-            // Collect features from any entitlement that has them enabled
-            let hasSoloBuilder = quota["enable_solo_builder"] as? Bool ?? false
-            let hasSoloCoder = quota["enable_solo_coder"] as? Bool ?? false
-            
-            var hasUnlimitedSlow = false
-            if let slowLimit = quota["premium_model_slow_request_limit"] as? Double, slowLimit == -1 {
-                hasUnlimitedSlow = true
-            } else if let slowLimit = quota["premium_model_slow_request_limit"] as? Int, slowLimit == -1 {
-                hasUnlimitedSlow = true
-            }
+            // Collect features only from active entitlements (status == 1)
+            // to avoid showing features from expired/inactive plans
+            if status == 1 {
+                let hasSoloBuilder = quota["enable_solo_builder"] as? Bool ?? false
+                let hasSoloCoder = quota["enable_solo_coder"] as? Bool ?? false
+                
+                var hasUnlimitedSlow = false
+                if let slowLimit = quota["premium_model_slow_request_limit"] as? Double, slowLimit == -1 {
+                    hasUnlimitedSlow = true
+                } else if let slowLimit = quota["premium_model_slow_request_limit"] as? Int, slowLimit == -1 {
+                    hasUnlimitedSlow = true
+                }
 
-            var hasUnlimitedAdvanced = false
-            if let advancedLimit = quota["premium_model_advanced_request_limit"] as? Double, advancedLimit == -1 {
-                hasUnlimitedAdvanced = true
-            } else if let advancedLimit = quota["premium_model_advanced_request_limit"] as? Int, advancedLimit == -1 {
-                hasUnlimitedAdvanced = true
-            }
+                var hasUnlimitedAdvanced = false
+                if let advancedLimit = quota["premium_model_advanced_request_limit"] as? Double, advancedLimit == -1 {
+                    hasUnlimitedAdvanced = true
+                } else if let advancedLimit = quota["premium_model_advanced_request_limit"] as? Int, advancedLimit == -1 {
+                    hasUnlimitedAdvanced = true
+                }
 
-            var hasUnlimitedAutocomplete = false
-            if let autoLimit = quota["auto_completion_limit"] as? Double, autoLimit == -1 {
-                hasUnlimitedAutocomplete = true
-            } else if let autoLimit = quota["auto_completion_limit"] as? Int, autoLimit == -1 {
-                hasUnlimitedAutocomplete = true
-            }
+                var hasUnlimitedAutocomplete = false
+                if let autoLimit = quota["auto_completion_limit"] as? Double, autoLimit == -1 {
+                    hasUnlimitedAutocomplete = true
+                } else if let autoLimit = quota["auto_completion_limit"] as? Int, autoLimit == -1 {
+                    hasUnlimitedAutocomplete = true
+                }
 
-            // Merge features - if any entitlement has it, keep it
-            if hasSoloBuilder { allFeatures.hasSoloBuilder = true }
-            if hasSoloCoder { allFeatures.hasSoloCoder = true }
-            if hasUnlimitedSlow { allFeatures.hasUnlimitedSlow = true }
-            if hasUnlimitedAdvanced { allFeatures.hasUnlimitedAdvanced = true }
-            if hasUnlimitedAutocomplete { allFeatures.hasUnlimitedAutocomplete = true }
+                // Merge features - if any active entitlement has it, keep it
+                if hasSoloBuilder { allFeatures.hasSoloBuilder = true }
+                if hasSoloCoder { allFeatures.hasSoloCoder = true }
+                if hasUnlimitedSlow { allFeatures.hasUnlimitedSlow = true }
+                if hasUnlimitedAdvanced { allFeatures.hasUnlimitedAdvanced = true }
+                if hasUnlimitedAutocomplete { allFeatures.hasUnlimitedAutocomplete = true }
+            }
         }
 
         guard !entitlements.isEmpty else {
