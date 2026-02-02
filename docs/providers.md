@@ -144,7 +144,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 ## Trae
 - Web API via JWT authentication (`https://api-sg-central.trae.ai/trae/api/v1/pay/user_current_entitlement_list`).
 - Uses `Authorization: Cloud-IDE-JWT <token>` header for authentication.
-- JWT extracted from browser `X-Cloudide-Session` cookie or entered manually.
+- **Manual entry only** - JWT is not stored in browser cookies (copied from DevTools Network tab).
 - Shows individual entitlement usage (Pro Plan + Extra Packages) in primary/secondary/tertiary windows.
 - Tracks `premium_model_fast_request_limit` and `premium_model_fast_amount`.
 - Status: none yet.

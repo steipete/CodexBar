@@ -10,7 +10,6 @@ struct TraeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.traeCookieSource
         _ = settings.traeCookieHeader
         _ = settings.tokenAccounts(for: .trae)
     }
@@ -20,38 +19,8 @@ struct TraeProviderImplementation: ProviderImplementation {
         .trae(context.settings.traeSettingsSnapshot(tokenOverride: context.tokenOverride))
     }
 
-    @MainActor
-    func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let authBinding = Binding(
-            get: { context.settings.traeCookieSource.rawValue },
-            set: { raw in
-                context.settings.traeCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let authOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let authSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.traeCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatically extracts JWT from browser cookies.",
-                manual: "Paste JWT token (Cloud-IDE-JWT eyJ... or just eyJ...).",
-                off: "Trae provider is disabled.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
-                id: "trae-auth-source",
-                title: "Authentication source",
-                subtitle: "Automatic extracts JWT from browser session.",
-                dynamicSubtitle: authSubtitle,
-                binding: authBinding,
-                options: authOptions,
-                isVisible: nil,
-                onChange: nil),
-        ]
-    }
+    // No settingsPickers - Trae only supports manual JWT entry
+    // The JWT is not stored in browser cookies, only in HTTP headers
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
@@ -59,9 +28,9 @@ struct TraeProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "trae-jwt-token",
                 title: "JWT Token",
-                subtitle: "Paste your Trae JWT authentication token",
+                subtitle: "Paste Authorization header from browser DevTools. Instructions:\n1. Open trae.ai and log in\n2. Open DevTools → Network tab\n3. Find request to 'user_current_entitlement_list'\n4. Copy 'Authorization' header (starts with 'Cloud-IDE-JWT')\n5. Paste here",
                 kind: .secure,
-                placeholder: "Cloud-IDE-JWT eyJ... or just eyJ...",
+                placeholder: "Cloud-IDE-JWT eyJ...",
                 binding: context.stringBinding(\.traeCookieHeader),
                 actions: [
                     ProviderSettingsActionDescriptor(
@@ -75,7 +44,7 @@ struct TraeProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.traeCookieSource == .manual },
+                isVisible: { true },
                 onActivate: { context.settings.ensureTraeCookieLoaded() }),
         ]
     }

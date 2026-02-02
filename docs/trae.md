@@ -12,24 +12,40 @@ Trae is ByteDance's AI-powered IDE (similar to Cursor), built on VS Code with in
 
 ## Data source: Web API (JWT)
 
-The Trae provider uses JWT authentication to fetch your current entitlement/usage data from the Trae API.
+The Trae provider uses JWT authentication to fetch your current entitlement/usage data from the Trae API. Unlike other providers, the JWT is not stored in browser cookies or local storage - it exists only in HTTP headers during API requests.
 
 ### API Endpoint
 - **Primary:** `https://api-sg-central.trae.ai/trae/api/v1/pay/user_current_entitlement_list`
 - **Method:** GET
 - **Authentication:** JWT token in `Authorization: Cloud-IDE-JWT <token>` header
 
-### JWT Authentication
-- **Token Source:** Browser cookies (`X-Cloudide-Session` cookie contains the JWT)
-- **Token Format:** `Cloud-IDE-JWT eyJhbGciOiJSUzI1NiIs...` or just the JWT payload
-- **Browser Support:** Safari, Chrome, Chromium forks, Firefox (in that order by default)
-- **Manual Mode:** Supports pasting the JWT token directly (with or without `Cloud-IDE-JWT` prefix)
+### JWT Authentication (Manual Entry Required)
 
-### Cookie Import (for JWT extraction)
-- **Domain:** `trae.ai`, `www.trae.ai`, `.byteoversea.com`
-- **Required Cookie:** `X-Cloudide-Session` (contains the JWT authentication token)
-- **Automatic Extraction:** The JWT is automatically extracted from the cookie value
-- **Manual Mode:** Paste the JWT token directly in the settings
+**Important:** The JWT token is not stored in browser cookies or localStorage. It only exists in the HTTP Authorization header during API requests. Therefore, **automatic browser import is not available** - you must manually copy the JWT from your browser's DevTools.
+
+**How to obtain the JWT token:**
+
+1. Open https://www.trae.ai in Chrome or Safari and log in to your account
+2. Open browser DevTools (Cmd+Option+I on Mac)
+3. Go to the **Network** tab
+4. Refresh the page or click on the **Usage** menu in Trae
+5. Look for a network request to `user_current_entitlement_list` in the list
+6. Click on that request
+7. In the right panel, find **Headers** → **Request Headers**
+8. Locate the `Authorization` header (it starts with `Cloud-IDE-JWT`)
+9. Copy the entire header value
+10. Open CodexBar → Settings → Providers → Trae
+11. Paste the copied value in the "JWT Token" field
+
+**Token Format:**
+- Full format: `Cloud-IDE-JWT eyJhbGciOiJSUzI1NiIs...`
+- Or just the JWT payload: `eyJhbGciOiJSUzI1NiIs...`
+- Both formats are accepted
+
+**Session Duration:**
+- The JWT typically expires after 24-48 hours
+- When it expires, you'll see "Trae session expired" error
+- Simply repeat the steps above to get a fresh JWT
 
 ### Response Structure
 The API returns a list of user entitlements (`user_entitlement_pack_list`), each containing:
@@ -70,21 +86,22 @@ The API returns a list of user entitlements (`user_entitlement_pack_list`), each
 - **Unlimited Plans:** When `premium_model_fast_request_limit` is -1, shows unlimited status
 
 ### Settings
-- **Authentication Source:** Automatic (browser JWT extraction) or Manual (paste token)
+- **Authentication:** Manual JWT entry only (no automatic browser import)
 - **Dashboard URL:** `https://www.trae.ai/account-setting`
 - **Default Enabled:** No (opt-in provider)
 
 ## Error Handling
 
 Common error scenarios:
-- **401/403:** JWT expired or invalid → Prompt to re-login at trae.ai
-- **No JWT Token:** Browser not logged in → Guide to login first
-- **Empty Entitlements:** No active plan → Show appropriate message
+- **401/403:** JWT expired or invalid → Re-copy fresh JWT from browser
+- **No JWT Token:** No token entered → Follow steps above to obtain JWT
+- **Empty Entitlements:** No active plan → Check your Trae account has an active subscription
 - **Network Errors:** Retry with exponential backoff
 
 ## Implementation Notes
 
 - Uses JWT-based authentication (not cookie-based sessions)
+- **No automatic browser import** - JWT is not stored in accessible browser storage
 - Follows the same pattern as Amp and OpenCode providers
 - JWT token cached in Keychain for performance (reused until invalid)
 - No status page integration (Trae does not provide a public status API)
