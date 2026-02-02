@@ -109,6 +109,11 @@ enum KeychainPromptCoordinator {
                 "CodexBar will ask macOS Keychain for your Amp cookie header",
                 "so it can fetch usage. Click OK to continue.",
             ].joined(separator: " "))
+        case .traeCookie:
+            return (title, [
+                "CodexBar will ask macOS Keychain for your Trae JWT token",
+                "so it can fetch usage. Click OK to continue.",
+            ].joined(separator: " "))
         }
     }
 

@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Vertex AI, Augment, Amp, JetBrains AI)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Vertex AI, Augment, Amp, Trae, JetBrains AI)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -34,6 +34,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Web settings page via browser cookies (`web`). |
+| Trae | Web API via JWT authentication (`web`). |
 
 ## Codex
 - Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -139,4 +140,14 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Parses Amp Free usage from the settings HTML.
 - Status: none yet.
 - Details: `docs/amp.md`.
+
+## Trae
+- Web API via JWT authentication (`https://api-sg-central.trae.ai/trae/api/v1/pay/user_current_entitlement_list`).
+- Uses `Authorization: Cloud-IDE-JWT <token>` header for authentication.
+- JWT extracted from browser `X-Cloudide-Session` cookie or entered manually.
+- Shows individual entitlement usage (Pro Plan + Extra Packages) in primary/secondary/tertiary windows.
+- Tracks `premium_model_fast_request_limit` and `premium_model_fast_amount`.
+- Status: none yet.
+- Details: `docs/trae.md`.
+
 See also: `docs/provider.md` for architecture notes.

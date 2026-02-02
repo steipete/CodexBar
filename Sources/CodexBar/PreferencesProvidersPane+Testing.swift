@@ -55,6 +55,7 @@ enum ProvidersPaneTestHarness {
         settings.factoryCookieSource = .manual
         settings.minimaxCookieSource = .manual
         settings.augmentCookieSource = .manual
+        settings.traeCookieSource = .manual
     }
 
     private static func exercisePaneBasics(pane: ProvidersPane) {
@@ -68,6 +69,7 @@ enum ProvidersPaneTestHarness {
         _ = pane._test_providerSubtitle(.minimax)
         _ = pane._test_providerSubtitle(.kimi)
         _ = pane._test_providerSubtitle(.gemini)
+        _ = pane._test_providerSubtitle(.trae)
 
         _ = pane._test_menuBarMetricPicker(for: .codex)
         _ = pane._test_menuBarMetricPicker(for: .gemini)

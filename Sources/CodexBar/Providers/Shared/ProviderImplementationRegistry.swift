@@ -29,6 +29,7 @@ enum ProviderImplementationRegistry {
         case .jetbrains: JetBrainsProviderImplementation()
         case .kimik2: KimiK2ProviderImplementation()
         case .amp: AmpProviderImplementation()
+        case .trae: TraeProviderImplementation()
         case .synthetic: SyntheticProviderImplementation()
         }
     }
