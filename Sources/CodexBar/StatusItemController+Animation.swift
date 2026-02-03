@@ -304,7 +304,14 @@ extension StatusItemController {
         }
 
         let style: IconStyle = self.store.style(for: provider)
-        let blink = self.blinkAmount(for: provider)
+        let isLoading = phase != nil && self.shouldAnimate(provider: provider)
+        let blink: CGFloat = {
+            guard isLoading, style == .warp, let phase else {
+                return self.blinkAmount(for: provider)
+            }
+            let normalized = (sin(phase * 3) + 1) / 2
+            return CGFloat(max(0, min(normalized, 1)))
+        }()
         let wiggle = self.wiggleAmount(for: provider)
         let tilt = self.tiltAmount(for: provider) * .pi / 28 // limit to ~6.4°
         if let morphProgress {
@@ -421,6 +428,9 @@ extension StatusItemController {
         
         let isStale = self.store.isStale(provider: provider)
         let hasData = self.store.snapshot(for: provider) != nil
+        if provider == .warp, !hasData, self.store.refreshingProviders.contains(provider) {
+            return true
+        }
         return !hasData && !isStale
     }
 

@@ -135,16 +135,22 @@ enum IconRenderer {
                     addGeminiTwist: Bool = false,
                     addAntigravityTwist: Bool = false,
                     addFactoryTwist: Bool = false,
-                    blink: CGFloat = 0)
+                    addWarpTwist: Bool = false,
+                    blink: CGFloat = 0,
+                    drawTrackFill: Bool = true,
+                    warpEyesFilled: Bool = false)
                 {
                     let rect = rectPx.rect()
                     // Claude reads better as a blockier critter; Codex stays as a capsule.
-                    let cornerRadiusPx = addNotches ? 0 : rectPx.h / 2
+                    // Warp uses small corner radius for rounded rectangle (matching logo style)
+                    let cornerRadiusPx = addNotches ? 0 : (addWarpTwist ? 3 : rectPx.h / 2)
                     let radius = Self.grid.pt(cornerRadiusPx)
 
                     let trackPath = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-                    baseFill.withAlphaComponent(trackFillAlpha * alpha).setFill()
-                    trackPath.fill()
+                    if drawTrackFill {
+                        baseFill.withAlphaComponent(trackFillAlpha * alpha).setFill()
+                        trackPath.fill()
+                    }
 
                     // Crisp outline: stroke an inset path so the stroke stays within pixel bounds.
                     let strokeWidthPx = 2 // 1 pt == 2 px at 2×
@@ -569,6 +575,144 @@ enum IconRenderer {
                             drawBlinkAsterisk(cx: rdCx, cy: yCy)
                         }
                     }
+
+                    // Warp twist: "Warp" style face with a diagonal slash
+                    if addWarpTwist {
+                        let ctx = NSGraphicsContext.current?.cgContext
+                        let centerXPx = rectPx.midXPx
+                        let eyeCenterYPx = rectPx.y + rectPx.h / 2
+                        
+                        ctx?.saveGState()
+                        ctx?.setShouldAntialias(true) // Smooth edges for tilted ellipse eyes
+
+                        // 1. Draw Eyes (Tilted ellipse cutouts - "fox eye" / "cat eye" style)
+                        // Eyes are elliptical and tilted outward (outer corners pointing up)
+                        let eyeWidthPx: CGFloat = 5.3125  // Scaled up 125% to match rounded rect face
+                        let eyeHeightPx: CGFloat = 8.5  // Scaled up 125% to match rounded rect face
+                        let eyeOffsetPx: CGFloat = 7
+                        let eyeTiltAngle: CGFloat = .pi / 3  // 60 degrees tilt
+
+                        let leftEyeCx = Self.grid.pt(centerXPx) - Self.grid.pt(Int(eyeOffsetPx))
+                        let rightEyeCx = Self.grid.pt(centerXPx) + Self.grid.pt(Int(eyeOffsetPx))
+                        let eyeCy = Self.grid.pt(eyeCenterYPx)
+                        let eyeW = Self.grid.pt(Int(eyeWidthPx))
+                        let eyeH = Self.grid.pt(Int(eyeHeightPx))
+
+                        // Helper to draw a tilted ellipse eye
+                        func drawTiltedEyeCutout(cx: CGFloat, cy: CGFloat, tiltAngle: CGFloat) {
+                            let eyeRect = CGRect(
+                                x: -eyeW / 2,
+                                y: -eyeH / 2,
+                                width: eyeW,
+                                height: eyeH)
+                            let eyePath = NSBezierPath(ovalIn: eyeRect)
+
+                            var transform = AffineTransform.identity
+                            transform.translate(x: cx, y: cy)
+                            transform.rotate(byRadians: tiltAngle)
+                            eyePath.transform(using: transform)
+                            eyePath.fill()
+                        }
+
+                        if warpEyesFilled {
+                            fillColor.withAlphaComponent(alpha).setFill()
+                            drawTiltedEyeCutout(cx: leftEyeCx, cy: eyeCy, tiltAngle: eyeTiltAngle)
+                            drawTiltedEyeCutout(cx: rightEyeCx, cy: eyeCy, tiltAngle: -eyeTiltAngle)
+                        } else {
+                            // Clear eyes using blend mode
+                            ctx?.setBlendMode(.clear)
+                            drawTiltedEyeCutout(cx: leftEyeCx, cy: eyeCy, tiltAngle: eyeTiltAngle)
+                            drawTiltedEyeCutout(cx: rightEyeCx, cy: eyeCy, tiltAngle: -eyeTiltAngle)
+                            ctx?.setBlendMode(.normal)
+                        }
+                        ctx?.restoreGState() // Restore graphics state
+                        
+                        // 2. Draw Slash (Diagonal cut)
+                        // Must cut through the bar (track + fill).
+                        ctx?.saveGState()
+                        ctx?.setShouldAntialias(true) // Slash should be smooth
+                        
+                        let slashPath = NSBezierPath()
+                        // Thickness: looks like ~1.5px or 2px. Let's try 1.5px (0.75pt at 2x)
+                        let slashThicknessPx: CGFloat = 1.5
+                        slashPath.lineWidth = slashThicknessPx / Self.outputScale
+                        
+                        // Geometry: Center of slash is center of bar.
+                        // Angle: Bottom-Left to Top-Right.
+                        // Reference image (Warp logo) has a steeper angle, closer to 70-75 degrees.
+                        // Previous was pi/3.2 (~56 deg). Let's try making it steeper.
+                        // pi/2.4 is 75 degrees.
+                        let angle: CGFloat = .pi / 2.4
+                        
+                        // Let's define it by points relative to center.
+                        let cx = Self.grid.pt(centerXPx)
+                        let cy = Self.grid.pt(eyeCenterYPx)
+                        let length = Self.grid.pt(rectPx.h + 8) // Extend slightly beyond height
+                        
+                        let dx = cos(angle) * length / 2
+                        let dy = sin(angle) * length / 2
+                        
+                        // From bottom-left area to top-right area
+                        slashPath.move(to: NSPoint(x: cx - dx, y: cy - dy))
+                        slashPath.line(to: NSPoint(x: cx + dx, y: cy + dy))
+                        
+                        // First pass: Erase everything under the stroke (blend mode clear)
+                        ctx?.saveGState()
+                        ctx?.setBlendMode(.clear)
+                        NSColor.white.setStroke()
+                        slashPath.stroke()
+                        ctx?.restoreGState()
+
+                        // Second pass: Draw the visible "tips" of the slash outside the ellipse
+                        // We need to mask out the inner part (the ellipse) so we only draw the outside tips.
+                        // However, since we just erased the line from the ellipse, the ellipse has a gap.
+                        // We want to draw a black line *in the gap*? No, the user wants "black edge"
+                        // The user said: "在该椭圆外侧再增加一圈细黑边... 有一圈黑色的斜线露出"
+                        // Wait, looking at the red circles:
+                        // The red circles highlight the tips of the slash sticking OUT of the capsule.
+                        // The slash INSIDE the capsule is a cut (white/transparent).
+                        // The slash OUTSIDE the capsule is black (fill color).
+                        
+                        // So:
+                        // 1. Cut the slash through everything (which we did with blendMode .clear).
+                        // 2. Draw the slash again with normal blend mode, but CLIP it to NOT be inside the capsule.
+                        
+                        // Define the outer clip path (inverse of the track path)
+                        // It's hard to do inverse clip directly.
+                        // Instead, we can:
+                        // a. Draw the full black slash.
+                        // b. Draw the capsule (track + fill) ON TOP of it (but we already drew them).
+                        // c. Retrospective approach:
+                        //    We already drew the capsule.
+                        //    We cut the slash through the capsule (clear mode).
+                        //    Now we want to fill the slash *outside* the capsule.
+                        //    We can draw the full slash in black, but set the clip region to exclude the capsule rect.
+                        
+                        // Create a path for the capsule shape
+                        // Re-create the track path logic
+                        let capsuleRadius = Self.grid.pt(addNotches ? 0 : rectPx.h / 2)
+                        let capsuleRect = rectPx.rect()
+                        let capsulePath = NSBezierPath(roundedRect: capsuleRect, xRadius: capsuleRadius, yRadius: capsuleRadius)
+                        
+                        // Set clipping to EXCLUDE the capsule.
+                        // EvenOdd rule with a giant rect + capsule path?
+                        let hugeRect = CGRect(x: -1000, y: -1000, width: 2000, height: 2000)
+                        let inverseClipPath = NSBezierPath(rect: hugeRect)
+                        inverseClipPath.append(capsulePath)
+                        inverseClipPath.windingRule = .evenOdd
+                        
+                        ctx?.saveGState()
+                        inverseClipPath.addClip()
+                        
+                        // Now draw the black slash
+                        fillColor.withAlphaComponent(alpha).setFill() // Use fill color for the stroke to match style
+                        fillColor.withAlphaComponent(alpha).setStroke()
+                        slashPath.stroke()
+                        
+                        ctx?.restoreGState()
+                        
+                        ctx?.restoreGState()
+                    }
                 }
 
                 let topValue = primaryRemaining
@@ -593,35 +737,58 @@ enum IconRenderer {
                         addGeminiTwist: style == .gemini || style == .antigravity,
                         addAntigravityTwist: style == .antigravity,
                         addFactoryTwist: style == .factory,
+                        addWarpTwist: style == .warp,
                         blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
                 } else if !hasWeekly {
-                    // Weekly missing (e.g. Claude enterprise): keep normal layout but
-                    // dim the bottom track to indicate N/A.
-                    if topValue == nil, let ratio = creditsRatio {
-                        // Credits-only: show credits prominently (e.g. credits loaded before usage).
+                    if style == .warp {
+                        if topValue != nil {
+                            drawBar(
+                                rectPx: topRectPx,
+                                remaining: 100,
+                                addWarpTwist: true,
+                                blink: blink)
+                        } else {
+                            drawBar(
+                                rectPx: topRectPx,
+                                remaining: nil,
+                                addWarpTwist: true,
+                                blink: blink)
+                        }
                         drawBar(
-                            rectPx: creditsRectPx,
-                            remaining: ratio,
-                            alpha: creditsAlpha,
-                            addNotches: style == .claude,
-                            addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
-                            addFactoryTwist: style == .factory,
-                            blink: blink)
-                        drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
-                    } else {
-                        drawBar(
-                            rectPx: topRectPx,
+                            rectPx: bottomRectPx,
                             remaining: topValue,
-                            addNotches: style == .claude,
-                            addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
-                            addFactoryTwist: style == .factory,
                             blink: blink)
-                        drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
+                    } else {
+                        // Weekly missing (e.g. Claude enterprise): keep normal layout but
+                        // dim the bottom track to indicate N/A.
+                        if topValue == nil, let ratio = creditsRatio {
+                            // Credits-only: show credits prominently (e.g. credits loaded before usage).
+                            drawBar(
+                                rectPx: creditsRectPx,
+                                remaining: ratio,
+                                alpha: creditsAlpha,
+                                addNotches: style == .claude,
+                                addFace: style == .codex,
+                                addGeminiTwist: style == .gemini || style == .antigravity,
+                                addAntigravityTwist: style == .antigravity,
+                                addFactoryTwist: style == .factory,
+                                addWarpTwist: style == .warp,
+                                blink: blink)
+                            drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
+                        } else {
+                            drawBar(
+                                rectPx: topRectPx,
+                                remaining: topValue,
+                                addNotches: style == .claude,
+                                addFace: style == .codex,
+                                addGeminiTwist: style == .gemini || style == .antigravity,
+                                addAntigravityTwist: style == .antigravity,
+                                addFactoryTwist: style == .factory,
+                                addWarpTwist: style == .warp,
+                                blink: blink)
+                            drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
+                        }
                     }
                 } else {
                     // Weekly exhausted/missing: show credits on top (thicker), weekly (likely 0) on bottom.
@@ -635,6 +802,7 @@ enum IconRenderer {
                             addGeminiTwist: style == .gemini || style == .antigravity,
                             addAntigravityTwist: style == .antigravity,
                             addFactoryTwist: style == .factory,
+                            addWarpTwist: style == .warp,
                             blink: blink)
                     } else {
                         // No credits available; fall back to 5h if present.
@@ -646,6 +814,7 @@ enum IconRenderer {
                             addGeminiTwist: style == .gemini || style == .antigravity,
                             addAntigravityTwist: style == .antigravity,
                             addFactoryTwist: style == .factory,
+                            addWarpTwist: style == .warp,
                             blink: blink)
                     }
                     drawBar(rectPx: creditsBottomRectPx, remaining: bottomValue)

@@ -1229,6 +1229,13 @@ extension UsageStore {
                 let text = "JetBrains AI debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.jetbrains] = text }
                 return text
+            case .warp:
+                let resolution = ProviderTokenResolver.warpResolution()
+                let hasAny = resolution != nil
+                let source = resolution?.source.rawValue ?? "none"
+                let text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                await MainActor.run { self.probeLogs[.warp] = text }
+                return text
             }
         }.value
     }
