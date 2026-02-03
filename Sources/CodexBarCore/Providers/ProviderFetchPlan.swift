@@ -61,6 +61,7 @@ public struct ProviderFetchResult: Sendable {
     public let usage: UsageSnapshot
     public let credits: CreditsSnapshot?
     public let dashboard: OpenAIDashboardSnapshot?
+    public let codeBuddyDailyUsage: [CodeBuddyDailyUsageEntry]?
     public let sourceLabel: String
     public let strategyID: String
     public let strategyKind: ProviderFetchKind
@@ -69,6 +70,7 @@ public struct ProviderFetchResult: Sendable {
         usage: UsageSnapshot,
         credits: CreditsSnapshot?,
         dashboard: OpenAIDashboardSnapshot?,
+        codeBuddyDailyUsage: [CodeBuddyDailyUsageEntry]? = nil,
         sourceLabel: String,
         strategyID: String,
         strategyKind: ProviderFetchKind)
@@ -76,6 +78,7 @@ public struct ProviderFetchResult: Sendable {
         self.usage = usage
         self.credits = credits
         self.dashboard = dashboard
+        self.codeBuddyDailyUsage = codeBuddyDailyUsage
         self.sourceLabel = sourceLabel
         self.strategyID = strategyID
         self.strategyKind = strategyKind
@@ -139,12 +142,14 @@ extension ProviderFetchStrategy {
         usage: UsageSnapshot,
         credits: CreditsSnapshot? = nil,
         dashboard: OpenAIDashboardSnapshot? = nil,
+        codeBuddyDailyUsage: [CodeBuddyDailyUsageEntry]? = nil,
         sourceLabel: String) -> ProviderFetchResult
     {
         ProviderFetchResult(
             usage: usage,
             credits: credits,
             dashboard: dashboard,
+            codeBuddyDailyUsage: codeBuddyDailyUsage,
             sourceLabel: sourceLabel,
             strategyID: self.id,
             strategyKind: self.kind)

@@ -1,6 +1,8 @@
 import CodexBarCore
 import Foundation
 
+private let codeBuddyLog = CodexBarLog.logger("codebuddy-store")
+
 extension UsageStore {
     /// Force refresh Augment session (called from UI button)
     func forceRefreshAugmentSession() async {
@@ -50,12 +52,22 @@ extension UsageStore {
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
+            // Debug: log CodeBuddy daily usage
+            if provider == .codebuddy {
+                let count = result.codeBuddyDailyUsage?.count ?? -1
+                codeBuddyLog.info("refreshProvider: result.codeBuddyDailyUsage count = \(count)")
+            }
             await MainActor.run {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
                 self.snapshots[provider] = scoped
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
+                // Store CodeBuddy daily usage if available
+                if provider == .codebuddy, let dailyUsage = result.codeBuddyDailyUsage {
+                    self.codeBuddyDailyUsage = dailyUsage
+                    codeBuddyLog.info("Stored daily usage: \(dailyUsage.count) entries")
+                }
             }
             if let runtime = self.providerRuntimes[provider] {
                 let context = ProviderRuntimeContext(provider: provider, settings: self.settings, store: self)
