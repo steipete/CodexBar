@@ -93,11 +93,11 @@ struct ClaudeUsageTests {
             if let org = entry["org"] { payload["account_org"] = org }
             let data = try JSONSerialization.data(withJSONObject: payload)
             let snap = ClaudeUsageFetcher.parse(json: data)
-            let emailRaw: String? = entry["email"] ?? Optional<String>.none
+            let emailRaw: String? = entry["email"] ?? String?.none
             let expectedEmail = emailRaw?.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedEmail = (expectedEmail?.isEmpty ?? true) ? nil : expectedEmail
             #expect(snap?.accountEmail == normalizedEmail)
-            let orgRaw: String? = entry["org"] ?? Optional<String>.none
+            let orgRaw: String? = entry["org"] ?? String?.none
             let expectedOrg = orgRaw?.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedOrg = (expectedOrg?.isEmpty ?? true) ? nil : expectedOrg
             #expect(snap?.accountOrganization == normalizedOrg)

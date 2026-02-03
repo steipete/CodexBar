@@ -9,8 +9,13 @@ final class InMemoryCookieHeaderStore: CookieHeaderStoring, @unchecked Sendable 
         self.value = value
     }
 
-    func loadCookieHeader() throws -> String? { self.value }
-    func storeCookieHeader(_ header: String?) throws { self.value = header }
+    func loadCookieHeader() throws -> String? {
+        self.value
+    }
+
+    func storeCookieHeader(_ header: String?) throws {
+        self.value = header
+    }
 }
 
 final class InMemoryMiniMaxCookieStore: MiniMaxCookieStoring, @unchecked Sendable {
@@ -20,8 +25,13 @@ final class InMemoryMiniMaxCookieStore: MiniMaxCookieStoring, @unchecked Sendabl
         self.value = value
     }
 
-    func loadCookieHeader() throws -> String? { self.value }
-    func storeCookieHeader(_ header: String?) throws { self.value = header }
+    func loadCookieHeader() throws -> String? {
+        self.value
+    }
+
+    func storeCookieHeader(_ header: String?) throws {
+        self.value = header
+    }
 }
 
 final class InMemoryMiniMaxAPITokenStore: MiniMaxAPITokenStoring, @unchecked Sendable {
@@ -31,8 +41,13 @@ final class InMemoryMiniMaxAPITokenStore: MiniMaxAPITokenStoring, @unchecked Sen
         self.value = value
     }
 
-    func loadToken() throws -> String? { self.value }
-    func storeToken(_ token: String?) throws { self.value = token }
+    func loadToken() throws -> String? {
+        self.value
+    }
+
+    func storeToken(_ token: String?) throws {
+        self.value = token
+    }
 }
 
 final class InMemoryKimiTokenStore: KimiTokenStoring, @unchecked Sendable {
@@ -42,8 +57,13 @@ final class InMemoryKimiTokenStore: KimiTokenStoring, @unchecked Sendable {
         self.value = value
     }
 
-    func loadToken() throws -> String? { self.value }
-    func storeToken(_ token: String?) throws { self.value = token }
+    func loadToken() throws -> String? {
+        self.value
+    }
+
+    func storeToken(_ token: String?) throws {
+        self.value = token
+    }
 }
 
 final class InMemoryKimiK2TokenStore: KimiK2TokenStoring, @unchecked Sendable {
@@ -53,8 +73,13 @@ final class InMemoryKimiK2TokenStore: KimiK2TokenStoring, @unchecked Sendable {
         self.value = value
     }
 
-    func loadToken() throws -> String? { self.value }
-    func storeToken(_ token: String?) throws { self.value = token }
+    func loadToken() throws -> String? {
+        self.value
+    }
+
+    func storeToken(_ token: String?) throws {
+        self.value = token
+    }
 }
 
 final class InMemoryCopilotTokenStore: CopilotTokenStoring, @unchecked Sendable {
@@ -64,8 +89,13 @@ final class InMemoryCopilotTokenStore: CopilotTokenStoring, @unchecked Sendable 
         self.value = value
     }
 
-    func loadToken() throws -> String? { self.value }
-    func storeToken(_ token: String?) throws { self.value = token }
+    func loadToken() throws -> String? {
+        self.value
+    }
+
+    func storeToken(_ token: String?) throws {
+        self.value = token
+    }
 }
 
 final class InMemoryTokenAccountStore: ProviderTokenAccountStoring, @unchecked Sendable {

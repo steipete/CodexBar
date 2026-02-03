@@ -98,7 +98,10 @@ public enum BrowserCookieAccessGate {
 }
 #else
 public enum BrowserCookieAccessGate {
-    public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool { true }
+    public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool {
+        true
+    }
+
     public static func recordIfNeeded(_ error: Error, now: Date = Date()) {}
     public static func recordDenied(for browser: Browser, now: Date = Date()) {}
 }

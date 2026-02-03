@@ -70,7 +70,9 @@ struct MenuContent: View {
         }
     }
 
-    private func iconName(for action: MenuDescriptor.MenuAction) -> String? { action.systemImageName }
+    private func iconName(for action: MenuDescriptor.MenuAction) -> String? {
+        action.systemImageName
+    }
 
     private func perform(_ action: MenuDescriptor.MenuAction) {
         switch action {

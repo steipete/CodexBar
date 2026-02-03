@@ -690,8 +690,7 @@ public struct CursorStatusProbe: Sendable {
         }
 
         // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
-        // Note: breakdown.total is the USED amount (included + bonus), not the limit.
-        // The actual limit comes from plan.limit.
+        // Use plan.limit directly - breakdown.total represents total *used* credits, not the limit.
         let planUsedRaw = Double(summary.individualUsage?.plan?.used ?? 0)
         let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
         let planUsed = planUsedRaw / 100.0

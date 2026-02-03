@@ -6,38 +6,38 @@ import Testing
 @Suite
 struct ProviderToggleStoreTests {
     @Test
-    func defaultsMatchMetadata() {
-        let defaults = UserDefaults(suiteName: "ProviderToggleStoreTests-defaults")!
+    func defaultsMatchMetadata() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ProviderToggleStoreTests-defaults"))
         defaults.removePersistentDomain(forName: "ProviderToggleStoreTests-defaults")
         let store = ProviderToggleStore(userDefaults: defaults)
         let registry = ProviderRegistry.shared
-        let codexMeta = registry.metadata[.codex]!
-        let claudeMeta = registry.metadata[.claude]!
+        let codexMeta = try #require(registry.metadata[.codex])
+        let claudeMeta = try #require(registry.metadata[.claude])
 
         #expect(store.isEnabled(metadata: codexMeta))
         #expect(!store.isEnabled(metadata: claudeMeta))
     }
 
     @Test
-    func persistsChanges() {
+    func persistsChanges() throws {
         let suite = "ProviderToggleStoreTests-persist"
-        let defaultsA = UserDefaults(suiteName: suite)!
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
         defaultsA.removePersistentDomain(forName: suite)
         let storeA = ProviderToggleStore(userDefaults: defaultsA)
         let registry = ProviderRegistry.shared
-        let claudeMeta = registry.metadata[.claude]!
+        let claudeMeta = try #require(registry.metadata[.claude])
 
         storeA.setEnabled(true, metadata: claudeMeta)
 
-        let defaultsB = UserDefaults(suiteName: suite)!
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
         let storeB = ProviderToggleStore(userDefaults: defaultsB)
         #expect(storeB.isEnabled(metadata: claudeMeta))
     }
 
     @Test
-    func purgesLegacyKeys() {
+    func purgesLegacyKeys() throws {
         let suite = "ProviderToggleStoreTests-purge"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         defaults.set(false, forKey: "showCodexUsage")
         defaults.set(true, forKey: "showClaudeUsage")

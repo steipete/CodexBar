@@ -67,5 +67,7 @@ enum UpdateChannel: String, CaseIterable, Codable, Sendable {
 }
 
 extension UpdateChannel: Identifiable {
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 }

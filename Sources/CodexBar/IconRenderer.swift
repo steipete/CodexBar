@@ -92,8 +92,13 @@ enum IconRenderer {
         let w: Int
         let h: Int
 
-        var midXPx: Int { self.x + self.w / 2 }
-        var midYPx: Int { self.y + self.h / 2 }
+        var midXPx: Int {
+            self.x + self.w / 2
+        }
+
+        var midYPx: Int {
+            self.y + self.h / 2
+        }
 
         func rect() -> CGRect {
             Self.grid.rect(x: self.x, y: self.y, w: self.w, h: self.h)

@@ -819,14 +819,18 @@ extension StatusItemController {
     }
 
     private final class MenuHostingView<Content: View>: NSHostingView<Content> {
-        override var allowsVibrancy: Bool { true }
+        override var allowsVibrancy: Bool {
+            true
+        }
     }
 
     @MainActor
     private final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, MenuCardHighlighting,
     MenuCardMeasuring {
         private let highlightState: MenuCardHighlightState
-        override var allowsVibrancy: Bool { true }
+        override var allowsVibrancy: Bool {
+            true
+        }
 
         override var intrinsicContentSize: NSSize {
             let size = super.intrinsicContentSize

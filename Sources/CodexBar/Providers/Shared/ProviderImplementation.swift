@@ -76,7 +76,10 @@ protocol ProviderImplementation: Sendable {
 }
 
 extension ProviderImplementation {
-    var supportsLoginFlow: Bool { false }
+    var supportsLoginFlow: Bool {
+        false
+    }
+
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
         ProviderPresentation(detailLine: ProviderPresentation.standardDetailLine)

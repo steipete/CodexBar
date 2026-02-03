@@ -43,7 +43,9 @@ struct JetBrainsStatusFetchStrategy: ProviderFetchStrategy {
     let id: String = "jetbrains.local"
     let kind: ProviderFetchKind = .localProbe
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool { true }
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = JetBrainsStatusProbe(settings: context.settings)

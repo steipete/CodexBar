@@ -6,7 +6,9 @@ public enum ClaudeUsageDataSource: String, CaseIterable, Identifiable, Sendable 
     case web
     case cli
 
-    public var id: String { self.rawValue }
+    public var id: String {
+        self.rawValue
+    }
 
     public var displayName: String {
         switch self {

@@ -49,6 +49,8 @@ extension Browser {
 }
 #else
 extension Browser {
-    var usesKeychainForCookieDecryption: Bool { false }
+    var usesKeychainForCookieDecryption: Bool {
+        false
+    }
 }
 #endif

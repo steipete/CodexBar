@@ -3,7 +3,8 @@
 ## 0.18.0-beta.2 — 2026-01-21
 ### Highlights
 - OpenAI web dashboard refresh cadence now follows 5× the base refresh interval.
-- OpenAI web dashboard WebView is torn down after each scrape to reduce idle CPU.
+- OpenAI web dashboard WebView is kept warm between scrapes to avoid repeated SPA downloads while idle CPU stays low (#284). Thanks @vignesh07!
+- Menu bar: avoid fallback animation loop when all providers are disabled (#283). Thanks @vignesh07!
 - Codex settings now include a toggle to disable OpenAI web extras.
 
 ### Providers

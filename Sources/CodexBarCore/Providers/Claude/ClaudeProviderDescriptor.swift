@@ -222,7 +222,9 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     let manualCookieHeader: String?
     let browserDetection: BrowserDetection
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool { true }
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let keepAlive = context.settings?.debugKeepCLISessionsAlive ?? false

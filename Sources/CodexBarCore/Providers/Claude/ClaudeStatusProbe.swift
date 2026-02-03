@@ -347,7 +347,7 @@ public struct ClaudeStatusProbe: Sendable {
         return nil
     }
 
-    // Collect remaining percentages in the order they appear; used as a backup when labels move/rename.
+    /// Collect remaining percentages in the order they appear; used as a backup when labels move/rename.
     private static func allPercents(_ text: String) -> [Int] {
         let lines = text.components(separatedBy: .newlines)
         return lines.compactMap { self.percentFromLine($0, assumeRemainingWhenUnclear: true) }
@@ -387,7 +387,7 @@ public struct ClaudeStatusProbe: Sendable {
             .joined(separator: " ")
     }
 
-    // Capture all "Resets ..." strings to surface in the menu.
+    /// Capture all "Resets ..." strings to surface in the menu.
     private static func allResets(_ text: String) -> [String] {
         let pat = #"Resets[^\r\n]*"#
         guard let regex = try? NSRegularExpression(pattern: pat, options: [.caseInsensitive]) else { return [] }
@@ -508,7 +508,7 @@ public struct ClaudeStatusProbe: Sendable {
         return nil
     }
 
-    // Extract login/plan string from CLI output.
+    /// Extract login/plan string from CLI output.
     private static func extractLoginMethod(text: String) -> String? {
         guard !text.isEmpty else { return nil }
         if let explicit = self.extractFirst(pattern: #"(?i)login\s+method:\s*(.+)"#, text: text) {
@@ -637,7 +637,7 @@ public struct ClaudeStatusProbe: Sendable {
         }
     }
 
-    // Run claude CLI inside a PTY so we can respond to interactive permission prompts.
+    /// Run claude CLI inside a PTY so we can respond to interactive permission prompts.
     private static func capture(subcommand: String, binary: String, timeout: TimeInterval) async throws -> String {
         let stopOnSubstrings = subcommand == "/usage"
             ? [

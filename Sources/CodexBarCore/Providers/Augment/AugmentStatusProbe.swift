@@ -11,9 +11,9 @@ private let augmentCookieImportOrder: BrowserCookieImportOrder =
 /// Imports Augment session cookies from browser cookies.
 public enum AugmentCookieImporter {
     private static let cookieClient = BrowserCookieClient()
-    // Auth0 session cookies used by Augment
-    // NOTE: This list may not be exhaustive. If authentication fails with cookies present,
-    // check debug logs for cookie names and report them.
+    /// Auth0 session cookies used by Augment
+    /// NOTE: This list may not be exhaustive. If authentication fails with cookies present,
+    /// check debug logs for cookie names and report them.
     private static let sessionCookieNames: Set<String> = [
         "_session", // Legacy session cookie
         "auth0", // Auth0 session
@@ -121,9 +121,15 @@ public struct AugmentCreditsResponse: Codable, Sendable {
     public let usageUnitsAvailable: Double?
     public let usageBalanceStatus: String?
 
-    // Computed properties for compatibility with existing code
-    public var credits: Double? { self.usageUnitsRemaining }
-    public var creditsUsed: Double? { self.usageUnitsConsumedThisBillingCycle }
+    /// Computed properties for compatibility with existing code
+    public var credits: Double? {
+        self.usageUnitsRemaining
+    }
+
+    public var creditsUsed: Double? {
+        self.usageUnitsConsumedThisBillingCycle
+    }
+
     public var creditsLimit: Double? {
         guard let remaining = self.usageUnitsRemaining,
               let consumed = self.usageUnitsConsumedThisBillingCycle

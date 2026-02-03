@@ -412,6 +412,13 @@ extension StatusItemController {
         let isMerged = mergeIcons ?? self.shouldMergeIcons
         let isVisible = isMerged ? self.isEnabled(provider) : self.isVisible(provider)
         guard isVisible else { return false }
+
+        // Don't animate for fallback provider - it's only shown as a placeholder when nothing is enabled.
+        // Animating the fallback causes unnecessary CPU usage (battery drain). See #269, #139.
+        let isEnabled = self.isEnabled(provider)
+        let isFallbackOnly = !isEnabled && self.fallbackProvider == provider
+        if isFallbackOnly { return false }
+
         let isStale = self.store.isStale(provider: provider)
         let hasData = self.store.snapshot(for: provider) != nil
         return !hasData && !isStale

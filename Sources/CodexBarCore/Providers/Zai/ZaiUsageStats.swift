@@ -190,7 +190,9 @@ private struct ZaiQuotaLimitResponse: Decodable {
     let data: ZaiQuotaLimitData?
     let success: Bool
 
-    var isSuccess: Bool { self.success && self.code == 200 }
+    var isSuccess: Bool {
+        self.success && self.code == 200
+    }
 }
 
 private struct ZaiQuotaLimitData: Decodable {

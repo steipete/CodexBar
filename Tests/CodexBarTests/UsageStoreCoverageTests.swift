@@ -7,14 +7,14 @@ import Testing
 @Suite
 struct UsageStoreCoverageTests {
     @Test
-    func providerWithHighestUsageAndIconStyle() {
+    func providerWithHighestUsageAndIconStyle() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-highest")
         let store = Self.makeUsageStore(settings: settings)
         let metadata = ProviderRegistry.shared.metadata
 
-        settings.setProviderEnabled(provider: .codex, metadata: metadata[.codex]!, enabled: true)
-        settings.setProviderEnabled(provider: .factory, metadata: metadata[.factory]!, enabled: true)
-        settings.setProviderEnabled(provider: .claude, metadata: metadata[.claude]!, enabled: true)
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .factory, metadata: #require(metadata[.factory]), enabled: true)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: true)
 
         let now = Date()
         store._setSnapshotForTesting(
@@ -41,8 +41,8 @@ struct UsageStoreCoverageTests {
         #expect(highest?.usedPercent == 70)
         #expect(store.iconStyle == .combined)
 
-        settings.setProviderEnabled(provider: .factory, metadata: metadata[.factory]!, enabled: false)
-        settings.setProviderEnabled(provider: .claude, metadata: metadata[.claude]!, enabled: false)
+        try settings.setProviderEnabled(provider: .factory, metadata: #require(metadata[.factory]), enabled: false)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: false)
         #expect(store.iconStyle == store.style(for: .codex))
 
         store._setErrorForTesting("error", provider: .codex)
@@ -160,8 +160,13 @@ private final class InMemoryZaiTokenStore: ZaiTokenStoring, @unchecked Sendable 
         self.value = value
     }
 
-    func loadToken() throws -> String? { self.value }
-    func storeToken(_ token: String?) throws { self.value = token }
+    func loadToken() throws -> String? {
+        self.value
+    }
+
+    func storeToken(_ token: String?) throws {
+        self.value = token
+    }
 }
 
 private final class InMemorySyntheticTokenStore: SyntheticTokenStoring, @unchecked Sendable {
@@ -171,6 +176,11 @@ private final class InMemorySyntheticTokenStore: SyntheticTokenStoring, @uncheck
         self.value = value
     }
 
-    func loadToken() throws -> String? { self.value }
-    func storeToken(_ token: String?) throws { self.value = token }
+    func loadToken() throws -> String? {
+        self.value
+    }
+
+    func storeToken(_ token: String?) throws {
+        self.value = token
+    }
 }

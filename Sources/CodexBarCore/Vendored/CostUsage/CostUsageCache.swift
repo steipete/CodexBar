@@ -47,13 +47,13 @@ struct CostUsageCache: Codable, Sendable {
     var version: Int = 1
     var lastScanUnixMs: Int64 = 0
 
-    // filePath -> file usage
+    /// filePath -> file usage
     var files: [String: CostUsageFileUsage] = [:]
 
-    // dayKey -> model -> packed usage
+    /// dayKey -> model -> packed usage
     var days: [String: [String: [Int]]] = [:]
 
-    // rootPath -> mtime (for Claude roots)
+    /// rootPath -> mtime (for Claude roots)
     var roots: [String: Int64]?
 }
 

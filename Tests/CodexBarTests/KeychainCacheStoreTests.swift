@@ -10,7 +10,7 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
-    func storesAndLoadsEntry() throws {
+    func storesAndLoadsEntry() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -30,7 +30,7 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
-    func overwritesExistingEntry() throws {
+    func overwritesExistingEntry() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -51,7 +51,7 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
-    func clearRemovesEntry() throws {
+    func clearRemovesEntry() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
 

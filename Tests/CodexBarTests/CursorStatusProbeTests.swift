@@ -38,7 +38,7 @@ struct CursorStatusProbeTests {
             }
         }
         """
-        let data = json.data(using: .utf8)!
+        let data = try #require(json.data(using: .utf8))
         let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: data)
 
         #expect(summary.membershipType == "pro")
@@ -63,7 +63,7 @@ struct CursorStatusProbeTests {
             }
         }
         """
-        let data = json.data(using: .utf8)!
+        let data = try #require(json.data(using: .utf8))
         let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: data)
 
         #expect(summary.membershipType == "hobby")
@@ -88,7 +88,7 @@ struct CursorStatusProbeTests {
             }
         }
         """
-        let data = json.data(using: .utf8)!
+        let data = try #require(json.data(using: .utf8))
         let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: data)
 
         #expect(summary.membershipType == "enterprise")
@@ -108,7 +108,7 @@ struct CursorStatusProbeTests {
             "sub": "auth0|12345"
         }
         """
-        let data = json.data(using: .utf8)!
+        let data = try #require(json.data(using: .utf8))
         let userInfo = try JSONDecoder().decode(CursorUserInfo.self, from: data)
 
         #expect(userInfo.email == "user@example.com")
@@ -409,7 +409,7 @@ struct CursorStatusProbeTests {
     // MARK: - Session Store Serialization
 
     @Test
-    func sessionStoreSavesAndLoadsCookies() async throws {
+    func sessionStoreSavesAndLoadsCookies() async {
         let store = CursorSessionStore.shared
 
         // Clear any existing cookies
@@ -444,7 +444,7 @@ struct CursorStatusProbeTests {
     }
 
     @Test
-    func sessionStoreReloadsFromDiskWhenNeeded() async throws {
+    func sessionStoreReloadsFromDiskWhenNeeded() async {
         let store = CursorSessionStore.shared
         await store.resetForTesting()
 
@@ -474,7 +474,7 @@ struct CursorStatusProbeTests {
     }
 
     @Test
-    func sessionStoreHasValidSessionLoadsFromDisk() async throws {
+    func sessionStoreHasValidSessionLoadsFromDisk() async {
         let store = CursorSessionStore.shared
         await store.resetForTesting()
 

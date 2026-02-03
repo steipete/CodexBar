@@ -11,7 +11,9 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
     case fifteenMinutes
     case thirtyMinutes
 
-    var id: String { self.rawValue }
+    var id: String {
+        self.rawValue
+    }
 
     var seconds: TimeInterval? {
         switch self {
@@ -42,7 +44,9 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
     case secondary
     case average
 
-    var id: String { self.rawValue }
+    var id: String {
+        self.rawValue
+    }
 
     var label: String {
         switch self {

@@ -320,25 +320,25 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parsesClaudeResetTimeOnly() {
+    func parsesClaudeResetTimeOnly() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets 12:59pm (Europe/Helsinki)", now: now)
-        let tz = TimeZone(identifier: "Europe/Helsinki")!
+        let tz = try #require(TimeZone(identifier: "Europe/Helsinki"))
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = tz
-        var expected = calendar.date(bySettingHour: 12, minute: 59, second: 0, of: now)!
+        var expected = try #require(calendar.date(bySettingHour: 12, minute: 59, second: 0, of: now))
         if expected < now {
-            expected = calendar.date(byAdding: .day, value: 1, to: expected)!
+            expected = try #require(calendar.date(byAdding: .day, value: 1, to: expected))
         }
         #expect(parsed == expected)
     }
 
     @Test
-    func parsesClaudeResetDateAndTime() {
+    func parsesClaudeResetDateAndTime() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets Dec 9, 8:59am (Europe/Helsinki)", now: now)
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Europe/Helsinki")!
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Helsinki"))
         let expected = calendar.date(from: DateComponents(
             year: calendar.component(.year, from: now),
             month: 12,
@@ -350,24 +350,24 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parsesClaudeResetWithDotSeparatedTime() {
+    func parsesClaudeResetWithDotSeparatedTime() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets Dec 9 at 5.27am (UTC)", now: now)
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
         let expected = calendar.date(from: DateComponents(year: 2024, month: 12, day: 9, hour: 5, minute: 27))
         #expect(parsed == expected)
     }
 
     @Test
-    func parsesClaudeResetWithCompactTimes() {
+    func parsesClaudeResetWithCompactTimes() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsedTimeOnly = ClaudeStatusProbe.parseResetDate(from: "Resets 1pm (UTC)", now: now)
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
-        var expected = calendar.date(bySettingHour: 13, minute: 0, second: 0, of: now)!
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+        var expected = try #require(calendar.date(bySettingHour: 13, minute: 0, second: 0, of: now))
         if expected < now {
-            expected = calendar.date(byAdding: .day, value: 1, to: expected)!
+            expected = try #require(calendar.date(byAdding: .day, value: 1, to: expected))
         }
         #expect(parsedTimeOnly == expected)
 

@@ -104,7 +104,7 @@ struct JetBrainsStatusProbeTests {
     }
 
     @Test
-    func calculatesUsagePercentageFromAvailable() throws {
+    func calculatesUsagePercentageFromAvailable() {
         // available = 75_000, maximum = 100_000 -> 75% remaining, 25% used
         let quotaInfo = JetBrainsQuotaInfo(
             type: "paid",
@@ -118,7 +118,7 @@ struct JetBrainsStatusProbeTests {
     }
 
     @Test
-    func calculatesUsagePercentageAtZero() throws {
+    func calculatesUsagePercentageAtZero() {
         let quotaInfo = JetBrainsQuotaInfo(
             type: "paid",
             used: 0,
@@ -131,7 +131,7 @@ struct JetBrainsStatusProbeTests {
     }
 
     @Test
-    func calculatesUsagePercentageAtMax() throws {
+    func calculatesUsagePercentageAtMax() {
         let quotaInfo = JetBrainsQuotaInfo(
             type: "paid",
             used: 100_000,
@@ -144,7 +144,7 @@ struct JetBrainsStatusProbeTests {
     }
 
     @Test
-    func handlesZeroMaximum() throws {
+    func handlesZeroMaximum() {
         let quotaInfo = JetBrainsQuotaInfo(
             type: "free",
             used: 1000,
@@ -186,7 +186,7 @@ struct JetBrainsStatusProbeTests {
 
         #expect(usage.primary != nil)
         // usedPercent should be approximately 0.75% (7_478.3 / 1_000_000 * 100)
-        #expect(usage.primary!.usedPercent < 1.0)
+        #expect(try #require(usage.primary?.usedPercent) < 1.0)
         // Reset date should come from refillInfo.next, not quotaInfo.until
         #expect(usage.primary?.resetsAt != nil)
         #expect(usage.secondary == nil)
@@ -225,7 +225,7 @@ struct JetBrainsStatusProbeTests {
     }
 
     @Test
-    func parsesIDEDirectory() throws {
+    func parsesIDEDirectory() {
         let ides = [
             ("IntelliJIdea2024.3", "IntelliJ IDEA", "2024.3"),
             ("PyCharm2024.2", "PyCharm", "2024.2"),

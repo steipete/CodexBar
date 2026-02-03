@@ -88,7 +88,7 @@ struct OpenAIDashboardParserTests {
     }
 
     @Test
-    func buildsDailyBreakdownFromEvents() {
+    func buildsDailyBreakdownFromEvents() throws {
         let calendar = Calendar(identifier: .gregorian)
         var components = DateComponents()
         components.calendar = calendar
@@ -97,10 +97,10 @@ struct OpenAIDashboardParserTests {
         components.year = 2025
         components.month = 12
         components.day = 18
-        let dec18 = components.date!
+        let dec18 = try #require(components.date)
 
         components.day = 17
-        let dec17 = components.date!
+        let dec17 = try #require(components.date)
 
         let events = [
             CreditEvent(date: dec18, service: "CLI", creditsUsed: 10),

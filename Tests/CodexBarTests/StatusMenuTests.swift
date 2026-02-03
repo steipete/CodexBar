@@ -11,6 +11,14 @@ struct StatusMenuTests {
         StatusItemController.menuRefreshEnabled = false
     }
 
+    private func makeStatusBarForTesting() -> NSStatusBar {
+        let env = ProcessInfo.processInfo.environment
+        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
+            return .system
+        }
+        return NSStatusBar()
+    }
+
     private func makeSettings() -> SettingsStore {
         let suite = "StatusMenuTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -50,7 +58,7 @@ struct StatusMenuTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         let claudeMenu = controller.makeMenu()
         controller.menuWillOpen(claudeMenu)
@@ -95,7 +103,7 @@ struct StatusMenuTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         #expect(controller.statusItems[.claude]?.isVisible == true)
 
@@ -143,7 +151,7 @@ struct StatusMenuTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -153,7 +161,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func showsOpenAIWebSubmenusWhenHistoryExists() {
+    func showsOpenAIWebSubmenusWhenHistoryExists() throws {
         self.disableMenuCardsForTesting()
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusMenuTests-history"),
@@ -185,7 +193,7 @@ struct StatusMenuTests {
         components.year = 2025
         components.month = 12
         components.day = 18
-        let date = components.date!
+        let date = try #require(components.date)
 
         let events = [CreditEvent(date: date, service: "CLI", creditsUsed: 1)]
         let breakdown = OpenAIDashboardSnapshot.makeDailyBreakdown(from: events, maxDays: 30)
@@ -204,7 +212,7 @@ struct StatusMenuTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -219,7 +227,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func showsCreditsBeforeCostInCodexMenuCardSections() {
+    func showsCreditsBeforeCostInCodexMenuCardSections() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -273,7 +281,7 @@ struct StatusMenuTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -282,7 +290,7 @@ struct StatusMenuTests {
         let costIndex = ids.firstIndex(of: "menuCardCost")
         #expect(creditsIndex != nil)
         #expect(costIndex != nil)
-        #expect(creditsIndex! < costIndex!)
+        #expect(try #require(creditsIndex) < costIndex!)
     }
 
     @Test
@@ -351,7 +359,7 @@ struct StatusMenuTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -406,7 +414,7 @@ struct StatusMenuTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)

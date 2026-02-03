@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct GeminiStatusProbeTests {
-    // Sample /stats output from Gemini CLI (actual format with box-drawing chars)
+    /// Sample /stats output from Gemini CLI (actual format with box-drawing chars)
     static let sampleStatsOutput = """
     │  Model Usage                            Reqs                  Usage left  │
     │  ───────────────────────────────────────────────────────────────────────  │

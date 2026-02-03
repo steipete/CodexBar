@@ -6,6 +6,14 @@ import Testing
 @MainActor
 @Suite
 struct StatusItemAnimationTests {
+    private func makeStatusBarForTesting() -> NSStatusBar {
+        let env = ProcessInfo.processInfo.environment
+        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
+            return .system
+        }
+        return NSStatusBar()
+    }
+
     @Test
     func mergedIconLoadingAnimationTracksSelectedProviderOnly() {
         let settings = SettingsStore(
@@ -36,7 +44,7 @@ struct StatusItemAnimationTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
@@ -87,7 +95,7 @@ struct StatusItemAnimationTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         // Enter loading state: no data, no stale error.
         store._setSnapshotForTesting(nil, provider: .codex)
@@ -140,7 +148,7 @@ struct StatusItemAnimationTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
@@ -179,7 +187,7 @@ struct StatusItemAnimationTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: NSStatusBar())
+            statusBar: self.makeStatusBarForTesting())
 
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),

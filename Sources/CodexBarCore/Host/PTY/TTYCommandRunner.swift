@@ -265,8 +265,8 @@ public struct TTYCommandRunner {
         var cleanedUp = false
         var didLaunch = false
         var processGroup: pid_t?
-        // Always tear down the PTY child (and its process group) even if we throw early
-        // while bootstrapping the CLI (e.g. when it prompts for login/telemetry).
+        /// Always tear down the PTY child (and its process group) even if we throw early
+        /// while bootstrapping the CLI (e.g. when it prompts for login/telemetry).
         func cleanup() {
             guard !cleanedUp else { return }
             cleanedUp = true

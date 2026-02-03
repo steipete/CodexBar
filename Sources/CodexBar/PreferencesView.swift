@@ -17,7 +17,9 @@ enum PreferencesTab: String, Hashable {
         self == .providers ? PreferencesTab.providersWidth : PreferencesTab.defaultWidth
     }
 
-    var preferredHeight: CGFloat { PreferencesTab.windowHeight }
+    var preferredHeight: CGFloat {
+        PreferencesTab.windowHeight
+    }
 }
 
 @MainActor

@@ -81,11 +81,6 @@ struct UsageMenuCardView: View {
     let width: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
-    init(model: Model, width: CGFloat) {
-        self.model = model
-        self.width = width
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             UsageMenuCardHeaderView(model: self.model)
@@ -425,20 +420,6 @@ struct UsageMenuCardCreditsSectionView: View {
     let topPadding: CGFloat
     let bottomPadding: CGFloat
     let width: CGFloat
-
-    init(
-        model: UsageMenuCardView.Model,
-        showBottomDivider: Bool,
-        topPadding: CGFloat,
-        bottomPadding: CGFloat,
-        width: CGFloat)
-    {
-        self.model = model
-        self.showBottomDivider = showBottomDivider
-        self.topPadding = topPadding
-        self.bottomPadding = bottomPadding
-        self.width = width
-    }
 
     var body: some View {
         if let credits = self.model.creditsText {
@@ -995,7 +976,9 @@ private final class ClickToCopyView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
 
     override func mouseDown(with event: NSEvent) {
         _ = event

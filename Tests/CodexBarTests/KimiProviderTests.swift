@@ -173,7 +173,7 @@ struct KimiUsageResponseParsingTests {
 @Suite
 struct KimiUsageSnapshotConversionTests {
     @Test
-    func convertsToUsageSnapshotWithBothWindows() throws {
+    func convertsToUsageSnapshotWithBothWindows() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",
@@ -210,7 +210,7 @@ struct KimiUsageSnapshotConversionTests {
     }
 
     @Test
-    func convertsToUsageSnapshotWithoutRateLimit() throws {
+    func convertsToUsageSnapshotWithoutRateLimit() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",
@@ -233,7 +233,7 @@ struct KimiUsageSnapshotConversionTests {
     }
 
     @Test
-    func handlesZeroValuesCorrectly() throws {
+    func handlesZeroValuesCorrectly() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",
@@ -251,7 +251,7 @@ struct KimiUsageSnapshotConversionTests {
     }
 
     @Test
-    func handlesHundredPercentCorrectly() throws {
+    func handlesHundredPercentCorrectly() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",

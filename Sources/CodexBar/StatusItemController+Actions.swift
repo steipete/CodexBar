@@ -120,9 +120,13 @@ extension StatusItemController {
         }
     }
 
-    @objc func showSettingsGeneral() { self.openSettings(tab: .general) }
+    @objc func showSettingsGeneral() {
+        self.openSettings(tab: .general)
+    }
 
-    @objc func showSettingsAbout() { self.openSettings(tab: .about) }
+    @objc func showSettingsAbout() {
+        self.openSettings(tab: .about)
+    }
 
     func openMenuFromShortcut() {
         if self.shouldMergeIcons {

@@ -12,7 +12,9 @@ struct ProvidersPane: View {
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
     @State private var selectedProvider: UsageProvider?
 
-    private var providers: [UsageProvider] { self.settings.orderedProviders() }
+    private var providers: [UsageProvider] {
+        self.settings.orderedProviders()
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {

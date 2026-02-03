@@ -8,9 +8,9 @@ import Testing
 @Suite
 struct ProviderSettingsDescriptorTests {
     @Test
-    func toggleIDsAreUniqueAcrossProviders() {
+    func toggleIDsAreUniqueAcrossProviders() throws {
         let suite = "ProviderSettingsDescriptorTests-unique"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
@@ -62,7 +62,7 @@ struct ProviderSettingsDescriptorTests {
                 },
                 requestConfirmation: { _ in })
 
-            let impl = ProviderCatalog.implementation(for: provider)!
+            let impl = try #require(ProviderCatalog.implementation(for: provider))
             let toggles = impl.settingsToggles(context: context)
             for toggle in toggles {
                 #expect(!seenToggleIDs.contains(toggle.id))
@@ -83,9 +83,9 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func codexExposesUsageAndCookiePickers() {
+    func codexExposesUsageAndCookiePickers() throws {
         let suite = "ProviderSettingsDescriptorTests-codex"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
@@ -124,9 +124,9 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func claudeExposesUsageAndCookiePickers() {
+    func claudeExposesUsageAndCookiePickers() throws {
         let suite = "ProviderSettingsDescriptorTests-claude"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
@@ -164,9 +164,9 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func claudeWebExtrasAutoDisablesWhenLeavingCLI() {
+    func claudeWebExtrasAutoDisablesWhenLeavingCLI() throws {
         let suite = "ProviderSettingsDescriptorTests-claude-invariant"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(

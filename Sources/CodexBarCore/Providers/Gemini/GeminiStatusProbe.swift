@@ -21,8 +21,11 @@ public struct GeminiStatusSnapshot: Sendable {
         self.modelQuotas.min(by: { $0.percentLeft < $1.percentLeft })?.percentLeft
     }
 
-    // Legacy compatibility
-    public var dailyPercentLeft: Double? { self.lowestPercentLeft }
+    /// Legacy compatibility
+    public var dailyPercentLeft: Double? {
+        self.lowestPercentLeft
+    }
+
     public var resetDescription: String? {
         self.modelQuotas.min(by: { $0.percentLeft < $1.percentLeft })?.resetDescription
     }

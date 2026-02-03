@@ -33,6 +33,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let settings: SettingsStore
     let account: AccountInfo
     let updater: UpdaterProviding
+    private let statusBar: NSStatusBar
     var statusItem: NSStatusItem
     var statusItems: [UsageProvider: NSStatusItem] = [:]
     var lastMenuProvider: UsageProvider?
@@ -139,6 +140,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         preferencesSelection: PreferencesSelection,
         statusBar: NSStatusBar = .system)
     {
+        if SettingsStore.isRunningTests {
+            _ = NSApplication.shared
+        }
         self.store = store
         self.settings = settings
         self.account = account
@@ -148,6 +152,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastProviderOrder = settings.providerOrder
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
+        self.statusBar = statusBar
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
         // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
         item.button?.imageScaling = .scaleNone
@@ -324,8 +329,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         if let existing = self.statusItems[provider] {
             return existing
         }
-        let bar = NSStatusBar.system
-        let item = bar.statusItem(withLength: NSStatusItem.variableLength)
+        let item = self.statusBar.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.imageScaling = .scaleNone
         self.statusItems[provider] = item
         return item
@@ -420,14 +424,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func rebuildProviderStatusItems() {
-        let bar = NSStatusBar.system
         for item in self.statusItems.values {
-            bar.removeStatusItem(item)
+            self.statusBar.removeStatusItem(item)
         }
         self.statusItems.removeAll(keepingCapacity: true)
 
         for provider in self.settings.orderedProviders() {
-            let item = bar.statusItem(withLength: NSStatusItem.variableLength)
+            let item = self.statusBar.statusItem(withLength: NSStatusItem.variableLength)
             item.button?.imageScaling = .scaleNone
             self.statusItems[provider] = item
         }

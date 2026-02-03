@@ -8,9 +8,9 @@ import Testing
 @Suite
 struct SettingsStoreTests {
     @Test
-    func defaultRefreshFrequencyIsFiveMinutes() {
+    func defaultRefreshFrequencyIsFiveMinutes() throws {
         let suite = "SettingsStoreTests-default"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
 
@@ -25,9 +25,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func persistsRefreshFrequencyAcrossInstances() {
+    func persistsRefreshFrequencyAcrossInstances() throws {
         let suite = "SettingsStoreTests-persist"
-        let defaultsA = UserDefaults(suiteName: suite)!
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
         defaultsA.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let storeA = SettingsStore(
@@ -38,7 +38,7 @@ struct SettingsStoreTests {
 
         storeA.refreshFrequency = .fifteenMinutes
 
-        let defaultsB = UserDefaults(suiteName: suite)!
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
         let storeB = SettingsStore(
             userDefaults: defaultsB,
             configStore: configStore,
@@ -50,9 +50,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func persistsSelectedMenuProviderAcrossInstances() {
+    func persistsSelectedMenuProviderAcrossInstances() throws {
         let suite = "SettingsStoreTests-selectedMenuProvider"
-        let defaultsA = UserDefaults(suiteName: suite)!
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
         defaultsA.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let storeA = SettingsStore(
@@ -63,7 +63,7 @@ struct SettingsStoreTests {
 
         storeA.selectedMenuProvider = .claude
 
-        let defaultsB = UserDefaults(suiteName: suite)!
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
         let storeB = SettingsStore(
             userDefaults: defaultsB,
             configStore: configStore,
@@ -74,9 +74,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func persistsOpenCodeWorkspaceIDAcrossInstances() {
+    func persistsOpenCodeWorkspaceIDAcrossInstances() throws {
         let suite = "SettingsStoreTests-opencode-workspace"
-        let defaultsA = UserDefaults(suiteName: suite)!
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
         defaultsA.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let storeA = SettingsStore(
@@ -86,7 +86,7 @@ struct SettingsStoreTests {
 
         storeA.opencodeWorkspaceID = "wrk_01KEJ50SHK9YR41HSRSJ6QTFCM"
 
-        let defaultsB = UserDefaults(suiteName: suite)!
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
         let storeB = SettingsStore(
             userDefaults: defaultsB,
             configStore: configStore,
@@ -96,10 +96,10 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func defaultsSessionQuotaNotificationsToEnabled() {
+    func defaultsSessionQuotaNotificationsToEnabled() throws {
         let key = "sessionQuotaNotificationsEnabled"
         let suite = "SettingsStoreTests-sessionQuotaNotifications"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let store = SettingsStore(
@@ -112,9 +112,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func defaultsClaudeUsageSourceToAuto() {
+    func defaultsClaudeUsageSourceToAuto() throws {
         let suite = "SettingsStoreTests-claude-source"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
 
@@ -128,9 +128,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func defaultsCodexUsageSourceToAuto() {
+    func defaultsCodexUsageSourceToAuto() throws {
         let suite = "SettingsStoreTests-codex-source"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
 
@@ -145,9 +145,9 @@ struct SettingsStoreTests {
 
     @Test
     @MainActor
-    func applyExternalConfigDoesNotBroadcast() {
+    func applyExternalConfigDoesNotBroadcast() throws {
         let suite = "SettingsStoreTests-external-config"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let store = SettingsStore(
@@ -189,9 +189,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func persistsZaiAPIRegionAcrossInstances() {
+    func persistsZaiAPIRegionAcrossInstances() throws {
         let suite = "SettingsStoreTests-zai-region"
-        let defaultsA = UserDefaults(suiteName: suite)!
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
         defaultsA.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let storeA = SettingsStore(
@@ -201,7 +201,7 @@ struct SettingsStoreTests {
 
         storeA.zaiAPIRegion = .bigmodelCN
 
-        let defaultsB = UserDefaults(suiteName: suite)!
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
         let storeB = SettingsStore(
             userDefaults: defaultsB,
             configStore: configStore,
@@ -211,9 +211,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func persistsMiniMaxAPIRegionAcrossInstances() {
+    func persistsMiniMaxAPIRegionAcrossInstances() throws {
         let suite = "SettingsStoreTests-minimax-region"
-        let defaultsA = UserDefaults(suiteName: suite)!
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
         defaultsA.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let storeA = SettingsStore(
@@ -223,7 +223,7 @@ struct SettingsStoreTests {
 
         storeA.minimaxAPIRegion = .chinaMainland
 
-        let defaultsB = UserDefaults(suiteName: suite)!
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
         let storeB = SettingsStore(
             userDefaults: defaultsB,
             configStore: configStore,
@@ -233,9 +233,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func defaultsOpenAIWebAccessToEnabled() {
+    func defaultsOpenAIWebAccessToEnabled() throws {
         let suite = "SettingsStoreTests-openai-web"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         defaults.set(false, forKey: "debugDisableKeychainAccess")
         let configStore = testConfigStore(suiteName: suite)
@@ -252,9 +252,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func menuObservationTokenUpdatesOnDefaultsChange() async {
+    func menuObservationTokenUpdatesOnDefaultsChange() async throws {
         let suite = "SettingsStoreTests-observation-defaults"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
 
@@ -281,9 +281,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func configBackedSettingsTriggerObservation() async {
+    func configBackedSettingsTriggerObservation() async throws {
         let suite = "SettingsStoreTests-observation-config"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
 
@@ -310,9 +310,9 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func providerOrder_defaultsToAllCases() {
+    func providerOrder_defaultsToAllCases() throws {
         let suite = "SettingsStoreTests-providerOrder-default"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
 
@@ -328,7 +328,7 @@ struct SettingsStoreTests {
     @Test
     func providerOrder_persistsAndAppendsNewProviders() throws {
         let suite = "SettingsStoreTests-providerOrder-persist"
-        let defaultsA = UserDefaults(suiteName: suite)!
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
         defaultsA.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
 
@@ -367,10 +367,10 @@ struct SettingsStoreTests {
         ])
 
         // Move one provider; ensure it's persisted across instances.
-        let antigravityIndex = storeA.orderedProviders().firstIndex(of: .antigravity)!
+        let antigravityIndex = try #require(storeA.orderedProviders().firstIndex(of: .antigravity))
         storeA.moveProvider(fromOffsets: IndexSet(integer: antigravityIndex), toOffset: 0)
 
-        let defaultsB = UserDefaults(suiteName: suite)!
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
         let storeB = SettingsStore(
             userDefaults: defaultsB,
             configStore: configStore,
