@@ -37,11 +37,11 @@ public enum AntigravityLocalImporter {
     }
 
     public static func importCredentials() async throws -> LocalCredentialInfo {
-        Self.log.debug("Starting Antigravity DB import")
-        
+        self.log.debug("Starting Antigravity DB import")
+
         let dbPath = self.stateDbPath()
         Self.log.debug("Database path: \(dbPath.path)")
-        
+
         guard FileManager.default.fileExists(atPath: dbPath.path) else {
             Self.log.debug("Database file not found at path")
             throw AntigravityOAuthCredentialsError.notFound
@@ -57,13 +57,26 @@ public enum AntigravityLocalImporter {
             if let expiry = protoInfo.expirySeconds {
                 expiresAt = Date(timeIntervalSince1970: TimeInterval(expiry))
             }
-            Self.log.debug("Extracted OAuth token info - access_token present: \(accessToken?.isEmpty == false), refresh_token present: \(refreshToken?.isEmpty == false)")
+            Self.log.debug(
+                """
+                Extracted OAuth token info - access_token present: \(accessToken?.isEmpty == false), \
+                refresh_token present: \(refreshToken?.isEmpty == false)
+                """)
         }
 
         if let authStatus = try? self.readAuthStatus(dbPath: dbPath) {
-            Self.log.debug("Read auth status - email: \(authStatus.email ?? "none"), apiKey present: \(authStatus.apiKey?.isEmpty == false)")
+            Self.log.debug(
+                """
+                Read auth status - email: \(authStatus.email ?? "none"), \
+                apiKey present: \(authStatus.apiKey?.isEmpty == false)
+                """)
             let finalAccessToken = accessToken ?? authStatus.apiKey
-            Self.log.debug("Import result - email: \(authStatus.email ?? "none"), hasAccessToken: \(finalAccessToken?.isEmpty == false), hasRefreshToken: \(refreshToken?.isEmpty == false)")
+            Self.log.debug(
+                """
+                Import result - email: \(authStatus.email ?? "none"), \
+                hasAccessToken: \(finalAccessToken?.isEmpty == false), hasRefreshToken: \(refreshToken?
+                    .isEmpty == false)
+                """)
 
             return LocalCredentialInfo(
                 accessToken: finalAccessToken,
@@ -105,7 +118,7 @@ public enum AntigravityLocalImporter {
     }
 
     private static func readAuthStatus(dbPath: URL) throws -> AuthStatus {
-        Self.log.debug("Reading antigravityAuthStatus from DB")
+        self.log.debug("Reading antigravityAuthStatus from DB")
         let json = try self.readStateValue(dbPath: dbPath, key: "antigravityAuthStatus")
         guard let data = json.data(using: .utf8),
               let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -121,15 +134,15 @@ public enum AntigravityLocalImporter {
     }
 
     private static func readProtoTokenInfo(dbPath: URL) throws -> ProtoTokenInfo {
-        Self.log.debug("Reading jetskiStateSync.agentManagerInitState from DB")
+        self.log.debug("Reading jetskiStateSync.agentManagerInitState from DB")
         let base64 = try self.readStateValue(dbPath: dbPath, key: "jetskiStateSync.agentManagerInitState")
         Self.log.debug("Read base64 value, length: \(base64.count)")
-        
+
         guard let data = Data(base64Encoded: base64.trimmingCharacters(in: .whitespacesAndNewlines)) else {
             throw AntigravityOAuthCredentialsError.decodeFailed("Invalid base64 in agentManagerInitState")
         }
         Self.log.debug("Decoded base64, data length: \(data.count)")
-        
+
         return try self.parseProtoTokenInfo(data: data)
     }
 
@@ -172,7 +185,7 @@ public enum AntigravityLocalImporter {
     }
 
     private static func parseProtoTokenInfo(data: Data) throws -> ProtoTokenInfo {
-        Self.log.debug("Parsing protobuf data using swift-protobuf")
+        self.log.debug("Parsing protobuf data using swift-protobuf")
 
         do {
             let state = try AgentManagerInitState(serializedBytes: data)
@@ -184,7 +197,11 @@ public enum AntigravityLocalImporter {
             }
 
             let oauthToken = state.oauthToken
-            Self.log.debug("Found OAuthTokenInfo - access_token length: \(oauthToken.accessToken.count), refresh_token length: \(oauthToken.refreshToken.count)")
+            Self.log.debug(
+                """
+                Found OAuthTokenInfo - access_token length: \(oauthToken.accessToken.count), \
+                refresh_token length: \(oauthToken.refreshToken.count)
+                """)
 
             var expirySeconds: Int?
             if oauthToken.hasExpiry {
@@ -198,7 +215,7 @@ public enum AntigravityLocalImporter {
                 tokenType: oauthToken.tokenType.isEmpty ? nil : oauthToken.tokenType,
                 expirySeconds: expirySeconds)
         } catch {
-            Self.log.debug("Protobuf parsing failed: \(error)")
+            self.log.debug("Protobuf parsing failed: \(error)")
             throw AntigravityOAuthCredentialsError.decodeFailed("Failed to parse protobuf: \(error)")
         }
     }

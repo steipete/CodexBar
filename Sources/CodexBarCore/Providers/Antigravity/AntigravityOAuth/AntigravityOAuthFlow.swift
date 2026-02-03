@@ -18,14 +18,14 @@ public actor AntigravityOAuthFlow {
 
     public func startAuthorization() async throws -> AntigravityOAuthCredentials {
         Self.log.debug("Starting OAuth authorization flow")
-        
+
         let port = try await self.startCallbackServer()
         let redirectUri = "http://\(AntigravityOAuthConfig.callbackHost):\(port)"
         let state = self.generateState()
         self.pendingState = state
 
         let authURL = self.buildAuthURL(redirectUri: redirectUri, state: state)
-        
+
         Self.log.debug("Requesting scopes: \(AntigravityOAuthConfig.scopes.joined(separator: ", "))")
         Self.log.debug("Using access_type=offline and prompt=consent to ensure refresh token")
         Self.log.info("Opening Antigravity OAuth authorization URL")
@@ -85,7 +85,8 @@ public actor AntigravityOAuthFlow {
         }
 
         guard let code, let state else {
-            self.pendingContinuation?.resume(throwing: AntigravityOAuthCredentialsError.decodeFailed("Missing code or state in callback"))
+            self.pendingContinuation?
+                .resume(throwing: AntigravityOAuthCredentialsError.decodeFailed("Missing code or state in callback"))
             self.pendingContinuation = nil
             return
         }
@@ -149,7 +150,8 @@ public actor AntigravityOAuthFlow {
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             let errorBody = String(data: data, encoding: .utf8) ?? ""
-            throw AntigravityOAuthCredentialsError.refreshFailed("Token exchange failed: HTTP \(statusCode) - \(errorBody)")
+            throw AntigravityOAuthCredentialsError
+                .refreshFailed("Token exchange failed: HTTP \(statusCode) - \(errorBody)")
         }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -166,7 +168,7 @@ public actor AntigravityOAuthFlow {
         Self.log.debug("Received OAuth response - access_token length: \(accessToken.count)")
         Self.log.debug("Received OAuth response - refresh_token length: \(refreshToken.count)")
         Self.log.debug("Token expires in: \(expiresIn) seconds")
-        if let email = email {
+        if let email {
             Self.log.debug("Resolved account email: \(email)")
         }
 
@@ -262,9 +264,8 @@ private final class CallbackServer: @unchecked Sendable {
                 let request = String(bytes: buffer[0..<bytesRead], encoding: .utf8) ?? ""
                 let (code, state) = self.parseOAuthCallback(request: request)
 
-                let responseHTML: String
-                if code != nil {
-                    responseHTML = """
+                let responseHTML = if code != nil {
+                    """
                     <html>
                     <head><title>Authorization Successful</title></head>
                     <body style="font-family: system-ui; text-align: center; padding: 50px;">
@@ -275,7 +276,7 @@ private final class CallbackServer: @unchecked Sendable {
                     </html>
                     """
                 } else {
-                    responseHTML = """
+                    """
                     <html>
                     <head><title>Authorization Failed</title></head>
                     <body style="font-family: system-ui; text-align: center; padding: 50px;">
@@ -286,7 +287,8 @@ private final class CallbackServer: @unchecked Sendable {
                     """
                 }
 
-                let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n\(responseHTML)"
+                let headers = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n"
+                let response = headers + responseHTML
                 _ = response.withCString { ptr in
                     send(clientSocket, ptr, strlen(ptr), 0)
                 }

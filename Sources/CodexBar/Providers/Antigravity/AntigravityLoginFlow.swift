@@ -6,8 +6,8 @@ struct AntigravityLoginFlow {
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
 
     static func runOAuthFlow(settings: SettingsStore, store: UsageStore? = nil) async -> Bool {
-        Self.log.debug("Starting Antigravity OAuth login flow")
-        Self.log.debug("Keychain access disabled: \(KeychainAccessGate.isDisabled)")
+        self.log.debug("Starting Antigravity OAuth login flow")
+        self.log.debug("Keychain access disabled: \(KeychainAccessGate.isDisabled)")
 
         let flow = AntigravityOAuthFlow()
 
@@ -75,8 +75,8 @@ struct AntigravityLoginFlow {
         _ credentials: AntigravityOAuthCredentials,
         settings: SettingsStore) -> String?
     {
-        guard let accountLabel = Self.resolveAccountLabel(credentials: credentials, settings: settings) else {
-            Self.log.debug("Failed to resolve account label")
+        guard let accountLabel = resolveAccountLabel(credentials: credentials, settings: settings) else {
+            self.log.debug("Failed to resolve account label")
             return nil
         }
         Self.log.debug("Persisting credentials for account: \(accountLabel)")

@@ -68,11 +68,11 @@ struct AntigravityProviderImplementation: ProviderImplementation {
                 dynamicSubtitle: {
                     switch context.settings.antigravityUsageSource {
                     case .auto:
-                        return "Auto: Try OAuth/manual first, fallback to local server"
+                        "Auto: Try OAuth/manual first, fallback to local server"
                     case .authorized:
-                        return "OAuth: Use OAuth account or manual tokens only"
+                        "OAuth: Use OAuth account or manual tokens only"
                     case .local:
-                        return "Local: Use Antigravity local server only"
+                        "Local: Use Antigravity local server only"
                     }
                 },
                 binding: usageBinding,

@@ -25,9 +25,13 @@ public struct AntigravityAuthorizedFetchStrategy: ProviderFetchStrategy {
             Self.log.debug("Keychain credentials not found")
             return false
         }
-        
-        Self.log.debug("Keychain credentials found - hasAccessToken: \(!credentials.accessToken.isEmpty), isRefreshable: \(credentials.isRefreshable)")
-        
+
+        Self.log.debug(
+            """
+            Keychain credentials found - hasAccessToken: \(!credentials.accessToken.isEmpty), \
+            isRefreshable: \(credentials.isRefreshable)
+            """)
+
         if !credentials.accessToken.isEmpty { return true }
         return credentials.isRefreshable
     }
@@ -41,7 +45,11 @@ public struct AntigravityAuthorizedFetchStrategy: ProviderFetchStrategy {
         let sourceLabel = resolved.sourceLabel
         var didRefresh = false
 
-        Self.log.debug("Resolved credentials - source: \(sourceLabel), needsRefresh: \(credentials.needsRefresh), isRefreshable: \(credentials.isRefreshable)")
+        Self.log.debug(
+            """
+            Resolved credentials - source: \(sourceLabel), needsRefresh: \(credentials.needsRefresh), \
+            isRefreshable: \(credentials.isRefreshable)
+            """)
 
         if credentials.needsRefresh || (credentials.accessToken.isEmpty && credentials.isRefreshable) {
             Self.log.debug("Credentials need refresh, refreshing token...")
@@ -61,8 +69,8 @@ public struct AntigravityAuthorizedFetchStrategy: ProviderFetchStrategy {
 
     private func fetchQuotaAndMakeResult(
         credentials: AntigravityOAuthCredentials,
-        sourceLabel: String
-    ) async throws -> ProviderFetchResult {
+        sourceLabel: String) async throws -> ProviderFetchResult
+    {
         let quota = try await AntigravityCloudCodeClient.fetchQuota(accessToken: credentials.accessToken)
         Self.log.debug("Successfully fetched quota from Cloud Code API")
 
@@ -78,8 +86,8 @@ public struct AntigravityAuthorizedFetchStrategy: ProviderFetchStrategy {
     private func refreshAndSave(
         _ credentials: AntigravityOAuthCredentials,
         accountLabel: String,
-        context: ProviderFetchContext
-    ) async throws -> AntigravityOAuthCredentials {
+        context: ProviderFetchContext) async throws -> AntigravityOAuthCredentials
+    {
         do {
             let refreshed = try await self.refreshCredentials(credentials)
 
@@ -141,7 +149,8 @@ public struct AntigravityAuthorizedFetchStrategy: ProviderFetchStrategy {
         return (normalized, cached, "OAuth")
     }
 
-    private func refreshCredentials(_ credentials: AntigravityOAuthCredentials) async throws -> AntigravityOAuthCredentials {
+    private func refreshCredentials(_ credentials: AntigravityOAuthCredentials) async throws
+    -> AntigravityOAuthCredentials {
         guard let refreshToken = credentials.refreshToken else {
             throw AntigravityOAuthCredentialsError.invalidGrant
         }
@@ -153,8 +162,8 @@ public struct AntigravityAuthorizedFetchStrategy: ProviderFetchStrategy {
 
     private func loadManualCredentials(
         accountLabel: String,
-        context: ProviderFetchContext
-    ) -> AntigravityOAuthCredentials? {
+        context: ProviderFetchContext) -> AntigravityOAuthCredentials?
+    {
         guard let normalized = AntigravityOAuthCredentialsStore.normalizedLabel(accountLabel) else { return nil }
 
         let tokenAccounts = context.settings?.antigravity?.tokenAccounts

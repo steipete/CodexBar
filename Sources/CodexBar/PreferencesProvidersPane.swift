@@ -255,7 +255,11 @@ struct ProvidersPane: View {
 
         do {
             let credentials = try await AntigravityLocalImporter.importCredentials()
-            log.debug("Import successful - email: \(credentials.email ?? "none"), hasAccessToken: \(credentials.hasAccessToken), hasRefreshToken: \(credentials.hasRefreshToken)")
+            log.debug(
+                """
+                Import successful - email: \(credentials.email ?? "none"), \
+                hasAccessToken: \(credentials.hasAccessToken), hasRefreshToken: \(credentials.hasRefreshToken)
+                """)
 
             guard let accessToken = credentials.accessToken, !accessToken.isEmpty else {
                 log.debug("Import failed: no access token found")
@@ -272,7 +276,8 @@ struct ProvidersPane: View {
                 label: label,
                 accessToken: accessToken,
                 refreshToken: credentials.refreshToken,
-                expiresAt: credentials.expiresAt) else {
+                expiresAt: credentials.expiresAt)
+            else {
                 log.debug("Import failed: unable to save imported credentials")
                 self.presentAlert(
                     title: "Import Failed",
@@ -295,7 +300,14 @@ struct ProvidersPane: View {
                 if AntigravityLocalImporter.isAvailable() {
                     self.presentAlert(
                         title: "No Credentials Found",
-                        message: "Antigravity database found, but no credentials were found inside.\n\nPlease ensure:\n1. You are signed in to Antigravity IDE (check the Account menu)\n2. Try restarting Antigravity IDE if you just signed in\n3. If the issue persists, paste your tokens manually below")
+                        message: """
+                        Antigravity database found, but no credentials were found inside.
+
+                        Please ensure:
+                        1. You are signed in to Antigravity IDE (check the Account menu)
+                        2. Try restarting Antigravity IDE if you just signed in
+                        3. If the issue persists, paste your tokens manually below
+                        """)
                 } else {
                     self.presentAlert(
                         title: "Import Failed",
@@ -309,7 +321,7 @@ struct ProvidersPane: View {
         } catch {
             log.debug("Import failed with error: \(error)")
             let nsError = error as NSError
-            if nsError.domain == NSPOSIXErrorDomain && nsError.code == 1 {
+            if nsError.domain == NSPOSIXErrorDomain, nsError.code == 1 {
                 self.presentFullDiskAccessAlert()
             } else {
                 self.presentAlert(
@@ -323,7 +335,8 @@ struct ProvidersPane: View {
     private func presentFullDiskAccessAlert() {
         let alert = NSAlert()
         alert.messageText = "Full Disk Access Required"
-        alert.informativeText = "Full Disk Access is required to read the Antigravity database. Please grant access in System Settings."
+        alert.informativeText =
+            "Full Disk Access is required to read the Antigravity database. Please grant access in System Settings."
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")
 

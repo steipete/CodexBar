@@ -146,8 +146,8 @@ public enum AntigravityOAuthCredentialsStore {
     public static func manualTokenValue(
         accessToken: String,
         refreshToken: String?,
-        expiresAt: Date? = nil
-    ) -> String {
+        expiresAt: Date? = nil) -> String
+    {
         let trimmedAccess = accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
         var tokenData: [String: Any] = ["accessToken": trimmedAccess]
 

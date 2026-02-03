@@ -47,4 +47,4 @@
 --allman false
 
 # Exclusions
---exclude .build,.swiftpm,DerivedData,node_modules,dist,coverage,xcuserdata,Core/PeekabooCore/Sources/PeekabooCore/Extensions/NSArray+Extensions.swift
+--exclude .build,.swiftpm,DerivedData,node_modules,dist,coverage,xcuserdata,Core/PeekabooCore/Sources/PeekabooCore/Extensions/NSArray+Extensions.swift,Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/antigravity_state.pb.swift

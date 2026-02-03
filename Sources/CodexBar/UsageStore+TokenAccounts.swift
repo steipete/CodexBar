@@ -88,12 +88,13 @@ extension UsageStore {
             tokenOverride: override)
         let verbose = self.settings.isVerboseLoggingEnabled
 
-        let onAntigravityCredentialsRefreshed: (@Sendable (String, AntigravityOAuthCredentials) -> Void) = { [weak self] accountLabel, credentials in
-            Task { @MainActor in
-                guard let self else { return }
-                self.saveRefreshedAntigravityCredentials(accountLabel: accountLabel, credentials: credentials)
+        let onAntigravityCredentialsRefreshed: (@Sendable (String, AntigravityOAuthCredentials) -> Void) =
+            { [weak self] accountLabel, credentials in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.saveRefreshedAntigravityCredentials(accountLabel: accountLabel, credentials: credentials)
+                }
             }
-        }
 
         let context = ProviderFetchContext(
             runtime: .app,
@@ -217,7 +218,8 @@ extension UsageStore {
         guard let normalizedLabel = AntigravityOAuthCredentialsStore.normalizedLabel(accountLabel) else { return }
 
         let tokenAccounts = self.settings.tokenAccountsData(for: .antigravity)
-        guard let account = tokenAccounts?.accounts.first(where: { $0.label.lowercased() == normalizedLabel }) else { return }
+        guard let account = tokenAccounts?.accounts.first(where: { $0.label.lowercased() == normalizedLabel })
+        else { return }
 
         let tokenValue = AntigravityOAuthCredentialsStore.manualTokenValue(
             accessToken: credentials.accessToken,

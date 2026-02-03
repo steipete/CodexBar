@@ -34,7 +34,7 @@ public enum AntigravityProviderDescriptor {
                 noDataMessage: { "Antigravity cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .oauth, .cli],
-                pipeline: ProviderFetchPipeline(resolveStrategies: Self.resolveStrategies)),
+                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "antigravity",
                 versionDetector: nil))

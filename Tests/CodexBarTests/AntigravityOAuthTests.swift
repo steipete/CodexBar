@@ -97,7 +97,8 @@ struct AntigravityManualTokenPayloadTests {
 
     @Test
     func rejectsOldJSONFormat() {
-        let token = "\(AntigravityOAuthCredentialsStore.manualTokenPrefix){\"access\":\"ya29.test\",\"refresh\":\"1//refresh\"}"
+        let token =
+            "\(AntigravityOAuthCredentialsStore.manualTokenPrefix){\"access\":\"ya29.test\",\"refresh\":\"1//refresh\"}"
         let payload = AntigravityOAuthCredentialsStore.manualTokenPayload(from: token)
         #expect(payload == nil)
     }

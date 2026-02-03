@@ -107,7 +107,8 @@ extension UsageStore {
             lines.append("localServer=\(serverRunning ? "running" : "not_running")")
 
             lines.append("")
-            let isAuthorizedAvailable = hasAccountLabel && (hasKeychainAccessToken || hasKeychainRefreshToken || manualPayload != nil)
+            let isAuthorizedAvailable = hasAccountLabel &&
+                (hasKeychainAccessToken || hasKeychainRefreshToken || manualPayload != nil)
             lines.append("authorizedStrategy=\(available(isAuthorizedAvailable))")
             lines.append("localStrategy=\(available(serverRunning))")
 

@@ -86,8 +86,8 @@ extension SettingsStore {
         label: String,
         accessToken: String,
         refreshToken: String? = nil,
-        expiresAt: Date? = nil
-    ) -> ProviderTokenAccount? {
+        expiresAt: Date? = nil) -> ProviderTokenAccount?
+    {
         guard let normalizedLabel = AntigravityOAuthCredentialsStore.normalizedLabel(label) else { return nil }
 
         let tokenValue: String
@@ -158,8 +158,8 @@ extension SettingsStore {
     private func triggerBackgroundRefreshIfNeeded(
         label: String,
         refreshToken: String?,
-        expiresAt: Date?
-    ) {
+        expiresAt: Date?)
+    {
         guard let refreshToken, !refreshToken.isEmpty, expiresAt == nil else { return }
         guard let normalizedLabel = AntigravityOAuthCredentialsStore.normalizedLabel(label) else { return }
 

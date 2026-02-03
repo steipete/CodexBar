@@ -41,7 +41,10 @@ public enum AntigravityCloudCodeClient {
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
     private static let httpTimeout: TimeInterval = 15.0
 
-    public static func fetchQuota(accessToken: String, projectId: String? = nil) async throws -> AntigravityCloudCodeQuota {
+    public static func fetchQuota(
+        accessToken: String,
+        projectId: String? = nil) async throws -> AntigravityCloudCodeQuota
+    {
         try await self.requestWithRetry { baseURL in
             try await self.fetchQuotaFromEndpoint(
                 baseURL: baseURL,
@@ -64,7 +67,9 @@ public enum AntigravityCloudCodeClient {
         for attempt in 1...AntigravityCloudCodeConfig.defaultAttempts {
             if attempt > 1 {
                 let delay = self.getBackoffDelay(attempt: attempt)
-                self.log.info("Cloud Code retry round \(attempt)/\(AntigravityCloudCodeConfig.defaultAttempts) in \(delay)ms")
+                self.log
+                    .info(
+                        "Cloud Code retry round \(attempt)/\(AntigravityCloudCodeConfig.defaultAttempts) in \(delay)ms")
                 try await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000)
             }
 
@@ -165,13 +170,12 @@ public enum AntigravityCloudCodeClient {
         }
 
         let projectId = self.extractProjectId(from: json["cloudaicompanionProject"])
-        let tierId: String?
-        if let paidTier = json["paidTier"] as? [String: Any], let id = paidTier["id"] as? String {
-            tierId = id
+        let tierId: String? = if let paidTier = json["paidTier"] as? [String: Any], let id = paidTier["id"] as? String {
+            id
         } else if let currentTier = json["currentTier"] as? [String: Any], let id = currentTier["id"] as? String {
-            tierId = id
+            id
         } else {
-            tierId = nil
+            nil
         }
 
         return AntigravityProjectInfo(projectId: projectId, tierId: tierId)
