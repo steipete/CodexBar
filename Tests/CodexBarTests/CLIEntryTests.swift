@@ -124,4 +124,13 @@ struct CLIEntryTests {
         #expect(!CodexBarCLI.shouldUseColor(noColor: true, format: .text))
         #expect(!CodexBarCLI.shouldUseColor(noColor: false, format: .json))
     }
+
+    #if !os(macOS)
+    @Test
+    func sourceModeUsesWebOnlyForWeb() {
+        #expect(ProviderSourceMode.web.usesWeb)
+        #expect(!ProviderSourceMode.auto.usesWeb)
+        #expect(!ProviderSourceMode.api.usesWeb)
+    }
+    #endif
 }
