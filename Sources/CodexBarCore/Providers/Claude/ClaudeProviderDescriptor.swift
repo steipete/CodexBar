@@ -256,7 +256,6 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
-        // In Auto mode, allow the pipeline to continue to OAuth if CLI fails.
-        context.sourceMode == .auto
+        false
     }
 }
