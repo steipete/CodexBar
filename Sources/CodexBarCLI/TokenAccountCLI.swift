@@ -135,6 +135,11 @@ struct TokenAccountCLIContext {
                 amp: ProviderSettingsSnapshot.AmpProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
+        case .ollama:
+            return self.makeSnapshot(
+                ollama: ProviderSettingsSnapshot.OllamaProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .kimi:
             return self.makeSnapshot(
                 kimi: ProviderSettingsSnapshot.KimiProviderSettings(
@@ -163,6 +168,7 @@ struct TokenAccountCLIContext {
         kimi: ProviderSettingsSnapshot.KimiProviderSettings? = nil,
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
         amp: ProviderSettingsSnapshot.AmpProviderSettings? = nil,
+        ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
@@ -176,6 +182,7 @@ struct TokenAccountCLIContext {
             kimi: kimi,
             augment: augment,
             amp: amp,
+            ollama: ollama,
             jetbrains: jetbrains)
     }
 

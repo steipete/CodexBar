@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Vertex AI, Augment, Amp, JetBrains AI)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Vertex AI, Augment, Amp, Ollama, JetBrains AI)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -34,6 +34,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Web settings page via browser cookies (`web`). |
+| Ollama | Web settings page via browser cookies (`web`). |
 
 ## Codex
 - Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -139,4 +140,11 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Parses Amp Free usage from the settings HTML.
 - Status: none yet.
 - Details: `docs/amp.md`.
+
+## Ollama
+- Web settings page (`https://ollama.com/settings`) via browser cookies.
+- Parses Cloud Usage plan badge, session/weekly usage, and reset timestamps.
+- Status: none yet.
+- Details: `docs/ollama.md`.
+
 See also: `docs/provider.md` for architecture notes.

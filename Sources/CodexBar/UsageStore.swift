@@ -1225,6 +1225,12 @@ extension UsageStore {
                     ampCookieHeader: self.settings.ampCookieHeader)
                 await MainActor.run { self.probeLogs[.amp] = text }
                 return text
+            case .ollama:
+                let text = await self.debugOllamaLog(
+                    ollamaCookieSource: self.settings.ollamaCookieSource,
+                    ollamaCookieHeader: self.settings.ollamaCookieHeader)
+                await MainActor.run { self.probeLogs[.ollama] = text }
+                return text
             case .jetbrains:
                 let text = "JetBrains AI debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.jetbrains] = text }
@@ -1384,6 +1390,19 @@ extension UsageStore {
             let fetcher = AmpUsageFetcher(browserDetection: self.browserDetection)
             let manualHeader = ampCookieSource == .manual
                 ? CookieHeaderNormalizer.normalize(ampCookieHeader)
+                : nil
+            return await fetcher.debugRawProbe(cookieHeaderOverride: manualHeader)
+        }
+    }
+
+    private func debugOllamaLog(
+        ollamaCookieSource: ProviderCookieSource,
+        ollamaCookieHeader: String) async -> String
+    {
+        await self.runWithTimeout(seconds: 15) {
+            let fetcher = OllamaUsageFetcher(browserDetection: self.browserDetection)
+            let manualHeader = ollamaCookieSource == .manual
+                ? CookieHeaderNormalizer.normalize(ollamaCookieHeader)
                 : nil
             return await fetcher.debugRawProbe(cookieHeaderOverride: manualHeader)
         }
