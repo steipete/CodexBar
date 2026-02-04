@@ -26,8 +26,8 @@ public struct ClaudeUsageSnapshot: Sendable {
         accountEmail: String?,
         accountOrganization: String?,
         loginMethod: String?,
-        rawText: String?)
-    {
+        rawText: String?
+    ) {
         self.primary = primary
         self.secondary = secondary
         self.opus = opus
@@ -49,9 +49,9 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
         switch self {
         case .claudeNotInstalled:
             "Claude CLI is not installed. Install it from https://docs.claude.ai/claude-code."
-        case let .parseFailed(details):
+        case .parseFailed(let details):
             "Could not parse Claude usage: \(details)"
-        case let .oauthFailed(details):
+        case .oauthFailed(let details):
             details
         }
     }
@@ -77,8 +77,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         dataSource: ClaudeUsageDataSource = .oauth,
         useWebExtras: Bool = false,
         manualCookieHeader: String? = nil,
-        keepCLISessionsAlive: Bool = false)
-    {
+        keepCLISessionsAlive: Bool = false
+    ) {
         self.browserDetection = browserDetection
         self.environment = environment
         self.dataSource = dataSource
@@ -130,11 +130,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
         let weekAll = makeWindow(firstWindowDict(["week_all_models", "week_all"]))
 
-        let rawEmail = (obj["account_email"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawEmail = (obj["account_email"] as? String)?.trimmingCharacters(
+            in: .whitespacesAndNewlines)
         let email = (rawEmail?.isEmpty ?? true) ? nil : rawEmail
-        let rawOrg = (obj["account_org"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawOrg = (obj["account_org"] as? String)?.trimmingCharacters(
+            in: .whitespacesAndNewlines)
         let org = (rawOrg?.isEmpty ?? true) ? nil : rawOrg
-        let loginMethod = (obj["login_method"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let loginMethod = (obj["login_method"] as? String)?.trimmingCharacters(
+            in: .whitespacesAndNewlines)
         let opusWindow: RateWindow? = {
             let candidates = firstWindowDict([
                 "week_sonnet",
@@ -166,7 +169,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         guard let text, !text.isEmpty else { return nil }
         let parts = text.split(separator: "(")
         let timePart = parts.first?.trimmingCharacters(in: .whitespaces)
-        let tzPart = parts.count > 1
+        let tzPart =
+            parts.count > 1
             ? parts[1].replacingOccurrences(of: ")", with: "").trimmingCharacters(in: .whitespaces)
             : nil
         let tz = tzPart.flatMap(TimeZone.init(identifier:))
@@ -193,7 +197,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 options: TTYCommandRunner.Options(
                     timeout: 5.0,
                     extraArgs: ["--allowed-tools", "", "--version"],
-                    initialDelay: 0.0)).text
+                    initialDelay: 0.0)
+            ).text
             return TextParsing.stripANSICodes(out).trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
             return nil
@@ -209,10 +214,10 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             let weekly = snap.secondary?.remainingPercent ?? -1
             let primary = snap.primary.remainingPercent
             return """
-            session_left=\(primary) weekly_left=\(weekly)
-            opus_left=\(opus) email \(email) org \(org)
-            \(snap)
-            """
+                session_left=\(primary) weekly_left=\(weekly)
+                opus_left=\(opus) email \(email) org \(org)
+                \(snap)
+                """
         } catch {
             return "Probe failed: \(error)"
         }
@@ -223,11 +228,12 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         case .auto:
             let oauthCreds = try? ClaudeOAuthCredentialsStore.load(environment: self.environment)
             let hasOAuthCredentials = oauthCreds?.scopes.contains("user:profile") ?? false
-            let hasWebSession = if let header = self.manualCookieHeader {
-                ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
-            } else {
-                ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection)
-            }
+            let hasWebSession =
+                if let header = self.manualCookieHeader {
+                    ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
+                } else {
+                    ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection)
+                }
             if hasOAuthCredentials {
                 var snap = try await self.loadViaOAuth()
                 snap = await self.applyWebExtrasIfNeeded(to: snap)
@@ -262,15 +268,20 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private func loadViaOAuth() async throws -> ClaudeUsageSnapshot {
         do {
-            let creds = try ClaudeOAuthCredentialsStore.load(environment: self.environment)
-            if creds.isExpired {
-                throw ClaudeUsageError.oauthFailed("Claude OAuth token expired. Run `claude` to refresh.")
-            }
+            // Allow keychain prompt when no cached credentials exist (bootstrap case)
+            let hasCache = ClaudeOAuthCredentialsStore.hasCachedCredentials()
+            // Use loadWithAutoRefresh to automatically refresh expired tokens
+            // This saves the refreshed token to CodexBar's keychain cache,
+            // so users won't be prompted for keychain access again.
+            let creds = try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                environment: self.environment,
+                allowKeychainPrompt: !hasCache)
             // The usage endpoint requires user:profile scope.
             if !creds.scopes.contains("user:profile") {
                 throw ClaudeUsageError.oauthFailed(
                     "Claude OAuth token missing 'user:profile' scope (has: \(creds.scopes.joined(separator: ", "))). "
-                        + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to Web/CLI.")
+                        + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to Web/CLI."
+                )
             }
             let usage = try await ClaudeOAuthUsageFetcher.fetchUsage(accessToken: creds.accessToken)
             return try Self.mapOAuthUsage(usage, credentials: creds)
@@ -280,13 +291,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             throw ClaudeUsageError.oauthFailed(error.localizedDescription)
         } catch let error as ClaudeOAuthFetchError {
             ClaudeOAuthCredentialsStore.invalidateCache()
-            if case let .serverError(statusCode, body) = error,
-               statusCode == 403,
-               body?.contains("user:profile") ?? false
+            if case .serverError(let statusCode, let body) = error,
+                statusCode == 403,
+                body?.contains("user:profile") ?? false
             {
                 throw ClaudeUsageError.oauthFailed(
                     "Claude OAuth token does not meet scope requirement 'user:profile'. "
-                        + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to Web/CLI.")
+                        + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to Web/CLI."
+                )
             }
             throw ClaudeUsageError.oauthFailed(error.localizedDescription)
         } catch {
@@ -296,11 +308,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private static func mapOAuthUsage(
         _ usage: OAuthUsageResponse,
-        credentials: ClaudeOAuthCredentials) throws -> ClaudeUsageSnapshot
-    {
+        credentials: ClaudeOAuthCredentials
+    ) throws -> ClaudeUsageSnapshot {
         func makeWindow(_ window: OAuthUsageWindow?, windowMinutes: Int?) -> RateWindow? {
             guard let window,
-                  let utilization = window.utilization
+                let utilization = window.utilization
             else { return nil }
             let resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(window.resetsAt)
             let resetDescription = resetDate.map(Self.formatResetDate)
@@ -337,11 +349,12 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private static func oauthExtraUsageCost(
         _ extra: OAuthExtraUsage?,
-        loginMethod: String?) -> ProviderCostSnapshot?
-    {
+        loginMethod: String?
+    ) -> ProviderCostSnapshot? {
         guard let extra, extra.isEnabled == true else { return nil }
         guard let used = extra.usedCredits,
-              let limit = extra.monthlyLimit else { return nil }
+            let limit = extra.monthlyLimit
+        else { return nil }
         let currency = extra.currency?.trimmingCharacters(in: .whitespacesAndNewlines)
         let code = (currency?.isEmpty ?? true) ? "USD" : currency!
         let normalized = Self.normalizeClaudeExtraUsageAmounts(used: used, limit: limit)
@@ -355,7 +368,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         return Self.rescaleClaudeExtraUsageCostIfNeeded(snapshot, loginMethod: loginMethod)
     }
 
-    private static func normalizeClaudeExtraUsageAmounts(used: Double, limit: Double) -> (used: Double, limit: Double) {
+    private static func normalizeClaudeExtraUsageAmounts(used: Double, limit: Double) -> (
+        used: Double, limit: Double
+    ) {
         // Claude's OAuth API returns values in cents (minor units), same as the Web API.
         // Always convert to dollars (major units) for display consistency.
         // This removes the fragile heuristic that could fail on non-whole cent values
@@ -368,8 +383,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     /// Scale down again when limits are implausible.
     private static func rescaleClaudeExtraUsageCostIfNeeded(
         _ cost: ProviderCostSnapshot?,
-        loginMethod: String?) -> ProviderCostSnapshot?
-    {
+        loginMethod: String?
+    ) -> ProviderCostSnapshot? {
         guard let cost else { return nil }
         guard let threshold = Self.extraUsageRescaleThreshold(for: loginMethod) else { return cost }
         guard cost.limit >= threshold else { return cost }
@@ -384,7 +399,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     }
 
     private static func extraUsageRescaleThreshold(for loginMethod: String?) -> Double? {
-        let normalized = loginMethod?
+        let normalized =
+            loginMethod?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() ?? ""
         if normalized.contains("enterprise") { return nil }
@@ -403,15 +419,17 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     // MARK: - Web API path (uses browser cookies)
 
     private func loadViaWebAPI() async throws -> ClaudeUsageSnapshot {
-        let webData: ClaudeWebAPIFetcher.WebUsageData = if let header = self.manualCookieHeader {
-            try await ClaudeWebAPIFetcher.fetchUsage(cookieHeader: header) { msg in
-                Self.log.debug(msg)
+        let webData: ClaudeWebAPIFetcher.WebUsageData =
+            if let header = self.manualCookieHeader {
+                try await ClaudeWebAPIFetcher.fetchUsage(cookieHeader: header) { msg in
+                    Self.log.debug(msg)
+                }
+            } else {
+                try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: self.browserDetection) {
+                    msg in
+                    Self.log.debug(msg)
+                }
             }
-        } else {
-            try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: self.browserDetection) { msg in
-                Self.log.debug(msg)
-            }
-        }
         // Convert web API data to ClaudeUsageSnapshot format
         let primary = RateWindow(
             usedPercent: webData.sessionPercentUsed,
@@ -460,8 +478,12 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     // MARK: - PTY-based probe (no tmux)
 
-    private func loadViaPTY(model: String, timeout: TimeInterval = 10) async throws -> ClaudeUsageSnapshot {
-        guard TTYCommandRunner.which("claude") != nil else { throw ClaudeUsageError.claudeNotInstalled }
+    private func loadViaPTY(model: String, timeout: TimeInterval = 10) async throws
+        -> ClaudeUsageSnapshot
+    {
+        guard TTYCommandRunner.which("claude") != nil else {
+            throw ClaudeUsageError.claudeNotInstalled
+        }
         let probe = ClaudeStatusProbe(
             claudeBinary: "claude",
             timeout: timeout,
@@ -484,7 +506,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
 
         let primary = makeWindow(pctLeft: sessionPctLeft, reset: snap.primaryResetDescription)!
-        let weekly = makeWindow(pctLeft: snap.weeklyPercentLeft, reset: snap.secondaryResetDescription)
+        let weekly = makeWindow(
+            pctLeft: snap.weeklyPercentLeft, reset: snap.secondaryResetDescription)
         let opus = makeWindow(pctLeft: snap.opusPercentLeft, reset: snap.opusResetDescription)
 
         return ClaudeUsageSnapshot(
@@ -499,18 +522,23 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             rawText: snap.rawText)
     }
 
-    private func applyWebExtrasIfNeeded(to snapshot: ClaudeUsageSnapshot) async -> ClaudeUsageSnapshot {
+    private func applyWebExtrasIfNeeded(to snapshot: ClaudeUsageSnapshot) async
+        -> ClaudeUsageSnapshot
+    {
         guard self.useWebExtras, self.dataSource != .web else { return snapshot }
         do {
-            let webData: ClaudeWebAPIFetcher.WebUsageData = if let header = self.manualCookieHeader {
-                try await ClaudeWebAPIFetcher.fetchUsage(cookieHeader: header) { msg in
-                    Self.log.debug(msg)
+            let webData: ClaudeWebAPIFetcher.WebUsageData =
+                if let header = self.manualCookieHeader {
+                    try await ClaudeWebAPIFetcher.fetchUsage(cookieHeader: header) { msg in
+                        Self.log.debug(msg)
+                    }
+                } else {
+                    try await ClaudeWebAPIFetcher.fetchUsage(
+                        browserDetection: self.browserDetection
+                    ) { msg in
+                        Self.log.debug(msg)
+                    }
                 }
-            } else {
-                try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: self.browserDetection) { msg in
-                    Self.log.debug(msg)
-                }
-            }
             // Only merge cost extras; keep identity fields from the primary data source.
             if snapshot.providerCost == nil, let extra = webData.extraUsageCost {
                 let normalizedExtra = Self.rescaleClaudeExtraUsageCostIfNeeded(
@@ -545,9 +573,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let path = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !path.isEmpty else { return nil }
+        guard
+            let path = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !path.isEmpty
+        else { return nil }
         return path
     }
 
@@ -566,28 +596,28 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 }
 
 #if DEBUG
-extension ClaudeUsageFetcher {
-    public static func _mapOAuthUsageForTesting(
-        _ data: Data,
-        rateLimitTier: String? = nil) throws -> ClaudeUsageSnapshot
-    {
-        let usage = try ClaudeOAuthUsageFetcher.decodeUsageResponse(data)
-        let creds = ClaudeOAuthCredentials(
-            accessToken: "test",
-            refreshToken: nil,
-            expiresAt: Date().addingTimeInterval(3600),
-            scopes: [],
-            rateLimitTier: rateLimitTier)
-        return try Self.mapOAuthUsage(usage, credentials: creds)
-    }
+    extension ClaudeUsageFetcher {
+        public static func _mapOAuthUsageForTesting(
+            _ data: Data,
+            rateLimitTier: String? = nil
+        ) throws -> ClaudeUsageSnapshot {
+            let usage = try ClaudeOAuthUsageFetcher.decodeUsageResponse(data)
+            let creds = ClaudeOAuthCredentials(
+                accessToken: "test",
+                refreshToken: nil,
+                expiresAt: Date().addingTimeInterval(3600),
+                scopes: [],
+                rateLimitTier: rateLimitTier)
+            return try Self.mapOAuthUsage(usage, credentials: creds)
+        }
 
-    public static func _rescaleExtraUsageForTesting(
-        _ cost: ProviderCostSnapshot?,
-        snapshotLoginMethod: String?,
-        webLoginMethod: String?) -> ProviderCostSnapshot?
-    {
-        let loginMethod = snapshotLoginMethod ?? webLoginMethod
-        return Self.rescaleClaudeExtraUsageCostIfNeeded(cost, loginMethod: loginMethod)
+        public static func _rescaleExtraUsageForTesting(
+            _ cost: ProviderCostSnapshot?,
+            snapshotLoginMethod: String?,
+            webLoginMethod: String?
+        ) -> ProviderCostSnapshot? {
+            let loginMethod = snapshotLoginMethod ?? webLoginMethod
+            return Self.rescaleClaudeExtraUsageCostIfNeeded(cost, loginMethod: loginMethod)
+        }
     }
-}
 #endif

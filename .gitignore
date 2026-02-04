@@ -25,6 +25,8 @@ debug_*.swift
 
 # Misc
 .DS_Store
+.vscode/
+.codex/environments/
 
 # Debug/analysis docs
 docs/*-analysis.md

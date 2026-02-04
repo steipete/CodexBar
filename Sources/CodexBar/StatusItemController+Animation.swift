@@ -226,7 +226,7 @@ extension StatusItemController {
         let tilt: CGFloat = style == .combined ? 0 : self.tiltAmount(for: primaryProvider) * .pi / 28
 
         let statusIndicator: ProviderStatusIndicator = {
-            for provider in UsageProvider.allCases {
+            for provider in self.store.enabledProviders() {
                 let indicator = self.store.statusIndicator(for: provider)
                 if indicator.hasIssue { return indicator }
             }
