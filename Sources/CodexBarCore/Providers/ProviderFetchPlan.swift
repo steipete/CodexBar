@@ -13,7 +13,7 @@ public enum ProviderSourceMode: String, CaseIterable, Sendable, Codable {
     case api
 
     public var usesWeb: Bool {
-        self == .web
+        self == .auto || self == .web
     }
 }
 

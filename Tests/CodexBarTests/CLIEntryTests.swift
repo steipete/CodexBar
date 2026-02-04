@@ -127,9 +127,9 @@ struct CLIEntryTests {
 
     #if !os(macOS)
     @Test
-    func sourceModeUsesWebOnlyForWeb() {
+    func sourceModeUsesWebIncludesAuto() {
         #expect(ProviderSourceMode.web.usesWeb)
-        #expect(!ProviderSourceMode.auto.usesWeb)
+        #expect(ProviderSourceMode.auto.usesWeb)
         #expect(!ProviderSourceMode.api.usesWeb)
     }
     #endif
