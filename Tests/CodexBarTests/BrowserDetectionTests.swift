@@ -22,6 +22,8 @@ struct BrowserDetectionTests {
 
     @Test
     func filterPreservesOrder() {
+        BrowserCookieAccessGate.resetForTesting()
+
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temp) }

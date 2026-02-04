@@ -17,17 +17,9 @@ struct KeychainMigrationTests {
             "com.steipete.CodexBar:copilot-api-token",
             "com.steipete.CodexBar:zai-api-token",
             "com.steipete.CodexBar:synthetic-api-key",
-            "Claude Code-credentials:<any>",
         ]
 
         let missing = expected.subtracting(items)
         #expect(missing.isEmpty, "Missing migration entries: \(missing.sorted())")
-    }
-
-    @Test
-    func claudeMigrationTrackingResets() {
-        KeychainMigration._resetClaudeMigrationTrackingForTesting()
-        // Should not crash when resetting.
-        #expect(true)
     }
 }

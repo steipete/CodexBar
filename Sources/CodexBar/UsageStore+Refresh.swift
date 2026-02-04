@@ -44,7 +44,7 @@ extension UsageStore {
 
         let outcome = await spec.fetch()
         if provider == .claude,
-            ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
+           ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
         {
             await MainActor.run {
                 self.snapshots.removeValue(forKey: .claude)
@@ -55,6 +55,7 @@ extension UsageStore {
                 self.tokenSnapshots.removeValue(forKey: .claude)
                 self.tokenErrors[.claude] = nil
                 self.failureGates[.claude]?.reset()
+                self.tokenFailureGates[.claude]?.reset()
                 self.lastTokenFetchAt.removeValue(forKey: .claude)
             }
         }
@@ -63,7 +64,7 @@ extension UsageStore {
         }
 
         switch outcome.result {
-        case .success(let result):
+        case let .success(result):
             let scoped = result.usage.scoped(to: provider)
             await MainActor.run {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
@@ -77,12 +78,12 @@ extension UsageStore {
                     provider: provider, settings: self.settings, store: self)
                 runtime.providerDidRefresh(context: context, provider: provider)
             }
-        case .failure(let error):
+        case let .failure(error):
             await MainActor.run {
                 let hadPriorData = self.snapshots[provider] != nil
                 let shouldSurface =
                     self.failureGates[provider]?
-                    .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
+                        .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
                 if shouldSurface {
                     self.errors[provider] = error.localizedDescription
                     self.snapshots.removeValue(forKey: provider)
