@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, and JetBrains AI limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, JetBrains AI, and OpenRouter limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
 
@@ -46,6 +46,7 @@ Linux support via Omarchy: community Waybar module and TUI, driven by the `codex
 - [Augment](docs/augment.md) — Browser cookie-based authentication with automatic session keepalive; credits tracking and usage monitoring.
 - [Amp](docs/amp.md) — Browser cookie-based authentication with Amp Free usage tracking.
 - [JetBrains AI](docs/jetbrains.md) — Local XML-based quota from JetBrains IDE configuration; monthly credits tracking.
+- [OpenRouter](docs/openrouter.md) — API token for credit-based usage tracking across multiple AI providers.
 - Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot
