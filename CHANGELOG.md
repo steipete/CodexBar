@@ -6,7 +6,7 @@
   - Add `allowKeychainPrompt` parameter to skip prompts during background refreshes and availability checks.
   - Add silent keychain access using `LAContext.interactionNotAllowed` to avoid unexpected prompts.
   - Cache credentials in CodexBar's own keychain after first successful access, avoiding repeated prompts to Claude Code's keychain.
-  - Re-migrate Claude credentials when they change to maintain proper accessibility settings.
+  - Avoid mutating Claude Code's keychain item during startup migration.
 
 ## 0.18.0-beta.2 — 2026-01-21
 ### Highlights

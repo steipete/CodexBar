@@ -1252,6 +1252,9 @@ extension UsageStore {
             }
             // Don't prompt for keychain access during debug dump
             let hasOAuthCredentials = (try? ClaudeOAuthCredentialsStore.load(allowKeychainPrompt: false)) != nil
+            let hasClaudeBinary = BinaryLocator.resolveClaudeBinary(
+                env: ProcessInfo.processInfo.environment,
+                loginPATH: LoginShellPathCache.shared.current) != nil
 
             let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
                 selectedDataSource: claudeUsageDataSource,
@@ -1259,9 +1262,15 @@ extension UsageStore {
                 hasWebSession: hasKey,
                 hasOAuthCredentials: hasOAuthCredentials)
 
-            lines.append("strategy=\(strategy.dataSource.rawValue)")
+            if claudeUsageDataSource == .auto {
+                lines.append("pipeline_order=web→cli→oauth")
+                lines.append("auto_heuristic=\(strategy.dataSource.rawValue)")
+            } else {
+                lines.append("strategy=\(strategy.dataSource.rawValue)")
+            }
             lines.append("hasSessionKey=\(hasKey)")
             lines.append("hasOAuthCredentials=\(hasOAuthCredentials)")
+            lines.append("hasClaudeBinary=\(hasClaudeBinary)")
             if strategy.useWebExtras {
                 lines.append("web_extras=enabled")
             }

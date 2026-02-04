@@ -136,17 +136,26 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .oauth
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        // Don't prompt for keychain access during availability check
-        guard let creds = try? ClaudeOAuthCredentialsStore.load(
+        // In OAuth-only mode, allow the fetch to run and prompt once when needed.
+        guard context.sourceMode == .auto else { return true }
+
+        // Prefer OAuth in Auto mode only when it’s plausibly usable:
+        // - we can load credentials without prompting (env / CodexBar cache / credentials file) AND they meet the
+        //   scope requirement, or
+        // - Claude Code has stored OAuth creds in Keychain and we may be able to bootstrap (one prompt max).
+        if let creds = try? ClaudeOAuthCredentialsStore.load(
             environment: context.env,
-            allowKeychainPrompt: false) else { return false }
-        // In Auto mode, only prefer OAuth when we know the scope is present.
-        // In OAuth-only mode, still show a useful error message even when the scope is missing.
-        // (The strategy can fall back to Web/CLI when allowed by the fetch plan.)
-        if context.sourceMode == .auto {
-            return creds.scopes.contains("user:profile")
+            allowKeychainPrompt: false)
+        {
+            let hasRequiredScope = creds.scopes.contains("user:profile")
+            if hasRequiredScope {
+                if !creds.isExpired { return true }
+                let refreshToken = creds.refreshToken?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if !refreshToken.isEmpty { return true }
+            }
         }
-        return true
+        guard ClaudeOAuthKeychainAccessGate.shouldAllowPrompt() else { return false }
+        return ClaudeOAuthCredentialsStore.hasClaudeKeychainCredentialsWithoutPrompt()
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -154,6 +163,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             browserDetection: context.browserDetection,
             environment: context.env,
             dataSource: .oauth,
+            oauthKeychainPromptCooldownEnabled: context.sourceMode == .auto,
             useWebExtras: false)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
         return self.makeResult(
@@ -162,7 +172,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
-        context.runtime == .app && (context.sourceMode == .auto || context.sourceMode == .oauth)
+        // In Auto mode, fall back to CLI if OAuth fails (e.g. user cancels keychain prompt or auth breaks).
+        // In OAuth-only mode, allow Web/CLI fallback as a safety net.
+        context.runtime == .app && (context.sourceMode == .oauth || context.sourceMode == .auto)
     }
 
     fileprivate static func snapshot(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {
@@ -243,7 +255,8 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "claude")
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        // In Auto mode, allow the pipeline to continue to OAuth if CLI fails.
+        context.sourceMode == .auto
     }
 }
