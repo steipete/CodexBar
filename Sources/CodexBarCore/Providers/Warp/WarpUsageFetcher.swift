@@ -9,19 +9,33 @@ public struct WarpUsageSnapshot: Sendable {
     public let nextRefreshTime: Date?
     public let isUnlimited: Bool
     public let updatedAt: Date
+    // Combined bonus credits (user-level + workspace-level)
+    public let bonusCreditsRemaining: Int
+    public let bonusCreditsTotal: Int
+    // Earliest expiring bonus batch with remaining credits
+    public let bonusNextExpiration: Date?
+    public let bonusNextExpirationRemaining: Int
 
     public init(
         requestLimit: Int,
         requestsUsed: Int,
         nextRefreshTime: Date?,
         isUnlimited: Bool,
-        updatedAt: Date
+        updatedAt: Date,
+        bonusCreditsRemaining: Int = 0,
+        bonusCreditsTotal: Int = 0,
+        bonusNextExpiration: Date? = nil,
+        bonusNextExpirationRemaining: Int = 0
     ) {
         self.requestLimit = requestLimit
         self.requestsUsed = requestsUsed
         self.nextRefreshTime = nextRefreshTime
         self.isUnlimited = isUnlimited
         self.updatedAt = updatedAt
+        self.bonusCreditsRemaining = bonusCreditsRemaining
+        self.bonusCreditsTotal = bonusCreditsTotal
+        self.bonusNextExpiration = bonusNextExpiration
+        self.bonusNextExpirationRemaining = bonusNextExpirationRemaining
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
@@ -41,11 +55,35 @@ public struct WarpUsageSnapshot: Sendable {
             resetDescription = "\(self.requestsUsed)/\(self.requestLimit) credits"
         }
 
-        let rateWindow = RateWindow(
+        let primary = RateWindow(
             usedPercent: usedPercent,
             windowMinutes: nil,
             resetsAt: self.nextRefreshTime,
             resetDescription: resetDescription)
+
+        // Secondary: combined bonus/add-on credits (user + workspace)
+        let bonusUsedPercent: Double = {
+            guard self.bonusCreditsTotal > 0 else {
+                return self.bonusCreditsRemaining > 0 ? 0 : 100
+            }
+            let used = self.bonusCreditsTotal - self.bonusCreditsRemaining
+            return min(100, max(0, Double(used) / Double(self.bonusCreditsTotal) * 100))
+        }()
+
+        var bonusDetail: String?
+        if self.bonusCreditsRemaining > 0,
+           let expiry = self.bonusNextExpiration,
+           self.bonusNextExpirationRemaining > 0
+        {
+            let dateText = expiry.formatted(date: .abbreviated, time: .shortened)
+            bonusDetail = "\(self.bonusNextExpirationRemaining) credits expires on \(dateText)"
+        }
+
+        let secondary = RateWindow(
+            usedPercent: bonusUsedPercent,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: bonusDetail)
 
         let identity = ProviderIdentitySnapshot(
             providerID: .warp,
@@ -54,8 +92,8 @@ public struct WarpUsageSnapshot: Sendable {
             loginMethod: nil)
 
         return UsageSnapshot(
-            primary: rateWindow,
-            secondary: nil,
+            primary: primary,
+            secondary: secondary,
             tertiary: nil,
             providerCost: nil,
             updatedAt: self.updatedAt,
@@ -87,7 +125,6 @@ public struct WarpUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.warpUsage)
     private static let apiURL = URL(string: "https://app.warp.dev/graphql/v2?op=GetRequestLimitInfo")!
     private static let clientID = "warp-app"
-    private static let clientVersion = "v0.2026.01.07.08.13.stable_01"
 
     private static let graphQLQuery = """
         query GetRequestLimitInfo($requestContext: RequestContext!) {
@@ -100,6 +137,20 @@ public struct WarpUsageFetcher: Sendable {
                   nextRefreshTime
                   requestLimit
                   requestsUsedSinceLastRefresh
+                }
+                bonusGrants {
+                  requestCreditsGranted
+                  requestCreditsRemaining
+                  expiration
+                }
+                workspaces {
+                  bonusGrantsInfo {
+                    grants {
+                      requestCreditsGranted
+                      requestCreditsRemaining
+                      expiration
+                    }
+                  }
                 }
               }
             }
@@ -117,7 +168,6 @@ public struct WarpUsageFetcher: Sendable {
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(self.clientID, forHTTPHeaderField: "x-warp-client-id")
-        request.setValue(self.clientVersion, forHTTPHeaderField: "x-warp-client-version")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         let variables: [String: Any] = [
@@ -177,12 +227,99 @@ public struct WarpUsageFetcher: Sendable {
             nextRefreshTime = Self.parseDate(nextRefreshTimeString)
         }
 
+        // Parse and combine bonus credits from user-level and workspace-level
+        let bonus = Self.parseBonusCredits(from: innerUserObj)
+
         return WarpUsageSnapshot(
             requestLimit: requestLimit,
             requestsUsed: requestsUsed,
             nextRefreshTime: nextRefreshTime,
             isUnlimited: isUnlimited,
-            updatedAt: Date())
+            updatedAt: Date(),
+            bonusCreditsRemaining: bonus.remaining,
+            bonusCreditsTotal: bonus.total,
+            bonusNextExpiration: bonus.nextExpiration,
+            bonusNextExpirationRemaining: bonus.nextExpirationRemaining)
+    }
+
+    private struct BonusGrant: Sendable {
+        let granted: Int
+        let remaining: Int
+        let expiration: Date?
+    }
+
+    private struct BonusSummary: Sendable {
+        let remaining: Int
+        let total: Int
+        let nextExpiration: Date?
+        let nextExpirationRemaining: Int
+    }
+
+    private static func parseBonusCredits(from userObj: [String: Any]) -> BonusSummary {
+        var grants: [BonusGrant] = []
+
+        // User-level bonus grants
+        if let bonusGrants = userObj["bonusGrants"] as? [[String: Any]] {
+            for grant in bonusGrants {
+                grants.append(Self.parseBonusGrant(from: grant))
+            }
+        }
+
+        // Workspace-level bonus grants
+        if let workspaces = userObj["workspaces"] as? [[String: Any]] {
+            for workspace in workspaces {
+                if let bonusGrantsInfo = workspace["bonusGrantsInfo"] as? [String: Any],
+                   let workspaceGrants = bonusGrantsInfo["grants"] as? [[String: Any]]
+                {
+                    for grant in workspaceGrants {
+                        grants.append(Self.parseBonusGrant(from: grant))
+                    }
+                }
+            }
+        }
+
+        let totalRemaining = grants.reduce(0) { $0 + $1.remaining }
+        let totalGranted = grants.reduce(0) { $0 + $1.granted }
+
+        let expiring = grants.compactMap { grant -> (date: Date, remaining: Int)? in
+            guard grant.remaining > 0, let expiration = grant.expiration else { return nil }
+            return (expiration, grant.remaining)
+        }
+
+        let nextExpiration: Date?
+        let nextExpirationRemaining: Int
+        if let earliest = expiring.min(by: { $0.date < $1.date }) {
+            let earliestKey = Int(earliest.date.timeIntervalSince1970)
+            let remaining = expiring.reduce(0) { result, item in
+                let key = Int(item.date.timeIntervalSince1970)
+                return result + (key == earliestKey ? item.remaining : 0)
+            }
+            nextExpiration = earliest.date
+            nextExpirationRemaining = remaining
+        } else {
+            nextExpiration = nil
+            nextExpirationRemaining = 0
+        }
+
+        return BonusSummary(
+            remaining: totalRemaining,
+            total: totalGranted,
+            nextExpiration: nextExpiration,
+            nextExpirationRemaining: nextExpirationRemaining)
+    }
+
+    private static func parseBonusGrant(from grant: [String: Any]) -> BonusGrant {
+        let granted = self.intValue(grant["requestCreditsGranted"])
+        let remaining = self.intValue(grant["requestCreditsRemaining"])
+        let expiration = (grant["expiration"] as? String).flatMap(Self.parseDate)
+        return BonusGrant(granted: granted, remaining: remaining, expiration: expiration)
+    }
+
+    private static func intValue(_ value: Any?) -> Int {
+        if let int = value as? Int { return int }
+        if let num = value as? NSNumber { return num.intValue }
+        if let text = value as? String, let int = Int(text) { return int }
+        return 0
     }
 
     private static func parseDate(_ dateString: String) -> Date? {

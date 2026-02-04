@@ -123,12 +123,18 @@ struct MenuDescriptor {
                     showUsed: settings.usageBarsShowUsed)
             }
             if let weekly = snap.secondary {
+                let weeklyResetOverride: String? = {
+                    guard provider == .warp else { return nil }
+                    let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return (detail?.isEmpty ?? true) ? nil : detail
+                }()
                 Self.appendRateWindow(
                     entries: &entries,
                     title: meta.weeklyLabel,
                     window: weekly,
                     resetStyle: resetStyle,
-                    showUsed: settings.usageBarsShowUsed)
+                    showUsed: settings.usageBarsShowUsed,
+                    resetOverride: weeklyResetOverride)
                 if let paceSummary = UsagePaceText.weeklySummary(provider: provider, window: weekly) {
                     entries.append(.text(paceSummary, .secondary))
                 }
@@ -343,12 +349,15 @@ struct MenuDescriptor {
         title: String,
         window: RateWindow,
         resetStyle: ResetTimeDisplayStyle,
-        showUsed: Bool)
+        showUsed: Bool,
+        resetOverride: String? = nil)
     {
         let line = UsageFormatter
             .usageLine(remaining: window.remainingPercent, used: window.usedPercent, showUsed: showUsed)
         entries.append(.text("\(title): \(line)", .primary))
-        if let reset = UsageFormatter.resetLine(for: window, style: resetStyle) {
+        if let resetOverride {
+            entries.append(.text(resetOverride, .secondary))
+        } else if let reset = UsageFormatter.resetLine(for: window, style: resetStyle) {
             entries.append(.text(reset, .secondary))
         }
     }

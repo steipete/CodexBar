@@ -781,13 +781,22 @@ extension UsageMenuCardView.Model {
                 window: weekly,
                 now: input.now,
                 showUsed: input.usageBarsShowUsed)
+            var weeklyResetText = Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now)
+            var weeklyDetailText: String? = input.provider == .zai ? zaiTimeDetail : nil
+            if input.provider == .warp,
+               let detail = weekly.resetDescription,
+               !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                weeklyResetText = nil
+                weeklyDetailText = detail
+            }
             metrics.append(Metric(
                 id: "secondary",
                 title: input.metadata.weeklyLabel,
                 percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
                 percentStyle: percentStyle,
-                resetText: Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now),
-                detailText: input.provider == .zai ? zaiTimeDetail : nil,
+                resetText: weeklyResetText,
+                detailText: weeklyDetailText,
                 detailLeftText: paceDetail?.leftLabel,
                 detailRightText: paceDetail?.rightLabel,
                 pacePercent: paceDetail?.pacePercent,

@@ -629,20 +629,29 @@ enum IconRenderer {
                     }
                 }
 
+                let effectiveWeeklyRemaining: Double? = {
+                    if style == .warp, let weeklyRemaining, weeklyRemaining <= 0 {
+                        return nil
+                    }
+                    return weeklyRemaining
+                }()
                 let topValue = primaryRemaining
-                let bottomValue = weeklyRemaining
+                let bottomValue = effectiveWeeklyRemaining
                 let creditsRatio = creditsRemaining.map { min($0 / Self.creditsCap * 100, 100) }
 
-                let hasWeekly = (weeklyRemaining != nil)
-                let weeklyAvailable = hasWeekly && (weeklyRemaining ?? 0) > 0
+                let hasWeekly = (bottomValue != nil)
+                let weeklyAvailable = hasWeekly && (bottomValue ?? 0) > 0
                 let creditsAlpha: CGFloat = 1.0
                 let topRectPx = RectPx(x: barXPx, y: 19, w: barWidthPx, h: 12)
                 let bottomRectPx = RectPx(x: barXPx, y: 5, w: barWidthPx, h: 8)
                 let creditsRectPx = RectPx(x: barXPx, y: 14, w: barWidthPx, h: 16)
                 let creditsBottomRectPx = RectPx(x: barXPx, y: 4, w: barWidthPx, h: 6)
 
+                // Warp special case: when no bonus or bonus exhausted, show "top full, bottom=monthly"
+                let warpNoBonus = style == .warp && !weeklyAvailable
+
                 if weeklyAvailable {
-                    // Normal: top=5h, bottom=weekly, no credits.
+                    // Normal: top=primary, bottom=secondary (bonus/weekly).
                     drawBar(
                         rectPx: topRectPx,
                         remaining: topValue,
@@ -654,8 +663,9 @@ enum IconRenderer {
                         addWarpTwist: style == .warp,
                         blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
-                } else if !hasWeekly {
+                } else if !hasWeekly || warpNoBonus {
                     if style == .warp {
+                        // Warp: no bonus or bonus exhausted -> top=full, bottom=monthly credits
                         if topValue != nil {
                             drawBar(
                                 rectPx: topRectPx,

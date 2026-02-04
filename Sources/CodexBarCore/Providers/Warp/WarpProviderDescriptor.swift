@@ -11,7 +11,7 @@ public enum WarpProviderDescriptor {
                 id: .warp,
                 displayName: "Warp",
                 sessionLabel: "Credits",
-                weeklyLabel: "Credits",
+                weeklyLabel: "Add-on credits",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
