@@ -14,10 +14,16 @@ extension [Browser] {
     /// Filters a browser list to sources worth attempting for cookie imports.
     ///
     /// This is intentionally stricter than "app installed": it aims to avoid unnecessary Keychain prompts.
-    public func cookieImportCandidates(using detection: BrowserDetection) -> [Browser] {
+    public func cookieImportCandidates(
+        using detection: BrowserDetection,
+        allowKeychainPrompt: Bool = true) -> [Browser]
+    {
         guard !KeychainAccessGate.isDisabled else { return [] }
         let candidates = self.filter { detection.isCookieSourceAvailable($0) }
-        return candidates.filter { BrowserCookieAccessGate.shouldAttempt($0) }
+        let keychainFiltered = allowKeychainPrompt
+            ? candidates
+            : candidates.filter { !$0.usesKeychainForCookieDecryption }
+        return keychainFiltered.filter { BrowserCookieAccessGate.shouldAttempt($0) }
     }
 
     /// Filters a browser list to sources with usable profile data on disk.

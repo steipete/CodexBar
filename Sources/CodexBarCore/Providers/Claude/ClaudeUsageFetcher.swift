@@ -63,6 +63,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     private let useWebExtras: Bool
     private let manualCookieHeader: String?
     private let keepCLISessionsAlive: Bool
+    private let allowKeychainPrompt: Bool
     private let browserDetection: BrowserDetection
     private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
 
@@ -77,7 +78,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         dataSource: ClaudeUsageDataSource = .oauth,
         useWebExtras: Bool = false,
         manualCookieHeader: String? = nil,
-        keepCLISessionsAlive: Bool = false)
+        keepCLISessionsAlive: Bool = false,
+        allowKeychainPrompt: Bool = false)
     {
         self.browserDetection = browserDetection
         self.environment = environment
@@ -85,6 +87,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         self.useWebExtras = useWebExtras
         self.manualCookieHeader = manualCookieHeader
         self.keepCLISessionsAlive = keepCLISessionsAlive
+        self.allowKeychainPrompt = allowKeychainPrompt
     }
 
     // MARK: - Parsing helpers
@@ -221,7 +224,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     public func loadLatestUsage(model: String = "sonnet") async throws -> ClaudeUsageSnapshot {
         switch self.dataSource {
         case .auto:
-            let oauthCreds = try? ClaudeOAuthCredentialsStore.load(environment: self.environment)
+            let oauthCreds = try? ClaudeOAuthCredentialsStore.load(
+                environment: self.environment,
+                allowKeychainPrompt: self.allowKeychainPrompt)
             let hasOAuthCredentials = oauthCreds?.scopes.contains("user:profile") ?? false
             let hasWebSession = if let header = self.manualCookieHeader {
                 ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
@@ -262,7 +267,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private func loadViaOAuth() async throws -> ClaudeUsageSnapshot {
         do {
-            let creds = try ClaudeOAuthCredentialsStore.load(environment: self.environment)
+            let creds = try ClaudeOAuthCredentialsStore.load(
+                environment: self.environment,
+                allowKeychainPrompt: self.allowKeychainPrompt)
             if creds.isExpired {
                 throw ClaudeUsageError.oauthFailed("Claude OAuth token expired. Run `claude` to refresh.")
             }

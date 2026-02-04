@@ -94,6 +94,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
     public func importBestCookies(
         intoAccountEmail targetEmail: String?,
         allowAnyAccount: Bool = false,
+        allowKeychainPrompt: Bool = true,
         logger: ((String) -> Void)? = nil) async throws -> ImportResult
     {
         let log: (String) -> Void = { message in
@@ -137,7 +138,12 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
 
         // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
-        let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: self.browserDetection)
+        if !allowKeychainPrompt {
+            log("Keychain prompts disabled; skipping keychain-backed browsers.")
+        }
+        let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(
+            using: self.browserDetection,
+            allowKeychainPrompt: allowKeychainPrompt)
         for browserSource in installedBrowsers {
             if let match = await self.trySource(
                 browserSource,

@@ -75,6 +75,11 @@ public enum KeychainAccessPreflight {
         case errSecInteractionNotAllowed:
             self.log.info("Keychain preflight requires interaction", metadata: ["service": service])
             return .interactionRequired
+        case errSecAuthFailed:
+            self.log.info(
+                "Keychain preflight requires authentication",
+                metadata: ["service": service, "status": "\(status)"])
+            return .interactionRequired
         default:
             self.log.warning("Keychain preflight failed", metadata: ["service": service, "status": "\(status)"])
             return .failure(Int(status))

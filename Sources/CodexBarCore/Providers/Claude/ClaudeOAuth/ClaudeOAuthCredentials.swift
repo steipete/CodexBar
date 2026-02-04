@@ -1,5 +1,6 @@
 import Foundation
 #if os(macOS)
+import LocalAuthentication
 import Security
 #endif
 
@@ -111,6 +112,21 @@ public enum ClaudeOAuthCredentialsStore {
     public static let environmentTokenKey = "CODEXBAR_CLAUDE_OAUTH_TOKEN"
     public static let environmentScopesKey = "CODEXBAR_CLAUDE_OAUTH_SCOPES"
 
+    private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
+    private static let fileFingerprintKey = "ClaudeOAuthCredentialsFileFingerprintV1"
+
+    #if DEBUG
+    private nonisolated(unsafe) static var keychainAccessOverride: Bool?
+    static func setKeychainAccessOverrideForTesting(_ disabled: Bool?) {
+        self.keychainAccessOverride = disabled
+    }
+    #endif
+
+    private struct CredentialsFileFingerprint: Codable, Equatable, Sendable {
+        let modifiedAt: Int?
+        let size: Int
+    }
+
     struct CacheEntry: Codable, Sendable {
         let data: Data
         let storedAt: Date
@@ -123,13 +139,16 @@ public enum ClaudeOAuthCredentialsStore {
     private static let memoryCacheValidityDuration: TimeInterval = 1800
 
     public static func load(
-        environment: [String: String] = ProcessInfo.processInfo.environment) throws -> ClaudeOAuthCredentials
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        allowKeychainPrompt: Bool = true) throws -> ClaudeOAuthCredentials
     {
         if let credentials = self.loadFromEnvironment(environment) {
             return credentials
         }
 
-        // 1. Check in-memory cache first
+        _ = self.invalidateCacheIfCredentialsFileChanged()
+        _ = self.invalidateCacheIfClaudeKeychainChanged()
+
         if let cached = self.cachedCredentials,
            let timestamp = self.cacheTimestamp,
            Date().timeIntervalSince(timestamp) < self.memoryCacheValidityDuration,
@@ -183,16 +202,30 @@ public enum ClaudeOAuthCredentialsStore {
             lastError = error
         }
 
-        // 4. Fall back to Claude's keychain (may prompt user)
-        if let keychainData = try? self.loadFromClaudeKeychain() {
-            do {
-                let creds = try ClaudeOAuthCredentials.parse(data: keychainData)
-                self.cachedCredentials = creds
-                self.cacheTimestamp = Date()
-                self.saveToCacheKeychain(keychainData)
-                return creds
-            } catch {
-                lastError = error
+        // 4. Fall back to Claude's keychain (may prompt user if allowed)
+        if allowKeychainPrompt {
+            if let keychainData = try? self.loadFromClaudeKeychain() {
+                do {
+                    let creds = try ClaudeOAuthCredentials.parse(data: keychainData)
+                    self.cachedCredentials = creds
+                    self.cacheTimestamp = Date()
+                    self.saveToCacheKeychain(keychainData)
+                    return creds
+                } catch {
+                    lastError = error
+                }
+            }
+        } else {
+            if let keychainData = try? self.loadFromClaudeKeychainWithoutPrompt() {
+                do {
+                    let creds = try ClaudeOAuthCredentials.parse(data: keychainData)
+                    self.cachedCredentials = creds
+                    self.cacheTimestamp = Date()
+                    self.saveToCacheKeychain(keychainData)
+                    return creds
+                } catch {
+                    lastError = error
+                }
             }
         }
 
@@ -204,7 +237,7 @@ public enum ClaudeOAuthCredentialsStore {
     }
 
     public static func loadFromFile() throws -> Data {
-        let url = self.credentialsURLOverride ?? Self.defaultCredentialsURL()
+        let url = self.credentialsFileURL()
         do {
             return try Data(contentsOf: url)
         } catch {
@@ -213,6 +246,49 @@ public enum ClaudeOAuthCredentialsStore {
             }
             throw ClaudeOAuthCredentialsError.readFailed(error.localizedDescription)
         }
+    }
+
+    @discardableResult
+    public static func invalidateCacheIfCredentialsFileChanged() -> Bool {
+        let current = self.currentFileFingerprint()
+        let stored = self.loadFileFingerprint()
+        guard current != stored else { return false }
+        self.saveFileFingerprint(current)
+        self.log.info("Claude OAuth credentials file changed; invalidating cache")
+        self.invalidateCache()
+        return true
+    }
+
+    @discardableResult
+    public static func invalidateCacheIfClaudeKeychainChanged() -> Bool {
+        #if os(macOS)
+        guard self.keychainAccessAllowed else { return false }
+        if case .interactionRequired = KeychainAccessPreflight
+            .checkGenericPassword(service: self.claudeKeychainService, account: nil)
+        {
+            return false
+        }
+
+        guard case let .found(entry) = KeychainCacheStore.load(key: self.cacheKey, as: CacheEntry.self),
+              let cachedCreds = try? ClaudeOAuthCredentials.parse(data: entry.data)
+        else {
+            return false
+        }
+
+        guard let keychainData = try? self.loadFromClaudeKeychainWithoutPrompt(),
+              let keychainCreds = try? ClaudeOAuthCredentials.parse(data: keychainData)
+        else {
+            return false
+        }
+
+        guard cachedCreds.accessToken != keychainCreds.accessToken else { return false }
+
+        self.log.info("Claude keychain credentials changed; invalidating cache")
+        self.invalidateCache()
+        return true
+        #else
+        return false
+        #endif
     }
 
     /// Invalidate the credentials cache (call after login/logout)
@@ -224,7 +300,7 @@ public enum ClaudeOAuthCredentialsStore {
 
     public static func loadFromClaudeKeychain() throws -> Data {
         #if os(macOS)
-        if KeychainAccessGate.isDisabled {
+        if !self.keychainAccessAllowed {
             throw ClaudeOAuthCredentialsError.notFound
         }
         if case .interactionRequired = KeychainAccessPreflight
@@ -266,6 +342,39 @@ public enum ClaudeOAuthCredentialsStore {
         try self.loadFromClaudeKeychain()
     }
 
+    private static func loadFromClaudeKeychainWithoutPrompt() throws -> Data? {
+        #if os(macOS)
+        let context = LAContext()
+        context.interactionNotAllowed = true
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: self.claudeKeychainService,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnData as String: true,
+            kSecUseAuthenticationContext as String: context,
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        switch status {
+        case errSecSuccess:
+            guard let data = result as? Data, !data.isEmpty else {
+                return nil
+            }
+            return data
+        case errSecItemNotFound:
+            return nil
+        case errSecInteractionNotAllowed:
+            return nil
+        default:
+            return nil
+        }
+        #else
+        return nil
+        #endif
+    }
+
     private static func loadFromEnvironment(_ environment: [String: String]) -> ClaudeOAuthCredentials? {
         guard let token = environment[self.environmentTokenKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
               !token.isEmpty
@@ -302,6 +411,48 @@ public enum ClaudeOAuthCredentialsStore {
     private static func clearCacheKeychain() {
         KeychainCacheStore.clear(key: self.cacheKey)
     }
+
+    private static var keychainAccessAllowed: Bool {
+        #if DEBUG
+        if let override = self.keychainAccessOverride {
+            return !override
+        }
+        #endif
+        return !KeychainAccessGate.isDisabled
+    }
+
+    private static func credentialsFileURL() -> URL {
+        self.credentialsURLOverride ?? self.defaultCredentialsURL()
+    }
+
+    private static func loadFileFingerprint() -> CredentialsFileFingerprint? {
+        guard let data = UserDefaults.standard.data(forKey: self.fileFingerprintKey) else { return nil }
+        return try? JSONDecoder().decode(CredentialsFileFingerprint.self, from: data)
+    }
+
+    private static func saveFileFingerprint(_ fingerprint: CredentialsFileFingerprint?) {
+        guard let fingerprint else {
+            UserDefaults.standard.removeObject(forKey: self.fileFingerprintKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(fingerprint) {
+            UserDefaults.standard.set(data, forKey: self.fileFingerprintKey)
+        }
+    }
+
+    private static func currentFileFingerprint() -> CredentialsFileFingerprint? {
+        let url = self.credentialsFileURL()
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path) else { return nil }
+        let size = (attrs[.size] as? NSNumber)?.intValue ?? 0
+        let modifiedAt = (attrs[.modificationDate] as? Date).map { Int($0.timeIntervalSince1970) }
+        return CredentialsFileFingerprint(modifiedAt: modifiedAt, size: size)
+    }
+
+    #if DEBUG
+    static func _resetCredentialsFileTrackingForTesting() {
+        UserDefaults.standard.removeObject(forKey: self.fileFingerprintKey)
+    }
+    #endif
 
     private static func defaultCredentialsURL() -> URL {
         let home = FileManager.default.homeDirectoryForCurrentUser

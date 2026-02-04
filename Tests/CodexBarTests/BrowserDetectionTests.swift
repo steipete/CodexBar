@@ -21,6 +21,17 @@ struct BrowserDetectionTests {
     }
 
     @Test
+    func filterSkipsKeychainBrowsersWhenPromptsDisabled() {
+        let detection = BrowserDetection(
+            homeDirectory: "/",
+            cacheTTL: 0,
+            fileExists: { _ in true },
+            directoryContents: { _ in ["Default"] })
+        let browsers: [Browser] = [.safari, .chrome, .firefox]
+        #expect(browsers.cookieImportCandidates(using: detection, allowKeychainPrompt: false) == [.safari, .firefox])
+    }
+
+    @Test
     func filterPreservesOrder() {
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
