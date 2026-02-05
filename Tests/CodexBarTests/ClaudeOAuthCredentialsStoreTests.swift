@@ -517,4 +517,45 @@ struct ClaudeOAuthCredentialsStoreTests {
         #expect(creds.accessToken == "keychain-token")
         #expect(preAlertHits == 1)
     }
+
+    @Test
+    func showsPreAlertWhenClaudeKeychainPreflightFails() throws {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        ClaudeOAuthCredentialsStore.invalidateCache()
+        ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+        defer {
+            ClaudeOAuthCredentialsStore.invalidateCache()
+            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+            ClaudeOAuthCredentialsStore.setClaudeKeychainDataOverrideForTesting(nil)
+            KeychainPromptHandler.handler = nil
+            KeychainAccessPreflight.setCheckGenericPasswordOverrideForTesting(nil)
+        }
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let fileURL = tempDir.appendingPathComponent("credentials.json")
+        ClaudeOAuthCredentialsStore.setCredentialsURLOverrideForTesting(fileURL)
+        defer { ClaudeOAuthCredentialsStore.setCredentialsURLOverrideForTesting(nil) }
+
+        let keychainData = self.makeCredentialsData(
+            accessToken: "keychain-token",
+            expiresAt: Date(timeIntervalSinceNow: 3600))
+        ClaudeOAuthCredentialsStore.setClaudeKeychainDataOverrideForTesting(keychainData)
+
+        KeychainAccessPreflight.setCheckGenericPasswordOverrideForTesting { _, _ in
+            .failure(-1)
+        }
+
+        var preAlertHits = 0
+        KeychainPromptHandler.handler = { _ in
+            preAlertHits += 1
+        }
+
+        let creds = try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: true)
+        #expect(creds.accessToken == "keychain-token")
+        #expect(preAlertHits == 1)
+    }
 }
