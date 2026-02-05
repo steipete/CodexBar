@@ -40,7 +40,8 @@ public enum ClaudeOAuthKeychainAccessGate {
     #if DEBUG
     public static func resetForTesting() {
         self.lock.withLock { state in
-            state.loaded = false
+            // Keep deterministic during tests: avoid re-loading UserDefaults written by unrelated code paths.
+            state.loaded = true
             state.deniedUntil = nil
             UserDefaults.standard.removeObject(forKey: self.defaultsKey)
         }

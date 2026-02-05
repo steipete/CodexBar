@@ -23,26 +23,10 @@ struct BrowserDetectionTests {
     @Test
     func filterPreservesOrder() {
         BrowserCookieAccessGate.resetForTesting()
-        let keychainDisabled = KeychainAccessGate.isDisabled
-        KeychainAccessGate.isDisabled = false
-        defer { KeychainAccessGate.isDisabled = keychainDisabled }
 
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temp) }
-
-        let chromeProfile = temp
-            .appendingPathComponent("Library")
-            .appendingPathComponent("Application Support")
-            .appendingPathComponent("Google")
-            .appendingPathComponent("Chrome")
-            .appendingPathComponent("Default")
-        try? FileManager.default.createDirectory(at: chromeProfile, withIntermediateDirectories: true)
-        let chromeCookiesDir = chromeProfile.appendingPathComponent("Network")
-        try? FileManager.default.createDirectory(at: chromeCookiesDir, withIntermediateDirectories: true)
-        FileManager.default.createFile(
-            atPath: chromeCookiesDir.appendingPathComponent("Cookies").path,
-            contents: Data())
 
         let firefoxProfile = temp
             .appendingPathComponent("Library")
@@ -57,7 +41,8 @@ struct BrowserDetectionTests {
 
         let detection = BrowserDetection(homeDirectory: temp.path, cacheTTL: 0)
         let browsers: [Browser] = [.firefox, .safari, .chrome]
-        #expect(browsers.cookieImportCandidates(using: detection) == browsers)
+        // Chrome is filtered out deterministically because it lacks usable on-disk profile/cookie store data.
+        #expect(browsers.cookieImportCandidates(using: detection) == [.firefox, .safari])
     }
 
     @Test

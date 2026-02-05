@@ -1251,7 +1251,11 @@ extension UsageStore {
                 ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection) { msg in lines.append(msg) }
             }
             // Don't prompt for keychain access during debug dump
-            let oauthGateAllowsAttempt = ClaudeOAuthRefreshFailureGate.shouldAttempt()
+            let hasEnvironmentOAuthToken = !(ProcessInfo.processInfo
+                .environment[ClaudeOAuthCredentialsStore.environmentTokenKey]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty ?? true)
+            let oauthGateAllowsAttempt = hasEnvironmentOAuthToken || ClaudeOAuthRefreshFailureGate.shouldAttempt()
             let hasOAuthCredentials = oauthGateAllowsAttempt
                 && (try? ClaudeOAuthCredentialsStore.load(
                     allowKeychainPrompt: false,

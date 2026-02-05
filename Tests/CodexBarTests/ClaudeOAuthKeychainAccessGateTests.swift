@@ -9,6 +9,10 @@ struct ClaudeOAuthKeychainAccessGateTests {
         ClaudeOAuthKeychainAccessGate.resetForTesting()
         defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
 
+        let previousGate = KeychainAccessGate.isDisabled
+        KeychainAccessGate.isDisabled = false
+        defer { KeychainAccessGate.isDisabled = previousGate }
+
         let now = Date(timeIntervalSince1970: 1000)
         #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(now: now))
 
@@ -22,6 +26,10 @@ struct ClaudeOAuthKeychainAccessGateTests {
     func persistsDeniedUntil() {
         ClaudeOAuthKeychainAccessGate.resetForTesting()
         defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
+
+        let previousGate = KeychainAccessGate.isDisabled
+        KeychainAccessGate.isDisabled = false
+        defer { KeychainAccessGate.isDisabled = previousGate }
 
         let now = Date(timeIntervalSince1970: 2000)
         ClaudeOAuthKeychainAccessGate.recordDenied(now: now)

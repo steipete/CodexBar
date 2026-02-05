@@ -138,7 +138,10 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         let shouldApplyOAuthRefreshFailureGate = context.runtime == .app
             && (context.sourceMode == .auto || context.sourceMode == .oauth)
-        if shouldApplyOAuthRefreshFailureGate {
+        let hasEnvironmentOAuthToken = !(context.env[ClaudeOAuthCredentialsStore.environmentTokenKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true)
+        if shouldApplyOAuthRefreshFailureGate, !hasEnvironmentOAuthToken {
             guard ClaudeOAuthRefreshFailureGate.shouldAttempt() else { return false }
         }
         // In OAuth-only mode, allow the fetch to run (and prompt when needed) unless:

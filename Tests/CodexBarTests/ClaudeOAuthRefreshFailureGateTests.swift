@@ -233,9 +233,8 @@ struct ClaudeOAuthRefreshFailureGateTests {
 
         let start = Date(timeIntervalSince1970: 70000)
         ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: start)
-        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60 * 5 + 1)) == true)
-
-        let secondFailureAt = start.addingTimeInterval(60 * 5 + 1)
+        // Second failure before the first window expires should double the backoff.
+        let secondFailureAt = start.addingTimeInterval(1)
         ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: secondFailureAt)
         #expect(ClaudeOAuthRefreshFailureGate
             .shouldAttempt(now: secondFailureAt.addingTimeInterval(60 * 10 - 1)) == false)

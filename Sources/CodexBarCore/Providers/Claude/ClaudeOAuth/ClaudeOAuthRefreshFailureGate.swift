@@ -36,6 +36,7 @@ public enum ClaudeOAuthRefreshFailureGate {
     private static let transientMaxInterval: TimeInterval = 60 * 60 * 6
 
     #if DEBUG
+    @TaskLocal static var shouldAttemptOverride: Bool?
     private nonisolated(unsafe) static var fingerprintProviderOverride: (() -> AuthFingerprint?)?
 
     static func setFingerprintProviderOverrideForTesting(_ provider: (() -> AuthFingerprint?)?) {
@@ -77,7 +78,11 @@ public enum ClaudeOAuthRefreshFailureGate {
     #endif
 
     public static func shouldAttempt(now: Date = Date()) -> Bool {
-        self.lock.withLock { state in
+        #if DEBUG
+        if let override = self.shouldAttemptOverride { return override }
+        #endif
+
+        return self.lock.withLock { state in
             let didMigrate = self.loadIfNeeded(&state, now: now)
             if didMigrate {
                 self.persist(state)
@@ -104,7 +109,11 @@ public enum ClaudeOAuthRefreshFailureGate {
 
             if let blockedUntil = state.transientBlockedUntil {
                 if blockedUntil <= now {
-                    state.transientBlockedUntil = nil
+                    self.clearTransientState(&state)
+                    // Once transient backoff expires, forget its auth baseline so future failures capture fresh
+                    // fingerprints and so we don't ratchet backoff across unrelated intermittent failures.
+                    state.fingerprintAtFailure = nil
+                    state.lastCredentialsRecheckAt = nil
                     self.persist(state)
                     return true
                 }
@@ -193,10 +202,13 @@ public enum ClaudeOAuthRefreshFailureGate {
     }
 
     private static func loadIfNeeded(_ state: inout State, now: Date) -> Bool {
-        guard !state.loaded else { return false }
         state.loaded = true
         var didMutate = false
 
+        // Always refresh persisted fields from UserDefaults, even after first load.
+        //
+        // This avoids stale state when UserDefaults are modified while the app is running (or during tests),
+        // while still keeping ephemeral throttling state (like lastCredentialsRecheckAt) in memory.
         state.terminalFailureCount = UserDefaults.standard.integer(forKey: self.failureCountKey)
         state.transientFailureCount = UserDefaults.standard.integer(forKey: self.transientFailureCountKey)
 
@@ -208,12 +220,10 @@ public enum ClaudeOAuthRefreshFailureGate {
             .map { Date(timeIntervalSince1970: $0) }
         let legacyFailureCount = UserDefaults.standard.integer(forKey: self.failureCountKey)
 
-        if let data = UserDefaults.standard.data(forKey: self.fingerprintKey),
-           let decoded = try? JSONDecoder().decode(
-               AuthFingerprint.self,
-               from: data)
-        {
-            state.fingerprintAtFailure = decoded
+        if let data = UserDefaults.standard.data(forKey: self.fingerprintKey) {
+            state.fingerprintAtFailure = (try? JSONDecoder().decode(AuthFingerprint.self, from: data))
+        } else {
+            state.fingerprintAtFailure = nil
         }
 
         if UserDefaults.standard.object(forKey: self.terminalBlockedKey) != nil {
