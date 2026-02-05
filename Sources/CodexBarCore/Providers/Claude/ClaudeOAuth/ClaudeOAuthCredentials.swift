@@ -414,6 +414,7 @@ public enum ClaudeOAuthCredentialsStore {
         guard http.statusCode == 200 else {
             if http.statusCode == 401 || http.statusCode == 400 {
                 // Refresh token is invalid/expired, or the request was rejected.
+                ClaudeOAuthRefreshFailureGate.recordAuthFailure()
                 self.invalidateCache()
                 throw ClaudeOAuthCredentialsError.refreshFailed("HTTP \(http.statusCode)")
             }
@@ -437,6 +438,7 @@ public enum ClaudeOAuthCredentialsStore {
 
         // Update in-memory cache
         self.writeMemoryCache(credentials: newCredentials, timestamp: Date())
+        ClaudeOAuthRefreshFailureGate.recordSuccess()
 
         return newCredentials
     }
@@ -706,6 +708,16 @@ public enum ClaudeOAuthCredentialsStore {
         #else
         return nil
         #endif
+    }
+
+    static func currentClaudeKeychainFingerprintWithoutPromptForAuthGate() -> ClaudeKeychainFingerprint? {
+        self.currentClaudeKeychainFingerprintWithoutPrompt()
+    }
+
+    static func currentCredentialsFileFingerprintWithoutPromptForAuthGate() -> String? {
+        guard let fingerprint = self.currentFileFingerprint() else { return nil }
+        let modifiedAt = fingerprint.modifiedAt ?? 0
+        return "\(modifiedAt):\(fingerprint.size)"
     }
 
     private static func sha256Prefix(_ data: Data) -> String? {

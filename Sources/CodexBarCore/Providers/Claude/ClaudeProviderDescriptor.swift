@@ -136,6 +136,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .oauth
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        if context.runtime == .app, context.sourceMode == .auto || context.sourceMode == .oauth {
+            guard ClaudeOAuthRefreshFailureGate.shouldAttempt() else { return false }
+        }
         // In OAuth-only mode, allow the fetch to run and prompt once when needed.
         guard context.sourceMode == .auto else { return true }
 
