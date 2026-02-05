@@ -4,6 +4,11 @@ import Foundation
 import os.lock
 
 public enum ClaudeOAuthRefreshFailureGate {
+    public enum BlockStatus: Equatable, Sendable {
+        case terminal(reason: String?, failures: Int)
+        case transient(until: Date, failures: Int)
+    }
+
     struct AuthFingerprint: Codable, Equatable, Sendable {
         let keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?
         let credentialsFile: String?
@@ -140,6 +145,19 @@ public enum ClaudeOAuthRefreshFailureGate {
         }
     }
 
+    public static func currentBlockStatus(now: Date = Date()) -> BlockStatus? {
+        self.lock.withLock { state in
+            _ = self.loadIfNeeded(&state, now: now)
+            if state.isTerminalBlocked {
+                return .terminal(reason: state.terminalReason, failures: state.terminalFailureCount)
+            }
+            if let blockedUntil = state.transientBlockedUntil, blockedUntil > now {
+                return .transient(until: blockedUntil, failures: state.transientFailureCount)
+            }
+            return nil
+        }
+    }
+
     public static func recordTerminalAuthFailure(now: Date = Date()) {
         self.lock.withLock { state in
             _ = self.loadIfNeeded(&state, now: now)
@@ -156,6 +174,10 @@ public enum ClaudeOAuthRefreshFailureGate {
     public static func recordTransientFailure(now: Date = Date()) {
         self.lock.withLock { state in
             _ = self.loadIfNeeded(&state, now: now)
+
+            // Keep terminal blocking monotonic: once we know auth is rejected (e.g. invalid_grant),
+            // do not downgrade it to time-based backoff unless auth changes (fingerprint) or we record success.
+            guard !state.isTerminalBlocked else { return }
 
             self.clearTerminalState(&state)
 
@@ -319,8 +341,17 @@ public enum ClaudeOAuthRefreshFailureGate {
 }
 #else
 public enum ClaudeOAuthRefreshFailureGate {
+    public enum BlockStatus: Equatable, Sendable {
+        case terminal(reason: String?, failures: Int)
+        case transient(until: Date, failures: Int)
+    }
+
     public static func shouldAttempt(now _: Date = Date()) -> Bool {
         true
+    }
+
+    public static func currentBlockStatus(now _: Date = Date()) -> BlockStatus? {
+        nil
     }
 
     public static func recordTerminalAuthFailure(now _: Date = Date()) {}

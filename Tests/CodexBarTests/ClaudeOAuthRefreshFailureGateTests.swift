@@ -169,8 +169,31 @@ struct ClaudeOAuthRefreshFailureGateTests {
         #expect(calls == 2)
 
         // Subsequent checks within the throttle window should not re-read again.
-        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(2)) == false)
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(21)) == false)
         #expect(calls == 2)
+    }
+
+    @Test
+    func terminalBlockIsMonotonic_whenTransientFailureIsRecorded() {
+        ClaudeOAuthRefreshFailureGate.resetForTesting()
+        defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
+
+        let fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
+            keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 1,
+                createdAt: 1,
+                persistentRefHash: "ref1"),
+            credentialsFile: "file1")
+        ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting { fingerprint }
+        defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
+
+        let start = Date(timeIntervalSince1970: 35000)
+        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(now: start)
+        ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: start.addingTimeInterval(1))
+
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(20)) == false)
+        #expect(UserDefaults.standard.bool(forKey: self.terminalBlockedKey) == true)
+        #expect(UserDefaults.standard.object(forKey: self.transientBlockedUntilKey) == nil)
     }
 
     @Test
