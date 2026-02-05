@@ -109,15 +109,6 @@ public enum ClaudeOAuthRefreshFailureGate {
                     return true
                 }
 
-                if self.shouldRecheckCredentials(now: now, state: state) {
-                    state.lastCredentialsRecheckAt = now
-                    if self.hasCredentialsChangedSinceFailure(state) {
-                        self.clearTransientState(&state)
-                        self.persist(state)
-                        return true
-                    }
-                }
-
                 self.log.debug(
                     "Claude OAuth refresh transient backoff active",
                     metadata: [
@@ -153,8 +144,8 @@ public enum ClaudeOAuthRefreshFailureGate {
             state.transientFailureCount += 1
             let interval = self.transientCooldownInterval(failures: state.transientFailureCount)
             state.transientBlockedUntil = now.addingTimeInterval(interval)
-            state.fingerprintAtFailure = self.currentFingerprint() ?? self.unknownFingerprint
-            state.lastCredentialsRecheckAt = now
+            state.fingerprintAtFailure = nil
+            state.lastCredentialsRecheckAt = nil
             self.persist(state)
         }
     }

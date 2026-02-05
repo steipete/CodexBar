@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+#if os(macOS)
 @Suite(.serialized)
 struct ClaudeOAuthRefreshFailureGateTests {
     private let legacyBlockedUntilKey = "claudeOAuthRefreshBackoffBlockedUntilV1"
@@ -177,6 +178,15 @@ struct ClaudeOAuthRefreshFailureGateTests {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
+        let fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
+            keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 1,
+                createdAt: 1,
+                persistentRefHash: "ref1"),
+            credentialsFile: "file1")
+        ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting { fingerprint }
+        defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
+
         let start = Date(timeIntervalSince1970: 5000)
         ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(now: start)
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60)) == false)
@@ -223,3 +233,4 @@ struct ClaudeOAuthRefreshFailureGateTests {
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60 * 60 * 6 + 1)) == true)
     }
 }
+#endif

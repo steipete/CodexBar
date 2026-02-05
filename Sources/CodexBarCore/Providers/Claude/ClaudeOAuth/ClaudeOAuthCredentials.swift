@@ -123,7 +123,7 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
         case let .readFailed(message):
             return "Claude OAuth credentials read failed: \(message)"
         case let .refreshFailed(message):
-            return "Claude OAuth token refresh failed: \(message)."
+            return "Claude OAuth token refresh failed: \(message)"
         case .noRefreshToken:
             return "Claude OAuth refresh token missing. Run `claude` to authenticate."
         }

@@ -1252,9 +1252,10 @@ extension UsageStore {
             }
             // Don't prompt for keychain access during debug dump
             let oauthGateAllowsAttempt = ClaudeOAuthRefreshFailureGate.shouldAttempt()
-            let hasOAuthCredentials = (try? ClaudeOAuthCredentialsStore.load(
-                allowKeychainPrompt: false,
-                respectKeychainPromptCooldown: true)) != nil && oauthGateAllowsAttempt
+            let hasOAuthCredentials = oauthGateAllowsAttempt
+                && (try? ClaudeOAuthCredentialsStore.load(
+                    allowKeychainPrompt: false,
+                    respectKeychainPromptCooldown: true)) != nil
             let hasClaudeBinary = BinaryLocator.resolveClaudeBinary(
                 env: ProcessInfo.processInfo.environment,
                 loginPATH: LoginShellPathCache.shared.current) != nil
