@@ -1251,9 +1251,10 @@ extension UsageStore {
                 ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection) { msg in lines.append(msg) }
             }
             // Don't prompt for keychain access during debug dump
+            let oauthGateAllowsAttempt = ClaudeOAuthRefreshFailureGate.shouldAttempt()
             let hasOAuthCredentials = (try? ClaudeOAuthCredentialsStore.load(
                 allowKeychainPrompt: false,
-                respectKeychainPromptCooldown: true)) != nil
+                respectKeychainPromptCooldown: true)) != nil && oauthGateAllowsAttempt
             let hasClaudeBinary = BinaryLocator.resolveClaudeBinary(
                 env: ProcessInfo.processInfo.environment,
                 loginPATH: LoginShellPathCache.shared.current) != nil
@@ -1271,6 +1272,7 @@ extension UsageStore {
                 lines.append("strategy=\(strategy.dataSource.rawValue)")
             }
             lines.append("hasSessionKey=\(hasKey)")
+            lines.append("oauthGateAllowsAttempt=\(oauthGateAllowsAttempt)")
             lines.append("hasOAuthCredentials=\(hasOAuthCredentials)")
             lines.append("hasClaudeBinary=\(hasClaudeBinary)")
             if strategy.useWebExtras {

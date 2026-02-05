@@ -23,6 +23,9 @@ struct BrowserDetectionTests {
     @Test
     func filterPreservesOrder() {
         BrowserCookieAccessGate.resetForTesting()
+        let keychainDisabled = KeychainAccessGate.isDisabled
+        KeychainAccessGate.isDisabled = false
+        defer { KeychainAccessGate.isDisabled = keychainDisabled }
 
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
