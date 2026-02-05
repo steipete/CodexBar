@@ -11,21 +11,29 @@ public enum ClaudeOAuthRefreshFailureGate {
 
     private struct State {
         var loaded = false
-        var failureCount = 0
+        var terminalFailureCount = 0
+        var transientFailureCount = 0
         var isTerminalBlocked = false
+        var transientBlockedUntil: Date?
         var fingerprintAtFailure: AuthFingerprint?
         var lastCredentialsRecheckAt: Date?
+        var terminalReason: String?
     }
 
     private static let lock = OSAllocatedUnfairLock<State>(initialState: State())
     private static let blockedUntilKey = "claudeOAuthRefreshBackoffBlockedUntilV1" // legacy (migration)
-    private static let failureCountKey = "claudeOAuthRefreshBackoffFailureCountV1"
+    private static let failureCountKey = "claudeOAuthRefreshBackoffFailureCountV1" // legacy + terminal count
     private static let fingerprintKey = "claudeOAuthRefreshBackoffFingerprintV2"
     private static let terminalBlockedKey = "claudeOAuthRefreshTerminalBlockedV1"
+    private static let terminalReasonKey = "claudeOAuthRefreshTerminalReasonV1"
+    private static let transientBlockedUntilKey = "claudeOAuthRefreshTransientBlockedUntilV1"
+    private static let transientFailureCountKey = "claudeOAuthRefreshTransientFailureCountV1"
 
     private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
     private static let minimumCredentialsRecheckInterval: TimeInterval = 15
     private static let unknownFingerprint = AuthFingerprint(keychain: nil, credentialsFile: nil)
+    private static let transientBaseInterval: TimeInterval = 60 * 5
+    private static let transientMaxInterval: TimeInterval = 60 * 60 * 6
 
     #if DEBUG
     private nonisolated(unsafe) static var fingerprintProviderOverride: (() -> AuthFingerprint?)?
@@ -34,17 +42,36 @@ public enum ClaudeOAuthRefreshFailureGate {
         self.fingerprintProviderOverride = provider
     }
 
+    public static func resetInMemoryStateForTesting() {
+        self.lock.withLock { state in
+            state.loaded = false
+            state.terminalFailureCount = 0
+            state.transientFailureCount = 0
+            state.isTerminalBlocked = false
+            state.transientBlockedUntil = nil
+            state.fingerprintAtFailure = nil
+            state.lastCredentialsRecheckAt = nil
+            state.terminalReason = nil
+        }
+    }
+
     public static func resetForTesting() {
         self.lock.withLock { state in
             state.loaded = false
-            state.failureCount = 0
+            state.terminalFailureCount = 0
+            state.transientFailureCount = 0
             state.isTerminalBlocked = false
+            state.transientBlockedUntil = nil
             state.fingerprintAtFailure = nil
             state.lastCredentialsRecheckAt = nil
+            state.terminalReason = nil
             UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
             UserDefaults.standard.removeObject(forKey: self.failureCountKey)
             UserDefaults.standard.removeObject(forKey: self.fingerprintKey)
             UserDefaults.standard.removeObject(forKey: self.terminalBlockedKey)
+            UserDefaults.standard.removeObject(forKey: self.terminalReasonKey)
+            UserDefaults.standard.removeObject(forKey: self.transientBlockedUntilKey)
+            UserDefaults.standard.removeObject(forKey: self.transientFailureCountKey)
         }
     }
     #endif
@@ -56,37 +83,85 @@ public enum ClaudeOAuthRefreshFailureGate {
                 self.persist(state)
             }
 
-            guard state.isTerminalBlocked else { return true }
+            if state.isTerminalBlocked {
+                guard self.shouldRecheckCredentials(now: now, state: state) else { return false }
 
-            guard self.shouldRecheckCredentials(now: now, state: state) else {
+                state.lastCredentialsRecheckAt = now
+                if self.hasCredentialsChangedSinceFailure(state) {
+                    self.resetState(&state)
+                    self.persist(state)
+                    return true
+                }
+
+                self.log.debug(
+                    "Claude OAuth refresh blocked until auth changes",
+                    metadata: [
+                        "terminalFailures": "\(state.terminalFailureCount)",
+                        "reason": state.terminalReason ?? "nil",
+                    ])
                 return false
             }
 
-            state.lastCredentialsRecheckAt = now
-            if self.hasCredentialsChangedSinceFailure(state) {
-                self.resetState(&state)
-                self.persist(state)
-                return true
+            if let blockedUntil = state.transientBlockedUntil {
+                if blockedUntil <= now {
+                    state.transientBlockedUntil = nil
+                    self.persist(state)
+                    return true
+                }
+
+                if self.shouldRecheckCredentials(now: now, state: state) {
+                    state.lastCredentialsRecheckAt = now
+                    if self.hasCredentialsChangedSinceFailure(state) {
+                        self.clearTransientState(&state)
+                        self.persist(state)
+                        return true
+                    }
+                }
+
+                self.log.debug(
+                    "Claude OAuth refresh transient backoff active",
+                    metadata: [
+                        "until": "\(blockedUntil.timeIntervalSince1970)",
+                        "transientFailures": "\(state.transientFailureCount)",
+                    ])
+                return false
             }
 
-            self.log.debug(
-                "Claude OAuth refresh blocked until auth changes",
-                metadata: [
-                    "failures": "\(state.failureCount)",
-                ])
-            return false
+            return true
+        }
+    }
+
+    public static func recordTerminalAuthFailure(now: Date = Date()) {
+        self.lock.withLock { state in
+            _ = self.loadIfNeeded(&state, now: now)
+            state.terminalFailureCount += 1
+            state.isTerminalBlocked = true
+            state.terminalReason = "invalid_grant"
+            state.fingerprintAtFailure = self.currentFingerprint() ?? self.unknownFingerprint
+            state.lastCredentialsRecheckAt = now
+            self.clearTransientState(&state)
+            self.persist(state)
+        }
+    }
+
+    public static func recordTransientFailure(now: Date = Date()) {
+        self.lock.withLock { state in
+            _ = self.loadIfNeeded(&state, now: now)
+
+            self.clearTerminalState(&state)
+
+            state.transientFailureCount += 1
+            let interval = self.transientCooldownInterval(failures: state.transientFailureCount)
+            state.transientBlockedUntil = now.addingTimeInterval(interval)
+            state.fingerprintAtFailure = self.currentFingerprint() ?? self.unknownFingerprint
+            state.lastCredentialsRecheckAt = now
+            self.persist(state)
         }
     }
 
     public static func recordAuthFailure(now: Date = Date()) {
-        self.lock.withLock { state in
-            _ = self.loadIfNeeded(&state, now: now)
-            state.failureCount += 1
-            state.isTerminalBlocked = true
-            state.fingerprintAtFailure = self.currentFingerprint() ?? self.unknownFingerprint
-            state.lastCredentialsRecheckAt = nil
-            self.persist(state)
-        }
+        // Legacy shim: treat as terminal auth failure.
+        self.recordTerminalAuthFailure(now: now)
     }
 
     public static func recordSuccess() {
@@ -98,7 +173,6 @@ public enum ClaudeOAuthRefreshFailureGate {
     }
 
     private static func shouldRecheckCredentials(now: Date, state: State) -> Bool {
-        guard state.isTerminalBlocked else { return false }
         guard let last = state.lastCredentialsRecheckAt else { return true }
         return now.timeIntervalSince(last) >= self.minimumCredentialsRecheckInterval
     }
@@ -123,9 +197,17 @@ public enum ClaudeOAuthRefreshFailureGate {
         state.loaded = true
         var didMutate = false
 
-        state.failureCount = UserDefaults.standard.integer(forKey: self.failureCountKey)
+        state.terminalFailureCount = UserDefaults.standard.integer(forKey: self.failureCountKey)
+        state.transientFailureCount = UserDefaults.standard.integer(forKey: self.transientFailureCountKey)
+
+        if let raw = UserDefaults.standard.object(forKey: self.transientBlockedUntilKey) as? Double {
+            state.transientBlockedUntil = Date(timeIntervalSince1970: raw)
+        }
+
         let legacyBlockedUntil = (UserDefaults.standard.object(forKey: self.blockedUntilKey) as? Double)
             .map { Date(timeIntervalSince1970: $0) }
+        let legacyFailureCount = UserDefaults.standard.integer(forKey: self.failureCountKey)
+
         if let data = UserDefaults.standard.data(forKey: self.fingerprintKey),
            let decoded = try? JSONDecoder().decode(
                AuthFingerprint.self,
@@ -136,27 +218,38 @@ public enum ClaudeOAuthRefreshFailureGate {
 
         if UserDefaults.standard.object(forKey: self.terminalBlockedKey) != nil {
             state.isTerminalBlocked = UserDefaults.standard.bool(forKey: self.terminalBlockedKey)
+            state.terminalReason = UserDefaults.standard.string(forKey: self.terminalReasonKey)
             if legacyBlockedUntil != nil {
                 didMutate = true
             }
         } else {
-            // Migration: the previous implementation used a time-based backoff window (blocked-until) but only
-            // recorded failures for refresh auth failures (HTTP 400/401). Migrate to terminal-blocking.
-            let legacyWindowStillActive = if let legacyBlockedUntil {
-                legacyBlockedUntil > now
-            } else {
-                false
-            }
-            state.isTerminalBlocked = (state.failureCount > 0) || legacyWindowStillActive
-            if state.isTerminalBlocked || legacyBlockedUntil != nil {
+            // Migration: legacy keys represented a time-based backoff. Migrate to transient backoff (never terminal)
+            // unless we already have new transient keys persisted.
+            if UserDefaults.standard.object(forKey: self.transientFailureCountKey) == nil,
+               UserDefaults.standard.object(forKey: self.transientBlockedUntilKey) == nil,
+               legacyBlockedUntil != nil || legacyFailureCount > 0
+            {
+                state.isTerminalBlocked = false
+                state.terminalReason = nil
+                state.terminalFailureCount = 0
+
+                if let legacyBlockedUntil, legacyBlockedUntil > now {
+                    state.transientFailureCount = max(legacyFailureCount, 0)
+                    state.transientBlockedUntil = legacyBlockedUntil
+                } else {
+                    state.transientFailureCount = 0
+                    state.transientBlockedUntil = nil
+                }
                 didMutate = true
             }
         }
 
-        // If we would be terminal-blocked but lack the fingerprint-at-failure (decode failure, missing key),
-        // do not keep the user stuck forever. Reset and allow a retry; a new 400/401 will re-establish the block.
-        if state.isTerminalBlocked, state.fingerprintAtFailure == nil {
+        if state.isTerminalBlocked || state.transientBlockedUntil != nil, state.fingerprintAtFailure == nil {
             state.fingerprintAtFailure = self.unknownFingerprint
+            didMutate = true
+        }
+
+        if legacyBlockedUntil != nil {
             didMutate = true
         }
 
@@ -164,8 +257,21 @@ public enum ClaudeOAuthRefreshFailureGate {
     }
 
     private static func persist(_ state: State) {
-        UserDefaults.standard.set(state.failureCount, forKey: self.failureCountKey)
+        UserDefaults.standard.set(state.terminalFailureCount, forKey: self.failureCountKey)
         UserDefaults.standard.set(state.isTerminalBlocked, forKey: self.terminalBlockedKey)
+        if let reason = state.terminalReason {
+            UserDefaults.standard.set(reason, forKey: self.terminalReasonKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: self.terminalReasonKey)
+        }
+
+        UserDefaults.standard.set(state.transientFailureCount, forKey: self.transientFailureCountKey)
+        if let blockedUntil = state.transientBlockedUntil {
+            UserDefaults.standard.set(blockedUntil.timeIntervalSince1970, forKey: self.transientBlockedUntilKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: self.transientBlockedUntilKey)
+        }
+
         UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
 
         if let fingerprint = state.fingerprintAtFailure,
@@ -177,9 +283,26 @@ public enum ClaudeOAuthRefreshFailureGate {
         }
     }
 
-    private static func resetState(_ state: inout State) {
-        state.failureCount = 0
+    private static func transientCooldownInterval(failures: Int) -> TimeInterval {
+        guard failures > 0 else { return 0 }
+        let factor = pow(2.0, Double(failures - 1))
+        return min(self.transientBaseInterval * factor, self.transientMaxInterval)
+    }
+
+    private static func clearTerminalState(_ state: inout State) {
+        state.terminalFailureCount = 0
         state.isTerminalBlocked = false
+        state.terminalReason = nil
+    }
+
+    private static func clearTransientState(_ state: inout State) {
+        state.transientFailureCount = 0
+        state.transientBlockedUntil = nil
+    }
+
+    private static func resetState(_ state: inout State) {
+        self.clearTerminalState(&state)
+        self.clearTransientState(&state)
         state.fingerprintAtFailure = nil
         state.lastCredentialsRecheckAt = nil
     }
@@ -190,12 +313,17 @@ public enum ClaudeOAuthRefreshFailureGate {
         true
     }
 
+    public static func recordTerminalAuthFailure(now _: Date = Date()) {}
+
+    public static func recordTransientFailure(now _: Date = Date()) {}
+
     public static func recordAuthFailure(now _: Date = Date()) {}
 
     public static func recordSuccess() {}
 
     #if DEBUG
     static func setFingerprintProviderOverrideForTesting(_: (() -> Any?)?) {}
+    public static func resetInMemoryStateForTesting() {}
     public static func resetForTesting() {}
     #endif
 }

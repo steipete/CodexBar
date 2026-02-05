@@ -123,7 +123,7 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
         case let .readFailed(message):
             return "Claude OAuth credentials read failed: \(message)"
         case let .refreshFailed(message):
-            return "Claude OAuth token refresh failed: \(message). Run `claude` to re-authenticate."
+            return "Claude OAuth token refresh failed: \(message)."
         case .noRefreshToken:
             return "Claude OAuth refresh token missing. Run `claude` to authenticate."
         }
@@ -158,6 +158,7 @@ public enum ClaudeOAuthCredentialsStore {
     private static let claudeKeychainChangeCheckLock = NSLock()
     private nonisolated(unsafe) static var lastClaudeKeychainChangeCheckAt: Date?
     private static let claudeKeychainChangeCheckMinimumInterval: TimeInterval = 60
+    private static let reauthenticateHint = "Run `claude` to re-authenticate."
 
     struct ClaudeKeychainFingerprint: Codable, Equatable, Sendable {
         let modifiedAt: Int?
@@ -332,19 +333,6 @@ public enum ClaudeOAuthCredentialsStore {
         throw ClaudeOAuthCredentialsError.notFound
     }
 
-    private static func shouldShowClaudeKeychainPreAlert() -> Bool {
-        switch KeychainAccessPreflight.checkGenericPassword(service: self.claudeKeychainService, account: nil) {
-        case .interactionRequired:
-            true
-        case .failure:
-            // If preflight fails, we can't be sure whether interaction is required (or if the preflight itself
-            // is impacted by a misbehaving Keychain configuration). Be conservative and show the pre-alert.
-            true
-        case .allowed, .notFound:
-            false
-        }
-    }
-
     /// Async version of load that automatically refreshes expired tokens.
     /// This is the preferred method - it will refresh tokens using the refresh token
     /// and update CodexBar's keychain cache, so users won't be prompted again
@@ -417,12 +405,27 @@ public enum ClaudeOAuthCredentialsStore {
         }
 
         guard http.statusCode == 200 else {
-            if http.statusCode == 401 || http.statusCode == 400 {
-                // Refresh token is invalid/expired, or the request was rejected. Treat as terminal until we detect
-                // that Claude auth has changed (e.g. user re-authenticated via `claude`).
-                ClaudeOAuthRefreshFailureGate.recordAuthFailure()
-                self.invalidateCache()
-                throw ClaudeOAuthCredentialsError.refreshFailed("HTTP \(http.statusCode)")
+            if let disposition = self.refreshFailureDisposition(statusCode: http.statusCode, data: data) {
+                let oauthError = self.extractOAuthErrorCode(from: data)
+                self.log.info(
+                    "Claude OAuth refresh rejected",
+                    metadata: [
+                        "httpStatus": "\(http.statusCode)",
+                        "oauthError": oauthError ?? "nil",
+                        "disposition": disposition.rawValue,
+                    ])
+
+                switch disposition {
+                case .terminalInvalidGrant:
+                    ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure()
+                    self.invalidateCache()
+                    throw ClaudeOAuthCredentialsError.refreshFailed(
+                        "HTTP \(http.statusCode) invalid_grant. \(self.reauthenticateHint)")
+                case .transientBackoff:
+                    ClaudeOAuthRefreshFailureGate.recordTransientFailure()
+                    let suffix = oauthError.map { " (\($0))" } ?? ""
+                    throw ClaudeOAuthCredentialsError.refreshFailed("HTTP \(http.statusCode)\(suffix)")
+                }
             }
             throw ClaudeOAuthCredentialsError.refreshFailed("HTTP \(http.statusCode)")
         }
@@ -1075,4 +1078,49 @@ public enum ClaudeOAuthCredentialsStore {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(self.credentialsPath)
     }
+}
+
+extension ClaudeOAuthCredentialsStore {
+    private static func shouldShowClaudeKeychainPreAlert() -> Bool {
+        switch KeychainAccessPreflight.checkGenericPassword(service: self.claudeKeychainService, account: nil) {
+        case .interactionRequired:
+            true
+        case .failure:
+            // If preflight fails, we can't be sure whether interaction is required (or if the preflight itself
+            // is impacted by a misbehaving Keychain configuration). Be conservative and show the pre-alert.
+            true
+        case .allowed, .notFound:
+            false
+        }
+    }
+
+    private enum RefreshFailureDisposition: String, Sendable {
+        case terminalInvalidGrant
+        case transientBackoff
+    }
+
+    private static func extractOAuthErrorCode(from data: Data) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json["error"] as? String
+    }
+
+    private static func refreshFailureDisposition(statusCode: Int, data: Data) -> RefreshFailureDisposition? {
+        guard statusCode == 400 || statusCode == 401 else { return nil }
+        if let error = self.extractOAuthErrorCode(from: data)?.lowercased(), error == "invalid_grant" {
+            return .terminalInvalidGrant
+        }
+        return .transientBackoff
+    }
+
+    #if DEBUG
+    static func extractOAuthErrorCodeForTesting(from data: Data) -> String? {
+        self.extractOAuthErrorCode(from: data)
+    }
+
+    static func refreshFailureDispositionForTesting(statusCode: Int, data: Data) -> String? {
+        self.refreshFailureDisposition(statusCode: statusCode, data: data)?.rawValue
+    }
+    #endif
 }

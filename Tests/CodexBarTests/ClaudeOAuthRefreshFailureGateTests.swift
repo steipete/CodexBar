@@ -8,6 +8,8 @@ struct ClaudeOAuthRefreshFailureGateTests {
     private let legacyFailureCountKey = "claudeOAuthRefreshBackoffFailureCountV1"
     private let legacyFingerprintKey = "claudeOAuthRefreshBackoffFingerprintV2"
     private let terminalBlockedKey = "claudeOAuthRefreshTerminalBlockedV1"
+    private let transientBlockedUntilKey = "claudeOAuthRefreshTransientBlockedUntilV1"
+    private let transientFailureCountKey = "claudeOAuthRefreshTransientFailureCountV1"
 
     @Test
     func blocksIndefinitely_whenFingerprintUnchanged() {
@@ -24,7 +26,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
         defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
 
         let start = Date(timeIntervalSince1970: 1000)
-        ClaudeOAuthRefreshFailureGate.recordAuthFailure(now: start)
+        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(now: start)
 
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60)) == false)
 
@@ -54,7 +56,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func migratesLegacyFailureToTerminalBlock_andPersistsTerminalKey() throws {
+    func migratesLegacyBackoffToTransientBackoff_doesNotSetTerminalBlock() throws {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -69,13 +71,18 @@ struct ClaudeOAuthRefreshFailureGateTests {
         ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting { fingerprint }
         defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
 
+        let legacyBlockedUntil = now.addingTimeInterval(60 * 10)
         UserDefaults.standard.set(2, forKey: self.legacyFailureCountKey)
         UserDefaults.standard.removeObject(forKey: self.terminalBlockedKey)
+        UserDefaults.standard.set(legacyBlockedUntil.timeIntervalSince1970, forKey: self.legacyBlockedUntilKey)
         let data = try JSONEncoder().encode(fingerprint)
         UserDefaults.standard.set(data, forKey: self.legacyFingerprintKey)
 
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: now) == false)
-        #expect(UserDefaults.standard.bool(forKey: self.terminalBlockedKey) == true)
+        #expect(UserDefaults.standard.bool(forKey: self.terminalBlockedKey) == false)
+        #expect(UserDefaults.standard.object(forKey: self.legacyBlockedUntilKey) == nil)
+        #expect(UserDefaults.standard.object(forKey: self.transientBlockedUntilKey) != nil)
+        #expect(UserDefaults.standard.integer(forKey: self.transientFailureCountKey) == 2)
     }
 
     @Test
@@ -88,7 +95,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
         defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
 
         let start = Date(timeIntervalSince1970: 25000)
-        ClaudeOAuthRefreshFailureGate.recordAuthFailure(now: start)
+        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(now: start)
 
         // Still blocked while fingerprint is unavailable.
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(20)) == false)
@@ -118,7 +125,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
         defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
 
         let start = Date(timeIntervalSince1970: 2000)
-        ClaudeOAuthRefreshFailureGate.recordAuthFailure(now: start)
+        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(now: start)
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60)) == false)
 
         fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
@@ -149,20 +156,20 @@ struct ClaudeOAuthRefreshFailureGateTests {
         defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
 
         let start = Date(timeIntervalSince1970: 30000)
-        ClaudeOAuthRefreshFailureGate.recordAuthFailure(now: start)
+        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(now: start)
         #expect(calls == 1)
 
-        // First blocked check re-reads fingerprint to compare.
+        // First blocked check is throttled (we already captured fingerprint at failure).
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(1)) == false)
+        #expect(calls == 1)
+
+        // After the throttle window, it should re-read.
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(20)) == false)
         #expect(calls == 2)
 
-        // Subsequent checks within the throttle window should not re-read.
+        // Subsequent checks within the throttle window should not re-read again.
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(2)) == false)
         #expect(calls == 2)
-
-        // After the throttle window, it should re-read again.
-        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(20)) == false)
-        #expect(calls == 3)
     }
 
     @Test
@@ -171,10 +178,48 @@ struct ClaudeOAuthRefreshFailureGateTests {
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
         let start = Date(timeIntervalSince1970: 5000)
-        ClaudeOAuthRefreshFailureGate.recordAuthFailure(now: start)
+        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(now: start)
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60)) == false)
 
         ClaudeOAuthRefreshFailureGate.recordSuccess()
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60)) == true)
+    }
+
+    @Test
+    func transientBackoff_blocksUntilExpiry_thenUnblocks() {
+        ClaudeOAuthRefreshFailureGate.resetForTesting()
+        defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
+
+        let start = Date(timeIntervalSince1970: 60000)
+        ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: start)
+
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(1)) == false)
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60 * 5 - 1)) == false)
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60 * 5 + 1)) == true)
+    }
+
+    @Test
+    func transientBackoff_isExponentialAndCapped() {
+        ClaudeOAuthRefreshFailureGate.resetForTesting()
+        defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
+
+        let start = Date(timeIntervalSince1970: 70000)
+        ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: start)
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60 * 5 + 1)) == true)
+
+        let secondFailureAt = start.addingTimeInterval(60 * 5 + 1)
+        ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: secondFailureAt)
+        #expect(ClaudeOAuthRefreshFailureGate
+            .shouldAttempt(now: secondFailureAt.addingTimeInterval(60 * 10 - 1)) == false)
+        #expect(ClaudeOAuthRefreshFailureGate
+            .shouldAttempt(now: secondFailureAt.addingTimeInterval(60 * 10 + 1)) == true)
+
+        ClaudeOAuthRefreshFailureGate.resetInMemoryStateForTesting()
+        for _ in 0..<20 {
+            ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: start)
+        }
+
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60 * 60 * 6 - 1)) == false)
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60 * 60 * 6 + 1)) == true)
     }
 }
