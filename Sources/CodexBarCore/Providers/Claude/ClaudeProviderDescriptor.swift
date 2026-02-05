@@ -139,7 +139,8 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         if context.runtime == .app, context.sourceMode == .auto || context.sourceMode == .oauth {
             guard ClaudeOAuthRefreshFailureGate.shouldAttempt() else { return false }
         }
-        // In OAuth-only mode, allow the fetch to run and prompt once when needed.
+        // In OAuth-only mode, allow the fetch to run (and prompt when needed) unless we have a terminal refresh
+        // auth failure (HTTP 400/401) that remains blocked until we detect auth changes.
         guard context.sourceMode == .auto else { return true }
 
         // Prefer OAuth in Auto mode only when it’s plausibly usable:

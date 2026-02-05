@@ -413,7 +413,8 @@ public enum ClaudeOAuthCredentialsStore {
 
         guard http.statusCode == 200 else {
             if http.statusCode == 401 || http.statusCode == 400 {
-                // Refresh token is invalid/expired, or the request was rejected.
+                // Refresh token is invalid/expired, or the request was rejected. Treat as terminal until we detect
+                // that Claude auth has changed (e.g. user re-authenticated via `claude`).
                 ClaudeOAuthRefreshFailureGate.recordAuthFailure()
                 self.invalidateCache()
                 throw ClaudeOAuthCredentialsError.refreshFailed("HTTP \(http.statusCode)")

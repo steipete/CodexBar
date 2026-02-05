@@ -12,17 +12,16 @@ public enum ClaudeOAuthRefreshFailureGate {
     private struct State {
         var loaded = false
         var failureCount = 0
-        var blockedUntil: Date?
+        var isTerminalBlocked = false
         var fingerprintAtFailure: AuthFingerprint?
     }
 
     private static let lock = OSAllocatedUnfairLock<State>(initialState: State())
-    private static let blockedUntilKey = "claudeOAuthRefreshBackoffBlockedUntilV1"
+    private static let blockedUntilKey = "claudeOAuthRefreshBackoffBlockedUntilV1" // legacy (migration)
     private static let failureCountKey = "claudeOAuthRefreshBackoffFailureCountV1"
     private static let fingerprintKey = "claudeOAuthRefreshBackoffFingerprintV2"
+    private static let terminalBlockedKey = "claudeOAuthRefreshTerminalBlockedV1"
 
-    private static let baseInterval: TimeInterval = 60 * 5
-    private static let maxInterval: TimeInterval = 60 * 60 * 6
     private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
 
     #if DEBUG
@@ -36,25 +35,25 @@ public enum ClaudeOAuthRefreshFailureGate {
         self.lock.withLock { state in
             state.loaded = false
             state.failureCount = 0
-            state.blockedUntil = nil
+            state.isTerminalBlocked = false
             state.fingerprintAtFailure = nil
             UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
             UserDefaults.standard.removeObject(forKey: self.failureCountKey)
             UserDefaults.standard.removeObject(forKey: self.fingerprintKey)
+            UserDefaults.standard.removeObject(forKey: self.terminalBlockedKey)
         }
     }
     #endif
 
     public static func shouldAttempt(now: Date = Date()) -> Bool {
-        self.lock.withLock { state in
-            self.loadIfNeeded(&state)
-            guard let blockedUntil = state.blockedUntil else { return true }
-
-            if blockedUntil <= now {
-                state.blockedUntil = nil
+        _ = now
+        return self.lock.withLock { state in
+            let didMigrate = self.loadIfNeeded(&state)
+            if didMigrate {
                 self.persist(state)
-                return true
             }
+
+            guard state.isTerminalBlocked else { return true }
 
             if self.hasCredentialsChangedSinceFailure(state) {
                 self.resetState(&state)
@@ -63,9 +62,8 @@ public enum ClaudeOAuthRefreshFailureGate {
             }
 
             self.log.debug(
-                "Claude OAuth refresh backoff active",
+                "Claude OAuth refresh blocked until auth changes",
                 metadata: [
-                    "until": "\(blockedUntil.timeIntervalSince1970)",
                     "failures": "\(state.failureCount)",
                 ])
             return false
@@ -73,10 +71,11 @@ public enum ClaudeOAuthRefreshFailureGate {
     }
 
     public static func recordAuthFailure(now: Date = Date()) {
+        _ = now
         self.lock.withLock { state in
-            self.loadIfNeeded(&state)
+            _ = self.loadIfNeeded(&state)
             state.failureCount += 1
-            state.blockedUntil = now.addingTimeInterval(self.cooldownInterval(failures: state.failureCount))
+            state.isTerminalBlocked = true
             state.fingerprintAtFailure = self.currentFingerprint()
             self.persist(state)
         }
@@ -84,21 +83,15 @@ public enum ClaudeOAuthRefreshFailureGate {
 
     public static func recordSuccess() {
         self.lock.withLock { state in
-            self.loadIfNeeded(&state)
+            _ = self.loadIfNeeded(&state)
             self.resetState(&state)
             self.persist(state)
         }
     }
 
-    private static func cooldownInterval(failures: Int) -> TimeInterval {
-        guard failures > 0 else { return 0 }
-        let factor = pow(2.0, Double(failures - 1))
-        return min(self.baseInterval * factor, self.maxInterval)
-    }
-
     private static func hasCredentialsChangedSinceFailure(_ state: State) -> Bool {
-        guard let prior = state.fingerprintAtFailure else { return false }
         guard let current = self.currentFingerprint() else { return false }
+        guard let prior = state.fingerprintAtFailure else { return false }
         return current != prior
     }
 
@@ -111,14 +104,13 @@ public enum ClaudeOAuthRefreshFailureGate {
             credentialsFile: ClaudeOAuthCredentialsStore.currentCredentialsFileFingerprintWithoutPromptForAuthGate())
     }
 
-    private static func loadIfNeeded(_ state: inout State) {
-        guard !state.loaded else { return }
+    private static func loadIfNeeded(_ state: inout State) -> Bool {
+        guard !state.loaded else { return false }
         state.loaded = true
+        var didMutate = false
 
         state.failureCount = UserDefaults.standard.integer(forKey: self.failureCountKey)
-        if let raw = UserDefaults.standard.object(forKey: self.blockedUntilKey) as? Double {
-            state.blockedUntil = Date(timeIntervalSince1970: raw)
-        }
+        let hasLegacyBlockedUntil = UserDefaults.standard.object(forKey: self.blockedUntilKey) != nil
         if let data = UserDefaults.standard.data(forKey: self.fingerprintKey),
            let decoded = try? JSONDecoder().decode(
                AuthFingerprint.self,
@@ -126,15 +118,37 @@ public enum ClaudeOAuthRefreshFailureGate {
         {
             state.fingerprintAtFailure = decoded
         }
+
+        if UserDefaults.standard.object(forKey: self.terminalBlockedKey) == nil {
+            // Migration: previously the gate used an exponential backoff time window and only recorded failures for
+            // refresh auth failures (HTTP 400/401). Treat any persisted legacy state as terminal-blocked.
+            if state.failureCount > 0 || hasLegacyBlockedUntil {
+                state.isTerminalBlocked = true
+                didMutate = true
+            }
+        } else {
+            state.isTerminalBlocked = UserDefaults.standard.bool(forKey: self.terminalBlockedKey)
+        }
+
+        // Normalize: clear legacy blocked-until state once terminal mode is in effect.
+        if state.isTerminalBlocked, hasLegacyBlockedUntil {
+            didMutate = true
+        }
+
+        // If we're blocked but have no stored fingerprint (e.g. migration, decode failure), pin the current
+        // fingerprint so we only unblock on an actual auth change.
+        if state.isTerminalBlocked, state.fingerprintAtFailure == nil {
+            state.fingerprintAtFailure = self.currentFingerprint()
+            didMutate = true
+        }
+
+        return didMutate
     }
 
     private static func persist(_ state: State) {
         UserDefaults.standard.set(state.failureCount, forKey: self.failureCountKey)
-        if let blockedUntil = state.blockedUntil {
-            UserDefaults.standard.set(blockedUntil.timeIntervalSince1970, forKey: self.blockedUntilKey)
-        } else {
-            UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
-        }
+        UserDefaults.standard.set(state.isTerminalBlocked, forKey: self.terminalBlockedKey)
+        UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
 
         if let fingerprint = state.fingerprintAtFailure,
            let data = try? JSONEncoder().encode(fingerprint)
@@ -147,7 +161,7 @@ public enum ClaudeOAuthRefreshFailureGate {
 
     private static func resetState(_ state: inout State) {
         state.failureCount = 0
-        state.blockedUntil = nil
+        state.isTerminalBlocked = false
         state.fingerprintAtFailure = nil
     }
 }
