@@ -200,6 +200,15 @@ struct ClaudeOAuthRefreshFailureGateTests {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
+        let fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
+            keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 1,
+                createdAt: 1,
+                persistentRefHash: "ref1"),
+            credentialsFile: "file1")
+        ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting { fingerprint }
+        defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
+
         let start = Date(timeIntervalSince1970: 60000)
         ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: start)
 
@@ -212,6 +221,15 @@ struct ClaudeOAuthRefreshFailureGateTests {
     func transientBackoff_isExponentialAndCapped() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
+
+        let fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
+            keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 1,
+                createdAt: 1,
+                persistentRefHash: "ref1"),
+            credentialsFile: "file1")
+        ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting { fingerprint }
+        defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
 
         let start = Date(timeIntervalSince1970: 70000)
         ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: start)
@@ -231,6 +249,37 @@ struct ClaudeOAuthRefreshFailureGateTests {
 
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60 * 60 * 6 - 1)) == false)
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(60 * 60 * 6 + 1)) == true)
+    }
+
+    @Test
+    func transientBackoff_unblocksEarly_whenFingerprintChanges() {
+        ClaudeOAuthRefreshFailureGate.resetForTesting()
+        defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
+
+        var fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
+            keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 1,
+                createdAt: 1,
+                persistentRefHash: "ref1"),
+            credentialsFile: "file1")
+        ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting { fingerprint }
+        defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
+
+        let start = Date(timeIntervalSince1970: 80000)
+        ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: start)
+
+        // Still blocked while timer is active and fingerprint unchanged.
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(20)) == false)
+
+        fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
+            keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 2,
+                createdAt: 2,
+                persistentRefHash: "ref2"),
+            credentialsFile: "file2")
+
+        // Even though the 5-minute cooldown window hasn't elapsed, a fingerprint change should unblock.
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(40)) == true)
     }
 }
 #endif
