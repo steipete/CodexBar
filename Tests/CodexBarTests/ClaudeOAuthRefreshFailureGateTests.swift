@@ -79,6 +79,31 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
+    func unblocksWhenFingerprintBecomesAvailable_afterBeingUnknownAtFailure() {
+        ClaudeOAuthRefreshFailureGate.resetForTesting()
+        defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
+
+        var fingerprint: ClaudeOAuthRefreshFailureGate.AuthFingerprint?
+        ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting { fingerprint }
+        defer { ClaudeOAuthRefreshFailureGate.setFingerprintProviderOverrideForTesting(nil) }
+
+        let start = Date(timeIntervalSince1970: 25000)
+        ClaudeOAuthRefreshFailureGate.recordAuthFailure(now: start)
+
+        // Still blocked while fingerprint is unavailable.
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(20)) == false)
+
+        // Once fingerprint becomes available, the sentinel differs and we unblock.
+        fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
+            keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 1,
+                createdAt: 1,
+                persistentRefHash: "ref1"),
+            credentialsFile: "file1")
+        #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(40)) == true)
+    }
+
+    @Test
     func unblocksImmediately_whenFingerprintChanges() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }

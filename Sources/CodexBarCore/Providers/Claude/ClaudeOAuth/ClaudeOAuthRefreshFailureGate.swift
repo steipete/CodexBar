@@ -25,6 +25,7 @@ public enum ClaudeOAuthRefreshFailureGate {
 
     private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
     private static let minimumCredentialsRecheckInterval: TimeInterval = 15
+    private static let unknownFingerprint = AuthFingerprint(keychain: nil, credentialsFile: nil)
 
     #if DEBUG
     private nonisolated(unsafe) static var fingerprintProviderOverride: (() -> AuthFingerprint?)?
@@ -82,7 +83,7 @@ public enum ClaudeOAuthRefreshFailureGate {
             _ = self.loadIfNeeded(&state, now: now)
             state.failureCount += 1
             state.isTerminalBlocked = true
-            state.fingerprintAtFailure = self.currentFingerprint()
+            state.fingerprintAtFailure = self.currentFingerprint() ?? self.unknownFingerprint
             state.lastCredentialsRecheckAt = nil
             self.persist(state)
         }
@@ -155,7 +156,7 @@ public enum ClaudeOAuthRefreshFailureGate {
         // If we would be terminal-blocked but lack the fingerprint-at-failure (decode failure, missing key),
         // do not keep the user stuck forever. Reset and allow a retry; a new 400/401 will re-establish the block.
         if state.isTerminalBlocked, state.fingerprintAtFailure == nil {
-            self.resetState(&state)
+            state.fingerprintAtFailure = self.unknownFingerprint
             didMutate = true
         }
 
