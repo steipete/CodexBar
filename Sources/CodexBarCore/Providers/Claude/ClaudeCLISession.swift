@@ -393,7 +393,7 @@ actor ClaudeCLISession {
                 if written == 0 { break }
 
                 let err = errno
-                if err == EAGAIN || err == EWOULDBLOCK {
+                if err == EINTR || err == EAGAIN || err == EWOULDBLOCK {
                     retries += 1
                     if retries > 200 {
                         throw SessionError.ioFailed("write to PTY would block")
