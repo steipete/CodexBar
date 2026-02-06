@@ -11,12 +11,14 @@ actor ClaudeCLISession {
 
     enum SessionError: LocalizedError {
         case launchFailed(String)
+        case ioFailed(String)
         case timedOut
         case processExited
 
         var errorDescription: String? {
             switch self {
             case let .launchFailed(msg): "Failed to launch Claude CLI session: \(msg)"
+            case let .ioFailed(msg): "Claude CLI PTY I/O failed: \(msg)"
             case .timedOut: "Claude CLI session timed out."
             case .processExited: "Claude CLI session exited."
             }
@@ -31,12 +33,12 @@ actor ClaudeCLISession {
     private var binaryPath: String?
     private var startedAt: Date?
 
-    private let sendOnSubstrings: [String: String] = [
+    private let promptSends: [String: String] = [
         "Do you trust the files in this folder?": "y\r",
+        "Quick safety check:": "\r",
+        "Yes, I trust this folder": "\r",
         "Ready to code here?": "\r",
         "Press Enter to continue": "\r",
-        "Show plan usage limits": "\r",
-        "Show Claude Code status": "\r",
     ]
 
     private struct RollingBuffer {
@@ -66,6 +68,30 @@ actor ClaudeCLISession {
         }
     }
 
+    private static func normalizedNeedle(_ text: String) -> String {
+        String(text.lowercased().filter { !$0.isWhitespace })
+    }
+
+    private static func commandPaletteSends(for subcommand: String) -> [String: String] {
+        let normalized = subcommand.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "/usage":
+            // Claude's command palette can render several "Show ..." actions together; only auto-confirm the
+            // usage-related actions here so we do not accidentally execute /status.
+            return [
+                "Show plan": "\r",
+                "Show plan usage limits": "\r",
+            ]
+        case "/status":
+            return [
+                "Show Claude Code": "\r",
+                "Show Claude Code status": "\r",
+            ]
+        default:
+            return [:]
+        }
+    }
+
     func capture(
         subcommand: String,
         binary: String,
@@ -78,79 +104,87 @@ actor ClaudeCLISession {
         try self.ensureStarted(binary: binary)
         if let startedAt {
             let sinceStart = Date().timeIntervalSince(startedAt)
-            if sinceStart < 0.4 {
-                let delay = UInt64((0.4 - sinceStart) * 1_000_000_000)
+            // Claude's TUI can drop early keystrokes while it's still initializing. Wait a bit longer than the
+            // original 0.4s to ensure slash commands reliably open their panels.
+            if sinceStart < 2.0 {
+                let delay = UInt64((2.0 - sinceStart) * 1_000_000_000)
                 try await Task.sleep(nanoseconds: delay)
             }
         }
         self.drainOutput()
 
         let trimmed = subcommand.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isSlashCommand = trimmed.hasPrefix("/")
         if !trimmed.isEmpty {
             try self.send(trimmed)
             try self.send("\r")
         }
 
-        let stopNeedles = stopOnSubstrings.map { Data($0.utf8) }
-        let sendNeedles = self.sendOnSubstrings.map { (needle: Data($0.key.utf8), keys: Data($0.value.utf8)) }
+        let stopNeedles = stopOnSubstrings.map { Self.normalizedNeedle($0) }
+        var sendMap = self.promptSends
+        for (needle, keys) in Self.commandPaletteSends(for: trimmed) {
+            sendMap[needle] = keys
+        }
+        let sendNeedles = sendMap.map { (needle: Self.normalizedNeedle($0.key), keys: $0.value) }
         let cursorQuery = Data([0x1B, 0x5B, 0x36, 0x6E])
         let needleLengths =
-            stopNeedles.map(\.count) +
-            sendNeedles.map(\.needle.count) +
+            stopOnSubstrings.map(\.utf8.count) +
+            sendMap.keys.map(\.utf8.count) +
             [cursorQuery.count]
         let maxNeedle = needleLengths.max() ?? cursorQuery.count
         var scanBuffer = RollingBuffer(maxNeedle: maxNeedle)
-        var triggeredSends = Set<Data>()
+        var triggeredSends = Set<String>()
 
         var buffer = Data()
+        var scanTailText = ""
         let deadline = Date().addingTimeInterval(timeout)
         var lastOutputAt = Date()
         var lastEnterAt = Date()
-        var nextCursorCheckAt = Date(timeIntervalSince1970: 0)
         var stoppedEarly = false
+        let effectiveEnterEvery: TimeInterval? = sendEnterEvery ?? (isSlashCommand ? 0.8 : nil)
 
         while Date() < deadline {
             let newData = self.readChunk()
             if !newData.isEmpty {
                 buffer.append(newData)
                 lastOutputAt = Date()
+                if let chunk = String(bytes: newData, encoding: .utf8) {
+                    scanTailText.append(chunk)
+                }
+                if scanTailText.count > 8192 { scanTailText = String(scanTailText.suffix(8192)) }
             }
 
             let scanData = scanBuffer.append(newData)
-            if Date() >= nextCursorCheckAt,
-               !scanData.isEmpty,
+            if !scanData.isEmpty,
                scanData.range(of: cursorQuery) != nil
             {
                 try? self.send("\u{1b}[1;1R")
-                nextCursorCheckAt = Date().addingTimeInterval(1.0)
             }
 
-            if !sendNeedles.isEmpty {
-                for item in sendNeedles where !triggeredSends.contains(item.needle) {
-                    if scanData.range(of: item.needle) != nil {
-                        try? self.primaryHandle?.write(contentsOf: item.keys)
-                        triggeredSends.insert(item.needle)
-                    }
+            let normalizedScan = Self.normalizedNeedle(TextParsing.stripANSICodes(scanTailText))
+
+            for item in sendNeedles where !triggeredSends.contains(item.needle) {
+                if normalizedScan.contains(item.needle) {
+                    try? self.send(item.keys)
+                    triggeredSends.insert(item.needle)
                 }
             }
 
-            if !stopNeedles.isEmpty, stopNeedles.contains(where: { scanData.range(of: $0) != nil }) {
+            if stopNeedles.contains(where: normalizedScan.contains) {
                 stoppedEarly = true
                 break
             }
 
-            if let idleTimeout,
-               !buffer.isEmpty,
-               Date().timeIntervalSince(lastOutputAt) >= idleTimeout
+            if self.shouldStopForIdleTimeout(
+                idleTimeout: idleTimeout,
+                bufferIsEmpty: buffer.isEmpty,
+                lastOutputAt: lastOutputAt)
             {
                 stoppedEarly = true
                 break
             }
 
-            if let every = sendEnterEvery, Date().timeIntervalSince(lastEnterAt) >= every {
-                try? self.send("\r")
-                lastEnterAt = Date()
-            }
+            self.sendPeriodicEnterIfNeeded(every: effectiveEnterEvery, lastEnterAt: &lastEnterAt)
 
             if let proc = self.process, !proc.isRunning {
                 throw SessionError.processExited
@@ -202,7 +236,9 @@ actor ClaudeCLISession {
 
         let proc = Process()
         let resolvedURL = URL(fileURLWithPath: binary)
-        if resolvedURL.lastPathComponent == "claude",
+        let disableWatchdog = ProcessInfo.processInfo.environment["CODEXBAR_DISABLE_CLAUDE_WATCHDOG"] == "1"
+        if !disableWatchdog,
+           resolvedURL.lastPathComponent == "claude",
            let watchdog = TTYCommandRunner.locateBundledHelper("CodexBarClaudeWatchdog")
         {
             proc.executableURL = URL(fileURLWithPath: watchdog)
@@ -268,8 +304,8 @@ actor ClaudeCLISession {
         if self.process != nil {
             Self.log.debug("Claude CLI session stopping")
         }
-        if let proc = self.process, proc.isRunning, let handle = self.primaryHandle {
-            try? handle.write(contentsOf: Data("/exit\n".utf8))
+        if let proc = self.process, proc.isRunning {
+            try? self.writeAllToPrimary(Data("/exit\r".utf8))
         }
         try? self.primaryHandle?.close()
         try? self.secondaryHandle?.close()
@@ -320,9 +356,53 @@ actor ClaudeCLISession {
         _ = self.readChunk()
     }
 
+    private func shouldStopForIdleTimeout(
+        idleTimeout: TimeInterval?,
+        bufferIsEmpty: Bool,
+        lastOutputAt: Date) -> Bool
+    {
+        guard let idleTimeout, !bufferIsEmpty else { return false }
+        return Date().timeIntervalSince(lastOutputAt) >= idleTimeout
+    }
+
+    private func sendPeriodicEnterIfNeeded(every: TimeInterval?, lastEnterAt: inout Date) {
+        guard let every, Date().timeIntervalSince(lastEnterAt) >= every else { return }
+        try? self.send("\r")
+        lastEnterAt = Date()
+    }
+
     private func send(_ text: String) throws {
         guard let data = text.data(using: .utf8) else { return }
-        guard let handle = self.primaryHandle else { throw SessionError.processExited }
-        try handle.write(contentsOf: data)
+        guard self.primaryFD >= 0 else { throw SessionError.processExited }
+        try self.writeAllToPrimary(data)
+    }
+
+    private func writeAllToPrimary(_ data: Data) throws {
+        guard self.primaryFD >= 0 else { throw SessionError.processExited }
+        try data.withUnsafeBytes { rawBytes in
+            guard let baseAddress = rawBytes.baseAddress else { return }
+            var offset = 0
+            var retries = 0
+            while offset < rawBytes.count {
+                let written = write(self.primaryFD, baseAddress.advanced(by: offset), rawBytes.count - offset)
+                if written > 0 {
+                    offset += written
+                    retries = 0
+                    continue
+                }
+                if written == 0 { break }
+
+                let err = errno
+                if err == EAGAIN || err == EWOULDBLOCK {
+                    retries += 1
+                    if retries > 200 {
+                        throw SessionError.ioFailed("write to PTY would block")
+                    }
+                    usleep(5000)
+                    continue
+                }
+                throw SessionError.ioFailed("write to PTY failed: \(String(cString: strerror(err)))")
+            }
+        }
     }
 }

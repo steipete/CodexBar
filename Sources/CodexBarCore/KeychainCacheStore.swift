@@ -27,9 +27,15 @@ public enum KeychainCacheStore {
     private static let log = CodexBarLog.logger(LogCategories.keychainCache)
     private static let cacheService = "com.steipete.codexbar.cache"
     private static let cacheLabel = "CodexBar Cache"
-    private nonisolated(unsafe) static var serviceOverride: String?
+    private nonisolated(unsafe) static var globalServiceOverride: String?
+    @TaskLocal private static var serviceOverride: String?
     private static let testStoreLock = NSLock()
-    private nonisolated(unsafe) static var testStore: [Key: Data]?
+    private struct TestStoreKey: Hashable {
+        let service: String
+        let account: String
+    }
+
+    private nonisolated(unsafe) static var testStore: [TestStoreKey: Data]?
     private nonisolated(unsafe) static var testStoreRefCount = 0
 
     public static func load<Entry: Codable>(
@@ -132,7 +138,13 @@ public enum KeychainCacheStore {
     }
 
     static func setServiceOverrideForTesting(_ service: String?) {
-        self.serviceOverride = service
+        self.globalServiceOverride = service
+    }
+
+    static func withServiceOverrideForTesting<T>(_ service: String?, operation: () throws -> T) rethrows -> T {
+        try self.$serviceOverride.withValue(service) {
+            try operation()
+        }
     }
 
     static func setTestStoreForTesting(_ enabled: Bool) {
@@ -152,7 +164,7 @@ public enum KeychainCacheStore {
     }
 
     private static var serviceName: String {
-        self.serviceOverride ?? self.cacheService
+        serviceOverride ?? self.globalServiceOverride ?? self.cacheService
     }
 
     private static func makeEncoder() -> JSONEncoder {
@@ -174,7 +186,8 @@ public enum KeychainCacheStore {
         self.testStoreLock.lock()
         defer { self.testStoreLock.unlock() }
         guard let store = self.testStore else { return nil }
-        guard let data = store[key] else { return .missing }
+        let testKey = TestStoreKey(service: self.serviceName, account: key.account)
+        guard let data = store[testKey] else { return .missing }
         let decoder = Self.makeDecoder()
         guard let decoded = try? decoder.decode(Entry.self, from: data) else {
             return .invalid
@@ -188,7 +201,8 @@ public enum KeychainCacheStore {
         guard var store = self.testStore else { return false }
         let encoder = Self.makeEncoder()
         guard let data = try? encoder.encode(entry) else { return true }
-        store[key] = data
+        let testKey = TestStoreKey(service: self.serviceName, account: key.account)
+        store[testKey] = data
         self.testStore = store
         return true
     }
@@ -197,7 +211,8 @@ public enum KeychainCacheStore {
         self.testStoreLock.lock()
         defer { self.testStoreLock.unlock() }
         guard var store = self.testStore else { return false }
-        store.removeValue(forKey: key)
+        let testKey = TestStoreKey(service: self.serviceName, account: key.account)
+        store.removeValue(forKey: testKey)
         self.testStore = store
         return true
     }

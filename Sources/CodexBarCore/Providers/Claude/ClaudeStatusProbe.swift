@@ -68,7 +68,11 @@ public struct ClaudeStatusProbe: Sendable {
         let timeout = self.timeout
         let keepAlive = self.keepCLISessionsAlive
         do {
-            let usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: timeout)
+            var usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: timeout)
+            if !Self.usageOutputLooksRelevant(usage) {
+                Self.log.debug("Claude CLI /usage looked like startup output; retrying once")
+                usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: max(timeout, 14))
+            }
             let status = try? await Self.capture(subcommand: "/status", binary: resolved, timeout: min(timeout, 12))
             let snap = try Self.parse(text: usage, statusText: status)
 
@@ -128,7 +132,12 @@ public struct ClaudeStatusProbe: Sendable {
             throw ClaudeStatusProbeError.parseFailed(usageError)
         }
 
-        let labelContext = LabelSearchContext(text: clean)
+        // Claude CLI renders /usage as a TUI. Our PTY capture includes earlier screen fragments (including a status
+        // line
+        // with a "0%" context meter) before the usage panel is drawn. To keep parsing stable, trim to the last
+        // Settings/Usage panel when present.
+        let usagePanelText = self.trimToLatestUsagePanel(clean) ?? clean
+        let labelContext = LabelSearchContext(text: usagePanelText)
 
         var sessionPct = self.extractPercent(labelSubstring: "Current session", context: labelContext)
         var weeklyPct = self.extractPercent(labelSubstring: "Current week (all models)", context: labelContext)
@@ -143,11 +152,14 @@ public struct ClaudeStatusProbe: Sendable {
         // Fallback: order-based percent scraping when labels are present but the surrounding layout moved.
         // Only apply the fallback when the corresponding label exists in the rendered panel; enterprise accounts
         // may omit the weekly panel entirely, and we should treat that as "unavailable" rather than guessing.
-        let hasWeeklyLabel = labelContext.contains(Self.weeklyLabelNeedle)
+        let compactContext = usagePanelText.lowercased().filter { !$0.isWhitespace }
+        let hasWeeklyLabel =
+            labelContext.contains(Self.weeklyLabelNeedle)
+            || compactContext.contains("currentweek")
         let hasOpusLabel = labelContext.contains(Self.opusLabelNeedle) || labelContext.contains(Self.sonnetLabelNeedle)
 
         if sessionPct == nil || (hasWeeklyLabel && weeklyPct == nil) || (hasOpusLabel && opusPct == nil) {
-            let ordered = self.allPercents(clean)
+            let ordered = self.allPercents(usagePanelText)
             if sessionPct == nil, ordered.indices.contains(0) { sessionPct = ordered[0] }
             if hasWeeklyLabel, weeklyPct == nil, ordered.indices.contains(1) { weeklyPct = ordered[1] }
             if hasOpusLabel, opusPct == nil, ordered.indices.contains(2) { opusPct = ordered[2] }
@@ -161,7 +173,13 @@ public struct ClaudeStatusProbe: Sendable {
                 reason: "missing session label",
                 usage: clean,
                 status: statusText)
-            throw ClaudeStatusProbeError.parseFailed("Missing Current session")
+            if shouldDump {
+                let tail = usagePanelText.suffix(1800)
+                let snippet = tail.isEmpty ? "(empty)" : String(tail)
+                throw ClaudeStatusProbeError.parseFailed(
+                    "Missing Current session.\n\n--- Clean usage tail ---\n\(snippet)")
+            }
+            throw ClaudeStatusProbeError.parseFailed("Missing Current session.")
         }
 
         let sessionReset = self.extractReset(labelSubstring: "Current session", context: labelContext)
@@ -223,6 +241,14 @@ public struct ClaudeStatusProbe: Sendable {
         return nil
     }
 
+    private static func usageOutputLooksRelevant(_ text: String) -> Bool {
+        let normalized = TextParsing.stripANSICodes(text).lowercased().filter { !$0.isWhitespace }
+        return normalized.contains("currentsession")
+            || normalized.contains("currentweek")
+            || normalized.contains("loadingusage")
+            || normalized.contains("failedtoloadusagedata")
+    }
+
     private static func extractPercent(labelSubstrings: [String], context: LabelSearchContext) -> Int? {
         for label in labelSubstrings {
             if let value = self.extractPercent(labelSubstring: label, context: context) { return value }
@@ -231,6 +257,8 @@ public struct ClaudeStatusProbe: Sendable {
     }
 
     private static func percentFromLine(_ line: String, assumeRemainingWhenUnclear: Bool = false) -> Int? {
+        if self.isLikelyStatusContextLine(line) { return nil }
+
         // Allow optional Unicode whitespace before % to handle CLI formatting changes.
         let pattern = #"([0-9]{1,3}(?:\.[0-9]+)?)\p{Zs}*%"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
@@ -251,6 +279,13 @@ public struct ClaudeStatusProbe: Sendable {
             return Int(clamped.rounded())
         }
         return assumeRemainingWhenUnclear ? Int(clamped.rounded()) : nil
+    }
+
+    private static func isLikelyStatusContextLine(_ line: String) -> Bool {
+        guard line.contains("|") else { return false }
+        let lower = line.lowercased()
+        let modelTokens = ["opus", "sonnet", "haiku", "default"]
+        return modelTokens.contains(where: lower.contains)
     }
 
     private static func extractFirst(pattern: String, text: String) -> String? {
@@ -350,7 +385,37 @@ public struct ClaudeStatusProbe: Sendable {
     /// Collect remaining percentages in the order they appear; used as a backup when labels move/rename.
     private static func allPercents(_ text: String) -> [Int] {
         let lines = text.components(separatedBy: .newlines)
-        return lines.compactMap { self.percentFromLine($0, assumeRemainingWhenUnclear: true) }
+        let normalized = text.lowercased().filter { !$0.isWhitespace }
+        let hasUsageWindows = normalized.contains("currentsession") || normalized.contains("currentweek")
+        let hasLoading = normalized.contains("loadingusage")
+        let hasUsagePercentKeywords = normalized.contains("used") || normalized.contains("left")
+            || normalized.contains("remaining") || normalized.contains("available")
+        let loadingOnly = hasLoading && !hasUsageWindows
+        guard hasUsageWindows || hasLoading else { return [] }
+        if loadingOnly { return [] }
+        guard hasUsagePercentKeywords else { return [] }
+
+        // Keep this strict to avoid matching Claude's status-line context meter (e.g. "0%") as session usage when the
+        // /usage panel is still rendering.
+        return lines.compactMap { self.percentFromLine($0, assumeRemainingWhenUnclear: false) }
+    }
+
+    /// Attempts to isolate the most recent /usage panel output from a PTY capture.
+    /// The Claude TUI draws a "Settings: … Usage …" header; we slice from its last occurrence to avoid earlier screen
+    /// fragments (like the status bar) contaminating percent scraping.
+    private static func trimToLatestUsagePanel(_ text: String) -> String? {
+        guard let settingsRange = text.range(of: "Settings:", options: [.caseInsensitive, .backwards]) else {
+            return nil
+        }
+        let tail = text[settingsRange.lowerBound...]
+        guard tail.range(of: "Usage", options: .caseInsensitive) != nil else { return nil }
+        let lower = tail.lowercased()
+        let hasPercent = lower.contains("%")
+        let hasUsageWords = lower.contains("used") || lower.contains("left") || lower.contains("remaining")
+            || lower.contains("available")
+        let hasLoading = lower.contains("loading usage")
+        guard (hasPercent && hasUsageWords) || hasLoading else { return nil }
+        return String(tail)
     }
 
     private static func extractReset(labelSubstring: String, context: LabelSearchContext) -> String? {
@@ -641,6 +706,10 @@ public struct ClaudeStatusProbe: Sendable {
     private static func capture(subcommand: String, binary: String, timeout: TimeInterval) async throws -> String {
         let stopOnSubstrings = subcommand == "/usage"
             ? [
+                "Current week (all models)",
+                "Current week (Opus)",
+                "Current week (Sonnet only)",
+                "Current week (Sonnet)",
                 "Current session",
                 "Failed to load usage data",
                 "failed to load usage data",
