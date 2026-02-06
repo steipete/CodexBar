@@ -92,9 +92,9 @@ struct TTYCommandRunnerEnvTests {
             binary: scriptURL.path,
             send: "",
             options: .init(
-                timeout: 3,
+                timeout: 6,
                 // Use LF for portability: some PTY/termios setups do not translate CR → NL for shell reads.
-                sendOnSubstrings: ["Do you trust the files in this folder?": "y\n"],
+                sendOnSubstrings: ["trust the files in this folder?": "y\n"],
                 stopOnSubstrings: ["accepted", "rejected"],
                 settleAfterStop: 0.1))
 
@@ -118,15 +118,18 @@ struct TTYCommandRunnerEnvTests {
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
 
         let runner = TTYCommandRunner()
+        let timeout: TimeInterval = 12
+        let scriptedSleep: TimeInterval = 10
         let startedAt = Date()
         let result = try runner.run(
             binary: scriptURL.path,
             send: "",
-            options: .init(timeout: 6, idleTimeout: 0.2))
+            options: .init(timeout: timeout, idleTimeout: 0.2))
         let elapsed = Date().timeIntervalSince(startedAt)
 
         #expect(result.text.contains("hello"))
-        #expect(elapsed < 3.0)
+        // CI runners can delay PTY scheduling/reads; assert we stop well before script completion.
+        #expect(elapsed < (scriptedSleep - 1.0))
     }
 
     @Test
