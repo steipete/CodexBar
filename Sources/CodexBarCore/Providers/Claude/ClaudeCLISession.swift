@@ -114,7 +114,6 @@ actor ClaudeCLISession {
         self.drainOutput()
 
         let trimmed = subcommand.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isSlashCommand = trimmed.hasPrefix("/")
         if !trimmed.isEmpty {
             try self.send(trimmed)
             try self.send("\r")
@@ -141,7 +140,9 @@ actor ClaudeCLISession {
         var lastOutputAt = Date()
         var lastEnterAt = Date()
         var stoppedEarly = false
-        let effectiveEnterEvery: TimeInterval? = sendEnterEvery ?? (isSlashCommand ? 0.8 : nil)
+        // Only send periodic Enter when the caller explicitly asks for it (used for /usage rendering).
+        // For /status, periodic input can keep producing output and prevent idle-timeout short-circuiting.
+        let effectiveEnterEvery: TimeInterval? = sendEnterEvery
 
         while Date() < deadline {
             let newData = self.readChunk()
