@@ -81,6 +81,26 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func resetLineUsesAbsoluteWhenResetsAtIsAvailable() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(60 * 60)
+        let window = RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: reset, resetDescription: nil)
+        let text = UsageFormatter.resetLine(for: window, style: .absolute, now: now)
+        #expect(text?.hasPrefix("Resets at ") == true)
+    }
+
+    @Test
+    func resetAbsoluteDescriptionOmitsYear() {
+        let now = Date(timeIntervalSince1970: 1_785_000_000) // Jan 2026-ish
+        let sameDay = now.addingTimeInterval(3 * 3600)
+        let later = now.addingTimeInterval(15 * 24 * 3600)
+        let sameDayText = UsageFormatter.resetAbsoluteDescription(from: sameDay, now: now)
+        let laterText = UsageFormatter.resetAbsoluteDescription(from: later, now: now)
+        #expect(!sameDayText.contains("2026"))
+        #expect(!laterText.contains("2026"))
+    }
+
+    @Test
     func resetLineFallsBackToProvidedDescription() {
         let window = RateWindow(
             usedPercent: 0,
