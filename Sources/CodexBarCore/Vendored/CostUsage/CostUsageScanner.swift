@@ -10,6 +10,7 @@ enum CostUsageScanner {
     struct Options: Sendable {
         var codexSessionsRoot: URL?
         var claudeProjectsRoots: [URL]?
+        var openCodeStorageRoot: URL?
         var cacheRoot: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
@@ -19,12 +20,14 @@ enum CostUsageScanner {
         init(
             codexSessionsRoot: URL? = nil,
             claudeProjectsRoots: [URL]? = nil,
+            openCodeStorageRoot: URL? = nil,
             cacheRoot: URL? = nil,
             claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
             forceRescan: Bool = false)
         {
             self.codexSessionsRoot = codexSessionsRoot
             self.claudeProjectsRoots = claudeProjectsRoots
+            self.openCodeStorageRoot = openCodeStorageRoot
             self.cacheRoot = cacheRoot
             self.claudeLogProviderFilter = claudeLogProviderFilter
             self.forceRescan = forceRescan
