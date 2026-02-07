@@ -1,5 +1,9 @@
 # Xcode user/session
 xcuserdata/
+.swiftpm/xcode/xcshareddata/
+.codexbar/config.json
+*.env
+*.local
 
 # Build products
 .build/

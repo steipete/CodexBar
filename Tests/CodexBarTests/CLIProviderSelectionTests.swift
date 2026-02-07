@@ -20,6 +20,7 @@ struct CLIProviderSelectionTests {
             "|copilot|",
             "|synthetic|",
             "|kiro|",
+            "|warp|",
             "|both|",
             "|all]",
         ]

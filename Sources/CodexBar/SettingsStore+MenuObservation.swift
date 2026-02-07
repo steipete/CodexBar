@@ -53,6 +53,7 @@ extension SettingsStore {
         _ = self.augmentCookieHeader
         _ = self.ampCookieHeader
         _ = self.copilotAPIToken
+        _ = self.warpAPIToken
         _ = self.tokenAccountsByProvider
         _ = self.debugLoadingPattern
         _ = self.selectedMenuProvider

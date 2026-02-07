@@ -71,6 +71,7 @@ public enum ProviderDescriptorRegistry {
         .kimik2: KimiK2ProviderDescriptor.descriptor,
         .amp: AmpProviderDescriptor.descriptor,
         .synthetic: SyntheticProviderDescriptor.descriptor,
+        .warp: WarpProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {
