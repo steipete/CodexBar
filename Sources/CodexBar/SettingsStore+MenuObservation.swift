@@ -48,6 +48,8 @@ extension SettingsStore {
         _ = self.factoryCookieHeader
         _ = self.minimaxCookieHeader
         _ = self.minimaxAPIToken
+        _ = self.cliproxyapiManagementURL
+        _ = self.cliproxyapiManagementKey
         _ = self.kimiManualCookieHeader
         _ = self.kimiK2APIToken
         _ = self.augmentCookieHeader
