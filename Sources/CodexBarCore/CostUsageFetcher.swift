@@ -31,12 +31,14 @@ public struct CostUsageFetcher: Sendable {
         }
 
         let until = now
-        // Rolling window: last 30 days (inclusive). Use -29 for inclusive boundaries.
-        let since = Calendar.current.date(byAdding: .day, value: -29, to: now) ?? now
+        // Current month to date in the user's local calendar.
+        let calendar = Calendar.current
+        let since = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
 
         var options = CostUsageScanner.Options()
         if provider == .vertexai {
             options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
+            options.refreshMinIntervalSeconds = 0
         } else if provider == .claude {
             options.claudeLogProviderFilter = .excludeVertexAI
         }

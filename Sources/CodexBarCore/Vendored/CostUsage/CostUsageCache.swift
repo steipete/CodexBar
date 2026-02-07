@@ -6,11 +6,14 @@ enum CostUsageCacheIO {
         return root.appendingPathComponent("CodexBar", isDirectory: true)
     }
 
+    /// Cache version - bump when pricing or calculation logic changes to invalidate old caches.
+    private static let cacheVersion = 2
+
     static func cacheFileURL(provider: UsageProvider, cacheRoot: URL? = nil) -> URL {
         let root = cacheRoot ?? self.defaultCacheRoot()
         return root
             .appendingPathComponent("cost-usage", isDirectory: true)
-            .appendingPathComponent("\(provider.rawValue)-v1.json", isDirectory: false)
+            .appendingPathComponent("\(provider.rawValue)-v\(self.cacheVersion).json", isDirectory: false)
     }
 
     static func load(provider: UsageProvider, cacheRoot: URL? = nil) -> CostUsageCache {
@@ -23,7 +26,7 @@ enum CostUsageCacheIO {
         guard let data = try? Data(contentsOf: url) else { return nil }
         guard let decoded = try? JSONDecoder().decode(CostUsageCache.self, from: data)
         else { return nil }
-        guard decoded.version == 1 else { return nil }
+        guard decoded.version == self.cacheVersion else { return nil }
         return decoded
     }
 
@@ -44,7 +47,7 @@ enum CostUsageCacheIO {
 }
 
 struct CostUsageCache: Codable, Sendable {
-    var version: Int = 1
+    var version: Int = 2
     var lastScanUnixMs: Int64 = 0
 
     /// filePath -> file usage

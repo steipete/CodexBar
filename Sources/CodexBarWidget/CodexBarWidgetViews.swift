@@ -190,7 +190,7 @@ private struct CompactMetricView: View {
         case .last30DaysCost:
             let value = self.entry.tokenUsage?.last30DaysCostUSD.map(WidgetFormat.usd) ?? "—"
             let detail = self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
-            return (value, "30d cost", detail)
+            return (value, "Month cost", detail)
         }
     }
 }
@@ -355,7 +355,7 @@ private struct SwitcherLargeUsageView: View {
                         title: "Today",
                         value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
                     ValueLine(
-                        title: "30d",
+                        title: "Month",
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens))
@@ -448,7 +448,7 @@ private struct LargeUsageView: View {
                         title: "Today",
                         value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
                     ValueLine(
-                        title: "30d",
+                        title: "Month",
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens))
@@ -475,7 +475,7 @@ private struct HistoryView: View {
                     title: "Today",
                     value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
                 ValueLine(
-                    title: "30d",
+                    title: "Month",
                     value: WidgetFormat.costAndTokens(cost: token.last30DaysCostUSD, tokens: token.last30DaysTokens))
             }
         }

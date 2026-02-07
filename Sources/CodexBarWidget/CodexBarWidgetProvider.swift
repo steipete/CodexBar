@@ -73,7 +73,7 @@ enum CompactMetric: String, AppEnum {
     static let caseDisplayRepresentations: [CompactMetric: DisplayRepresentation] = [
         .credits: DisplayRepresentation(title: "Credits left"),
         .todayCost: DisplayRepresentation(title: "Today cost"),
-        .last30DaysCost: DisplayRepresentation(title: "30d cost"),
+        .last30DaysCost: DisplayRepresentation(title: "Month cost"),
     ]
 }
 
