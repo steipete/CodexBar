@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, and JetBrains AI limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Qwen Code, Vertex AI, Augment, Amp, and JetBrains AI limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
 
@@ -38,6 +38,7 @@ Linux support via Omarchy: community Waybar module and TUI, driven by the `codex
 - [Antigravity](docs/antigravity.md) — Local language server probe (experimental); no external auth.
 - [Droid](docs/factory.md) — Browser cookies + WorkOS token flows for Factory usage + billing.
 - [Copilot](docs/copilot.md) — GitHub device flow + Copilot internal usage API.
+- [Qwen Code](docs/qwencode.md) — Local Qwen Code session logs; daily request usage.
 - [z.ai](docs/zai.md) — API token (Keychain) for quota + MCP windows.
 - [Kimi](docs/kimi.md) — Auth token (JWT from `kimi-auth` cookie) for weekly quota + 5‑hour rate limit.
 - [Kimi K2](docs/kimi-k2.md) — API key for credit-based usage totals.

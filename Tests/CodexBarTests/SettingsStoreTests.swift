@@ -358,6 +358,7 @@ struct SettingsStoreTests {
             .minimax,
             .kimi,
             .kiro,
+            .qwencode,
             .vertexai,
             .augment,
             .jetbrains,
