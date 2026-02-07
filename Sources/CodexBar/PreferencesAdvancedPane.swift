@@ -6,6 +6,8 @@ struct AdvancedPane: View {
     @Bindable var settings: SettingsStore
     @State private var isInstallingCLI = false
     @State private var cliStatus: String?
+    @State private var keychainStatus: KeychainSetupHelper.AccessStatus = .notFound
+    @State private var showingKeychainInstructions = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -88,11 +90,84 @@ struct AdvancedPane: View {
                             subtitle: "Prevents any Keychain access while enabled.",
                             binding: self.$settings.debugDisableKeychainAccess)
                     }
+
+                // Chrome Safe Storage setup section
+                if !self.settings.debugDisableKeychainAccess {
+                    Divider()
+
+                    SettingsSection(
+                        title: "Browser cookie access",
+                        caption: """
+                        Chrome-based browsers encrypt cookies with a key stored in Keychain. \
+                        CodexBar needs "Always Allow" access to read cookies without prompts.
+                        """) {
+                            self.keychainSetupView
+                        }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
+        .onAppear {
+            self.checkKeychainStatus()
+        }
+        .sheet(isPresented: self.$showingKeychainInstructions) {
+            KeychainSetupInstructionsView(isPresented: self.$showingKeychainInstructions) {
+                self.checkKeychainStatus()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var keychainSetupView: some View {
+        HStack(spacing: 12) {
+            switch self.keychainStatus {
+            case .allowed:
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                Text("Chrome Safe Storage: Access granted")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+            case .needsSetup:
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                Text("Chrome Safe Storage: Setup needed")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Fix Now") {
+                    self.showingKeychainInstructions = true
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+
+            case .notFound:
+                Image(systemName: "info.circle")
+                    .foregroundColor(.secondary)
+                Text("No Chrome-based browser detected")
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+
+            case .keychainDisabled:
+                Image(systemName: "lock.slash")
+                    .foregroundColor(.secondary)
+                Text("Keychain access is disabled")
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+
+        Button("Check Status") {
+            self.checkKeychainStatus()
+        }
+        .buttonStyle(.link)
+        .controlSize(.small)
+    }
+
+    private func checkKeychainStatus() {
+        self.keychainStatus = KeychainSetupHelper.checkChromeSafeStorageAccess()
     }
 }
 
@@ -152,5 +227,77 @@ extension AdvancedPane {
             .standardizedFileURL
             .path
         return resolved == destination
+    }
+}
+
+// MARK: - Keychain Setup Instructions Sheet
+
+@MainActor
+struct KeychainSetupInstructionsView: View {
+    @Binding var isPresented: Bool
+    let onComplete: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Header
+            HStack {
+                Image(systemName: "key.fill")
+                    .font(.title)
+                    .foregroundColor(.orange)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Fix Keychain Prompts")
+                        .font(.headline)
+                    Text("One-time setup to stop repeated permission dialogs")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            Divider()
+
+            // Instructions
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Follow these steps:")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                ForEach(Array(KeychainSetupHelper.setupInstructions.enumerated()), id: \.offset) { _, instruction in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(instruction)
+                            .font(.callout)
+                    }
+                }
+            }
+
+            Divider()
+
+            // Buttons
+            HStack(spacing: 12) {
+                Button("Open Keychain Access") {
+                    KeychainSetupHelper.openKeychainAccessForSetup()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Spacer()
+
+                Button("Done") {
+                    self.onComplete()
+                    self.isPresented = false
+                }
+            }
+
+            // Tip
+            HStack(spacing: 8) {
+                Image(systemName: "lightbulb.fill")
+                    .foregroundColor(.yellow)
+                Text("Tip: You may need to unlock the keychain with your Mac password first.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 8)
+        }
+        .padding(24)
+        .frame(width: 480)
     }
 }

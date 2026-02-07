@@ -100,14 +100,26 @@ struct KeychainCopilotTokenStore: CopilotTokenStoring {
             throw CopilotTokenStoreError.keychainStatus(updateStatus)
         }
 
-        var addQuery = query
-        for (key, value) in attributes {
-            addQuery[key] = value
-        }
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-        guard addStatus == errSecSuccess else {
-            Self.log.error("Keychain add failed: \(addStatus)")
-            throw CopilotTokenStoreError.keychainStatus(addStatus)
+        // Use ACL helper to add with CodexBar trusted, preventing future prompts
+        do {
+            try KeychainACLHelper.addGenericPasswordWithTrustedAccess(
+                service: self.service,
+                account: self.account,
+                data: data,
+                label: "GitHub Copilot Token"
+            )
+        } catch {
+            Self.log.error("Keychain add with trusted access failed: \(error)")
+            // Fallback to standard add
+            var addQuery = query
+            for (key, value) in attributes {
+                addQuery[key] = value
+            }
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                Self.log.error("Keychain add failed: \(addStatus)")
+                throw CopilotTokenStoreError.keychainStatus(addStatus)
+            }
         }
     }
 
