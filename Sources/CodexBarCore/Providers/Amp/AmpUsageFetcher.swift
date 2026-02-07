@@ -261,6 +261,9 @@ public struct AmpUsageFetcher: Sendable {
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
                 throw AmpUsageError.invalidCredentials
             }
+            if diagnostics.detectedLoginRedirect {
+                throw AmpUsageError.invalidCredentials
+            }
             throw AmpUsageError.networkError("HTTP \(httpResponse.statusCode)")
         }
 
@@ -277,6 +280,7 @@ public struct AmpUsageFetcher: Sendable {
         private let cookieHeader: String
         private let logger: ((String) -> Void)?
         var redirects: [String] = []
+        private(set) var detectedLoginRedirect = false
 
         init(cookieHeader: String, logger: ((String) -> Void)?) {
             self.cookieHeader = cookieHeader
@@ -293,6 +297,17 @@ public struct AmpUsageFetcher: Sendable {
             let from = response.url?.absoluteString ?? "unknown"
             let to = request.url?.absoluteString ?? "unknown"
             self.redirects.append("\(response.statusCode) \(from) -> \(to)")
+
+            // Detect login redirect - indicates invalid session
+            if let toURL = request.url, self.isLoginRedirect(toURL) {
+                if let logger {
+                    logger("[amp] Detected login redirect, aborting (invalid session)")
+                }
+                self.detectedLoginRedirect = true
+                completionHandler(nil)
+                return
+            }
+
             var updated = request
             if AmpUsageFetcher.shouldAttachCookie(to: request.url), !self.cookieHeader.isEmpty {
                 updated.setValue(self.cookieHeader, forHTTPHeaderField: "Cookie")
@@ -306,6 +321,16 @@ public struct AmpUsageFetcher: Sendable {
                 logger("[amp] Redirect \(response.statusCode) \(from) -> \(to)")
             }
             completionHandler(updated)
+        }
+
+        private func isLoginRedirect(_ url: URL) -> Bool {
+            let path = url.path.lowercased()
+            let query = url.query?.lowercased() ?? ""
+            return path.contains("/login") ||
+                   path.contains("/signin") ||
+                   path.contains("/sign-in") ||
+                   query.contains("login") ||
+                   query.contains("signin")
         }
     }
 
