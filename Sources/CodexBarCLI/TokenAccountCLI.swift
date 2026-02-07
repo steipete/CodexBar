@@ -147,6 +147,11 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(
                 jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
                     ideBasePath: nil))
+        case .trae:
+            return self.makeSnapshot(
+                trae: ProviderSettingsSnapshot.TraeProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic:
             return nil
         }
@@ -163,6 +168,7 @@ struct TokenAccountCLIContext {
         kimi: ProviderSettingsSnapshot.KimiProviderSettings? = nil,
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
         amp: ProviderSettingsSnapshot.AmpProviderSettings? = nil,
+        trae: ProviderSettingsSnapshot.TraeProviderSettings? = nil,
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
@@ -176,6 +182,7 @@ struct TokenAccountCLIContext {
             kimi: kimi,
             augment: augment,
             amp: amp,
+            trae: trae,
             jetbrains: jetbrains)
     }
 

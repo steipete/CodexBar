@@ -111,6 +111,9 @@ final class SettingsStore {
         ampCookieStore: any CookieHeaderStoring = KeychainCookieHeaderStore(
             account: "amp-cookie",
             promptKind: .ampCookie),
+        traeCookieStore: any CookieHeaderStoring = KeychainCookieHeaderStore(
+            account: "trae-cookie",
+            promptKind: .traeCookie),
         copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore())
     {
@@ -128,6 +131,7 @@ final class SettingsStore {
             kimiK2TokenStore: kimiK2TokenStore,
             augmentCookieStore: augmentCookieStore,
             ampCookieStore: ampCookieStore,
+            traeCookieStore: traeCookieStore,
             copilotTokenStore: copilotTokenStore,
             tokenAccountStore: tokenAccountStore)
         let config = CodexBarConfigMigrator.loadOrMigrate(

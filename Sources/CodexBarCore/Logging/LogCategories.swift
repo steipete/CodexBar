@@ -50,6 +50,7 @@ public enum LogCategories {
     public static let syntheticTokenStore = "synthetic-token-store"
     public static let syntheticUsage = "synthetic-usage"
     public static let terminal = "terminal"
+    public static let trae = "trae"
     public static let tokenAccounts = "token-accounts"
     public static let tokenCost = "token-cost"
     public static let ttyRunner = "tty-runner"

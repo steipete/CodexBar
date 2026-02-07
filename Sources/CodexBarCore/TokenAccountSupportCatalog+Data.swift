@@ -51,5 +51,12 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .trae: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Trae Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
     ]
 }
