@@ -261,6 +261,9 @@ public struct AmpUsageFetcher: Sendable {
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
                 throw AmpUsageError.invalidCredentials
             }
+            if diagnostics.detectedLoginRedirect {
+                throw AmpUsageError.invalidCredentials
+            }
             throw AmpUsageError.networkError("HTTP \(httpResponse.statusCode)")
         }
 
@@ -277,6 +280,7 @@ public struct AmpUsageFetcher: Sendable {
         private let cookieHeader: String
         private let logger: ((String) -> Void)?
         var redirects: [String] = []
+        private(set) var detectedLoginRedirect = false
 
         init(cookieHeader: String, logger: ((String) -> Void)?) {
             self.cookieHeader = cookieHeader
@@ -299,6 +303,7 @@ public struct AmpUsageFetcher: Sendable {
                 if let logger {
                     logger("[amp] Detected login redirect, aborting (invalid session)")
                 }
+                self.detectedLoginRedirect = true
                 completionHandler(nil)
                 return
             }
