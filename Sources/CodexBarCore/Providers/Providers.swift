@@ -21,6 +21,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case kimik2
     case amp
     case synthetic
+    case codebuddy
 }
 
 // swiftformat:enable sortDeclarations
@@ -45,6 +46,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case amp
     case synthetic
     case combined
+    case codebuddy
 }
 
 public struct ProviderMetadata: Sendable {

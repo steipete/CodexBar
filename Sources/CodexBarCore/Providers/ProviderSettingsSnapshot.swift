@@ -15,7 +15,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         kimi: KimiProviderSettings? = nil,
         augment: AugmentProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
-        jetbrains: JetBrainsProviderSettings? = nil) -> ProviderSettingsSnapshot
+        jetbrains: JetBrainsProviderSettings? = nil,
+        codebuddy: CodeBuddyProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
             debugMenuEnabled: debugMenuEnabled,
@@ -31,7 +32,8 @@ public struct ProviderSettingsSnapshot: Sendable {
             kimi: kimi,
             augment: augment,
             amp: amp,
-            jetbrains: jetbrains)
+            jetbrains: jetbrains,
+            codebuddy: codebuddy)
     }
 
     public struct CodexProviderSettings: Sendable {
@@ -167,6 +169,18 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct CodeBuddyProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+        public let enterpriseID: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?, enterpriseID: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+            self.enterpriseID = enterpriseID
+        }
+    }
+
     public let debugMenuEnabled: Bool
     public let debugKeepCLISessionsAlive: Bool
     public let codex: CodexProviderSettings?
@@ -181,6 +195,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let augment: AugmentProviderSettings?
     public let amp: AmpProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
+    public let codebuddy: CodeBuddyProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
         self.jetbrains?.ideBasePath
@@ -200,7 +215,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         kimi: KimiProviderSettings?,
         augment: AugmentProviderSettings?,
         amp: AmpProviderSettings?,
-        jetbrains: JetBrainsProviderSettings? = nil)
+        jetbrains: JetBrainsProviderSettings? = nil,
+        codebuddy: CodeBuddyProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
@@ -216,6 +232,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.augment = augment
         self.amp = amp
         self.jetbrains = jetbrains
+        self.codebuddy = codebuddy
     }
 }
 
@@ -232,6 +249,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
+    case codebuddy(ProviderSettingsSnapshot.CodeBuddyProviderSettings)
 }
 
 public struct ProviderSettingsSnapshotBuilder: Sendable {
@@ -249,6 +267,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
+    public var codebuddy: ProviderSettingsSnapshot.CodeBuddyProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
         self.debugMenuEnabled = debugMenuEnabled
@@ -269,6 +288,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .augment(value): self.augment = value
         case let .amp(value): self.amp = value
         case let .jetbrains(value): self.jetbrains = value
+        case let .codebuddy(value): self.codebuddy = value
         }
     }
 
@@ -287,6 +307,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             kimi: self.kimi,
             augment: self.augment,
             amp: self.amp,
-            jetbrains: self.jetbrains)
+            jetbrains: self.jetbrains,
+            codebuddy: self.codebuddy)
     }
 }

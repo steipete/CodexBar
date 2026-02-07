@@ -275,6 +275,7 @@ private struct ProviderSwitchChip: View {
         case .kimik2: "Kimi K2"
         case .amp: "Amp"
         case .synthetic: "Synthetic"
+        case .codebuddy: "CB"
         }
     }
 }
@@ -605,6 +606,8 @@ enum WidgetColors {
             Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255) // Amp red
         case .synthetic:
             Color(red: 20 / 255, green: 20 / 255, blue: 20 / 255) // Synthetic charcoal
+        case .codebuddy:
+            Color(red: 0 / 255, green: 120 / 255, blue: 215 / 255) // CodeBuddy blue
         }
     }
 }

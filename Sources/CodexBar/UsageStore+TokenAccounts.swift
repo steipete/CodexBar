@@ -161,6 +161,10 @@ extension UsageStore {
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
+                // Store CodeBuddy daily usage if available
+                if provider == .codebuddy, let dailyUsage = result.codeBuddyDailyUsage {
+                    self.codeBuddyDailyUsage = dailyUsage
+                }
             }
         case let .failure(error):
             await MainActor.run {

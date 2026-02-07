@@ -4,6 +4,8 @@ import Observation
 import QuartzCore
 import SwiftUI
 
+private let codeBuddyMenuLog = CodexBarLog.logger("codebuddy-menu")
+
 // MARK: - NSMenu construction
 
 extension StatusItemController {
@@ -323,6 +325,18 @@ extension StatusItemController {
                 width: context.menuWidth,
                 webItems: webItems)
             return true
+        }
+
+        // For CodeBuddy, add the menu card with daily usage submenu
+        if context.currentProvider == .codebuddy {
+            let submenu = self.makeCodeBuddyDailyUsageSubmenu()
+            menu.addItem(self.makeMenuCardItem(
+                UsageMenuCardView(model: model, width: context.menuWidth),
+                id: "menuCard",
+                width: context.menuWidth,
+                submenu: submenu))
+            menu.addItem(.separator())
+            return false
         }
 
         menu.addItem(self.makeMenuCardItem(
@@ -668,6 +682,7 @@ extension StatusItemController {
         menu.addItem(self.makeMenuCardItem(headerView, id: "menuCardHeader", width: width))
 
         if hasUsageBlock {
+            codeBuddyMenuLog.debug("hasUsageBlock=true for provider=\(provider.rawValue)")
             let usageView = UsageMenuCardUsageSectionView(
                 model: model,
                 showBottomDivider: false,
@@ -950,11 +965,15 @@ extension StatusItemController {
         snapshot: UsageSnapshot?,
         webItems: OpenAIWebMenuItems) -> NSMenu?
     {
+        codeBuddyMenuLog.debug("makeUsageSubmenu called for provider=\(provider.rawValue)")
         if provider == .codex, webItems.hasUsageBreakdown {
             return self.makeUsageBreakdownSubmenu()
         }
         if provider == .zai {
             return self.makeZaiUsageDetailsSubmenu(snapshot: snapshot)
+        }
+        if provider == .codebuddy {
+            return self.makeCodeBuddyDailyUsageSubmenu()
         }
         return nil
     }
@@ -1059,6 +1078,39 @@ extension StatusItemController {
         return submenu
     }
 
+    private func makeCodeBuddyDailyUsageSubmenu() -> NSMenu? {
+        let width = Self.menuCardBaseWidth
+        let count = self.store.codeBuddyDailyUsage?.count ?? -1
+        codeBuddyMenuLog.info("makeCodeBuddyDailyUsageSubmenu: dailyUsage count = \(count)")
+        guard let dailyUsage = self.store.codeBuddyDailyUsage, !dailyUsage.isEmpty else { return nil }
+
+        if !Self.menuCardRenderingEnabled {
+            let submenu = NSMenu()
+            submenu.delegate = self
+            let chartItem = NSMenuItem()
+            chartItem.isEnabled = false
+            chartItem.representedObject = "codeBuddyDailyUsageChart"
+            submenu.addItem(chartItem)
+            return submenu
+        }
+
+        let submenu = NSMenu()
+        submenu.delegate = self
+        let chartView = CodeBuddyDailyUsageChartMenuView(dailyUsage: dailyUsage, width: width)
+        let hosting = MenuHostingView(rootView: chartView)
+        // Use NSHostingController for efficient size calculation without multiple layout passes
+        let controller = NSHostingController(rootView: chartView)
+        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+
+        let chartItem = NSMenuItem()
+        chartItem.view = hosting
+        chartItem.isEnabled = false
+        chartItem.representedObject = "codeBuddyDailyUsageChart"
+        submenu.addItem(chartItem)
+        return submenu
+    }
+
     private func makeCostHistorySubmenu(provider: UsageProvider) -> NSMenu? {
         guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
         let width = Self.menuCardBaseWidth
@@ -1101,6 +1153,7 @@ extension StatusItemController {
             "usageBreakdownChart",
             "creditsHistoryChart",
             "costHistoryChart",
+            "codeBuddyDailyUsageChart",
         ]
         return menu.items.contains { item in
             guard let id = item.representedObject as? String else { return false }

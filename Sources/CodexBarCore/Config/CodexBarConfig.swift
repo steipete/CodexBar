@@ -81,6 +81,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var cookieSource: ProviderCookieSource?
     public var region: String?
     public var workspaceID: String?
+    public var enterpriseID: String?
     public var tokenAccounts: ProviderTokenAccountData?
 
     public init(
@@ -92,6 +93,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         cookieSource: ProviderCookieSource? = nil,
         region: String? = nil,
         workspaceID: String? = nil,
+        enterpriseID: String? = nil,
         tokenAccounts: ProviderTokenAccountData? = nil)
     {
         self.id = id
@@ -102,6 +104,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.cookieSource = cookieSource
         self.region = region
         self.workspaceID = workspaceID
+        self.enterpriseID = enterpriseID
         self.tokenAccounts = tokenAccounts
     }
 
