@@ -41,6 +41,7 @@ public enum LogCategories {
     public static let openAIWeb = "openai-web"
     public static let openAIWebview = "openai-webview"
     public static let opencodeUsage = "opencode-usage"
+    public static let poeUsage = "poe-usage"
     public static let providerDetection = "provider-detection"
     public static let providers = "providers"
     public static let sessionQuota = "sessionQuota"
