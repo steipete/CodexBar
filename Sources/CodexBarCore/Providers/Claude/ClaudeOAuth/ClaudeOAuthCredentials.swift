@@ -310,6 +310,10 @@ public enum ClaudeOAuthCredentialsStore {
         switch KeychainCacheStore.load(key: self.cacheKey, as: CacheEntry.self) {
         case let .found(entry):
             if let creds = try? ClaudeOAuthCredentials.parse(data: entry.data) {
+                // Legacy cache entries (pre-owner field) may contain credentials that were originally sourced from
+                // Claude Code (Keychain/file). Treating them as CodexBar-owned would re-enable direct refresh-token
+                // rotation here, which risks desyncing Claude Code (it continues to hold the old refresh token).
+                // Defaulting to `.claudeCLI` keeps refresh ownership with Claude Code.
                 let owner = entry.owner ?? .claudeCLI
                 let record = ClaudeOAuthCredentialRecord(
                     credentials: creds,
