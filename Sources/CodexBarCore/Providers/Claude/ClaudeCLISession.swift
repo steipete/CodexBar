@@ -136,6 +136,7 @@ actor ClaudeCLISession {
 
         var buffer = Data()
         var scanTailText = ""
+        var utf8Carry = Data()
         let deadline = Date().addingTimeInterval(timeout)
         var lastOutputAt = Date()
         var lastEnterAt = Date()
@@ -149,9 +150,7 @@ actor ClaudeCLISession {
             if !newData.isEmpty {
                 buffer.append(newData)
                 lastOutputAt = Date()
-                if let chunk = String(bytes: newData, encoding: .utf8) {
-                    scanTailText.append(chunk)
-                }
+                Self.appendScanText(newData: newData, scanTailText: &scanTailText, utf8Carry: &utf8Carry)
                 if scanTailText.count > 8192 { scanTailText = String(scanTailText.suffix(8192)) }
             }
 
@@ -210,6 +209,33 @@ actor ClaudeCLISession {
             throw SessionError.timedOut
         }
         return text
+    }
+
+    private static func appendScanText(newData: Data, scanTailText: inout String, utf8Carry: inout Data) {
+        // PTY reads can split multibyte UTF-8 sequences. Keep a small carry buffer so prompt/stop scanning doesn't
+        // drop chunks when the decode fails due to an incomplete trailing sequence.
+        var combined = Data()
+        combined.reserveCapacity(utf8Carry.count + newData.count)
+        combined.append(utf8Carry)
+        combined.append(newData)
+
+        if let chunk = String(data: combined, encoding: .utf8) {
+            scanTailText.append(chunk)
+            utf8Carry.removeAll(keepingCapacity: true)
+            return
+        }
+
+        for trimCount in 1...3 where combined.count > trimCount {
+            let prefix = combined.dropLast(trimCount)
+            if let chunk = String(data: prefix, encoding: .utf8) {
+                scanTailText.append(chunk)
+                utf8Carry = Data(combined.suffix(trimCount))
+                return
+            }
+        }
+
+        // If the data is still not UTF-8 decodable, keep only a small suffix to avoid unbounded growth.
+        utf8Carry = Data(combined.suffix(12))
     }
 
     func reset() {
