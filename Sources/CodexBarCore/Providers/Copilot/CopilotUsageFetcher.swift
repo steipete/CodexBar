@@ -43,10 +43,11 @@ public struct CopilotUsageFetcher: Sendable {
         if let premium {
             primary = premium
             secondary = chat
-        } else if let chat {
-            // Keep chat in the secondary slot so it remains labeled as "Chat" in the menu.
+        } else if let chatWindow = chat {
+            // Keep chat in the secondary slot so provider labels remain accurate
+            // ("Premium" for primary, "Chat" for secondary) on chat-only plans.
             primary = nil
-            secondary = chat
+            secondary = chatWindow
         } else {
             throw URLError(.cannotDecodeRawData)
         }

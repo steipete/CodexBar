@@ -163,8 +163,8 @@ public struct CopilotUsageResponse: Sendable, Decodable {
 
     public let quotaSnapshots: QuotaSnapshots
     public let copilotPlan: String
-    public let assignedDate: String
-    public let quotaResetDate: String
+    public let assignedDate: String?
+    public let quotaResetDate: String?
 
     private enum CodingKeys: String, CodingKey {
         case quotaSnapshots = "quota_snapshots"
@@ -220,9 +220,13 @@ public struct CopilotUsageResponse: Sendable, Decodable {
 
     private static func makeQuotaSnapshot(monthly: Double?, limited: Double?, quotaID: String) -> QuotaSnapshot? {
         guard monthly != nil || limited != nil else { return nil }
+        guard let monthly else {
+            // Without a monthly denominator, avoid fabricating a misleading percentage.
+            return nil
+        }
 
-        let entitlement = max(0, monthly ?? 0)
-        let remaining = max(0, limited ?? monthly ?? 0)
+        let entitlement = max(0, monthly)
+        let remaining = max(0, limited ?? monthly)
         let percentRemaining: Double = if entitlement > 0 {
             max(0, min(100, (remaining / entitlement) * 100))
         } else {
