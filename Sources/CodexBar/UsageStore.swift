@@ -1163,6 +1163,13 @@ extension UsageStore {
                 let text = "SYNTHETIC_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 await MainActor.run { self.probeLogs[.synthetic] = text }
                 return text
+            case .firmware:
+                let resolution = ProviderTokenResolver.firmwareResolution()
+                let hasAny = resolution != nil
+                let source = resolution?.source.rawValue ?? "none"
+                let text = "FIRMWARE_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                await MainActor.run { self.probeLogs[.firmware] = text }
+                return text
             case .gemini:
                 let text = "Gemini debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.gemini] = text }
@@ -1229,6 +1236,8 @@ extension UsageStore {
                 let text = "JetBrains AI debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.jetbrains] = text }
                 return text
+            @unknown default:
+                return "Debug log not yet implemented"
             }
         }.value
     }

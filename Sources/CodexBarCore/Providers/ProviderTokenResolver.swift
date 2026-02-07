@@ -25,6 +25,12 @@ public enum ProviderTokenResolver {
         self.syntheticResolution(environment: environment)?.token
     }
 
+    public static func firmwareToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.firmwareResolution(environment: environment)?.token
+    }
+
     public static func copilotToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.copilotResolution(environment: environment)?.token
     }
@@ -55,6 +61,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(SyntheticSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func firmwareResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(FirmwareSettingsReader.apiKey(environment: environment))
     }
 
     public static func copilotResolution(
