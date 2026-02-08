@@ -607,6 +607,15 @@ final class UsageStore {
 
     private func refreshCreditsIfNeeded() async {
         guard self.isEnabled(.codex) else { return }
+        if self.sourceMode(for: .codex) == .api {
+            await MainActor.run {
+                self.credits = nil
+                self.lastCreditsError = nil
+                self.lastCreditsSnapshot = nil
+                self.creditsFailureStreak = 0
+            }
+            return
+        }
         do {
             let credits = try await self.codexFetcher.loadLatestCredits(
                 keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)

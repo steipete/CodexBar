@@ -11,15 +11,19 @@ struct UsageMenuCardView: View {
 
             var labelSuffix: String {
                 switch self {
-                case .left: "left"
-                case .used: "used"
+                case .left:
+                    L10n.tr("menu.card.percent.left", fallback: "left")
+                case .used:
+                    L10n.tr("menu.card.percent.used", fallback: "used")
                 }
             }
 
             var accessibilityLabel: String {
                 switch self {
-                case .left: "Usage remaining"
-                case .used: "Usage used"
+                case .left:
+                    L10n.tr("menu.card.accessibility.usage_remaining", fallback: "Usage remaining")
+                case .used:
+                    L10n.tr("menu.card.accessibility.usage_used", fallback: "Usage used")
                 }
             }
         }
@@ -135,7 +139,7 @@ struct UsageMenuCardView: View {
                     }
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Cost")
+                            Text(L10n.tr("menu.card.cost.title", fallback: "Cost"))
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -460,19 +464,22 @@ private struct CreditsBarContent: View {
 
     private var scaleText: String {
         let scale = UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))
-        return "\(scale) tokens"
+        let format = L10n.tr("menu.card.tokens.unit", fallback: "%@ tokens")
+        return String(format: format, locale: .current, scale)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Credits")
+            Text(L10n.tr("menu.card.credits.title", fallback: "Credits"))
                 .font(.body)
                 .fontWeight(.medium)
             if let percentLeft {
                 UsageProgressBar(
                     percent: percentLeft,
                     tint: self.progressColor,
-                    accessibilityLabel: "Credits remaining")
+                    accessibilityLabel: L10n.tr(
+                        "menu.card.accessibility.credits_remaining",
+                        fallback: "Credits remaining"))
                 HStack(alignment: .firstTextBaseline) {
                     Text(self.creditsText)
                         .font(.caption)
@@ -513,7 +520,7 @@ struct UsageMenuCardCostSectionView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Cost")
+                            Text(L10n.tr("menu.card.cost.title", fallback: "Cost"))
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -576,6 +583,7 @@ extension UsageMenuCardView.Model {
     struct Input {
         let provider: UsageProvider
         let metadata: ProviderMetadata
+        let sourceLabel: String?
         let snapshot: UsageSnapshot?
         let credits: CreditsSnapshot?
         let creditsError: String?
@@ -601,10 +609,16 @@ extension UsageMenuCardView.Model {
             account: input.account,
             metadata: input.metadata)
         let metrics = Self.metrics(input: input)
+        let isCodexCLIProxy = input.provider == .codex &&
+            (input.sourceLabel?.localizedCaseInsensitiveContains("cliproxy-api") ?? false)
         let creditsText: String? = if input.provider == .codex, !input.showOptionalCreditsAndExtraUsage {
             nil
         } else {
-            Self.creditsLine(metadata: input.metadata, credits: input.credits, error: input.creditsError)
+            Self.creditsLine(
+                metadata: input.metadata,
+                credits: input.credits,
+                error: input.creditsError,
+                showUnavailableHint: !isCodexCLIProxy)
         }
         let providerCost: ProviderCostSection? = if input.provider == .claude, !input.showOptionalCreditsAndExtraUsage {
             nil
@@ -844,12 +858,14 @@ extension UsageMenuCardView.Model {
     private static func creditsLine(
         metadata: ProviderMetadata,
         credits: CreditsSnapshot?,
-        error: String?) -> String?
+        error: String?,
+        showUnavailableHint: Bool = true) -> String?
     {
         guard metadata.supportsCredits else { return nil }
         if let credits {
             return UsageFormatter.creditsString(from: credits.remaining)
         }
+        guard showUnavailableHint else { return nil }
         if let error, !error.isEmpty {
             return error.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -876,9 +892,11 @@ extension UsageMenuCardView.Model {
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
         let sessionLine: String = {
             if let sessionTokens {
-                return "Today: \(sessionCost) · \(sessionTokens) tokens"
+                let format = L10n.tr("menu.card.cost.today_with_tokens", fallback: "Today: %@ · %@ tokens")
+                return String(format: format, locale: .current, sessionCost, sessionTokens)
             }
-            return "Today: \(sessionCost)"
+            let format = L10n.tr("menu.card.cost.today", fallback: "Today: %@")
+            return String(format: format, locale: .current, sessionCost)
         }()
 
         let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
@@ -887,9 +905,13 @@ extension UsageMenuCardView.Model {
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
         let monthLine: String = {
             if let monthTokens {
-                return "Last 30 days: \(monthCost) · \(monthTokens) tokens"
+                let format = L10n.tr(
+                    "menu.card.cost.last_30_days_with_tokens",
+                    fallback: "Last 30 days: %@ · %@ tokens")
+                return String(format: format, locale: .current, monthCost, monthTokens)
             }
-            return "Last 30 days: \(monthCost)"
+            let format = L10n.tr("menu.card.cost.last_30_days", fallback: "Last 30 days: %@")
+            return String(format: format, locale: .current, monthCost)
         }()
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
@@ -912,17 +934,17 @@ extension UsageMenuCardView.Model {
         let title: String
 
         if cost.currencyCode == "Quota" {
-            title = "Quota usage"
+            title = L10n.tr("menu.card.provider_cost.quota_usage", fallback: "Quota usage")
             used = String(format: "%.0f", cost.used)
             limit = String(format: "%.0f", cost.limit)
         } else {
-            title = "Extra usage"
+            title = L10n.tr("menu.card.provider_cost.extra_usage", fallback: "Extra usage")
             used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
         }
 
         let percentUsed = Self.clamped((cost.used / cost.limit) * 100)
-        let periodLabel = cost.period ?? "This month"
+        let periodLabel = cost.period ?? L10n.tr("menu.card.provider_cost.this_month", fallback: "This month")
 
         return ProviderCostSection(
             title: title,

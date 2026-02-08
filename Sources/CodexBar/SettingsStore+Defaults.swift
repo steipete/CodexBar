@@ -274,6 +274,41 @@ extension SettingsStore {
         }
     }
 
+    var appLanguage: AppLanguageOption {
+        get { AppLanguageOption(rawValue: self.defaultsState.appLanguageRaw) ?? .system }
+        set {
+            self.defaultsState.appLanguageRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "appLanguageCode")
+        }
+    }
+
+    var cliProxyGlobalBaseURL: String {
+        get { self.defaultsState.cliProxyGlobalBaseURL }
+        set {
+            let normalized = self.normalizedConfigValue(newValue) ?? ""
+            self.defaultsState.cliProxyGlobalBaseURL = normalized
+            self.userDefaults.set(normalized, forKey: "cliProxyGlobalBaseURL")
+        }
+    }
+
+    var cliProxyGlobalManagementKey: String {
+        get { self.defaultsState.cliProxyGlobalManagementKey }
+        set {
+            let normalized = self.normalizedConfigValue(newValue) ?? ""
+            self.defaultsState.cliProxyGlobalManagementKey = normalized
+            self.userDefaults.set(normalized, forKey: "cliProxyGlobalManagementKey")
+        }
+    }
+
+    var cliProxyGlobalAuthIndex: String {
+        get { self.defaultsState.cliProxyGlobalAuthIndex }
+        set {
+            let normalized = self.normalizedConfigValue(newValue) ?? ""
+            self.defaultsState.cliProxyGlobalAuthIndex = normalized
+            self.userDefaults.set(normalized, forKey: "cliProxyGlobalAuthIndex")
+        }
+    }
+
     var debugLoadingPattern: LoadingPattern? {
         get { self.debugLoadingPatternRaw.flatMap(LoadingPattern.init(rawValue:)) }
         set { self.debugLoadingPatternRaw = newValue?.rawValue }

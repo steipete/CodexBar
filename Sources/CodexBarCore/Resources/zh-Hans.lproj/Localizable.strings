@@ -1,0 +1,154 @@
+"provider.codex.source.auto" = "自动";
+"provider.codex.source.oauth" = "OAuth 接口";
+"provider.codex.source.api" = "CLIProxyAPI";
+"provider.codex.source.cli" = "CLI（RPC/PTY）";
+
+"provider.codex.version.not_detected" = "未检测到";
+"provider.codex.cookie.cached" = "已缓存：%@ • %@";
+"provider.codex.menu.credits" = "积分：%@";
+"provider.codex.menu.last_spend" = "最近消费：%@";
+
+"provider.codex.metadata.session_label" = "会话";
+"provider.codex.metadata.weekly_label" = "周额度";
+"provider.codex.metadata.credits_hint" = "积分暂不可用；保持 Codex 运行后会自动刷新。";
+"provider.codex.metadata.toggle_title" = "显示 Codex 用量";
+"provider.codex.no_data_message" = "在 %@ 或 %@ 中未找到 Codex 会话。";
+
+"provider.codex.toggle.openai_web_extras.title" = "OpenAI 网页扩展";
+"provider.codex.toggle.openai_web_extras.subtitle" = "在 chatgpt.com 显示用量拆分、积分历史和代码审查信息。";
+
+"provider.codex.picker.usage_source.title" = "用量来源";
+"provider.codex.picker.usage_source.subtitle" = "自动模式会在首选来源失败时回退到下一个来源。";
+
+"provider.codex.picker.cookie_source.title" = "OpenAI Cookies";
+"provider.codex.picker.cookie_source.subtitle" = "自动模式会导入浏览器 Cookies 以获取仪表盘扩展数据。";
+"provider.codex.picker.cookie_source.auto" = "自动模式会导入浏览器 Cookies 以获取仪表盘扩展数据。";
+"provider.codex.picker.cookie_source.manual" = "粘贴 chatgpt.com 请求中的 Cookie 头。";
+"provider.codex.picker.cookie_source.off" = "禁用 OpenAI 仪表盘 Cookie。";
+
+"provider.codex.field.cliproxy_url.title" = "CLIProxyAPI 地址";
+"provider.codex.field.cliproxy_url.subtitle" = "管理 API 基础地址（默认 http://127.0.0.1:8317）。";
+"provider.codex.field.cliproxy_url.placeholder" = "http://127.0.0.1:8317";
+"provider.codex.field.cliproxy_management_key.title" = "CLIProxy 管理密钥";
+"provider.codex.field.cliproxy_management_key.subtitle" = "以 Authorization Bearer 形式发送到 /v0/management/* 接口。";
+"provider.codex.field.cliproxy_management_key.placeholder" = "粘贴管理密钥…";
+"provider.codex.field.cliproxy_auth_index.title" = "CLIProxy auth_index（可选）";
+"provider.codex.field.cliproxy_auth_index.subtitle" = "留空时自动选择 Codex 认证条目。";
+"provider.codex.field.cliproxy_auth_index.placeholder" = "可选 auth_index";
+"provider.codex.field.cookie_header.placeholder" = "Cookie：…";
+
+"error.codex.cliproxy.invalid_base_url" = "CLIProxyAPI 地址无效。";
+"error.codex.cliproxy.missing_management_key" = "缺少 CLIProxy 管理密钥。请到 设置 > General > CLIProxyAPI 中填写。";
+"error.codex.cliproxy.invalid_response" = "CLIProxyAPI 返回了无效响应。";
+"error.codex.cliproxy.management_failed" = "CLIProxyAPI 管理接口请求失败（%d）。";
+"error.codex.cliproxy.management_failed_with_message" = "CLIProxyAPI 管理接口请求失败（%d）：%@";
+"error.codex.cliproxy.missing_auth" = "CLIProxyAPI 中没有可用的 Codex 认证条目。";
+"error.codex.cliproxy.missing_auth_with_index" = "CLIProxyAPI 未找到 Codex auth_index %@。";
+"error.codex.cliproxy.api_call_failed" = "CLIProxyAPI api-call 请求失败（%d）。";
+"error.codex.cliproxy.api_call_failed_with_message" = "CLIProxyAPI api-call 请求失败（%d）：%@";
+"error.codex.cliproxy.decode_failed" = "解析 CLIProxyAPI 响应失败：%@";
+
+"error.codex.status.missing_cli" = "未检测到 Codex CLI。请执行 `npm i -g @openai/codex`（或 bun 安装）后重试。";
+"error.codex.status.parse_failed" = "无法解析 Codex 状态，将稍后重试。";
+"error.codex.status.timed_out" = "Codex 状态探测超时。";
+"error.codex.status.update_required" = "需要更新 Codex CLI：%@";
+"error.codex.status.update_required_action" = "请执行 `bun install -g @openai/codex` 后继续（更新提示会阻塞 /status）。";
+
+"error.codex.rpc.start_failed" = "Codex 未运行。请先运行一次 Codex 命令。（%@）";
+"error.codex.rpc.request_failed" = "Codex 连接失败：%@";
+"error.codex.rpc.malformed" = "Codex 返回了无效数据：%@";
+"error.codex.rpc.chatgpt_auth_required" = "需要 ChatGPT 登录才能读取限额。";
+
+"error.codex.openai_web.login_required" = "OpenAI 网页访问需要登录。";
+"error.codex.openai_web.no_data_with_body" = "未找到 OpenAI 仪表盘数据。返回内容示例：%@";
+"error.codex.openai_web.unsupported_platform" = "OpenAI 网页仪表盘仅支持在 macOS 上抓取。";
+
+"menu.action.switch_account" = "切换账号...";
+"menu.action.add_account" = "添加账号...";
+"menu.action.usage_dashboard" = "用量仪表盘";
+"menu.action.status_page" = "状态页";
+"menu.action.install_update" = "发现更新，立即重启？";
+"menu.action.settings" = "设置...";
+"menu.action.about" = "关于 CodexBar";
+"menu.action.quit" = "退出";
+"menu.action.buy_credits" = "购买积分...";
+"menu.action.credits_history" = "积分历史";
+"menu.action.usage_breakdown" = "用量拆分";
+"menu.codex.cliproxy.auth_grid.title" = "Codex 认证条目（%d 个）";
+
+"menu.card.percent.left" = "剩余";
+"menu.card.percent.used" = "已用";
+"menu.card.accessibility.usage_remaining" = "用量剩余";
+"menu.card.accessibility.usage_used" = "用量已用";
+"menu.card.accessibility.credits_remaining" = "积分剩余";
+"menu.card.credits.title" = "积分";
+"menu.card.cost.title" = "成本";
+"menu.card.tokens.unit" = "%@ tokens";
+"menu.card.cost.today_with_tokens" = "今天：%@ · %@ tokens";
+"menu.card.cost.today" = "今天：%@";
+"menu.card.cost.last_30_days_with_tokens" = "近 30 天：%@ · %@ tokens";
+"menu.card.cost.last_30_days" = "近 30 天：%@";
+"menu.card.provider_cost.quota_usage" = "配额使用";
+"menu.card.provider_cost.extra_usage" = "额外用量";
+"menu.card.provider_cost.this_month" = "本月";
+
+"window.buy_credits.title" = "购买积分";
+
+"settings.general.language.title" = "语言";
+"settings.general.language.subtitle" = "选择应用界面语言。";
+"settings.general.language.restart_hint" = "语言变更在重启后生效。";
+"settings.general.language.apply_restart" = "应用并重启";
+"settings.general.language.option.system" = "跟随系统";
+"settings.general.language.option.english" = "English";
+"settings.general.language.option.zh_hans" = "简体中文";
+
+"settings.general.cliproxy.section" = "CLIProxyAPI";
+"settings.general.cliproxy.url.title" = "基础地址";
+"settings.general.cliproxy.url.subtitle" = "作为使用 API 源的 Provider（例如 Codex）的全局默认值。";
+"settings.general.cliproxy.url.placeholder" = "http://127.0.0.1:8317";
+"settings.general.cliproxy.key.title" = "管理密钥";
+"settings.general.cliproxy.key.placeholder" = "粘贴 management key…";
+"settings.general.cliproxy.auth_index.title" = "auth_index（可选）";
+"settings.general.cliproxy.auth_index.subtitle" = "可选。指定某个认证文件；留空则聚合所有 Codex 认证条目。";
+"settings.general.cliproxy.auth_index.placeholder" = "留空将加载全部可用 Codex 认证条目";
+
+"provider.codex.cliproxy.aggregate.account_label" = "全部 Codex 认证条目（%d 个）";
+
+"settings.general.system.section" = "系统";
+"settings.general.system.start_at_login.title" = "开机启动";
+"settings.general.system.start_at_login.subtitle" = "在 Mac 启动时自动打开 CodexBar。";
+"settings.general.usage.section" = "用量";
+"settings.general.usage.cost_summary.title" = "显示成本摘要";
+"settings.general.usage.cost_summary.subtitle" = "读取本地 usage 日志，在菜单中显示今天和近 30 天成本。";
+"settings.general.usage.cost_summary.refresh_hint" = "自动刷新：每小时 · 超时：10 分钟";
+"settings.general.automation.section" = "自动化";
+"settings.general.automation.refresh_cadence.title" = "刷新频率";
+"settings.general.automation.refresh_cadence.subtitle" = "CodexBar 在后台轮询各 Provider 的频率。";
+"settings.general.automation.refresh_cadence.manual_hint" = "已关闭自动刷新；可使用菜单中的 Refresh 手动刷新。";
+"settings.general.automation.check_status.title" = "检查服务状态";
+"settings.general.automation.check_status.subtitle" = "轮询 OpenAI/Claude 状态页和 Gemini/Antigravity 对应的 Google Workspace 状态，并在图标与菜单中提示故障。";
+"settings.general.automation.session_quota.title" = "会话配额通知";
+"settings.general.automation.session_quota.subtitle" = "当 5 小时会话额度降至 0% 或恢复可用时发送通知。";
+"settings.general.quit" = "退出 CodexBar";
+"settings.general.usage.cost_status.unsupported" = "%@：不支持";
+"settings.general.usage.cost_status.fetching" = "%@：获取中…%@";
+"settings.general.usage.cost_status.snapshot" = "%@：%@ · 30 天 %@";
+"settings.general.usage.cost_status.last_attempt" = "%@：上次尝试 %@";
+"settings.general.usage.cost_status.no_data" = "%@：暂无数据";
+
+"settings.general.refresh_frequency.manual" = "手动";
+"settings.general.refresh_frequency.one_minute" = "1 分钟";
+"settings.general.refresh_frequency.two_minutes" = "2 分钟";
+"settings.general.refresh_frequency.five_minutes" = "5 分钟";
+"settings.general.refresh_frequency.fifteen_minutes" = "15 分钟";
+"settings.general.refresh_frequency.thirty_minutes" = "30 分钟";
+
+"settings.providers.menu_bar_metric.title" = "菜单栏指标";
+"settings.providers.menu_bar_metric.subtitle" = "选择菜单栏百分比依据的窗口。";
+"settings.providers.menu_bar_metric.option.automatic" = "自动";
+"settings.providers.menu_bar_metric.option.primary" = "主窗口";
+"settings.providers.menu_bar_metric.option.secondary" = "次窗口";
+"settings.providers.menu_bar_metric.option.average" = "平均";
+"settings.providers.menu_bar_metric.option.primary_with_label" = "主窗口（%@）";
+"settings.providers.menu_bar_metric.option.secondary_with_label" = "次窗口（%@）";
+"settings.providers.menu_bar_metric.option.average_with_labels" = "平均（%@ + %@）";

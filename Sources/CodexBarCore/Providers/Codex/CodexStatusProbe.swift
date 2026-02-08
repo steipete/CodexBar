@@ -34,13 +34,18 @@ public enum CodexStatusProbeError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .codexNotInstalled:
-            "Codex CLI missing. Install via `npm i -g @openai/codex` (or bun install) and restart."
+            return L10n.tr(
+                "error.codex.status.missing_cli",
+                fallback: "Codex CLI missing. Install via `npm i -g @openai/codex` (or bun install) and restart.")
         case .parseFailed:
-            "Could not parse Codex status; will retry shortly."
+            return L10n.tr(
+                "error.codex.status.parse_failed",
+                fallback: "Could not parse Codex status; will retry shortly.")
         case .timedOut:
-            "Codex status probe timed out."
+            return L10n.tr("error.codex.status.timed_out", fallback: "Codex status probe timed out.")
         case let .updateRequired(msg):
-            "Codex CLI update needed: \(msg)"
+            let format = L10n.tr("error.codex.status.update_required", fallback: "Codex CLI update needed: %@")
+            return String(format: format, locale: .current, msg)
         }
     }
 }
@@ -93,7 +98,9 @@ public struct CodexStatusProbe {
         }
         if self.containsUpdatePrompt(clean) {
             throw CodexStatusProbeError.updateRequired(
-                "Run `bun install -g @openai/codex` to continue (update prompt blocking /status).")
+                L10n.tr(
+                    "error.codex.status.update_required_action",
+                    fallback: "Run `bun install -g @openai/codex` to continue (update prompt blocking /status)."))
         }
         let credits = TextParsing.firstNumber(pattern: #"Credits:\s*([0-9][0-9.,]*)"#, text: clean)
         // Pull reset info from the same lines that contain the percentages.

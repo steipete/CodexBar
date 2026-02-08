@@ -29,4 +29,8 @@ struct SettingsDefaultsState: Sendable {
     var switcherShowsIcons: Bool
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
+    var appLanguageRaw: String
+    var cliProxyGlobalBaseURL: String
+    var cliProxyGlobalManagementKey: String
+    var cliProxyGlobalAuthIndex: String
 }

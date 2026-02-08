@@ -170,6 +170,16 @@ extension CodexBarCLI {
         tokenContext: TokenAccountCLIContext,
         command: UsageCommandContext) async -> UsageCommandOutput
     {
+        if provider == .codex,
+           let output = await Self.fetchCodexCLIProxyUsageOutputsIfNeeded(
+               provider: provider,
+               status: status,
+               tokenContext: tokenContext,
+               command: command)
+        {
+            return output
+        }
+
         let accounts: [ProviderTokenAccount]
         do {
             accounts = try tokenContext.resolvedAccounts(for: provider)
@@ -189,7 +199,8 @@ extension CodexBarCLI {
                 account: account,
                 status: status,
                 tokenContext: tokenContext,
-                command: command)
+                command: command,
+                environmentOverride: [:])
             output.merge(result)
         }
         return output
@@ -227,13 +238,17 @@ extension CodexBarCLI {
         account: ProviderTokenAccount?,
         status: ProviderStatusPayload?,
         tokenContext: TokenAccountCLIContext,
-        command: UsageCommandContext) async -> UsageCommandOutput
+        command: UsageCommandContext,
+        environmentOverride: [String: String]) async -> UsageCommandOutput
     {
         var output = UsageCommandOutput()
-        let env = tokenContext.environment(
+        var env = tokenContext.environment(
             base: ProcessInfo.processInfo.environment,
             provider: provider,
             account: account)
+        for (key, value) in environmentOverride {
+            env[key] = value
+        }
         let settings = tokenContext.settingsSnapshot(for: provider, account: account)
         let configSource = tokenContext.preferredSourceMode(for: provider)
         let baseSource = command.sourceModeOverride ?? configSource
@@ -348,6 +363,67 @@ extension CodexBarCLI {
         }
 
         return output
+    }
+
+    private static func fetchCodexCLIProxyUsageOutputsIfNeeded(
+        provider: UsageProvider,
+        status: ProviderStatusPayload?,
+        tokenContext: TokenAccountCLIContext,
+        command: UsageCommandContext) async -> UsageCommandOutput?
+    {
+        let configSource = tokenContext.preferredSourceMode(for: provider)
+        let baseSource = command.sourceModeOverride ?? configSource
+        let sourceMode = tokenContext.effectiveSourceMode(base: baseSource, provider: provider, account: nil)
+        guard sourceMode == .api else { return nil }
+
+        let baseEnv = tokenContext.environment(
+            base: ProcessInfo.processInfo.environment,
+            provider: provider,
+            account: nil)
+        let settings = tokenContext.settingsSnapshot(for: provider, account: nil)
+        guard let proxySettings = CodexCLIProxySettings.resolve(
+            providerSettings: settings?.codex,
+            environment: baseEnv)
+        else {
+            return nil
+        }
+        guard proxySettings.authIndex == nil else { return nil }
+
+        let client = CodexCLIProxyManagementClient(settings: proxySettings)
+        let auths: [CodexCLIProxyResolvedAuth]
+        do {
+            auths = try await client.listCodexAuths()
+        } catch {
+            return nil
+        }
+        guard auths.count > 1 else { return nil }
+
+        var output = UsageCommandOutput()
+        for auth in auths {
+            let label = Self.codexCLIProxyAccountLabel(auth)
+            let account = ProviderTokenAccount(
+                id: UUID(),
+                label: label,
+                token: "",
+                addedAt: 0,
+                lastUsed: nil)
+            let result = await Self.fetchUsageOutput(
+                provider: provider,
+                account: account,
+                status: status,
+                tokenContext: tokenContext,
+                command: command,
+                environmentOverride: [CodexCLIProxySettings.environmentAuthIndexKey: auth.authIndex])
+            output.merge(result)
+        }
+        return output
+    }
+
+    private static func codexCLIProxyAccountLabel(_ auth: CodexCLIProxyResolvedAuth) -> String {
+        if let email = auth.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty {
+            return email
+        }
+        return auth.authIndex
     }
 
     private static func fetchAntigravityPlanInfoIfNeeded(

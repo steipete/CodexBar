@@ -32,7 +32,9 @@ extension StatusItemController {
         let meta = self.store.metadata(for: provider)
 
         // For Claude, route subscription users to claude.ai/settings/usage instead of console billing
-        let urlString: String? = if provider == .claude, self.store.isClaudeSubscription() {
+        let urlString: String? = if provider == .codex, let cliProxyDashboardURL = self.codexCLIProxyUsageDashboardURL() {
+            cliProxyDashboardURL.absoluteString
+        } else if provider == .claude, self.store.isClaudeSubscription() {
             meta.subscriptionDashboardURL ?? meta.dashboardURL
         } else {
             meta.dashboardURL
@@ -68,6 +70,21 @@ extension StatusItemController {
         let allowed = ["settings", "usage", "billing", "credits"]
         guard allowed.contains(where: { path.contains($0) }) else { return nil }
         return url.absoluteString
+    }
+
+    private func codexCLIProxyUsageDashboardURL() -> URL? {
+        let providerSettings = self.settings.codexSettingsSnapshot(tokenOverride: nil)
+        guard let cliProxySettings = CodexCLIProxySettings.resolve(
+            providerSettings: providerSettings,
+            environment: ProcessInfo.processInfo.environment)
+        else {
+            return nil
+        }
+
+        let dashboardURL = cliProxySettings.baseURL.appendingPathComponent("management.html", isDirectory: false)
+        guard var components = URLComponents(url: dashboardURL, resolvingAgainstBaseURL: false) else { return dashboardURL }
+        components.fragment = "/usage"
+        return components.url ?? dashboardURL
     }
 
     @objc func openStatusPage() {

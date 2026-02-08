@@ -38,15 +38,24 @@ public struct ProviderSettingsSnapshot: Sendable {
         public let usageDataSource: CodexUsageDataSource
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
+        public let cliProxyBaseURL: String?
+        public let cliProxyManagementKey: String?
+        public let cliProxyAuthIndex: String?
 
         public init(
             usageDataSource: CodexUsageDataSource,
             cookieSource: ProviderCookieSource,
-            manualCookieHeader: String?)
+            manualCookieHeader: String?,
+            cliProxyBaseURL: String?,
+            cliProxyManagementKey: String?,
+            cliProxyAuthIndex: String?)
         {
             self.usageDataSource = usageDataSource
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
+            self.cliProxyBaseURL = cliProxyBaseURL
+            self.cliProxyManagementKey = cliProxyManagementKey
+            self.cliProxyAuthIndex = cliProxyAuthIndex
         }
     }
 

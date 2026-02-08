@@ -13,6 +13,7 @@ let sweetCookieKitDependency: Package.Dependency =
 
 let package = Package(
     name: "CodexBar",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v14),
     ],
@@ -32,6 +33,9 @@ let package = Package(
                     "CodexBarMacroSupport",
                     .product(name: "Logging", package: "swift-log"),
                     .product(name: "SweetCookieKit", package: "SweetCookieKit"),
+                ],
+                resources: [
+                    .process("Resources"),
                 ],
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),

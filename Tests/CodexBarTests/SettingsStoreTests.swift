@@ -144,6 +144,36 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func persistsCodexCLIProxySettingsAcrossInstances() throws {
+        let suite = "SettingsStoreTests-codex-cliproxy"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        storeA.codexUsageDataSource = .api
+        storeA.codexCLIProxyBaseURL = "http://127.0.0.1:8317"
+        storeA.codexCLIProxyManagementKey = "test-management-key"
+        storeA.codexCLIProxyAuthIndex = "auth-index-123"
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.codexUsageDataSource == .api)
+        #expect(storeB.codexCLIProxyBaseURL == "http://127.0.0.1:8317")
+        #expect(storeB.codexCLIProxyManagementKey == "test-management-key")
+        #expect(storeB.codexCLIProxyAuthIndex == "auth-index-123")
+    }
+
+    @Test
     @MainActor
     func applyExternalConfigDoesNotBroadcast() throws {
         let suite = "SettingsStoreTests-external-config"

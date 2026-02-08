@@ -1,0 +1,154 @@
+"provider.codex.source.auto" = "Auto";
+"provider.codex.source.oauth" = "OAuth API";
+"provider.codex.source.api" = "CLIProxyAPI";
+"provider.codex.source.cli" = "CLI (RPC/PTY)";
+
+"provider.codex.version.not_detected" = "not detected";
+"provider.codex.cookie.cached" = "Cached: %@ • %@";
+"provider.codex.menu.credits" = "Credits: %@";
+"provider.codex.menu.last_spend" = "Last spend: %@";
+
+"provider.codex.metadata.session_label" = "Session";
+"provider.codex.metadata.weekly_label" = "Weekly";
+"provider.codex.metadata.credits_hint" = "Credits unavailable; keep Codex running to refresh.";
+"provider.codex.metadata.toggle_title" = "Show Codex usage";
+"provider.codex.no_data_message" = "No Codex sessions found in %@ or %@.";
+
+"provider.codex.toggle.openai_web_extras.title" = "OpenAI web extras";
+"provider.codex.toggle.openai_web_extras.subtitle" = "Show usage breakdown, credits history, and code review via chatgpt.com.";
+
+"provider.codex.picker.usage_source.title" = "Usage source";
+"provider.codex.picker.usage_source.subtitle" = "Auto falls back to the next source if the preferred one fails.";
+
+"provider.codex.picker.cookie_source.title" = "OpenAI cookies";
+"provider.codex.picker.cookie_source.subtitle" = "Automatic imports browser cookies for dashboard extras.";
+"provider.codex.picker.cookie_source.auto" = "Automatic imports browser cookies for dashboard extras.";
+"provider.codex.picker.cookie_source.manual" = "Paste a Cookie header from a chatgpt.com request.";
+"provider.codex.picker.cookie_source.off" = "Disable OpenAI dashboard cookie usage.";
+
+"provider.codex.field.cliproxy_url.title" = "CLIProxyAPI URL";
+"provider.codex.field.cliproxy_url.subtitle" = "Management API base URL (defaults to http://127.0.0.1:8317).";
+"provider.codex.field.cliproxy_url.placeholder" = "http://127.0.0.1:8317";
+"provider.codex.field.cliproxy_management_key.title" = "CLIProxy management key";
+"provider.codex.field.cliproxy_management_key.subtitle" = "Sent as Authorization Bearer token to /v0/management/* endpoints.";
+"provider.codex.field.cliproxy_management_key.placeholder" = "Paste management key…";
+"provider.codex.field.cliproxy_auth_index.title" = "CLIProxy auth_index (optional)";
+"provider.codex.field.cliproxy_auth_index.subtitle" = "Leave empty for automatic Codex auth selection.";
+"provider.codex.field.cliproxy_auth_index.placeholder" = "Optional auth_index";
+"provider.codex.field.cookie_header.placeholder" = "Cookie: …";
+
+"error.codex.cliproxy.invalid_base_url" = "CLIProxyAPI base URL is invalid.";
+"error.codex.cliproxy.missing_management_key" = "CLIProxy management key is missing. Please set it in Settings > General > CLIProxyAPI.";
+"error.codex.cliproxy.invalid_response" = "CLIProxyAPI returned an invalid response.";
+"error.codex.cliproxy.management_failed" = "CLIProxyAPI management API failed (%d).";
+"error.codex.cliproxy.management_failed_with_message" = "CLIProxyAPI management API failed (%d): %@";
+"error.codex.cliproxy.missing_auth" = "CLIProxyAPI has no available Codex auth entry.";
+"error.codex.cliproxy.missing_auth_with_index" = "CLIProxyAPI did not find Codex auth_index %@.";
+"error.codex.cliproxy.api_call_failed" = "CLIProxyAPI api-call failed (%d).";
+"error.codex.cliproxy.api_call_failed_with_message" = "CLIProxyAPI api-call failed (%d): %@";
+"error.codex.cliproxy.decode_failed" = "Failed to decode CLIProxyAPI response: %@";
+
+"error.codex.status.missing_cli" = "Codex CLI missing. Install via `npm i -g @openai/codex` (or bun install) and restart.";
+"error.codex.status.parse_failed" = "Could not parse Codex status; will retry shortly.";
+"error.codex.status.timed_out" = "Codex status probe timed out.";
+"error.codex.status.update_required" = "Codex CLI update needed: %@";
+"error.codex.status.update_required_action" = "Run `bun install -g @openai/codex` to continue (update prompt blocking /status).";
+
+"error.codex.rpc.start_failed" = "Codex not running. Try running a Codex command first. (%@)";
+"error.codex.rpc.request_failed" = "Codex connection failed: %@";
+"error.codex.rpc.malformed" = "Codex returned invalid data: %@";
+"error.codex.rpc.chatgpt_auth_required" = "ChatGPT authentication required to read rate limits.";
+
+"error.codex.openai_web.login_required" = "OpenAI web access requires login.";
+"error.codex.openai_web.no_data_with_body" = "OpenAI dashboard data not found. Body sample: %@";
+"error.codex.openai_web.unsupported_platform" = "OpenAI web dashboard fetch is only supported on macOS.";
+
+"menu.action.switch_account" = "Switch Account...";
+"menu.action.add_account" = "Add Account...";
+"menu.action.usage_dashboard" = "Usage Dashboard";
+"menu.action.status_page" = "Status Page";
+"menu.action.install_update" = "Update ready, restart now?";
+"menu.action.settings" = "Settings...";
+"menu.action.about" = "About CodexBar";
+"menu.action.quit" = "Quit";
+"menu.action.buy_credits" = "Buy Credits...";
+"menu.action.credits_history" = "Credits history";
+"menu.action.usage_breakdown" = "Usage breakdown";
+"menu.codex.cliproxy.auth_grid.title" = "Codex auth entries (%d)";
+
+"menu.card.percent.left" = "left";
+"menu.card.percent.used" = "used";
+"menu.card.accessibility.usage_remaining" = "Usage remaining";
+"menu.card.accessibility.usage_used" = "Usage used";
+"menu.card.accessibility.credits_remaining" = "Credits remaining";
+"menu.card.credits.title" = "Credits";
+"menu.card.cost.title" = "Cost";
+"menu.card.tokens.unit" = "%@ tokens";
+"menu.card.cost.today_with_tokens" = "Today: %@ · %@ tokens";
+"menu.card.cost.today" = "Today: %@";
+"menu.card.cost.last_30_days_with_tokens" = "Last 30 days: %@ · %@ tokens";
+"menu.card.cost.last_30_days" = "Last 30 days: %@";
+"menu.card.provider_cost.quota_usage" = "Quota usage";
+"menu.card.provider_cost.extra_usage" = "Extra usage";
+"menu.card.provider_cost.this_month" = "This month";
+
+"window.buy_credits.title" = "Buy Credits";
+
+"settings.general.language.title" = "Language";
+"settings.general.language.subtitle" = "Choose app display language.";
+"settings.general.language.restart_hint" = "Language changes apply after restart.";
+"settings.general.language.apply_restart" = "Apply & Restart";
+"settings.general.language.option.system" = "System";
+"settings.general.language.option.english" = "English";
+"settings.general.language.option.zh_hans" = "Simplified Chinese";
+
+"settings.general.cliproxy.section" = "CLIProxyAPI";
+"settings.general.cliproxy.url.title" = "Base URL";
+"settings.general.cliproxy.url.subtitle" = "Global default for providers using API source (for example Codex).";
+"settings.general.cliproxy.url.placeholder" = "http://127.0.0.1:8317";
+"settings.general.cliproxy.key.title" = "Management Key";
+"settings.general.cliproxy.key.placeholder" = "Paste management key…";
+"settings.general.cliproxy.auth_index.title" = "auth_index (optional)";
+"settings.general.cliproxy.auth_index.subtitle" = "Optional. Set a specific auth file; leave empty to aggregate all Codex auth entries.";
+"settings.general.cliproxy.auth_index.placeholder" = "Leave empty to load all available Codex auth entries";
+
+"provider.codex.cliproxy.aggregate.account_label" = "All Codex auth entries (%d)";
+
+"settings.general.system.section" = "System";
+"settings.general.system.start_at_login.title" = "Start at Login";
+"settings.general.system.start_at_login.subtitle" = "Automatically opens CodexBar when you start your Mac.";
+"settings.general.usage.section" = "Usage";
+"settings.general.usage.cost_summary.title" = "Show cost summary";
+"settings.general.usage.cost_summary.subtitle" = "Reads local usage logs. Shows today + last 30 days cost in the menu.";
+"settings.general.usage.cost_summary.refresh_hint" = "Auto-refresh: hourly · Timeout: 10m";
+"settings.general.automation.section" = "Automation";
+"settings.general.automation.refresh_cadence.title" = "Refresh cadence";
+"settings.general.automation.refresh_cadence.subtitle" = "How often CodexBar polls providers in the background.";
+"settings.general.automation.refresh_cadence.manual_hint" = "Auto-refresh is off; use the menu's Refresh command.";
+"settings.general.automation.check_status.title" = "Check provider status";
+"settings.general.automation.check_status.subtitle" = "Polls OpenAI/Claude status pages and Google Workspace for Gemini/Antigravity, surfacing incidents in the icon and menu.";
+"settings.general.automation.session_quota.title" = "Session quota notifications";
+"settings.general.automation.session_quota.subtitle" = "Notifies when the 5-hour session quota hits 0% and when it becomes available again.";
+"settings.general.quit" = "Quit CodexBar";
+"settings.general.usage.cost_status.unsupported" = "%@: unsupported";
+"settings.general.usage.cost_status.fetching" = "%@: fetching…%@";
+"settings.general.usage.cost_status.snapshot" = "%@: %@ · 30d %@";
+"settings.general.usage.cost_status.last_attempt" = "%@: last attempt %@";
+"settings.general.usage.cost_status.no_data" = "%@: no data yet";
+
+"settings.general.refresh_frequency.manual" = "Manual";
+"settings.general.refresh_frequency.one_minute" = "1 min";
+"settings.general.refresh_frequency.two_minutes" = "2 min";
+"settings.general.refresh_frequency.five_minutes" = "5 min";
+"settings.general.refresh_frequency.fifteen_minutes" = "15 min";
+"settings.general.refresh_frequency.thirty_minutes" = "30 min";
+
+"settings.providers.menu_bar_metric.title" = "Menu bar metric";
+"settings.providers.menu_bar_metric.subtitle" = "Choose which window drives the menu bar percent.";
+"settings.providers.menu_bar_metric.option.automatic" = "Automatic";
+"settings.providers.menu_bar_metric.option.primary" = "Primary";
+"settings.providers.menu_bar_metric.option.secondary" = "Secondary";
+"settings.providers.menu_bar_metric.option.average" = "Average";
+"settings.providers.menu_bar_metric.option.primary_with_label" = "Primary (%@)";
+"settings.providers.menu_bar_metric.option.secondary_with_label" = "Secondary (%@)";
+"settings.providers.menu_bar_metric.option.average_with_labels" = "Average (%@ + %@)";

@@ -12,9 +12,12 @@ public struct OpenAIDashboardFetcher {
         public var errorDescription: String? {
             switch self {
             case .loginRequired:
-                "OpenAI web access requires login."
+                return L10n.tr("error.codex.openai_web.login_required", fallback: "OpenAI web access requires login.")
             case let .noDashboardData(body):
-                "OpenAI dashboard data not found. Body sample: \(body.prefix(200))"
+                let format = L10n.tr(
+                    "error.codex.openai_web.no_data_with_body",
+                    fallback: "OpenAI dashboard data not found. Body sample: %@")
+                return String(format: format, locale: .current, String(body.prefix(200)))
             }
         }
     }
@@ -471,9 +474,12 @@ public struct OpenAIDashboardFetcher {
         public var errorDescription: String? {
             switch self {
             case .loginRequired:
-                "OpenAI web access requires login."
+                return L10n.tr("error.codex.openai_web.login_required", fallback: "OpenAI web access requires login.")
             case let .noDashboardData(body):
-                "OpenAI dashboard data not found. Body sample: \(body.prefix(200))"
+                let format = L10n.tr(
+                    "error.codex.openai_web.no_data_with_body",
+                    fallback: "OpenAI dashboard data not found. Body sample: %@")
+                return String(format: format, locale: .current, String(body.prefix(200)))
             }
         }
     }
@@ -486,7 +492,10 @@ public struct OpenAIDashboardFetcher {
         debugDumpHTML _: Bool = false,
         timeout _: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot
     {
-        throw FetchError.noDashboardData(body: "OpenAI web dashboard fetch is only supported on macOS.")
+        throw FetchError.noDashboardData(
+            body: L10n.tr(
+                "error.codex.openai_web.unsupported_platform",
+                fallback: "OpenAI web dashboard fetch is only supported on macOS."))
     }
 }
 #endif

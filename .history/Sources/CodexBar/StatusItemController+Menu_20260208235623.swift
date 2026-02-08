@@ -299,17 +299,6 @@ extension StatusItemController {
                         compactView,
                         id: "menuCard-auth-grid",
                         width: context.menuWidth))
-                }
-                if let inlineCostHistoryItem = self.makeCostHistoryInlineItem(
-                    provider: context.currentProvider,
-                    width: context.menuWidth)
-                {
-                    if !entries.isEmpty {
-                        menu.addItem(.separator())
-                    }
-                    menu.addItem(inlineCostHistoryItem)
-                    menu.addItem(.separator())
-                } else if !entries.isEmpty {
                     menu.addItem(.separator())
                 }
                 return false
@@ -819,25 +808,12 @@ extension StatusItemController {
                 topPadding: sectionSpacing,
                 bottomPadding: bottomPadding,
                 width: width)
+            let costSubmenu = webItems.hasCostHistory ? self.makeCostHistorySubmenu(provider: provider) : nil
             menu.addItem(self.makeMenuCardItem(
                 costView,
                 id: "menuCardCost",
-                width: width))
-
-            if let inlineCostHistoryItem = self.makeCostHistoryInlineItem(provider: provider, width: width) {
-                menu.addItem(.separator())
-                menu.addItem(inlineCostHistoryItem)
-            } else if webItems.hasCostHistory {
-                let costSubmenu = self.makeCostHistorySubmenu(provider: provider)
-                if costSubmenu != nil {
-                    // Fallback for non-rendering mode: still expose chart through submenu.
-                    if let lastItem = menu.items.last {
-                        lastItem.submenu = costSubmenu
-                        lastItem.target = self
-                        lastItem.action = #selector(self.menuCardNoOp(_:))
-                    }
-                }
-            }
+                width: width,
+                submenu: costSubmenu))
         }
     }
 
@@ -1325,23 +1301,6 @@ extension StatusItemController {
         chartItem.representedObject = "costHistoryChart"
         submenu.addItem(chartItem)
         return submenu
-    }
-
-    private func makeCostHistoryInlineItem(provider: UsageProvider, width: CGFloat) -> NSMenuItem? {
-        guard Self.menuCardRenderingEnabled else { return nil }
-        guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
-        guard let tokenSnapshot = self.store.tokenSnapshot(for: provider) else { return nil }
-        guard !tokenSnapshot.daily.isEmpty else { return nil }
-
-        let chartView = CostHistoryChartMenuView(
-            provider: provider,
-            daily: tokenSnapshot.daily,
-            totalCostUSD: tokenSnapshot.last30DaysCostUSD,
-            width: width)
-        return self.makeMenuCardItem(
-            chartView,
-            id: "menuCardCostHistoryInline",
-            width: width)
     }
 
     private func isHostedSubviewMenu(_ menu: NSMenu) -> Bool {

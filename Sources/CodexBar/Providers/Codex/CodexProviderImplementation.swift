@@ -11,7 +11,8 @@ struct CodexProviderImplementation: ProviderImplementation {
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
         ProviderPresentation { context in
-            context.store.version(for: context.provider) ?? "not detected"
+            context.store.version(for: context.provider)
+                ?? L10n.tr("provider.codex.version.not_detected", fallback: "not detected")
         }
     }
 
@@ -20,6 +21,9 @@ struct CodexProviderImplementation: ProviderImplementation {
         _ = settings.codexUsageDataSource
         _ = settings.codexCookieSource
         _ = settings.codexCookieHeader
+        _ = settings.codexCLIProxyBaseURL
+        _ = settings.codexCLIProxyManagementKey
+        _ = settings.codexCLIProxyAuthIndex
     }
 
     @MainActor
@@ -49,6 +53,7 @@ struct CodexProviderImplementation: ProviderImplementation {
         switch context.settings.codexUsageDataSource {
         case .auto: .auto
         case .oauth: .oauth
+        case .api: .api
         case .cli: .cli
         }
     }
@@ -73,8 +78,10 @@ struct CodexProviderImplementation: ProviderImplementation {
         return [
             ProviderSettingsToggleDescriptor(
                 id: "codex-openai-web-extras",
-                title: "OpenAI web extras",
-                subtitle: "Show usage breakdown, credits history, and code review via chatgpt.com.",
+                title: L10n.tr("provider.codex.toggle.openai_web_extras.title", fallback: "OpenAI web extras"),
+                subtitle: L10n.tr(
+                    "provider.codex.toggle.openai_web_extras.subtitle",
+                    fallback: "Show usage breakdown, credits history, and code review via chatgpt.com."),
                 binding: extrasBinding,
                 statusText: nil,
                 actions: [],
@@ -109,16 +116,24 @@ struct CodexProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.codexCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies for dashboard extras.",
-                manual: "Paste a Cookie header from a chatgpt.com request.",
-                off: "Disable OpenAI dashboard cookie usage.")
+                auto: L10n.tr(
+                    "provider.codex.picker.cookie_source.auto",
+                    fallback: "Automatic imports browser cookies for dashboard extras."),
+                manual: L10n.tr(
+                    "provider.codex.picker.cookie_source.manual",
+                    fallback: "Paste a Cookie header from a chatgpt.com request."),
+                off: L10n.tr(
+                    "provider.codex.picker.cookie_source.off",
+                    fallback: "Disable OpenAI dashboard cookie usage."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "codex-usage-source",
-                title: "Usage source",
-                subtitle: "Auto falls back to the next source if the preferred one fails.",
+                title: L10n.tr("provider.codex.picker.usage_source.title", fallback: "Usage source"),
+                subtitle: L10n.tr(
+                    "provider.codex.picker.usage_source.subtitle",
+                    fallback: "Auto falls back to the next source if the preferred one fails."),
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -130,8 +145,10 @@ struct CodexProviderImplementation: ProviderImplementation {
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "codex-cookie-source",
-                title: "OpenAI cookies",
-                subtitle: "Automatic imports browser cookies for dashboard extras.",
+                title: L10n.tr("provider.codex.picker.cookie_source.title", fallback: "OpenAI cookies"),
+                subtitle: L10n.tr(
+                    "provider.codex.picker.cookie_source.subtitle",
+                    fallback: "Automatic imports browser cookies for dashboard extras."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -140,7 +157,8 @@ struct CodexProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard let entry = CookieHeaderCache.load(provider: .codex) else { return nil }
                     let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
+                    let format = L10n.tr("provider.codex.cookie.cached", fallback: "Cached: %@ • %@")
+                    return String(format: format, locale: .current, entry.sourceLabel, when)
                 }),
         ]
     }
@@ -153,7 +171,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 title: "",
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Cookie: …",
+                placeholder: L10n.tr("provider.codex.field.cookie_header.placeholder", fallback: "Cookie: …"),
                 binding: context.stringBinding(\.codexCookieHeader),
                 actions: [],
                 isVisible: {
@@ -168,13 +186,19 @@ struct CodexProviderImplementation: ProviderImplementation {
         guard context.settings.showOptionalCreditsAndExtraUsage,
               context.metadata.supportsCredits
         else { return }
+        let isCLIProxySource = context.store.sourceLabel(for: .codex)
+            .localizedCaseInsensitiveContains("cliproxy-api")
 
         if let credits = context.store.credits {
-            entries.append(.text("Credits: \(UsageFormatter.creditsString(from: credits.remaining))", .primary))
+            let creditsValue = UsageFormatter.creditsString(from: credits.remaining)
+            let creditsFormat = L10n.tr("provider.codex.menu.credits", fallback: "Credits: %@")
+            entries.append(.text(String(format: creditsFormat, locale: .current, creditsValue), .primary))
             if let latest = credits.events.first {
-                entries.append(.text("Last spend: \(UsageFormatter.creditEventSummary(latest))", .secondary))
+                let spendValue = UsageFormatter.creditEventSummary(latest)
+                let spendFormat = L10n.tr("provider.codex.menu.last_spend", fallback: "Last spend: %@")
+                entries.append(.text(String(format: spendFormat, locale: .current, spendValue), .secondary))
             }
-        } else {
+        } else if !isCLIProxySource {
             let hint = context.store.lastCreditsError ?? context.metadata.creditsHint
             entries.append(.text(hint, .secondary))
         }

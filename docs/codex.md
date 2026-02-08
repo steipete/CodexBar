@@ -1,5 +1,5 @@
 ---
-summary: "Codex provider data sources: OpenAI web dashboard, Codex CLI RPC/PTY, credits, and local cost usage."
+summary: "Codex provider data sources: OAuth API, CLIProxyAPI management API, OpenAI web dashboard, CLI RPC/PTY, and local cost usage."
 read_when:
   - Debugging Codex usage/credits parsing
   - Updating OpenAI dashboard scraping or cookie import
@@ -9,7 +9,7 @@ read_when:
 
 # Codex provider
 
-Codex has four usage data paths (OAuth API, web dashboard, CLI RPC, CLI PTY) plus a local cost-usage scanner.
+Codex has five usage data paths (OAuth API, CLIProxyAPI management API, web dashboard, CLI RPC, CLI PTY) plus a local cost-usage scanner.
 The OAuth API is the default app source when credentials are available; web access is optional for dashboard extras.
 
 ## Data sources + fallback order
@@ -21,11 +21,23 @@ The OAuth API is the default app source when credentials are available; web acce
    `primary + openai-web`.
 
 Usage source picker:
-- Preferences → Providers → Codex → Usage source (Auto/OAuth/CLI).
+- Preferences → Providers → Codex → Usage source (Auto/OAuth/CLIProxyAPI/CLI).
 
 ### CLI default selection (`--source auto`)
 1) OpenAI web dashboard (when available).
 2) Codex CLI RPC, with CLI PTY fallback when needed.
+
+### CLIProxyAPI management API
+- Usage source: `CLIProxyAPI` (`--source api`).
+- Settings:
+  - `CLIProxyAPI URL` (default `http://127.0.0.1:8317`).
+  - `CLIProxy management key` (required).
+  - `CLIProxy auth_index` (optional).
+    - CLI (`codexbar --source api`) 留空时会遍历并输出所有可用 Codex auth 条目。
+    - App 运行时留空会自动选择第一个可用 Codex auth 条目。
+- Calls:
+  1) `GET /v0/management/auth-files` to resolve a Codex `auth_index`.
+  2) `POST /v0/management/api-call` to proxy `GET https://chatgpt.com/backend-api/wham/usage`.
 
 ### OAuth API (preferred for the app)
 - Reads OAuth tokens from `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`).
