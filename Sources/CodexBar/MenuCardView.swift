@@ -761,7 +761,7 @@ extension UsageMenuCardView.Model {
         if let primary = snapshot.primary {
             metrics.append(Metric(
                 id: "primary",
-                title: input.metadata.sessionLabel,
+                title: Self.primaryWindowLabel(for: input.provider, fallback: input.metadata.sessionLabel),
                 percent: Self.clamped(
                     input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
                 percentStyle: percentStyle,
@@ -780,7 +780,7 @@ extension UsageMenuCardView.Model {
                 showUsed: input.usageBarsShowUsed)
             metrics.append(Metric(
                 id: "secondary",
-                title: input.metadata.weeklyLabel,
+                title: Self.secondaryWindowLabel(for: input.provider, fallback: input.metadata.weeklyLabel),
                 percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now),
@@ -819,6 +819,20 @@ extension UsageMenuCardView.Model {
                 paceOnTop: true))
         }
         return metrics
+    }
+
+    private static func primaryWindowLabel(for provider: UsageProvider, fallback: String) -> String {
+        if provider == .codex || provider == .codexproxy {
+            return L10n.tr("provider.codex.metadata.session_label", fallback: "Session")
+        }
+        return fallback
+    }
+
+    private static func secondaryWindowLabel(for provider: UsageProvider, fallback: String) -> String {
+        if provider == .codex || provider == .codexproxy {
+            return L10n.tr("provider.codex.metadata.weekly_label", fallback: "Weekly")
+        }
+        return fallback
     }
 
     private static func zaiLimitDetailText(limit: ZaiLimitEntry?) -> String? {

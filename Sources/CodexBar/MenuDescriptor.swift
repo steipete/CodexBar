@@ -117,7 +117,7 @@ struct MenuDescriptor {
             if let primary = snap.primary {
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.sessionLabel,
+                    title: Self.primaryWindowLabel(for: provider, fallback: meta.sessionLabel),
                     window: primary,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
@@ -125,7 +125,7 @@ struct MenuDescriptor {
             if let weekly = snap.secondary {
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.weeklyLabel,
+                    title: Self.secondaryWindowLabel(for: provider, fallback: meta.weeklyLabel),
                     window: weekly,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
@@ -163,6 +163,20 @@ struct MenuDescriptor {
             .appendUsageMenuEntries(context: usageContext, entries: &entries)
 
         return Section(entries: entries)
+    }
+
+    private static func primaryWindowLabel(for provider: UsageProvider, fallback: String) -> String {
+        if provider == .codex || provider == .codexproxy {
+            return L10n.tr("provider.codex.metadata.session_label", fallback: "Session")
+        }
+        return fallback
+    }
+
+    private static func secondaryWindowLabel(for provider: UsageProvider, fallback: String) -> String {
+        if provider == .codex || provider == .codexproxy {
+            return L10n.tr("provider.codex.metadata.weekly_label", fallback: "Weekly")
+        }
+        return fallback
     }
 
     private static func accountSection(
