@@ -44,6 +44,8 @@
 "error.codex.cliproxy.management_failed_with_message" = "CLIProxyAPI management API failed (%d): %@";
 "error.codex.cliproxy.missing_auth" = "CLIProxyAPI has no available Codex auth entry.";
 "error.codex.cliproxy.missing_auth_with_index" = "CLIProxyAPI did not find Codex auth_index %@.";
+"error.codex.cliproxy.missing_provider_auth" = "CLIProxyAPI has no available %@ auth entry.";
+"error.codex.cliproxy.missing_provider_auth_with_index" = "CLIProxyAPI did not find %@ auth_index %@.";
 "error.codex.cliproxy.api_call_failed" = "CLIProxyAPI api-call failed (%d).";
 "error.codex.cliproxy.api_call_failed_with_message" = "CLIProxyAPI api-call failed (%d): %@";
 "error.codex.cliproxy.decode_failed" = "Failed to decode CLIProxyAPI response: %@";
@@ -75,6 +77,7 @@
 "menu.action.credits_history" = "Credits history";
 "menu.action.usage_breakdown" = "Usage breakdown";
 "menu.codex.cliproxy.auth_grid.title" = "Codex auth entries (%d)";
+"menu.cliproxy.auth_grid.title" = "%@ auth entries (%d)";
 
 "menu.card.percent.left" = "left";
 "menu.card.percent.used" = "used";
@@ -109,10 +112,11 @@
 "settings.general.cliproxy.key.title" = "Management Key";
 "settings.general.cliproxy.key.placeholder" = "Paste management key…";
 "settings.general.cliproxy.auth_index.title" = "auth_index (optional)";
-"settings.general.cliproxy.auth_index.subtitle" = "Optional. Set a specific auth file; leave empty to aggregate all Codex auth entries.";
-"settings.general.cliproxy.auth_index.placeholder" = "Leave empty to load all available Codex auth entries";
+"settings.general.cliproxy.auth_index.subtitle" = "Optional. Set a specific auth file; leave empty to aggregate all matching auth entries.";
+"settings.general.cliproxy.auth_index.placeholder" = "Leave empty to load all matching auth entries";
 
 "provider.codex.cliproxy.aggregate.account_label" = "All Codex auth entries (%d)";
+"provider.cliproxy.aggregate.account_label" = "All %@ auth entries (%d)";
 
 "settings.general.system.section" = "System";
 "settings.general.system.start_at_login.title" = "Start at Login";

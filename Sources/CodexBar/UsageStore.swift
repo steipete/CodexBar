@@ -1153,6 +1153,16 @@ extension UsageStore {
                 let text = "CLIProxy Codex uses management API; use CodexBarCLI --provider codexproxy --source api for raw checks."
                 await MainActor.run { self.probeLogs[.codexproxy] = text }
                 return text
+            case .geminiproxy:
+                let text =
+                    "CLIProxy Gemini uses management API; use CodexBarCLI --provider geminiproxy --source api for raw checks."
+                await MainActor.run { self.probeLogs[.geminiproxy] = text }
+                return text
+            case .antigravityproxy:
+                let text =
+                    "CLIProxy Antigravity uses management API; use CodexBarCLI --provider antigravityproxy --source api for raw checks."
+                await MainActor.run { self.probeLogs[.antigravityproxy] = text }
+                return text
             case .claude:
                 let text = await self.debugClaudeLog(
                     claudeWebExtrasEnabled: claudeWebExtrasEnabled,

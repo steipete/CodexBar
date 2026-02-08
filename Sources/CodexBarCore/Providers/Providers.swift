@@ -5,6 +5,8 @@ import SweetCookieKit
 public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case codex
     case codexproxy
+    case geminiproxy
+    case antigravityproxy
     case claude
     case cursor
     case opencode

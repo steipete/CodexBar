@@ -9,6 +9,7 @@ public enum CodexCLIProxyError: LocalizedError, Sendable {
     case invalidResponse
     case managementRequestFailed(Int, String?)
     case missingCodexAuth(String?)
+    case missingProviderAuth(provider: String, authIndex: String?)
     case apiCallFailed(Int, String?)
     case decodeFailed(String)
 
@@ -43,6 +44,17 @@ public enum CodexCLIProxyError: LocalizedError, Sendable {
             return L10n.tr(
                 "error.codex.cliproxy.missing_auth",
                 fallback: "CLIProxyAPI has no available Codex auth entry.")
+        case let .missingProviderAuth(provider, authIndex):
+            if let authIndex, !authIndex.isEmpty {
+                let format = L10n.tr(
+                    "error.codex.cliproxy.missing_provider_auth_with_index",
+                    fallback: "CLIProxyAPI did not find %@ auth_index %@.")
+                return String(format: format, locale: .current, provider, authIndex)
+            }
+            let format = L10n.tr(
+                "error.codex.cliproxy.missing_provider_auth",
+                fallback: "CLIProxyAPI has no available %@ auth entry.")
+            return String(format: format, locale: .current, provider)
         case let .apiCallFailed(status, message):
             if let message, !message.isEmpty {
                 let format = L10n.tr(
@@ -70,9 +82,85 @@ public struct CodexCLIProxyResolvedAuth: Sendable {
     public let planType: String?
 }
 
+public struct CLIProxyGeminiQuotaBucket: Sendable {
+    public let modelID: String
+    public let remainingFraction: Double
+    public let resetTime: Date?
+
+    public init(modelID: String, remainingFraction: Double, resetTime: Date?) {
+        self.modelID = modelID
+        self.remainingFraction = remainingFraction
+        self.resetTime = resetTime
+    }
+}
+
+public struct CLIProxyGeminiQuotaResponse: Sendable {
+    public let buckets: [CLIProxyGeminiQuotaBucket]
+
+    public init(buckets: [CLIProxyGeminiQuotaBucket]) {
+        self.buckets = buckets
+    }
+}
+
+private enum CLIProxyAuthProvider: Sendable {
+    case codex
+    case gemini
+    case antigravity
+
+    var displayName: String {
+        switch self {
+        case .codex: "Codex"
+        case .gemini: "Gemini"
+        case .antigravity: "Antigravity"
+        }
+    }
+
+    var providerValues: Set<String> {
+        switch self {
+        case .codex: ["codex"]
+        case .gemini: ["gemini-cli", "gemini"]
+        case .antigravity: ["antigravity"]
+        }
+    }
+
+    var typeValues: Set<String> {
+        switch self {
+        case .codex: ["codex"]
+        case .gemini: ["gemini-cli", "gemini"]
+        case .antigravity: ["antigravity"]
+        }
+    }
+
+    func matches(provider: String?, type: String?) -> Bool {
+        let normalizedProvider = provider?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedType = type?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return self.providerValues.contains(normalizedProvider ?? "")
+            || self.typeValues.contains(normalizedType ?? "")
+    }
+
+    func missingAuthError(authIndex: String?) -> CodexCLIProxyError {
+        switch self {
+        case .codex:
+            return .missingCodexAuth(authIndex)
+        case .gemini, .antigravity:
+            return .missingProviderAuth(provider: self.displayName, authIndex: authIndex)
+        }
+    }
+}
+
 public struct CodexCLIProxyManagementClient: Sendable {
     private let settings: CodexCLIProxySettings
     private let session: URLSession
+    private static let geminiQuotaURL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
+    private static let geminiLoadCodeAssistURL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
+    private static let geminiFallbackProjectID = "just-well-nxk81"
+    private static let geminiHeaders = [
+        "Authorization": "Bearer $TOKEN$",
+        "Content-Type": "application/json",
+        "User-Agent": "google-api-nodejs-client/9.15.1",
+        "X-Goog-Api-Client": "gl-node/22.17.0",
+        "Client-Metadata": "ideType=IDE_UNSPECIFIED,platform=PLATFORM_UNSPECIFIED,pluginType=GEMINI",
+    ]
 
     public init(settings: CodexCLIProxySettings, session: URLSession = .shared) {
         self.settings = settings
@@ -80,43 +168,35 @@ public struct CodexCLIProxyManagementClient: Sendable {
     }
 
     public func resolveCodexAuth() async throws -> CodexCLIProxyResolvedAuth {
-        let auths = try await self.listCodexAuths()
-
-        if let preferred = self.settings.authIndex?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !preferred.isEmpty
-        {
-            guard let selected = auths.first(where: { $0.authIndex == preferred }) else {
-                throw CodexCLIProxyError.missingCodexAuth(preferred)
-            }
-            return selected
-        }
-
-        guard let selected = auths.first else {
-            throw CodexCLIProxyError.missingCodexAuth(nil)
-        }
-        return selected
+        try await self.resolveAuth(for: .codex)
     }
 
     public func listCodexAuths() async throws -> [CodexCLIProxyResolvedAuth] {
-        let response = try await self.fetchAuthFiles()
-        let auths = response.files.filter { file in
-            let provider = file.provider?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let type = file.type?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return provider == "codex" || type == "codex"
-        }
+        try await self.listAuths(for: .codex)
+    }
 
-        let enabledAuths = auths.filter { !($0.disabled ?? false) }
-        let pool = enabledAuths.isEmpty ? auths : enabledAuths
-        let mapped = pool.compactMap { auth -> CodexCLIProxyResolvedAuth? in
-            let resolved = self.mapResolvedAuth(auth)
-            guard !resolved.authIndex.isEmpty else { return nil }
-            return resolved
-        }
-        return mapped.sorted { left, right in
-            let l = left.email?.lowercased() ?? left.authIndex.lowercased()
-            let r = right.email?.lowercased() ?? right.authIndex.lowercased()
-            return l < r
-        }
+    public func resolveGeminiAuth() async throws -> CodexCLIProxyResolvedAuth {
+        try await self.resolveAuth(for: .gemini)
+    }
+
+    public func listGeminiAuths() async throws -> [CodexCLIProxyResolvedAuth] {
+        try await self.listAuths(for: .gemini)
+    }
+
+    public func resolveAntigravityAuth() async throws -> CodexCLIProxyResolvedAuth {
+        try await self.resolveAuth(for: .antigravity)
+    }
+
+    public func listAntigravityAuths() async throws -> [CodexCLIProxyResolvedAuth] {
+        try await self.listAuths(for: .antigravity)
+    }
+
+    public func fetchGeminiQuota(auth: CodexCLIProxyResolvedAuth) async throws -> CLIProxyGeminiQuotaResponse {
+        try await self.fetchGeminiLikeQuota(auth: auth)
+    }
+
+    public func fetchAntigravityQuota(auth: CodexCLIProxyResolvedAuth) async throws -> CLIProxyGeminiQuotaResponse {
+        try await self.fetchGeminiLikeQuota(auth: auth)
     }
 
     public func fetchCodexUsage(auth: CodexCLIProxyResolvedAuth) async throws -> CodexUsageResponse {
@@ -152,6 +232,143 @@ public struct CodexCLIProxyManagementClient: Sendable {
         } catch {
             throw CodexCLIProxyError.decodeFailed(error.localizedDescription)
         }
+    }
+
+    private func resolveAuth(for provider: CLIProxyAuthProvider) async throws -> CodexCLIProxyResolvedAuth {
+        let auths = try await self.listAuths(for: provider)
+
+        if let preferred = self.settings.authIndex?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !preferred.isEmpty
+        {
+            guard let selected = auths.first(where: { $0.authIndex == preferred }) else {
+                throw provider.missingAuthError(authIndex: preferred)
+            }
+            return selected
+        }
+
+        guard let selected = auths.first else {
+            throw provider.missingAuthError(authIndex: nil)
+        }
+        return selected
+    }
+
+    private func listAuths(for provider: CLIProxyAuthProvider) async throws -> [CodexCLIProxyResolvedAuth] {
+        let response = try await self.fetchAuthFiles()
+        let auths = response.files.filter { provider.matches(provider: $0.provider, type: $0.type) }
+
+        let enabledAuths = auths.filter { !($0.disabled ?? false) }
+        let pool = enabledAuths.isEmpty ? auths : enabledAuths
+        let mapped = pool.compactMap { auth -> CodexCLIProxyResolvedAuth? in
+            let resolved = self.mapResolvedAuth(auth)
+            guard !resolved.authIndex.isEmpty else { return nil }
+            return resolved
+        }
+        return mapped.sorted { left, right in
+            let l = left.email?.lowercased() ?? left.authIndex.lowercased()
+            let r = right.email?.lowercased() ?? right.authIndex.lowercased()
+            return l < r
+        }
+    }
+
+    private func fetchGeminiLikeQuota(auth: CodexCLIProxyResolvedAuth) async throws -> CLIProxyGeminiQuotaResponse {
+        let projectID = await self.resolveGeminiProjectID(auth: auth) ?? Self.geminiFallbackProjectID
+        let payload = try await self.fetchGeminiLikeQuota(auth: auth, projectID: projectID)
+        if !payload.buckets.isEmpty { return payload }
+        if projectID != Self.geminiFallbackProjectID {
+            return try await self.fetchGeminiLikeQuota(auth: auth, projectID: Self.geminiFallbackProjectID)
+        }
+        return payload
+    }
+
+    private func fetchGeminiLikeQuota(
+        auth: CodexCLIProxyResolvedAuth,
+        projectID: String) async throws -> CLIProxyGeminiQuotaResponse
+    {
+        let bodyPayload = GeminiQuotaRequestPayload(project: projectID)
+        let requestData = try JSONEncoder().encode(bodyPayload)
+        guard let requestString = String(data: requestData, encoding: .utf8) else {
+            throw CodexCLIProxyError.invalidResponse
+        }
+
+        let body = APICallRequest(
+            authIndex: auth.authIndex,
+            method: "POST",
+            url: Self.geminiQuotaURL,
+            header: Self.geminiHeaders,
+            data: requestString)
+        let callResponse = try await self.post(path: "/api-call", body: body)
+        let statusCode = callResponse.statusCode
+        guard (200...299).contains(statusCode) else {
+            throw CodexCLIProxyError.apiCallFailed(statusCode, callResponse.compactBody)
+        }
+        guard let bodyString = callResponse.body else {
+            throw CodexCLIProxyError.invalidResponse
+        }
+
+        let responseData = Data(bodyString.utf8)
+        do {
+            let decoded = try JSONDecoder().decode(GeminiQuotaResponsePayload.self, from: responseData)
+            let buckets = decoded.buckets.compactMap { bucket -> CLIProxyGeminiQuotaBucket? in
+                guard let modelID = bucket.modelID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !modelID.isEmpty,
+                      let remainingFraction = bucket.remainingFraction
+                else {
+                    return nil
+                }
+                return CLIProxyGeminiQuotaBucket(
+                    modelID: modelID,
+                    remainingFraction: remainingFraction,
+                    resetTime: self.parseGeminiResetDate(bucket.resetTime))
+            }
+            return CLIProxyGeminiQuotaResponse(buckets: buckets)
+        } catch {
+            throw CodexCLIProxyError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    private func resolveGeminiProjectID(auth: CodexCLIProxyResolvedAuth) async -> String? {
+        let body = APICallRequest(
+            authIndex: auth.authIndex,
+            method: "POST",
+            url: Self.geminiLoadCodeAssistURL,
+            header: Self.geminiHeaders,
+            data: "{}")
+
+        guard let response = try? await self.post(path: "/api-call", body: body),
+              (200 ... 299).contains(response.statusCode),
+              let bodyString = response.body,
+              let data = bodyString.data(using: .utf8),
+              let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+
+        if let project = raw["cloudaicompanionProject"] as? String {
+            let normalized = project.trimmingCharacters(in: .whitespacesAndNewlines)
+            return normalized.isEmpty ? nil : normalized
+        }
+
+        if let project = raw["cloudaicompanionProject"] as? [String: Any] {
+            if let id = project["id"] as? String {
+                let normalized = id.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !normalized.isEmpty { return normalized }
+            }
+            if let projectID = project["projectId"] as? String {
+                let normalized = projectID.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !normalized.isEmpty { return normalized }
+            }
+        }
+
+        return nil
+    }
+
+    private func parseGeminiResetDate(_ raw: String?) -> Date? {
+        guard let raw else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: raw) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: raw)
     }
 
     private func fetchAuthFiles() async throws -> AuthFilesResponse {
@@ -302,5 +519,27 @@ private struct APICallResponse: Decodable {
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return trimmed.count > 320 ? String(trimmed.prefix(320)) + "…" : trimmed
+    }
+}
+
+private struct GeminiQuotaRequestPayload: Encodable {
+    let project: String
+}
+
+private struct GeminiQuotaResponsePayload: Decodable {
+    let buckets: [GeminiQuotaBucketPayload]
+}
+
+private struct GeminiQuotaBucketPayload: Decodable {
+    let remainingFraction: Double?
+    let resetTime: String?
+    let modelID: String?
+    let tokenType: String?
+
+    enum CodingKeys: String, CodingKey {
+        case remainingFraction
+        case resetTime
+        case modelID = "modelId"
+        case tokenType
     }
 }

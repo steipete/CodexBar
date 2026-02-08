@@ -279,7 +279,7 @@ extension StatusItemController {
     private func addMenuCards(to menu: NSMenu, context: MenuCardContext) -> Bool {
         if let tokenAccountDisplay = context.tokenAccountDisplay, tokenAccountDisplay.showAll {
             let accountSnapshots = tokenAccountDisplay.snapshots
-            let shouldShowAggregateCard = self.isCodexCLIProxyMultiAuthDisplay(
+            let shouldShowAggregateCard = self.isCLIProxyMultiAuthDisplay(
                 provider: context.currentProvider,
                 display: tokenAccountDisplay)
             if shouldShowAggregateCard, let aggregateModel = self.menuCardModel(for: context.selectedProvider) {
@@ -292,9 +292,14 @@ extension StatusItemController {
                 }
             }
             if shouldShowAggregateCard {
-                let entries = self.codexCLIProxyCompactEntries(from: accountSnapshots)
+                let entries = self.codexCLIProxyCompactEntries(
+                    from: accountSnapshots,
+                    provider: context.currentProvider)
                 if !entries.isEmpty {
-                    let compactView = CodexCLIProxyAuthCompactGridView(entries: entries)
+                    let providerName = self.store.metadata(for: context.currentProvider).displayName
+                    let compactView = CodexCLIProxyAuthCompactGridView(
+                        providerDisplayName: providerName,
+                        entries: entries)
                     menu.addItem(self.makeMenuCardItem(
                         compactView,
                         id: "menuCard-auth-grid",
@@ -521,7 +526,7 @@ extension StatusItemController {
     }
 
     private func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
-        if (provider == .codex || provider == .codexproxy),
+        if self.isCLIProxyMultiAuthProvider(provider),
            let snapshots = self.store.accountSnapshots[provider],
            snapshots.count > 1,
            self.store.sourceLabel(for: provider).localizedCaseInsensitiveContains("cliproxy-api")
@@ -550,23 +555,30 @@ extension StatusItemController {
             showSwitcher: !showAll)
     }
 
-    private func isCodexCLIProxyMultiAuthDisplay(
+    private func isCLIProxyMultiAuthProvider(_ provider: UsageProvider) -> Bool {
+        provider == .codex || provider == .codexproxy || provider == .geminiproxy || provider == .antigravityproxy
+    }
+
+    private func isCLIProxyMultiAuthDisplay(
         provider: UsageProvider,
         display: TokenAccountMenuDisplay) -> Bool
     {
-        (provider == .codex || provider == .codexproxy) &&
+        self.isCLIProxyMultiAuthProvider(provider) &&
             display.showAll &&
             self.store.sourceLabel(for: provider).localizedCaseInsensitiveContains("cliproxy-api")
     }
 
-    private func codexCLIProxyCompactEntries(from snapshots: [TokenAccountUsageSnapshot]) -> [CodexCLIProxyAuthCompactGridView.Entry] {
+    private func codexCLIProxyCompactEntries(
+        from snapshots: [TokenAccountUsageSnapshot],
+        provider: UsageProvider) -> [CodexCLIProxyAuthCompactGridView.Entry]
+    {
         snapshots.map { snapshot in
             let primary = self.percent(for: snapshot.snapshot?.primary)
             let secondary = self.percent(for: snapshot.snapshot?.secondary)
             let label = snapshot.account.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
             let accountTitle: String
             if label.isEmpty {
-                accountTitle = snapshot.snapshot?.accountEmail(for: .codex) ?? "codex"
+                accountTitle = snapshot.snapshot?.accountEmail(for: provider) ?? provider.rawValue
             } else {
                 accountTitle = label
             }
@@ -1014,6 +1026,7 @@ extension StatusItemController {
             let hasError: Bool
         }
 
+        let providerDisplayName: String
         let entries: [Entry]
         @Environment(\.menuItemHighlighted) private var isHighlighted
 
@@ -1027,9 +1040,9 @@ extension StatusItemController {
         var body: some View {
             VStack(alignment: .leading, spacing: 8) {
                 let titleFormat = L10n.tr(
-                    "menu.codex.cliproxy.auth_grid.title",
-                    fallback: "Codex auth entries (%d)")
-                Text(String(format: titleFormat, locale: .current, self.entries.count))
+                    "menu.cliproxy.auth_grid.title",
+                    fallback: "%@ auth entries (%d)")
+                Text(String(format: titleFormat, locale: .current, self.providerDisplayName, self.entries.count))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
 

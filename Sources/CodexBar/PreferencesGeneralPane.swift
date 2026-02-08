@@ -99,13 +99,13 @@ struct GeneralPane: View {
                                 .font(.body)
                             Text(L10n.tr(
                                 "settings.general.cliproxy.auth_index.subtitle",
-                                fallback: "Optional. Set a specific auth file; leave empty to aggregate all Codex auth entries."))
+                                fallback: "Optional. Set a specific auth file; leave empty to aggregate all matching auth entries."))
                                 .font(.footnote)
                                 .foregroundStyle(.tertiary)
                             TextField(
                                 L10n.tr(
                                     "settings.general.cliproxy.auth_index.placeholder",
-                                    fallback: "Leave empty to load all available Codex auth entries"),
+                                    fallback: "Leave empty to load all matching auth entries"),
                                 text: self.$settings.cliProxyGlobalAuthIndex)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.footnote)

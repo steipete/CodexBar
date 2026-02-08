@@ -2,7 +2,7 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
-    private enum CodexCLIProxyMultiAuthRefreshState {
+    private enum CLIProxyMultiAuthRefreshState {
         case notHandled
         case success
         case failure(Error)
@@ -39,17 +39,14 @@ extension UsageStore {
         defer { self.refreshingProviders.remove(provider) }
 
         let tokenAccounts = self.tokenAccounts(for: provider)
-        if self.shouldFetchAllTokenAccounts(provider: provider, accounts: tokenAccounts) {
+        let shouldFetchAllTokenAccounts = self.shouldFetchAllTokenAccounts(provider: provider, accounts: tokenAccounts)
+        if shouldFetchAllTokenAccounts {
             await self.refreshTokenAccounts(provider: provider, accounts: tokenAccounts)
             return
-        } else {
-            _ = await MainActor.run {
-                self.accountSnapshots.removeValue(forKey: provider)
-            }
         }
 
-        let codexCLIProxyMultiAuthState = await self.refreshCodexCLIProxyMultiAuthIfNeeded(provider: provider)
-        switch codexCLIProxyMultiAuthState {
+        let cliProxyMultiAuthState = await self.refreshCLIProxyMultiAuthIfNeeded(provider: provider)
+        switch cliProxyMultiAuthState {
         case .notHandled:
             break
         case .success:
@@ -94,6 +91,9 @@ extension UsageStore {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
                 self.snapshots[provider] = scoped
                 self.lastSourceLabels[provider] = result.sourceLabel
+                if !shouldFetchAllTokenAccounts {
+                    self.accountSnapshots.removeValue(forKey: provider)
+                }
                 if provider == .codex {
                     self.credits = result.credits
                     self.lastCreditsError = nil
@@ -112,6 +112,9 @@ extension UsageStore {
                 let shouldSurface =
                     self.failureGates[provider]?
                         .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
+                if !shouldFetchAllTokenAccounts {
+                    self.accountSnapshots.removeValue(forKey: provider)
+                }
                 if shouldSurface {
                     self.errors[provider] = error.localizedDescription
                     self.snapshots.removeValue(forKey: provider)
@@ -127,8 +130,8 @@ extension UsageStore {
         }
     }
 
-    private func refreshCodexCLIProxyMultiAuthIfNeeded(provider: UsageProvider) async -> CodexCLIProxyMultiAuthRefreshState {
-        guard provider == .codex || provider == .codexproxy else { return .notHandled }
+    private func refreshCLIProxyMultiAuthIfNeeded(provider: UsageProvider) async -> CLIProxyMultiAuthRefreshState {
+        guard self.supportsCLIProxyMultiAuth(provider: provider) else { return .notHandled }
         if provider == .codex, self.sourceMode(for: .codex) != .api {
             return .notHandled
         }
@@ -152,7 +155,7 @@ extension UsageStore {
         let client = CodexCLIProxyManagementClient(settings: proxySettings)
         let auths: [CodexCLIProxyResolvedAuth]
         do {
-            auths = try await client.listCodexAuths()
+            auths = try await self.listCLIProxyAuths(provider: provider, client: client)
         } catch {
             return .notHandled
         }
@@ -172,11 +175,11 @@ extension UsageStore {
         for auth in auths {
             let account = self.codexCLIProxyAccount(for: auth)
             do {
-                let usage = try await client.fetchCodexUsage(auth: auth)
-                let mapped = self.codexUsageSnapshot(from: usage, auth: auth, provider: provider)
+                let fetchResult = try await self.cliProxyFetchResult(provider: provider, auth: auth, client: client)
+                let mapped = fetchResult.snapshot
                 let labeled = self.applyAccountLabel(mapped, provider: provider, account: account)
                 successfulUsageSnapshots.append(labeled)
-                if let credits = self.codexCreditsSnapshot(from: usage) {
+                if let credits = fetchResult.credits {
                     creditBalances.append(credits.remaining)
                 }
                 accountSnapshots.append(TokenAccountUsageSnapshot(
@@ -221,7 +224,7 @@ extension UsageStore {
             return .success
         }
 
-        let resolvedError = firstError ?? CodexCLIProxyError.missingCodexAuth(nil)
+        let resolvedError = firstError ?? self.cliProxyMissingAuthError(for: provider, authIndex: nil)
         await MainActor.run {
             self.snapshots.removeValue(forKey: provider)
             self.accountSnapshots[provider] = accountSnapshots
@@ -234,6 +237,74 @@ extension UsageStore {
             }
         }
         return .failure(resolvedError)
+    }
+
+    private func supportsCLIProxyMultiAuth(provider: UsageProvider) -> Bool {
+        provider == .codex || provider == .codexproxy || provider == .geminiproxy || provider == .antigravityproxy
+    }
+
+    private func listCLIProxyAuths(
+        provider: UsageProvider,
+        client: CodexCLIProxyManagementClient) async throws -> [CodexCLIProxyResolvedAuth]
+    {
+        switch provider {
+        case .codex, .codexproxy:
+            return try await client.listCodexAuths()
+        case .geminiproxy:
+            return try await client.listGeminiAuths()
+        case .antigravityproxy:
+            return try await client.listAntigravityAuths()
+        default:
+            return []
+        }
+    }
+
+    private func cliProxyMissingAuthError(for provider: UsageProvider, authIndex: String?) -> CodexCLIProxyError {
+        switch provider {
+        case .codex, .codexproxy:
+            return .missingCodexAuth(authIndex)
+        case .geminiproxy:
+            return .missingProviderAuth(provider: "Gemini", authIndex: authIndex)
+        case .antigravityproxy:
+            return .missingProviderAuth(provider: "Antigravity", authIndex: authIndex)
+        default:
+            return .missingCodexAuth(authIndex)
+        }
+    }
+
+    private func cliProxyFetchResult(
+        provider: UsageProvider,
+        auth: CodexCLIProxyResolvedAuth,
+        client: CodexCLIProxyManagementClient) async throws -> (snapshot: UsageSnapshot, credits: CreditsSnapshot?)
+    {
+        switch provider {
+        case .codex, .codexproxy:
+            let usage = try await client.fetchCodexUsage(auth: auth)
+            return (
+                snapshot: self.codexUsageSnapshot(from: usage, auth: auth, provider: provider),
+                credits: provider == .codex ? self.codexCreditsSnapshot(from: usage) : nil
+            )
+        case .geminiproxy:
+            let quota = try await client.fetchGeminiQuota(auth: auth)
+            return (
+                snapshot: CLIProxyGeminiQuotaSnapshotMapper.usageSnapshot(
+                    from: quota,
+                    auth: auth,
+                    provider: .geminiproxy),
+                credits: nil
+            )
+        case .antigravityproxy:
+            let quota = try await client.fetchAntigravityQuota(auth: auth)
+            return (
+                snapshot: CLIProxyGeminiQuotaSnapshotMapper.usageSnapshot(
+                    from: quota,
+                    auth: auth,
+                    provider: .antigravityproxy),
+                credits: nil
+            )
+        default:
+            throw self.cliProxyMissingAuthError(for: provider, authIndex: auth.authIndex)
+        }
     }
 
     private func codexCLIProxyAccount(for auth: CodexCLIProxyResolvedAuth) -> ProviderTokenAccount {
@@ -270,10 +341,11 @@ extension UsageStore {
             }.filter { !$0.isEmpty })
         let loginMethod = loginMethods.count == 1 ? loginMethods.first : nil
 
+        let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         let accountLabelFormat = L10n.tr(
-            "provider.codex.cliproxy.aggregate.account_label",
-            fallback: "All Codex auth entries (%d)")
-        let accountLabel = String(format: accountLabelFormat, locale: .current, totalAuthCount)
+            "provider.cliproxy.aggregate.account_label",
+            fallback: "All %@ auth entries (%d)")
+        let accountLabel = String(format: accountLabelFormat, locale: .current, providerName, totalAuthCount)
         let identity = ProviderIdentitySnapshot(
             providerID: provider,
             accountEmail: accountLabel,

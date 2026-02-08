@@ -44,6 +44,8 @@
 "error.codex.cliproxy.management_failed_with_message" = "CLIProxyAPI 管理接口请求失败（%d）：%@";
 "error.codex.cliproxy.missing_auth" = "CLIProxyAPI 中没有可用的 Codex 认证条目。";
 "error.codex.cliproxy.missing_auth_with_index" = "CLIProxyAPI 未找到 Codex auth_index %@。";
+"error.codex.cliproxy.missing_provider_auth" = "CLIProxyAPI 中没有可用的 %@ 认证条目。";
+"error.codex.cliproxy.missing_provider_auth_with_index" = "CLIProxyAPI 未找到 %@ auth_index %@。";
 "error.codex.cliproxy.api_call_failed" = "CLIProxyAPI api-call 请求失败（%d）。";
 "error.codex.cliproxy.api_call_failed_with_message" = "CLIProxyAPI api-call 请求失败（%d）：%@";
 "error.codex.cliproxy.decode_failed" = "解析 CLIProxyAPI 响应失败：%@";
@@ -75,6 +77,7 @@
 "menu.action.credits_history" = "积分历史";
 "menu.action.usage_breakdown" = "用量拆分";
 "menu.codex.cliproxy.auth_grid.title" = "Codex 认证条目（%d 个）";
+"menu.cliproxy.auth_grid.title" = "%@ 认证条目（%d 个）";
 
 "menu.card.percent.left" = "剩余";
 "menu.card.percent.used" = "已用";
@@ -109,10 +112,11 @@
 "settings.general.cliproxy.key.title" = "管理密钥";
 "settings.general.cliproxy.key.placeholder" = "粘贴 management key…";
 "settings.general.cliproxy.auth_index.title" = "auth_index（可选）";
-"settings.general.cliproxy.auth_index.subtitle" = "可选。指定某个认证文件；留空则聚合所有 Codex 认证条目。";
-"settings.general.cliproxy.auth_index.placeholder" = "留空将加载全部可用 Codex 认证条目";
+"settings.general.cliproxy.auth_index.subtitle" = "可选。指定某个认证文件；留空则聚合所有匹配的认证条目。";
+"settings.general.cliproxy.auth_index.placeholder" = "留空将加载全部匹配的认证条目";
 
 "provider.codex.cliproxy.aggregate.account_label" = "全部 Codex 认证条目（%d 个）";
+"provider.cliproxy.aggregate.account_label" = "全部 %@ 认证条目（%d 个）";
 
 "settings.general.system.section" = "系统";
 "settings.general.system.start_at_login.title" = "开机启动";
