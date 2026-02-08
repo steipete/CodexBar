@@ -1,4 +1,7 @@
-# CodexBar 🎚️ - May your tokens never run out.
+# CodexBar 🎚️
+
+![GitHub Repo Banner](https://ghrb.waren.build/banner?header=CodexBar%F0%9F%8E%9A%EF%B8%8F&subheader=May+your+tokens+never+run+out&bg=dbeafe&color=3b82f6&support=true)
+<!-- Created with GitHub Repo Banner by Waren Gonzaga: https://ghrb.waren.build -->
 
 Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, and JetBrains AI limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
