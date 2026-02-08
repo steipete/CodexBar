@@ -2,6 +2,8 @@
 
 Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, and JetBrains AI limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
+Now includes first-class CLIProxyAPI usage paths, plus app language options (System / English / 简体中文).
+
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
 
 ## Install
@@ -28,14 +30,18 @@ Linux support via Omarchy: community Waybar module and TUI, driven by the `codex
 - Open Settings → Providers and enable what you use.
 - Install/sign in to the provider sources you rely on (e.g. `codex`, `claude`, `gemini`, browser cookies, or OAuth; Antigravity requires the Antigravity app running).
 - Optional: Settings → Providers → Codex → OpenAI cookies (Automatic or Manual) to add dashboard extras.
+- Optional: Settings → General → CLIProxyAPI to set base URL, management key, and optional `auth_index`.
 
 ## Providers
 
 - [Codex](docs/codex.md) — Local Codex CLI RPC (+ PTY fallback) and optional OpenAI web dashboard extras.
+- [CLIProxy Codex](docs/codex.md) — Codex quota via CLIProxyAPI management endpoints, with multi-auth aggregation + per-auth drill-down.
 - [Claude](docs/claude.md) — OAuth API or browser cookies (+ CLI PTY fallback); session + weekly usage.
 - [Cursor](docs/cursor.md) — Browser session cookies for plan + usage + billing resets.
 - [Gemini](docs/gemini.md) — OAuth-backed quota API using Gemini CLI credentials (no browser cookies).
+- CLIProxy Gemini — Gemini quota via CLIProxyAPI (`gemini` auth entries).
 - [Antigravity](docs/antigravity.md) — Local language server probe (experimental); no external auth.
+- CLIProxy Antigravity — Antigravity quota via CLIProxyAPI (`antigravity` auth entries).
 - [Droid](docs/factory.md) — Browser cookies + WorkOS token flows for Factory usage + billing.
 - [Copilot](docs/copilot.md) — GitHub device flow + Copilot internal usage API.
 - [z.ai](docs/zai.md) — API token (Keychain) for quota + MCP windows.
@@ -58,12 +64,14 @@ The menu bar icon is a tiny two-bar meter:
 - Multi-provider menu bar with per-provider toggles (Settings → Providers).
 - Session + weekly meters with reset countdowns.
 - Optional Codex web dashboard enrichments (code review remaining, usage breakdown, credits history).
+- CLIProxyAPI integration for Codex/Gemini/Antigravity with multi-auth support.
 - Local cost-usage scan for Codex + Claude (last 30 days).
 - Provider status polling with incident badges in the menu and icon overlay.
 - Merge Icons mode to combine providers into one status item + switcher.
 - Refresh cadence presets (manual, 1m, 2m, 5m, 15m).
 - Bundled CLI (`codexbar`) for scripts and CI (including `codexbar cost --provider codex|claude` for local cost usage); Linux CLI builds available.
 - WidgetKit widget mirrors the menu card snapshot.
+- Built-in i18n language switcher: follow system, English, and Simplified Chinese.
 - Privacy-first: on-device parsing by default; browser cookies are opt-in and reused (no passwords stored).
 
 ## Privacy note
