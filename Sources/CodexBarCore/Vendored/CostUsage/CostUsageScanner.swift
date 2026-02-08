@@ -99,6 +99,8 @@ enum CostUsageScanner {
             return CostUsageDailyReport(data: [], summary: nil)
         case .synthetic:
             return CostUsageDailyReport(data: [], summary: nil)
+        case .openrouter:
+            return CostUsageDailyReport(data: [], summary: nil)
         }
     }
 
