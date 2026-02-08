@@ -99,7 +99,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 subtitle: "Choose the MiniMax host (global .io or China mainland .com).",
                 binding: regionBinding,
                 options: regionOptions,
-                isVisible: { authMode().allowsCookies },
+                isVisible: nil,
                 onChange: nil),
         ]
     }
