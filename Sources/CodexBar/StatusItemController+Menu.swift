@@ -521,10 +521,10 @@ extension StatusItemController {
     }
 
     private func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
-        if provider == .codex,
+        if (provider == .codex || provider == .codexproxy),
            let snapshots = self.store.accountSnapshots[provider],
            snapshots.count > 1,
-           self.store.sourceLabel(for: .codex).localizedCaseInsensitiveContains("cliproxy-api")
+           self.store.sourceLabel(for: provider).localizedCaseInsensitiveContains("cliproxy-api")
         {
             return TokenAccountMenuDisplay(
                 provider: provider,
@@ -554,9 +554,9 @@ extension StatusItemController {
         provider: UsageProvider,
         display: TokenAccountMenuDisplay) -> Bool
     {
-        provider == .codex &&
+        (provider == .codex || provider == .codexproxy) &&
             display.showAll &&
-            self.store.sourceLabel(for: .codex).localizedCaseInsensitiveContains("cliproxy-api")
+            self.store.sourceLabel(for: provider).localizedCaseInsensitiveContains("cliproxy-api")
     }
 
     private func codexCLIProxyCompactEntries(from snapshots: [TokenAccountUsageSnapshot]) -> [CodexCLIProxyAuthCompactGridView.Entry] {
@@ -1291,7 +1291,9 @@ extension StatusItemController {
     }
 
     private func makeCostHistorySubmenu(provider: UsageProvider) -> NSMenu? {
-        guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
+        guard provider == .codex || provider == .codexproxy || provider == .claude || provider == .vertexai else {
+            return nil
+        }
         let width = Self.menuCardBaseWidth
         guard let tokenSnapshot = self.store.tokenSnapshot(for: provider) else { return nil }
         guard !tokenSnapshot.daily.isEmpty else { return nil }
@@ -1329,7 +1331,9 @@ extension StatusItemController {
 
     private func makeCostHistoryInlineItem(provider: UsageProvider, width: CGFloat) -> NSMenuItem? {
         guard Self.menuCardRenderingEnabled else { return nil }
-        guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
+        guard provider == .codex || provider == .codexproxy || provider == .claude || provider == .vertexai else {
+            return nil
+        }
         guard let tokenSnapshot = self.store.tokenSnapshot(for: provider) else { return nil }
         guard !tokenSnapshot.daily.isEmpty else { return nil }
 
@@ -1400,6 +1404,13 @@ extension StatusItemController {
             creditsError = self.store.lastCreditsError
             dashboard = self.store.openAIDashboardRequiresLogin ? nil : self.store.openAIDashboard
             dashboardError = self.store.lastOpenAIDashboardError
+            tokenSnapshot = self.store.tokenSnapshot(for: target)
+            tokenError = self.store.tokenError(for: target)
+        } else if target == .codexproxy, snapshotOverride == nil {
+            credits = nil
+            creditsError = nil
+            dashboard = nil
+            dashboardError = nil
             tokenSnapshot = self.store.tokenSnapshot(for: target)
             tokenError = self.store.tokenError(for: target)
         } else if target == .claude || target == .vertexai, snapshotOverride == nil {

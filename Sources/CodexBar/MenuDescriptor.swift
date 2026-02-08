@@ -324,7 +324,7 @@ struct MenuDescriptor {
     }
 
     private static func shouldHideSwitchAccountAction(provider: UsageProvider?, store: UsageStore) -> Bool {
-        guard provider == .codex else { return false }
+        guard provider == .codexproxy else { return false }
         let codexSettings = store.settings.codexSettingsSnapshot(tokenOverride: nil)
         return CodexCLIProxySettings.resolve(
             providerSettings: codexSettings,

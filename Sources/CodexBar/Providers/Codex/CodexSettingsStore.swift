@@ -81,19 +81,25 @@ extension SettingsStore {
 extension SettingsStore {
     func codexSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.CodexProviderSettings {
         let resolvedBaseURL: String = {
+            let globalValue = self.cliProxyGlobalBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !globalValue.isEmpty { return globalValue }
             let providerValue = self.codexCLIProxyBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
             if !providerValue.isEmpty { return providerValue }
-            return self.cliProxyGlobalBaseURL
+            return globalValue
         }()
         let resolvedManagementKey: String = {
+            let globalValue = self.cliProxyGlobalManagementKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !globalValue.isEmpty { return globalValue }
             let providerValue = self.codexCLIProxyManagementKey.trimmingCharacters(in: .whitespacesAndNewlines)
             if !providerValue.isEmpty { return providerValue }
-            return self.cliProxyGlobalManagementKey
+            return globalValue
         }()
         let resolvedAuthIndex: String = {
+            let globalValue = self.cliProxyGlobalAuthIndex.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !globalValue.isEmpty { return globalValue }
             let providerValue = self.codexCLIProxyAuthIndex.trimmingCharacters(in: .whitespacesAndNewlines)
             if !providerValue.isEmpty { return providerValue }
-            return self.cliProxyGlobalAuthIndex
+            return globalValue
         }()
         return ProviderSettingsSnapshot.CodexProviderSettings(
             usageDataSource: self.codexUsageDataSource,
@@ -107,10 +113,8 @@ extension SettingsStore {
     private static func codexUsageDataSource(from source: ProviderSourceMode?) -> CodexUsageDataSource {
         guard let source else { return .auto }
         switch source {
-        case .auto, .web:
+        case .auto, .web, .api:
             return .auto
-        case .api:
-            return .api
         case .cli:
             return .cli
         case .oauth:
@@ -144,5 +148,30 @@ extension SettingsStore {
         }
         if self.tokenAccounts(for: .codex).isEmpty { return fallback }
         return .manual
+    }
+
+    func migrateLegacyCodexCLIProxyDefaultsIfNeeded() {
+        guard let entry = self.configSnapshot.providerConfig(for: .codex) else { return }
+
+        let legacyBaseURL = entry.sanitizedAPIBaseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let legacyManagementKey = entry.sanitizedAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let legacyAuthIndex = entry.sanitizedAPIAuthIndex?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        let globalBaseURL = self.cliProxyGlobalBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let shouldAdoptLegacyBaseURL = globalBaseURL.isEmpty ||
+            (globalBaseURL == CodexCLIProxySettings.defaultBaseURL && !legacyBaseURL.isEmpty && legacyBaseURL != globalBaseURL)
+        if shouldAdoptLegacyBaseURL, !legacyBaseURL.isEmpty {
+            self.cliProxyGlobalBaseURL = legacyBaseURL
+        }
+
+        let globalManagementKey = self.cliProxyGlobalManagementKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if globalManagementKey.isEmpty, !legacyManagementKey.isEmpty {
+            self.cliProxyGlobalManagementKey = legacyManagementKey
+        }
+
+        let globalAuthIndex = self.cliProxyGlobalAuthIndex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if globalAuthIndex.isEmpty, !legacyAuthIndex.isEmpty {
+            self.cliProxyGlobalAuthIndex = legacyAuthIndex
+        }
     }
 }

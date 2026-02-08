@@ -32,7 +32,9 @@ extension StatusItemController {
         let meta = self.store.metadata(for: provider)
 
         // For Claude, route subscription users to claude.ai/settings/usage instead of console billing
-        let urlString: String? = if provider == .codex, let cliProxyDashboardURL = self.codexCLIProxyUsageDashboardURL() {
+        let urlString: String? = if provider == .codexproxy,
+                                    let cliProxyDashboardURL = self.codexCLIProxyUsageDashboardURL()
+        {
             cliProxyDashboardURL.absoluteString
         } else if provider == .claude, self.store.isClaudeSubscription() {
             meta.subscriptionDashboardURL ?? meta.dashboardURL

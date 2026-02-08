@@ -171,6 +171,7 @@ final class SettingsStore {
         self.configLoading = true
         self.defaultsState = Self.loadDefaultsState(userDefaults: userDefaults)
         self.updateProviderState(config: config)
+        self.migrateLegacyCodexCLIProxyDefaultsIfNeeded()
         self.configLoading = false
         CodexBarLog.setFileLoggingEnabled(self.debugFileLoggingEnabled)
         userDefaults.removeObject(forKey: "showCodexUsage")

@@ -91,6 +91,15 @@ struct TokenAccountCLIContext {
                     cliProxyBaseURL: config?.sanitizedAPIBaseURL,
                     cliProxyManagementKey: config?.sanitizedAPIKey,
                     cliProxyAuthIndex: config?.sanitizedAPIAuthIndex))
+        case .codexproxy:
+            return self.makeSnapshot(
+                codex: ProviderSettingsSnapshot.CodexProviderSettings(
+                    usageDataSource: .api,
+                    cookieSource: .off,
+                    manualCookieHeader: nil,
+                    cliProxyBaseURL: config?.sanitizedAPIBaseURL,
+                    cliProxyManagementKey: config?.sanitizedAPIKey,
+                    cliProxyAuthIndex: config?.sanitizedAPIAuthIndex))
         case .claude:
             let claudeSource: ClaudeUsageDataSource = if provider == .claude,
                                                          let account,

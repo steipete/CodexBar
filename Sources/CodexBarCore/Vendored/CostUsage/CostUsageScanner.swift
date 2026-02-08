@@ -61,6 +61,8 @@ enum CostUsageScanner {
         switch provider {
         case .codex:
             return self.loadCodexDaily(range: range, now: now, options: options)
+        case .codexproxy:
+            return self.loadCodexDaily(range: range, now: now, options: options)
         case .claude:
             return self.loadClaudeDaily(provider: .claude, range: range, now: now, options: options)
         case .zai:

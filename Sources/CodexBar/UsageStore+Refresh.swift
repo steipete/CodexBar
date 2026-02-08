@@ -128,13 +128,15 @@ extension UsageStore {
     }
 
     private func refreshCodexCLIProxyMultiAuthIfNeeded(provider: UsageProvider) async -> CodexCLIProxyMultiAuthRefreshState {
-        guard provider == .codex else { return .notHandled }
-        guard self.sourceMode(for: .codex) == .api else { return .notHandled }
+        guard provider == .codex || provider == .codexproxy else { return .notHandled }
+        if provider == .codex, self.sourceMode(for: .codex) != .api {
+            return .notHandled
+        }
 
         let settingsSnapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: nil)
         let env = ProviderRegistry.makeEnvironment(
             base: ProcessInfo.processInfo.environment,
-            provider: .codex,
+            provider: provider,
             settings: self.settings,
             tokenOverride: nil)
 
@@ -171,8 +173,8 @@ extension UsageStore {
             let account = self.codexCLIProxyAccount(for: auth)
             do {
                 let usage = try await client.fetchCodexUsage(auth: auth)
-                let mapped = self.codexUsageSnapshot(from: usage, auth: auth)
-                let labeled = self.applyAccountLabel(mapped, provider: .codex, account: account)
+                let mapped = self.codexUsageSnapshot(from: usage, auth: auth, provider: provider)
+                let labeled = self.applyAccountLabel(mapped, provider: provider, account: account)
                 successfulUsageSnapshots.append(labeled)
                 if let credits = self.codexCreditsSnapshot(from: usage) {
                     creditBalances.append(credits.remaining)
@@ -200,31 +202,36 @@ extension UsageStore {
 
         if let aggregate = self.aggregateCodexCLIProxySnapshot(
             successfulUsageSnapshots,
+            provider: provider,
             totalAuthCount: auths.count)
         {
             await MainActor.run {
-                self.handleSessionQuotaTransition(provider: .codex, snapshot: aggregate)
-                self.snapshots[.codex] = aggregate
-                self.accountSnapshots[.codex] = accountSnapshots
-                self.lastSourceLabels[.codex] = "cliproxy-api"
-                self.lastFetchAttempts[.codex] = []
-                self.errors[.codex] = nil
-                self.credits = aggregatedCredits
-                self.lastCreditsError = nil
-                self.failureGates[.codex]?.recordSuccess()
+                self.handleSessionQuotaTransition(provider: provider, snapshot: aggregate)
+                self.snapshots[provider] = aggregate
+                self.accountSnapshots[provider] = accountSnapshots
+                self.lastSourceLabels[provider] = "cliproxy-api"
+                self.lastFetchAttempts[provider] = []
+                self.errors[provider] = nil
+                if provider == .codex {
+                    self.credits = aggregatedCredits
+                    self.lastCreditsError = nil
+                }
+                self.failureGates[provider]?.recordSuccess()
             }
             return .success
         }
 
         let resolvedError = firstError ?? CodexCLIProxyError.missingCodexAuth(nil)
         await MainActor.run {
-            self.snapshots.removeValue(forKey: .codex)
-            self.accountSnapshots[.codex] = accountSnapshots
-            self.lastSourceLabels[.codex] = "cliproxy-api"
-            self.lastFetchAttempts[.codex] = []
-            self.errors[.codex] = resolvedError.localizedDescription
-            self.credits = nil
-            self.lastCreditsError = nil
+            self.snapshots.removeValue(forKey: provider)
+            self.accountSnapshots[provider] = accountSnapshots
+            self.lastSourceLabels[provider] = "cliproxy-api"
+            self.lastFetchAttempts[provider] = []
+            self.errors[provider] = resolvedError.localizedDescription
+            if provider == .codex {
+                self.credits = nil
+                self.lastCreditsError = nil
+            }
         }
         return .failure(resolvedError)
     }
@@ -247,6 +254,7 @@ extension UsageStore {
 
     private func aggregateCodexCLIProxySnapshot(
         _ snapshots: [UsageSnapshot],
+        provider: UsageProvider,
         totalAuthCount: Int) -> UsageSnapshot?
     {
         guard !snapshots.isEmpty else { return nil }
@@ -257,7 +265,7 @@ extension UsageStore {
 
         let loginMethods = Set(
             snapshots.compactMap { snapshot in
-                snapshot.loginMethod(for: .codex)?
+                snapshot.loginMethod(for: provider)?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }.filter { !$0.isEmpty })
         let loginMethod = loginMethods.count == 1 ? loginMethods.first : nil
@@ -267,7 +275,7 @@ extension UsageStore {
             fallback: "All Codex auth entries (%d)")
         let accountLabel = String(format: accountLabelFormat, locale: .current, totalAuthCount)
         let identity = ProviderIdentitySnapshot(
-            providerID: .codex,
+            providerID: provider,
             accountEmail: accountLabel,
             accountOrganization: nil,
             loginMethod: loginMethod)
@@ -293,7 +301,11 @@ extension UsageStore {
             resetDescription: resetDescription)
     }
 
-    private func codexUsageSnapshot(from usage: CodexUsageResponse, auth: CodexCLIProxyResolvedAuth) -> UsageSnapshot {
+    private func codexUsageSnapshot(
+        from usage: CodexUsageResponse,
+        auth: CodexCLIProxyResolvedAuth,
+        provider: UsageProvider) -> UsageSnapshot
+    {
         let primary = self.codexRateWindow(from: usage.rateLimit?.primaryWindow)
             ?? RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         let secondary = self.codexRateWindow(from: usage.rateLimit?.secondaryWindow)
@@ -303,7 +315,7 @@ extension UsageStore {
         let loginMethod = (resolvedPlan?.isEmpty == false) ? resolvedPlan : fallbackPlan
         let normalizedEmail = auth.email?.trimmingCharacters(in: .whitespacesAndNewlines)
         let identity = ProviderIdentitySnapshot(
-            providerID: .codex,
+            providerID: provider,
             accountEmail: normalizedEmail?.isEmpty == true ? nil : normalizedEmail,
             accountOrganization: nil,
             loginMethod: loginMethod?.isEmpty == true ? nil : loginMethod)
@@ -313,7 +325,7 @@ extension UsageStore {
             tertiary: nil,
             updatedAt: Date(),
             identity: identity)
-            .scoped(to: .codex)
+            .scoped(to: provider)
     }
 
     private func codexRateWindow(from window: CodexUsageResponse.WindowSnapshot?) -> RateWindow? {

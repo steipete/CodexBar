@@ -1149,6 +1149,10 @@ extension UsageStore {
                 let raw = await self.codexFetcher.debugRawRateLimits()
                 await MainActor.run { self.probeLogs[.codex] = raw }
                 return raw
+            case .codexproxy:
+                let text = "CLIProxy Codex uses management API; use CodexBarCLI --provider codexproxy --source api for raw checks."
+                await MainActor.run { self.probeLogs[.codexproxy] = text }
+                return text
             case .claude:
                 let text = await self.debugClaudeLog(
                     claudeWebExtrasEnabled: claudeWebExtrasEnabled,
@@ -1514,7 +1518,7 @@ extension UsageStore {
     }
 
     private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
-        guard provider == .codex || provider == .claude || provider == .vertexai else {
+        guard provider == .codex || provider == .codexproxy || provider == .claude || provider == .vertexai else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()

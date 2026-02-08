@@ -53,7 +53,7 @@ struct CodexProviderImplementation: ProviderImplementation {
         switch context.settings.codexUsageDataSource {
         case .auto: .auto
         case .oauth: .oauth
-        case .api: .api
+        case .api: .auto
         case .cli: .cli
         }
     }
@@ -105,7 +105,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 context.settings.codexCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
             })
 
-        let usageOptions = CodexUsageDataSource.allCases.map {
+        let usageOptions = CodexUsageDataSource.allCases.filter { $0 != .api }.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
         let cookieOptions = ProviderCookieSourceUI.options(

@@ -627,6 +627,8 @@ extension UsageMenuCardView.Model {
         }
         let tokenUsage = Self.tokenUsageSection(
             provider: input.provider,
+            sourceLabel: input.sourceLabel,
+            hasUsageSnapshot: input.snapshot != nil,
             enabled: input.tokenCostUsageEnabled,
             snapshot: input.tokenSnapshot,
             error: input.tokenError)
@@ -880,11 +882,19 @@ extension UsageMenuCardView.Model {
 
     private static func tokenUsageSection(
         provider: UsageProvider,
+        sourceLabel: String?,
+        hasUsageSnapshot: Bool,
         enabled: Bool,
         snapshot: CostUsageTokenSnapshot?,
         error: String?) -> TokenUsageSection?
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
+        guard provider == .codex || provider == .codexproxy || provider == .claude || provider == .vertexai else {
+            return nil
+        }
+        if provider == .codex {
+            guard hasUsageSnapshot else { return nil }
+            if sourceLabel?.localizedCaseInsensitiveContains("cliproxy-api") == true { return nil }
+        }
         guard enabled else { return nil }
         guard let snapshot else { return nil }
 
