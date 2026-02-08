@@ -208,12 +208,18 @@ public enum ClaudeOAuthCredentialsStore {
     private nonisolated(unsafe) static var claudeKeychainFingerprintOverride: ClaudeKeychainFingerprint?
     @TaskLocal private static var taskClaudeKeychainDataOverride: Data?
     @TaskLocal private static var taskClaudeKeychainFingerprintOverride: ClaudeKeychainFingerprint?
+    @TaskLocal private static var taskMemoryCacheStoreOverride: MemoryCacheStore?
     final class ClaudeKeychainFingerprintStore: @unchecked Sendable {
         var fingerprint: ClaudeKeychainFingerprint?
 
         init(fingerprint: ClaudeKeychainFingerprint? = nil) {
             self.fingerprint = fingerprint
         }
+    }
+
+    final class MemoryCacheStore: @unchecked Sendable {
+        var record: ClaudeOAuthCredentialRecord?
+        var timestamp: Date?
     }
 
     @TaskLocal private static var taskClaudeKeychainFingerprintStoreOverride: ClaudeKeychainFingerprintStore?
@@ -270,6 +276,20 @@ public enum ClaudeOAuthCredentialsStore {
             try await operation()
         }
     }
+
+    static func withIsolatedMemoryCacheForTesting<T>(operation: () throws -> T) rethrows -> T {
+        let store = MemoryCacheStore()
+        return try self.$taskMemoryCacheStoreOverride.withValue(store) {
+            try operation()
+        }
+    }
+
+    static func withIsolatedMemoryCacheForTesting<T>(operation: () async throws -> T) async rethrows -> T {
+        let store = MemoryCacheStore()
+        return try await self.$taskMemoryCacheStoreOverride.withValue(store) {
+            try await operation()
+        }
+    }
     #endif
 
     private struct CredentialsFileFingerprint: Codable, Equatable, Sendable {
@@ -297,12 +317,24 @@ public enum ClaudeOAuthCredentialsStore {
     private static let memoryCacheValidityDuration: TimeInterval = 1800
 
     private static func readMemoryCache() -> (record: ClaudeOAuthCredentialRecord?, timestamp: Date?) {
+        #if DEBUG
+        if let store = self.taskMemoryCacheStoreOverride {
+            return (store.record, store.timestamp)
+        }
+        #endif
         self.memoryCacheLock.lock()
         defer { self.memoryCacheLock.unlock() }
         return (self.cachedCredentialRecord, self.cacheTimestamp)
     }
 
     private static func writeMemoryCache(record: ClaudeOAuthCredentialRecord?, timestamp: Date?) {
+        #if DEBUG
+        if let store = self.taskMemoryCacheStoreOverride {
+            store.record = record
+            store.timestamp = timestamp
+            return
+        }
+        #endif
         self.memoryCacheLock.lock()
         self.cachedCredentialRecord = record
         self.cacheTimestamp = timestamp
