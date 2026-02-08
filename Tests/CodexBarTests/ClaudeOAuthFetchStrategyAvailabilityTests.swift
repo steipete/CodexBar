@@ -116,5 +116,26 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
             on: ClaudeUsageError.oauthFailed("oauth failed"),
             context: context) == true)
     }
+
+    @Test
+    func autoMode_userInitiated_clearsKeychainCooldownGate() async {
+        let context = self.makeContext(sourceMode: .auto)
+        let strategy = ClaudeOAuthFetchStrategy()
+
+        await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            ClaudeOAuthKeychainAccessGate.resetForTesting()
+            defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
+
+            let now = Date(timeIntervalSince1970: 1000)
+            ClaudeOAuthKeychainAccessGate.recordDenied(now: now)
+            #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(now: now) == false)
+
+            _ = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await strategy.isAvailable(context)
+            }
+
+            #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(now: now))
+        }
+    }
 }
 #endif

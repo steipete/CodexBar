@@ -195,6 +195,12 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         // - we can load credentials without prompting (env / CodexBar cache / credentials file) AND they meet the
         //   scope requirement, or
         // - Claude Code has stored OAuth creds in Keychain and we may be able to bootstrap (one prompt max).
+        //
+        // User actions should be able to recover immediately even if a prior background attempt tripped the
+        // keychain cooldown gate. Clear the cooldown before deciding availability so the fetch path can proceed.
+        if ProviderInteractionContext.current == .userInitiated {
+            _ = ClaudeOAuthKeychainAccessGate.clearDenied()
+        }
         guard ClaudeOAuthKeychainAccessGate.shouldAllowPrompt() else { return false }
         return ClaudeOAuthCredentialsStore.hasClaudeKeychainCredentialsWithoutPrompt()
     }
