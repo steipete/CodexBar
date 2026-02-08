@@ -27,18 +27,6 @@ Usage source picker:
 1) OpenAI web dashboard (when available).
 2) Codex CLI RPC, with CLI PTY fallback when needed.
 
-### CLIProxyAPI management API
-- Usage source: `CLIProxyAPI` (`--source api`).
-- Settings:
-  - `CLIProxyAPI URL` (default `http://127.0.0.1:8317`).
-  - `CLIProxy management key` (required).
-  - `CLIProxy auth_index` (optional).
-    - CLI (`codexbar --source api`) 留空时会遍历并输出所有可用 Codex auth 条目。
-    - App 运行时留空会自动选择第一个可用 Codex auth 条目。
-- Calls:
-  1) `GET /v0/management/auth-files` to resolve a Codex `auth_index`.
-  2) `POST /v0/management/api-call` to proxy `GET https://chatgpt.com/backend-api/wham/usage`.
-
 ### OAuth API (preferred for the app)
 - Reads OAuth tokens from `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`).
 - Refreshes access tokens when `last_refresh` is older than 8 days.
