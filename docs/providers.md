@@ -96,7 +96,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Reads Windsurf’s local VS Code-style global storage DB:
   - `~/Library/Application Support/Windsurf/User/globalStorage/state.vscdb`
   - Key: `windsurf.settings.cachedPlanInfo`
-- Shows up to three meters (Messages, Flow Actions, Flex Credits) and uses `endTimestamp` as reset time.
+- Shows up to two meters (Messages, Flex Credits) and uses `endTimestamp` as reset time.
 - No network requests and no cookies required.
 - Details: `docs/windsurf.md`.
 

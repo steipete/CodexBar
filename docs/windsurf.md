@@ -23,13 +23,11 @@ The value is JSON that includes:
 - `startTimestamp` / `endTimestamp` (epoch seconds or milliseconds)
 - `usage` totals and used counts for:
   - messages
-  - flowActions
   - flexCredits
 
 CodexBar maps these into:
 - Primary: Messages
-- Secondary: Flow Actions
-- Tertiary: Flex Credits
+- Secondary: Flex Credits
 - Reset time: `endTimestamp`
 
 ## Overrides
@@ -50,4 +48,3 @@ If CodexBar shows "Windsurf data not found" or "cached plan usage is missing":
 
 CodexBar reads a single SQLite value from a local DB. It does not send this data anywhere and does not write back to
 Windsurf's files.
-

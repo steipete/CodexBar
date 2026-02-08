@@ -131,8 +131,7 @@ public enum WindsurfLocalStorageReader {
         }
 
         let primary = window(total: usage.messages, used: usage.usedMessages)
-        let secondary = window(total: usage.flowActions, used: usage.usedFlowActions)
-        let tertiary = window(total: usage.flexCredits, used: usage.usedFlexCredits)
+        let secondary = window(total: usage.flexCredits, used: usage.usedFlexCredits)
 
         let identity = ProviderIdentitySnapshot(
             providerID: .windsurf,
@@ -143,7 +142,7 @@ public enum WindsurfLocalStorageReader {
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
-            tertiary: tertiary,
+            tertiary: nil,
             updatedAt: now,
             identity: identity)
     }

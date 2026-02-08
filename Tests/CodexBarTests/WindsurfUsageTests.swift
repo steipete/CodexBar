@@ -14,13 +14,10 @@ struct WindsurfUsageTests {
             "endTimestamp": 1_738_368_000,
             "usage": [
                 "messages": 500,
-                "flowActions": 200,
                 "flexCredits": 1000,
                 "usedMessages": 125,
-                "usedFlowActions": 50,
                 "usedFlexCredits": 250,
                 "remainingMessages": 375,
-                "remainingFlowActions": 150,
                 "remainingFlexCredits": 750,
             ],
             "hasBillingWritePermissions": true,
@@ -32,7 +29,7 @@ struct WindsurfUsageTests {
 
         #expect(snap.primary?.usedPercent.rounded() == 25)
         #expect(snap.secondary?.usedPercent.rounded() == 25)
-        #expect(snap.tertiary?.usedPercent.rounded() == 25)
+        #expect(snap.tertiary == nil)
         #expect(snap.loginMethod(for: .windsurf) == "Pro")
         #expect(snap.accountEmail(for: .windsurf) == nil)
     }
@@ -55,13 +52,13 @@ struct WindsurfUsageTests {
             usage: WindsurfPlanUsage(
                 duration: nil,
                 messages: 0,
-                flowActions: 0,
+                flowActions: nil,
                 flexCredits: 0,
                 usedMessages: 0,
-                usedFlowActions: 0,
+                usedFlowActions: nil,
                 usedFlexCredits: 0,
                 remainingMessages: 0,
-                remainingFlowActions: 0,
+                remainingFlowActions: nil,
                 remainingFlexCredits: 0),
             hasBillingWritePermissions: nil)
 
