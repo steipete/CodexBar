@@ -138,7 +138,8 @@ extension CodexBarCLI {
 
         for p in providerList {
             let status = includeStatus ? await Self.fetchStatus(for: p) : nil
-            let output = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            // CLI usage should not clear Keychain cooldowns or attempt interactive Keychain prompts.
+            let output = await ProviderInteractionContext.$current.withValue(.background) {
                 await Self.fetchUsageOutputs(
                     provider: p,
                     status: status,

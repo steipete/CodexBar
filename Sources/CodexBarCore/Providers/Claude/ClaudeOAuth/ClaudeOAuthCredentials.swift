@@ -787,10 +787,6 @@ public enum ClaudeOAuthCredentialsStore {
         if ProviderInteractionContext.current == .background,
            !ClaudeOAuthKeychainAccessGate.shouldAllowPrompt() { return false }
 
-        if !self.claudeKeychainCandidatesWithoutPrompt().isEmpty {
-            return true
-        }
-
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.claudeKeychainService,

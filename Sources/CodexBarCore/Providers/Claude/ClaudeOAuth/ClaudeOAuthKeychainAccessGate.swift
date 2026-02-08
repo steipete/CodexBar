@@ -165,6 +165,10 @@ public enum ClaudeOAuthKeychainAccessGate {
 
     public static func recordDenied(now _: Date = Date()) {}
 
+    public static func clearDenied(now _: Date = Date()) -> Bool {
+        false
+    }
+
     #if DEBUG
     public static func resetForTesting() {}
 
