@@ -359,13 +359,30 @@ public struct KiroStatusProbe: Sendable {
         // Track which key patterns matched to detect format changes
         var matchedPercent = false
         var matchedCredits = false
+        var matchedNewFormat = false
 
-        // Parse plan name from "| KIRO FREE" or similar
+        // Parse plan name from "| KIRO FREE" or similar (legacy format)
         var planName = "Kiro"
         if let planMatch = stripped.range(of: #"\|\s*(KIRO\s+\w+)"#, options: .regularExpression) {
             let raw = String(stripped[planMatch]).replacingOccurrences(of: "|", with: "")
             planName = raw.trimmingCharacters(in: .whitespaces)
         }
+
+        // Parse plan name from "Plan: Q Developer Pro" (new format, kiro-cli 1.24+)
+        if let newPlanMatch = stripped.range(of: #"Plan:\s*(.+)"#, options: .regularExpression) {
+            let line = String(stripped[newPlanMatch])
+            // Extract just the plan name, stopping at newline
+            let planLine = line.replacingOccurrences(of: "Plan:", with: "").trimmingCharacters(in: .whitespaces)
+            if let firstLine = planLine.split(separator: "\n").first {
+                planName = String(firstLine).trimmingCharacters(in: .whitespaces)
+                matchedNewFormat = true
+            }
+        }
+
+        // Check if this is a managed/enterprise plan with no usage data
+        let isManagedPlan = lowered.contains("managed by admin")
+            || lowered.contains("managed by organization")
+            || lowered.contains("enterprise")
 
         // Parse reset date from "resets on 01/01"
         var resetsAt: Date?
@@ -423,8 +440,25 @@ public struct KiroStatusProbe: Sendable {
             }
         }
 
+        // For managed/enterprise plans in new format, we may not have usage data
+        // but we should still show the plan name without error
+        if matchedNewFormat, isManagedPlan {
+            // Managed plans don't expose credits; return snapshot with plan name only
+            return KiroUsageSnapshot(
+                planName: planName,
+                creditsUsed: 0,
+                creditsTotal: 0,
+                creditsPercent: 0,
+                bonusCreditsUsed: nil,
+                bonusCreditsTotal: nil,
+                bonusExpiryDays: nil,
+                resetsAt: nil,
+                updatedAt: Date())
+        }
+
         // Require at least one key pattern to match to avoid silent failures
-        if !matchedPercent, !matchedCredits {
+        // Only bypass error for managed plans in new format (they don't expose usage data)
+        if !matchedPercent, !matchedCredits, !(matchedNewFormat && isManagedPlan) {
             throw KiroStatusProbeError.parseError(
                 "No recognizable usage patterns found. Kiro CLI output format may have changed.")
         }
@@ -482,5 +516,7 @@ public struct KiroStatusProbe: Sendable {
         return stripped.contains("covered in plan")
             || stripped.contains("resets on")
             || stripped.contains("bonus credits")
+            || stripped.contains("plan:")
+            || stripped.contains("managed by admin")
     }
 }
