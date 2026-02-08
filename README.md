@@ -14,7 +14,7 @@ Download: <https://github.com/steipete/CodexBar/releases>
 
 ### Homebrew
 ```bash
-brew install --cask steipete/tap/codexbar
+brew install --cask codexbar
 ```
 
 ### Linux (CLI only)
