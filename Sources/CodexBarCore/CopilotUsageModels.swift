@@ -27,8 +27,8 @@ public struct CopilotUsageResponse: Sendable, Decodable {
 
     public let quotaSnapshots: QuotaSnapshots
     public let copilotPlan: String
-    public let assignedDate: String
-    public let quotaResetDate: String
+    public let assignedDate: String?
+    public let quotaResetDate: String?
 
     private enum CodingKeys: String, CodingKey {
         case quotaSnapshots = "quota_snapshots"
