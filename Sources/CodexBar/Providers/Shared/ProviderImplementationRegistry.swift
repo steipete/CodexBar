@@ -19,6 +19,7 @@ enum ProviderImplementationRegistry {
         case .factory: FactoryProviderImplementation()
         case .gemini: GeminiProviderImplementation()
         case .antigravity: AntigravityProviderImplementation()
+        case .windsurf: WindsurfProviderImplementation()
         case .copilot: CopilotProviderImplementation()
         case .zai: ZaiProviderImplementation()
         case .minimax: MiniMaxProviderImplementation()

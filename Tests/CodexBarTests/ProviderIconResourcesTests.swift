@@ -19,6 +19,7 @@ struct ProviderIconResourcesTests {
             "opencode",
             "gemini",
             "antigravity",
+            "windsurf",
             "factory",
             "copilot",
         ]

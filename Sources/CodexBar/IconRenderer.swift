@@ -595,8 +595,8 @@ enum IconRenderer {
                         remaining: topValue,
                         addNotches: style == .claude,
                         addFace: style == .codex,
-                        addGeminiTwist: style == .gemini || style == .antigravity,
-                        addAntigravityTwist: style == .antigravity,
+                        addGeminiTwist: style == .gemini || style == .antigravity || style == .windsurf,
+                        addAntigravityTwist: style == .antigravity || style == .windsurf,
                         addFactoryTwist: style == .factory,
                         blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
@@ -611,8 +611,8 @@ enum IconRenderer {
                             alpha: creditsAlpha,
                             addNotches: style == .claude,
                             addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
+                            addGeminiTwist: style == .gemini || style == .antigravity || style == .windsurf,
+                            addAntigravityTwist: style == .antigravity || style == .windsurf,
                             addFactoryTwist: style == .factory,
                             blink: blink)
                         drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
@@ -622,8 +622,8 @@ enum IconRenderer {
                             remaining: topValue,
                             addNotches: style == .claude,
                             addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
+                            addGeminiTwist: style == .gemini || style == .antigravity || style == .windsurf,
+                            addAntigravityTwist: style == .antigravity || style == .windsurf,
                             addFactoryTwist: style == .factory,
                             blink: blink)
                         drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
@@ -637,8 +637,8 @@ enum IconRenderer {
                             alpha: creditsAlpha,
                             addNotches: style == .claude,
                             addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
+                            addGeminiTwist: style == .gemini || style == .antigravity || style == .windsurf,
+                            addAntigravityTwist: style == .antigravity || style == .windsurf,
                             addFactoryTwist: style == .factory,
                             blink: blink)
                     } else {
@@ -648,8 +648,8 @@ enum IconRenderer {
                             remaining: topValue,
                             addNotches: style == .claude,
                             addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
+                            addGeminiTwist: style == .gemini || style == .antigravity || style == .windsurf,
+                            addAntigravityTwist: style == .antigravity || style == .windsurf,
                             addFactoryTwist: style == .factory,
                             blink: blink)
                     }

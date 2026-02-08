@@ -69,6 +69,8 @@ enum CostUsageScanner {
             return CostUsageDailyReport(data: [], summary: nil)
         case .antigravity:
             return CostUsageDailyReport(data: [], summary: nil)
+        case .windsurf:
+            return CostUsageDailyReport(data: [], summary: nil)
         case .cursor:
             return CostUsageDailyReport(data: [], summary: nil)
         case .opencode:

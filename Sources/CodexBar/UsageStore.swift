@@ -1171,6 +1171,10 @@ extension UsageStore {
                 let text = "Antigravity debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.antigravity] = text }
                 return text
+            case .windsurf:
+                let text = "Windsurf debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.windsurf] = text }
+                return text
             case .cursor:
                 let text = await self.debugCursorLog(
                     cursorCookieSource: cursorCookieSource,
