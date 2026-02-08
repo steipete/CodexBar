@@ -98,6 +98,7 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 - Status polling: [docs/status.md](docs/status.md)
 - Sparkle updates: [docs/sparkle.md](docs/sparkle.md)
 - Release checklist: [docs/RELEASING.md](docs/RELEASING.md)
+- iOS app/widget scaffold: [ios/README.md](ios/README.md)
 
 ## Getting started (dev)
 - Clone the repo and open it in Xcode or run the scripts directly.

@@ -1,0 +1,50 @@
+name: CodexBariOS
+options:
+  createIntermediateGroups: true
+configs:
+  Debug: debug
+  Release: release
+packages:
+  CodexBar:
+    path: ..
+targets:
+  CodexBariOSApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CodexBariOSApp/Sources
+    info:
+      path: CodexBariOSApp/Info.plist
+    entitlements:
+      path: CodexBariOSApp/CodexBariOSApp.entitlements
+    dependencies:
+      - package: CodexBar
+        product: CodexBariOSShared
+      - target: CodexBariOSWidgetExtension
+        embed: true
+        codeSign: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.steipete.codexbar.ios
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_STRICT_CONCURRENCY: complete
+  CodexBariOSWidgetExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CodexBariOSWidget/Sources
+    info:
+      path: CodexBariOSWidget/Info.plist
+    entitlements:
+      path: CodexBariOSWidget/CodexBariOSWidget.entitlements
+    dependencies:
+      - package: CodexBar
+        product: CodexBariOSShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.steipete.codexbar.ios.widget
+        APPLICATION_EXTENSION_API_ONLY: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_STRICT_CONCURRENCY: complete

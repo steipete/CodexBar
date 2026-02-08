@@ -16,6 +16,10 @@ let package = Package(
     platforms: [
         .macOS(.v14),
     ],
+    products: [
+        .library(name: "CodexBarCore", targets: ["CodexBarCore"]),
+        .library(name: "CodexBariOSShared", targets: ["CodexBariOSShared"]),
+    ],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.8.1"),
         .package(url: "https://github.com/steipete/Commander", from: "0.2.1"),
@@ -48,6 +52,13 @@ let package = Package(
                 dependencies: [
                     "CodexBarMacros",
                 ]),
+            .target(
+                name: "CodexBariOSShared",
+                dependencies: [],
+                path: "Sources/CodexBariOSShared",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                ]),
             .executableTarget(
                 name: "CodexBarCLI",
                 dependencies: [
@@ -60,7 +71,7 @@ let package = Package(
                 ]),
             .testTarget(
                 name: "CodexBarLinuxTests",
-                dependencies: ["CodexBarCore", "CodexBarCLI"],
+                dependencies: ["CodexBarCore", "CodexBarCLI", "CodexBariOSShared"],
                 path: "TestsLinux",
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
