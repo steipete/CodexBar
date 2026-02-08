@@ -66,6 +66,13 @@ final class InlineIconToggleButton: NSButton {
         self.titleField.textColor = color
     }
 
+    func setIconSize(_ size: CGFloat) {
+        guard self.iconSizeConstraints.count == 2 else { return }
+        self.iconSizeConstraints[0].constant = size
+        self.iconSizeConstraints[1].constant = size
+        if !self.isConfiguring { self.invalidateIntrinsicContentSize() }
+    }
+
     func setTitleFontSize(_ size: CGFloat) {
         self.titleField.font = NSFont.systemFont(ofSize: size)
     }
@@ -109,7 +116,7 @@ final class InlineIconToggleButton: NSButton {
         self.controlSize = .small
         self.wantsLayer = true
 
-        self.iconView.imageScaling = .scaleNone
+        self.iconView.imageScaling = .scaleProportionallyUpOrDown
         self.iconView.translatesAutoresizingMaskIntoConstraints = false
         self.titleField.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
         self.titleField.alignment = .left
@@ -195,6 +202,13 @@ final class StackedToggleButton: NSButton {
         self.titleField.textColor = color
     }
 
+    func setIconSize(_ size: CGFloat) {
+        guard self.iconSizeConstraints.count == 2 else { return }
+        self.iconSizeConstraints[0].constant = size
+        self.iconSizeConstraints[1].constant = size
+        if !self.isConfiguring { self.invalidateIntrinsicContentSize() }
+    }
+
     func setTitleFontSize(_ size: CGFloat) {
         self.titleField.font = NSFont.systemFont(ofSize: size)
     }
@@ -238,7 +252,7 @@ final class StackedToggleButton: NSButton {
         self.controlSize = .small
         self.wantsLayer = true
 
-        self.iconView.imageScaling = .scaleNone
+        self.iconView.imageScaling = .scaleProportionallyUpOrDown
         self.iconView.translatesAutoresizingMaskIntoConstraints = false
         self.titleField.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize - 2)
         self.titleField.alignment = .center
