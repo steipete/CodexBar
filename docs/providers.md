@@ -22,6 +22,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Claude | OAuth API (`oauth`) → Web API (`web`) → CLI PTY (`claude`). |
 | Gemini | OAuth API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
+| Windsurf | Local storage plan cache from `state.vscdb` (`local`). |
 | Cursor | Web API via cookies → stored WebKit session (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
 | Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
@@ -90,6 +91,14 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - `GetUserStatus` primary; `GetCommandModelConfigs` fallback.
 - Status: Google Workspace incidents (Gemini product).
 - Details: `docs/antigravity.md`.
+
+## Windsurf
+- Reads Windsurf’s local VS Code-style global storage DB:
+  - `~/Library/Application Support/Windsurf/User/globalStorage/state.vscdb`
+  - Key: `windsurf.settings.cachedPlanInfo`
+- Shows up to three meters (Messages, Flow Actions, Flex Credits) and uses `endTimestamp` as reset time.
+- No network requests and no cookies required.
+- Details: `docs/windsurf.md`.
 
 ## Cursor
 - Web API via browser cookies (`cursor.com` + `cursor.sh`).
