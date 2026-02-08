@@ -170,6 +170,9 @@ final class SettingsStore {
         self.config = config
         self.configLoading = true
         self.defaultsState = Self.loadDefaultsState(userDefaults: userDefaults)
+        if AppLanguageOption(rawValue: self.defaultsState.appLanguageRaw) == .system {
+            self.userDefaults.removeObject(forKey: "AppleLanguages")
+        }
         self.updateProviderState(config: config)
         self.migrateLegacyCodexCLIProxyDefaultsIfNeeded()
         self.configLoading = false

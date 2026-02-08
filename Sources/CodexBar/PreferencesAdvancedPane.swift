@@ -1,3 +1,4 @@
+import CodexBarCore
 import KeyboardShortcuts
 import SwiftUI
 
@@ -11,17 +12,19 @@ struct AdvancedPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 SettingsSection(contentSpacing: 8) {
-                    Text("Keyboard shortcut")
+                    Text(L10n.tr("settings.advanced.keyboard.section", fallback: "Keyboard shortcut"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     HStack(alignment: .center, spacing: 12) {
-                        Text("Open menu")
+                        Text(L10n.tr("settings.advanced.keyboard.open_menu.title", fallback: "Open menu"))
                             .font(.body)
                         Spacer()
                         KeyboardShortcuts.Recorder(for: .openMenu)
                     }
-                    Text("Trigger the menu bar menu from anywhere.")
+                    Text(L10n.tr(
+                        "settings.advanced.keyboard.open_menu.subtitle",
+                        fallback: "Trigger the menu bar menu from anywhere."))
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
                 }
@@ -36,7 +39,7 @@ struct AdvancedPane: View {
                             if self.isInstallingCLI {
                                 ProgressView().controlSize(.small)
                             } else {
-                                Text("Install CLI")
+                                Text(L10n.tr("settings.advanced.cli.install", fallback: "Install CLI"))
                             }
                         }
                         .disabled(self.isInstallingCLI)
@@ -48,7 +51,9 @@ struct AdvancedPane: View {
                                 .lineLimit(2)
                         }
                     }
-                    Text("Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.")
+                    Text(L10n.tr(
+                        "settings.advanced.cli.install.subtitle",
+                        fallback: "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar."))
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
                 }
@@ -57,12 +62,16 @@ struct AdvancedPane: View {
 
                 SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
-                        title: "Show Debug Settings",
-                        subtitle: "Expose troubleshooting tools in the Debug tab.",
+                        title: L10n.tr("settings.advanced.debug.title", fallback: "Show Debug Settings"),
+                        subtitle: L10n.tr(
+                            "settings.advanced.debug.subtitle",
+                            fallback: "Expose troubleshooting tools in the Debug tab."),
                         binding: self.$settings.debugMenuEnabled)
                     PreferenceToggleRow(
-                        title: "Surprise me",
-                        subtitle: "Check if you like your agents having some fun up there.",
+                        title: L10n.tr("settings.advanced.surprise.title", fallback: "Surprise me"),
+                        subtitle: L10n.tr(
+                            "settings.advanced.surprise.subtitle",
+                            fallback: "Check if you like your agents having some fun up there."),
                         binding: self.$settings.randomBlinkEnabled)
                 }
 
@@ -70,22 +79,33 @@ struct AdvancedPane: View {
 
                 SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
-                        title: "Hide personal information",
-                        subtitle: "Obscure email addresses in the menu bar and menu UI.",
+                        title: L10n.tr(
+                            "settings.advanced.privacy.hide_personal_info.title",
+                            fallback: "Hide personal information"),
+                        subtitle: L10n.tr(
+                            "settings.advanced.privacy.hide_personal_info.subtitle",
+                            fallback: "Obscure email addresses in the menu bar and menu UI."),
                         binding: self.$settings.hidePersonalInfo)
                 }
 
                 Divider()
 
                 SettingsSection(
-                    title: "Keychain access",
-                    caption: """
+                    title: L10n.tr("settings.advanced.keychain.title", fallback: "Keychain access"),
+                    caption: L10n.tr(
+                        "settings.advanced.keychain.caption",
+                        fallback: """
                     Disable all Keychain reads and writes. Browser cookie import is unavailable; paste Cookie \
                     headers manually in Providers.
-                    """) {
+                    """))
+                {
                         PreferenceToggleRow(
-                            title: "Disable Keychain access",
-                            subtitle: "Prevents any Keychain access while enabled.",
+                            title: L10n.tr(
+                                "settings.advanced.keychain.disable.title",
+                                fallback: "Disable Keychain access"),
+                            subtitle: L10n.tr(
+                                "settings.advanced.keychain.disable.subtitle",
+                                fallback: "Prevents any Keychain access while enabled."),
                             binding: self.$settings.debugDisableKeychainAccess)
                     }
             }
@@ -105,7 +125,9 @@ extension AdvancedPane {
         let helperURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/CodexBarCLI")
         let fm = FileManager.default
         guard fm.fileExists(atPath: helperURL.path) else {
-            self.cliStatus = "CodexBarCLI not found in app bundle."
+            self.cliStatus = L10n.tr(
+                "settings.advanced.cli.status.helper_not_found",
+                fallback: "CodexBarCLI not found in app bundle.")
             return
         }
 
@@ -119,29 +141,36 @@ extension AdvancedPane {
             let dir = (dest as NSString).deletingLastPathComponent
             guard fm.fileExists(atPath: dir) else { continue }
             guard fm.isWritableFile(atPath: dir) else {
-                results.append("No write access: \(dir)")
+                let format = L10n.tr(
+                    "settings.advanced.cli.status.no_write_access",
+                    fallback: "No write access: %@")
+                results.append(String(format: format, locale: .current, dir))
                 continue
             }
 
             if fm.fileExists(atPath: dest) {
                 if Self.isLink(atPath: dest, pointingTo: helperURL.path) {
-                    results.append("Installed: \(dir)")
+                    let format = L10n.tr("settings.advanced.cli.status.installed", fallback: "Installed: %@")
+                    results.append(String(format: format, locale: .current, dir))
                 } else {
-                    results.append("Exists: \(dir)")
+                    let format = L10n.tr("settings.advanced.cli.status.exists", fallback: "Exists: %@")
+                    results.append(String(format: format, locale: .current, dir))
                 }
                 continue
             }
 
             do {
                 try fm.createSymbolicLink(atPath: dest, withDestinationPath: helperURL.path)
-                results.append("Installed: \(dir)")
+                let format = L10n.tr("settings.advanced.cli.status.installed", fallback: "Installed: %@")
+                results.append(String(format: format, locale: .current, dir))
             } catch {
-                results.append("Failed: \(dir)")
+                let format = L10n.tr("settings.advanced.cli.status.failed", fallback: "Failed: %@")
+                results.append(String(format: format, locale: .current, dir))
             }
         }
 
         self.cliStatus = results.isEmpty
-            ? "No writable bin dirs found."
+            ? L10n.tr("settings.advanced.cli.status.no_writable_dirs", fallback: "No writable bin dirs found.")
             : results.joined(separator: " · ")
     }
 

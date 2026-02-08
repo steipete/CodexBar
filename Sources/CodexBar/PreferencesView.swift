@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 import SwiftUI
 
 enum PreferencesTab: String, Hashable {
@@ -34,28 +35,52 @@ struct PreferencesView: View {
     var body: some View {
         TabView(selection: self.$selection.tab) {
             GeneralPane(settings: self.settings, store: self.store)
-                .tabItem { Label("General", systemImage: "gearshape") }
+                .tabItem {
+                    Label(
+                        L10n.tr("settings.preferences.tab.general", fallback: "General"),
+                        systemImage: "gearshape")
+                }
                 .tag(PreferencesTab.general)
 
             ProvidersPane(settings: self.settings, store: self.store)
-                .tabItem { Label("Providers", systemImage: "square.grid.2x2") }
+                .tabItem {
+                    Label(
+                        L10n.tr("settings.preferences.tab.providers", fallback: "Providers"),
+                        systemImage: "square.grid.2x2")
+                }
                 .tag(PreferencesTab.providers)
 
             DisplayPane(settings: self.settings)
-                .tabItem { Label("Display", systemImage: "eye") }
+                .tabItem {
+                    Label(
+                        L10n.tr("settings.preferences.tab.display", fallback: "Display"),
+                        systemImage: "eye")
+                }
                 .tag(PreferencesTab.display)
 
             AdvancedPane(settings: self.settings)
-                .tabItem { Label("Advanced", systemImage: "slider.horizontal.3") }
+                .tabItem {
+                    Label(
+                        L10n.tr("settings.preferences.tab.advanced", fallback: "Advanced"),
+                        systemImage: "slider.horizontal.3")
+                }
                 .tag(PreferencesTab.advanced)
 
             AboutPane(updater: self.updater)
-                .tabItem { Label("About", systemImage: "info.circle") }
+                .tabItem {
+                    Label(
+                        L10n.tr("settings.preferences.tab.about", fallback: "About"),
+                        systemImage: "info.circle")
+                }
                 .tag(PreferencesTab.about)
 
             if self.settings.debugMenuEnabled {
                 DebugPane(settings: self.settings, store: self.store)
-                    .tabItem { Label("Debug", systemImage: "ladybug") }
+                    .tabItem {
+                        Label(
+                            L10n.tr("settings.preferences.tab.debug", fallback: "Debug"),
+                            systemImage: "ladybug")
+                    }
                     .tag(PreferencesTab.debug)
             }
         }

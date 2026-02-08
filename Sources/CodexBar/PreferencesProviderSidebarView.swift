@@ -62,7 +62,7 @@ private struct ProviderSidebarRowView: View {
                 .contentShape(Rectangle())
                 .padding(.vertical, 4)
                 .padding(.horizontal, 2)
-                .help("Drag to reorder")
+                .help(L10n.tr("settings.providers.sidebar.reorder.help", fallback: "Drag to reorder"))
                 .onDrag {
                     self.draggingProvider = self.provider
                     return NSItemProvider(object: self.provider.rawValue as NSString)
@@ -106,12 +106,13 @@ private struct ProviderSidebarRowView: View {
     private var statusText: String {
         guard !self.isEnabled else { return self.subtitle }
         let lines = self.subtitle.split(separator: "\n", omittingEmptySubsequences: false)
+        let format = L10n.tr("settings.providers.sidebar.status.disabled_prefix", fallback: "Disabled — %@")
         if lines.count >= 2 {
             let first = lines[0]
             let rest = lines.dropFirst().joined(separator: "\n")
-            return "Disabled — \(first)\n\(rest)"
+            return String(format: format, locale: .current, "\(first)\n\(rest)")
         }
-        return "Disabled — \(self.subtitle)"
+        return String(format: format, locale: .current, self.subtitle)
     }
 }
 
@@ -135,7 +136,7 @@ private struct ProviderSidebarReorderHandle: View {
             width: ProviderSettingsMetrics.reorderHandleSize,
             height: ProviderSettingsMetrics.reorderHandleSize)
         .foregroundStyle(.tertiary)
-        .accessibilityLabel("Reorder")
+        .accessibilityLabel(L10n.tr("settings.providers.sidebar.accessibility.reorder", fallback: "Reorder"))
     }
 }
 

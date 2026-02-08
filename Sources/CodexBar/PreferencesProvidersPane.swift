@@ -48,7 +48,7 @@ struct ProvidersPane: View {
                         }
                     })
             } else {
-                Text("Select a provider")
+                Text(L10n.tr("settings.providers.select_provider", fallback: "Select a provider"))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
@@ -76,7 +76,9 @@ struct ProvidersPane: View {
                         active.onConfirm()
                         self.activeConfirmation = nil
                     }
-                    Button("Cancel", role: .cancel) { self.activeConfirmation = nil }
+                    Button(L10n.tr("settings.providers.alert.cancel", fallback: "Cancel"), role: .cancel) {
+                        self.activeConfirmation = nil
+                    }
                 }
             },
             message: {
@@ -113,9 +115,9 @@ struct ProvidersPane: View {
             let relative = snapshot.updatedAt.relativeDescription()
             usageText = relative
         } else if self.store.isStale(provider: provider) {
-            usageText = "last fetch failed"
+            usageText = L10n.tr("settings.providers.subtitle.last_fetch_failed", fallback: "last fetch failed")
         } else {
-            usageText = "usage not fetched yet"
+            usageText = L10n.tr("settings.providers.subtitle.not_fetched_yet", fallback: "usage not fetched yet")
         }
 
         let presentationContext = ProviderPresentationContext(

@@ -279,6 +279,12 @@ extension SettingsStore {
         set {
             self.defaultsState.appLanguageRaw = newValue.rawValue
             self.userDefaults.set(newValue.rawValue, forKey: "appLanguageCode")
+            switch newValue {
+            case .system:
+                self.userDefaults.removeObject(forKey: "AppleLanguages")
+            case .english, .simplifiedChinese:
+                self.userDefaults.set([newValue.rawValue], forKey: "AppleLanguages")
+            }
         }
     }
 
