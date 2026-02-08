@@ -197,7 +197,11 @@ struct CursorStatusProbeTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
-        #expect(usageSnapshot.primary?.usedPercent == 45.0)
+        // Primary meter shows effective percentage for non-legacy plans
+        // totalUsed: $27.50, effectiveBudget: $40 (Pro) + $100 (on-demand) = $140
+        // effectivePercent: 27.50/140 * 100 = 19.64%
+        let expectedPercent = (27.50 / 140.0) * 100
+        #expect(usageSnapshot.primary?.usedPercent == expectedPercent)
         #expect(usageSnapshot.accountEmail(for: .cursor) == "user@example.com")
         #expect(usageSnapshot.loginMethod(for: .cursor) == "Cursor Pro")
         #expect(usageSnapshot.secondary != nil)
@@ -499,5 +503,193 @@ struct CursorStatusProbeTests {
         #expect(hasSession)
 
         await store.clearCookies()
+    }
+
+    // MARK: - Plan Tier Detection
+
+    @Test
+    func detectsPlanTierFromMembershipType() {
+        let testCases: [(input: String?, expected: CursorPlanTier)] = [
+            ("hobby", .hobby),
+            ("pro", .pro),
+            ("pro+", .proPlus),
+            ("pro_plus", .proPlus),
+            ("proplus", .proPlus),
+            ("ultra", .ultra),
+            ("team", .team),
+            ("enterprise", .enterprise),
+            ("PRO+", .proPlus), // Case insensitive
+            ("ULTRA", .ultra),
+            (nil, .unknown),
+            ("unknown_plan", .unknown),
+        ]
+
+        for testCase in testCases {
+            let tier = CursorPlanTier(membershipType: testCase.input)
+            #expect(tier == testCase.expected, "Expected \(testCase.expected) for '\(testCase.input ?? "nil")', got \(tier)")
+        }
+    }
+
+    @Test
+    func planTierEffectiveBudgets() {
+        #expect(CursorPlanTier.hobby.effectiveBudgetUSD == 20)
+        #expect(CursorPlanTier.pro.effectiveBudgetUSD == 40)
+        #expect(CursorPlanTier.proPlus.effectiveBudgetUSD == 120)
+        #expect(CursorPlanTier.ultra.effectiveBudgetUSD == 800)
+        #expect(CursorPlanTier.team.effectiveBudgetUSD == 60)
+        #expect(CursorPlanTier.enterprise.effectiveBudgetUSD == 40)
+        #expect(CursorPlanTier.unknown.effectiveBudgetUSD == 40)
+    }
+
+    // MARK: - Effective Budget Calculations
+
+    @Test
+    func calculatesEffectivePercentageForUltraPlan() {
+        // Ultra user with $300 used, $200 on-demand limit
+        // Effective budget = $800 (Ultra) + $200 (on-demand) = $1000
+        // Effective percentage = $300 / $1000 = 30%
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 150.0, // Old calculation would show 150% (300/200)
+            planUsedUSD: 300.0,
+            planLimitUSD: 200.0, // API returns nominal price
+            onDemandUsedUSD: 100.0,
+            onDemandLimitUSD: 200.0,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "ultra",
+            accountEmail: "user@example.com",
+            accountName: nil,
+            rawJSON: nil,
+            planTier: .ultra)
+
+        // Verify effective calculations
+        #expect(snapshot.totalUsedUSD == 400.0) // 300 plan + 100 on-demand
+        #expect(snapshot.effectiveBudgetUSD == 1000.0) // 800 Ultra + 200 on-demand
+        #expect(snapshot.effectivePercentUsed == 40.0) // 400 / 1000 * 100
+        #expect(snapshot.isPlanExhausted == true) // on-demand > 0
+    }
+
+    @Test
+    func calculatesEffectivePercentageForProPlusPlan() {
+        // Pro+ user with $80 used, no on-demand yet
+        // Effective budget = $120 (Pro+) + $0 = $120
+        // Effective percentage = $80 / $120 = 66.67%
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 133.33, // Old calculation: 80/60 = 133%
+            planUsedUSD: 80.0,
+            planLimitUSD: 60.0, // API returns nominal price
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: 100.0,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro+",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil,
+            planTier: .proPlus)
+
+        #expect(snapshot.totalUsedUSD == 80.0)
+        #expect(snapshot.effectiveBudgetUSD == 220.0) // 120 Pro+ + 100 on-demand limit
+        #expect(abs(snapshot.effectivePercentUsed - 36.36) < 0.1) // ~36.36%
+        #expect(snapshot.isPlanExhausted == false)
+    }
+
+    @Test
+    func usageSnapshotUsesEffectivePercentageForHigherTiers() {
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 150.0,
+            planUsedUSD: 300.0,
+            planLimitUSD: 200.0,
+            onDemandUsedUSD: 100.0,
+            onDemandLimitUSD: 200.0,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "ultra",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil,
+            planTier: .ultra)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        // Primary window uses effective percentage for higher-tier plans
+        // totalUsed: $400, effectiveBudget: $800 (Ultra) + $200 (on-demand) = $1000
+        // effectivePercent: 400/1000 * 100 = 40%
+        #expect(usageSnapshot.primary?.usedPercent == 40.0)
+
+        // cursorEffectiveUsage is populated for menu display context
+        #expect(usageSnapshot.cursorEffectiveUsage != nil)
+        #expect(usageSnapshot.cursorEffectiveUsage?.planTier == .ultra)
+        #expect(usageSnapshot.cursorEffectiveUsage?.totalUsedUSD == 400.0)
+        #expect(usageSnapshot.cursorEffectiveUsage?.effectiveBudgetUSD == 1000.0)
+        #expect(usageSnapshot.cursorEffectiveUsage?.isPlanExhausted == true)
+    }
+
+    @Test
+    func effectiveUsageNotPopulatedForLegacyPlans() {
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 100.0,
+            planUsedUSD: 0,
+            planLimitUSD: 0,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "enterprise",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil,
+            requestsUsed: 250,
+            requestsLimit: 500)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        // Legacy plans should not have cursorEffectiveUsage
+        #expect(usageSnapshot.cursorEffectiveUsage == nil)
+        // But should still have cursorRequests
+        #expect(usageSnapshot.cursorRequests != nil)
+        #expect(usageSnapshot.cursorRequests?.used == 250)
+    }
+
+    @Test
+    func parseUsageSummaryIncludesPlanTier() {
+        let summary = CursorUsageSummary(
+            billingCycleStart: nil,
+            billingCycleEnd: nil,
+            membershipType: "ultra",
+            limitType: nil,
+            isUnlimited: nil,
+            autoModelSelectedDisplayMessage: nil,
+            namedModelSelectedDisplayMessage: nil,
+            individualUsage: CursorIndividualUsage(
+                plan: CursorPlanUsage(
+                    enabled: true,
+                    used: 30000, // $300 in cents
+                    limit: 20000, // $200 in cents
+                    remaining: nil,
+                    breakdown: nil,
+                    autoPercentUsed: nil,
+                    apiPercentUsed: nil,
+                    totalPercentUsed: nil),
+                onDemand: CursorOnDemandUsage(
+                    enabled: true,
+                    used: 10000, // $100 in cents
+                    limit: 20000, // $200 in cents
+                    remaining: nil)),
+            teamUsage: nil)
+
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0)).parseUsageSummary(
+            summary,
+            userInfo: nil,
+            rawJSON: nil)
+
+        #expect(snapshot.planTier == .ultra)
+        #expect(snapshot.effectiveBudgetUSD == 1000.0) // 800 Ultra + 200 on-demand
+        #expect(snapshot.totalUsedUSD == 400.0) // 300 plan + 100 on-demand
+        #expect(snapshot.effectivePercentUsed == 40.0)
     }
 }

@@ -90,13 +90,18 @@ struct CursorProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
+        // Show on-demand usage separately
         guard let cost = context.snapshot?.providerCost, cost.currencyCode != "Quota" else { return }
-        let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-        if cost.limit > 0 {
-            let limitStr = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-            entries.append(.text("On-Demand: \(used) / \(limitStr)", .primary))
-        } else {
-            entries.append(.text("On-Demand: \(used)", .primary))
+
+        // Only show on-demand if there's actual usage
+        if cost.used > 0 {
+            let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            if cost.limit > 0 {
+                let limitStr = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+                entries.append(.text("On-Demand: \(used) / \(limitStr)", .primary))
+            } else {
+                entries.append(.text("On-Demand: \(used)", .primary))
+            }
         }
     }
 }
