@@ -195,8 +195,8 @@ fi
 if [[ "${DEBUG_LLDB}" == "1" && -n "${RELEASE_ARCHES}" ]]; then
   fail "--release-arches is only supported for release packaging"
 fi
-HOST_ARCH="$(uname -m)"
-ARCHES_VALUE="${HOST_ARCH}"
+# Build universal binary by default (arm64 + x86_64)
+ARCHES_VALUE="arm64 x86_64"
 if [[ -n "${RELEASE_ARCHES}" ]]; then
   ARCHES_VALUE="${RELEASE_ARCHES}"
 fi
