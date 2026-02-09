@@ -639,10 +639,6 @@ public struct FactoryStatusProbe: Sendable {
         var lastError: Error?
 
         let debug = DebugConfig.current()
-        let cachedCookieHeader = CookieHeaderCache.load(provider: .factory)
-        let cachedCookieHeaderForAuth = cachedCookieHeader.flatMap { entry in
-            Self.cookieHeaderForCookieAuth(fromHeader: entry.cookieHeader)
-        }
         if debug.forceBrowserCookieAuth {
             log("DEBUG: forcing browser cookie auth (may invalidate your browser session)")
             let sources: [Browser] = debug.chromeOnly ? [.chrome] : [.chrome, .firefox]
@@ -666,6 +662,22 @@ public struct FactoryStatusProbe: Sendable {
 
         if let override = CookieHeaderNormalizer.normalize(cookieHeaderOverride) {
             return try await self.fetchWithManualCookieHeaderOverride(override, logger: log)
+        }
+
+        let cachedCookieHeader = CookieHeaderCache.load(provider: .factory)
+        var cachedCookieHeaderForAuth = cachedCookieHeader.flatMap { entry in
+            Self.cookieHeaderForCookieAuth(fromHeader: entry.cookieHeader)
+        }
+        if cachedCookieHeader != nil,
+           (cachedCookieHeaderForAuth ?? "")
+               .trimmingCharacters(in: .whitespacesAndNewlines)
+               .isEmpty
+        {
+            // Legacy caches could contain only token-like cookies that we now drop for safety. If filtering empties the
+            // header, clear the cache so UI and behavior remain aligned ("Cached" should mean "usable").
+            log("Clearing cached cookie header: no safe cookies remain after filtering")
+            CookieHeaderCache.clear(provider: .factory)
+            cachedCookieHeaderForAuth = nil
         }
 
         // IMPORTANT: run attempts sequentially and stop after the first success.
