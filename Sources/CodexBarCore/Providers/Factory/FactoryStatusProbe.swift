@@ -665,26 +665,7 @@ public struct FactoryStatusProbe: Sendable {
         }
 
         if let override = CookieHeaderNormalizer.normalize(cookieHeaderOverride) {
-            log("Using manual cookie header")
-            let bearer = Self.bearerToken(fromHeader: override)
-            let candidates = [
-                self.baseURL,
-                Self.authBaseURL,
-                Self.apiBaseURL,
-            ]
-            for baseURL in candidates {
-                do {
-                    return try await self.fetchWithCookieHeader(
-                        override,
-                        bearerToken: bearer,
-                        baseURL: baseURL,
-                        logger: log)
-                } catch {
-                    lastError = error
-                }
-            }
-            if let lastError { throw lastError }
-            throw FactoryStatusProbeError.noSessionCookie
+            return try await self.fetchWithManualCookieHeaderOverride(override, logger: log)
         }
 
         // IMPORTANT: run attempts sequentially and stop after the first success.
@@ -759,6 +740,53 @@ public struct FactoryStatusProbe: Sendable {
         if let firstSuccessSnapshot {
             return firstSuccessSnapshot
         }
+        if let lastError { throw lastError }
+        throw FactoryStatusProbeError.noSessionCookie
+    }
+
+    private func fetchWithManualCookieHeaderOverride(
+        _ override: String,
+        logger: @escaping (String) -> Void) async throws -> FactoryStatusSnapshot
+    {
+        logger("Using manual cookie header")
+
+        let safeOverride = Self.cookieHeaderForCookieAuth(fromHeader: override) ?? override
+        let bearer = Self.bearerToken(fromHeader: override)
+        let candidates = [
+            self.baseURL,
+            Self.authBaseURL,
+            Self.apiBaseURL,
+        ]
+
+        var lastError: Error?
+        for baseURL in candidates {
+            // Prefer cookie-only first to avoid replaying a token-like cookie as Authorization (can invalidate browser
+            // sessions).
+            do {
+                return try await self.fetchWithCookieHeader(
+                    safeOverride,
+                    bearerToken: nil,
+                    baseURL: baseURL,
+                    logger: logger)
+            } catch {
+                lastError = error
+            }
+
+            // If the override contains an access token, fall back to Authorization for compatibility.
+            // (Still uses a filtered cookie header when possible.)
+            if let bearer {
+                do {
+                    return try await self.fetchWithCookieHeader(
+                        safeOverride,
+                        bearerToken: bearer,
+                        baseURL: baseURL,
+                        logger: logger)
+                } catch {
+                    lastError = error
+                }
+            }
+        }
+
         if let lastError { throw lastError }
         throw FactoryStatusProbeError.noSessionCookie
     }
@@ -1015,6 +1043,7 @@ public struct FactoryStatusProbe: Sendable {
             }
 
             var lastError: Error? = error
+            let retryBaseCookies = unsafeCookieAuth ? cookies : cookieAuthCookies
 
             let retries: [(String, (HTTPCookie) -> Bool)] = [
                 ("Retrying without access-token cookies", { !Self.staleTokenCookieNames.contains($0.name) }),
@@ -1025,8 +1054,8 @@ public struct FactoryStatusProbe: Sendable {
             ]
 
             for (label, predicate) in retries {
-                let filtered = cookies.filter(predicate)
-                guard filtered.count < cookies.count else { continue }
+                let filtered = retryBaseCookies.filter(predicate)
+                guard filtered.count < retryBaseCookies.count else { continue }
                 logger(label)
                 do {
                     return try await self.fetchWithCookieHeader(
@@ -1050,10 +1079,10 @@ public struct FactoryStatusProbe: Sendable {
                 }
             }
 
-            let authOnly = cookies.filter {
+            let authOnly = retryBaseCookies.filter {
                 Self.authSessionCookieNames.contains($0.name) || $0.name == "__Host-authjs.csrf-token"
             }
-            if !authOnly.isEmpty, authOnly.count < cookies.count {
+            if !authOnly.isEmpty, authOnly.count < retryBaseCookies.count {
                 logger("Retrying with auth session cookies only")
                 do {
                     return try await self.fetchWithCookieHeader(

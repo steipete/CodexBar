@@ -4,6 +4,7 @@ set -euo pipefail
 # Captures observability for issue #323(A): Factory browser session invalidation after CodexBar usage fetch.
 #
 # This script intentionally does NOT print or persist any cookie/token values.
+# Note: the app logs may still include non-sensitive metadata (e.g., cookie names, counts, and HTTP status codes).
 #
 # Output bundle:
 #   /tmp/codexbar-issue-323A-<timestamp>/
