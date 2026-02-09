@@ -565,6 +565,7 @@ public actor FactorySessionStore {
 
 // MARK: - Factory Status Probe
 
+// swiftlint:disable:next type_body_length
 public struct FactoryStatusProbe: Sendable {
     public let baseURL: URL
     public var timeout: TimeInterval = 15.0
@@ -598,6 +599,27 @@ public struct FactoryStatusProbe: Sendable {
 
     private let browserDetection: BrowserDetection
 
+    private struct DebugConfig: Sendable {
+        let forceBrowserCookieAuth: Bool
+        let unsafeCookieAuth: Bool
+        let chromeOnly: Bool
+        let keepGoingAfterSuccess: Bool
+
+        static func current(env: [String: String] = ProcessInfo.processInfo.environment) -> DebugConfig {
+            DebugConfig(
+                forceBrowserCookieAuth: self.isEnabled(env["CODEXBAR_FACTORY_FORCE_BROWSER_COOKIE_AUTH"]),
+                unsafeCookieAuth: self.isEnabled(env["CODEXBAR_FACTORY_UNSAFE_COOKIE_AUTH"]),
+                chromeOnly: self.isEnabled(env["CODEXBAR_FACTORY_CHROME_ONLY"]),
+                keepGoingAfterSuccess: self.isEnabled(env["CODEXBAR_FACTORY_DEBUG_KEEP_GOING_AFTER_SUCCESS"]))
+        }
+
+        private static func isEnabled(_ raw: String?) -> Bool {
+            guard let raw else { return false }
+            let v = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return v == "1" || v == "true" || v == "yes" || v == "on"
+        }
+    }
+
     public init(
         baseURL: URL = URL(string: "https://app.factory.ai")!,
         timeout: TimeInterval = 15.0,
@@ -616,6 +638,28 @@ public struct FactoryStatusProbe: Sendable {
         let log: (String) -> Void = { msg in logger?("[factory] \(msg)") }
         var lastError: Error?
 
+        let debug = DebugConfig.current()
+        if debug.forceBrowserCookieAuth {
+            log("DEBUG: forcing browser cookie auth (may invalidate your browser session)")
+            let sources: [Browser] = debug.chromeOnly ? [.chrome] : [.chrome, .firefox]
+            switch await self.attemptBrowserCookies(
+                logger: log,
+                sources: sources,
+                unsafeCookieAuth: debug.unsafeCookieAuth)
+            {
+            case let .success(snapshot):
+                return snapshot
+            case let .failure(error):
+                throw error
+            case .skipped:
+                throw FactoryStatusProbeError.noSessionCookie
+            }
+        }
+        if debug.keepGoingAfterSuccess {
+            log("DEBUG: keeping auth attempts running even after success (for repro)")
+            log("DEBUG: this may invalidate your browser session")
+        }
+
         if let override = CookieHeaderNormalizer.normalize(cookieHeaderOverride) {
             log("Using manual cookie header")
             let bearer = Self.bearerToken(fromHeader: override)
@@ -629,7 +673,8 @@ public struct FactoryStatusProbe: Sendable {
                     return try await self.fetchWithCookieHeader(
                         override,
                         bearerToken: bearer,
-                        baseURL: baseURL)
+                        baseURL: baseURL,
+                        logger: log)
                 } catch {
                     lastError = error
                 }
@@ -647,7 +692,8 @@ public struct FactoryStatusProbe: Sendable {
                 return try await self.fetchWithCookieHeader(
                     cached.cookieHeader,
                     bearerToken: bearer,
-                    baseURL: self.baseURL)
+                    baseURL: self.baseURL,
+                    logger: log)
             } catch {
                 if case FactoryStatusProbeError.notLoggedIn = error {
                     CookieHeaderCache.clear(provider: .factory)
@@ -656,24 +702,45 @@ public struct FactoryStatusProbe: Sendable {
             }
         }
 
+        // IMPORTANT: run attempts sequentially and stop after the first success.
+        // Attempting multiple auth methods after a successful fetch can mutate/rotate server-side sessions,
+        // which is user-visible in the browser (issue #323).
+
         // Filter to only installed browsers to avoid unnecessary keychain prompts
         let installedChromiumAndFirefox = [.chrome, .firefox].cookieImportCandidates(using: self.browserDetection)
+        let browserCookieSources = debug.chromeOnly ? installedChromiumAndFirefox
+            .filter { $0 == .chrome } : installedChromiumAndFirefox
 
-        let attempts: [FetchAttemptResult] = await [
-            self.attemptStoredCookies(logger: log),
-            self.attemptStoredBearer(logger: log),
-            self.attemptStoredRefreshToken(logger: log),
-            self.attemptLocalStorageTokens(logger: log),
-            self.attemptBrowserCookies(logger: log, sources: [.safari]),
-            self.attemptWorkOSCookies(logger: log, sources: [.safari]),
-            self.attemptBrowserCookies(logger: log, sources: installedChromiumAndFirefox),
-            self.attemptWorkOSCookies(logger: log, sources: installedChromiumAndFirefox),
+        let attempts: [() async -> FetchAttemptResult] = [
+            { await self.attemptStoredBearer(logger: log) },
+            { await self.attemptStoredRefreshToken(logger: log) },
+            { await self.attemptLocalStorageTokens(logger: log) },
+            { await self.attemptStoredCookies(logger: log) },
+            {
+                await self.attemptBrowserCookies(
+                    logger: log,
+                    sources: [.safari],
+                    unsafeCookieAuth: debug.unsafeCookieAuth)
+            },
+            { await self.attemptWorkOSCookies(logger: log, sources: [.safari]) },
+            { await self.attemptBrowserCookies(
+                logger: log,
+                sources: browserCookieSources,
+                unsafeCookieAuth: debug.unsafeCookieAuth) },
+            { await self.attemptWorkOSCookies(logger: log, sources: browserCookieSources) },
         ]
 
-        for result in attempts {
+        var firstSuccessSnapshot: FactoryStatusSnapshot?
+        for attempt in attempts {
+            let result = await attempt()
             switch result {
             case let .success(snapshot):
-                return snapshot
+                if firstSuccessSnapshot == nil {
+                    firstSuccessSnapshot = snapshot
+                }
+                if !debug.keepGoingAfterSuccess {
+                    return snapshot
+                }
             case let .failure(error):
                 lastError = error
             case .skipped:
@@ -681,6 +748,9 @@ public struct FactoryStatusProbe: Sendable {
             }
         }
 
+        if let firstSuccessSnapshot {
+            return firstSuccessSnapshot
+        }
         if let lastError { throw lastError }
         throw FactoryStatusProbeError.noSessionCookie
     }
@@ -693,7 +763,8 @@ public struct FactoryStatusProbe: Sendable {
 
     private func attemptBrowserCookies(
         logger: @escaping (String) -> Void,
-        sources: [Browser]) async -> FetchAttemptResult
+        sources: [Browser],
+        unsafeCookieAuth: Bool = false) async -> FetchAttemptResult
     {
         do {
             var lastError: Error?
@@ -702,7 +773,10 @@ public struct FactoryStatusProbe: Sendable {
                 for session in sessions {
                     logger("Using cookies from \(session.sourceLabel)")
                     do {
-                        let snapshot = try await self.fetchWithCookies(session.cookies, logger: logger)
+                        let snapshot = try await self.fetchWithCookies(
+                            session.cookies,
+                            logger: logger,
+                            unsafeCookieAuth: unsafeCookieAuth)
                         await FactorySessionStore.shared.setCookies(session.cookies)
                         CookieHeaderCache.store(
                             provider: .factory,
@@ -724,7 +798,7 @@ public struct FactoryStatusProbe: Sendable {
         }
     }
 
-    private func attemptStoredCookies(logger: (String) -> Void) async -> FetchAttemptResult {
+    private func attemptStoredCookies(logger: @escaping (String) -> Void) async -> FetchAttemptResult {
         let storedCookies = await FactorySessionStore.shared.getCookies()
         guard !storedCookies.isEmpty else { return .skipped }
         logger("Using stored session cookies")
@@ -741,7 +815,7 @@ public struct FactoryStatusProbe: Sendable {
         }
     }
 
-    private func attemptStoredBearer(logger: (String) -> Void) async -> FetchAttemptResult {
+    private func attemptStoredBearer(logger: @escaping (String) -> Void) async -> FetchAttemptResult {
         guard let bearerToken = await FactorySessionStore.shared.getBearerToken() else { return .skipped }
         logger("Using stored Factory bearer token")
         do {
@@ -751,7 +825,7 @@ public struct FactoryStatusProbe: Sendable {
         }
     }
 
-    private func attemptStoredRefreshToken(logger: (String) -> Void) async -> FetchAttemptResult {
+    private func attemptStoredRefreshToken(logger: @escaping (String) -> Void) async -> FetchAttemptResult {
         guard let refreshToken = await FactorySessionStore.shared.getRefreshToken(),
               !refreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
@@ -854,7 +928,7 @@ public struct FactoryStatusProbe: Sendable {
     private func fetchWithWorkOSRefreshToken(
         _ refreshToken: String,
         organizationID: String?,
-        logger: (String) -> Void) async throws -> FactoryStatusSnapshot
+        logger: @escaping (String) -> Void) async throws -> FactoryStatusSnapshot
     {
         let auth = try await self.fetchWorkOSAccessToken(
             refreshToken: refreshToken,
@@ -868,7 +942,18 @@ public struct FactoryStatusProbe: Sendable {
 
     private func fetchWithCookies(
         _ cookies: [HTTPCookie],
-        logger: (String) -> Void) async throws -> FactoryStatusSnapshot
+        logger: @escaping (String) -> Void) async throws -> FactoryStatusSnapshot
+    {
+        try await self.fetchWithCookies(
+            cookies,
+            logger: logger,
+            unsafeCookieAuth: false)
+    }
+
+    private func fetchWithCookies(
+        _ cookies: [HTTPCookie],
+        logger: @escaping (String) -> Void,
+        unsafeCookieAuth: Bool) async throws -> FactoryStatusSnapshot
     {
         let candidates = Self.baseURLCandidates(default: self.baseURL, cookies: cookies)
         var lastError: Error?
@@ -878,7 +963,11 @@ public struct FactoryStatusProbe: Sendable {
                 logger("Trying Factory base URL: \(baseURL.host ?? baseURL.absoluteString)")
             }
             do {
-                return try await self.fetchWithCookies(cookies, baseURL: baseURL, logger: logger)
+                return try await self.fetchWithCookies(
+                    cookies,
+                    baseURL: baseURL,
+                    logger: logger,
+                    unsafeCookieAuth: unsafeCookieAuth)
             } catch {
                 lastError = error
             }
@@ -891,17 +980,22 @@ public struct FactoryStatusProbe: Sendable {
     private func fetchWithCookies(
         _ cookies: [HTTPCookie],
         baseURL: URL,
-        logger: (String) -> Void) async throws -> FactoryStatusSnapshot
+        logger: @escaping (String) -> Void,
+        unsafeCookieAuth: Bool) async throws -> FactoryStatusSnapshot
     {
-        let header = Self.cookieHeader(from: cookies)
-        let bearerToken = Self.bearerToken(from: cookies)
+        let cookieAuthCookies = unsafeCookieAuth ? cookies : Self.cookiesForCookieAuth(cookies: cookies)
+        let header = Self.cookieHeader(from: cookieAuthCookies)
+        let bearerToken = unsafeCookieAuth ? Self.bearerToken(from: cookies) : nil
+        if unsafeCookieAuth {
+            logger("DEBUG: using unsafe cookie auth (includes Authorization and token-like cookies)")
+        }
         do {
-            return try await self.fetchWithCookieHeader(header, bearerToken: bearerToken, baseURL: baseURL)
+            return try await self.fetchWithCookieHeader(
+                header,
+                bearerToken: bearerToken,
+                baseURL: baseURL,
+                logger: logger)
         } catch let error as FactoryStatusProbeError {
-            if case .notLoggedIn = error, bearerToken != nil {
-                logger("Retrying without Authorization header")
-                return try await self.fetchWithCookieHeader(header, bearerToken: nil, baseURL: baseURL)
-            }
             guard case let .networkError(message) = error,
                   message.contains("HTTP 409")
             else {
@@ -909,14 +1003,6 @@ public struct FactoryStatusProbe: Sendable {
             }
 
             var lastError: Error? = error
-            if bearerToken != nil {
-                logger("Retrying without Authorization header (HTTP 409)")
-                do {
-                    return try await self.fetchWithCookieHeader(header, bearerToken: nil, baseURL: baseURL)
-                } catch {
-                    lastError = error
-                }
-            }
 
             let retries: [(String, (HTTPCookie) -> Bool)] = [
                 ("Retrying without access-token cookies", { !Self.staleTokenCookieNames.contains($0.name) }),
@@ -931,11 +1017,11 @@ public struct FactoryStatusProbe: Sendable {
                 guard filtered.count < cookies.count else { continue }
                 logger(label)
                 do {
-                    let filteredBearer = Self.bearerToken(from: filtered)
                     return try await self.fetchWithCookieHeader(
                         Self.cookieHeader(from: filtered),
-                        bearerToken: filteredBearer,
-                        baseURL: baseURL)
+                        bearerToken: bearerToken,
+                        baseURL: baseURL,
+                        logger: logger)
                 } catch let retryError as FactoryStatusProbeError {
                     switch retryError {
                     case let .networkError(retryMessage)
@@ -960,8 +1046,9 @@ public struct FactoryStatusProbe: Sendable {
                 do {
                     return try await self.fetchWithCookieHeader(
                         Self.cookieHeader(from: authOnly),
-                        bearerToken: Self.bearerToken(from: authOnly),
-                        baseURL: baseURL)
+                        bearerToken: bearerToken,
+                        baseURL: baseURL,
+                        logger: logger)
                 } catch let retryError as FactoryStatusProbeError {
                     lastError = retryError
                 }
@@ -986,16 +1073,35 @@ public struct FactoryStatusProbe: Sendable {
         return nil
     }
 
+    private static func bearerToken(from cookies: [HTTPCookie]) -> String? {
+        let accessToken = cookies.first(where: { $0.name == "access-token" })?.value
+        let sessionToken = cookies.first(where: { Self.authSessionCookieNames.contains($0.name) })?.value
+        let legacySession = cookies.first(where: { $0.name == "session" })?.value
+
+        if let accessToken, accessToken.contains(".") {
+            return accessToken
+        }
+        if let sessionToken, sessionToken.contains(".") {
+            return sessionToken
+        }
+        if let legacySession, legacySession.contains(".") {
+            return legacySession
+        }
+        return accessToken ?? sessionToken
+    }
+
     private func fetchWithCookieHeader(
         _ cookieHeader: String,
         bearerToken: String?,
-        baseURL: URL) async throws -> FactoryStatusSnapshot
+        baseURL: URL,
+        logger: ((String) -> Void)? = nil) async throws -> FactoryStatusSnapshot
     {
         // First fetch auth info to get user ID and org info
         let authInfo = try await self.fetchAuthInfo(
             cookieHeader: cookieHeader,
             bearerToken: bearerToken,
-            baseURL: baseURL)
+            baseURL: baseURL,
+            logger: logger)
 
         // Extract user ID from JWT in the auth response or use a default endpoint
         let userId = self.extractUserIdFromAuth(authInfo)
@@ -1005,7 +1111,8 @@ public struct FactoryStatusProbe: Sendable {
             cookieHeader: cookieHeader,
             bearerToken: bearerToken,
             userId: userId,
-            baseURL: baseURL)
+            baseURL: baseURL,
+            logger: logger)
 
         return self.buildSnapshot(authInfo: authInfo, usageData: usageData, userId: userId)
     }
@@ -1013,7 +1120,8 @@ public struct FactoryStatusProbe: Sendable {
     private func fetchAuthInfo(
         cookieHeader: String,
         bearerToken: String?,
-        baseURL: URL) async throws -> FactoryAuthResponse
+        baseURL: URL,
+        logger: ((String) -> Void)? = nil) async throws -> FactoryAuthResponse
     {
         let url = baseURL.appendingPathComponent("/api/app/auth/me")
         var request = URLRequest(url: url)
@@ -1036,6 +1144,7 @@ public struct FactoryStatusProbe: Sendable {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid response")
         }
+        self.logHTTP(request: request, response: httpResponse, logger: logger)
 
         if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
             throw FactoryStatusProbeError.notLoggedIn
@@ -1062,7 +1171,8 @@ public struct FactoryStatusProbe: Sendable {
         cookieHeader: String,
         bearerToken: String?,
         userId: String?,
-        baseURL: URL) async throws -> FactoryUsageResponse
+        baseURL: URL,
+        logger: ((String) -> Void)? = nil) async throws -> FactoryUsageResponse
     {
         let url = baseURL.appendingPathComponent("/api/organization/subscription/usage")
         var request = URLRequest(url: url)
@@ -1092,6 +1202,7 @@ public struct FactoryStatusProbe: Sendable {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid response")
         }
+        self.logHTTP(request: request, response: httpResponse, logger: logger)
 
         if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
             throw FactoryStatusProbeError.notLoggedIn
@@ -1137,26 +1248,14 @@ public struct FactoryStatusProbe: Sendable {
         }
     }
 
-    private static func bearerToken(from cookies: [HTTPCookie]) -> String? {
-        let accessToken = cookies.first(where: { $0.name == "access-token" })?.value
-        let sessionToken = cookies.first(where: { Self.authSessionCookieNames.contains($0.name) })?.value
-        let legacySession = cookies.first(where: { $0.name == "session" })?.value
-
-        if let accessToken, accessToken.contains(".") {
-            return accessToken
-        }
-        if let sessionToken, sessionToken.contains(".") {
-            return sessionToken
-        }
-        if let legacySession, legacySession.contains(".") {
-            return legacySession
-        }
-        return accessToken ?? sessionToken
+    private static func cookiesForCookieAuth(cookies: [HTTPCookie]) -> [HTTPCookie] {
+        // Exclude token-like cookies that may cause server-side session rotation when replayed.
+        cookies.filter { !self.staleTokenCookieNames.contains($0.name) }
     }
 
     private func fetchWithBearerToken(
         _ bearerToken: String,
-        logger: (String) -> Void) async throws -> FactoryStatusSnapshot
+        logger: @escaping (String) -> Void) async throws -> FactoryStatusSnapshot
     {
         let candidates = [Self.apiBaseURL, self.baseURL]
         var lastError: Error?
@@ -1168,7 +1267,8 @@ public struct FactoryStatusProbe: Sendable {
                 return try await self.fetchWithCookieHeader(
                     "",
                     bearerToken: bearerToken,
-                    baseURL: baseURL)
+                    baseURL: baseURL,
+                    logger: logger)
             } catch {
                 lastError = error
             }
@@ -1359,7 +1459,54 @@ public struct FactoryStatusProbe: Sendable {
             userId: userId ?? usageData.userId,
             rawJSON: nil)
     }
+
+    private func logHTTP(request: URLRequest, response: HTTPURLResponse, logger: ((String) -> Void)?) {
+        guard let logger else { return }
+        guard let url = request.url else { return }
+
+        let method = request.httpMethod ?? "?"
+        let host = url.host ?? "?"
+        let path = url.path.isEmpty ? "/" : url.path
+
+        let hasCookie = (request.value(forHTTPHeaderField: "Cookie")?.isEmpty == false)
+        let hasAuth = (request.value(forHTTPHeaderField: "Authorization")?.isEmpty == false)
+        let location = response.value(forHTTPHeaderField: "Location")
+
+        let headerFields = response.allHeaderFields.reduce(into: [String: String]()) { partial, entry in
+            guard let key = entry.key as? String else { return }
+            if let value = entry.value as? String {
+                partial[key] = value
+            } else {
+                partial[key] = String(describing: entry.value)
+            }
+        }
+        let setCookies = HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
+        let setCookieNames = Set(setCookies.map(\.name)).sorted()
+
+        var parts: [String] = []
+        parts.append("\(method) \(host)\(path)")
+        parts.append("status=\(response.statusCode)")
+        parts.append("cookie=\(hasCookie ? "1" : "0")")
+        parts.append("auth=\(hasAuth ? "1" : "0")")
+        if let location, !location.isEmpty {
+            parts.append("location=\(location)")
+        }
+        if !setCookieNames.isEmpty {
+            parts.append("setCookieNames=\(setCookieNames.joined(separator: ","))")
+        }
+        logger("[factory-http] " + parts.joined(separator: " "))
+    }
 }
+
+#if DEBUG
+extension FactoryStatusProbe {
+    static func _cookieNamesDroppedFromCookieAuthForTesting(cookies: [HTTPCookie]) -> [String] {
+        let original = Set(cookies.map(\.name))
+        let filtered = Set(Self.cookiesForCookieAuth(cookies: cookies).map(\.name))
+        return Array(original.subtracting(filtered)).sorted()
+    }
+}
+#endif
 
 #else
 

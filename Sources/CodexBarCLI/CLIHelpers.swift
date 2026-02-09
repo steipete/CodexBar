@@ -258,7 +258,15 @@ extension CodexBarCLI {
     }
 
     static func loadConfig(output: CLIOutputPreferences) -> CodexBarConfig {
-        let store = CodexBarConfigStore()
+        let env = ProcessInfo.processInfo.environment
+        let store: CodexBarConfigStore = {
+            if let path = env["CODEXBAR_CONFIG_PATH"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !path.isEmpty
+            {
+                return CodexBarConfigStore(fileURL: URL(fileURLWithPath: path))
+            }
+            return CodexBarConfigStore()
+        }()
         do {
             if let existing = try store.load() {
                 return existing

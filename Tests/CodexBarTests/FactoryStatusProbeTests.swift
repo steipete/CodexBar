@@ -193,3 +193,29 @@ struct FactoryStatusProbeWorkOSTests {
         #expect(FactoryStatusProbe.isMissingWorkOSRefreshToken(payload))
     }
 }
+
+@Suite
+struct FactoryCookieAuthFilteringTests {
+    @Test
+    func dropsStaleTokenCookiesFromCookieAuth() {
+        let cookies = [
+            Self.cookie(name: "access-token", value: "opaque", domain: "app.factory.ai"),
+            Self.cookie(name: "__recent_auth", value: "1", domain: "app.factory.ai"),
+            Self.cookie(name: "__Secure-authjs.session-token", value: "jwt", domain: "app.factory.ai"),
+            Self.cookie(name: "__Host-authjs.csrf-token", value: "csrf", domain: "app.factory.ai"),
+        ]
+
+        let dropped = FactoryStatusProbe._cookieNamesDroppedFromCookieAuthForTesting(cookies: cookies)
+        #expect(dropped == ["__recent_auth", "access-token"])
+    }
+
+    private static func cookie(name: String, value: String, domain: String) -> HTTPCookie {
+        let props: [HTTPCookiePropertyKey: Any] = [
+            .name: name,
+            .value: value,
+            .domain: domain,
+            .path: "/",
+        ]
+        return HTTPCookie(properties: props)!
+    }
+}
