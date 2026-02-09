@@ -19,16 +19,11 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
         }
     }
 
-    @Test
-    func skipsRefreshFailureGate_whenEnvironmentOAuthTokenIsPresent() async {
-        let env: [String: String] = [
-            ClaudeOAuthCredentialsStore.environmentTokenKey: "env-token",
-            ClaudeOAuthCredentialsStore.environmentScopesKey: "user:profile",
-        ]
-
-        let context = ProviderFetchContext(
+    private func makeContext(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
+        let env: [String: String] = [:]
+        return ProviderFetchContext(
             runtime: .app,
-            sourceMode: .oauth,
+            sourceMode: sourceMode,
             includeCredits: false,
             webTimeout: 1,
             webDebugDumpHTML: false,
@@ -38,77 +33,109 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
             fetcher: UsageFetcher(environment: env),
             claudeFetcher: StubClaudeFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0))
+    }
 
+    private func expiredRecord(owner: ClaudeOAuthCredentialOwner = .claudeCLI) -> ClaudeOAuthCredentialRecord {
+        ClaudeOAuthCredentialRecord(
+            credentials: ClaudeOAuthCredentials(
+                accessToken: "expired-token",
+                refreshToken: "refresh-token",
+                expiresAt: Date(timeIntervalSinceNow: -60),
+                scopes: ["user:profile"],
+                rateLimitTier: nil),
+            owner: owner,
+            source: .cacheKeychain)
+    }
+
+    @Test
+    func autoModeExpiredCreds_cliAvailable_returnsAvailable() async {
+        let context = self.makeContext(sourceMode: .auto)
         let strategy = ClaudeOAuthFetchStrategy()
-        // Even if the refresh gate would block, environment credentials should remain usable.
-        let available = await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(false) {
-            await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialsOverride.withValue(nil) {
-                await strategy.isAvailable(context)
+        let available = await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
+            .withValue(self.expiredRecord()) {
+                await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(true) {
+                    await strategy.isAvailable(context)
+                }
             }
-        }
         #expect(available == true)
     }
 
     @Test
-    func appliesRefreshFailureGate_whenEnvironmentOAuthTokenIsAbsent() async {
-        let env: [String: String] = [:]
-        let context = ProviderFetchContext(
-            runtime: .app,
-            sourceMode: .oauth,
-            includeCredits: false,
-            webTimeout: 1,
-            webDebugDumpHTML: false,
-            verbose: false,
-            env: env,
-            settings: nil,
-            fetcher: UsageFetcher(environment: env),
-            claudeFetcher: StubClaudeFetcher(),
-            browserDetection: BrowserDetection(cacheTTL: 0))
-
+    func autoModeExpiredCreds_cliUnavailable_returnsUnavailable() async {
+        let context = self.makeContext(sourceMode: .auto)
         let strategy = ClaudeOAuthFetchStrategy()
-        let expiredCredentials = ClaudeOAuthCredentials(
-            accessToken: "expired-token",
-            refreshToken: "refresh-token",
-            expiresAt: Date(timeIntervalSinceNow: -60),
-            scopes: ["user:profile"],
-            rateLimitTier: nil)
-        let available = await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(false) {
-            await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialsOverride.withValue(expiredCredentials) {
-                await strategy.isAvailable(context)
+        let available = await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
+            .withValue(self.expiredRecord()) {
+                await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(false) {
+                    await strategy.isAvailable(context)
+                }
             }
-        }
         #expect(available == false)
     }
 
     @Test
-    func allowsOAuthAvailability_whenNonEnvironmentCredentialIsStillUsable() async {
-        let env: [String: String] = [:]
-        let context = ProviderFetchContext(
-            runtime: .app,
-            sourceMode: .auto,
-            includeCredits: false,
-            webTimeout: 1,
-            webDebugDumpHTML: false,
-            verbose: false,
-            env: env,
-            settings: nil,
-            fetcher: UsageFetcher(environment: env),
-            claudeFetcher: StubClaudeFetcher(),
-            browserDetection: BrowserDetection(cacheTTL: 0))
-
+    func oauthModeExpiredCreds_cliAvailable_returnsAvailable() async {
+        let context = self.makeContext(sourceMode: .oauth)
         let strategy = ClaudeOAuthFetchStrategy()
-        let unexpiredCredentials = ClaudeOAuthCredentials(
-            accessToken: "valid-token",
-            refreshToken: "refresh-token",
-            expiresAt: Date(timeIntervalSinceNow: 60 * 60),
-            scopes: ["user:profile"],
-            rateLimitTier: nil)
-        let available = await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(false) {
-            await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialsOverride.withValue(unexpiredCredentials) {
+        let available = await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
+            .withValue(self.expiredRecord()) {
+                await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(true) {
+                    await strategy.isAvailable(context)
+                }
+            }
+        #expect(available == true)
+    }
+
+    @Test
+    func autoModeExpiredCodexbarCreds_cliUnavailable_stillAvailable() async {
+        let context = self.makeContext(sourceMode: .auto)
+        let strategy = ClaudeOAuthFetchStrategy()
+        let available = await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
+            .withValue(self.expiredRecord(owner: .codexbar)) {
+                await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(false) {
+                    await strategy.isAvailable(context)
+                }
+            }
+        #expect(available == true)
+    }
+
+    @Test
+    func oauthModeDoesNotFallbackAfterOAuthFailure() {
+        let context = self.makeContext(sourceMode: .oauth)
+        let strategy = ClaudeOAuthFetchStrategy()
+        #expect(strategy.shouldFallback(
+            on: ClaudeUsageError.oauthFailed("oauth failed"),
+            context: context) == false)
+    }
+
+    @Test
+    func autoModeFallsBackAfterOAuthFailure() {
+        let context = self.makeContext(sourceMode: .auto)
+        let strategy = ClaudeOAuthFetchStrategy()
+        #expect(strategy.shouldFallback(
+            on: ClaudeUsageError.oauthFailed("oauth failed"),
+            context: context) == true)
+    }
+
+    @Test
+    func autoMode_userInitiated_clearsKeychainCooldownGate() async {
+        let context = self.makeContext(sourceMode: .auto)
+        let strategy = ClaudeOAuthFetchStrategy()
+
+        await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            ClaudeOAuthKeychainAccessGate.resetForTesting()
+            defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
+
+            let now = Date(timeIntervalSince1970: 1000)
+            ClaudeOAuthKeychainAccessGate.recordDenied(now: now)
+            #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(now: now) == false)
+
+            _ = await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await strategy.isAvailable(context)
             }
+
+            #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(now: now))
         }
-        #expect(available == true)
     }
 }
 #endif

@@ -2,54 +2,39 @@
 
 ## Unreleased
 ### Highlights
-- Claude OAuth/keychain flows were reworked across a series of follow-up PRs to reduce prompt storms, stabilize
-  background behavior, and make refresh failures deterministic (#245, #305, #308, #309). Thanks @manikv12!
+- Claude OAuth/keychain flows were reworked across a series of follow-up PRs to reduce prompt storms, stabilize background behavior, and make failure modes deterministic (#245, #305, #308, #309). Thanks @manikv12!
+- Claude: harden Claude Code PTY capture for `/usage` and `/status` (prompt automation, safer command palette confirmation, partial UTF-8 handling, and parsing guards against status-bar context meters) (#320).
 - Provider correctness fixes landed for Cursor plan parsing and MiniMax region routing (#240, #234). Thanks @robinebers
   and @theglove44!
-- Menu bar animation behavior was hardened in merged mode and fallback mode (#283, #291). Thanks @vignesh07 and
-  @Ilakiancs!
-- CI/tooling reliability improved via pinned lint tools, deterministic macOS test execution, and PTY timing test
-  stabilization plus Node 24-ready GitHub Actions upgrades (#292, #312, #290).
+- Menu bar animation behavior was hardened in merged mode and fallback mode (#283, #291). Thanks @vignesh07 and @Ilakiancs!
+- CI/tooling reliability improved via pinned lint tools, deterministic macOS test execution, and PTY timing test stabilization plus Node 24-ready GitHub Actions upgrades (#292, #312, #290).
 
-### Claude OAuth & Keychain (net result)
-- Auto-refresh expired Claude OAuth tokens and persist refreshed credentials in CodexBar's cache (#245). Thanks
-  @manikv12!
-- Reduce repeated keychain prompts by preferring silent/non-interactive reads in background/availability paths and
-  respecting cooldown gates (#245, #305). Thanks @manikv12!
-- Sync CodexBar's OAuth cache when Claude keychain credentials actually change, with fingerprint-based detection and
-  protections against regressing to stale/expired tokens (#305).
-- Show the in-app Claude keychain pre-alert only when preflight suggests interaction is likely; suppress unnecessary
-  alerts on silent-success paths (#308).
-- Distinguish terminal vs transient OAuth refresh failures:
-  - `invalid_grant` and equivalent auth rejections are terminal-blocked until auth state changes.
-  - transient failures use bounded backoff and automatically unblock on successful auth/reauth (#309).
-- Ensure usable Claude OAuth credentials are accepted in non-interactive scenarios and fix Claude auto debug pipeline
-  ordering follow-up.
+### Claude OAuth & Keychain (upgrade-relevant behavior)
+- Claude OAuth creds are cached in CodexBar Keychain. This reduces Keychain prompts until the token expires.
+- If Claude OAuth credentials are present but expired, CodexBar performs at most one delegated refresh handoff to the Claude CLI and one OAuth retry before falling back to Web/CLI in Auto mode.
+- Claude Auto mode keeps Keychain prompts suppressed during background refreshes. Interactive Keychain prompting is only attempted during user-initiated repair flows (e.g. menu open / manual refresh) when cached OAuth is missing/expired/unusable.
+- Claude OAuth-only mode stays strict: OAuth failures do not silently fall back to Web/CLI.
+- Keychain prompting is hardened (cooldowns after explicit denial/cancel/no-access + pre-alert only when interaction is likely) to reduce repeated prompts during refresh.
+- CodexBar syncs its cached OAuth token when the Claude Code Keychain entry changes, so updated auth is picked up without requiring a restart.
 
 ### Provider & Usage Fixes
-- Cursor: compute usage against `plan.limit` rather than `breakdown.total` to avoid incorrect limit interpretation
-  (#240). Thanks @robinebers!
-- MiniMax: correct API region URL selection to route requests to the expected regional endpoint (#234). Thanks
-  @theglove44!
-- Resource loading: fix app bundle lookup path to avoid "could not load resource bundle" startup failures (#223).
-  Thanks @validatedev!
-- OpenAI Web dashboard: keep WebView instances cached for reuse to reduce repeated network fetch overhead; tests were
-  updated to avoid network-dependent flakes (#284). Thanks @vignesh07!
-- Token-account precedence: selected token account env injection now correctly overrides provider config `apiKey`
-  values in app and CLI environments. Thanks @arvindcr4!
+- Cursor: compute usage against `plan.limit` rather than `breakdown.total` to avoid incorrect limit interpretation (#240). Thanks @robinebers!
+- MiniMax: correct API region URL selection to route requests to the expected regional endpoint (#234). Thanks @theglove44!
+- Resource loading: fix app bundle lookup path to avoid "could not load resource bundle" startup failures (#223). Thanks @validatedev!
+- OpenAI Web dashboard: keep WebView instances cached for reuse to reduce repeated network fetch overhead; tests were updated to avoid network-dependent flakes (#284). Thanks @vignesh07!
+- Token-account precedence: selected token account env injection now correctly overrides provider config `apiKey` values in app and CLI environments. Thanks @arvindcr4!
+- Claude: make Claude CLI probing more resilient by scoping auto-input to the active subcommand and trimming to the latest Usage panel before parsing to avoid false matches from earlier screen fragments (#320).
 
 ### Menu Bar & UI Behavior
-- Prevent fallback-provider loading animation loops (battery/CPU drain when no providers are enabled) (#283). Thanks
-  @vignesh07!
+- Prevent fallback-provider loading animation loops (battery/CPU drain when no providers are enabled) (#283). Thanks @vignesh07!
 - Prevent status overlay rendering for disabled providers while in merged mode (#291). Thanks @Ilakiancs!
 
 ### CI, Tooling & Test Stability
 - Pin SwiftFormat/SwiftLint versions and harden lint installer behavior (version drift + temp-file leak fixes) (#292).
-- Use more deterministic macOS CI test settings (including non-parallel paths where needed) and align runner/toolchain
-  behavior for stability (#292).
+- Use more deterministic macOS CI test settings (including non-parallel paths where needed) and align runner/toolchain behavior for stability (#292).
 - Stabilize PTY command timing tests to reduce CI flakiness (#312).
-- Upgrade `actions/checkout` to v6 and `actions/github-script` to v8 for Node 24 compatibility in
-  `upstream-monitor.yml` (#290). Thanks @salmanmkc!
+- Upgrade `actions/checkout` to v6 and `actions/github-script` to v8 for Node 24 compatibility in `upstream-monitor.yml` (#290). Thanks @salmanmkc!
+- Tests: add TaskLocal-based keychain/cache overrides so keychain gating and KeychainCacheStore test stores do not leak across concurrent test execution (#320).
 
 ### Docs & Maintenance
 - Update docs for Claude data fetch behavior and keychain troubleshooting notes.

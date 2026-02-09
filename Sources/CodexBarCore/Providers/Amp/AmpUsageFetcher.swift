@@ -298,8 +298,7 @@ public struct AmpUsageFetcher: Sendable {
             let to = request.url?.absoluteString ?? "unknown"
             self.redirects.append("\(response.statusCode) \(from) -> \(to)")
 
-            // Detect login redirect - indicates invalid session
-            if let toURL = request.url, self.isLoginRedirect(toURL) {
+            if let toURL = request.url, AmpUsageFetcher.isLoginRedirect(toURL) {
                 if let logger {
                     logger("[amp] Detected login redirect, aborting (invalid session)")
                 }
@@ -388,5 +387,26 @@ public struct AmpUsageFetcher: Sendable {
         guard let host = url?.host?.lowercased() else { return false }
         if host == "ampcode.com" || host == "www.ampcode.com" { return true }
         return host.hasSuffix(".ampcode.com")
+    }
+
+    static func isLoginRedirect(_ url: URL) -> Bool {
+        guard self.shouldAttachCookie(to: url) else { return false }
+
+        let path = url.path.lowercased()
+        let components = path.split(separator: "/").map(String.init)
+        if components.contains("login") { return true }
+        if components.contains("signin") { return true }
+        if components.contains("sign-in") { return true }
+
+        // Amp currently redirects to /auth/sign-in?returnTo=... when session is invalid. Keep this slightly broader
+        // than one exact path so we keep working if Amp changes auth routes.
+        if components.contains("auth") {
+            let query = url.query?.lowercased() ?? ""
+            if query.contains("returnto=") { return true }
+            if query.contains("redirect=") { return true }
+            if query.contains("redirectto=") { return true }
+        }
+
+        return false
     }
 }

@@ -67,7 +67,10 @@ public enum KeychainAccessPreflight {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecReturnData as String: true,
+            // Preflight should never trigger UI. Avoid requesting the secret payload (`kSecReturnData`) because
+            // some macOS configurations have been observed to show the legacy keychain prompt even when
+            // `kSecUseAuthenticationUIFail` is set.
+            kSecReturnAttributes as String: true,
         ]
         KeychainNoUIQuery.apply(to: &query)
         if let account {
@@ -81,13 +84,19 @@ public enum KeychainAccessPreflight {
             self.log.debug("Keychain preflight allowed", metadata: ["service": service])
             return .allowed
         case errSecItemNotFound:
-            self.log.debug("Keychain preflight not found", metadata: ["service": service])
+            self.log.debug(
+                "Keychain preflight not found",
+                metadata: ["service": service])
             return .notFound
         case errSecInteractionNotAllowed:
-            self.log.info("Keychain preflight requires interaction", metadata: ["service": service])
+            self.log.info(
+                "Keychain preflight requires interaction",
+                metadata: ["service": service])
             return .interactionRequired
         default:
-            self.log.warning("Keychain preflight failed", metadata: ["service": service, "status": "\(status)"])
+            self.log.warning(
+                "Keychain preflight failed",
+                metadata: ["service": service, "status": "\(status)"])
             return .failure(Int(status))
         }
         #else

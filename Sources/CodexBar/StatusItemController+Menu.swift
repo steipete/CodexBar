@@ -462,7 +462,9 @@ extension StatusItemController {
                 guard let self, let menu else { return }
                 self.settings.setActiveTokenAccountIndex(index, for: display.provider)
                 Task { @MainActor in
-                    await self.store.refresh()
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refresh()
+                    }
                 }
                 self.populateMenu(menu, provider: display.provider)
                 self.markMenuFresh(menu)
@@ -549,7 +551,7 @@ extension StatusItemController {
     }
 
     private func scheduleOpenMenuRefresh(for menu: NSMenu) {
-        // Kick off a background refresh on open (non-forced) and re-check after a delay.
+        // Kick off a user-initiated refresh on open (non-forced) and re-check after a delay.
         // NEVER block menu opening with network requests.
         if !self.store.isRefreshing {
             self.refreshStore(forceTokenUsage: false)
