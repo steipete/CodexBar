@@ -336,11 +336,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func updateVisibility() {
-        let anyEnabled = !self.store.enabledProviders().isEmpty
         let force = self.store.debugForceAnimation
         let mergeIcons = self.shouldMergeIcons
         if mergeIcons {
-            self.statusItem.isVisible = anyEnabled || force
+            self.statusItem.isVisible = true  // Merged icon always visible; fallback menu handles empty state
             for item in self.statusItems.values {
                 item.isVisible = false
             }
