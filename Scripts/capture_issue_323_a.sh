@@ -30,6 +30,18 @@ echo "Writing bundle to: $out"
 } >"$out/context.txt"
 
 # Enable file logging + verbose level for the app (if it is running). Safe to set even if not running.
+prior_debug_file_logging_enabled=""
+had_prior_debug_file_logging_enabled=0
+if prior_debug_file_logging_enabled="$(defaults read com.steipete.codexbar debugFileLoggingEnabled 2>/dev/null)"; then
+  had_prior_debug_file_logging_enabled=1
+fi
+
+prior_debug_log_level=""
+had_prior_debug_log_level=0
+if prior_debug_log_level="$(defaults read com.steipete.codexbar debugLogLevel 2>/dev/null)"; then
+  had_prior_debug_log_level=1
+fi
+
 defaults write com.steipete.codexbar debugFileLoggingEnabled -bool YES || true
 defaults write com.steipete.codexbar debugLogLevel -string verbose || true
 
@@ -64,6 +76,28 @@ JSON
 # Start OSLog capture for CodexBar.
 log stream --style syslog --level debug --predicate 'subsystem == "com.steipete.codexbar"' >"$out/oslog.txt" 2>/dev/null &
 log_pid="$!"
+
+cleanup() {
+  # Stop log stream (best-effort) and avoid leaking background `log stream`.
+  if [[ -n "${log_pid:-}" ]]; then
+    kill "$log_pid" 2>/dev/null || true
+    wait "$log_pid" 2>/dev/null || true
+  fi
+
+  # Restore prior debug defaults to avoid sticky local state.
+  if [[ "$had_prior_debug_file_logging_enabled" == "1" ]]; then
+    defaults write com.steipete.codexbar debugFileLoggingEnabled -bool "$prior_debug_file_logging_enabled" >/dev/null 2>&1 || true
+  else
+    defaults delete com.steipete.codexbar debugFileLoggingEnabled >/dev/null 2>&1 || true
+  fi
+
+  if [[ "$had_prior_debug_log_level" == "1" ]]; then
+    defaults write com.steipete.codexbar debugLogLevel -string "$prior_debug_log_level" >/dev/null 2>&1 || true
+  else
+    defaults delete com.steipete.codexbar debugLogLevel >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT INT TERM
 
 cli_cmd=()
 # Prefer the bundled CLI (it matches the currently packaged app build), else fall back to `swift run`.
@@ -153,10 +187,6 @@ else
   cli_exit="$?"
 fi
 set -e
-
-# Stop log stream (best-effort).
-kill "$log_pid" 2>/dev/null || true
-wait "$log_pid" 2>/dev/null || true
 
 # Snapshot the file log (if enabled and present).
 file_log="$HOME/Library/Logs/CodexBar/CodexBar.log"

@@ -14,6 +14,11 @@ struct FactoryStatusProbeFetchTests {
             FactoryStubURLProtocol.handler = nil
         }
 
+        CookieHeaderCache.clear(provider: .factory)
+        defer {
+            CookieHeaderCache.clear(provider: .factory)
+        }
+
         var workOSRequestCount = 0
 
         FactoryStubURLProtocol.handler = { request in

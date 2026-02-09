@@ -54,10 +54,11 @@ struct FactoryStatusFetchStrategy: ProviderFetchStrategy {
         let probe = FactoryStatusProbe(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
         let logger = CodexBarLog.logger(LogCategories.factory)
-        let snap = try await probe.fetch(cookieHeaderOverride: manual) { message in
+        let shouldEnableProbeLogging = CodexBarLog.currentLogLevel().rank <= CodexBarLog.Level.debug.rank
+        let snap = try await probe.fetch(cookieHeaderOverride: manual, logger: shouldEnableProbeLogging ? { message in
             // Avoid coupling the probe to our logging API; keep it a string-based callback.
             logger.debug(message)
-        }
+        } : nil)
         return self.makeResult(
             usage: snap.toUsageSnapshot(),
             sourceLabel: "web")

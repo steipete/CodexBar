@@ -639,6 +639,10 @@ public struct FactoryStatusProbe: Sendable {
         var lastError: Error?
 
         let debug = DebugConfig.current()
+        let cachedCookieHeader = CookieHeaderCache.load(provider: .factory)
+        let cachedCookieHeaderForAuth = cachedCookieHeader.flatMap { entry in
+            Self.cookieHeaderForCookieAuth(fromHeader: entry.cookieHeader)
+        }
         if debug.forceBrowserCookieAuth {
             log("DEBUG: forcing browser cookie auth (may invalidate your browser session)")
             let sources: [Browser] = debug.chromeOnly ? [.chrome] : [.chrome, .firefox]
@@ -683,25 +687,6 @@ public struct FactoryStatusProbe: Sendable {
             throw FactoryStatusProbeError.noSessionCookie
         }
 
-        if let cached = CookieHeaderCache.load(provider: .factory),
-           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            log("Using cached cookie header from \(cached.sourceLabel)")
-            let bearer = Self.bearerToken(fromHeader: cached.cookieHeader)
-            do {
-                return try await self.fetchWithCookieHeader(
-                    cached.cookieHeader,
-                    bearerToken: bearer,
-                    baseURL: self.baseURL,
-                    logger: log)
-            } catch {
-                if case FactoryStatusProbeError.notLoggedIn = error {
-                    CookieHeaderCache.clear(provider: .factory)
-                }
-                lastError = error
-            }
-        }
-
         // IMPORTANT: run attempts sequentially and stop after the first success.
         // Attempting multiple auth methods after a successful fetch can mutate/rotate server-side sessions,
         // which is user-visible in the browser (issue #323).
@@ -715,6 +700,29 @@ public struct FactoryStatusProbe: Sendable {
             { await self.attemptStoredBearer(logger: log) },
             { await self.attemptStoredRefreshToken(logger: log) },
             { await self.attemptLocalStorageTokens(logger: log) },
+            {
+                guard let cachedCookieHeaderForAuth,
+                      let cachedCookieHeader,
+                      !cachedCookieHeaderForAuth.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                else {
+                    return .skipped
+                }
+
+                log("Using cached cookie header from \(cachedCookieHeader.sourceLabel)")
+                do {
+                    // Deliberately do not derive an Authorization header from cached cookies.
+                    return try await .success(self.fetchWithCookieHeader(
+                        cachedCookieHeaderForAuth,
+                        bearerToken: nil,
+                        baseURL: self.baseURL,
+                        logger: log))
+                } catch {
+                    if case FactoryStatusProbeError.notLoggedIn = error {
+                        CookieHeaderCache.clear(provider: .factory)
+                    }
+                    return .failure(error)
+                }
+            },
             { await self.attemptStoredCookies(logger: log) },
             {
                 await self.attemptBrowserCookies(
@@ -778,10 +786,14 @@ public struct FactoryStatusProbe: Sendable {
                             logger: logger,
                             unsafeCookieAuth: unsafeCookieAuth)
                         await FactorySessionStore.shared.setCookies(session.cookies)
-                        CookieHeaderCache.store(
-                            provider: .factory,
-                            cookieHeader: session.cookieHeader,
-                            sourceLabel: session.sourceLabel)
+                        let safeCookieHeader = Self
+                            .cookieHeader(from: Self.cookiesForCookieAuth(cookies: session.cookies))
+                        if !safeCookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            CookieHeaderCache.store(
+                                provider: .factory,
+                                cookieHeader: safeCookieHeader,
+                                sourceLabel: session.sourceLabel)
+                        }
                         return .success(snapshot)
                     } catch {
                         lastError = error
@@ -1063,6 +1075,17 @@ public struct FactoryStatusProbe: Sendable {
 
     private static func cookieHeader(from cookies: [HTTPCookie]) -> String {
         cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+    }
+
+    private static func cookieHeaderForCookieAuth(fromHeader cookieHeader: String) -> String? {
+        let pairs = CookieHeaderNormalizer.pairs(from: cookieHeader)
+        guard !pairs.isEmpty else { return nil }
+
+        let filteredPairs = pairs.filter { pair in
+            !self.staleTokenCookieNames.contains(pair.name)
+        }
+        if filteredPairs.isEmpty { return nil }
+        return filteredPairs.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
     }
 
     private static func bearerToken(fromHeader cookieHeader: String) -> String? {
@@ -1488,13 +1511,33 @@ public struct FactoryStatusProbe: Sendable {
         parts.append("status=\(response.statusCode)")
         parts.append("cookie=\(hasCookie ? "1" : "0")")
         parts.append("auth=\(hasAuth ? "1" : "0")")
-        if let location, !location.isEmpty {
-            parts.append("location=\(location)")
+        if let location, let safeLocation = Self.safeRedirectLocationForLog(location), !safeLocation.isEmpty {
+            parts.append("location=\(safeLocation)")
         }
         if !setCookieNames.isEmpty {
             parts.append("setCookieNames=\(setCookieNames.joined(separator: ","))")
         }
         logger("[factory-http] " + parts.joined(separator: " "))
+    }
+
+    private static func safeRedirectLocationForLog(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        // Avoid logging query/fragment (may contain OAuth codes/state/redirect URIs).
+        guard var components = URLComponents(string: trimmed) else { return nil }
+        components.query = nil
+        components.fragment = nil
+
+        if let host = components.host, !host.isEmpty {
+            let path = components.path.isEmpty ? "/" : components.path
+            return "\(host)\(path)"
+        }
+        // If it's a relative URL (or no host), log path only.
+        if !components.path.isEmpty {
+            return components.path
+        }
+        return nil
     }
 }
 
