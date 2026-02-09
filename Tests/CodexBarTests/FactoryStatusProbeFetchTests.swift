@@ -5,6 +5,84 @@ import Testing
 @Suite(.serialized)
 struct FactoryStatusProbeFetchTests {
     @Test
+    func doesNotAttemptOtherAuthMethodsAfterBearerSuccess() async throws {
+        let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(FactoryStubURLProtocol.self)
+            }
+            FactoryStubURLProtocol.handler = nil
+        }
+
+        var workOSRequestCount = 0
+
+        FactoryStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.host == "api.workos.com" {
+                workOSRequestCount += 1
+                return Self.makeResponse(url: url, body: "{}", statusCode: 500)
+            }
+
+            let path = url.path
+            if path == "/api/app/auth/me" {
+                let body = """
+                {
+                  "organization": {
+                    "id": "org_1",
+                    "name": "Acme",
+                    "subscription": {
+                      "factoryTier": "team",
+                      "orbSubscription": {
+                        "plan": { "name": "Team", "id": "plan_1" },
+                        "status": "active"
+                      }
+                    }
+                  }
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            if path == "/api/organization/subscription/usage" {
+                let body = """
+                {
+                  "usage": {
+                    "startDate": 1700000000000,
+                    "endDate": 1700003600000,
+                    "standard": {
+                      "userTokens": 100,
+                      "orgTotalTokensUsed": 250,
+                      "totalAllowance": 1000,
+                      "usedRatio": 0.10
+                    },
+                    "premium": {
+                      "userTokens": 10,
+                      "orgTotalTokensUsed": 20,
+                      "totalAllowance": 100,
+                      "usedRatio": 0.10
+                    }
+                  },
+                  "userId": "user-1"
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        await FactorySessionStore.shared.clearSession()
+        await FactorySessionStore.shared.setBearerToken("test-bearer")
+        await FactorySessionStore.shared.setRefreshToken("test-refresh")
+        defer {
+            Task { await FactorySessionStore.shared.clearSession() }
+        }
+
+        let probe = FactoryStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        _ = try await probe.fetch(logger: { _ in })
+
+        #expect(workOSRequestCount == 0)
+    }
+
+    @Test
     func fetchesSnapshotUsingCookieHeaderOverride() async throws {
         let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
         defer {
