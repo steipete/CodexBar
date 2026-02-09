@@ -633,6 +633,8 @@ public struct FactoryStatusProbe: Sendable {
     /// Fetch Factory usage using browser cookies with fallback to stored session.
     public func fetch(
         cookieHeaderOverride: String? = nil,
+        allowLocalStorageRefreshTokenAuth: Bool = true,
+        allowWorkOSCookieAuth: Bool = true,
         logger: ((String) -> Void)? = nil) async throws -> FactoryStatusSnapshot
     {
         let log: (String) -> Void = { msg in logger?("[factory] \(msg)") }
@@ -691,8 +693,26 @@ public struct FactoryStatusProbe: Sendable {
 
         let attempts: [() async -> FetchAttemptResult] = [
             { await self.attemptStoredBearer(logger: log) },
-            { await self.attemptStoredRefreshToken(logger: log) },
-            { await self.attemptLocalStorageTokens(logger: log) },
+            {
+                guard allowLocalStorageRefreshTokenAuth else {
+                    // Refresh token exchange can rotate/revoke the browser’s session state (issue #323).
+                    // If we're in "safe" mode, skip this path and also clear any previously stored refresh token so we
+                    // don't accidentally use it later.
+                    if let refreshToken = await FactorySessionStore.shared.getRefreshToken(),
+                       !refreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    {
+                        log("Clearing stored WorkOS refresh token: refresh-token auth disabled")
+                        await FactorySessionStore.shared.setRefreshToken(nil)
+                    }
+                    return .skipped
+                }
+                return await self.attemptStoredRefreshToken(logger: log)
+            },
+            {
+                await self.attemptLocalStorageTokens(
+                    logger: log,
+                    allowRefreshTokenAuth: allowLocalStorageRefreshTokenAuth)
+            },
             {
                 guard let cachedCookieHeaderForAuth,
                       let cachedCookieHeader,
@@ -723,12 +743,14 @@ public struct FactoryStatusProbe: Sendable {
                     sources: [.safari],
                     unsafeCookieAuth: debug.unsafeCookieAuth)
             },
-            { await self.attemptWorkOSCookies(logger: log, sources: [.safari]) },
+            { allowWorkOSCookieAuth ? await self.attemptWorkOSCookies(logger: log, sources: [.safari]) : .skipped },
             { await self.attemptBrowserCookies(
                 logger: log,
                 sources: browserCookieSources,
                 unsafeCookieAuth: debug.unsafeCookieAuth) },
-            { await self.attemptWorkOSCookies(logger: log, sources: browserCookieSources) },
+            {
+                allowWorkOSCookieAuth ? await self
+                    .attemptWorkOSCookies(logger: log, sources: browserCookieSources) : .skipped },
         ]
 
         var firstSuccessSnapshot: FactoryStatusSnapshot?
@@ -899,7 +921,10 @@ public struct FactoryStatusProbe: Sendable {
         }
     }
 
-    private func attemptLocalStorageTokens(logger: @escaping (String) -> Void) async -> FetchAttemptResult {
+    private func attemptLocalStorageTokens(
+        logger: @escaping (String) -> Void,
+        allowRefreshTokenAuth: Bool) async -> FetchAttemptResult
+    {
         let workosTokens = FactoryLocalStorageImporter.importWorkOSTokens(
             browserDetection: self.browserDetection,
             logger: logger)
@@ -917,6 +942,10 @@ public struct FactoryStatusProbe: Sendable {
                 } catch {
                     lastError = error
                 }
+            }
+            guard allowRefreshTokenAuth else {
+                logger("Skipping WorkOS refresh token exchange (disabled)")
+                continue
             }
             do {
                 return try await .success(self.fetchWithWorkOSRefreshToken(

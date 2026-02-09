@@ -39,6 +39,11 @@ enum FactoryLocalStorageImporter {
             }
             guard let token = match else { continue }
             log("Found WorkOS refresh token in \(candidate.label)")
+            if let accessToken = token.accessToken,
+               !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                log("Found WorkOS access token in \(candidate.label)")
+            }
             tokens.append(TokenInfo(
                 refreshToken: token.refreshToken,
                 accessToken: token.accessToken,
