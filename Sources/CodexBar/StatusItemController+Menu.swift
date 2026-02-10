@@ -292,7 +292,6 @@ extension StatusItemController {
                     UsageMenuCardView(model: model, width: context.menuWidth),
                     id: "menuCard",
                     width: context.menuWidth))
-                menu.addItem(.separator())
             } else {
                 for (index, model) in cards.enumerated() {
                     menu.addItem(self.makeMenuCardItem(
@@ -302,9 +301,6 @@ extension StatusItemController {
                     if index < cards.count - 1 {
                         menu.addItem(.separator())
                     }
-                }
-                if !cards.isEmpty {
-                    menu.addItem(.separator())
                 }
             }
             return false
@@ -332,7 +328,6 @@ extension StatusItemController {
         if context.currentProvider == .codex, model.creditsText != nil {
             menu.addItem(self.makeBuyCreditsItem())
         }
-        menu.addItem(.separator())
         return false
     }
 
@@ -355,7 +350,6 @@ extension StatusItemController {
                 _ = self.addCostHistorySubmenu(to: menu, provider: currentProvider)
             }
         }
-        menu.addItem(.separator())
     }
 
     private func addActionableSections(_ sections: [MenuDescriptor.Section], to menu: NSMenu) {
@@ -366,6 +360,9 @@ extension StatusItemController {
             }
         }
         for (index, section) in actionableSections.enumerated() {
+            // Add a separator before each section group with a spacer for consistent padding
+            menu.addItem(.separator())
+            self.addMenuSpacer(to: menu, height: 4)
             for entry in section.entries {
                 switch entry {
                 case let .text(text, style):
@@ -404,10 +401,17 @@ extension StatusItemController {
                     menu.addItem(.separator())
                 }
             }
-            if index < actionableSections.count - 1 {
-                menu.addItem(.separator())
-            }
+            // Add trailing spacer after each section group for consistent padding
+            self.addMenuSpacer(to: menu, height: 4)
         }
+    }
+
+    private func addMenuSpacer(to menu: NSMenu, height: CGFloat) {
+        let spacerView = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: height))
+        let spacerItem = NSMenuItem()
+        spacerItem.view = spacerView
+        spacerItem.isEnabled = false
+        menu.addItem(spacerItem)
     }
 
     func makeMenu(for provider: UsageProvider?) -> NSMenu {
@@ -658,22 +662,20 @@ extension StatusItemController {
         let hasCredits = model.creditsText != nil
         let hasExtraUsage = model.providerCost != nil
         let hasCost = model.tokenUsage != nil
-        let bottomPadding = CGFloat(hasCredits ? 4 : 6)
-        let sectionSpacing = CGFloat(6)
-        let usageBottomPadding = bottomPadding
-        let creditsBottomPadding = bottomPadding
+        let sectionPadding = CGFloat(6)
+        let sectionSpacing = CGFloat(8)
 
         let headerView = UsageMenuCardHeaderSectionView(
             model: model,
-            showDivider: hasUsageBlock,
             width: width)
         menu.addItem(self.makeMenuCardItem(headerView, id: "menuCardHeader", width: width))
 
         if hasUsageBlock {
+            menu.addItem(.separator())
             let usageView = UsageMenuCardUsageSectionView(
                 model: model,
                 showBottomDivider: false,
-                bottomPadding: usageBottomPadding,
+                bottomPadding: sectionPadding,
                 width: width)
             let usageSubmenu = self.makeUsageSubmenu(
                 provider: provider,
@@ -686,19 +688,13 @@ extension StatusItemController {
                 submenu: usageSubmenu))
         }
 
-        if hasCredits || hasExtraUsage || hasCost {
-            menu.addItem(.separator())
-        }
-
         if hasCredits {
-            if hasExtraUsage || hasCost {
-                menu.addItem(.separator())
-            }
+            menu.addItem(.separator())
             let creditsView = UsageMenuCardCreditsSectionView(
                 model: model,
                 showBottomDivider: false,
                 topPadding: sectionSpacing,
-                bottomPadding: creditsBottomPadding,
+                bottomPadding: sectionPadding,
                 width: width)
             let creditsSubmenu = webItems.hasCreditsHistory ? self.makeCreditsHistorySubmenu() : nil
             menu.addItem(self.makeMenuCardItem(
@@ -711,13 +707,11 @@ extension StatusItemController {
             }
         }
         if hasExtraUsage {
-            if hasCredits {
-                menu.addItem(.separator())
-            }
+            menu.addItem(.separator())
             let extraUsageView = UsageMenuCardExtraUsageSectionView(
                 model: model,
                 topPadding: sectionSpacing,
-                bottomPadding: bottomPadding,
+                bottomPadding: sectionPadding,
                 width: width)
             menu.addItem(self.makeMenuCardItem(
                 extraUsageView,
@@ -725,13 +719,11 @@ extension StatusItemController {
                 width: width))
         }
         if hasCost {
-            if hasCredits || hasExtraUsage {
-                menu.addItem(.separator())
-            }
+            menu.addItem(.separator())
             let costView = UsageMenuCardCostSectionView(
                 model: model,
                 topPadding: sectionSpacing,
-                bottomPadding: bottomPadding,
+                bottomPadding: sectionPadding,
                 width: width)
             let costSubmenu = webItems.hasCostHistory ? self.makeCostHistorySubmenu(provider: provider) : nil
             menu.addItem(self.makeMenuCardItem(
@@ -891,7 +883,7 @@ extension StatusItemController {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .fill(MenuHighlightStyle.selectionBackground(true))
                             .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(.vertical, 1)
                     }
                 }
                 .overlay(alignment: .topTrailing) {
