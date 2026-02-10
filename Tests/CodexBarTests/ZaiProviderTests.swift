@@ -164,6 +164,59 @@ struct ZaiUsageParsingTests {
         #expect(snapshot.tokenLimit == nil)
         #expect(snapshot.timeLimit == nil)
     }
+
+    @Test
+    func emptyBodyReturnsParseFailed() {
+        #expect {
+            _ = try ZaiUsageFetcher.parseUsageSnapshot(from: Data())
+        } throws: { error in
+            guard case let ZaiUsageError.parseFailed(message) = error else { return false }
+            return message == "Empty response body"
+        }
+    }
+
+    @Test
+    func parsesResponseWhenTokensLimitOmitsNumbers() throws {
+        // Real-world response can omit usage/currentValue/remaining/usageDetails for TOKENS_LIMIT.
+        let json = """
+        {
+          "code": 200,
+          "msg": "Operation successful",
+          "data": {
+            "limits": [
+              {
+                "type": "TIME_LIMIT",
+                "unit": 5,
+                "number": 1,
+                "usage": 1000,
+                "currentValue": 90,
+                "remaining": 910,
+                "percentage": 9,
+                "usageDetails": [
+                  { "modelCode": "search-prime", "usage": 140 }
+                ]
+              },
+              {
+                "type": "TOKENS_LIMIT",
+                "unit": 3,
+                "number": 5,
+                "percentage": 5,
+                "nextResetTime": 1770723819917
+              }
+            ]
+          },
+          "success": true
+        }
+        """
+
+        let snapshot = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+
+        #expect(snapshot.tokenLimit?.percentage == 5)
+        #expect(snapshot.tokenLimit?.usage == 0)
+        #expect(snapshot.tokenLimit?.currentValue == 0)
+        #expect(snapshot.tokenLimit?.remaining == 0)
+        #expect(snapshot.timeLimit?.usage == 1000)
+    }
 }
 
 @Suite

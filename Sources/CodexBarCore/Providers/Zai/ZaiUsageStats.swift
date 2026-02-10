@@ -221,7 +221,7 @@ private struct ZaiQuotaLimitData: Decodable {
     }
 }
 
-private struct ZaiLimitRaw: Codable {
+private struct ZaiLimitRaw: Decodable {
     let type: String
     let unit: Int
     let number: Int
@@ -229,8 +229,36 @@ private struct ZaiLimitRaw: Codable {
     let currentValue: Int
     let remaining: Int
     let percentage: Int
-    let usageDetails: [ZaiUsageDetail]?
+    let usageDetails: [ZaiUsageDetail]
     let nextResetTime: Int?
+
+    // z.ai's quota API occasionally omits numeric fields for some limit entries (e.g. TOKENS_LIMIT),
+    // even when `success=true`. Decode defensively and fall back to 0 / empty arrays.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.type = try container.decode(String.self, forKey: .type)
+        self.unit = try container.decode(Int.self, forKey: .unit)
+        self.number = try container.decode(Int.self, forKey: .number)
+
+        self.usage = try container.decodeIfPresent(Int.self, forKey: .usage) ?? 0
+        self.currentValue = try container.decodeIfPresent(Int.self, forKey: .currentValue) ?? 0
+        self.remaining = try container.decodeIfPresent(Int.self, forKey: .remaining) ?? 0
+        self.percentage = try container.decodeIfPresent(Int.self, forKey: .percentage) ?? 0
+        self.usageDetails = try container.decodeIfPresent([ZaiUsageDetail].self, forKey: .usageDetails) ?? []
+        self.nextResetTime = try container.decodeIfPresent(Int.self, forKey: .nextResetTime)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case unit
+        case number
+        case usage
+        case currentValue
+        case remaining
+        case percentage
+        case usageDetails
+        case nextResetTime
+    }
 
     func toLimitEntry() -> ZaiLimitEntry? {
         guard let limitType = ZaiLimitType(rawValue: type) else { return nil }
@@ -244,7 +272,7 @@ private struct ZaiLimitRaw: Codable {
             currentValue: self.currentValue,
             remaining: self.remaining,
             percentage: Double(self.percentage),
-            usageDetails: self.usageDetails ?? [],
+            usageDetails: self.usageDetails,
             nextResetTime: nextReset)
     }
 }
@@ -304,6 +332,14 @@ public struct ZaiUsageFetcher: Sendable {
             throw ZaiUsageError.apiError("HTTP \(httpResponse.statusCode): \(errorMessage)")
         }
 
+        // Some upstream issues (wrong endpoint/region/proxy) can yield HTTP 200 with an empty body.
+        // JSONDecoder will throw an opaque Cocoa error ("data is missing"), so detect this early.
+        guard !data.isEmpty else {
+            Self.log.error("z.ai API returned empty body (HTTP 200) for \(quotaURL.absoluteString)")
+            throw ZaiUsageError.parseFailed(
+                "Empty response body (HTTP 200). Check z.ai API region (Global vs BigModel CN) and your API token.")
+        }
+
         // Log raw response for debugging
         if let jsonString = String(data: data, encoding: .utf8) {
             Self.log.debug("z.ai API response: \(jsonString)")
@@ -323,8 +359,20 @@ public struct ZaiUsageFetcher: Sendable {
     }
 
     static func parseUsageSnapshot(from data: Data) throws -> ZaiUsageSnapshot {
+        guard !data.isEmpty else {
+            throw ZaiUsageError.parseFailed("Empty response body")
+        }
+
         let decoder = JSONDecoder()
-        let apiResponse = try decoder.decode(ZaiQuotaLimitResponse.self, from: data)
+        let apiResponse: ZaiQuotaLimitResponse
+        do {
+            apiResponse = try decoder.decode(ZaiQuotaLimitResponse.self, from: data)
+        } catch let error as DecodingError {
+            let prefix = data.prefix(2048)
+            let bodySnippet = String(data: prefix, encoding: .utf8) ?? "<\(data.count) bytes>"
+            let clipped = prefix.count < data.count ? "\(bodySnippet)…" : bodySnippet
+            throw ZaiUsageError.parseFailed("\(error.localizedDescription). Body: \(clipped)")
+        }
 
         guard apiResponse.isSuccess else {
             throw ZaiUsageError.apiError(apiResponse.msg)
