@@ -1255,18 +1255,12 @@ extension UsageStore {
                 ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection) { msg in lines.append(msg) }
             }
             // Don't prompt for keychain access during debug dump
-            let hasEnvironmentOAuthToken = !(ProcessInfo.processInfo
-                .environment[ClaudeOAuthCredentialsStore.environmentTokenKey]?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .isEmpty ?? true)
-            let oauthGateAllowsAttempt = hasEnvironmentOAuthToken || ClaudeOAuthRefreshFailureGate.shouldAttempt()
-            let hasOAuthCredentials = oauthGateAllowsAttempt
-                && (try? ClaudeOAuthCredentialsStore.load(
-                    allowKeychainPrompt: false,
-                    respectKeychainPromptCooldown: true)) != nil
-            let hasClaudeBinary = BinaryLocator.resolveClaudeBinary(
-                env: ProcessInfo.processInfo.environment,
-                loginPATH: LoginShellPathCache.shared.current) != nil
+            let oauthRecord = try? ClaudeOAuthCredentialsStore.loadRecord(
+                allowKeychainPrompt: false,
+                respectKeychainPromptCooldown: true)
+            let hasOAuthCredentials = oauthRecord?.credentials.scopes.contains("user:profile") == true
+            let hasClaudeBinary = ClaudeOAuthDelegatedRefreshCoordinator.isClaudeCLIAvailable()
+            let delegatedCooldownSeconds = ClaudeOAuthDelegatedRefreshCoordinator.cooldownRemainingSeconds()
 
             let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
                 selectedDataSource: claudeUsageDataSource,
@@ -1281,8 +1275,15 @@ extension UsageStore {
                 lines.append("strategy=\(strategy.dataSource.rawValue)")
             }
             lines.append("hasSessionKey=\(hasKey)")
-            lines.append("oauthGateAllowsAttempt=\(oauthGateAllowsAttempt)")
             lines.append("hasOAuthCredentials=\(hasOAuthCredentials)")
+            lines.append("oauthCredentialOwner=\(oauthRecord?.owner.rawValue ?? "none")")
+            lines.append("oauthCredentialSource=\(oauthRecord?.source.rawValue ?? "none")")
+            lines.append("oauthCredentialExpired=\(oauthRecord?.credentials.isExpired ?? false)")
+            lines.append("delegatedRefreshCLIAvailable=\(hasClaudeBinary)")
+            lines.append("delegatedRefreshCooldownActive=\(delegatedCooldownSeconds != nil)")
+            if let delegatedCooldownSeconds {
+                lines.append("delegatedRefreshCooldownSeconds=\(delegatedCooldownSeconds)")
+            }
             lines.append("hasClaudeBinary=\(hasClaudeBinary)")
             if strategy.useWebExtras {
                 lines.append("web_extras=enabled")

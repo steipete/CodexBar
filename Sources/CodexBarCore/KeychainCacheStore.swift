@@ -141,9 +141,21 @@ public enum KeychainCacheStore {
         self.globalServiceOverride = service
     }
 
-    static func withServiceOverrideForTesting<T>(_ service: String?, operation: () throws -> T) rethrows -> T {
+    static func withServiceOverrideForTesting<T>(
+        _ service: String?,
+        operation: () throws -> T) rethrows -> T
+    {
         try self.$serviceOverride.withValue(service) {
             try operation()
+        }
+    }
+
+    static func withServiceOverrideForTesting<T>(
+        _ service: String?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$serviceOverride.withValue(service) {
+            try await operation()
         }
     }
 

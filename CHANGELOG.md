@@ -3,7 +3,7 @@
 ## Unreleased
 ### Highlights
 - Claude OAuth/keychain flows were reworked across a series of follow-up PRs to reduce prompt storms, stabilize
-  background behavior, and make refresh failures deterministic (#245, #305, #308, #309). Thanks @manikv12!
+  background behavior, and make failure modes deterministic (#245, #305, #308, #309). Thanks @manikv12!
 - Claude: harden Claude Code PTY capture for `/usage` and `/status` (prompt automation, safer command palette
   confirmation, partial UTF-8 handling, and parsing guards against status-bar context meters) (#320).
 - Provider correctness fixes landed for Cursor plan parsing and MiniMax region routing (#240, #234). Thanks @robinebers
@@ -13,20 +13,15 @@
 - CI/tooling reliability improved via pinned lint tools, deterministic macOS test execution, and PTY timing test
   stabilization plus Node 24-ready GitHub Actions upgrades (#292, #312, #290).
 
-### Claude OAuth & Keychain (net result)
-- Auto-refresh expired Claude OAuth tokens and persist refreshed credentials in CodexBar's cache (#245). Thanks
-  @manikv12!
-- Reduce repeated keychain prompts by preferring silent/non-interactive reads in background/availability paths and
-  respecting cooldown gates (#245, #305). Thanks @manikv12!
-- Sync CodexBar's OAuth cache when Claude keychain credentials actually change, with fingerprint-based detection and
-  protections against regressing to stale/expired tokens (#305).
-- Show the in-app Claude keychain pre-alert only when preflight suggests interaction is likely; suppress unnecessary
-  alerts on silent-success paths (#308).
-- Distinguish terminal vs transient OAuth refresh failures:
-  - `invalid_grant` and equivalent auth rejections are terminal-blocked until auth state changes.
-  - transient failures use bounded backoff and automatically unblock on successful auth/reauth (#309).
-- Ensure usable Claude OAuth credentials are accepted in non-interactive scenarios and fix Claude auto debug pipeline
-  ordering follow-up.
+### Claude OAuth & Keychain (upgrade-relevant behavior)
+- Claude Auto mode prefers `oauth -> web -> cli` without triggering Keychain prompts during availability checks.
+- If Claude OAuth credentials are present but expired, CodexBar performs at most one delegated refresh handoff to the
+  Claude CLI and one OAuth retry before falling back to Web/CLI in Auto mode.
+- Claude OAuth-only mode stays strict: OAuth failures do not silently fall back to Web/CLI.
+- Keychain prompting is hardened (cooldowns after denial/cancel + pre-alert only when interaction is likely) to reduce
+  repeated prompts during background refresh.
+- CodexBar syncs its cached OAuth token when the Claude Code Keychain entry changes, so updated auth is picked up
+  without requiring a restart.
 
 ### Provider & Usage Fixes
 - Cursor: compute usage against `plan.limit` rather than `breakdown.total` to avoid incorrect limit interpretation

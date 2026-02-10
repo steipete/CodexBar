@@ -29,9 +29,21 @@ public enum KeychainAccessGate {
         }
     }
 
-    static func withTaskOverrideForTesting<T>(_ disabled: Bool?, operation: () throws -> T) rethrows -> T {
+    static func withTaskOverrideForTesting<T>(
+        _ disabled: Bool?,
+        operation: () throws -> T) rethrows -> T
+    {
         try self.$taskOverrideValue.withValue(disabled) {
             try operation()
+        }
+    }
+
+    static func withTaskOverrideForTesting<T>(
+        _ disabled: Bool?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskOverrideValue.withValue(disabled) {
+            try await operation()
         }
     }
 }

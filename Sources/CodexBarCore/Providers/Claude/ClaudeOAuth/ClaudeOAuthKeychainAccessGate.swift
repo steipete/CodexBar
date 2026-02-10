@@ -12,9 +12,11 @@ public enum ClaudeOAuthKeychainAccessGate {
     private static let lock = OSAllocatedUnfairLock<State>(initialState: State())
     private static let defaultsKey = "claudeOAuthKeychainDeniedUntil"
     private static let cooldownInterval: TimeInterval = 60 * 60 * 6
+    @TaskLocal private static var taskOverrideShouldAllowPromptForTesting: Bool?
 
     public static func shouldAllowPrompt(now: Date = Date()) -> Bool {
         guard !KeychainAccessGate.isDisabled else { return false }
+        if let override = self.taskOverrideShouldAllowPromptForTesting { return override }
         return self.lock.withLock { state in
             self.loadIfNeeded(&state)
             if let deniedUntil = state.deniedUntil {
@@ -38,6 +40,24 @@ public enum ClaudeOAuthKeychainAccessGate {
     }
 
     #if DEBUG
+    static func withShouldAllowPromptOverrideForTesting<T>(
+        _ value: Bool?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskOverrideShouldAllowPromptForTesting.withValue(value) {
+            try operation()
+        }
+    }
+
+    static func withShouldAllowPromptOverrideForTesting<T>(
+        _ value: Bool?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskOverrideShouldAllowPromptForTesting.withValue(value) {
+            try await operation()
+        }
+    }
+
     public static func resetForTesting() {
         self.lock.withLock { state in
             // Keep deterministic during tests: avoid re-loading UserDefaults written by unrelated code paths.
