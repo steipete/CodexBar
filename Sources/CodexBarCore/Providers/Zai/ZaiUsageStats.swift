@@ -22,9 +22,9 @@ public struct ZaiLimitEntry: Sendable {
     public let type: ZaiLimitType
     public let unit: ZaiLimitUnit
     public let number: Int
-    public let usage: Int
-    public let currentValue: Int
-    public let remaining: Int
+    public let usage: Int?
+    public let currentValue: Int?
+    public let remaining: Int?
     public let percentage: Double
     public let usageDetails: [ZaiUsageDetail]
     public let nextResetTime: Date?
@@ -33,9 +33,9 @@ public struct ZaiLimitEntry: Sendable {
         type: ZaiLimitType,
         unit: ZaiLimitUnit,
         number: Int,
-        usage: Int,
-        currentValue: Int,
-        remaining: Int,
+        usage: Int?,
+        currentValue: Int?,
+        remaining: Int?,
         percentage: Double,
         usageDetails: [ZaiUsageDetail],
         nextResetTime: Date?)
@@ -93,12 +93,17 @@ extension ZaiLimitEntry {
     }
 
     private var computedUsedPercent: Double? {
-        guard self.usage > 0 else { return nil }
-        let limit = max(0, self.usage)
+        guard let usage = self.usage else {
+            return nil
+        }
+        guard usage > 0 else { return nil }
+        let limit = max(0, usage)
         guard limit > 0 else { return nil }
 
-        let usedFromRemaining = limit - self.remaining
-        let used = max(0, min(limit, max(usedFromRemaining, self.currentValue)))
+        let remaining = self.remaining ?? 0
+        let currentValue = self.currentValue ?? 0
+        let usedFromRemaining = limit - remaining
+        let used = max(0, min(limit, max(usedFromRemaining, currentValue)))
         let percent = (Double(used) / Double(limit)) * 100
         return min(100, max(0, percent))
     }
@@ -225,9 +230,9 @@ private struct ZaiLimitRaw: Codable {
     let type: String
     let unit: Int
     let number: Int
-    let usage: Int
-    let currentValue: Int
-    let remaining: Int
+    let usage: Int?
+    let currentValue: Int?
+    let remaining: Int?
     let percentage: Int
     let usageDetails: [ZaiUsageDetail]?
     let nextResetTime: Int?
