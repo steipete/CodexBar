@@ -47,6 +47,19 @@ public enum UsageFormatter {
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 
+    public static func resetAbsoluteDescription(from date: Date, now: Date = .init()) -> String {
+        let calendar = Calendar.current
+        if calendar.isDate(date, inSameDayAs: now) {
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        if let weekAhead = calendar.date(byAdding: .day, value: 7, to: now), date < weekAhead {
+            let weekday = date.formatted(.dateTime.weekday(.abbreviated))
+            let time = date.formatted(date: .omitted, time: .shortened)
+            return "\(weekday) \(time)"
+        }
+        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+    }
+
     public static func resetLine(
         for window: RateWindow,
         style: ResetTimeDisplayStyle,
@@ -55,8 +68,9 @@ public enum UsageFormatter {
         if let date = window.resetsAt {
             let text = style == .countdown
                 ? self.resetCountdownDescription(from: date, now: now)
-                : self.resetDescription(from: date, now: now)
-            return "Resets \(text)"
+                : self.resetAbsoluteDescription(from: date, now: now)
+            let prefix = style == .countdown ? "Resets " : "Resets at "
+            return "\(prefix)\(text)"
         }
 
         if let desc = window.resetDescription {

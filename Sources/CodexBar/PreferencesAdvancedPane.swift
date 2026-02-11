@@ -53,8 +53,6 @@ struct AdvancedPane: View {
                         .foregroundStyle(.tertiary)
                 }
 
-                Divider()
-
                 SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
                         title: "Show Debug Settings",
