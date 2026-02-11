@@ -282,12 +282,33 @@ private enum RPCWireError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .startFailed(message):
-            "Codex not running. Try running a Codex command first. (\(message))"
+            let format = L10n.tr(
+                "error.codex.rpc.start_failed",
+                fallback: "Codex not running. Try running a Codex command first. (%@)")
+            return String(format: format, locale: .current, Self.localizedMessage(message))
         case let .requestFailed(message):
-            "Codex connection failed: \(message)"
+            let format = L10n.tr(
+                "error.codex.rpc.request_failed",
+                fallback: "Codex connection failed: %@")
+            return String(format: format, locale: .current, Self.localizedMessage(message))
         case let .malformed(message):
-            "Codex returned invalid data: \(message)"
+            let format = L10n.tr(
+                "error.codex.rpc.malformed",
+                fallback: "Codex returned invalid data: %@")
+            return String(format: format, locale: .current, Self.localizedMessage(message))
         }
+    }
+
+    private static func localizedMessage(_ message: String) -> String {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return message }
+        let normalized = trimmed.lowercased()
+        if normalized.contains("chatgpt authentication required to read rate limits") {
+            return L10n.tr(
+                "error.codex.rpc.chatgpt_auth_required",
+                fallback: "ChatGPT authentication required to read rate limits.")
+        }
+        return trimmed
     }
 }
 

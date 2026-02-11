@@ -26,18 +26,19 @@ public struct CostUsageFetcher: Sendable {
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false) async throws -> CostUsageTokenSnapshot
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai else {
+        guard provider == .codex || provider == .codexproxy || provider == .claude || provider == .vertexai else {
             throw CostUsageError.unsupportedProvider(provider)
         }
+        let scannedProvider: UsageProvider = (provider == .codexproxy) ? .codex : provider
 
         let until = now
         // Rolling window: last 30 days (inclusive). Use -29 for inclusive boundaries.
         let since = Calendar.current.date(byAdding: .day, value: -29, to: now) ?? now
 
         var options = CostUsageScanner.Options()
-        if provider == .vertexai {
+        if scannedProvider == .vertexai {
             options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
-        } else if provider == .claude {
+        } else if scannedProvider == .claude {
             options.claudeLogProviderFilter = .excludeVertexAI
         }
         if forceRefresh {
@@ -45,13 +46,13 @@ public struct CostUsageFetcher: Sendable {
             options.forceRescan = true
         }
         var daily = CostUsageScanner.loadDailyReport(
-            provider: provider,
+            provider: scannedProvider,
             since: since,
             until: until,
             now: now,
             options: options)
 
-        if provider == .vertexai,
+        if scannedProvider == .vertexai,
            !allowVertexClaudeFallback,
            options.claudeLogProviderFilter == .vertexAIOnly,
            daily.data.isEmpty
@@ -59,7 +60,7 @@ public struct CostUsageFetcher: Sendable {
             var fallback = options
             fallback.claudeLogProviderFilter = .all
             daily = CostUsageScanner.loadDailyReport(
-                provider: provider,
+                provider: scannedProvider,
                 since: since,
                 until: until,
                 now: now,

@@ -38,14 +38,19 @@ struct ProviderDetailView: View {
 
                 if let errorDisplay {
                     ProviderErrorView(
-                        title: "Last \(self.store.metadata(for: self.provider).displayName) fetch failed:",
+                        title: String(
+                            format: L10n.tr(
+                                "settings.providers.error.last_fetch_failed",
+                                fallback: "Last %@ fetch failed:"),
+                            locale: .current,
+                            self.store.metadata(for: self.provider).displayName),
                         display: errorDisplay,
                         isExpanded: self.$isErrorExpanded,
                         onCopy: { self.onCopyError(errorDisplay.full) })
                 }
 
                 if self.hasSettings {
-                    ProviderSettingsSection(title: "Settings") {
+                    ProviderSettingsSection(title: L10n.tr("settings.providers.section.settings", fallback: "Settings")) {
                         ForEach(self.settingsPickers) { picker in
                             ProviderSettingsPickerRowView(picker: picker)
                         }
@@ -61,7 +66,7 @@ struct ProviderDetailView: View {
                 }
 
                 if !self.settingsToggles.isEmpty {
-                    ProviderSettingsSection(title: "Options") {
+                    ProviderSettingsSection(title: L10n.tr("settings.providers.section.options", fallback: "Options")) {
                         ForEach(self.settingsToggles) { toggle in
                             ProviderSettingsToggleRowView(toggle: toggle)
                         }
@@ -82,26 +87,31 @@ struct ProviderDetailView: View {
     }
 
     private var detailLabelWidth: CGFloat {
-        var infoLabels = ["State", "Source", "Version", "Updated"]
+        var infoLabels = [
+            L10n.tr("settings.providers.detail.label.state", fallback: "State"),
+            L10n.tr("settings.providers.detail.label.source", fallback: "Source"),
+            L10n.tr("settings.providers.detail.label.version", fallback: "Version"),
+            L10n.tr("settings.providers.detail.label.updated", fallback: "Updated"),
+        ]
         if self.store.status(for: self.provider) != nil {
-            infoLabels.append("Status")
+            infoLabels.append(L10n.tr("settings.providers.detail.label.status", fallback: "Status"))
         }
         if !self.model.email.isEmpty {
-            infoLabels.append("Account")
+            infoLabels.append(L10n.tr("settings.providers.detail.label.account", fallback: "Account"))
         }
         if let plan = self.model.planText, !plan.isEmpty {
-            infoLabels.append("Plan")
+            infoLabels.append(L10n.tr("settings.providers.detail.label.plan", fallback: "Plan"))
         }
 
         var metricLabels = self.model.metrics.map(\.title)
         if self.model.creditsText != nil {
-            metricLabels.append("Credits")
+            metricLabels.append(L10n.tr("settings.providers.detail.label.credits", fallback: "Credits"))
         }
         if let providerCost = self.model.providerCost {
             metricLabels.append(providerCost.title)
         }
         if self.model.tokenUsage != nil {
-            metricLabels.append("Cost")
+            metricLabels.append(L10n.tr("settings.providers.detail.label.cost", fallback: "Cost"))
         }
 
         let infoWidth = ProviderSettingsMetrics.labelWidth(
@@ -147,7 +157,7 @@ private struct ProviderDetailHeaderView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .help("Refresh")
+                .help(L10n.tr("settings.providers.detail.help.refresh", fallback: "Refresh"))
 
                 Toggle("", isOn: self.$isEnabled)
                     .labelsHidden()
@@ -207,31 +217,52 @@ private struct ProviderDetailInfoGrid: View {
     var body: some View {
         let status = self.store.status(for: self.provider)
         let source = self.store.sourceLabel(for: self.provider)
-        let version = self.store.version(for: self.provider) ?? "not detected"
+        let version = self.store.version(for: self.provider)
+            ?? L10n.tr("settings.providers.detail.version.not_detected", fallback: "not detected")
         let updated = self.updatedText
         let email = self.model.email
         let plan = self.model.planText ?? ""
-        let enabledText = self.isEnabled ? "Enabled" : "Disabled"
+        let enabledText = self.isEnabled
+            ? L10n.tr("settings.providers.detail.state.enabled", fallback: "Enabled")
+            : L10n.tr("settings.providers.detail.state.disabled", fallback: "Disabled")
 
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
-            ProviderDetailInfoRow(label: "State", value: enabledText, labelWidth: self.labelWidth)
-            ProviderDetailInfoRow(label: "Source", value: source, labelWidth: self.labelWidth)
-            ProviderDetailInfoRow(label: "Version", value: version, labelWidth: self.labelWidth)
-            ProviderDetailInfoRow(label: "Updated", value: updated, labelWidth: self.labelWidth)
+            ProviderDetailInfoRow(
+                label: L10n.tr("settings.providers.detail.label.state", fallback: "State"),
+                value: enabledText,
+                labelWidth: self.labelWidth)
+            ProviderDetailInfoRow(
+                label: L10n.tr("settings.providers.detail.label.source", fallback: "Source"),
+                value: source,
+                labelWidth: self.labelWidth)
+            ProviderDetailInfoRow(
+                label: L10n.tr("settings.providers.detail.label.version", fallback: "Version"),
+                value: version,
+                labelWidth: self.labelWidth)
+            ProviderDetailInfoRow(
+                label: L10n.tr("settings.providers.detail.label.updated", fallback: "Updated"),
+                value: updated,
+                labelWidth: self.labelWidth)
 
             if let status {
                 ProviderDetailInfoRow(
-                    label: "Status",
+                    label: L10n.tr("settings.providers.detail.label.status", fallback: "Status"),
                     value: status.description ?? status.indicator.label,
                     labelWidth: self.labelWidth)
             }
 
             if !email.isEmpty {
-                ProviderDetailInfoRow(label: "Account", value: email, labelWidth: self.labelWidth)
+                ProviderDetailInfoRow(
+                    label: L10n.tr("settings.providers.detail.label.account", fallback: "Account"),
+                    value: email,
+                    labelWidth: self.labelWidth)
             }
 
             if !plan.isEmpty {
-                ProviderDetailInfoRow(label: "Plan", value: plan, labelWidth: self.labelWidth)
+                ProviderDetailInfoRow(
+                    label: L10n.tr("settings.providers.detail.label.plan", fallback: "Plan"),
+                    value: plan,
+                    labelWidth: self.labelWidth)
             }
         }
         .font(.footnote)
@@ -243,9 +274,9 @@ private struct ProviderDetailInfoGrid: View {
             return UsageFormatter.updatedString(from: updated)
         }
         if self.store.refreshingProviders.contains(self.provider) {
-            return "Refreshing"
+            return L10n.tr("settings.providers.detail.updated.refreshing", fallback: "Refreshing")
         }
-        return "Not fetched yet"
+        return L10n.tr("settings.providers.detail.updated.not_fetched_yet", fallback: "Not fetched yet")
     }
 }
 
@@ -273,7 +304,7 @@ struct ProviderMetricsInlineView: View {
 
     var body: some View {
         ProviderSettingsSection(
-            title: "Usage",
+            title: L10n.tr("settings.providers.section.usage", fallback: "Usage"),
             spacing: 8,
             verticalPadding: 6,
             horizontalPadding: 0)
@@ -294,7 +325,7 @@ struct ProviderMetricsInlineView: View {
 
                 if let credits = self.model.creditsText {
                     ProviderMetricInlineTextRow(
-                        title: "Credits",
+                        title: L10n.tr("settings.providers.detail.label.credits", fallback: "Credits"),
                         value: credits,
                         labelWidth: self.labelWidth)
                 }
@@ -308,7 +339,7 @@ struct ProviderMetricsInlineView: View {
 
                 if let tokenUsage = self.model.tokenUsage {
                     ProviderMetricInlineTextRow(
-                        title: "Cost",
+                        title: L10n.tr("settings.providers.detail.label.cost", fallback: "Cost"),
                         value: tokenUsage.sessionLine,
                         labelWidth: self.labelWidth)
                     ProviderMetricInlineTextRow(
@@ -322,9 +353,12 @@ struct ProviderMetricsInlineView: View {
 
     private var placeholderText: String {
         if !self.isEnabled {
-            return "Disabled — no recent data"
+            return L10n.tr(
+                "settings.providers.metrics.placeholder.disabled_no_data",
+                fallback: "Disabled — no recent data")
         }
-        return self.model.placeholder ?? "No usage yet"
+        return self.model.placeholder ??
+            L10n.tr("settings.providers.metrics.placeholder.no_usage", fallback: "No usage yet")
     }
 }
 
@@ -433,11 +467,14 @@ private struct ProviderMetricInlineCostRow: View {
                 UsageProgressBar(
                     percent: self.section.percentUsed,
                     tint: self.progressColor,
-                    accessibilityLabel: "Usage used")
+                    accessibilityLabel: L10n.tr("settings.providers.cost.accessibility.usage_used", fallback: "Usage used"))
                     .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(String(format: "%.0f%% used", self.section.percentUsed))
+                    Text(String(
+                        format: L10n.tr("settings.providers.cost.percent_used", fallback: "%.0f%% used"),
+                        locale: .current,
+                        self.section.percentUsed))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()

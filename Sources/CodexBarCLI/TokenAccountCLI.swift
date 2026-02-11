@@ -82,11 +82,24 @@ struct TokenAccountCLIContext {
 
         switch provider {
         case .codex:
+            let codexSource = self.resolveCodexUsageDataSource(config)
             return self.makeSnapshot(
                 codex: ProviderSettingsSnapshot.CodexProviderSettings(
-                    usageDataSource: .auto,
+                    usageDataSource: codexSource,
                     cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
+                    manualCookieHeader: cookieHeader,
+                    cliProxyBaseURL: config?.sanitizedAPIBaseURL,
+                    cliProxyManagementKey: config?.sanitizedAPIKey,
+                    cliProxyAuthIndex: config?.sanitizedAPIAuthIndex))
+        case .codexproxy:
+            return self.makeSnapshot(
+                codex: ProviderSettingsSnapshot.CodexProviderSettings(
+                    usageDataSource: .api,
+                    cookieSource: .off,
+                    manualCookieHeader: nil,
+                    cliProxyBaseURL: config?.sanitizedAPIBaseURL,
+                    cliProxyManagementKey: config?.sanitizedAPIKey,
+                    cliProxyAuthIndex: config?.sanitizedAPIAuthIndex))
         case .claude:
             let claudeSource: ClaudeUsageDataSource = if provider == .claude,
                                                          let account,
@@ -147,7 +160,7 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(
                 jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
                     ideBasePath: nil))
-        case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic:
+        case .geminiproxy, .antigravityproxy, .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic:
             return nil
         }
     }
@@ -177,6 +190,20 @@ struct TokenAccountCLIContext {
             augment: augment,
             amp: amp,
             jetbrains: jetbrains)
+    }
+
+    private func resolveCodexUsageDataSource(_ config: ProviderConfig?) -> CodexUsageDataSource {
+        guard let source = config?.source else { return .auto }
+        switch source {
+        case .auto, .web:
+            return .auto
+        case .api:
+            return .api
+        case .cli:
+            return .cli
+        case .oauth:
+            return .oauth
+        }
     }
 
     func environment(

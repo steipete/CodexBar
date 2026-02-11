@@ -167,6 +167,30 @@ public enum CodexBarConfigValidator {
                 message: "workspaceID is set but only opencode supports workspaceID."))
         }
 
+        if let apiBaseURL = entry.apiBaseURL,
+           !apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           provider != .codex
+        {
+            issues.append(CodexBarConfigIssue(
+                severity: .warning,
+                provider: provider,
+                field: "apiBaseURL",
+                code: "api_base_url_unused",
+                message: "apiBaseURL is set but only codex currently uses it."))
+        }
+
+        if let apiAuthIndex = entry.apiAuthIndex,
+           !apiAuthIndex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           provider != .codex
+        {
+            issues.append(CodexBarConfigIssue(
+                severity: .warning,
+                provider: provider,
+                field: "apiAuthIndex",
+                code: "api_auth_index_unused",
+                message: "apiAuthIndex is set but only codex currently uses it."))
+        }
+
         if let tokenAccounts = entry.tokenAccounts, !tokenAccounts.accounts.isEmpty,
            TokenAccountSupportCatalog.support(for: provider) == nil
         {

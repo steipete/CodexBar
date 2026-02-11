@@ -13,6 +13,9 @@ enum ProviderImplementationRegistry {
     private static func makeImplementation(for provider: UsageProvider) -> (any ProviderImplementation) {
         switch provider {
         case .codex: CodexProviderImplementation()
+        case .codexproxy: CodexProxyProviderImplementation()
+        case .geminiproxy: GeminiProxyProviderImplementation()
+        case .antigravityproxy: AntigravityProxyProviderImplementation()
         case .claude: ClaudeProviderImplementation()
         case .cursor: CursorProviderImplementation()
         case .opencode: OpenCodeProviderImplementation()

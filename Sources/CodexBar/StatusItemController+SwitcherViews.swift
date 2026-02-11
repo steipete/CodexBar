@@ -100,6 +100,11 @@ final class ProviderSwitcherView: NSView {
             count: layoutCount,
             outerPadding: outerPadding,
             minimumGap: minimumGap)
+        let iconPointSize = Self.switcherIconPointSize(
+            stackedIcons: self.stackedIcons,
+            rowCount: self.rowCount,
+            segmentCount: self.segments.count,
+            maxAllowedSegmentWidth: maxAllowedSegmentWidth)
 
         func makeButton(index: Int, segment: Segment) -> NSButton {
             let button: NSButton
@@ -113,6 +118,7 @@ final class ProviderSwitcherView: NSView {
                 if self.rowCount >= 4 {
                     stacked.setTitleFontSize(NSFont.smallSystemFontSize - 3)
                 }
+                stacked.setIconSize(iconPointSize)
                 button = stacked
             } else if self.showsIcons {
                 let inline = InlineIconToggleButton(
@@ -120,6 +126,7 @@ final class ProviderSwitcherView: NSView {
                     image: segment.image,
                     target: self,
                     action: #selector(self.handleSelection(_:)))
+                inline.setIconSize(iconPointSize)
                 button = inline
             } else {
                 button = PaddedToggleButton(
@@ -151,7 +158,7 @@ final class ProviderSwitcherView: NSView {
             button.wantsLayer = true
             button.layer?.cornerRadius = 6
             button.state = (selected == segment.provider) ? .on : .off
-            button.toolTip = nil
+            button.toolTip = ProviderDescriptorRegistry.descriptor(for: segment.provider).metadata.displayName
             button.translatesAutoresizingMaskIntoConstraints = false
             self.buttons.append(button)
             return button
@@ -457,6 +464,21 @@ final class ProviderSwitcherView: NSView {
         return rows
     }
 
+    private static func switcherIconPointSize(
+        stackedIcons: Bool,
+        rowCount: Int,
+        segmentCount: Int,
+        maxAllowedSegmentWidth: CGFloat) -> CGFloat
+    {
+        if !stackedIcons {
+            return maxAllowedSegmentWidth < 72 ? 14 : 16
+        }
+        if rowCount >= 4 || maxAllowedSegmentWidth < 44 { return 11 }
+        if rowCount >= 3 || maxAllowedSegmentWidth < 50 { return 12 }
+        if segmentCount >= 7 || maxAllowedSegmentWidth < 58 { return 13 }
+        return 14
+    }
+
     private static func switcherOuterPadding(for width: CGFloat, count: Int, minimumGap: CGFloat) -> CGFloat {
         // Align with the card's left/right content grid when possible.
         let preferred: CGFloat = 16
@@ -754,7 +776,16 @@ final class ProviderSwitcherView: NSView {
     }
 
     private static func switcherTitle(for provider: UsageProvider) -> String {
-        ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        switch provider {
+        case .codexproxy:
+            "CodexProxy"
+        case .geminiproxy:
+            "GemProxy"
+        case .antigravityproxy:
+            "AGProxy"
+        default:
+            ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        }
     }
 }
 

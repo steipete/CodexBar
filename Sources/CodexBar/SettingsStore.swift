@@ -28,12 +28,18 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .manual: "Manual"
-        case .oneMinute: "1 min"
-        case .twoMinutes: "2 min"
-        case .fiveMinutes: "5 min"
-        case .fifteenMinutes: "15 min"
-        case .thirtyMinutes: "30 min"
+        case .manual:
+            L10n.tr("settings.general.refresh_frequency.manual", fallback: "Manual")
+        case .oneMinute:
+            L10n.tr("settings.general.refresh_frequency.one_minute", fallback: "1 min")
+        case .twoMinutes:
+            L10n.tr("settings.general.refresh_frequency.two_minutes", fallback: "2 min")
+        case .fiveMinutes:
+            L10n.tr("settings.general.refresh_frequency.five_minutes", fallback: "5 min")
+        case .fifteenMinutes:
+            L10n.tr("settings.general.refresh_frequency.fifteen_minutes", fallback: "15 min")
+        case .thirtyMinutes:
+            L10n.tr("settings.general.refresh_frequency.thirty_minutes", fallback: "30 min")
         }
     }
 }
@@ -50,10 +56,35 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .automatic: "Automatic"
-        case .primary: "Primary"
-        case .secondary: "Secondary"
-        case .average: "Average"
+        case .automatic:
+            L10n.tr("settings.providers.menu_bar_metric.option.automatic", fallback: "Automatic")
+        case .primary:
+            L10n.tr("settings.providers.menu_bar_metric.option.primary", fallback: "Primary")
+        case .secondary:
+            L10n.tr("settings.providers.menu_bar_metric.option.secondary", fallback: "Secondary")
+        case .average:
+            L10n.tr("settings.providers.menu_bar_metric.option.average", fallback: "Average")
+        }
+    }
+}
+
+enum AppLanguageOption: String, CaseIterable, Identifiable {
+    case system
+    case english = "en"
+    case simplifiedChinese = "zh-Hans"
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .system:
+            return L10n.tr("settings.general.language.option.system", fallback: "System")
+        case .english:
+            return L10n.tr("settings.general.language.option.english", fallback: "English")
+        case .simplifiedChinese:
+            return L10n.tr("settings.general.language.option.zh_hans", fallback: "简体中文")
         }
     }
 }
@@ -139,7 +170,11 @@ final class SettingsStore {
         self.config = config
         self.configLoading = true
         self.defaultsState = Self.loadDefaultsState(userDefaults: userDefaults)
+        if AppLanguageOption(rawValue: self.defaultsState.appLanguageRaw) == .system {
+            self.userDefaults.removeObject(forKey: "AppleLanguages")
+        }
         self.updateProviderState(config: config)
+        self.migrateLegacyCodexCLIProxyDefaultsIfNeeded()
         self.configLoading = false
         CodexBarLog.setFileLoggingEnabled(self.debugFileLoggingEnabled)
         userDefaults.removeObject(forKey: "showCodexUsage")
@@ -215,6 +250,10 @@ extension SettingsStore {
         let switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
+        let appLanguageRaw = userDefaults.string(forKey: "appLanguageCode") ?? AppLanguageOption.system.rawValue
+        let cliProxyGlobalBaseURL = userDefaults.string(forKey: "cliProxyGlobalBaseURL") ?? ""
+        let cliProxyGlobalManagementKey = userDefaults.string(forKey: "cliProxyGlobalManagementKey") ?? ""
+        let cliProxyGlobalAuthIndex = userDefaults.string(forKey: "cliProxyGlobalAuthIndex") ?? ""
 
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -244,7 +283,11 @@ extension SettingsStore {
             mergeIcons: mergeIcons,
             switcherShowsIcons: switcherShowsIcons,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
-            providerDetectionCompleted: providerDetectionCompleted)
+            providerDetectionCompleted: providerDetectionCompleted,
+            appLanguageRaw: appLanguageRaw,
+            cliProxyGlobalBaseURL: cliProxyGlobalBaseURL,
+            cliProxyGlobalManagementKey: cliProxyGlobalManagementKey,
+            cliProxyGlobalAuthIndex: cliProxyGlobalAuthIndex)
     }
 }
 

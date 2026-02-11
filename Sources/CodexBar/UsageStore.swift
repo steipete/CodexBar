@@ -615,6 +615,15 @@ final class UsageStore {
 
     private func refreshCreditsIfNeeded() async {
         guard self.isEnabled(.codex) else { return }
+        if self.sourceMode(for: .codex) == .api {
+            await MainActor.run {
+                self.credits = nil
+                self.lastCreditsError = nil
+                self.lastCreditsSnapshot = nil
+                self.creditsFailureStreak = 0
+            }
+            return
+        }
         do {
             let credits = try await self.codexFetcher.loadLatestCredits(
                 keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)
@@ -1148,6 +1157,20 @@ extension UsageStore {
                 let raw = await self.codexFetcher.debugRawRateLimits()
                 await MainActor.run { self.probeLogs[.codex] = raw }
                 return raw
+            case .codexproxy:
+                let text = "CLIProxy Codex uses management API; use CodexBarCLI --provider codexproxy --source api for raw checks."
+                await MainActor.run { self.probeLogs[.codexproxy] = text }
+                return text
+            case .geminiproxy:
+                let text =
+                    "CLIProxy Gemini uses management API; use CodexBarCLI --provider geminiproxy --source api for raw checks."
+                await MainActor.run { self.probeLogs[.geminiproxy] = text }
+                return text
+            case .antigravityproxy:
+                let text =
+                    "CLIProxy Antigravity uses management API; use CodexBarCLI --provider antigravityproxy --source api for raw checks."
+                await MainActor.run { self.probeLogs[.antigravityproxy] = text }
+                return text
             case .claude:
                 let text = await self.debugClaudeLog(
                     claudeWebExtrasEnabled: claudeWebExtrasEnabled,
@@ -1514,7 +1537,7 @@ extension UsageStore {
     }
 
     private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
-        guard provider == .codex || provider == .claude || provider == .vertexai else {
+        guard provider == .codex || provider == .codexproxy || provider == .claude || provider == .vertexai else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()

@@ -187,7 +187,6 @@ extension StatusItemController {
 
         let style = self.store.iconStyle
         let showUsed = self.settings.usageBarsShowUsed
-        let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
         let primaryProvider = self.primaryProviderForUnifiedIcon()
         let snapshot = self.store.snapshot(for: primaryProvider)
 
@@ -233,15 +232,6 @@ extension StatusItemController {
             return .none
         }()
 
-        if showBrandPercent,
-           let brand = ProviderBrandIcon.image(for: primaryProvider)
-        {
-            let displayText = self.menuBarDisplayText(for: primaryProvider, snapshot: snapshot)
-            self.setButtonImage(brand, for: button)
-            self.setButtonTitle(displayText, for: button)
-            return
-        }
-
         self.setButtonTitle(nil, for: button)
         if let morphProgress {
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
@@ -267,16 +257,6 @@ extension StatusItemController {
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
         let showUsed = self.settings.usageBarsShowUsed
-        let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
-
-        if showBrandPercent,
-           let brand = ProviderBrandIcon.image(for: provider)
-        {
-            let displayText = self.menuBarDisplayText(for: provider, snapshot: snapshot)
-            self.setButtonImage(brand, for: button)
-            self.setButtonTitle(displayText, for: button)
-            return
-        }
         var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
         var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
         var credits: Double? = provider == .codex ? self.store.credits?.remaining : nil

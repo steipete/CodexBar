@@ -11,20 +11,112 @@ struct GeneralPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 SettingsSection(contentSpacing: 12) {
-                    Text("System")
+                    Text(L10n.tr("settings.general.system.section", fallback: "System"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     PreferenceToggleRow(
-                        title: "Start at Login",
-                        subtitle: "Automatically opens CodexBar when you start your Mac.",
+                        title: L10n.tr("settings.general.system.start_at_login.title", fallback: "Start at Login"),
+                        subtitle: L10n.tr(
+                            "settings.general.system.start_at_login.subtitle",
+                            fallback: "Automatically opens CodexBar when you start your Mac."),
                         binding: self.$settings.launchAtLogin)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(L10n.tr("settings.general.language.title", fallback: "Language"))
+                                    .font(.body)
+                                Text(L10n.tr(
+                                    "settings.general.language.subtitle",
+                                    fallback: "Choose app display language."))
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Picker("", selection: self.$settings.appLanguage) {
+                                ForEach(AppLanguageOption.allCases) { option in
+                                    Text(option.label).tag(option)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 200)
+                        }
+                        Text(L10n.tr(
+                            "settings.general.language.restart_hint",
+                            fallback: "Language changes apply after restart."))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            Spacer()
+                            Button(L10n.tr("settings.general.language.apply_restart", fallback: "Apply & Restart")) {
+                                self.restartApp()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
                 }
 
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {
-                    Text("Usage")
+                    Text(L10n.tr("settings.general.cliproxy.section", fallback: "CLIProxyAPI"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                    VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L10n.tr("settings.general.cliproxy.url.title", fallback: "Base URL"))
+                                .font(.body)
+                            Text(L10n.tr(
+                                "settings.general.cliproxy.url.subtitle",
+                                fallback: "Global default for providers using API source (for example Codex)."))
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                            TextField(
+                                L10n.tr(
+                                    "settings.general.cliproxy.url.placeholder",
+                                    fallback: "http://127.0.0.1:8317"),
+                                text: self.$settings.cliProxyGlobalBaseURL)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.footnote)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L10n.tr("settings.general.cliproxy.key.title", fallback: "Management Key"))
+                                .font(.body)
+                            SecureField(
+                                L10n.tr(
+                                    "settings.general.cliproxy.key.placeholder",
+                                    fallback: "Paste management key…"),
+                                text: self.$settings.cliProxyGlobalManagementKey)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.footnote)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L10n.tr("settings.general.cliproxy.auth_index.title", fallback: "auth_index (optional)"))
+                                .font(.body)
+                            Text(L10n.tr(
+                                "settings.general.cliproxy.auth_index.subtitle",
+                                fallback: "Optional. Set a specific auth file; leave empty to aggregate all matching auth entries."))
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                            TextField(
+                                L10n.tr(
+                                    "settings.general.cliproxy.auth_index.placeholder",
+                                    fallback: "Leave empty to load all matching auth entries"),
+                                text: self.$settings.cliProxyGlobalAuthIndex)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.footnote)
+                        }
+                    }
+                }
+
+                Divider()
+
+                SettingsSection(contentSpacing: 12) {
+                    Text(L10n.tr("settings.general.usage.section", fallback: "Usage"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
@@ -32,18 +124,22 @@ struct GeneralPane: View {
                     VStack(alignment: .leading, spacing: 10) {
                         VStack(alignment: .leading, spacing: 4) {
                             Toggle(isOn: self.$settings.costUsageEnabled) {
-                                Text("Show cost summary")
+                                Text(L10n.tr("settings.general.usage.cost_summary.title", fallback: "Show cost summary"))
                                     .font(.body)
                             }
                             .toggleStyle(.checkbox)
 
-                            Text("Reads local usage logs. Shows today + last 30 days cost in the menu.")
+                            Text(L10n.tr(
+                                "settings.general.usage.cost_summary.subtitle",
+                                fallback: "Reads local usage logs. Shows today + last 30 days cost in the menu."))
                                 .font(.footnote)
                                 .foregroundStyle(.tertiary)
                                 .fixedSize(horizontal: false, vertical: true)
 
                             if self.settings.costUsageEnabled {
-                                Text("Auto-refresh: hourly · Timeout: 10m")
+                                Text(L10n.tr(
+                                    "settings.general.usage.cost_summary.refresh_hint",
+                                    fallback: "Auto-refresh: hourly · Timeout: 10m"))
                                     .font(.footnote)
                                     .foregroundStyle(.tertiary)
 
@@ -57,21 +153,26 @@ struct GeneralPane: View {
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {
-                    Text("Automation")
+                    Text(L10n.tr("settings.general.automation.section", fallback: "Automation"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .top, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Refresh cadence")
+                                Text(L10n.tr("settings.general.automation.refresh_cadence.title", fallback: "Refresh cadence"))
                                     .font(.body)
-                                Text("How often CodexBar polls providers in the background.")
+                                Text(L10n.tr(
+                                    "settings.general.automation.refresh_cadence.subtitle",
+                                    fallback: "How often CodexBar polls providers in the background."))
                                     .font(.footnote)
                                     .foregroundStyle(.tertiary)
                             }
                             Spacer()
-                            Picker("Refresh cadence", selection: self.$settings.refreshFrequency) {
+                            Picker(
+                                L10n.tr("settings.general.automation.refresh_cadence.title", fallback: "Refresh cadence"),
+                                selection: self.$settings.refreshFrequency)
+                            {
                                 ForEach(RefreshFrequency.allCases) { option in
                                     Text(option.label).tag(option)
                                 }
@@ -81,20 +182,26 @@ struct GeneralPane: View {
                             .frame(maxWidth: 200)
                         }
                         if self.settings.refreshFrequency == .manual {
-                            Text("Auto-refresh is off; use the menu's Refresh command.")
+                            Text(L10n.tr(
+                                "settings.general.automation.refresh_cadence.manual_hint",
+                                fallback: "Auto-refresh is off; use the menu's Refresh command."))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     PreferenceToggleRow(
-                        title: "Check provider status",
-                        subtitle: "Polls OpenAI/Claude status pages and Google Workspace for " +
-                            "Gemini/Antigravity, surfacing incidents in the icon and menu.",
+                        title: L10n.tr("settings.general.automation.check_status.title", fallback: "Check provider status"),
+                        subtitle: L10n.tr(
+                            "settings.general.automation.check_status.subtitle",
+                            fallback: "Polls OpenAI/Claude status pages and Google Workspace for Gemini/Antigravity, surfacing incidents in the icon and menu."),
                         binding: self.$settings.statusChecksEnabled)
                     PreferenceToggleRow(
-                        title: "Session quota notifications",
-                        subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +
-                            "available again.",
+                        title: L10n.tr(
+                            "settings.general.automation.session_quota.title",
+                            fallback: "Session quota notifications"),
+                        subtitle: L10n.tr(
+                            "settings.general.automation.session_quota.subtitle",
+                            fallback: "Notifies when the 5-hour session quota hits 0% and when it becomes available again."),
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
                 }
 
@@ -103,7 +210,7 @@ struct GeneralPane: View {
                 SettingsSection(contentSpacing: 12) {
                     HStack {
                         Spacer()
-                        Button("Quit CodexBar") { NSApp.terminate(nil) }
+                        Button(L10n.tr("settings.general.quit", fallback: "Quit CodexBar")) { NSApp.terminate(nil) }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
                     }
@@ -119,7 +226,8 @@ struct GeneralPane: View {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
 
         guard provider == .claude || provider == .codex else {
-            return Text("\(name): unsupported")
+            let format = L10n.tr("settings.general.usage.cost_status.unsupported", fallback: "%@: unsupported")
+            return Text(String(format: format, locale: .current, name))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
@@ -133,14 +241,16 @@ struct GeneralPane: View {
                 formatter.unitsStyle = .abbreviated
                 return formatter.string(from: seconds).map { " (\($0))" } ?? ""
             }()
-            return Text("\(name): fetching…\(elapsed)")
+            let format = L10n.tr("settings.general.usage.cost_status.fetching", fallback: "%@: fetching…%@")
+            return Text(String(format: format, locale: .current, name, elapsed))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
         if let snapshot = self.store.tokenSnapshot(for: provider) {
             let updated = UsageFormatter.updatedString(from: snapshot.updatedAt)
             let cost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-            return Text("\(name): \(updated) · 30d \(cost)")
+            let format = L10n.tr("settings.general.usage.cost_status.snapshot", fallback: "%@: %@ · 30d %@")
+            return Text(String(format: format, locale: .current, name, updated, cost))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
@@ -154,12 +264,25 @@ struct GeneralPane: View {
             let rel = RelativeDateTimeFormatter()
             rel.unitsStyle = .abbreviated
             let when = rel.localizedString(for: lastAttempt, relativeTo: Date())
-            return Text("\(name): last attempt \(when)")
+            let format = L10n.tr("settings.general.usage.cost_status.last_attempt", fallback: "%@: last attempt %@")
+            return Text(String(format: format, locale: .current, name, when))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
-        return Text("\(name): no data yet")
+        let format = L10n.tr("settings.general.usage.cost_status.no_data", fallback: "%@: no data yet")
+        return Text(String(format: format, locale: .current, name))
             .font(.footnote)
             .foregroundStyle(.tertiary)
+    }
+
+    private func restartApp() {
+        let bundleURL = Bundle.main.bundleURL
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { _, _ in
+            Task { @MainActor in
+                NSApp.terminate(nil)
+            }
+        }
     }
 }

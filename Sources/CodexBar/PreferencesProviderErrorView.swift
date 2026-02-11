@@ -1,3 +1,4 @@
+import CodexBarCore
 import SwiftUI
 
 struct ProviderErrorDisplay: Sendable {
@@ -26,7 +27,7 @@ struct ProviderErrorView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("Copy error")
+                .help(L10n.tr("settings.providers.error.copy", fallback: "Copy error"))
             }
 
             Text(self.display.preview)
@@ -36,7 +37,12 @@ struct ProviderErrorView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if self.display.preview != self.display.full {
-                Button(self.isExpanded ? "Hide details" : "Show details") { self.isExpanded.toggle() }
+                Button(self.isExpanded
+                    ? L10n.tr("settings.providers.error.hide_details", fallback: "Hide details")
+                    : L10n.tr("settings.providers.error.show_details", fallback: "Show details"))
+                {
+                    self.isExpanded.toggle()
+                }
                     .buttonStyle(.link)
                     .font(.footnote)
             }

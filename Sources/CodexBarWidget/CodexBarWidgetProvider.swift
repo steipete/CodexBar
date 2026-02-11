@@ -42,6 +42,9 @@ enum ProviderChoice: String, AppEnum {
     init?(provider: UsageProvider) {
         switch provider {
         case .codex: self = .codex
+        case .codexproxy: return nil // CLIProxy Codex not yet supported in widgets
+        case .geminiproxy: return nil // CLIProxy Gemini not yet supported in widgets
+        case .antigravityproxy: return nil // CLIProxy Antigravity not yet supported in widgets
         case .claude: self = .claude
         case .gemini: self = .gemini
         case .antigravity: self = .antigravity

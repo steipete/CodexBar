@@ -124,6 +124,50 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func codexHidesCLIProxyFieldsWhenAPISelected() throws {
+        let suite = "ProviderSettingsDescriptorTests-codex-cliproxy"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.codexUsageDataSource = .api
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        let context = ProviderSettingsContext(
+            provider: .codex,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+
+        let fields = CodexProviderImplementation().settingsFields(context: context)
+        #expect(fields.contains(where: { $0.id == "codex-cliproxy-base-url" }) == false)
+        #expect(fields.contains(where: { $0.id == "codex-cliproxy-management-key" }) == false)
+        #expect(fields.contains(where: { $0.id == "codex-cliproxy-auth-index" }) == false)
+    }
+
+    @Test
     func claudeExposesUsageAndCookiePickers() throws {
         let suite = "ProviderSettingsDescriptorTests-claude"
         let defaults = try #require(UserDefaults(suiteName: suite))

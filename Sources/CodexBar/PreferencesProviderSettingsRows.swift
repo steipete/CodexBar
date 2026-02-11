@@ -1,3 +1,4 @@
+import CodexBarCore
 import SwiftUI
 
 struct ProviderSettingsSection<Content: View>: View {
@@ -218,7 +219,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
 
             let accounts = self.descriptor.accounts()
             if accounts.isEmpty {
-                Text("No token accounts yet.")
+                Text(L10n.tr("settings.providers.token_accounts.empty", fallback: "No token accounts yet."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -235,7 +236,10 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 .pickerStyle(.menu)
                 .controlSize(.small)
 
-                Button("Remove selected account") {
+                Button(L10n.tr(
+                    "settings.providers.token_accounts.remove_selected",
+                    fallback: "Remove selected account"))
+                {
                     let account = accounts[selectedIndex]
                     self.descriptor.removeAccount(account.id)
                 }
@@ -244,13 +248,15 @@ struct ProviderSettingsTokenAccountsRowView: View {
             }
 
             HStack(spacing: 8) {
-                TextField("Label", text: self.$newLabel)
+                TextField(
+                    L10n.tr("settings.providers.token_accounts.label_placeholder", fallback: "Label"),
+                    text: self.$newLabel)
                     .textFieldStyle(.roundedBorder)
                     .font(.footnote)
                 SecureField(self.descriptor.placeholder, text: self.$newToken)
                     .textFieldStyle(.roundedBorder)
                     .font(.footnote)
-                Button("Add") {
+                Button(L10n.tr("settings.providers.token_accounts.add", fallback: "Add")) {
                     let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
                     let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !label.isEmpty, !token.isEmpty else { return }
@@ -265,12 +271,12 @@ struct ProviderSettingsTokenAccountsRowView: View {
             }
 
             HStack(spacing: 10) {
-                Button("Open token file") {
+                Button(L10n.tr("settings.providers.token_accounts.open_token_file", fallback: "Open token file")) {
                     self.descriptor.openConfigFile()
                 }
                 .buttonStyle(.link)
                 .controlSize(.small)
-                Button("Reload") {
+                Button(L10n.tr("settings.providers.token_accounts.reload", fallback: "Reload")) {
                     self.descriptor.reloadFromDisk()
                 }
                 .buttonStyle(.link)

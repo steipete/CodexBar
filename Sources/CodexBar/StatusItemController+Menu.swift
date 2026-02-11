@@ -279,6 +279,47 @@ extension StatusItemController {
     private func addMenuCards(to menu: NSMenu, context: MenuCardContext) -> Bool {
         if let tokenAccountDisplay = context.tokenAccountDisplay, tokenAccountDisplay.showAll {
             let accountSnapshots = tokenAccountDisplay.snapshots
+            let shouldShowAggregateCard = self.isCLIProxyMultiAuthDisplay(
+                provider: context.currentProvider,
+                display: tokenAccountDisplay)
+            if shouldShowAggregateCard, let aggregateModel = self.menuCardModel(for: context.selectedProvider) {
+                menu.addItem(self.makeMenuCardItem(
+                    UsageMenuCardView(model: aggregateModel, width: context.menuWidth),
+                    id: "menuCard-aggregate",
+                    width: context.menuWidth))
+                if !accountSnapshots.isEmpty {
+                    menu.addItem(.separator())
+                }
+            }
+            if shouldShowAggregateCard {
+                let entries = self.codexCLIProxyCompactEntries(
+                    from: accountSnapshots,
+                    provider: context.currentProvider)
+                if !entries.isEmpty {
+                    let providerName = self.store.metadata(for: context.currentProvider).displayName
+                    let compactView = CodexCLIProxyAuthCompactGridView(
+                        providerDisplayName: providerName,
+                        entries: entries)
+                    menu.addItem(self.makeMenuCardItem(
+                        compactView,
+                        id: "menuCard-auth-grid",
+                        width: context.menuWidth))
+                }
+                if let inlineCostHistoryItem = self.makeCostHistoryInlineItem(
+                    provider: context.currentProvider,
+                    width: context.menuWidth)
+                {
+                    if !entries.isEmpty {
+                        menu.addItem(.separator())
+                    }
+                    menu.addItem(inlineCostHistoryItem)
+                    menu.addItem(.separator())
+                } else if !entries.isEmpty {
+                    menu.addItem(.separator())
+                }
+                return false
+            }
+
             let cards = accountSnapshots.isEmpty
                 ? []
                 : accountSnapshots.compactMap { accountSnapshot in
@@ -287,7 +328,8 @@ extension StatusItemController {
                         snapshotOverride: accountSnapshot.snapshot,
                         errorOverride: accountSnapshot.error)
                 }
-            if cards.isEmpty, let model = self.menuCardModel(for: context.selectedProvider) {
+
+            if cards.isEmpty, !shouldShowAggregateCard, let model = self.menuCardModel(for: context.selectedProvider) {
                 menu.addItem(self.makeMenuCardItem(
                     UsageMenuCardView(model: model, width: context.menuWidth),
                     id: "menuCard",
@@ -486,6 +528,20 @@ extension StatusItemController {
     }
 
     private func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
+        if self.isCLIProxyMultiAuthProvider(provider),
+           let snapshots = self.store.accountSnapshots[provider],
+           snapshots.count > 1,
+           self.store.sourceLabel(for: provider).localizedCaseInsensitiveContains("cliproxy-api")
+        {
+            return TokenAccountMenuDisplay(
+                provider: provider,
+                accounts: snapshots.map(\.account),
+                snapshots: snapshots,
+                activeIndex: 0,
+                showAll: true,
+                showSwitcher: false)
+        }
+
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
         let accounts = self.settings.tokenAccounts(for: provider)
         guard accounts.count > 1 else { return nil }
@@ -499,6 +555,50 @@ extension StatusItemController {
             activeIndex: activeIndex,
             showAll: showAll,
             showSwitcher: !showAll)
+    }
+
+    private func isCLIProxyMultiAuthProvider(_ provider: UsageProvider) -> Bool {
+        provider == .codex || provider == .codexproxy || provider == .geminiproxy || provider == .antigravityproxy
+    }
+
+    private func isCLIProxyMultiAuthDisplay(
+        provider: UsageProvider,
+        display: TokenAccountMenuDisplay) -> Bool
+    {
+        self.isCLIProxyMultiAuthProvider(provider) &&
+            display.showAll &&
+            self.store.sourceLabel(for: provider).localizedCaseInsensitiveContains("cliproxy-api")
+    }
+
+    private func codexCLIProxyCompactEntries(
+        from snapshots: [TokenAccountUsageSnapshot],
+        provider: UsageProvider) -> [CodexCLIProxyAuthCompactGridView.Entry]
+    {
+        snapshots.map { snapshot in
+            let primary = self.percent(for: snapshot.snapshot?.primary)
+            let secondary = self.percent(for: snapshot.snapshot?.secondary)
+            let label = snapshot.account.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let accountTitle: String
+            if label.isEmpty {
+                accountTitle = snapshot.snapshot?.accountEmail(for: provider) ?? provider.rawValue
+            } else {
+                accountTitle = label
+            }
+            return CodexCLIProxyAuthCompactGridView.Entry(
+                id: snapshot.id,
+                accountTitle: accountTitle,
+                primaryPercent: primary,
+                secondaryPercent: secondary,
+                hasError: snapshot.error != nil)
+        }
+    }
+
+    private func percent(for window: RateWindow?) -> Double? {
+        guard let window else { return nil }
+        if self.settings.usageBarsShowUsed {
+            return max(0, min(100, window.usedPercent))
+        }
+        return max(0, min(100, window.remainingPercent))
     }
 
     private func menuNeedsRefresh(_ menu: NSMenu) -> Bool {
@@ -733,12 +833,25 @@ extension StatusItemController {
                 topPadding: sectionSpacing,
                 bottomPadding: bottomPadding,
                 width: width)
-            let costSubmenu = webItems.hasCostHistory ? self.makeCostHistorySubmenu(provider: provider) : nil
             menu.addItem(self.makeMenuCardItem(
                 costView,
                 id: "menuCardCost",
-                width: width,
-                submenu: costSubmenu))
+                width: width))
+
+            if let inlineCostHistoryItem = self.makeCostHistoryInlineItem(provider: provider, width: width) {
+                menu.addItem(.separator())
+                menu.addItem(inlineCostHistoryItem)
+            } else if webItems.hasCostHistory {
+                let costSubmenu = self.makeCostHistorySubmenu(provider: provider)
+                if costSubmenu != nil {
+                    // Fallback for non-rendering mode: still expose chart through submenu.
+                    if let lastItem = menu.items.last {
+                        lastItem.submenu = costSubmenu
+                        lastItem.target = self
+                        lastItem.action = #selector(self.menuCardNoOp(_:))
+                    }
+                }
+            }
         }
     }
 
@@ -906,8 +1019,139 @@ extension StatusItemController {
         }
     }
 
+    private struct CodexCLIProxyAuthCompactGridView: View {
+        struct Entry: Identifiable {
+            let id: UUID
+            let accountTitle: String
+            let primaryPercent: Double?
+            let secondaryPercent: Double?
+            let hasError: Bool
+        }
+
+        let providerDisplayName: String
+        let entries: [Entry]
+        @Environment(\.menuItemHighlighted) private var isHighlighted
+
+        private var columns: [GridItem] {
+            [
+                GridItem(.flexible(minimum: 120), spacing: 8),
+                GridItem(.flexible(minimum: 120), spacing: 8),
+            ]
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                let titleFormat = L10n.tr(
+                    "menu.cliproxy.auth_grid.title",
+                    fallback: "%@ auth entries (%d)")
+                Text(String(format: titleFormat, locale: .current, self.providerDisplayName, self.entries.count))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+
+                LazyVGrid(columns: self.columns, spacing: 8) {
+                    ForEach(self.entries) { entry in
+                        AccountCell(
+                            entry: entry,
+                            isHighlighted: self.isHighlighted)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private struct AccountCell: View {
+        let entry: CodexCLIProxyAuthCompactGridView.Entry
+        let isHighlighted: Bool
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(self.entry.accountTitle)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+
+                HStack(spacing: 16) {
+                    RingBadge(
+                        percent: self.entry.primaryPercent,
+                        isError: self.entry.hasError,
+                        tint: Color(nsColor: NSColor.systemTeal),
+                        isHighlighted: self.isHighlighted)
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
+                    RingBadge(
+                        percent: self.entry.secondaryPercent,
+                        isError: self.entry.hasError,
+                        tint: Color(nsColor: NSColor.systemIndigo),
+                        isHighlighted: self.isHighlighted)
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(MenuHighlightStyle.progressTrack(self.isHighlighted)))
+        }
+    }
+
+    private struct RingBadge: View {
+        let percent: Double?
+        let isError: Bool
+        let tint: Color
+        let isHighlighted: Bool
+
+        private var normalizedPercent: Double {
+            guard let percent else { return 0 }
+            return max(0, min(100, percent))
+        }
+
+        var body: some View {
+            GeometryReader { proxy in
+                let diameter = min(proxy.size.width, proxy.size.height)
+                let lineWidth = max(3, diameter * 0.11)
+                let fontSize = max(10, diameter * 0.32)
+
+                ZStack {
+                    Circle()
+                        .stroke(MenuHighlightStyle.progressTrack(self.isHighlighted), lineWidth: lineWidth)
+                    Circle()
+                        .trim(from: 0, to: self.normalizedPercent / 100)
+                        .stroke(
+                            MenuHighlightStyle.progressTint(self.isHighlighted, fallback: self.tint),
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                        .rotationEffect(.degrees(-90))
+
+                    if self.isError {
+                        Image(systemName: "xmark")
+                            .font(.system(size: fontSize, weight: .bold))
+                            .foregroundStyle(MenuHighlightStyle.error(self.isHighlighted))
+                    } else if self.percent == nil {
+                        Text("—")
+                            .font(.system(size: fontSize, weight: .semibold))
+                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    } else {
+                        Text("\(Int(self.normalizedPercent.rounded()))")
+                            .font(.system(size: fontSize, weight: .semibold))
+                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                    }
+                }
+                .frame(width: diameter, height: diameter)
+                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            }
+            .aspectRatio(1, contentMode: .fit)
+        }
+    }
+
     private func makeBuyCreditsItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Buy Credits...", action: #selector(self.openCreditsPurchase), keyEquivalent: "")
+        let item = NSMenuItem(
+            title: L10n.tr("menu.action.buy_credits", fallback: "Buy Credits..."),
+            action: #selector(self.openCreditsPurchase),
+            keyEquivalent: "")
         item.target = self
         if let image = NSImage(systemSymbolName: "plus.circle", accessibilityDescription: nil) {
             image.isTemplate = true
@@ -920,7 +1164,7 @@ extension StatusItemController {
     @discardableResult
     private func addCreditsHistorySubmenu(to menu: NSMenu) -> Bool {
         guard let submenu = self.makeCreditsHistorySubmenu() else { return false }
-        let item = NSMenuItem(title: "Credits history", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L10n.tr("menu.action.credits_history", fallback: "Credits history"), action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.submenu = submenu
         menu.addItem(item)
@@ -930,7 +1174,7 @@ extension StatusItemController {
     @discardableResult
     private func addUsageBreakdownSubmenu(to menu: NSMenu) -> Bool {
         guard let submenu = self.makeUsageBreakdownSubmenu() else { return false }
-        let item = NSMenuItem(title: "Usage breakdown", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L10n.tr("menu.action.usage_breakdown", fallback: "Usage breakdown"), action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.submenu = submenu
         menu.addItem(item)
@@ -1062,7 +1306,9 @@ extension StatusItemController {
     }
 
     private func makeCostHistorySubmenu(provider: UsageProvider) -> NSMenu? {
-        guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
+        guard provider == .codex || provider == .codexproxy || provider == .claude || provider == .vertexai else {
+            return nil
+        }
         let width = Self.menuCardBaseWidth
         guard let tokenSnapshot = self.store.tokenSnapshot(for: provider) else { return nil }
         guard !tokenSnapshot.daily.isEmpty else { return nil }
@@ -1096,6 +1342,25 @@ extension StatusItemController {
         chartItem.representedObject = "costHistoryChart"
         submenu.addItem(chartItem)
         return submenu
+    }
+
+    private func makeCostHistoryInlineItem(provider: UsageProvider, width: CGFloat) -> NSMenuItem? {
+        guard Self.menuCardRenderingEnabled else { return nil }
+        guard provider == .codex || provider == .codexproxy || provider == .claude || provider == .vertexai else {
+            return nil
+        }
+        guard let tokenSnapshot = self.store.tokenSnapshot(for: provider) else { return nil }
+        guard !tokenSnapshot.daily.isEmpty else { return nil }
+
+        let chartView = CostHistoryChartMenuView(
+            provider: provider,
+            daily: tokenSnapshot.daily,
+            totalCostUSD: tokenSnapshot.last30DaysCostUSD,
+            width: width)
+        return self.makeMenuCardItem(
+            chartView,
+            id: "menuCardCostHistoryInline",
+            width: width)
     }
 
     private func isHostedSubviewMenu(_ menu: NSMenu) -> Bool {
@@ -1156,6 +1421,13 @@ extension StatusItemController {
             dashboardError = self.store.lastOpenAIDashboardError
             tokenSnapshot = self.store.tokenSnapshot(for: target)
             tokenError = self.store.tokenError(for: target)
+        } else if target == .codexproxy, snapshotOverride == nil {
+            credits = nil
+            creditsError = nil
+            dashboard = nil
+            dashboardError = nil
+            tokenSnapshot = self.store.tokenSnapshot(for: target)
+            tokenError = self.store.tokenError(for: target)
         } else if target == .claude || target == .vertexai, snapshotOverride == nil {
             credits = nil
             creditsError = nil
@@ -1175,6 +1447,7 @@ extension StatusItemController {
         let input = UsageMenuCardView.Model.Input(
             provider: target,
             metadata: metadata,
+            sourceLabel: self.store.sourceLabel(for: target),
             snapshot: snapshot,
             credits: credits,
             creditsError: creditsError,

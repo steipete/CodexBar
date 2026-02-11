@@ -54,6 +54,9 @@ public enum ProviderDescriptorRegistry {
     private static let store = Store()
     private static let descriptorsByID: [UsageProvider: ProviderDescriptor] = [
         .codex: CodexProviderDescriptor.descriptor,
+        .codexproxy: CodexProxyProviderDescriptor.descriptor,
+        .geminiproxy: GeminiProxyProviderDescriptor.descriptor,
+        .antigravityproxy: AntigravityProxyProviderDescriptor.descriptor,
         .claude: ClaudeProviderDescriptor.descriptor,
         .cursor: CursorProviderDescriptor.descriptor,
         .opencode: OpenCodeProviderDescriptor.descriptor,

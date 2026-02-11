@@ -117,7 +117,7 @@ struct MenuDescriptor {
             if let primary = snap.primary {
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.sessionLabel,
+                    title: Self.primaryWindowLabel(for: provider, fallback: meta.sessionLabel),
                     window: primary,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
@@ -125,7 +125,7 @@ struct MenuDescriptor {
             if let weekly = snap.secondary {
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.weeklyLabel,
+                    title: Self.secondaryWindowLabel(for: provider, fallback: meta.weeklyLabel),
                     window: weekly,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
@@ -163,6 +163,20 @@ struct MenuDescriptor {
             .appendUsageMenuEntries(context: usageContext, entries: &entries)
 
         return Section(entries: entries)
+    }
+
+    private static func primaryWindowLabel(for provider: UsageProvider, fallback: String) -> String {
+        if provider == .codex || provider == .codexproxy {
+            return L10n.tr("provider.codex.metadata.session_label", fallback: "Session")
+        }
+        return fallback
+    }
+
+    private static func secondaryWindowLabel(for provider: UsageProvider, fallback: String) -> String {
+        if provider == .codex || provider == .codexproxy {
+            return L10n.tr("provider.codex.metadata.weekly_label", fallback: "Weekly")
+        }
+        return fallback
     }
 
     private static func accountSection(
@@ -245,11 +259,15 @@ struct MenuDescriptor {
                 settings: store.settings,
                 account: account)
         }
+        let hideSwitchAccountAction = Self.shouldHideSwitchAccountAction(
+            provider: targetProvider,
+            store: store)
 
         // Show "Add Account" if no account, "Switch Account" if logged in
         if let targetProvider,
            let implementation = ProviderCatalog.implementation(for: targetProvider),
-           implementation.supportsLoginFlow
+           implementation.supportsLoginFlow,
+           !hideSwitchAccountAction
         {
             if let loginContext,
                let override = implementation.loginMenuAction(context: loginContext)
@@ -258,7 +276,9 @@ struct MenuDescriptor {
             } else {
                 let loginAction = self.switchAccountTarget(for: provider, store: store)
                 let hasAccount = self.hasAccount(for: provider, store: store, account: account)
-                let accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
+                let accountLabel = hasAccount
+                    ? L10n.tr("menu.action.switch_account", fallback: "Switch Account...")
+                    : L10n.tr("menu.action.add_account", fallback: "Add Account...")
                 entries.append(.action(accountLabel, loginAction))
             }
         }
@@ -274,10 +294,10 @@ struct MenuDescriptor {
         }
 
         if metadata?.dashboardURL != nil {
-            entries.append(.action("Usage Dashboard", .dashboard))
+            entries.append(.action(L10n.tr("menu.action.usage_dashboard", fallback: "Usage Dashboard"), .dashboard))
         }
         if metadata?.statusPageURL != nil || metadata?.statusLinkURL != nil {
-            entries.append(.action("Status Page", .statusPage))
+            entries.append(.action(L10n.tr("menu.action.status_page", fallback: "Status Page"), .statusPage))
         }
 
         if let statusLine = self.statusLine(for: provider, store: store) {
@@ -290,12 +310,14 @@ struct MenuDescriptor {
     private static func metaSection(updateReady: Bool) -> Section {
         var entries: [Entry] = []
         if updateReady {
-            entries.append(.action("Update ready, restart now?", .installUpdate))
+            entries.append(.action(
+                L10n.tr("menu.action.install_update", fallback: "Update ready, restart now?"),
+                .installUpdate))
         }
         entries.append(contentsOf: [
-            .action("Settings...", .settings),
-            .action("About CodexBar", .about),
-            .action("Quit", .quit),
+            .action(L10n.tr("menu.action.settings", fallback: "Settings..."), .settings),
+            .action(L10n.tr("menu.action.about", fallback: "About CodexBar"), .about),
+            .action(L10n.tr("menu.action.quit", fallback: "Quit"), .quit),
         ])
         return Section(entries: entries)
     }
@@ -313,6 +335,14 @@ struct MenuDescriptor {
             return "\(label) — \(freshness)"
         }
         return label
+    }
+
+    private static func shouldHideSwitchAccountAction(provider: UsageProvider?, store: UsageStore) -> Bool {
+        guard provider == .codexproxy else { return false }
+        let codexSettings = store.settings.codexSettingsSnapshot(tokenOverride: nil)
+        return CodexCLIProxySettings.resolve(
+            providerSettings: codexSettings,
+            environment: ProcessInfo.processInfo.environment) != nil
     }
 
     private static func switchAccountTarget(for provider: UsageProvider?, store: UsageStore) -> MenuAction {

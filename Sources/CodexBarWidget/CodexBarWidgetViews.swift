@@ -258,6 +258,9 @@ private struct ProviderSwitchChip: View {
     private var shortLabel: String {
         switch self.provider {
         case .codex: "Codex"
+        case .codexproxy: "CdxProxy"
+        case .geminiproxy: "GemProxy"
+        case .antigravityproxy: "AntiProxy"
         case .claude: "Claude"
         case .gemini: "Gemini"
         case .antigravity: "Anti"
@@ -571,6 +574,12 @@ enum WidgetColors {
         switch provider {
         case .codex:
             Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
+        case .codexproxy:
+            Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
+        case .geminiproxy:
+            Color(red: 171 / 255, green: 135 / 255, blue: 234 / 255)
+        case .antigravityproxy:
+            Color(red: 96 / 255, green: 186 / 255, blue: 126 / 255)
         case .claude:
             Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255)
         case .gemini:

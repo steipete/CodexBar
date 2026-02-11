@@ -42,6 +42,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: updatedSnap,
             credits: CreditsSnapshot(remaining: 12, events: [], updatedAt: now),
             creditsError: nil,
@@ -103,6 +104,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
@@ -153,6 +155,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
@@ -195,6 +198,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .claude,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
@@ -223,6 +227,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: nil,
             credits: nil,
             creditsError: nil,
@@ -264,6 +269,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
@@ -291,6 +297,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .claude,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: nil,
             credits: nil,
             creditsError: nil,
@@ -331,6 +338,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: snapshot,
             credits: CreditsSnapshot(remaining: 12, events: [], updatedAt: now),
             creditsError: nil,
@@ -371,6 +379,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .claude,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
@@ -410,6 +419,7 @@ struct MenuCardModelTests {
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
+            sourceLabel: nil,
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,

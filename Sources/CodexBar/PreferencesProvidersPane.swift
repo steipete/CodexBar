@@ -50,7 +50,7 @@ struct ProvidersPane: View {
                         }
                     })
             } else {
-                Text("Select a provider")
+                Text(L10n.tr("settings.providers.select_provider", fallback: "Select a provider"))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
@@ -78,7 +78,9 @@ struct ProvidersPane: View {
                         active.onConfirm()
                         self.activeConfirmation = nil
                     }
-                    Button("Cancel", role: .cancel) { self.activeConfirmation = nil }
+                    Button(L10n.tr("settings.providers.alert.cancel", fallback: "Cancel"), role: .cancel) {
+                        self.activeConfirmation = nil
+                    }
                 }
             },
             message: {
@@ -115,9 +117,9 @@ struct ProvidersPane: View {
             let relative = snapshot.updatedAt.relativeDescription()
             usageText = relative
         } else if self.store.isStale(provider: provider) {
-            usageText = "last fetch failed"
+            usageText = L10n.tr("settings.providers.subtitle.last_fetch_failed", fallback: "last fetch failed")
         } else {
-            usageText = "usage not fetched yet"
+            usageText = L10n.tr("settings.providers.subtitle.not_fetched_yet", fallback: "usage not fetched yet")
         }
 
         let presentationContext = ProviderPresentationContext(
@@ -266,24 +268,41 @@ struct ProvidersPane: View {
         if provider == .zai { return nil }
         let metadata = self.store.metadata(for: provider)
         let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
+        let primaryFormat = L10n.tr(
+            "settings.providers.menu_bar_metric.option.primary_with_label",
+            fallback: "Primary (%@)")
+        let secondaryFormat = L10n.tr(
+            "settings.providers.menu_bar_metric.option.secondary_with_label",
+            fallback: "Secondary (%@)")
         var options: [ProviderSettingsPickerOption] = [
-            ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+            ProviderSettingsPickerOption(
+                id: MenuBarMetricPreference.automatic.rawValue,
+                title: MenuBarMetricPreference.automatic.label),
             ProviderSettingsPickerOption(
                 id: MenuBarMetricPreference.primary.rawValue,
-                title: "Primary (\(metadata.sessionLabel))"),
+                title: String(format: primaryFormat, locale: .current, metadata.sessionLabel)),
             ProviderSettingsPickerOption(
                 id: MenuBarMetricPreference.secondary.rawValue,
-                title: "Secondary (\(metadata.weeklyLabel))"),
+                title: String(format: secondaryFormat, locale: .current, metadata.weeklyLabel)),
         ]
         if supportsAverage {
+            let averageFormat = L10n.tr(
+                "settings.providers.menu_bar_metric.option.average_with_labels",
+                fallback: "Average (%@ + %@)")
             options.append(ProviderSettingsPickerOption(
                 id: MenuBarMetricPreference.average.rawValue,
-                title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
+                title: String(
+                    format: averageFormat,
+                    locale: .current,
+                    metadata.sessionLabel,
+                    metadata.weeklyLabel)))
         }
         return ProviderSettingsPickerDescriptor(
             id: "menuBarMetric",
-            title: "Menu bar metric",
-            subtitle: "Choose which window drives the menu bar percent.",
+            title: L10n.tr("settings.providers.menu_bar_metric.title", fallback: "Menu bar metric"),
+            subtitle: L10n.tr(
+                "settings.providers.menu_bar_metric.subtitle",
+                fallback: "Choose which window drives the menu bar percent."),
             binding: Binding(
                 get: { self.settings.menuBarMetricPreference(for: provider).rawValue },
                 set: { rawValue in
@@ -330,6 +349,7 @@ struct ProvidersPane: View {
         let input = UsageMenuCardView.Model.Input(
             provider: provider,
             metadata: metadata,
+            sourceLabel: self.store.sourceLabel(for: provider),
             snapshot: snapshot,
             credits: credits,
             creditsError: creditsError,

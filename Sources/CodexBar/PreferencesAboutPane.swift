@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 import SwiftUI
 
 @MainActor
@@ -51,14 +52,22 @@ struct AboutPane: View {
             VStack(spacing: 2) {
                 Text("CodexBar")
                     .font(.title3).bold()
-                Text("Version \(self.versionString)")
+                Text(String(
+                    format: L10n.tr("settings.about.version", fallback: "Version %@"),
+                    locale: .current,
+                    self.versionString))
                     .foregroundStyle(.secondary)
                 if let buildTimestamp {
-                    Text("Built \(buildTimestamp)")
+                    Text(String(
+                        format: L10n.tr("settings.about.build", fallback: "Built %@"),
+                        locale: .current,
+                        buildTimestamp))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                Text("May your tokens never run out—keep agent limits in view.")
+                Text(L10n.tr(
+                    "settings.about.tagline",
+                    fallback: "May your tokens never run out—keep agent limits in view."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -66,11 +75,20 @@ struct AboutPane: View {
             VStack(alignment: .center, spacing: 10) {
                 AboutLinkRow(
                     icon: "chevron.left.slash.chevron.right",
-                    title: "GitHub",
+                    title: L10n.tr("settings.about.link.github", fallback: "GitHub"),
                     url: "https://github.com/steipete/CodexBar")
-                AboutLinkRow(icon: "globe", title: "Website", url: "https://steipete.me")
-                AboutLinkRow(icon: "bird", title: "Twitter", url: "https://twitter.com/steipete")
-                AboutLinkRow(icon: "envelope", title: "Email", url: "mailto:peter@steipete.me")
+                AboutLinkRow(
+                    icon: "globe",
+                    title: L10n.tr("settings.about.link.website", fallback: "Website"),
+                    url: "https://steipete.me")
+                AboutLinkRow(
+                    icon: "bird",
+                    title: L10n.tr("settings.about.link.twitter", fallback: "Twitter"),
+                    url: "https://twitter.com/steipete")
+                AboutLinkRow(
+                    icon: "envelope",
+                    title: L10n.tr("settings.about.link.email", fallback: "Email"),
+                    url: "mailto:peter@steipete.me")
             }
             .padding(.top, 8)
             .frame(maxWidth: .infinity)
@@ -80,12 +98,14 @@ struct AboutPane: View {
 
             if self.updater.isAvailable {
                 VStack(spacing: 10) {
-                    Toggle("Check for updates automatically", isOn: self.$autoUpdateEnabled)
+                    Toggle(
+                        L10n.tr("settings.about.updates.auto_check", fallback: "Check for updates automatically"),
+                        isOn: self.$autoUpdateEnabled)
                         .toggleStyle(.checkbox)
                         .frame(maxWidth: .infinity, alignment: .center)
                     VStack(spacing: 6) {
                         HStack(spacing: 12) {
-                            Text("Update Channel")
+                            Text(L10n.tr("settings.about.updates.channel", fallback: "Update Channel"))
                             Spacer()
                             Picker("", selection: self.updateChannelBinding) {
                                 ForEach(UpdateChannel.allCases) { channel in
@@ -102,14 +122,17 @@ struct AboutPane: View {
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: 280)
                     }
-                    Button("Check for Updates…") { self.updater.checkForUpdates(nil) }
+                    Button(L10n.tr("settings.about.updates.check_now", fallback: "Check for Updates…")) {
+                        self.updater.checkForUpdates(nil)
+                    }
                 }
             } else {
-                Text(self.updater.unavailableReason ?? "Updates unavailable in this build.")
+                Text(self.updater.unavailableReason ??
+                    L10n.tr("settings.about.updates.unavailable", fallback: "Updates unavailable in this build."))
                     .foregroundStyle(.secondary)
             }
 
-            Text("© 2025 Peter Steinberger. MIT License.")
+            Text(L10n.tr("settings.about.copyright", fallback: "© 2025 Peter Steinberger. MIT License."))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
