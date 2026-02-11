@@ -40,6 +40,7 @@ extension SettingsStore {
         _ = self.switcherShowsIcons
         _ = self.zaiAPIToken
         _ = self.syntheticAPIToken
+        _ = self.firmwareAPIToken
         _ = self.codexCookieHeader
         _ = self.claudeCookieHeader
         _ = self.cursorCookieHeader

@@ -99,6 +99,10 @@ enum CostUsageScanner {
             return CostUsageDailyReport(data: [], summary: nil)
         case .synthetic:
             return CostUsageDailyReport(data: [], summary: nil)
+        case .firmware:
+            return CostUsageDailyReport(data: [], summary: nil)
+        @unknown default:
+            return CostUsageDailyReport(data: [], summary: nil)
         }
     }
 

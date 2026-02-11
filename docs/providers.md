@@ -34,6 +34,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Web settings page via browser cookies (`web`). |
+| Firmware | API Key (Keychain/env) -> quota endpoint (`api`). |
 
 ## Codex
 - Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -140,3 +141,9 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Status: none yet.
 - Details: `docs/amp.md`.
 See also: `docs/provider.md` for architecture notes.
+
+## z.ai
+- API token from Keychain or `FIRMWARE_API_KEY` env var.
+- Quota endpoint: `https://app.firmware.ai/api/v1/quota`.
+- Status: none yet.
+- Details: `docs/firmware.md`.
