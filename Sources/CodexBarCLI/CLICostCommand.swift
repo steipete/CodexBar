@@ -87,7 +87,7 @@ extension CodexBarCLI {
 
         let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
         let monthTokens = snapshot.last30DaysTokens.map { UsageFormatter.tokenCountString($0) }
-        let monthLine = monthTokens.map { "Last 30 days: \(monthCost) · \($0) tokens" } ?? "Last 30 days: \(monthCost)"
+        let monthLine = monthTokens.map { "This month: \(monthCost) · \($0) tokens" } ?? "This month: \(monthCost)"
 
         return [header, todayLine, monthLine].joined(separator: "\n")
     }

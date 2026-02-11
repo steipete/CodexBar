@@ -56,6 +56,7 @@ extension UsageStore {
                 guard let self else { return }
                 self.observeSettingsChanges()
                 self.startTimer()
+                self.startTokenTimer()
                 self.updateProviderRuntimes()
                 await self.refresh()
             }
@@ -193,7 +194,8 @@ final class UsageStore {
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
-    @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
+    @ObservationIgnored private let tokenFetchTTLDefault: TimeInterval = 60 * 60
+    @ObservationIgnored private let tokenFetchTTLVertex: TimeInterval = 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
 
     init(
@@ -491,9 +493,20 @@ final class UsageStore {
         }
     }
 
+    private func tokenFetchTTL(for provider: UsageProvider) -> TimeInterval {
+        if let interval = self.settings.refreshFrequency.seconds { return interval }
+        if provider == .vertexai { return self.tokenFetchTTLVertex }
+        return self.tokenFetchTTLDefault
+    }
+
+    private func tokenRefreshInterval() -> TimeInterval? {
+        guard self.settings.costUsageEnabled else { return nil }
+        return self.settings.refreshFrequency.seconds
+    }
+
     private func startTokenTimer() {
         self.tokenTimerTask?.cancel()
-        let wait = self.tokenFetchTTL
+        guard let wait = self.tokenRefreshInterval() else { return }
         self.tokenTimerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(wait))
@@ -1543,7 +1556,7 @@ extension UsageStore {
         let now = Date()
         if !force,
            let last = self.lastTokenFetchAt[provider],
-           now.timeIntervalSince(last) < self.tokenFetchTTL
+           now.timeIntervalSince(last) < self.tokenFetchTTL(for: provider)
         {
             return
         }
@@ -1590,7 +1603,7 @@ extension UsageStore {
                 "cost usage success provider=\(providerText) " +
                 "duration=\(durationText)s " +
                 "today=\(sessionCost) " +
-                "30d=\(monthCost)"
+                "month=\(monthCost)"
             self.tokenCostLogger.info(message)
             self.tokenSnapshots[provider] = snapshot
             self.tokenErrors[provider] = nil

@@ -37,7 +37,7 @@ struct GeneralPane: View {
                             }
                             .toggleStyle(.checkbox)
 
-                            Text("Reads local usage logs. Shows today + last 30 days cost in the menu.")
+                            Text("Reads local usage logs. Shows today + this month cost in the menu.")
                                 .font(.footnote)
                                 .foregroundStyle(.tertiary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -140,7 +140,7 @@ struct GeneralPane: View {
         if let snapshot = self.store.tokenSnapshot(for: provider) {
             let updated = UsageFormatter.updatedString(from: snapshot.updatedAt)
             let cost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-            return Text("\(name): \(updated) · 30d \(cost)")
+            return Text("\(name): \(updated) · Month \(cost)")
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
