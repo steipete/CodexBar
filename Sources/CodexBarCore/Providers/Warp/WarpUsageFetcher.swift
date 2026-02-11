@@ -105,6 +105,7 @@ public enum WarpUsageError: LocalizedError, Sendable {
     case missingCredentials
     case networkError(String)
     case apiError(Int, String)
+    case graphQLError(String)
     case parseFailed(String)
 
     public var errorDescription: String? {
@@ -115,6 +116,8 @@ public enum WarpUsageError: LocalizedError, Sendable {
             "Warp network error: \(message)"
         case let .apiError(code, message):
             "Warp API error (\(code)): \(message)"
+        case let .graphQLError(message):
+            "Warp GraphQL error: \(message)"
         case let .parseFailed(message):
             "Failed to parse Warp response: \(message)"
         }
@@ -176,7 +179,7 @@ public struct WarpUsageFetcher: Sendable {
                 "osContext": [
                     "category": "macOS",
                     "name": "macOS",
-                    "version": "15.0",
+                    "version": ProcessInfo.processInfo.operatingSystemVersionString,
                 ] as [String: Any],
             ] as [String: Any],
         ]
@@ -202,25 +205,60 @@ public struct WarpUsageFetcher: Sendable {
         }
 
         if let jsonString = String(data: data, encoding: .utf8) {
-            Self.log.debug("Warp API response: \(jsonString)")
+            let truncated = jsonString.prefix(500)
+            Self.log.debug("Warp API response (\(data.count) bytes): \(truncated)")
         }
 
         return try Self.parseResponse(data: data)
     }
 
+    static func _parseResponseForTesting(_ data: Data) throws -> WarpUsageSnapshot {
+        try self.parseResponse(data: data)
+    }
+
     private static func parseResponse(data: Data) throws -> WarpUsageSnapshot {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dataObj = json["data"] as? [String: Any],
-              let userObj = dataObj["user"] as? [String: Any],
-              let innerUserObj = userObj["user"] as? [String: Any],
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw WarpUsageError.parseFailed("Invalid JSON response.")
+        }
+
+        // Check GraphQL errors array (loose match on [Any] to catch non-standard shapes)
+        if let errors = json["errors"] as? [Any], !errors.isEmpty {
+            let message = (errors.first as? [String: Any])?["message"] as? String
+                ?? "Unknown GraphQL error"
+            throw WarpUsageError.graphQLError(message)
+        }
+
+        guard let dataObj = json["data"] as? [String: Any],
+              let userObj = dataObj["user"] as? [String: Any]
+        else {
+            throw WarpUsageError.parseFailed("Missing data.user in response.")
+        }
+
+        guard let typename = userObj["__typename"] as? String else {
+            throw WarpUsageError.parseFailed("Missing __typename in user response.")
+        }
+        guard typename == "UserOutput" else {
+            throw WarpUsageError.parseFailed("Unexpected __typename: \(typename)")
+        }
+
+        guard let innerUserObj = userObj["user"] as? [String: Any],
               let limitInfo = innerUserObj["requestLimitInfo"] as? [String: Any]
         else {
             throw WarpUsageError.parseFailed("Unable to extract requestLimitInfo from response.")
         }
 
-        let isUnlimited = limitInfo["isUnlimited"] as? Bool ?? false
-        let requestLimit = limitInfo["requestLimit"] as? Int ?? 0
-        let requestsUsed = limitInfo["requestsUsedSinceLastRefresh"] as? Int ?? 0
+        // isUnlimited: null or missing defaults to false (conservative safe fallback)
+        let isUnlimited: Bool
+        switch Self.boolValue(limitInfo["isUnlimited"]) {
+        case .some(let value):
+            isUnlimited = value
+        case .none:
+            Self.log.warning("isUnlimited is null or unexpected type, defaulting to false")
+            isUnlimited = false
+        }
+
+        let requestLimit = Self.intValue(limitInfo["requestLimit"])
+        let requestsUsed = Self.intValue(limitInfo["requestsUsedSinceLastRefresh"])
 
         var nextRefreshTime: Date?
         if let nextRefreshTimeString = limitInfo["nextRefreshTime"] as? String {
@@ -320,6 +358,13 @@ public struct WarpUsageFetcher: Sendable {
         if let num = value as? NSNumber { return num.intValue }
         if let text = value as? String, let int = Int(text) { return int }
         return 0
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool? {
+        if value is NSNull { return nil }
+        if let bool = value as? Bool { return bool }
+        if let num = value as? NSNumber { return num.boolValue }
+        return nil
     }
 
     private static func parseDate(_ dateString: String) -> Date? {

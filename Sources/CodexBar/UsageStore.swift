@@ -1231,9 +1231,19 @@ extension UsageStore {
                 return text
             case .warp:
                 let resolution = ProviderTokenResolver.warpResolution()
-                let hasAny = resolution != nil
+                let hasEnv = resolution != nil
                 let source = resolution?.source.rawValue ?? "none"
-                let text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                let hasSettings = await MainActor.run { !self.settings.warpAPIToken.isEmpty }
+                let effectiveSource: String
+                if hasEnv {
+                    effectiveSource = source
+                } else if hasSettings {
+                    effectiveSource = "settings"
+                } else {
+                    effectiveSource = "none"
+                }
+                let hasAny = hasEnv || hasSettings
+                let text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(effectiveSource)"
                 await MainActor.run { self.probeLogs[.warp] = text }
                 return text
             }
