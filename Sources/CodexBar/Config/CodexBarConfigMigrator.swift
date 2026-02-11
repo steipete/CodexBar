@@ -16,6 +16,7 @@ struct CodexBarConfigMigrator {
         let kimiK2TokenStore: any KimiK2TokenStoring
         let augmentCookieStore: any CookieHeaderStoring
         let ampCookieStore: any CookieHeaderStoring
+        let traeCookieStore: any CookieHeaderStoring
         let copilotTokenStore: any CopilotTokenStoring
         let tokenAccountStore: any ProviderTokenAccountStoring
     }
@@ -99,6 +100,7 @@ struct CodexBarConfigMigrator {
                 (.factory, stores.factoryCookieStore.loadCookieHeader),
                 (.augment, stores.augmentCookieStore.loadCookieHeader),
                 (.amp, stores.ampCookieStore.loadCookieHeader),
+                (.trae, stores.traeCookieStore.loadCookieHeader),
             ],
             config: &config,
             state: &state)
@@ -123,6 +125,7 @@ struct CodexBarConfigMigrator {
             (.kimi, "kimiCookieSource"),
             (.augment, "augmentCookieSource"),
             (.amp, "ampCookieSource"),
+            (.trae, "traeCookieSource"),
         ]
 
         for (provider, key) in sources {
@@ -294,6 +297,7 @@ struct CodexBarConfigMigrator {
             try stores.minimaxCookieStore.storeCookieHeader(nil)
             try stores.augmentCookieStore.storeCookieHeader(nil)
             try stores.ampCookieStore.storeCookieHeader(nil)
+            try stores.traeCookieStore.storeCookieHeader(nil)
         } catch {
             log.error("Failed to clear legacy secrets: \(error)")
         }

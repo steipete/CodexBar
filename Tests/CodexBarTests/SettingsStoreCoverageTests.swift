@@ -124,6 +124,7 @@ struct SettingsStoreCoverageTests {
         settings.ensureKimiK2APITokenLoaded()
         settings.ensureAugmentCookieLoaded()
         settings.ensureAmpCookieLoaded()
+        settings.ensureTraeCookieLoaded()
         settings.ensureCopilotAPITokenLoaded()
         settings.ensureTokenAccountsLoaded()
 
@@ -177,6 +178,7 @@ struct SettingsStoreCoverageTests {
             kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
+            traeCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
             tokenAccountStore: InMemoryTokenAccountStore())
     }

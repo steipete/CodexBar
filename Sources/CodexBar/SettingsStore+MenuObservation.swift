@@ -36,6 +36,7 @@ extension SettingsStore {
         _ = self.kimiCookieSource
         _ = self.augmentCookieSource
         _ = self.ampCookieSource
+        _ = self.traeCookieSource
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
         _ = self.zaiAPIToken
@@ -52,6 +53,7 @@ extension SettingsStore {
         _ = self.kimiK2APIToken
         _ = self.augmentCookieHeader
         _ = self.ampCookieHeader
+        _ = self.traeCookieHeader
         _ = self.copilotAPIToken
         _ = self.tokenAccountsByProvider
         _ = self.debugLoadingPattern
