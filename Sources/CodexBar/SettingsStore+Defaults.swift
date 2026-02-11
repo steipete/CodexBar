@@ -231,6 +231,14 @@ extension SettingsStore {
         }
     }
 
+    var qwenCodeDailyRequestLimit: String {
+        get { self.defaultsState.qwenCodeDailyRequestLimit }
+        set {
+            self.defaultsState.qwenCodeDailyRequestLimit = newValue
+            self.userDefaults.set(newValue, forKey: "qwenCodeDailyRequestLimit")
+        }
+    }
+
     var mergeIcons: Bool {
         get { self.defaultsState.mergeIcons }
         set {

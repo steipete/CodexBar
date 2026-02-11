@@ -24,6 +24,7 @@ enum ProviderImplementationRegistry {
         case .minimax: MiniMaxProviderImplementation()
         case .kimi: KimiProviderImplementation()
         case .kiro: KiroProviderImplementation()
+        case .qwencode: QwenCodeProviderImplementation()
         case .vertexai: VertexAIProviderImplementation()
         case .augment: AugmentProviderImplementation()
         case .jetbrains: JetBrainsProviderImplementation()

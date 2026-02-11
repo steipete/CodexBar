@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Vertex AI, Augment, Amp, JetBrains AI)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Qwen Code, Vertex AI, Augment, Amp, JetBrains AI)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -31,6 +31,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Copilot | API token (device flow/env) → copilot_internal API (`api`). |
 | Kimi K2 | API key (Keychain/env) → credit endpoint (`api`). |
 | Kiro | CLI command via `kiro-cli chat --no-interactive "/usage"` (`cli`). |
+| Qwen Code | Local JSONL chat logs (`local`). |
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Web settings page via browser cookies (`web`). |
@@ -120,6 +121,13 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Requires `kiro-cli` installed and logged in via AWS Builder ID.
 - Status: AWS Health Dashboard (manual link, no auto-polling).
 - Details: `docs/kiro.md`.
+
+## Qwen Code
+- Local JSONL logs under `~/.qwen/projects/<project-id>/chats/*.jsonl`.
+- Counts assistant records with `usageMetadata` in the local-day window.
+- Daily request limit defaults to 2,000; override in Settings → Providers → Qwen Code.
+- Status: none yet.
+- Details: `docs/qwencode.md`.
 
 ## Vertex AI
 - OAuth credentials from `gcloud auth application-default login` (ADC).

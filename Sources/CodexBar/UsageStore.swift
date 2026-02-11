@@ -1215,6 +1215,10 @@ extension UsageStore {
                 let text = "Kiro debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.kiro] = text }
                 return text
+            case .qwencode:
+                let text = "Qwen Code debug log not yet implemented"
+                await MainActor.run { self.probeLogs[.qwencode] = text }
+                return text
             case .augment:
                 let text = await self.debugAugmentLog()
                 await MainActor.run { self.probeLogs[.augment] = text }
