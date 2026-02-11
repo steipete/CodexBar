@@ -24,6 +24,7 @@ extension UsageStore {
         _ = self.openAIDashboardRequiresLogin
         _ = self.openAIDashboardCookieImportStatus
         _ = self.openAIDashboardCookieImportDebugLog
+        _ = self.codeBuddyDailyUsage
         _ = self.versions
         _ = self.isRefreshing
         _ = self.refreshingProviders
@@ -154,6 +155,7 @@ final class UsageStore {
     var openAIDashboardRequiresLogin: Bool = false
     var openAIDashboardCookieImportStatus: String?
     var openAIDashboardCookieImportDebugLog: String?
+    var codeBuddyDailyUsage: [CodeBuddyDailyUsageEntry]?
     var versions: [UsageProvider: String] = [:]
     var isRefreshing = false
     var refreshingProviders: Set<UsageProvider> = []
@@ -1237,6 +1239,13 @@ extension UsageStore {
                 let text = "JetBrains AI debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.jetbrains] = text }
                 return text
+            case .codebuddy:
+                let text = await self.debugCodeBuddyLog(
+                    codebuddyCookieSource: self.settings.codebuddyCookieSource,
+                    codebuddyCookieHeader: self.settings.codebuddyManualCookieHeader,
+                    codebuddyEnterpriseID: self.settings.codebuddyEnterpriseID)
+                await MainActor.run { self.probeLogs[.codebuddy] = text }
+                return text
             }
         }.value
     }
@@ -1415,6 +1424,108 @@ extension UsageStore {
                 ? CookieHeaderNormalizer.normalize(ampCookieHeader)
                 : nil
             return await fetcher.debugRawProbe(cookieHeaderOverride: manualHeader)
+        }
+    }
+
+    private func debugCodeBuddyLog(
+        codebuddyCookieSource: ProviderCookieSource,
+        codebuddyCookieHeader: String,
+        codebuddyEnterpriseID: String) async -> String
+    {
+        await self.runWithTimeout(seconds: 15) {
+            var lines: [String] = []
+
+            lines.append("CodeBuddy Debug Log")
+            lines.append("===================")
+            lines.append("")
+            lines.append("Settings:")
+            lines.append("  cookieSource=\(codebuddyCookieSource.rawValue)")
+            lines.append("  enterpriseID=\(codebuddyEnterpriseID.isEmpty ? "<empty>" : codebuddyEnterpriseID)")
+            lines.append("  manualCookieHeader=\(codebuddyCookieHeader.isEmpty ? "<empty>" : "<\(codebuddyCookieHeader.count) chars>")")
+
+            // Check for manual cookie override
+            if codebuddyCookieSource == .manual {
+                if let normalized = CookieHeaderNormalizer.normalize(codebuddyCookieHeader) {
+                    lines.append("")
+                    lines.append("Manual cookie header (normalized):")
+                    lines.append("  length=\(normalized.count)")
+                    let hasSession = normalized.contains("session=")
+                    lines.append("  has_session_cookie=\(hasSession)")
+                } else {
+                    lines.append("")
+                    lines.append("Manual cookie header: invalid/empty")
+                }
+            }
+
+            // Check browser cookies
+            lines.append("")
+            lines.append("Browser Cookie Check:")
+            do {
+                let sessions = try CodeBuddyCookieImporter.importSessions(
+                    browserDetection: self.browserDetection,
+                    logger: { msg in lines.append("  \(msg)") })
+                lines.append("  Found \(sessions.count) session(s)")
+                for (index, session) in sessions.enumerated() {
+                    lines.append("  [\(index)] \(session.sourceLabel): hasSession=\(session.hasValidSession)")
+                }
+            } catch {
+                lines.append("  Cookie import error: \(error.localizedDescription)")
+            }
+
+            // Try to make API call if we have credentials
+            let cookieHeader: String?
+            if codebuddyCookieSource == .manual, !codebuddyCookieHeader.isEmpty {
+                cookieHeader = CookieHeaderNormalizer.normalize(codebuddyCookieHeader)
+            } else {
+                cookieHeader = try? CodeBuddyCookieImporter.importSession(
+                    browserDetection: self.browserDetection).cookieHeader
+            }
+
+            if let cookieHeader, !codebuddyEnterpriseID.isEmpty {
+                lines.append("")
+                lines.append("API Test:")
+                do {
+                    let snapshot = try await CodeBuddyUsageFetcher.fetchUsage(
+                        cookieHeader: cookieHeader,
+                        enterpriseID: codebuddyEnterpriseID)
+                    lines.append("  SUCCESS")
+                    lines.append("  creditUsed=\(snapshot.creditUsed)")
+                    lines.append("  creditLimit=\(snapshot.creditLimit)")
+                    lines.append("  cycleStartTime=\(snapshot.cycleStartTime)")
+                    lines.append("  cycleEndTime=\(snapshot.cycleEndTime)")
+                    lines.append("  cycleResetTime=\(snapshot.cycleResetTime)")
+                } catch {
+                    lines.append("  FAILED: \(error.localizedDescription)")
+                }
+            } else {
+                lines.append("")
+                lines.append("API Test: skipped (missing cookies or enterpriseID)")
+                if cookieHeader == nil {
+                    lines.append("  reason: no cookie header available")
+                }
+                if codebuddyEnterpriseID.isEmpty {
+                    lines.append("  reason: enterpriseID not set")
+                }
+            }
+
+            // Fetch attempts
+            lines.append("")
+            lines.append("Last Fetch Attempts:")
+            let attempts = await MainActor.run { self.lastFetchAttempts[.codebuddy] ?? [] }
+            if attempts.isEmpty {
+                lines.append("  <none>")
+            } else {
+                for attempt in attempts {
+                    var line = "  \(attempt.strategyID)"
+                    line += attempt.wasAvailable ? " (available)" : " (unavailable)"
+                    if let err = attempt.errorDescription {
+                        line += " error=\(err)"
+                    }
+                    lines.append(line)
+                }
+            }
+
+            return lines.joined(separator: "\n")
         }
     }
 
