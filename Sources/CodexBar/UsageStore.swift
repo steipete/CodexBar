@@ -1237,6 +1237,13 @@ extension UsageStore {
                 let text = "JetBrains AI debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.jetbrains] = text }
                 return text
+            case .openrouter:
+                let resolution = ProviderTokenResolver.openRouterResolution()
+                let hasAny = resolution != nil
+                let source = resolution?.source.rawValue ?? "none"
+                let text = "OPENROUTER_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                await MainActor.run { self.probeLogs[.openrouter] = text }
+                return text
             }
         }.value
     }
