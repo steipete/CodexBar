@@ -72,6 +72,25 @@ public enum CodexBarConfigValidator {
                 message: "apiKey is set but \(provider.rawValue) does not support api source."))
         }
 
+        if provider == .cliproxyapi {
+            if entry.managementURL?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                issues.append(CodexBarConfigIssue(
+                    severity: .warning,
+                    provider: provider,
+                    field: "managementURL",
+                    code: "management_url_missing",
+                    message: "managementURL is missing for cliproxyapi."))
+            }
+            if entry.managementKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                issues.append(CodexBarConfigIssue(
+                    severity: .warning,
+                    provider: provider,
+                    field: "managementKey",
+                    code: "management_key_missing",
+                    message: "managementKey is missing for cliproxyapi."))
+            }
+        }
+
         if let source = entry.source, source == .api, !supportsAPI {
             issues.append(CodexBarConfigIssue(
                 severity: .error,
@@ -81,7 +100,7 @@ public enum CodexBarConfigValidator {
                 message: "Source api is not supported for \(provider.rawValue)."))
         }
 
-        if let source = entry.source, source == .api,
+        if let source = entry.source, source == .api, provider != .cliproxyapi,
            entry.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
         {
             issues.append(CodexBarConfigIssue(

@@ -6,8 +6,17 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]
     {
-        guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
+        if provider == .cliproxyapi {
+            if let managementKey = config?.sanitizedManagementKey {
+                env[CLIProxyAPISettingsReader.managementKeyKey] = managementKey
+            }
+            if let managementURL = config?.sanitizedManagementURL {
+                env[CLIProxyAPISettingsReader.managementURLKey] = managementURL
+            }
+            return env
+        }
+        guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         switch provider {
         case .zai:
             env[ZaiSettingsReader.apiTokenKey] = apiKey

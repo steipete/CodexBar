@@ -8,6 +8,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case cursor
     case opencode
     case factory
+    case cliproxyapi
     case gemini
     case antigravity
     case copilot
@@ -30,6 +31,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case claude
     case zai
     case minimax
+    case cliproxyapi
     case gemini
     case antigravity
     case cursor

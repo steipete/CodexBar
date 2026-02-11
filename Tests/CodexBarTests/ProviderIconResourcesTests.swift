@@ -17,6 +17,7 @@ struct ProviderIconResourcesTests {
             "minimax",
             "cursor",
             "opencode",
+            "cliproxyapi",
             "gemini",
             "antigravity",
             "factory",

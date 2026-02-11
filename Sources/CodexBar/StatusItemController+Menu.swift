@@ -278,6 +278,12 @@ extension StatusItemController {
 
     private func addMenuCards(to menu: NSMenu, context: MenuCardContext) -> Bool {
         if let tokenAccountDisplay = context.tokenAccountDisplay, tokenAccountDisplay.showAll {
+            if context.currentProvider == .cliproxyapi {
+                return self.addCLIProxyAPICards(
+                    to: menu,
+                    context: context,
+                    snapshots: tokenAccountDisplay.snapshots)
+            }
             let accountSnapshots = tokenAccountDisplay.snapshots
             let cards = accountSnapshots.isEmpty
                 ? []
@@ -334,6 +340,140 @@ extension StatusItemController {
         }
         menu.addItem(.separator())
         return false
+    }
+
+    private struct CLIProxyAPIAccountSelection: Sendable {
+        let providerKey: String
+        let accountToken: String
+    }
+
+    private func addCLIProxyAPICards(
+        to menu: NSMenu,
+        context: MenuCardContext,
+        snapshots: [TokenAccountUsageSnapshot]) -> Bool
+    {
+        let grouped = self.groupCLIProxyAPISnapshots(snapshots)
+        if grouped.isEmpty {
+            if let model = self.menuCardModel(for: context.selectedProvider) {
+                menu.addItem(self.makeMenuCardItem(
+                    UsageMenuCardView(model: model, width: context.menuWidth),
+                    id: "menuCard",
+                    width: context.menuWidth))
+                menu.addItem(.separator())
+            }
+            return false
+        }
+
+        for (index, group) in grouped.enumerated() {
+            if let model = self.menuCardModel(
+                for: context.currentProvider,
+                snapshotOverride: group.selected.snapshot,
+                errorOverride: group.selected.error,
+                allowFallbackSnapshot: false)
+            {
+                menu.addItem(self.makeMenuCardItem(
+                    UsageMenuCardView(model: model, width: context.menuWidth),
+                    id: "menuCard-cliproxyapi-\(group.key)-\(index)",
+                    width: context.menuWidth))
+            }
+
+            if group.accounts.count > 1 {
+                let submenu = NSMenu()
+                for account in group.accounts {
+                    let item = NSMenuItem(title: account.account.displayName, action: #selector(self.selectCLIProxyAPIAccount(_:)), keyEquivalent: "")
+                    item.target = self
+                    item.state = account.account.token == group.selected.account.token ? .on : .off
+                    item.representedObject = CLIProxyAPIAccountSelection(
+                        providerKey: group.key,
+                        accountToken: account.account.token)
+                    submenu.addItem(item)
+                }
+                let submenuItem = NSMenuItem(title: "Accounts", action: nil, keyEquivalent: "")
+                submenuItem.submenu = submenu
+                menu.addItem(submenuItem)
+            }
+
+            if index < grouped.count - 1 {
+                menu.addItem(.separator())
+            }
+        }
+        if !grouped.isEmpty {
+            menu.addItem(.separator())
+        }
+        return false
+    }
+
+    private struct CLIProxyAPIAccountGroup {
+        let key: String
+        let selected: TokenAccountUsageSnapshot
+        let accounts: [TokenAccountUsageSnapshot]
+    }
+
+    private func groupCLIProxyAPISnapshots(_ snapshots: [TokenAccountUsageSnapshot]) -> [CLIProxyAPIAccountGroup] {
+        var grouped: [String: [TokenAccountUsageSnapshot]] = [:]
+        for snapshot in snapshots {
+            let rawKey = snapshot.snapshot?.accountOrganization(for: .cliproxyapi)
+                ?? self.providerKeyFromAccountLabel(snapshot.account.label)
+                ?? "cliproxyapi"
+            let normalized = self.normalizedCLIProxyAPIProviderKey(rawKey) ?? "cliproxyapi"
+            grouped[normalized, default: []].append(snapshot)
+        }
+
+        let preferredOrder = ["codex", "antigravity", "gemini-cli", "gemini", "claude"]
+        let sortedKeys = grouped.keys.sorted { lhs, rhs in
+            let leftIndex = preferredOrder.firstIndex(of: lhs) ?? preferredOrder.count
+            let rightIndex = preferredOrder.firstIndex(of: rhs) ?? preferredOrder.count
+            if leftIndex == rightIndex { return lhs < rhs }
+            return leftIndex < rightIndex
+        }
+
+        return sortedKeys.compactMap { key in
+            guard let accounts = grouped[key], let selected = self.selectCLIProxyAPIAccount(key: key, accounts: accounts)
+            else { return nil }
+            let sortedAccounts = accounts.sorted { $0.account.displayName < $1.account.displayName }
+            return CLIProxyAPIAccountGroup(key: key, selected: selected, accounts: sortedAccounts)
+        }
+    }
+
+    private func selectCLIProxyAPIAccount(
+        key: String,
+        accounts: [TokenAccountUsageSnapshot]) -> TokenAccountUsageSnapshot?
+    {
+        if let selectedToken = self.cliproxyapiAccountSelections[key.lowercased()],
+           let match = accounts.first(where: { $0.account.token == selectedToken })
+        {
+            return match
+        }
+        return accounts.first
+    }
+
+    private func providerKeyFromAccountLabel(_ label: String) -> String? {
+        let parts = label.split(separator: "•", maxSplits: 1, omittingEmptySubsequences: true)
+        guard let first = parts.first else { return nil }
+        let cleaned = first.trimmingCharacters(in: .whitespacesAndNewlines)
+        return self.normalizedCLIProxyAPIProviderKey(cleaned)
+    }
+
+    private func normalizedCLIProxyAPIProviderKey(_ raw: String) -> String? {
+        let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !cleaned.isEmpty else { return nil }
+        if cleaned.contains("antigravity") { return "antigravity" }
+        if cleaned.contains("gemini-cli") || cleaned.contains("gemini cli") { return "gemini-cli" }
+        if cleaned.contains("gemini") { return "gemini" }
+        if cleaned.contains("codex") { return "codex" }
+        if cleaned.contains("claude") { return "claude" }
+        return cleaned
+    }
+
+    @objc private func selectCLIProxyAPIAccount(_ sender: NSMenuItem) {
+        guard let selection = sender.representedObject as? CLIProxyAPIAccountSelection else { return }
+        let normalized = self.normalizedCLIProxyAPIProviderKey(selection.providerKey) ?? selection.providerKey
+        self.cliproxyapiAccountSelections[normalized.lowercased()] = selection.accountToken
+        guard let menu = sender.menu?.supermenu else { return }
+        let provider = self.menuProvider(for: menu)
+        self.populateMenu(menu, provider: provider)
+        self.markMenuFresh(menu)
+        self.applyIcon(phase: nil)
     }
 
     private func addOpenAIWebItemsIfNeeded(
@@ -1137,12 +1277,15 @@ extension StatusItemController {
     private func menuCardModel(
         for provider: UsageProvider?,
         snapshotOverride: UsageSnapshot? = nil,
-        errorOverride: String? = nil) -> UsageMenuCardView.Model?
+        errorOverride: String? = nil,
+        allowFallbackSnapshot: Bool = true) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProviders().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
-        let snapshot = snapshotOverride ?? self.store.snapshot(for: target)
+        let snapshot = allowFallbackSnapshot
+            ? (snapshotOverride ?? self.store.snapshot(for: target))
+            : snapshotOverride
         let credits: CreditsSnapshot?
         let creditsError: String?
         let dashboard: OpenAIDashboardSnapshot?
