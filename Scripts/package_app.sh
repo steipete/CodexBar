@@ -348,21 +348,15 @@ if [[ ! -f "$APP/Contents/Resources/Icon-classic.icns" ]]; then
   exit 1
 fi
 
-# SwiftPM resource bundles (e.g. KeyboardShortcuts) are emitted next to the built binary.
+# Copy KeyboardShortcuts resource bundle (required for keyboard shortcut settings).
 CODEXBAR_BINARY="$(resolve_binary_path "CodexBar" "${ARCH_LIST[0]}")"
 PREFERRED_BUILD_DIR="$(dirname "${CODEXBAR_BINARY:-$(build_product_path "CodexBar" "${ARCH_LIST[0]}")}")"
-shopt -s nullglob
-SWIFTPM_BUNDLES=("${PREFERRED_BUILD_DIR}/"*.bundle)
-shopt -u nullglob
-if [[ ${#SWIFTPM_BUNDLES[@]} -gt 0 ]]; then
-  for bundle in "${SWIFTPM_BUNDLES[@]}"; do
-    bundle_name="$(basename "$bundle")"
-    cp -R "$bundle" "$APP/Contents/Resources/"
-  done
-fi
-if [[ ! -d "$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle" ]]; then
+KEYBOARD_SHORTCUTS_BUNDLE="${PREFERRED_BUILD_DIR}/KeyboardShortcuts_KeyboardShortcuts.bundle"
+if [[ -d "$KEYBOARD_SHORTCUTS_BUNDLE" ]]; then
+  cp -R "$KEYBOARD_SHORTCUTS_BUNDLE" "$APP/Contents/Resources/"
+else
   echo "ERROR: Missing KeyboardShortcuts SwiftPM resource bundle (Settings → Keyboard shortcut will crash)." >&2
-  echo "Expected: ${PREFERRED_BUILD_DIR}/KeyboardShortcuts_KeyboardShortcuts.bundle" >&2
+  echo "Expected: ${KEYBOARD_SHORTCUTS_BUNDLE}" >&2
   exit 1
 fi
 
