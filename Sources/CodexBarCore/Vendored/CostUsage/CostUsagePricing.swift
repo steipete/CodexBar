@@ -33,11 +33,27 @@ enum CostUsagePricing {
             inputCostPerToken: 1.25e-6,
             outputCostPerToken: 1e-5,
             cacheReadInputCostPerToken: 1.25e-7),
+        "gpt-5.1-codex": CodexPricing(
+            inputCostPerToken: 1.25e-6,
+            outputCostPerToken: 1e-5,
+            cacheReadInputCostPerToken: 1.25e-7),
+        "gpt-5.1-codex-max": CodexPricing(
+            inputCostPerToken: 2.5e-7,
+            outputCostPerToken: 2e-6,
+            cacheReadInputCostPerToken: 2.5e-8),
+        "gpt-5.1-codex-mini": CodexPricing(
+            inputCostPerToken: 1.25e-6,
+            outputCostPerToken: 1e-5,
+            cacheReadInputCostPerToken: 1.25e-7),
         "gpt-5.2": CodexPricing(
             inputCostPerToken: 1.75e-6,
             outputCostPerToken: 1.4e-5,
             cacheReadInputCostPerToken: 1.75e-7),
         "gpt-5.2-codex": CodexPricing(
+            inputCostPerToken: 1.75e-6,
+            outputCostPerToken: 1.4e-5,
+            cacheReadInputCostPerToken: 1.75e-7),
+        "gpt-5.3-codex": CodexPricing(
             inputCostPerToken: 1.75e-6,
             outputCostPerToken: 1.4e-5,
             cacheReadInputCostPerToken: 1.75e-7),
