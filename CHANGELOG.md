@@ -1,12 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.18.0-beta.3 — 2026-02-13
 ### Highlights
 - Claude OAuth/keychain flows were reworked across a series of follow-up PRs to reduce prompt storms, stabilize background behavior, surface a setting to control prompt policy and make failure modes deterministic (#245, #305, #308, #309, #364). Thanks @manikv12!
 - Claude: harden Claude Code PTY capture for `/usage` and `/status` (prompt automation, safer command palette confirmation, partial UTF-8 handling, and parsing guards against status-bar context meters) (#320).
 - New provider: Warp (credits + add-on credits) (#352). Thanks @Kathie-yu!
-- Provider correctness fixes landed for Cursor plan parsing and MiniMax region routing (#240, #234, #344). Thanks @robinebers
-  and @theglove44!
+- Provider correctness fixes landed for Cursor plan parsing and MiniMax region routing (#240, #234, #344). Thanks @robinebers and @theglove44!
 - Menu bar animation behavior was hardened in merged mode and fallback mode (#283, #291). Thanks @vignesh07 and @Ilakiancs!
 - CI/tooling reliability improved via pinned lint tools, deterministic macOS test execution, and PTY timing test stabilization plus Node 24-ready GitHub Actions upgrades (#292, #312, #290).
 
@@ -21,13 +20,10 @@
 - Warp: add Warp provider support (credits + add-on credits), configurable via Settings or `WARP_API_KEY`/`WARP_TOKEN` (#352). Thanks @Kathie-yu!
 - Cursor: compute usage against `plan.limit` rather than `breakdown.total` to avoid incorrect limit interpretation (#240). Thanks @robinebers!
 - MiniMax: correct API region URL selection to route requests to the expected regional endpoint (#234). Thanks @theglove44!
-- MiniMax: always show the API region picker and retry the China endpoint when the global host rejects the token to
-  avoid upgrade regressions for users without a persisted region (#344). Thanks @apoorvdarshan!
+- MiniMax: always show the API region picker and retry the China endpoint when the global host rejects the token to avoid upgrade regressions for users without a persisted region (#344). Thanks @apoorvdarshan!
 - Claude: add Opus 4.6 pricing so token cost scanning tracks USD consumed correctly (#348). Thanks @arandaschimpf!
-- z.ai: handle quota responses with missing token-limit fields, avoid incorrect used-percent calculations, and harden
-  empty-response behavior with safer logging (#346). Thanks @MohamedMohana and @halilertekin!
-- z.ai: fix provider visibility in the menu when enabled with token-account credentials (availability now considers the
-  effective fetch environment).
+- z.ai: handle quota responses with missing token-limit fields, avoid incorrect used-percent calculations, and harden empty-response behavior with safer logging (#346). Thanks @MohamedMohana and @halilertekin!
+- z.ai: fix provider visibility in the menu when enabled with token-account credentials (availability now considers the effective fetch environment).
 - Amp: detect login redirects during usage fetch and fail fast when the session is invalid (#339). Thanks @JosephDoUrden!
 - Resource loading: fix app bundle lookup path to avoid "could not load resource bundle" startup failures (#223). Thanks @validatedev!
 - OpenAI Web dashboard: keep WebView instances cached for reuse to reduce repeated network fetch overhead; tests were updated to avoid network-dependent flakes (#284). Thanks @vignesh07!
