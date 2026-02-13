@@ -305,6 +305,8 @@ struct ProvidersPane: View {
         } catch let error as AntigravityOAuthCredentialsError {
             log.debug("Import failed with AntigravityOAuthCredentialsError: \(error)")
             switch error {
+            case .permissionDenied:
+                self.presentFullDiskAccessAlert()
             case .notFound:
                 if AntigravityLocalImporter.isAvailable() {
                     self.presentAlert(
@@ -330,7 +332,7 @@ struct ProvidersPane: View {
         } catch {
             log.debug("Import failed with error: \(error)")
             let nsError = error as NSError
-            if nsError.domain == NSPOSIXErrorDomain, nsError.code == 1 {
+            if nsError.domain == NSPOSIXErrorDomain, (nsError.code == 1 || nsError.code == 13) {
                 self.presentFullDiskAccessAlert()
             } else {
                 self.presentAlert(

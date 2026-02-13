@@ -118,6 +118,8 @@ public struct AntigravityAuthorizedFetchStrategy: ProviderFetchStrategy {
             switch oauthError {
             case .invalidGrant, .notFound:
                 return true
+            case .permissionDenied:
+                return false
             default:
                 return false
             }

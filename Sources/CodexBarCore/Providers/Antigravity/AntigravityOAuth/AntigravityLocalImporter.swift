@@ -51,7 +51,16 @@ public enum AntigravityLocalImporter {
         var accessToken: String?
         var expiresAt: Date?
 
-        if let protoInfo = try? self.readProtoTokenInfo(dbPath: dbPath) {
+        let protoInfo: ProtoTokenInfo?
+        do {
+            protoInfo = try self.readProtoTokenInfo(dbPath: dbPath)
+        } catch AntigravityOAuthCredentialsError.permissionDenied {
+            throw AntigravityOAuthCredentialsError.permissionDenied
+        } catch {
+            protoInfo = nil
+        }
+
+        if let protoInfo {
             refreshToken = protoInfo.refreshToken
             accessToken = protoInfo.accessToken
             if let expiry = protoInfo.expirySeconds {
@@ -64,7 +73,16 @@ public enum AntigravityLocalImporter {
                 """)
         }
 
-        if let authStatus = try? self.readAuthStatus(dbPath: dbPath) {
+        let authStatus: AuthStatus?
+        do {
+            authStatus = try self.readAuthStatus(dbPath: dbPath)
+        } catch AntigravityOAuthCredentialsError.permissionDenied {
+            throw AntigravityOAuthCredentialsError.permissionDenied
+        } catch {
+            authStatus = nil
+        }
+
+        if let authStatus {
             Self.log.debug(
                 """
                 Read auth status - email: \(authStatus.email ?? "none"), \
@@ -150,7 +168,12 @@ public enum AntigravityLocalImporter {
         var db: OpaquePointer?
         let openStatus = sqlite3_open_v2(dbPath.path, &db, SQLITE_OPEN_READONLY, nil)
         guard openStatus == SQLITE_OK, let db else {
-            throw AntigravityOAuthCredentialsError.decodeFailed("Failed to open state.vscdb: \(openStatus)")
+            let sysErrno = db.map { sqlite3_system_errno($0) } ?? 0
+            if let db { sqlite3_close(db) }
+            if openStatus == SQLITE_CANTOPEN, (sysErrno == EPERM || sysErrno == EACCES) {
+                throw AntigravityOAuthCredentialsError.permissionDenied
+            }
+            throw AntigravityOAuthCredentialsError.decodeFailed("Failed to open state.vscdb: \(openStatus), errno: \(sysErrno)")
         }
         defer { sqlite3_close(db) }
 

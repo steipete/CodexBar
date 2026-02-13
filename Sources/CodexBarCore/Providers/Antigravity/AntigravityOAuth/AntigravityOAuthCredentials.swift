@@ -67,6 +67,7 @@ public enum AntigravityOAuthConfig {
 
 public enum AntigravityOAuthCredentialsError: LocalizedError, Sendable {
     case notFound
+    case permissionDenied
     case decodeFailed(String)
     case missingAccessToken
     case refreshFailed(String)
@@ -78,6 +79,8 @@ public enum AntigravityOAuthCredentialsError: LocalizedError, Sendable {
         switch self {
         case .notFound:
             "Antigravity credentials not found. Sign in with Google to add an OAuth account."
+        case .permissionDenied:
+            "Full Disk Access is required to read the Antigravity database."
         case let .decodeFailed(message):
             "Failed to decode Antigravity credentials: \(message)"
         case .missingAccessToken:
