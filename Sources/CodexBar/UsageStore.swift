@@ -280,7 +280,13 @@ final class UsageStore {
             metadata: self.providerMetadata,
             codexFetcher: fetcher,
             claudeFetcher: self.claudeFetcher,
-            browserDetection: browserDetection)
+            browserDetection: browserDetection,
+            onAntigravityCredentialsRefreshed: { [weak self] accountLabel, credentials in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.saveRefreshedAntigravityCredentials(accountLabel: accountLabel, credentials: credentials)
+                }
+            })
         self.providerRuntimes = Dictionary(uniqueKeysWithValues: ProviderCatalog.all.compactMap { implementation in
             implementation.makeRuntime().map { (implementation.id, $0) }
         })

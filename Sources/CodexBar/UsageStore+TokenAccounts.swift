@@ -214,7 +214,7 @@ extension UsageStore {
     }
 
     @MainActor
-    private func saveRefreshedAntigravityCredentials(accountLabel: String, credentials: AntigravityOAuthCredentials) {
+    func saveRefreshedAntigravityCredentials(accountLabel: String, credentials: AntigravityOAuthCredentials) {
         guard let normalizedLabel = AntigravityOAuthCredentialsStore.normalizedLabel(accountLabel) else { return }
 
         let tokenAccounts = self.settings.tokenAccountsData(for: .antigravity)
