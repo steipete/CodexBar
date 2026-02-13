@@ -351,7 +351,11 @@ fi
 # Copy KeyboardShortcuts resource bundle (required for keyboard shortcut settings).
 CODEXBAR_BINARY="$(resolve_binary_path "CodexBar" "${ARCH_LIST[0]}")"
 PREFERRED_BUILD_DIR="$(dirname "${CODEXBAR_BINARY:-$(build_product_path "CodexBar" "${ARCH_LIST[0]}")}")"
+CODEXBAR_RESOURCE_BUNDLE="${PREFERRED_BUILD_DIR}/CodexBar_CodexBar.bundle"
 KEYBOARD_SHORTCUTS_BUNDLE="${PREFERRED_BUILD_DIR}/KeyboardShortcuts_KeyboardShortcuts.bundle"
+if [[ -d "$CODEXBAR_RESOURCE_BUNDLE" ]]; then
+  cp -R "$CODEXBAR_RESOURCE_BUNDLE" "$APP/Contents/Resources/"
+fi
 if [[ -d "$KEYBOARD_SHORTCUTS_BUNDLE" ]]; then
   cp -R "$KEYBOARD_SHORTCUTS_BUNDLE" "$APP/Contents/Resources/"
 else

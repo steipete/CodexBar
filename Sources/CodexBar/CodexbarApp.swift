@@ -301,7 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private static func classicIconURL() -> URL? {
-        Bundle.main.url(forResource: "Icon-classic", withExtension: "icns")
+        AppResourceLocator.url(forResource: "Icon-classic", withExtension: "icns")
     }
 
     private func ensureStatusController() {
