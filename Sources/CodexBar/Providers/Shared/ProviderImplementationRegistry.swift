@@ -31,6 +31,7 @@ enum ProviderImplementationRegistry {
         case .kimik2: KimiK2ProviderImplementation()
         case .amp: AmpProviderImplementation()
         case .synthetic: SyntheticProviderImplementation()
+        case .warp: WarpProviderImplementation()
         }
     }
 

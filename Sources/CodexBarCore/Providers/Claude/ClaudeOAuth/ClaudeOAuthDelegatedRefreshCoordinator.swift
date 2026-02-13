@@ -85,7 +85,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         // Otherwise we end up in a long cooldown with still-expired credentials.
         let changed = await self.waitForClaudeKeychainChange(
             from: fingerprintBefore,
-            timeout: min(max(timeout, 3), 12))
+            timeout: min(max(timeout, 1), 2))
         if changed {
             self.recordAttempt(now: now, cooldown: self.defaultCooldownInterval)
             self.log.info("Claude OAuth delegated refresh touch succeeded")
@@ -149,26 +149,38 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         from fingerprintBefore: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?,
         timeout: TimeInterval) async -> Bool
     {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        // Prefer correctness but bound the delay. Keychain writes can be slightly delayed after the CLI touch.
+        // Keep this short to avoid "prompt storms" on configurations where "no UI" queries can still surface UI.
+        let clampedTimeout = max(0, min(timeout, 2))
+        if clampedTimeout == 0 { return false }
+
+        let delays: [TimeInterval] = [0.2, 0.5, 0.8].filter { $0 <= clampedTimeout }
+        let deadline = Date().addingTimeInterval(clampedTimeout)
+
+        func isObservedChange(_ current: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?) -> Bool {
+            // Treat "no fingerprint" as "not observed"; we only succeed if we can read a fingerprint and it differs.
+            guard let current else { return false }
+            return current != fingerprintBefore
+        }
+
+        if isObservedChange(self.currentClaudeKeychainFingerprintForObservation()) {
+            return true
+        }
+
+        for delay in delays {
+            if Date() >= deadline { break }
             do {
                 try Task.checkCancellation()
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             } catch {
                 return false
             }
 
-            let current = self.currentClaudeKeychainFingerprint()
-            if current != fingerprintBefore {
+            if isObservedChange(self.currentClaudeKeychainFingerprintForObservation()) {
                 return true
             }
-            do {
-                try await Task.sleep(nanoseconds: 250_000_000)
-            } catch is CancellationError {
-                return false
-            } catch {
-                // Ignore other errors and keep polling until the deadline.
-            }
         }
+
         return false
     }
 
@@ -179,6 +191,25 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         }
         #endif
         return ClaudeOAuthCredentialsStore.currentClaudeKeychainFingerprintWithoutPromptForAuthGate()
+    }
+
+    private static func currentClaudeKeychainFingerprintForObservation() -> ClaudeOAuthCredentialsStore
+        .ClaudeKeychainFingerprint?
+    {
+        #if DEBUG
+        if let override = self.keychainFingerprintOverride {
+            return override()
+        }
+        #endif
+
+        // Observation should not be blocked by the background cooldown gate; otherwise we can "false fail" even when
+        // the CLI refreshed successfully but we couldn't observe it due to a previous denied prompt/cooldown.
+        //
+        // This temporarily classifies the observation query as "user initiated" so it bypasses the gate that only
+        // applies to background probes. The query remains "no UI" and does not clear cooldown state itself.
+        return ProviderInteractionContext.$current.withValue(.userInitiated) {
+            ClaudeOAuthCredentialsStore.currentClaudeKeychainFingerprintWithoutPromptForAuthGate()
+        }
     }
 
     private static func clearInFlightTaskIfStillCurrent(id: UInt64) {

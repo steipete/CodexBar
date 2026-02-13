@@ -71,10 +71,120 @@ struct ZaiUsageSnapshotTests {
         #expect(usage.secondary?.resetDescription == "30 days window")
         #expect(usage.zaiUsage?.tokenLimit?.usage == 100)
     }
+
+    @Test
+    func mapsUsageSnapshotWindowsWithMissingFields() {
+        let reset = Date(timeIntervalSince1970: 123)
+        let tokenLimit = ZaiLimitEntry(
+            type: .tokensLimit,
+            unit: .hours,
+            number: 5,
+            usage: nil,
+            currentValue: nil,
+            remaining: nil,
+            percentage: 25,
+            usageDetails: [],
+            nextResetTime: reset)
+        let snapshot = ZaiUsageSnapshot(
+            tokenLimit: tokenLimit,
+            timeLimit: nil,
+            planName: nil,
+            updatedAt: reset)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.primary?.windowMinutes == 300)
+        #expect(usage.primary?.resetsAt == reset)
+        #expect(usage.primary?.resetDescription == "5 hours window")
+        #expect(usage.zaiUsage?.tokenLimit?.usage == nil)
+    }
+
+    @Test
+    func mapsUsageSnapshotWindowsWithMissingRemainingUsesCurrentValue() {
+        let reset = Date(timeIntervalSince1970: 123)
+        let tokenLimit = ZaiLimitEntry(
+            type: .tokensLimit,
+            unit: .hours,
+            number: 5,
+            usage: 100,
+            currentValue: 20,
+            remaining: nil,
+            percentage: 25,
+            usageDetails: [],
+            nextResetTime: reset)
+        let snapshot = ZaiUsageSnapshot(
+            tokenLimit: tokenLimit,
+            timeLimit: nil,
+            planName: nil,
+            updatedAt: reset)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 20)
+    }
+
+    @Test
+    func mapsUsageSnapshotWindowsWithMissingCurrentValueUsesRemaining() {
+        let reset = Date(timeIntervalSince1970: 123)
+        let tokenLimit = ZaiLimitEntry(
+            type: .tokensLimit,
+            unit: .hours,
+            number: 5,
+            usage: 100,
+            currentValue: nil,
+            remaining: 80,
+            percentage: 25,
+            usageDetails: [],
+            nextResetTime: reset)
+        let snapshot = ZaiUsageSnapshot(
+            tokenLimit: tokenLimit,
+            timeLimit: nil,
+            planName: nil,
+            updatedAt: reset)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 20)
+    }
+
+    @Test
+    func mapsUsageSnapshotWindowsWithMissingRemainingAndCurrentValueFallsBackToPercentage() {
+        let reset = Date(timeIntervalSince1970: 123)
+        let tokenLimit = ZaiLimitEntry(
+            type: .tokensLimit,
+            unit: .hours,
+            number: 5,
+            usage: 100,
+            currentValue: nil,
+            remaining: nil,
+            percentage: 25,
+            usageDetails: [],
+            nextResetTime: reset)
+        let snapshot = ZaiUsageSnapshot(
+            tokenLimit: tokenLimit,
+            timeLimit: nil,
+            planName: nil,
+            updatedAt: reset)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 25)
+    }
 }
 
 @Suite
 struct ZaiUsageParsingTests {
+    @Test
+    func emptyBodyReturnsParseFailed() {
+        #expect {
+            _ = try ZaiUsageFetcher.parseUsageSnapshot(from: Data())
+        } throws: { error in
+            guard case let ZaiUsageError.parseFailed(message) = error else { return false }
+            return message == "Empty response body"
+        }
+    }
+
     @Test
     func parsesUsageResponse() throws {
         let json = """
@@ -117,6 +227,7 @@ struct ZaiUsageParsingTests {
         #expect(snapshot.planName == "Pro")
         #expect(snapshot.tokenLimit?.usage == 40_000_000)
         #expect(snapshot.timeLimit?.usageDetails.first?.modelCode == "search-prime")
+        #expect(snapshot.tokenLimit?.percentage == 34.0)
     }
 
     @Test
@@ -163,6 +274,52 @@ struct ZaiUsageParsingTests {
         #expect(snapshot.planName == "Pro")
         #expect(snapshot.tokenLimit == nil)
         #expect(snapshot.timeLimit == nil)
+    }
+
+    @Test
+    func parsesNewSchemaWithMissingTokenLimitFields() throws {
+        let json = """
+        {
+          "code": 200,
+          "msg": "Operation successful",
+          "data": {
+            "limits": [
+              {
+                "type": "TIME_LIMIT",
+                "unit": 5,
+                "number": 1,
+                "usage": 100,
+                "currentValue": 0,
+                "remaining": 100,
+                "percentage": 0,
+                "usageDetails": [
+                  { "modelCode": "search-prime", "usage": 0 },
+                  { "modelCode": "web-reader", "usage": 1 },
+                  { "modelCode": "zread", "usage": 0 }
+                ]
+              },
+              {
+                "type": "TOKENS_LIMIT",
+                "unit": 3,
+                "number": 5,
+                "percentage": 1,
+                "nextResetTime": 1770724088678
+              }
+            ]
+          },
+          "success": true
+        }
+        """
+
+        let snapshot = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+
+        #expect(snapshot.tokenLimit?.percentage == 1.0)
+        #expect(snapshot.tokenLimit?.usage == nil)
+        #expect(snapshot.tokenLimit?.currentValue == nil)
+        #expect(snapshot.tokenLimit?.remaining == nil)
+        #expect(snapshot.tokenLimit?.usedPercent == 1.0)
+        #expect(snapshot.tokenLimit?.windowMinutes == 300)
+        #expect(snapshot.timeLimit?.usage == 100)
     }
 }
 

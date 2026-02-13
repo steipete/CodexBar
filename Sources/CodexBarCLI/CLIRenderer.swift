@@ -21,7 +21,14 @@ enum CLIRenderer {
 
         if let primary = snapshot.primary {
             lines.append(self.rateLine(title: meta.sessionLabel, window: primary, useColor: context.useColor))
-            if let reset = self.resetLine(for: primary, style: context.resetStyle, now: now) {
+            if provider == .warp {
+                if let reset = self.resetLineForWarp(window: primary, style: context.resetStyle, now: now) {
+                    lines.append(self.subtleLine(reset, useColor: context.useColor))
+                }
+                if let detail = self.detailLineForWarp(window: primary) {
+                    lines.append(self.subtleLine(detail, useColor: context.useColor))
+                }
+            } else if let reset = self.resetLine(for: primary, style: context.resetStyle, now: now) {
                 lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
         } else if let cost = snapshot.providerCost {
@@ -36,7 +43,14 @@ enum CLIRenderer {
             if let pace = self.paceLine(provider: provider, window: weekly, useColor: context.useColor, now: now) {
                 lines.append(pace)
             }
-            if let reset = self.resetLine(for: weekly, style: context.resetStyle, now: now) {
+            if provider == .warp {
+                if let reset = self.resetLineForWarp(window: weekly, style: context.resetStyle, now: now) {
+                    lines.append(self.subtleLine(reset, useColor: context.useColor))
+                }
+                if let detail = self.detailLineForWarp(window: weekly) {
+                    lines.append(self.subtleLine(detail, useColor: context.useColor))
+                }
+            } else if let reset = self.resetLine(for: weekly, style: context.resetStyle, now: now) {
                 lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
         }
@@ -82,6 +96,23 @@ enum CLIRenderer {
 
     private static func resetLine(for window: RateWindow, style: ResetTimeDisplayStyle, now: Date) -> String? {
         UsageFormatter.resetLine(for: window, style: style, now: now)
+    }
+
+    private static func resetLineForWarp(window: RateWindow, style: ResetTimeDisplayStyle, now: Date) -> String? {
+        // Warp uses resetDescription for non-reset detail. Only render "Resets ..." when a concrete reset date exists.
+        guard window.resetsAt != nil else { return nil }
+        let resetOnlyWindow = RateWindow(
+            usedPercent: window.usedPercent,
+            windowMinutes: window.windowMinutes,
+            resetsAt: window.resetsAt,
+            resetDescription: nil)
+        return UsageFormatter.resetLine(for: resetOnlyWindow, style: style, now: now)
+    }
+
+    private static func detailLineForWarp(window: RateWindow) -> String? {
+        guard let desc = window.resetDescription else { return nil }
+        let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func headerLine(_ header: String, useColor: Bool) -> String {

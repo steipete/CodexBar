@@ -26,6 +26,10 @@ read_when:
 
 ## Preferences notes
 - Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.
+- Providers → Claude: “Keychain prompt policy” controls Claude OAuth prompt behavior (Never / Only on user action /
+  Always allow prompts).
+- When “Disable Keychain access” is enabled in Advanced, the Claude keychain prompt policy remains visible but is
+  inactive.
 
 ## Widgets (high level)
 - Widget entries mirror the menu card; detailed pipeline in `docs/widgets.md`.

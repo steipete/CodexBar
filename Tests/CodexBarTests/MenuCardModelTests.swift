@@ -432,4 +432,49 @@ struct MenuCardModelTests {
         #expect(model.creditsHintCopyText?.isEmpty == true)
         #expect(model.creditsHintText?.contains("codex@example.com") == false)
     }
+
+    @Test
+    func warpModelShowsPrimaryDetailWhenResetDateMissing() throws {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .warp,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: nil)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "10/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+        let metadata = try #require(ProviderDefaults.metadata[.warp])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .warp,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.resetText == nil)
+        #expect(primary.detailText == "10/100 credits")
+    }
 }

@@ -76,6 +76,114 @@ struct StatusMenuTests {
     }
 
     @Test
+    func mergedMenuOpenDoesNotPersistResolvedProviderWhenSelectionIsNil() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = nil
+
+        let registry = ProviderRegistry.shared
+        var enabledProviders: [UsageProvider] = []
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            let shouldEnable = enabledProviders.count < 2
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
+            if shouldEnable {
+                enabledProviders.append(provider)
+            }
+        }
+        #expect(enabledProviders.count == 2)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let expectedResolved = store.enabledProviders().first ?? .codex
+        #expect(store.enabledProviders().count > 1)
+        #expect(controller.shouldMergeIcons == true)
+        let menu = controller.makeMenu()
+        #expect(settings.selectedMenuProvider == nil)
+        controller.menuWillOpen(menu)
+        #expect(settings.selectedMenuProvider == nil)
+        #expect(controller.lastMenuProvider == expectedResolved)
+    }
+
+    @Test
+    func mergedMenuRefreshUsesResolvedEnabledProviderWhenPersistedSelectionIsDisabled() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: false)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+        if let geminiMeta = registry.metadata[.gemini] {
+            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let event = CreditEvent(date: Date(), service: "CLI", creditsUsed: 1)
+        let breakdown = OpenAIDashboardSnapshot.makeDailyBreakdown(from: [event], maxDays: 30)
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: 100,
+            creditEvents: [event],
+            dailyBreakdown: breakdown,
+            usageBreakdown: breakdown,
+            creditsPurchaseURL: nil,
+            updatedAt: Date())
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let expectedResolved = store.enabledProviders().first ?? .codex
+        #expect(store.enabledProviders().count > 1)
+        #expect(controller.shouldMergeIcons == true)
+
+        func hasOpenAIWebSubmenus(_ menu: NSMenu) -> Bool {
+            let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
+            let creditsItem = menu.items.first { ($0.representedObject as? String) == "menuCardCredits" }
+            let hasUsageBreakdown = usageItem?.submenu?.items
+                .contains { ($0.representedObject as? String) == "usageBreakdownChart" } == true
+            let hasCreditsHistory = creditsItem?.submenu?.items
+                .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true
+            return hasUsageBreakdown || hasCreditsHistory
+        }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+
+        #expect(controller.lastMenuProvider == expectedResolved)
+        #expect(settings.selectedMenuProvider == .codex)
+        #expect(hasOpenAIWebSubmenus(menu) == false)
+
+        controller.menuContentVersion &+= 1
+        controller.refreshOpenMenusIfNeeded()
+
+        #expect(hasOpenAIWebSubmenus(menu) == false)
+    }
+
+    @Test
     func providerToggleUpdatesStatusItemVisibility() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()

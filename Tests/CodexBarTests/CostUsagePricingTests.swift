@@ -37,6 +37,17 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func claudeCostSupportsOpus46DatedVariant() {
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-opus-4-6-20260205",
+            inputTokens: 10,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 5)
+        #expect(cost != nil)
+    }
+
+    @Test
     func claudeCostReturnsNilForUnknownModels() {
         let cost = CostUsagePricing.claudeCostUSD(
             model: "glm-4.6",

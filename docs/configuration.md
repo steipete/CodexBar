@@ -43,7 +43,7 @@ All provider fields are optional unless noted.
 - `enabled`: enable/disable provider (defaults to provider default).
 - `source`: preferred source mode.
   - `auto|web|cli|oauth|api`
-  - `auto` uses web where possible, with CLI fallback.
+  - `auto` uses provider-specific fallback order (see `docs/providers.md`).
   - `api` uses provider API key flow (when supported).
 - `apiKey`: raw API token for providers that support direct API usage.
 - `cookieSource`: cookie selection policy.

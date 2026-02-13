@@ -52,9 +52,9 @@ extension StatusItemController {
 
         var provider: UsageProvider?
         if self.shouldMergeIcons {
-            self.selectedMenuProvider = self.resolvedMenuProvider()
-            self.lastMenuProvider = self.selectedMenuProvider ?? .codex
-            provider = self.selectedMenuProvider
+            let resolvedProvider = self.resolvedMenuProvider()
+            self.lastMenuProvider = resolvedProvider ?? .codex
+            provider = resolvedProvider
         } else {
             if let menuProvider = self.menuProviders[ObjectIdentifier(menu)] {
                 self.lastMenuProvider = menuProvider
@@ -462,7 +462,9 @@ extension StatusItemController {
                 guard let self, let menu else { return }
                 self.settings.setActiveTokenAccountIndex(index, for: display.provider)
                 Task { @MainActor in
-                    await self.store.refresh()
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refresh()
+                    }
                 }
                 self.populateMenu(menu, provider: display.provider)
                 self.markMenuFresh(menu)
@@ -537,7 +539,7 @@ extension StatusItemController {
 
     private func menuProvider(for menu: NSMenu) -> UsageProvider? {
         if self.shouldMergeIcons {
-            return self.selectedMenuProvider ?? self.resolvedMenuProvider()
+            return self.resolvedMenuProvider()
         }
         if let provider = self.menuProviders[ObjectIdentifier(menu)] {
             return provider
@@ -549,7 +551,7 @@ extension StatusItemController {
     }
 
     private func scheduleOpenMenuRefresh(for menu: NSMenu) {
-        // Kick off a background refresh on open (non-forced) and re-check after a delay.
+        // Kick off a user-initiated refresh on open (non-forced) and re-check after a delay.
         // NEVER block menu opening with network requests.
         if !self.store.isRefreshing {
             self.refreshStore(forceTokenUsage: false)
@@ -749,7 +751,24 @@ extension StatusItemController {
         let snapshot = self.store.snapshot(for: provider)
         let showUsed = self.settings.usageBarsShowUsed
         let primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
-        let weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        if showUsed,
+           provider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining <= 0
+        {
+            // Preserve Warp "no bonus/exhausted bonus" layout even in show-used mode.
+            weekly = 0
+        }
+        if showUsed,
+           provider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining > 0,
+           weekly == 0
+        {
+            // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
+            weekly = 0.0001
+        }
         let credits = provider == .codex ? self.store.credits?.remaining : nil
         let stale = self.store.isStale(provider: provider)
         let style = self.store.style(for: provider)
