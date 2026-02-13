@@ -30,6 +30,7 @@ struct PreferencesPaneSmokeTests {
         settings.hidePersonalInfo = true
         settings.resetTimesShowAbsolute = true
         settings.debugDisableKeychainAccess = true
+        settings.claudeOAuthKeychainPromptMode = .always
         settings.refreshFrequency = .manual
 
         let store = Self.makeUsageStore(settings: settings)

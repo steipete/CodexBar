@@ -17,6 +17,8 @@
 - Claude OAuth-only mode stays strict: OAuth failures do not silently fall back to Web/CLI.
 - Keychain prompting is hardened (cooldowns after explicit denial/cancel/no-access + pre-alert only when interaction is likely) to reduce repeated prompts during refresh.
 - CodexBar syncs its cached OAuth token when the Claude Code Keychain entry changes, so updated auth is picked up without requiring a restart.
+- Preferences now expose Claude’s Keychain prompt policy (Never / Only on user action / Always allow prompts) in
+  Providers → Claude; when global Keychain access is disabled in Advanced, the policy remains visible but inactive.
 
 ### Provider & Usage Fixes
 - Warp: add Warp provider support (credits + add-on credits), configurable via Settings or `WARP_API_KEY`/`WARP_TOKEN` (#352). Thanks @Kathie-yu!

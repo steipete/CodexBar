@@ -149,6 +149,41 @@ struct SettingsStoreCoverageTests {
         #expect(settings.kimiCookieSource == .off)
     }
 
+    @Test
+    func claudeKeychainPromptMode_defaultsToOnlyOnUserAction() {
+        let settings = Self.makeSettingsStore()
+        #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
+    }
+
+    @Test
+    func claudeKeychainPromptMode_persistsAcrossStoreReload() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-prompt-mode"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        first.claudeOAuthKeychainPromptMode = .never
+        #expect(
+            defaults.string(forKey: "claudeOAuthKeychainPromptMode")
+                == ClaudeOAuthKeychainPromptMode.never.rawValue)
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.claudeOAuthKeychainPromptMode == .never)
+    }
+
+    @Test
+    func claudeKeychainPromptMode_invalidRawFallsBackToOnlyOnUserAction() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-prompt-mode-invalid"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("invalid-mode", forKey: "claudeOAuthKeychainPromptMode")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
+    }
+
     private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
