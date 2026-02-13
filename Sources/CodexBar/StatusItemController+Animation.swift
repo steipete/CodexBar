@@ -195,6 +195,23 @@ extension StatusItemController {
         // user setting we pass either "percent left" or "percent used".
         var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
         var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        if showUsed,
+           primaryProvider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining <= 0
+        {
+            // Preserve Warp "no bonus/exhausted bonus" layout even in show-used mode.
+            weekly = 0
+        }
+        if showUsed,
+           primaryProvider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining > 0,
+           weekly == 0
+        {
+            // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
+            weekly = Self.loadingPercentEpsilon
+        }
         var credits: Double? = primaryProvider == .codex ? self.store.credits?.remaining : nil
         var stale = self.store.isStale(provider: primaryProvider)
         var morphProgress: Double?
@@ -279,6 +296,23 @@ extension StatusItemController {
         }
         var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
         var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        if showUsed,
+           provider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining <= 0
+        {
+            // Preserve Warp "no bonus/exhausted bonus" layout even in show-used mode.
+            weekly = 0
+        }
+        if showUsed,
+           provider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining > 0,
+           weekly == 0
+        {
+            // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
+            weekly = Self.loadingPercentEpsilon
+        }
         var credits: Double? = provider == .codex ? self.store.credits?.remaining : nil
         var stale = self.store.isStale(provider: provider)
         var morphProgress: Double?
@@ -304,7 +338,14 @@ extension StatusItemController {
         }
 
         let style: IconStyle = self.store.style(for: provider)
-        let blink = self.blinkAmount(for: provider)
+        let isLoading = phase != nil && self.shouldAnimate(provider: provider)
+        let blink: CGFloat = {
+            guard isLoading, style == .warp, let phase else {
+                return self.blinkAmount(for: provider)
+            }
+            let normalized = (sin(phase * 3) + 1) / 2
+            return CGFloat(max(0, min(normalized, 1)))
+        }()
         let wiggle = self.wiggleAmount(for: provider)
         let tilt = self.tiltAmount(for: provider) * .pi / 28 // limit to ~6.4°
         if let morphProgress {
@@ -421,6 +462,9 @@ extension StatusItemController {
 
         let isStale = self.store.isStale(provider: provider)
         let hasData = self.store.snapshot(for: provider) != nil
+        if provider == .warp, !hasData, self.store.refreshingProviders.contains(provider) {
+            return true
+        }
         return !hasData && !isStale
     }
 

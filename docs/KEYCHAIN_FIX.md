@@ -50,8 +50,8 @@ Load order for credentials:
 Prompt mitigation:
 - Non-interactive keychain probes use `KeychainNoUIQuery` (`LAContext.interactionNotAllowed` + `kSecUseAuthenticationUIFail`).
 - Pre-alert is shown only when preflight suggests interaction may be required.
-- Denials are cooled down for 6 hours via `claudeOAuthKeychainDeniedUntil`
-  (`ClaudeOAuthKeychainAccessGate`).
+- Denials are cooled down in the background via `claudeOAuthKeychainDeniedUntil`
+  (`ClaudeOAuthKeychainAccessGate`). User actions (menu open / manual refresh) clear this cooldown.
 - Auto-mode availability checks use non-interactive loads with prompt cooldown respected.
 - Background cache-sync-on-change also performs non-interactive Claude keychain probes (`syncWithClaudeKeychainIfChanged`)
   and can update cached OAuth data when the token changes.

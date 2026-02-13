@@ -1,6 +1,7 @@
 import AppKit
 import CodexBarCore
 
+// swiftlint:disable:next type_body_length
 enum IconRenderer {
     private static let creditsCap: Double = 1000
     private static let baseSize = NSSize(width: 18, height: 18)
@@ -140,16 +141,22 @@ enum IconRenderer {
                     addGeminiTwist: Bool = false,
                     addAntigravityTwist: Bool = false,
                     addFactoryTwist: Bool = false,
-                    blink: CGFloat = 0)
+                    addWarpTwist: Bool = false,
+                    blink: CGFloat = 0,
+                    drawTrackFill: Bool = true,
+                    warpEyesFilled: Bool = false)
                 {
                     let rect = rectPx.rect()
                     // Claude reads better as a blockier critter; Codex stays as a capsule.
-                    let cornerRadiusPx = addNotches ? 0 : rectPx.h / 2
+                    // Warp uses small corner radius for rounded rectangle (matching logo style)
+                    let cornerRadiusPx = addNotches ? 0 : (addWarpTwist ? 3 : rectPx.h / 2)
                     let radius = Self.grid.pt(cornerRadiusPx)
 
                     let trackPath = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-                    baseFill.withAlphaComponent(trackFillAlpha * alpha).setFill()
-                    trackPath.fill()
+                    if drawTrackFill {
+                        baseFill.withAlphaComponent(trackFillAlpha * alpha).setFill()
+                        trackPath.fill()
+                    }
 
                     // Crisp outline: stroke an inset path so the stroke stays within pixel bounds.
                     let strokeWidthPx = 2 // 1 pt == 2 px at 2×
@@ -574,22 +581,82 @@ enum IconRenderer {
                             drawBlinkAsterisk(cx: rdCx, cy: yCy)
                         }
                     }
+
+                    // Warp twist: "Warp" style face with tilted-eye cutouts.
+                    if addWarpTwist {
+                        let ctx = NSGraphicsContext.current?.cgContext
+                        let centerXPx = rectPx.midXPx
+                        let eyeCenterYPx = rectPx.y + rectPx.h / 2
+
+                        ctx?.saveGState()
+                        ctx?.setShouldAntialias(true) // Smooth edges for tilted ellipse eyes
+
+                        // 1. Draw Eyes (Tilted ellipse cutouts - "fox eye" / "cat eye" style)
+                        // Keep sizes in integer pixels so grid conversion stays exact.
+                        let eyeWidthPx = 5
+                        let eyeHeightPx = 8
+                        let eyeOffsetPx = 7
+                        let eyeTiltAngle: CGFloat = .pi / 3 // 60 degrees tilt
+
+                        let leftEyeCx = Self.grid.pt(centerXPx) - Self.grid.pt(eyeOffsetPx)
+                        let rightEyeCx = Self.grid.pt(centerXPx) + Self.grid.pt(eyeOffsetPx)
+                        let eyeCy = Self.grid.pt(eyeCenterYPx)
+                        let eyeW = Self.grid.pt(eyeWidthPx)
+                        let eyeH = Self.grid.pt(eyeHeightPx)
+
+                        /// Draw a tilted ellipse eye at the given center.
+                        func drawTiltedEyeCutout(cx: CGFloat, cy: CGFloat, tiltAngle: CGFloat) {
+                            guard let ctx else { return }
+                            let eyeRect = CGRect(x: -eyeW / 2, y: -eyeH / 2, width: eyeW, height: eyeH)
+
+                            // Use CGContext transforms instead of AffineTransform-on-path so the rotation origin
+                            // is unambiguous and the current blend mode is consistently respected.
+                            ctx.saveGState()
+                            ctx.translateBy(x: cx, y: cy)
+                            ctx.rotate(by: tiltAngle)
+                            ctx.addEllipse(in: eyeRect)
+                            ctx.fillPath()
+                            ctx.restoreGState()
+                        }
+
+                        if warpEyesFilled {
+                            fillColor.withAlphaComponent(alpha).setFill()
+                            drawTiltedEyeCutout(cx: leftEyeCx, cy: eyeCy, tiltAngle: eyeTiltAngle)
+                            drawTiltedEyeCutout(cx: rightEyeCx, cy: eyeCy, tiltAngle: -eyeTiltAngle)
+                        } else {
+                            // Clear eyes using blend mode
+                            ctx?.setBlendMode(.clear)
+                            drawTiltedEyeCutout(cx: leftEyeCx, cy: eyeCy, tiltAngle: eyeTiltAngle)
+                            drawTiltedEyeCutout(cx: rightEyeCx, cy: eyeCy, tiltAngle: -eyeTiltAngle)
+                            ctx?.setBlendMode(.normal)
+                        }
+                        ctx?.restoreGState() // Restore graphics state
+                    }
                 }
 
+                let effectiveWeeklyRemaining: Double? = {
+                    if style == .warp, let weeklyRemaining, weeklyRemaining <= 0 {
+                        return nil
+                    }
+                    return weeklyRemaining
+                }()
                 let topValue = primaryRemaining
-                let bottomValue = weeklyRemaining
+                let bottomValue = effectiveWeeklyRemaining
                 let creditsRatio = creditsRemaining.map { min($0 / Self.creditsCap * 100, 100) }
 
-                let hasWeekly = (weeklyRemaining != nil)
-                let weeklyAvailable = hasWeekly && (weeklyRemaining ?? 0) > 0
+                let hasWeekly = (bottomValue != nil)
+                let weeklyAvailable = hasWeekly && (bottomValue ?? 0) > 0
                 let creditsAlpha: CGFloat = 1.0
                 let topRectPx = RectPx(x: barXPx, y: 19, w: barWidthPx, h: 12)
                 let bottomRectPx = RectPx(x: barXPx, y: 5, w: barWidthPx, h: 8)
                 let creditsRectPx = RectPx(x: barXPx, y: 14, w: barWidthPx, h: 16)
                 let creditsBottomRectPx = RectPx(x: barXPx, y: 4, w: barWidthPx, h: 6)
 
+                // Warp special case: when no bonus or bonus exhausted, show "top monthly, bottom dimmed"
+                let warpNoBonus = style == .warp && !weeklyAvailable
+
                 if weeklyAvailable {
-                    // Normal: top=5h, bottom=weekly, no credits.
+                    // Normal: top=primary, bottom=secondary (bonus/weekly).
                     drawBar(
                         rectPx: topRectPx,
                         remaining: topValue,
@@ -598,35 +665,48 @@ enum IconRenderer {
                         addGeminiTwist: style == .gemini || style == .antigravity,
                         addAntigravityTwist: style == .antigravity,
                         addFactoryTwist: style == .factory,
+                        addWarpTwist: style == .warp,
                         blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
-                } else if !hasWeekly {
-                    // Weekly missing (e.g. Claude enterprise): keep normal layout but
-                    // dim the bottom track to indicate N/A.
-                    if topValue == nil, let ratio = creditsRatio {
-                        // Credits-only: show credits prominently (e.g. credits loaded before usage).
-                        drawBar(
-                            rectPx: creditsRectPx,
-                            remaining: ratio,
-                            alpha: creditsAlpha,
-                            addNotches: style == .claude,
-                            addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
-                            addFactoryTwist: style == .factory,
-                            blink: blink)
-                        drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
-                    } else {
+                } else if !hasWeekly || warpNoBonus {
+                    if style == .warp {
+                        // Warp: no bonus or bonus exhausted -> top=monthly credits, bottom=dimmed track
                         drawBar(
                             rectPx: topRectPx,
                             remaining: topValue,
-                            addNotches: style == .claude,
-                            addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
-                            addFactoryTwist: style == .factory,
+                            addWarpTwist: true,
                             blink: blink)
                         drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
+                    } else {
+                        // Weekly missing (e.g. Claude enterprise): keep normal layout but
+                        // dim the bottom track to indicate N/A.
+                        if topValue == nil, let ratio = creditsRatio {
+                            // Credits-only: show credits prominently (e.g. credits loaded before usage).
+                            drawBar(
+                                rectPx: creditsRectPx,
+                                remaining: ratio,
+                                alpha: creditsAlpha,
+                                addNotches: style == .claude,
+                                addFace: style == .codex,
+                                addGeminiTwist: style == .gemini || style == .antigravity,
+                                addAntigravityTwist: style == .antigravity,
+                                addFactoryTwist: style == .factory,
+                                addWarpTwist: style == .warp,
+                                blink: blink)
+                            drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
+                        } else {
+                            drawBar(
+                                rectPx: topRectPx,
+                                remaining: topValue,
+                                addNotches: style == .claude,
+                                addFace: style == .codex,
+                                addGeminiTwist: style == .gemini || style == .antigravity,
+                                addAntigravityTwist: style == .antigravity,
+                                addFactoryTwist: style == .factory,
+                                addWarpTwist: style == .warp,
+                                blink: blink)
+                            drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
+                        }
                     }
                 } else {
                     // Weekly exhausted/missing: show credits on top (thicker), weekly (likely 0) on bottom.
@@ -640,6 +720,7 @@ enum IconRenderer {
                             addGeminiTwist: style == .gemini || style == .antigravity,
                             addAntigravityTwist: style == .antigravity,
                             addFactoryTwist: style == .factory,
+                            addWarpTwist: style == .warp,
                             blink: blink)
                     } else {
                         // No credits available; fall back to 5h if present.
@@ -651,6 +732,7 @@ enum IconRenderer {
                             addGeminiTwist: style == .gemini || style == .antigravity,
                             addAntigravityTwist: style == .antigravity,
                             addFactoryTwist: style == .factory,
+                            addWarpTwist: style == .warp,
                             blink: blink)
                     }
                     drawBar(rectPx: creditsBottomRectPx, remaining: bottomValue)

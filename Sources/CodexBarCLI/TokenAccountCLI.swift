@@ -155,7 +155,7 @@ struct TokenAccountCLIContext {
                     usageSource: usageSource,
                     accountLabel: account?.label,
                     tokenAccounts: config?.tokenAccounts))
-        case .gemini, .copilot, .kiro, .vertexai, .kimik2, .synthetic:
+        case .gemini, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .warp:
             return nil
         }
     }

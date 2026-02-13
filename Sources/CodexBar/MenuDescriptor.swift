@@ -115,20 +115,43 @@ struct MenuDescriptor {
         if let snap = store.snapshot(for: provider) {
             let resetStyle = settings.resetTimeDisplayStyle
             if let primary = snap.primary {
+                let primaryWindow = if provider == .warp {
+                    // Warp primary uses resetDescription for non-reset detail (e.g., "Unlimited", "X/Y credits").
+                    // Avoid rendering it as a "Resets ..." line.
+                    RateWindow(
+                        usedPercent: primary.usedPercent,
+                        windowMinutes: primary.windowMinutes,
+                        resetsAt: primary.resetsAt,
+                        resetDescription: nil)
+                } else {
+                    primary
+                }
                 Self.appendRateWindow(
                     entries: &entries,
                     title: meta.sessionLabel,
-                    window: primary,
+                    window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
+                if provider == .warp,
+                   let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !detail.isEmpty
+                {
+                    entries.append(.text(detail, .secondary))
+                }
             }
             if let weekly = snap.secondary {
+                let weeklyResetOverride: String? = {
+                    guard provider == .warp else { return nil }
+                    let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return (detail?.isEmpty ?? true) ? nil : detail
+                }()
                 Self.appendRateWindow(
                     entries: &entries,
                     title: meta.weeklyLabel,
                     window: weekly,
                     resetStyle: resetStyle,
-                    showUsed: settings.usageBarsShowUsed)
+                    showUsed: settings.usageBarsShowUsed,
+                    resetOverride: weeklyResetOverride)
                 if let paceSummary = UsagePaceText.weeklySummary(provider: provider, window: weekly) {
                     entries.append(.text(paceSummary, .secondary))
                 }
@@ -343,12 +366,15 @@ struct MenuDescriptor {
         title: String,
         window: RateWindow,
         resetStyle: ResetTimeDisplayStyle,
-        showUsed: Bool)
+        showUsed: Bool,
+        resetOverride: String? = nil)
     {
         let line = UsageFormatter
             .usageLine(remaining: window.remainingPercent, used: window.usedPercent, showUsed: showUsed)
         entries.append(.text("\(title): \(line)", .primary))
-        if let reset = UsageFormatter.resetLine(for: window, style: resetStyle) {
+        if let resetOverride {
+            entries.append(.text(resetOverride, .secondary))
+        } else if let reset = UsageFormatter.resetLine(for: window, style: resetStyle) {
             entries.append(.text(reset, .secondary))
         }
     }

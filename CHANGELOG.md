@@ -2,60 +2,48 @@
 
 ## Unreleased
 ### Highlights
-- Claude OAuth/keychain flows were reworked across a series of follow-up PRs to reduce prompt storms, stabilize
-  background behavior, and make refresh failures deterministic (#245, #305, #308, #309). Thanks @manikv12!
-- Claude: harden Claude Code PTY capture for `/usage` and `/status` (prompt automation, safer command palette
-  confirmation, partial UTF-8 handling, and parsing guards against status-bar context meters) (#320).
-- Provider correctness fixes landed for Cursor plan parsing and MiniMax region routing (#240, #234). Thanks @robinebers
+- Claude OAuth/keychain flows were reworked across a series of follow-up PRs to reduce prompt storms, stabilize background behavior, surface a setting to control prompt policy and make failure modes deterministic (#245, #305, #308, #309, #364). Thanks @manikv12!
+- Claude: harden Claude Code PTY capture for `/usage` and `/status` (prompt automation, safer command palette confirmation, partial UTF-8 handling, and parsing guards against status-bar context meters) (#320).
+- New provider: Warp (credits + add-on credits) (#352). Thanks @Kathie-yu!
+- Provider correctness fixes landed for Cursor plan parsing and MiniMax region routing (#240, #234, #344). Thanks @robinebers
   and @theglove44!
-- Menu bar animation behavior was hardened in merged mode and fallback mode (#283, #291). Thanks @vignesh07 and
-  @Ilakiancs!
-- CI/tooling reliability improved via pinned lint tools, deterministic macOS test execution, and PTY timing test
-  stabilization plus Node 24-ready GitHub Actions upgrades (#292, #312, #290).
+- Menu bar animation behavior was hardened in merged mode and fallback mode (#283, #291). Thanks @vignesh07 and @Ilakiancs!
+- CI/tooling reliability improved via pinned lint tools, deterministic macOS test execution, and PTY timing test stabilization plus Node 24-ready GitHub Actions upgrades (#292, #312, #290).
 
-### Claude OAuth & Keychain (net result)
-- Auto-refresh expired Claude OAuth tokens and persist refreshed credentials in CodexBar's cache (#245). Thanks
-  @manikv12!
-- Reduce repeated keychain prompts by preferring silent/non-interactive reads in background/availability paths and
-  respecting cooldown gates (#245, #305). Thanks @manikv12!
-- Sync CodexBar's OAuth cache when Claude keychain credentials actually change, with fingerprint-based detection and
-  protections against regressing to stale/expired tokens (#305).
-- Show the in-app Claude keychain pre-alert only when preflight suggests interaction is likely; suppress unnecessary
-  alerts on silent-success paths (#308).
-- Distinguish terminal vs transient OAuth refresh failures:
-  - `invalid_grant` and equivalent auth rejections are terminal-blocked until auth state changes.
-  - transient failures use bounded backoff and automatically unblock on successful auth/reauth (#309).
-- Ensure usable Claude OAuth credentials are accepted in non-interactive scenarios and fix Claude auto debug pipeline
-  ordering follow-up.
+### Claude OAuth & Keychain
+- Claude OAuth creds are cached in CodexBar Keychain to reduce repeated prompts.
+- Prompts can still appear when Claude OAuth credentials are expired, invalid, or missing and re-auth is required.
+- In Auto mode, background refresh keeps prompts suppressed; interactive prompts are limited to user actions (menu open or manual refresh).
+- OAuth-only mode remains strict (no silent Web/CLI fallback); Auto mode may do one delegated CLI refresh + one OAuth retry before falling back.
+- Preferences now expose a Claude Keychain prompt policy (Never / Only on user action / Always allow prompts) under Providers → Claude; if global Keychain access is disabled in Advanced, this control remains visible but inactive.
 
 ### Provider & Usage Fixes
-- Cursor: compute usage against `plan.limit` rather than `breakdown.total` to avoid incorrect limit interpretation
-  (#240). Thanks @robinebers!
-- MiniMax: correct API region URL selection to route requests to the expected regional endpoint (#234). Thanks
-  @theglove44!
-- Resource loading: fix app bundle lookup path to avoid "could not load resource bundle" startup failures (#223).
-  Thanks @validatedev!
-- OpenAI Web dashboard: keep WebView instances cached for reuse to reduce repeated network fetch overhead; tests were
-  updated to avoid network-dependent flakes (#284). Thanks @vignesh07!
-- Token-account precedence: selected token account env injection now correctly overrides provider config `apiKey`
-  values in app and CLI environments. Thanks @arvindcr4!
-- Claude: make Claude CLI probing more resilient by scoping auto-input to the active subcommand and trimming to the
-  latest Usage panel before parsing to avoid false matches from earlier screen fragments (#320).
+- Warp: add Warp provider support (credits + add-on credits), configurable via Settings or `WARP_API_KEY`/`WARP_TOKEN` (#352). Thanks @Kathie-yu!
+- Cursor: compute usage against `plan.limit` rather than `breakdown.total` to avoid incorrect limit interpretation (#240). Thanks @robinebers!
+- MiniMax: correct API region URL selection to route requests to the expected regional endpoint (#234). Thanks @theglove44!
+- MiniMax: always show the API region picker and retry the China endpoint when the global host rejects the token to
+  avoid upgrade regressions for users without a persisted region (#344). Thanks @apoorvdarshan!
+- Claude: add Opus 4.6 pricing so token cost scanning tracks USD consumed correctly (#348). Thanks @arandaschimpf!
+- z.ai: handle quota responses with missing token-limit fields, avoid incorrect used-percent calculations, and harden
+  empty-response behavior with safer logging (#346). Thanks @MohamedMohana and @halilertekin!
+- z.ai: fix provider visibility in the menu when enabled with token-account credentials (availability now considers the
+  effective fetch environment).
+- Amp: detect login redirects during usage fetch and fail fast when the session is invalid (#339). Thanks @JosephDoUrden!
+- Resource loading: fix app bundle lookup path to avoid "could not load resource bundle" startup failures (#223). Thanks @validatedev!
+- OpenAI Web dashboard: keep WebView instances cached for reuse to reduce repeated network fetch overhead; tests were updated to avoid network-dependent flakes (#284). Thanks @vignesh07!
+- Token-account precedence: selected token account env injection now correctly overrides provider config `apiKey` values in app and CLI environments. Thanks @arvindcr4!
+- Claude: make Claude CLI probing more resilient by scoping auto-input to the active subcommand and trimming to the latest Usage panel before parsing to avoid false matches from earlier screen fragments (#320).
 
 ### Menu Bar & UI Behavior
-- Prevent fallback-provider loading animation loops (battery/CPU drain when no providers are enabled) (#283). Thanks
-  @vignesh07!
+- Prevent fallback-provider loading animation loops (battery/CPU drain when no providers are enabled) (#283). Thanks @vignesh07!
 - Prevent status overlay rendering for disabled providers while in merged mode (#291). Thanks @Ilakiancs!
 
 ### CI, Tooling & Test Stability
 - Pin SwiftFormat/SwiftLint versions and harden lint installer behavior (version drift + temp-file leak fixes) (#292).
-- Use more deterministic macOS CI test settings (including non-parallel paths where needed) and align runner/toolchain
-  behavior for stability (#292).
+- Use more deterministic macOS CI test settings (including non-parallel paths where needed) and align runner/toolchain behavior for stability (#292).
 - Stabilize PTY command timing tests to reduce CI flakiness (#312).
-- Upgrade `actions/checkout` to v6 and `actions/github-script` to v8 for Node 24 compatibility in
-  `upstream-monitor.yml` (#290). Thanks @salmanmkc!
-- Tests: add TaskLocal-based keychain/cache overrides so keychain gating and KeychainCacheStore test stores do not
-  leak across concurrent test execution (#320).
+- Upgrade `actions/checkout` to v6 and `actions/github-script` to v8 for Node 24 compatibility in `upstream-monitor.yml` (#290). Thanks @salmanmkc!
+- Tests: add TaskLocal-based keychain/cache overrides so keychain gating and KeychainCacheStore test stores do not leak across concurrent test execution (#320).
 
 ### Docs & Maintenance
 - Update docs for Claude data fetch behavior and keychain troubleshooting notes.

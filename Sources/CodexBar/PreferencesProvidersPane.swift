@@ -44,7 +44,9 @@ struct ProvidersPane: View {
                     onCopyError: { text in self.copyToPasteboard(text) },
                     onRefresh: {
                         Task { @MainActor in
-                            await self.store.refreshProvider(provider, allowDisabled: true)
+                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                await self.store.refreshProvider(provider, allowDisabled: true)
+                            }
                         }
                     })
             } else {
@@ -211,7 +213,9 @@ struct ProvidersPane: View {
             setActiveIndex: { index in
                 self.settings.setActiveTokenAccountIndex(index, for: provider)
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             },
             addAccount: { label, token, token2 in
@@ -224,7 +228,9 @@ struct ProvidersPane: View {
                     self.settings.addTokenAccount(provider: provider, label: label, token: token)
                 }
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             },
             removeAccount: { accountID in
@@ -234,7 +240,9 @@ struct ProvidersPane: View {
                     self.settings.removeTokenAccount(provider: provider, accountID: accountID)
                 }
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             },
             openConfigFile: {
@@ -243,7 +251,9 @@ struct ProvidersPane: View {
             reloadFromDisk: {
                 self.settings.reloadTokenAccounts()
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             })
     }

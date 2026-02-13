@@ -122,6 +122,7 @@ struct ProviderSettingsPickerDescriptor: Identifiable {
     let binding: Binding<String>
     let options: [ProviderSettingsPickerOption]
     let isVisible: (() -> Bool)?
+    let isEnabled: (() -> Bool)?
     let onChange: ((_ selection: String) async -> Void)?
     let trailingText: (() -> String?)?
 
@@ -133,6 +134,7 @@ struct ProviderSettingsPickerDescriptor: Identifiable {
         binding: Binding<String>,
         options: [ProviderSettingsPickerOption],
         isVisible: (() -> Bool)?,
+        isEnabled: (() -> Bool)? = nil,
         onChange: ((_ selection: String) async -> Void)?,
         trailingText: (() -> String?)? = nil)
     {
@@ -143,6 +145,7 @@ struct ProviderSettingsPickerDescriptor: Identifiable {
         self.binding = binding
         self.options = options
         self.isVisible = isVisible
+        self.isEnabled = isEnabled
         self.onChange = onChange
         self.trailingText = trailingText
     }

@@ -98,6 +98,7 @@ struct ProviderSettingsPickerRowView: View {
     let picker: ProviderSettingsPickerDescriptor
 
     var body: some View {
+        let isEnabled = self.picker.isEnabled?() ?? true
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(self.picker.title)
@@ -133,6 +134,7 @@ struct ProviderSettingsPickerRowView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .disabled(!isEnabled)
         .onChange(of: self.picker.binding.wrappedValue) { _, selection in
             guard let onChange = self.picker.onChange else { return }
             Task { @MainActor in

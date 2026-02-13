@@ -56,11 +56,8 @@ public struct ClaudeStatusProbe: Sendable {
     }
 
     public func fetch() async throws -> ClaudeStatusSnapshot {
-        let env = ProcessInfo.processInfo.environment
-        let resolved = BinaryLocator.resolveClaudeBinary(env: env, loginPATH: LoginShellPathCache.shared.current)
-            ?? TTYCommandRunner.which(self.claudeBinary)
-            ?? self.claudeBinary
-        guard FileManager.default.isExecutableFile(atPath: resolved) || TTYCommandRunner.which(resolved) != nil else {
+        let resolved = Self.resolvedBinaryPath(binaryName: self.claudeBinary)
+        guard Self.isBinaryAvailable(resolved) else {
             throw ClaudeStatusProbeError.claudeNotInstalled
         }
 
@@ -216,15 +213,41 @@ public struct ClaudeStatusProbe: Sendable {
     }
 
     public static func fetchIdentity(timeout: TimeInterval = 12.0) async throws -> ClaudeAccountIdentity {
-        let env = ProcessInfo.processInfo.environment
-        let resolved = BinaryLocator.resolveClaudeBinary(env: env, loginPATH: LoginShellPathCache.shared.current)
-            ?? TTYCommandRunner.which("claude")
-            ?? "claude"
-        guard FileManager.default.isExecutableFile(atPath: resolved) || TTYCommandRunner.which(resolved) != nil else {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude")
+        guard self.isBinaryAvailable(resolved) else {
             throw ClaudeStatusProbeError.claudeNotInstalled
         }
         let statusText = try await Self.capture(subcommand: "/status", binary: resolved, timeout: timeout)
         return Self.parseIdentity(usageText: nil, statusText: statusText)
+    }
+
+    public static func touchOAuthAuthPath(timeout: TimeInterval = 8) async throws {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude")
+        guard self.isBinaryAvailable(resolved) else {
+            throw ClaudeStatusProbeError.claudeNotInstalled
+        }
+        do {
+            // Use a more robust capture configuration than the standard `/status` scrape:
+            // - Avoid the short idle-timeout which can terminate the session while CLI auth checks are still running.
+            // - We intentionally do not parse output here; success is "the command ran without timing out".
+            _ = try await ClaudeCLISession.shared.capture(
+                subcommand: "/status",
+                binary: resolved,
+                timeout: timeout,
+                idleTimeout: nil,
+                stopOnSubstrings: [],
+                settleAfterStop: 0.8,
+                sendEnterEvery: 0.8)
+            await ClaudeCLISession.shared.reset()
+        } catch {
+            await ClaudeCLISession.shared.reset()
+            throw error
+        }
+    }
+
+    public static func isClaudeBinaryAvailable() -> Bool {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude")
+        return self.isBinaryAvailable(resolved)
     }
 
     private static func extractPercent(labelSubstring: String, context: LabelSearchContext) -> Int? {
@@ -687,6 +710,18 @@ public struct ClaudeStatusProbe: Sendable {
     }
 
     // MARK: - Process helpers
+
+    private static func resolvedBinaryPath(binaryName: String) -> String {
+        let env = ProcessInfo.processInfo.environment
+        return BinaryLocator.resolveClaudeBinary(env: env, loginPATH: LoginShellPathCache.shared.current)
+            ?? TTYCommandRunner.which(binaryName)
+            ?? binaryName
+    }
+
+    private static func isBinaryAvailable(_ binaryPathOrName: String) -> Bool {
+        FileManager.default.isExecutableFile(atPath: binaryPathOrName)
+            || TTYCommandRunner.which(binaryPathOrName) != nil
+    }
 
     static func probeWorkingDirectoryURL() -> URL {
         let fm = FileManager.default
