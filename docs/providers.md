@@ -19,7 +19,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
 | Codex | Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`); app uses CLI usage + optional dashboard scrape. |
-| Claude | OAuth API (`oauth`) → Web API (`web`) → CLI PTY (`claude`). |
+| Claude | App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
 | Gemini | OAuth API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → stored WebKit session (`web`). |
@@ -45,9 +45,8 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Details: `docs/codex.md`.
 
 ## Claude
-- OAuth API (preferred when CLI credentials exist).
-- Web API (browser cookies) fallback when OAuth missing.
-- CLI PTY fallback when OAuth + web are unavailable.
+- App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
+- CLI Auto: Web API (`web`) → CLI PTY (`claude`).
 - Local cost usage: scans `~/.config/claude/projects/**/*.jsonl` (last 30 days).
 - Status: Statuspage.io (Anthropic).
 - Details: `docs/claude.md`.

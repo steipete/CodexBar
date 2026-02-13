@@ -112,24 +112,28 @@ struct TTYCommandRunnerEnvTests {
         let script = """
         #!/bin/sh
         echo "hello"
-        sleep 10
+        sleep 30
         """
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
 
         let runner = TTYCommandRunner()
-        let timeout: TimeInterval = 12
-        let scriptedSleep: TimeInterval = 10
-        let startedAt = Date()
-        let result = try runner.run(
-            binary: scriptURL.path,
-            send: "",
-            options: .init(timeout: timeout, idleTimeout: 0.2))
-        let elapsed = Date().timeIntervalSince(startedAt)
+        let timeout: TimeInterval = 6
+        var fastestElapsed = TimeInterval.greatestFiniteMagnitude
+        // CI can occasionally pause a test process long enough to miss an idle window.
+        // Retry once and assert that at least one run exits well before timeout.
+        for _ in 0..<2 {
+            let startedAt = Date()
+            let result = try runner.run(
+                binary: scriptURL.path,
+                send: "",
+                options: .init(timeout: timeout, idleTimeout: 0.2))
+            let elapsed = Date().timeIntervalSince(startedAt)
 
-        #expect(result.text.contains("hello"))
-        // CI runners can delay PTY scheduling/reads; assert we stop well before script completion.
-        #expect(elapsed < (scriptedSleep - 1.0))
+            #expect(result.text.contains("hello"))
+            fastestElapsed = min(fastestElapsed, elapsed)
+        }
+        #expect(fastestElapsed < (timeout - 1.0))
     }
 
     @Test

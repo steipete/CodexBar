@@ -193,6 +193,7 @@ final class UsageStore {
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
+    @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
 
@@ -432,30 +433,37 @@ final class UsageStore {
 
     func refresh(forceTokenUsage: Bool = false) async {
         guard !self.isRefreshing else { return }
-        self.isRefreshing = true
-        defer { self.isRefreshing = false }
+        let refreshPhase: ProviderRefreshPhase = self.hasCompletedInitialRefresh ? .regular : .startup
 
-        await withTaskGroup(of: Void.self) { group in
-            for provider in UsageProvider.allCases {
-                group.addTask { await self.refreshProvider(provider) }
-                group.addTask { await self.refreshStatus(provider) }
+        await ProviderRefreshContext.$current.withValue(refreshPhase) {
+            self.isRefreshing = true
+            defer {
+                self.isRefreshing = false
+                self.hasCompletedInitialRefresh = true
             }
-            group.addTask { await self.refreshCreditsIfNeeded() }
+
+            await withTaskGroup(of: Void.self) { group in
+                for provider in UsageProvider.allCases {
+                    group.addTask { await self.refreshProvider(provider) }
+                    group.addTask { await self.refreshStatus(provider) }
+                }
+                group.addTask { await self.refreshCreditsIfNeeded() }
+            }
+
+            // Token-cost usage can be slow; run it outside the refresh group so we don't block menu updates.
+            self.scheduleTokenRefresh(force: forceTokenUsage)
+
+            // OpenAI web scrape depends on the current Codex account email (which can change after login/account
+            // switch). Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
+            await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
+
+            if self.openAIDashboardRequiresLogin {
+                await self.refreshProvider(.codex)
+                await self.refreshCreditsIfNeeded()
+            }
+
+            self.persistWidgetSnapshot(reason: "refresh")
         }
-
-        // Token-cost usage can be slow; run it outside the refresh group so we don't block menu updates.
-        self.scheduleTokenRefresh(force: forceTokenUsage)
-
-        // OpenAI web scrape depends on the current Codex account email (which can change after login/account switch).
-        // Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
-        await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
-
-        if self.openAIDashboardRequiresLogin {
-            await self.refreshProvider(.codex)
-            await self.refreshCreditsIfNeeded()
-        }
-
-        self.persistWidgetSnapshot(reason: "refresh")
     }
 
     /// For demo/testing: drop the snapshot so the loading animation plays, then restore the last snapshot.
@@ -1278,10 +1286,11 @@ extension UsageStore {
                 selectedDataSource: claudeUsageDataSource,
                 webExtrasEnabled: claudeWebExtrasEnabled,
                 hasWebSession: hasKey,
+                hasCLI: hasClaudeBinary,
                 hasOAuthCredentials: hasOAuthCredentials)
 
             if claudeUsageDataSource == .auto {
-                lines.append("pipeline_order=oauth→web→cli")
+                lines.append("pipeline_order=oauth→cli→web")
                 lines.append("auto_heuristic=\(strategy.dataSource.rawValue)")
             } else {
                 lines.append("strategy=\(strategy.dataSource.rawValue)")

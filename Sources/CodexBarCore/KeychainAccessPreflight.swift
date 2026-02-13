@@ -34,7 +34,44 @@ public struct KeychainPromptContext: Sendable {
 }
 
 public enum KeychainPromptHandler {
+    final class HandlerStore: @unchecked Sendable {
+        let handler: (KeychainPromptContext) -> Void
+
+        init(handler: @escaping (KeychainPromptContext) -> Void) {
+            self.handler = handler
+        }
+    }
+
+    @TaskLocal private static var taskHandlerStore: HandlerStore?
     public nonisolated(unsafe) static var handler: ((KeychainPromptContext) -> Void)?
+
+    public static func notify(_ context: KeychainPromptContext) {
+        if let taskHandlerStore {
+            taskHandlerStore.handler(context)
+            return
+        }
+        self.handler?(context)
+    }
+
+    #if DEBUG
+    static func withHandlerForTesting<T>(
+        _ handler: ((KeychainPromptContext) -> Void)?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskHandlerStore.withValue(handler.map(HandlerStore.init(handler:))) {
+            try operation()
+        }
+    }
+
+    static func withHandlerForTesting<T>(
+        _ handler: ((KeychainPromptContext) -> Void)?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskHandlerStore.withValue(handler.map(HandlerStore.init(handler:))) {
+            try await operation()
+        }
+    }
+    #endif
 }
 
 public enum KeychainAccessPreflight {
@@ -48,16 +85,50 @@ public enum KeychainAccessPreflight {
     private static let log = CodexBarLog.logger(LogCategories.keychainPreflight)
 
     #if DEBUG
+    final class CheckGenericPasswordOverrideStore: @unchecked Sendable {
+        let check: (String, String?) -> Outcome
+
+        init(check: @escaping (String, String?) -> Outcome) {
+            self.check = check
+        }
+    }
+
+    @TaskLocal private static var taskCheckGenericPasswordOverrideStore: CheckGenericPasswordOverrideStore?
     private nonisolated(unsafe) static var checkGenericPasswordOverride: ((String, String?) -> Outcome)?
 
     static func setCheckGenericPasswordOverrideForTesting(_ override: ((String, String?) -> Outcome)?) {
         self.checkGenericPasswordOverride = override
+    }
+
+    static func withCheckGenericPasswordOverrideForTesting<T>(
+        _ override: ((String, String?) -> Outcome)?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskCheckGenericPasswordOverrideStore.withValue(
+            override.map(CheckGenericPasswordOverrideStore.init(check:)))
+        {
+            try operation()
+        }
+    }
+
+    static func withCheckGenericPasswordOverrideForTesting<T>(
+        _ override: ((String, String?) -> Outcome)?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskCheckGenericPasswordOverrideStore.withValue(
+            override.map(CheckGenericPasswordOverrideStore.init(check:)))
+        {
+            try await operation()
+        }
     }
     #endif
 
     public static func checkGenericPassword(service: String, account: String?) -> Outcome {
         #if os(macOS)
         #if DEBUG
+        if let override = self.taskCheckGenericPasswordOverrideStore {
+            return override.check(service, account)
+        }
         if let override = self.checkGenericPasswordOverride {
             return override(service, account)
         }

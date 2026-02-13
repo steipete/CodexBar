@@ -15,8 +15,8 @@ Claude supports three usage data paths plus local cost usage. Source selection i
 
 ### Default selection (debug menu disabled)
 1) OAuth API (if Claude CLI credentials include `user:profile` scope).
-2) Web API (browser cookies, `sessionKey`), if OAuth missing.
-3) CLI PTY (`claude`), if no OAuth and no web session.
+2) CLI PTY (`claude`), if OAuth is unavailable or fails.
+3) Web API (browser cookies, `sessionKey`), if OAuth + CLI are unavailable or fail.
 
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).

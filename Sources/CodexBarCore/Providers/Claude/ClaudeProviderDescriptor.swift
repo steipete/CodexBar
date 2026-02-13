@@ -84,11 +84,11 @@ public enum ClaudeProviderDescriptor {
             case .auto:
                 return [
                     ClaudeOAuthFetchStrategy(),
-                    ClaudeWebFetchStrategy(browserDetection: context.browserDetection),
                     ClaudeCLIFetchStrategy(
                         useWebExtras: webExtrasEnabled,
                         manualCookieHeader: manualCookieHeader,
                         browserDetection: context.browserDetection),
+                    ClaudeWebFetchStrategy(browserDetection: context.browserDetection),
                 ]
             }
         }
@@ -102,11 +102,15 @@ public enum ClaudeProviderDescriptor {
         selectedDataSource: ClaudeUsageDataSource,
         webExtrasEnabled: Bool,
         hasWebSession: Bool,
+        hasCLI: Bool,
         hasOAuthCredentials: Bool) -> ClaudeUsageStrategy
     {
         if selectedDataSource == .auto {
             if hasOAuthCredentials {
                 return ClaudeUsageStrategy(dataSource: .oauth, useWebExtras: false)
+            }
+            if hasCLI {
+                return ClaudeUsageStrategy(dataSource: .cli, useWebExtras: false)
             }
             if hasWebSession {
                 return ClaudeUsageStrategy(dataSource: .web, useWebExtras: false)
@@ -201,6 +205,16 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         if ProviderInteractionContext.current == .userInitiated {
             _ = ClaudeOAuthKeychainAccessGate.clearDenied()
         }
+
+        let shouldAllowStartupBootstrap = context.runtime == .app &&
+            ProviderRefreshContext.current == .startup &&
+            ProviderInteractionContext.current == .background &&
+            ClaudeOAuthKeychainPromptPreference.current() == .onlyOnUserAction &&
+            !ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: context.env)
+        if shouldAllowStartupBootstrap {
+            return ClaudeOAuthKeychainAccessGate.shouldAllowPrompt()
+        }
+
         guard ClaudeOAuthKeychainAccessGate.shouldAllowPrompt() else { return false }
         return ClaudeOAuthCredentialsStore.hasClaudeKeychainCredentialsWithoutPrompt()
     }
@@ -211,6 +225,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             environment: context.env,
             dataSource: .oauth,
             oauthKeychainPromptCooldownEnabled: context.sourceMode == .auto,
+            allowBackgroundDelegatedRefresh: context.runtime == .cli,
+            allowStartupBootstrapPrompt: context.runtime == .app &&
+                (context.sourceMode == .auto || context.sourceMode == .oauth),
             useWebExtras: false)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
         return self.makeResult(
@@ -219,7 +236,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
-        // In Auto mode, fall back to the next strategy (web/cli) if OAuth fails (e.g. user cancels keychain prompt
+        // In Auto mode, fall back to the next strategy (cli/web) if OAuth fails (e.g. user cancels keychain prompt
         // or auth breaks).
         context.runtime == .app && context.sourceMode == .auto
     }
@@ -246,11 +263,7 @@ struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
     let browserDetection: BrowserDetection
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        if let header = Self.manualCookieHeader(from: context) {
-            return ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
-        }
-        guard context.settings?.claude?.cookieSource != .off else { return false }
-        return ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection)
+        Self.isAvailableForFallback(context: context, browserDetection: self.browserDetection)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -268,7 +281,20 @@ struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         guard context.sourceMode == .auto else { return false }
         _ = error
-        return true
+        // In CLI runtime auto mode, web comes before CLI so fallback is required.
+        // In app runtime auto mode, web is terminal and should surface its concrete error.
+        return context.runtime == .cli
+    }
+
+    fileprivate static func isAvailableForFallback(
+        context: ProviderFetchContext,
+        browserDetection: BrowserDetection) -> Bool
+    {
+        if let header = self.manualCookieHeader(from: context) {
+            return ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
+        }
+        guard context.settings?.claude?.cookieSource != .off else { return false }
+        return ClaudeWebAPIFetcher.hasSessionKey(browserDetection: browserDetection)
     }
 
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
@@ -303,6 +329,10 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
-        false
+        guard context.runtime == .app, context.sourceMode == .auto else { return false }
+        // Only fall through when web is actually available; otherwise preserve actionable CLI errors.
+        return ClaudeWebFetchStrategy.isAvailableForFallback(
+            context: context,
+            browserDetection: self.browserDetection)
     }
 }
