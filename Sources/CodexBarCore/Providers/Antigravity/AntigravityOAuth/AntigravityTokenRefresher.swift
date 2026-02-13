@@ -21,9 +21,8 @@ public enum AntigravityTokenRefresher {
             "grant_type": "refresh_token",
         ]
 
-        let body = params
-            .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
-            .joined(separator: "&")
+        var components = URLComponents()
+        components.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
 
         guard let url = URL(string: AntigravityOAuthConfig.tokenURL) else {
             throw AntigravityOAuthCredentialsError.networkError("Invalid token URL")
@@ -31,7 +30,7 @@ public enum AntigravityTokenRefresher {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.httpBody = body.data(using: .utf8)
+        request.httpBody = (components.percentEncodedQuery ?? "").data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = self.httpTimeout
 
@@ -111,4 +110,5 @@ public enum AntigravityTokenRefresher {
 
         return email
     }
+
 }

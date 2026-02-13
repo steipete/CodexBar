@@ -131,9 +131,8 @@ public actor AntigravityOAuthFlow {
             "grant_type": "authorization_code",
         ]
 
-        let body = params
-            .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
-            .joined(separator: "&")
+        var components = URLComponents()
+        components.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
 
         guard let url = URL(string: AntigravityOAuthConfig.tokenURL) else {
             throw AntigravityOAuthCredentialsError.networkError("Invalid token URL")
@@ -141,7 +140,7 @@ public actor AntigravityOAuthFlow {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.httpBody = body.data(using: .utf8)
+        request.httpBody = (components.percentEncodedQuery ?? "").data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = Self.httpTimeout
 
@@ -183,6 +182,7 @@ public actor AntigravityOAuthFlow {
             email: email,
             scopes: AntigravityOAuthConfig.scopes)
     }
+
 }
 
 private final class CallbackServer: @unchecked Sendable {
@@ -315,4 +315,5 @@ private final class CallbackServer: @unchecked Sendable {
 
         return (code, state)
     }
+
 }
