@@ -27,10 +27,11 @@ public enum OpenCodeCookieImporter {
     public static func importSession(
         browserDetection: BrowserDetection,
         preferredBrowsers: [Browser]? = nil,
+        excludeBrowsers: [Browser] = [],
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
         let log: (String) -> Void = { msg in logger?("[opencode-cookie] \(msg)") }
-        let browsersToTry = preferredBrowsers ?? opencodeCookieImportOrder
+        let browsersToTry = (preferredBrowsers ?? opencodeCookieImportOrder).filter { !excludeBrowsers.contains($0) }
         let installedBrowsers = browsersToTry.cookieImportCandidates(using: browserDetection)
 
         for browserSource in installedBrowsers {
@@ -66,12 +67,14 @@ public enum OpenCodeCookieImporter {
     public static func hasSession(
         browserDetection: BrowserDetection,
         preferredBrowsers: [Browser]? = nil,
+        excludeBrowsers: [Browser] = [],
         logger: ((String) -> Void)? = nil) -> Bool
     {
         do {
             _ = try self.importSession(
                 browserDetection: browserDetection,
                 preferredBrowsers: preferredBrowsers,
+                excludeBrowsers: excludeBrowsers,
                 logger: logger)
             return true
         } catch {
