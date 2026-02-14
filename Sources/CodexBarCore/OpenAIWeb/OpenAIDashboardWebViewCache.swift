@@ -219,6 +219,7 @@ private final class OffscreenWebViewHost {
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isExcludedFromWindowsMenu = true
+        webView.autoresizingMask = [.width, .height]
         window.contentView = webView
 
         self.window = window
@@ -227,15 +228,23 @@ private final class OffscreenWebViewHost {
 
     func show() {
         OpenAIDashboardWebViewCache.log.debug("OpenAI webview show")
+        self.attachWebViewIfNeeded()
         self.window.alphaValue = OpenAIDashboardFetcher.offscreenHostAlphaValue()
         self.window.orderFrontRegardless()
     }
 
     func hide() {
-        // Set alpha to 0 so WebKit recognizes the page as inactive and applies
-        // its scheduling policy (throttle/suspend), reducing CPU when idle.
+        // Set alpha to 0 and detach from the window so WebKit can reliably suspend background
+        // timers/RAF when this cached view is idle.
         OpenAIDashboardWebViewCache.log.debug("OpenAI webview hide")
         self.window.alphaValue = 0.0
+        self.webView?.stopLoading()
+        if let webView = self.webView,
+           let contentView = self.window.contentView,
+           contentView === webView
+        {
+            self.window.contentView = nil
+        }
         self.window.orderOut(nil)
     }
 
@@ -249,6 +258,15 @@ private final class OffscreenWebViewHost {
                 window.orderOut(nil)
                 window.close()
             })
+    }
+
+    private func attachWebViewIfNeeded() {
+        guard let webView = self.webView else { return }
+        if let contentView = self.window.contentView, contentView === webView {
+            return
+        }
+        webView.frame = NSRect(origin: .zero, size: self.window.contentLayoutRect.size)
+        self.window.contentView = webView
     }
 }
 
