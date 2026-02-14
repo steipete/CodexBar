@@ -30,7 +30,7 @@ public enum OpenCodeProviderDescriptor {
                 color: ProviderColor(red: 59 / 255, green: 130 / 255, blue: 246 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "OpenCode cost summary is not supported." }),
+                noDataMessage: { "OpenCode cost is included in Claude provider." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [OpenCodeUsageFetchStrategy()] })),
