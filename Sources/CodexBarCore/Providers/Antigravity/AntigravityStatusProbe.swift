@@ -228,7 +228,8 @@ public struct AntigravityStatusProbe: Sendable {
         let modelConfigs = userStatus.cascadeModelConfigData?.clientModelConfigs ?? []
         let models = modelConfigs.compactMap(Self.quotaFromConfig(_:))
         let email = userStatus.email
-        let planName = userStatus.planStatus?.planInfo?.preferredName
+        // Prefer userTier.name (actual subscription tier) over planInfo (shows "Pro" for Ultra users)
+        let planName = userStatus.userTier?.name ?? userStatus.planStatus?.planInfo?.preferredName
 
         return AntigravityStatusSnapshot(
             modelQuotas: models,
@@ -586,6 +587,13 @@ private struct UserStatus: Decodable {
     let email: String?
     let planStatus: PlanStatus?
     let cascadeModelConfigData: ModelConfigData?
+    let userTier: UserTier?
+}
+
+private struct UserTier: Decodable {
+    let id: String?
+    let name: String?
+    let description: String?
 }
 
 private struct PlanStatus: Decodable {
