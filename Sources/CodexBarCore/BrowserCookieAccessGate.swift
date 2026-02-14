@@ -66,6 +66,14 @@ public enum BrowserCookieAccessGate {
                 ])
     }
 
+    public static func resetForTesting() {
+        self.lock.withLock { state in
+            state.loaded = true
+            state.deniedUntilByBrowser.removeAll()
+            UserDefaults.standard.removeObject(forKey: self.defaultsKey)
+        }
+    }
+
     private static func chromiumKeychainRequiresInteraction() -> Bool {
         for label in self.safeStorageLabels {
             switch KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account) {
@@ -98,8 +106,12 @@ public enum BrowserCookieAccessGate {
 }
 #else
 public enum BrowserCookieAccessGate {
-    public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool { true }
+    public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool {
+        true
+    }
+
     public static func recordIfNeeded(_ error: Error, now: Date = Date()) {}
     public static func recordDenied(for browser: Browser, now: Date = Date()) {}
+    public static func resetForTesting() {}
 }
 #endif

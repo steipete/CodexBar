@@ -29,7 +29,6 @@ enum KeychainMigration {
         MigrationItem(service: "com.steipete.CodexBar", account: "copilot-api-token"),
         MigrationItem(service: "com.steipete.CodexBar", account: "zai-api-token"),
         MigrationItem(service: "com.steipete.CodexBar", account: "synthetic-api-key"),
-        MigrationItem(service: "Claude Code-credentials", account: nil),
     ]
 
     /// Run migration once per installation
@@ -38,32 +37,32 @@ enum KeychainMigration {
             self.log.info("Keychain access disabled; skipping migration")
             return
         }
-        guard !UserDefaults.standard.bool(forKey: self.migrationKey) else {
-            self.log.debug("Keychain migration already completed, skipping")
-            return
-        }
 
-        self.log.info("Starting keychain migration to reduce permission prompts")
+        if !UserDefaults.standard.bool(forKey: self.migrationKey) {
+            self.log.info("Starting keychain migration to reduce permission prompts")
 
-        var migratedCount = 0
-        var errorCount = 0
+            var migratedCount = 0
+            var errorCount = 0
 
-        for item in self.itemsToMigrate {
-            do {
-                if try self.migrateItem(item) {
-                    migratedCount += 1
+            for item in self.itemsToMigrate {
+                do {
+                    if try self.migrateItem(item) {
+                        migratedCount += 1
+                    }
+                } catch {
+                    errorCount += 1
+                    self.log.error("Failed to migrate \(item.label): \(String(describing: error))")
                 }
-            } catch {
-                errorCount += 1
-                self.log.error("Failed to migrate \(item.label): \(String(describing: error))")
             }
-        }
 
-        self.log.info("Keychain migration complete: \(migratedCount) migrated, \(errorCount) errors")
-        UserDefaults.standard.set(true, forKey: self.migrationKey)
+            self.log.info("Keychain migration complete: \(migratedCount) migrated, \(errorCount) errors")
+            UserDefaults.standard.set(true, forKey: self.migrationKey)
 
-        if migratedCount > 0 {
-            self.log.info("✅ Future rebuilds will not prompt for keychain access")
+            if migratedCount > 0 {
+                self.log.info("✅ Future rebuilds will not prompt for keychain access")
+            }
+        } else {
+            self.log.debug("Keychain migration already completed, skipping")
         }
     }
 

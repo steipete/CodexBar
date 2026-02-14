@@ -1,5 +1,4 @@
 import Testing
-
 @testable import CodexBarCore
 
 @Suite
@@ -30,6 +29,17 @@ struct CostUsagePricingTests {
     func claudeCostSupportsOpus41DatedVariant() {
         let cost = CostUsagePricing.claudeCostUSD(
             model: "claude-opus-4-1-20250805",
+            inputTokens: 10,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 5)
+        #expect(cost != nil)
+    }
+
+    @Test
+    func claudeCostSupportsOpus46DatedVariant() {
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-opus-4-6-20260205",
             inputTokens: 10,
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,

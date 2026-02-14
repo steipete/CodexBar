@@ -9,7 +9,7 @@ struct SettingsStoreCoverageTests {
     @Test
     func providerOrderingAndCaching() throws {
         let suite = "SettingsStoreCoverageTests-ordering"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let config = CodexBarConfig(providers: [
@@ -30,8 +30,8 @@ struct SettingsStoreCoverageTests {
         #expect(settings.orderedProviders() != ordered)
 
         let metadata = ProviderRegistry.shared.metadata
-        settings.setProviderEnabled(provider: .codex, metadata: metadata[.codex]!, enabled: true)
-        settings.setProviderEnabled(provider: .claude, metadata: metadata[.claude]!, enabled: false)
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: false)
         let enabled = settings.enabledProvidersOrdered(metadataByProvider: metadata)
         #expect(enabled.contains(.codex))
     }
@@ -132,9 +132,9 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func keychainDisableForcesManualCookieSources() {
+    func keychainDisableForcesManualCookieSources() throws {
         let suite = "SettingsStoreCoverageTests-keychain"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
@@ -147,6 +147,41 @@ struct SettingsStoreCoverageTests {
         #expect(settings.codexCookieSource == .manual)
         #expect(settings.claudeCookieSource == .manual)
         #expect(settings.kimiCookieSource == .off)
+    }
+
+    @Test
+    func claudeKeychainPromptMode_defaultsToOnlyOnUserAction() {
+        let settings = Self.makeSettingsStore()
+        #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
+    }
+
+    @Test
+    func claudeKeychainPromptMode_persistsAcrossStoreReload() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-prompt-mode"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        first.claudeOAuthKeychainPromptMode = .never
+        #expect(
+            defaults.string(forKey: "claudeOAuthKeychainPromptMode")
+                == ClaudeOAuthKeychainPromptMode.never.rawValue)
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.claudeOAuthKeychainPromptMode == .never)
+    }
+
+    @Test
+    func claudeKeychainPromptMode_invalidRawFallsBackToOnlyOnUserAction() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-prompt-mode-invalid"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("invalid-mode", forKey: "claudeOAuthKeychainPromptMode")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
     }
 
     private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {

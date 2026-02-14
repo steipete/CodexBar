@@ -45,7 +45,9 @@ struct GeminiStatusFetchStrategy: ProviderFetchStrategy {
     let id: String = "gemini.api"
     let kind: ProviderFetchKind = .apiToken
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool { true }
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = GeminiStatusProbe()

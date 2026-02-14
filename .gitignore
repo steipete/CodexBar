@@ -1,5 +1,9 @@
 # Xcode user/session
 xcuserdata/
+.swiftpm/xcode/xcshareddata/
+.codexbar/config.json
+*.env
+*.local
 
 # Build products
 .build/
@@ -25,6 +29,8 @@ debug_*.swift
 
 # Misc
 .DS_Store
+.vscode/
+.codex/environments/
 
 # Debug/analysis docs
 docs/*-analysis.md

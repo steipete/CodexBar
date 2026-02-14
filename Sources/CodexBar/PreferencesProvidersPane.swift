@@ -12,7 +12,9 @@ struct ProvidersPane: View {
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
     @State private var selectedProvider: UsageProvider?
 
-    private var providers: [UsageProvider] { self.settings.orderedProviders() }
+    private var providers: [UsageProvider] {
+        self.settings.orderedProviders()
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -42,7 +44,9 @@ struct ProvidersPane: View {
                     onCopyError: { text in self.copyToPasteboard(text) },
                     onRefresh: {
                         Task { @MainActor in
-                            await self.store.refreshProvider(provider, allowDisabled: true)
+                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                await self.store.refreshProvider(provider, allowDisabled: true)
+                            }
                         }
                     })
             } else {
@@ -184,19 +188,25 @@ struct ProvidersPane: View {
             setActiveIndex: { index in
                 self.settings.setActiveTokenAccountIndex(index, for: provider)
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             },
             addAccount: { label, token in
                 self.settings.addTokenAccount(provider: provider, label: label, token: token)
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             },
             removeAccount: { accountID in
                 self.settings.removeTokenAccount(provider: provider, accountID: accountID)
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             },
             openConfigFile: {
@@ -205,7 +215,9 @@ struct ProvidersPane: View {
             reloadFromDisk: {
                 self.settings.reloadTokenAccounts()
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             })
     }

@@ -244,26 +244,40 @@ struct ClaudeOAuthTests {
             selectedDataSource: .auto,
             webExtrasEnabled: false,
             hasWebSession: true,
+            hasCLI: true,
             hasOAuthCredentials: true)
         #expect(strategy.dataSource == .oauth)
     }
 
     @Test
-    func fallsBackToWebWhenOAuthMissing() {
+    func fallsBackToCLIWhenOAuthMissingAndCLIAvailable() {
         let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
             selectedDataSource: .auto,
             webExtrasEnabled: false,
             hasWebSession: true,
+            hasCLI: true,
+            hasOAuthCredentials: false)
+        #expect(strategy.dataSource == .cli)
+    }
+
+    @Test
+    func fallsBackToWebWhenOAuthMissingAndCLIMissing() {
+        let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
+            selectedDataSource: .auto,
+            webExtrasEnabled: false,
+            hasWebSession: true,
+            hasCLI: false,
             hasOAuthCredentials: false)
         #expect(strategy.dataSource == .web)
     }
 
     @Test
-    func fallsBackToCLIWhenNoOAuthOrWeb() {
+    func fallsBackToCLIWhenOAuthMissingAndWebMissing() {
         let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
             selectedDataSource: .auto,
             webExtrasEnabled: false,
             hasWebSession: false,
+            hasCLI: true,
             hasOAuthCredentials: false)
         #expect(strategy.dataSource == .cli)
     }

@@ -193,6 +193,7 @@ final class UsageStore {
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
+    @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
 
@@ -395,10 +396,18 @@ final class UsageStore {
     }
 
     func isProviderAvailable(_ provider: UsageProvider) -> Bool {
+        // Availability should mirror the effective fetch environment, including token-account overrides.
+        // Otherwise providers (notably token-account-backed API providers) can fetch successfully but be
+        // hidden from the menu because their credentials are not in ProcessInfo's environment.
+        let environment = ProviderRegistry.makeEnvironment(
+            base: ProcessInfo.processInfo.environment,
+            provider: provider,
+            settings: self.settings,
+            tokenOverride: nil)
         let context = ProviderAvailabilityContext(
             provider: provider,
             settings: self.settings,
-            environment: ProcessInfo.processInfo.environment)
+            environment: environment)
         return ProviderCatalog.implementation(for: provider)?
             .isAvailable(context: context)
             ?? true
@@ -424,30 +433,37 @@ final class UsageStore {
 
     func refresh(forceTokenUsage: Bool = false) async {
         guard !self.isRefreshing else { return }
-        self.isRefreshing = true
-        defer { self.isRefreshing = false }
+        let refreshPhase: ProviderRefreshPhase = self.hasCompletedInitialRefresh ? .regular : .startup
 
-        await withTaskGroup(of: Void.self) { group in
-            for provider in UsageProvider.allCases {
-                group.addTask { await self.refreshProvider(provider) }
-                group.addTask { await self.refreshStatus(provider) }
+        await ProviderRefreshContext.$current.withValue(refreshPhase) {
+            self.isRefreshing = true
+            defer {
+                self.isRefreshing = false
+                self.hasCompletedInitialRefresh = true
             }
-            group.addTask { await self.refreshCreditsIfNeeded() }
+
+            await withTaskGroup(of: Void.self) { group in
+                for provider in UsageProvider.allCases {
+                    group.addTask { await self.refreshProvider(provider) }
+                    group.addTask { await self.refreshStatus(provider) }
+                }
+                group.addTask { await self.refreshCreditsIfNeeded() }
+            }
+
+            // Token-cost usage can be slow; run it outside the refresh group so we don't block menu updates.
+            self.scheduleTokenRefresh(force: forceTokenUsage)
+
+            // OpenAI web scrape depends on the current Codex account email (which can change after login/account
+            // switch). Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
+            await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
+
+            if self.openAIDashboardRequiresLogin {
+                await self.refreshProvider(.codex)
+                await self.refreshCreditsIfNeeded()
+            }
+
+            self.persistWidgetSnapshot(reason: "refresh")
         }
-
-        // Token-cost usage can be slow; run it outside the refresh group so we don't block menu updates.
-        self.scheduleTokenRefresh(force: forceTokenUsage)
-
-        // OpenAI web scrape depends on the current Codex account email (which can change after login/account switch).
-        // Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
-        await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
-
-        if self.openAIDashboardRequiresLogin {
-            await self.refreshProvider(.codex)
-            await self.refreshCreditsIfNeeded()
-        }
-
-        self.persistWidgetSnapshot(reason: "refresh")
     }
 
     /// For demo/testing: drop the snapshot so the loading animation plays, then restore the last snapshot.
@@ -1229,6 +1245,13 @@ extension UsageStore {
                 let text = "JetBrains AI debug log not yet implemented"
                 await MainActor.run { self.probeLogs[.jetbrains] = text }
                 return text
+            case .warp:
+                let resolution = ProviderTokenResolver.warpResolution()
+                let hasAny = resolution != nil
+                let source = resolution?.source.rawValue ?? "none"
+                let text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                await MainActor.run { self.probeLogs[.warp] = text }
+                return text
             }
         }.value
     }
@@ -1250,17 +1273,39 @@ extension UsageStore {
             } else {
                 ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection) { msg in lines.append(msg) }
             }
-            let hasOAuthCredentials = (try? ClaudeOAuthCredentialsStore.load()) != nil
+            // Don't prompt for keychain access during debug dump
+            let oauthRecord = try? ClaudeOAuthCredentialsStore.loadRecord(
+                allowKeychainPrompt: false,
+                respectKeychainPromptCooldown: true,
+                allowClaudeKeychainRepairWithoutPrompt: false)
+            let hasOAuthCredentials = oauthRecord?.credentials.scopes.contains("user:profile") == true
+            let hasClaudeBinary = ClaudeOAuthDelegatedRefreshCoordinator.isClaudeCLIAvailable()
+            let delegatedCooldownSeconds = ClaudeOAuthDelegatedRefreshCoordinator.cooldownRemainingSeconds()
 
             let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
                 selectedDataSource: claudeUsageDataSource,
                 webExtrasEnabled: claudeWebExtrasEnabled,
                 hasWebSession: hasKey,
+                hasCLI: hasClaudeBinary,
                 hasOAuthCredentials: hasOAuthCredentials)
 
-            lines.append("strategy=\(strategy.dataSource.rawValue)")
+            if claudeUsageDataSource == .auto {
+                lines.append("pipeline_order=oauth→cli→web")
+                lines.append("auto_heuristic=\(strategy.dataSource.rawValue)")
+            } else {
+                lines.append("strategy=\(strategy.dataSource.rawValue)")
+            }
             lines.append("hasSessionKey=\(hasKey)")
             lines.append("hasOAuthCredentials=\(hasOAuthCredentials)")
+            lines.append("oauthCredentialOwner=\(oauthRecord?.owner.rawValue ?? "none")")
+            lines.append("oauthCredentialSource=\(oauthRecord?.source.rawValue ?? "none")")
+            lines.append("oauthCredentialExpired=\(oauthRecord?.credentials.isExpired ?? false)")
+            lines.append("delegatedRefreshCLIAvailable=\(hasClaudeBinary)")
+            lines.append("delegatedRefreshCooldownActive=\(delegatedCooldownSeconds != nil)")
+            if let delegatedCooldownSeconds {
+                lines.append("delegatedRefreshCooldownSeconds=\(delegatedCooldownSeconds)")
+            }
+            lines.append("hasClaudeBinary=\(hasClaudeBinary)")
             if strategy.useWebExtras {
                 lines.append("web_extras=enabled")
             }

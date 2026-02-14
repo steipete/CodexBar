@@ -13,7 +13,7 @@ enum CostUsageScanner {
         var cacheRoot: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
-        // Force a full rescan, ignoring per-file cache and incremental offsets.
+        /// Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
 
         init(
@@ -98,6 +98,8 @@ enum CostUsageScanner {
         case .amp:
             return CostUsageDailyReport(data: [], summary: nil)
         case .synthetic:
+            return CostUsageDailyReport(data: [], summary: nil)
+        case .warp:
             return CostUsageDailyReport(data: [], summary: nil)
         }
     }

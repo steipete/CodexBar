@@ -1,141 +1,131 @@
 ---
-summary: "Keychain prompt reduction: ThisDeviceOnly migration and rationale."
+summary: "Current keychain behavior: legacy migration, Claude OAuth keychain bootstrap, and prompt mitigation."
 read_when:
   - Investigating Keychain prompts
-  - Auditing Keychain accessibility changes
-  - Reviewing migration behavior
+  - Auditing Claude OAuth keychain behavior
+  - Comparing legacy keychain docs vs current architecture
 ---
 
-# Keychain Permission Prompts Fix
+# Keychain Fix: Current State
 
-## Problem
-During development, every rebuild changed the app's code signature, causing macOS to prompt for keychain access **9+ times** (once per stored credential: Claude cookie, Codex cookie, MiniMax cookie, Copilot token, Zai token, etc.).
+## Scope change from the original doc
+The original fix (migrating legacy CodexBar keychain items to `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) is
+still in place, but the architecture has changed:
 
-## Solution
-Changed keychain accessibility from `kSecAttrAccessibleAfterFirstUnlock` to `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` for all keychain stores.
+- Provider settings and manual secrets are now persisted in `~/.codexbar/config.json`.
+- Legacy keychain stores are still present mainly to migrate old installs, then clear old items.
+- Keychain is still used for runtime cache entries (for example `com.steipete.codexbar.cache`) and Claude OAuth
+  bootstrap reads from Claude CLI keychain (`Claude Code-credentials`).
 
-### Why This Works
-- `AfterFirstUnlock`: Items are backed up to iCloud and migrated to other devices, but require keychain prompts when code signature changes
-- `AfterFirstUnlockThisDeviceOnly`: Items are **not** backed up or migrated, making them more tolerant of code signature changes during development
+## Then vs now
 
-### Trade-offs
-- ✅ **Zero keychain prompts** on subsequent rebuilds
-- ✅ Same security level (requires device unlock)
-- ❌ Credentials not backed up to iCloud (acceptable for development)
-- ❌ Credentials not migrated to new devices (acceptable for development)
+| Previous statement in this doc | Current behavior |
+| --- | --- |
+| CodexBar stores provider credentials only in keychain | Manual/provider settings are config-file backed (`~/.codexbar/config.json`), while keychain is still used for runtime caches and Claude OAuth bootstrap fallback. |
+| `ClaudeOAuthCredentials.swift` migrated CodexBar-owned Claude OAuth keychain items | Claude OAuth primary source is Claude CLI keychain service (`Claude Code-credentials`), with CodexBar cache in `com.steipete.codexbar.cache` (`oauth.claude`). |
+| Migration runs in `CodexBarApp.init()` | Migration runs in `HiddenWindowView` `.task` via detached task (`KeychainMigration.migrateIfNeeded()`). |
+| Post-migration prompts should be zero in all Claude paths | Legacy-store prompts are reduced; Claude OAuth bootstrap can still prompt when reading Claude CLI keychain, with cooldown + no-UI probes to prevent storms. |
+| Log category is `KeychainMigration` | Category is `keychain-migration` (kebab-case). |
 
-## Implementation
+## Current keychain surfaces for Claude
 
-### 1. Updated Keychain Stores
-Changed all keychain stores to use `ThisDeviceOnly` accessibility:
-- `CookieHeaderStore.swift` (Codex/Claude/Cursor/Factory/Augment cookies)
-- `MiniMaxCookieStore.swift` (MiniMax cookies)
-- `ZaiTokenStore.swift` (z.ai API token)
-- `CopilotTokenStore.swift` (Copilot token)
-- `ClaudeOAuthCredentials.swift` (Claude Code OAuth token)
+### 1. Legacy CodexBar keychain migration (V1)
+`Sources/CodexBar/KeychainMigration.swift` migrates legacy `com.steipete.CodexBar` items (for example
+`claude-cookie`) to `AfterFirstUnlockThisDeviceOnly`.
 
-### 2. One-Time Migration
-Created `KeychainMigration.swift` to migrate existing keychain items:
-- Runs once per app installation (flag stored in UserDefaults)
-- Reads existing items, deletes them, re-adds with new accessibility
-- Logs migration progress for debugging
-- **First launch after update**: one prompt per stored credential (one-time migration)
-- **Subsequent rebuilds**: Zero prompts
+- Gate key: `KeychainMigrationV1Completed`
+- Runs once unless flag is reset.
+- Covers legacy CodexBar-managed accounts only (not Claude CLI's own keychain service).
 
-### 3. Migration Flow
-```swift
-// In CodexBarApp.init()
-KeychainMigration.migrateIfNeeded()
+### 2. Claude OAuth bootstrap path
+`Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthCredentials.swift`
 
-// Migration logic:
-1. Check UserDefaults flag "KeychainMigrationV1Completed"
-2. If already migrated, skip (log debug message)
-3. For each keychain item:
-   a. Read existing item
-   b. Check current accessibility
-   c. If already using ThisDeviceOnly, skip
-   d. Delete old item
-   e. Re-add with kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-4. Set migration flag in UserDefaults
-```
+Load order for credentials:
+1. Environment override (`CODEXBAR_CLAUDE_OAUTH_TOKEN`, scopes env key).
+2. In-memory cache.
+3. CodexBar keychain cache (`com.steipete.codexbar.cache`, account `oauth.claude`).
+4. `~/.claude/.credentials.json`.
+5. Claude CLI keychain service: `Claude Code-credentials` (promptable fallback).
 
-## User Experience
+Prompt mitigation:
+- Non-interactive keychain probes use `KeychainNoUIQuery` (`LAContext.interactionNotAllowed` + `kSecUseAuthenticationUIFail`).
+- Pre-alert is shown only when preflight suggests interaction may be required.
+- Denials are cooled down in the background via `claudeOAuthKeychainDeniedUntil`
+  (`ClaudeOAuthKeychainAccessGate`). User actions (menu open / manual refresh) clear this cooldown.
+- Auto-mode availability checks use non-interactive loads with prompt cooldown respected.
+- Background cache-sync-on-change also performs non-interactive Claude keychain probes (`syncWithClaudeKeychainIfChanged`)
+  and can update cached OAuth data when the token changes.
 
-### First Launch (After Update)
-User sees **one keychain prompt per stored credential** during the one-time migration.
+### Why two Claude keychain prompts can still happen on startup
+When CodexBar does not have usable OAuth credentials in its own cache (`com.steipete.codexbar.cache` / `oauth.claude`),
+bootstrap falls through to Claude CLI keychain reads.
 
-### Subsequent Rebuilds
-**Zero prompts!** The migration flag prevents re-running, and the new accessibility level prevents prompts on code signature changes.
+Current flow can perform up to two interactive reads in one bootstrap call:
+1. Interactive read of the newest discovered keychain candidate.
+2. If that does not return usable data, interactive legacy service-level fallback read.
 
-### Disable Keychain Access (Advanced)
-Turning on **Advanced → Disable Keychain access** disables all Keychain reads/writes. Browser cookie import is
-disabled and every provider must use manual Cookie headers instead. Manual cookies are not persisted while the toggle
-is enabled, so paste them again after a relaunch.
+On some macOS keychain/ACL states, pressing **Allow** (session-only) for the first read does not grant enough access
+for the second read shape, so macOS prompts again. Pressing **Always Allow** usually authorizes both query shapes for
+the app identity and avoids the immediate second prompt.
+
+The prompt copy differs because Security.framework is authorizing different operations:
+- one path is a direct secret-data read for the key item,
+- the fallback path is a key/service access query.
+
+This is OS/keychain ACL behavior, not a `ThisDeviceOnly` migration issue.
+
+### 3. Claude web cookie cache
+`Sources/CodexBarCore/CookieHeaderCache.swift` and `Sources/CodexBarCore/KeychainCacheStore.swift`
+
+- Browser-imported Claude session cookies are cached in keychain service `com.steipete.codexbar.cache`.
+- Account key is `cookie.claude`.
+- Cache writes use `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
+
+## What still uses `ThisDeviceOnly`
+
+- Legacy store implementations (`CookieHeaderStore`, token stores, MiniMax stores) still write using
+  `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
+- Keychain cache store (`com.steipete.codexbar.cache`) also writes with `ThisDeviceOnly`.
+
+## Disable keychain access behavior
+
+`Advanced -> Disable Keychain access` sets `debugDisableKeychainAccess` and flips `KeychainAccessGate.isDisabled`.
+
+Effects:
+- Blocks keychain reads/writes in legacy stores.
+- Disables keychain-backed cookie auto-import paths.
+- Forces cookie source resolution to manual/off where applicable.
 
 ## Verification
 
-### Check Migration Status
+### Check legacy migration flag
 ```bash
-# Should output: 1
 defaults read com.steipete.codexbar KeychainMigrationV1Completed
 ```
 
-### View Migration Logs
+### Check Claude OAuth keychain cooldown
 ```bash
-# In Console.app, filter by:
-# subsystem: com.steipete.codexbar
-# category: KeychainMigration
-
-# Or via command line:
-log show --predicate 'category == "KeychainMigration"' --last 5m
+defaults read com.steipete.codexbar claudeOAuthKeychainDeniedUntil
 ```
 
-### Reset Migration (Testing)
+### Inspect keychain-related logs
 ```bash
-# Force migration to run again
-defaults delete com.steipete.codexbar KeychainMigrationV1Completed
+log show --predicate 'subsystem == "com.steipete.codexbar" && (category == "keychain-migration" || category == "keychain-preflight" || category == "keychain-prompt" || category == "keychain-cache" || category == "claude-usage" || category == "cookie-cache")' --last 10m
+```
 
-# Rebuild and launch
+### Reset migration for local testing
+```bash
+defaults delete com.steipete.codexbar KeychainMigrationV1Completed
 ./Scripts/compile_and_run.sh
 ```
 
-## Files Changed
+## Key files (current)
 
-### New Files
-- `Sources/CodexBar/KeychainMigration.swift` - One-time migration logic
-
-### Modified Files
-- `Sources/CodexBar/CookieHeaderStore.swift` - Changed accessibility
-- `Sources/CodexBar/MiniMaxCookieStore.swift` - Changed accessibility
-- `Sources/CodexBar/ZaiTokenStore.swift` - Changed accessibility
-- `Sources/CodexBar/CopilotTokenStore.swift` - Changed accessibility
-- `Sources/CodexBar/CodexBarApp.swift` - Added migration call
-
-## Alternative Approaches Considered
-
-### 1. Keychain Access Groups (Rejected)
-- Requires provisioning profile or proper code signing
-- Not compatible with ad-hoc signed development builds
-- Would work for release builds but not development
-
-### 2. Shared Keychain Service Name (Rejected)
-- Doesn't solve the code signature change issue
-- Still prompts on every rebuild
-
-### 3. File-Based Storage (Rejected)
-- Less secure than keychain
-- Requires manual encryption
-- Loses integration with macOS security features
-
-## Production Considerations
-
-For **release builds** (notarized, distributed via GitHub/Homebrew):
-- The `ThisDeviceOnly` accessibility is still appropriate
-- Users won't see prompts because the code signature is stable
-- Credentials are still secure (require device unlock)
-- Only downside: credentials not backed up to iCloud (acceptable trade-off)
-
-If iCloud backup is desired in the future:
-- Could use `kSecAttrAccessibleAfterFirstUnlock` for release builds
-- Keep `ThisDeviceOnly` for development builds
-- Conditional compilation based on build configuration
+- `Sources/CodexBar/KeychainMigration.swift`
+- `Sources/CodexBar/HiddenWindowView.swift`
+- `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthCredentials.swift`
+- `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthKeychainAccessGate.swift`
+- `Sources/CodexBarCore/KeychainAccessPreflight.swift`
+- `Sources/CodexBarCore/KeychainNoUIQuery.swift`
+- `Sources/CodexBarCore/KeychainCacheStore.swift`
+- `Sources/CodexBarCore/CookieHeaderCache.swift`

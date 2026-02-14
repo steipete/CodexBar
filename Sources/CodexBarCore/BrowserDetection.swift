@@ -213,10 +213,9 @@ public final class BrowserDetection: Sendable {
         }
 
         if browser.usesGeckoProfileStore {
-            let hasFirefoxProfile = contents.contains { name in
+            return contents.contains { name in
                 name.contains(".default")
             }
-            return hasFirefoxProfile
         }
 
         return hasProfile

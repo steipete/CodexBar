@@ -2,12 +2,25 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
-    var codexSnapshot: UsageSnapshot? { self.snapshots[.codex] }
-    var claudeSnapshot: UsageSnapshot? { self.snapshots[.claude] }
-    var lastCodexError: String? { self.errors[.codex] }
-    var lastClaudeError: String? { self.errors[.claude] }
+    var codexSnapshot: UsageSnapshot? {
+        self.snapshots[.codex]
+    }
 
-    func error(for provider: UsageProvider) -> String? { self.errors[provider] }
+    var claudeSnapshot: UsageSnapshot? {
+        self.snapshots[.claude]
+    }
+
+    var lastCodexError: String? {
+        self.errors[.codex]
+    }
+
+    var lastClaudeError: String? {
+        self.errors[.claude]
+    }
+
+    func error(for provider: UsageProvider) -> String? {
+        self.errors[provider]
+    }
 
     func status(for provider: UsageProvider) -> ProviderStatus? {
         guard self.statusChecksEnabled else { return nil }

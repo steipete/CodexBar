@@ -5,7 +5,9 @@ public enum CodexUsageDataSource: String, CaseIterable, Identifiable, Sendable {
     case oauth
     case cli
 
-    public var id: String { self.rawValue }
+    public var id: String {
+        self.rawValue
+    }
 
     public var displayName: String {
         switch self {

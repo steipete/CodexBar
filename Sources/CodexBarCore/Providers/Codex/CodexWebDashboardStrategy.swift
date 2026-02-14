@@ -155,7 +155,9 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
 
     public init() {}
 
-    public func isAvailable(_: ProviderFetchContext) async -> Bool { false }
+    public func isAvailable(_: ProviderFetchContext) async -> Bool {
+        false
+    }
 
     public func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         throw ProviderFetchError.noAvailableStrategy(.codex)

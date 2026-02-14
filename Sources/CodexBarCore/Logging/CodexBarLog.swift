@@ -16,7 +16,9 @@ public enum CodexBarLog {
         case error
         case critical
 
-        public var id: String { self.rawValue }
+        public var id: String {
+            self.rawValue
+        }
 
         public var displayName: String {
             switch self {

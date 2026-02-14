@@ -534,7 +534,7 @@ final class ProviderSwitcherView: NSView {
         return NSColor.labelColor.withAlphaComponent(0.06).cgColor
     }
 
-    // Cache for button width measurements to avoid repeated layout passes.
+    /// Cache for button width measurements to avoid repeated layout passes.
     private static var buttonWidthCache: [ObjectIdentifier: CGFloat] = [:]
 
     private static func maxToggleWidth(for button: NSButton) -> CGFloat {

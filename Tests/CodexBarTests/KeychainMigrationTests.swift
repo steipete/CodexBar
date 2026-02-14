@@ -12,10 +12,11 @@ struct KeychainMigrationTests {
             "com.steipete.CodexBar:cursor-cookie",
             "com.steipete.CodexBar:factory-cookie",
             "com.steipete.CodexBar:minimax-cookie",
+            "com.steipete.CodexBar:minimax-api-token",
             "com.steipete.CodexBar:augment-cookie",
             "com.steipete.CodexBar:copilot-api-token",
             "com.steipete.CodexBar:zai-api-token",
-            "Claude Code-credentials:<any>",
+            "com.steipete.CodexBar:synthetic-api-key",
         ]
 
         let missing = expected.subtracting(items)

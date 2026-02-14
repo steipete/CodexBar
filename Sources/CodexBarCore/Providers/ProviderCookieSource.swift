@@ -5,7 +5,9 @@ public enum ProviderCookieSource: String, CaseIterable, Identifiable, Sendable, 
     case manual
     case off
 
-    public var id: String { self.rawValue }
+    public var id: String {
+        self.rawValue
+    }
 
     public var displayName: String {
         switch self {

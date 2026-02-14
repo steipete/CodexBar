@@ -8,7 +8,9 @@ enum LoadingPattern: String, CaseIterable, Identifiable {
     case pulse
     case unbraid
 
-    var id: String { self.rawValue }
+    var id: String {
+        self.rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -21,7 +23,7 @@ enum LoadingPattern: String, CaseIterable, Identifiable {
         }
     }
 
-    // Secondary offset so the lower bar moves differently.
+    /// Secondary offset so the lower bar moves differently.
     var secondaryOffset: Double {
         switch self {
         case .knightRider: .pi

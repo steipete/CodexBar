@@ -59,7 +59,9 @@ struct KimiK2APIFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "api")
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool { false }
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
 
     private static func resolveToken(environment: [String: String]) -> String? {
         ProviderTokenResolver.kimiK2Token(environment: environment)

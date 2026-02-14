@@ -188,6 +188,17 @@ extension SettingsStore {
         }
     }
 
+    var claudeOAuthKeychainPromptMode: ClaudeOAuthKeychainPromptMode {
+        get {
+            let raw = self.defaultsState.claudeOAuthKeychainPromptModeRaw
+            return ClaudeOAuthKeychainPromptMode(rawValue: raw ?? "") ?? .onlyOnUserAction
+        }
+        set {
+            self.defaultsState.claudeOAuthKeychainPromptModeRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "claudeOAuthKeychainPromptMode")
+        }
+    }
+
     var claudeWebExtrasEnabled: Bool {
         get { self.claudeWebExtrasEnabledRaw }
         set { self.claudeWebExtrasEnabledRaw = newValue }

@@ -66,6 +66,70 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func rendersWarpUnlimitedAsDetailNotReset() {
+        let meta = ProviderDescriptorRegistry.descriptor(for: .warp).metadata
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: "Unlimited"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: ProviderIdentitySnapshot(
+                providerID: .warp,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let output = CLIRenderer.renderText(
+            provider: .warp,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Warp 0.0.0 (warp)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("\(meta.sessionLabel): 100% left"))
+        #expect(!output.contains("Resets Unlimited"))
+        #expect(output.contains("Unlimited"))
+    }
+
+    @Test
+    func rendersWarpCreditsAsDetailAndResetAsDate() {
+        let meta = ProviderDescriptorRegistry.descriptor(for: .warp).metadata
+        let now = Date(timeIntervalSince1970: 0)
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 10,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: "10/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .warp,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let output = CLIRenderer.renderText(
+            provider: .warp,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Warp 0.0.0 (warp)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("\(meta.sessionLabel): 90% left"))
+        #expect(output.contains("Resets"))
+        #expect(output.contains("10/100 credits"))
+        #expect(!output.contains("Resets 10/100 credits"))
+    }
+
+    @Test
     func rendersPaceLineWhenWeeklyHasReset() {
         let now = Date()
         let snap = UsageSnapshot(

@@ -125,9 +125,9 @@ struct KiroStatusProbeTests {
     // MARK: - Snapshot Conversion
 
     @Test
-    func convertsSnapshotToUsageSnapshot() {
+    func convertsSnapshotToUsageSnapshot() throws {
         let now = Date()
-        let resetDate = Calendar.current.date(byAdding: .day, value: 7, to: now)!
+        let resetDate = try #require(Calendar.current.date(byAdding: .day, value: 7, to: now))
 
         let snapshot = KiroUsageSnapshot(
             planName: "KIRO PRO",

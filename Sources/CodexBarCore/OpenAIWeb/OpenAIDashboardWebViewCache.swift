@@ -31,6 +31,34 @@ final class OpenAIDashboardWebViewCache {
     private var entries: [ObjectIdentifier: Entry] = [:]
     private let idleTimeout: TimeInterval = 10 * 60
 
+    // MARK: - Testing support
+
+    #if DEBUG
+    /// Number of cached WebView entries (for testing).
+    var entryCount: Int {
+        self.entries.count
+    }
+
+    /// Check if a WebView is cached for the given data store (for testing).
+    func hasCachedEntry(for websiteDataStore: WKWebsiteDataStore) -> Bool {
+        let key = ObjectIdentifier(websiteDataStore)
+        return self.entries[key] != nil
+    }
+
+    /// Force prune with a custom "now" timestamp (for testing idle timeout).
+    func pruneForTesting(now: Date) {
+        self.prune(now: now)
+    }
+
+    /// Clear all cached entries (for test isolation).
+    func clearAllForTesting() {
+        for (_, entry) in self.entries {
+            entry.host.close()
+        }
+        self.entries.removeAll()
+    }
+    #endif
+
     func acquire(
         websiteDataStore: WKWebsiteDataStore,
         usageURL: URL,
@@ -82,8 +110,11 @@ final class OpenAIDashboardWebViewCache {
                     guard let self, let entry else { return }
                     entry.isBusy = false
                     entry.lastUsedAt = Date()
-                    entry.host.close()
-                    self.entries.removeValue(forKey: key)
+                    // Hide instead of close - keep WebView cached for reuse.
+                    // This avoids re-downloading the ChatGPT SPA bundle on every refresh,
+                    // saving significant network bandwidth. See GitHub issues #269, #251.
+                    entry.host.hide()
+                    self.prune(now: Date())
                 })
         }
 
@@ -108,8 +139,11 @@ final class OpenAIDashboardWebViewCache {
                 guard let self, let entry else { return }
                 entry.isBusy = false
                 entry.lastUsedAt = Date()
-                entry.host.close()
-                self.entries.removeValue(forKey: key)
+                // Hide instead of close - keep WebView cached for reuse.
+                // This avoids re-downloading the ChatGPT SPA bundle on every refresh,
+                // saving significant network bandwidth. See GitHub issues #269, #251.
+                entry.host.hide()
+                self.prune(now: Date())
             })
     }
 

@@ -109,7 +109,9 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
     let id: String = "codex.cli"
     let kind: ProviderFetchKind = .cli
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool { true }
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let keepAlive = context.settings?.debugKeepCLISessionsAlive ?? false

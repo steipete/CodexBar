@@ -7,7 +7,7 @@ import Testing
 @Suite
 struct MenuCardModelTests {
     @Test
-    func buildsMetricsUsingRemainingPercent() {
+    func buildsMetricsUsingRemainingPercent() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -27,12 +27,12 @@ struct MenuCardModelTests {
                 resetDescription: nil),
             updatedAt: now,
             identity: identity)
-        let metadata = ProviderDefaults.metadata[.codex]!
-        let updatedSnap = UsageSnapshot(
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let updatedSnap = try UsageSnapshot(
             primary: snapshot.primary,
             secondary: RateWindow(
-                usedPercent: snapshot.secondary!.usedPercent,
-                windowMinutes: snapshot.secondary!.windowMinutes,
+                usedPercent: #require(snapshot.secondary?.usedPercent),
+                windowMinutes: #require(snapshot.secondary?.windowMinutes),
                 resetsAt: now.addingTimeInterval(3600),
                 resetDescription: nil),
             tertiary: snapshot.tertiary,
@@ -69,7 +69,7 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func buildsMetricsUsingUsedPercentWhenEnabled() {
+    func buildsMetricsUsingUsedPercentWhenEnabled() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -89,7 +89,7 @@ struct MenuCardModelTests {
                 resetDescription: nil),
             updatedAt: now,
             identity: identity)
-        let metadata = ProviderDefaults.metadata[.codex]!
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
 
         let dashboard = OpenAIDashboardSnapshot(
             signedInEmail: "codex@example.com",
@@ -127,7 +127,7 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func showsCodeReviewMetricWhenDashboardPresent() {
+    func showsCodeReviewMetricWhenDashboardPresent() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -140,7 +140,7 @@ struct MenuCardModelTests {
             tertiary: nil,
             updatedAt: now,
             identity: identity)
-        let metadata = ProviderDefaults.metadata[.codex]!
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
 
         let dashboard = OpenAIDashboardSnapshot(
             signedInEmail: "codex@example.com",
@@ -174,7 +174,7 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func claudeModelHidesWeeklyWhenUnavailable() {
+    func claudeModelHidesWeeklyWhenUnavailable() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .claude,
@@ -191,7 +191,7 @@ struct MenuCardModelTests {
             tertiary: nil,
             updatedAt: now,
             identity: identity)
-        let metadata = ProviderDefaults.metadata[.claude]!
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
         let model = UsageMenuCardView.Model.make(.init(
             provider: .claude,
             metadata: metadata,
@@ -218,8 +218,8 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func showsErrorSubtitleWhenPresent() {
-        let metadata = ProviderDefaults.metadata[.codex]!
+    func showsErrorSubtitleWhenPresent() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
@@ -246,9 +246,9 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func costSectionIncludesLast30DaysTokens() {
+    func costSectionIncludesLast30DaysTokens() throws {
         let now = Date()
-        let metadata = ProviderDefaults.metadata[.codex]!
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
@@ -286,8 +286,8 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func claudeModelDoesNotLeakCodexPlan() {
-        let metadata = ProviderDefaults.metadata[.claude]!
+    func claudeModelDoesNotLeakCodexPlan() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
         let model = UsageMenuCardView.Model.make(.init(
             provider: .claude,
             metadata: metadata,
@@ -313,7 +313,7 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func hidesCodexCreditsWhenDisabled() {
+    func hidesCodexCreditsWhenDisabled() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -326,7 +326,7 @@ struct MenuCardModelTests {
             tertiary: nil,
             updatedAt: now,
             identity: identity)
-        let metadata = ProviderDefaults.metadata[.codex]!
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
@@ -352,7 +352,7 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func hidesClaudeExtraUsageWhenDisabled() {
+    func hidesClaudeExtraUsageWhenDisabled() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .claude,
@@ -366,7 +366,7 @@ struct MenuCardModelTests {
             providerCost: ProviderCostSnapshot(used: 12, limit: 200, currencyCode: "USD", updatedAt: now),
             updatedAt: now,
             identity: identity)
-        let metadata = ProviderDefaults.metadata[.claude]!
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .claude,
@@ -392,7 +392,7 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func hidesEmailWhenPersonalInfoHidden() {
+    func hidesEmailWhenPersonalInfoHidden() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -405,7 +405,7 @@ struct MenuCardModelTests {
             tertiary: nil,
             updatedAt: now,
             identity: identity)
-        let metadata = ProviderDefaults.metadata[.codex]!
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
@@ -431,5 +431,50 @@ struct MenuCardModelTests {
         #expect(model.subtitleText.contains("codex@example.com") == false)
         #expect(model.creditsHintCopyText?.isEmpty == true)
         #expect(model.creditsHintText?.contains("codex@example.com") == false)
+    }
+
+    @Test
+    func warpModelShowsPrimaryDetailWhenResetDateMissing() throws {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .warp,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: nil)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "10/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+        let metadata = try #require(ProviderDefaults.metadata[.warp])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .warp,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.resetText == nil)
+        #expect(primary.detailText == "10/100 credits")
     }
 }

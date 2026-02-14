@@ -19,7 +19,9 @@ struct IconView: View {
     private let cycleIntervalTicks = 20
     private let patterns = LoadingPattern.allCases
 
-    private var isLoading: Bool { self.showLoadingAnimation && self.snapshot == nil }
+    private var isLoading: Bool {
+        self.showLoadingAnimation && self.snapshot == nil
+    }
 
     var body: some View {
         Group {

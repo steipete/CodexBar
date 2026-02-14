@@ -3,6 +3,68 @@
     <channel>
         <title>CodexBar</title>
         <item sparkle:channel="beta">
+            <title>0.18.0-beta.3</title>
+            <pubDate>Fri, 13 Feb 2026 18:57:54 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>51</sparkle:version>
+            <sparkle:shortVersionString>0.18.0-beta.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.18.0-beta.3</h2>
+<h3>Highlights</h3>
+<ul>
+<li>Claude OAuth/keychain flows were reworked across a series of follow-up PRs to reduce prompt storms, stabilize background behavior, surface a setting to control prompt policy and make failure modes deterministic (#245, #305, #308, #309, #364). Thanks @manikv12!</li>
+<li>Claude: harden Claude Code PTY capture for <code>/usage</code> and <code>/status</code> (prompt automation, safer command palette confirmation, partial UTF-8 handling, and parsing guards against status-bar context meters) (#320).</li>
+<li>New provider: Warp (credits + add-on credits) (#352). Thanks @Kathie-yu!</li>
+<li>Provider correctness fixes landed for Cursor plan parsing and MiniMax region routing (#240, #234, #344). Thanks @robinebers and @theglove44!</li>
+<li>Menu bar animation behavior was hardened in merged mode and fallback mode (#283, #291). Thanks @vignesh07 and @Ilakiancs!</li>
+<li>CI/tooling reliability improved via pinned lint tools, deterministic macOS test execution, and PTY timing test stabilization plus Node 24-ready GitHub Actions upgrades (#292, #312, #290).</li>
+</ul>
+<h3>Claude OAuth & Keychain</h3>
+<ul>
+<li>Claude OAuth creds are cached in CodexBar Keychain to reduce repeated prompts.</li>
+<li>Prompts can still appear when Claude OAuth credentials are expired, invalid, or missing and re-auth is required.</li>
+<li>In Auto mode, background refresh keeps prompts suppressed; interactive prompts are limited to user actions (menu open or manual refresh).</li>
+<li>OAuth-only mode remains strict (no silent Web/CLI fallback); Auto mode may do one delegated CLI refresh + one OAuth retry before falling back.</li>
+<li>Preferences now expose a Claude Keychain prompt policy (Never / Only on user action / Always allow prompts) under Providers → Claude; if global Keychain access is disabled in Advanced, this control remains visible but inactive.</li>
+</ul>
+<h3>Provider & Usage Fixes</h3>
+<ul>
+<li>Warp: add Warp provider support (credits + add-on credits), configurable via Settings or <code>WARP_API_KEY</code>/<code>WARP_TOKEN</code> (#352). Thanks @Kathie-yu!</li>
+<li>Cursor: compute usage against <code>plan.limit</code> rather than <code>breakdown.total</code> to avoid incorrect limit interpretation (#240). Thanks @robinebers!</li>
+<li>MiniMax: correct API region URL selection to route requests to the expected regional endpoint (#234). Thanks @theglove44!</li>
+<li>MiniMax: always show the API region picker and retry the China endpoint when the global host rejects the token to avoid upgrade regressions for users without a persisted region (#344). Thanks @apoorvdarshan!</li>
+<li>Claude: add Opus 4.6 pricing so token cost scanning tracks USD consumed correctly (#348). Thanks @arandaschimpf!</li>
+<li>z.ai: handle quota responses with missing token-limit fields, avoid incorrect used-percent calculations, and harden empty-response behavior with safer logging (#346). Thanks @MohamedMohana and @halilertekin!</li>
+<li>z.ai: fix provider visibility in the menu when enabled with token-account credentials (availability now considers the effective fetch environment).</li>
+<li>Amp: detect login redirects during usage fetch and fail fast when the session is invalid (#339). Thanks @JosephDoUrden!</li>
+<li>Resource loading: fix app bundle lookup path to avoid "could not load resource bundle" startup failures (#223). Thanks @validatedev!</li>
+<li>OpenAI Web dashboard: keep WebView instances cached for reuse to reduce repeated network fetch overhead; tests were updated to avoid network-dependent flakes (#284). Thanks @vignesh07!</li>
+<li>Token-account precedence: selected token account env injection now correctly overrides provider config <code>apiKey</code> values in app and CLI environments. Thanks @arvindcr4!</li>
+<li>Claude: make Claude CLI probing more resilient by scoping auto-input to the active subcommand and trimming to the latest Usage panel before parsing to avoid false matches from earlier screen fragments (#320).</li>
+</ul>
+<h3>Menu Bar & UI Behavior</h3>
+<ul>
+<li>Prevent fallback-provider loading animation loops (battery/CPU drain when no providers are enabled) (#283). Thanks @vignesh07!</li>
+<li>Prevent status overlay rendering for disabled providers while in merged mode (#291). Thanks @Ilakiancs!</li>
+</ul>
+<h3>CI, Tooling & Test Stability</h3>
+<ul>
+<li>Pin SwiftFormat/SwiftLint versions and harden lint installer behavior (version drift + temp-file leak fixes) (#292).</li>
+<li>Use more deterministic macOS CI test settings (including non-parallel paths where needed) and align runner/toolchain behavior for stability (#292).</li>
+<li>Stabilize PTY command timing tests to reduce CI flakiness (#312).</li>
+<li>Upgrade <code>actions/checkout</code> to v6 and <code>actions/github-script</code> to v8 for Node 24 compatibility in <code>upstream-monitor.yml</code> (#290). Thanks @salmanmkc!</li>
+<li>Tests: add TaskLocal-based keychain/cache overrides so keychain gating and KeychainCacheStore test stores do not leak across concurrent test execution (#320).</li>
+</ul>
+<h3>Docs & Maintenance</h3>
+<ul>
+<li>Update docs for Claude data fetch behavior and keychain troubleshooting notes.</li>
+<li>Update MIT license year.</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.18.0-beta.3/CodexBar-0.18.0-beta.3.zip" length="23436028" type="application/octet-stream" sparkle:edSignature="mb72DHg5xz+AY/DrCDPhpkWaRa24NwcYXnW5lKuYBzlF5kMAsqTZGaG82KWPY8su8J5bJ5wtOMjVdzPCJWjvAw=="/>
+        </item>
+        <item sparkle:channel="beta">
             <title>0.18.0-beta.2</title>
             <pubDate>Wed, 21 Jan 2026 08:42:37 +0000</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>

@@ -201,8 +201,13 @@ struct MiniMaxUsageParserTests {
     func parsesHTMLWithUsedPrefixAndResetTime() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
-        let now = calendar.date(from: DateComponents(year: 2025, month: 1, day: 1, hour: 10, minute: 0))!
-        let expectedReset = calendar.date(from: DateComponents(year: 2025, month: 1, day: 1, hour: 23, minute: 30))!
+        let now = try #require(calendar.date(from: DateComponents(year: 2025, month: 1, day: 1, hour: 10, minute: 0)))
+        let expectedReset = try #require(calendar.date(from: DateComponents(
+            year: 2025,
+            month: 1,
+            day: 1,
+            hour: 23,
+            minute: 30)))
 
         let html = """
         <div>Coding Plan Pro</div>

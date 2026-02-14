@@ -8,9 +8,9 @@ import Testing
 @Suite
 struct ProviderSettingsDescriptorTests {
     @Test
-    func toggleIDsAreUniqueAcrossProviders() {
+    func toggleIDsAreUniqueAcrossProviders() throws {
         let suite = "ProviderSettingsDescriptorTests-unique"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
@@ -62,7 +62,7 @@ struct ProviderSettingsDescriptorTests {
                 },
                 requestConfirmation: { _ in })
 
-            let impl = ProviderCatalog.implementation(for: provider)!
+            let impl = try #require(ProviderCatalog.implementation(for: provider))
             let toggles = impl.settingsToggles(context: context)
             for toggle in toggles {
                 #expect(!seenToggleIDs.contains(toggle.id))
@@ -83,9 +83,9 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func codexExposesUsageAndCookiePickers() {
+    func codexExposesUsageAndCookiePickers() throws {
         let suite = "ProviderSettingsDescriptorTests-codex"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
@@ -124,9 +124,9 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func claudeExposesUsageAndCookiePickers() {
+    func claudeExposesUsageAndCookiePickers() throws {
         let suite = "ProviderSettingsDescriptorTests-claude"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
@@ -134,6 +134,7 @@ struct ProviderSettingsDescriptorTests {
             configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.debugDisableKeychainAccess = false
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -161,12 +162,62 @@ struct ProviderSettingsDescriptorTests {
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         #expect(pickers.contains(where: { $0.id == "claude-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
+        let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
+        let optionIDs = Set(keychainPicker.options.map(\.id))
+        #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.never.rawValue))
+        #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.onlyOnUserAction.rawValue))
+        #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.always.rawValue))
+        #expect(keychainPicker.isEnabled?() ?? true)
     }
 
     @Test
-    func claudeWebExtrasAutoDisablesWhenLeavingCLI() {
+    func claudeKeychainPromptPolicyPickerDisabledWhenGlobalKeychainDisabled() throws {
+        let suite = "ProviderSettingsDescriptorTests-claude-keychain-disabled"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.debugDisableKeychainAccess = true
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        let context = ProviderSettingsContext(
+            provider: .claude,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+
+        let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
+        let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
+        #expect(keychainPicker.isEnabled?() == false)
+        let subtitle = keychainPicker.dynamicSubtitle?() ?? ""
+        #expect(subtitle.localizedCaseInsensitiveContains("inactive"))
+    }
+
+    @Test
+    func claudeWebExtrasAutoDisablesWhenLeavingCLI() throws {
         let suite = "ProviderSettingsDescriptorTests-claude-invariant"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(

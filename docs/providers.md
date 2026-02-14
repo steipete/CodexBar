@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Vertex AI, Augment, Amp, JetBrains AI)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, JetBrains AI)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -19,7 +19,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
 | Codex | Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`); app uses CLI usage + optional dashboard scrape. |
-| Claude | OAuth API (`oauth`) → Web API (`web`) → CLI PTY (`claude`). |
+| Claude | App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
 | Gemini | OAuth API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → stored WebKit session (`web`). |
@@ -34,6 +34,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Web settings page via browser cookies (`web`). |
+| Warp | API token (config/env) → GraphQL request limits (`api`). |
 
 ## Codex
 - Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -44,9 +45,8 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Details: `docs/codex.md`.
 
 ## Claude
-- OAuth API (preferred when CLI credentials exist).
-- Web API (browser cookies) fallback when OAuth missing.
-- CLI PTY fallback when OAuth + web are unavailable.
+- App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
+- CLI Auto: Web API (`web`) → CLI PTY (`claude`).
 - Local cost usage: scans `~/.config/claude/projects/**/*.jsonl` (last 30 days).
 - Status: Statuspage.io (Anthropic).
 - Details: `docs/claude.md`.
@@ -120,6 +120,13 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Requires `kiro-cli` installed and logged in via AWS Builder ID.
 - Status: AWS Health Dashboard (manual link, no auto-polling).
 - Details: `docs/kiro.md`.
+
+## Warp
+- API token from Settings or `WARP_API_KEY` / `WARP_TOKEN` env var.
+- GraphQL credit limits: `https://app.warp.dev/graphql/v2?op=GetRequestLimitInfo`.
+- Shows monthly credits usage and next refresh time.
+- Status: none yet.
+- Details: `docs/warp.md`.
 
 ## Vertex AI
 - OAuth credentials from `gcloud auth application-default login` (ADC).

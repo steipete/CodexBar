@@ -6,7 +6,9 @@ enum MenuBarDisplayMode: String, CaseIterable, Identifiable {
     case pace
     case both
 
-    var id: String { self.rawValue }
+    var id: String {
+        self.rawValue
+    }
 
     var label: String {
         switch self {

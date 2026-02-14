@@ -45,7 +45,9 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
     let id: String = "antigravity.local"
     let kind: ProviderFetchKind = .localProbe
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool { true }
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = AntigravityStatusProbe()

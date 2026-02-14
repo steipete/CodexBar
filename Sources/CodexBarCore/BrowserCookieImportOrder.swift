@@ -15,8 +15,12 @@ extension [Browser] {
     ///
     /// This is intentionally stricter than "app installed": it aims to avoid unnecessary Keychain prompts.
     public func cookieImportCandidates(using detection: BrowserDetection) -> [Browser] {
-        guard !KeychainAccessGate.isDisabled else { return [] }
-        let candidates = self.filter { detection.isCookieSourceAvailable($0) }
+        let candidates = self.filter { browser in
+            if KeychainAccessGate.isDisabled, browser.usesKeychainForCookieDecryption {
+                return false
+            }
+            return detection.isCookieSourceAvailable(browser)
+        }
         return candidates.filter { BrowserCookieAccessGate.shouldAttempt($0) }
     }
 
@@ -49,6 +53,8 @@ extension Browser {
 }
 #else
 extension Browser {
-    var usesKeychainForCookieDecryption: Bool { false }
+    var usesKeychainForCookieDecryption: Bool {
+        false
+    }
 }
 #endif

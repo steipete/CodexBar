@@ -225,6 +225,124 @@ struct StatusProbeTests {
     }
 
     @Test
+    func parseClaudeStatus_ignoresStatusBarContextPercent() throws {
+        let sample = """
+        Claude Code v2.1.29
+        22:47 |  | Opus 4.5 | default | ░░░░░░░░░░ 0%  ◯ /ide for Visual Studio Code
+
+        Settings:  Status   Config   Usage  (tab to cycle)
+        Loading usage data…
+        Esc to cancel
+
+        Curretsession
+        ███████▌15%used
+        Resets 11:30pm (Asia/Calcutta)
+
+        Current week (all models)
+        █▌                                                 3% used
+        Resets Feb 12 at 1:30pm (Asia/Calcutta)
+
+        Current week (Sonnet only)
+        ▌                                                  1% used
+        Resets Feb 12 at 1:30pm (Asia/Calcutta)
+        """
+
+        let snap = try ClaudeStatusProbe.parse(text: sample)
+        #expect(snap.sessionPercentLeft == 85)
+        #expect(snap.weeklyPercentLeft == 97)
+        #expect(snap.opusPercentLeft == 99)
+    }
+
+    @Test
+    func parseClaudeStatus_loadingPanelDoesNotReportZeroPercent() {
+        let sample = """
+        Claude Code v2.1.29
+        22:47 |  | Opus 4.5 | default | ░░░░░░░░░░ 0%  ◯ /ide for Visual Studio Code
+
+        Settings:  Status   Config   Usage  (tab to cycle)
+        Loading usage data…
+        Esc to cancel
+        """
+
+        do {
+            _ = try ClaudeStatusProbe.parse(text: sample)
+            #expect(Bool(false), "Parsing should fail while /usage is still loading")
+        } catch ClaudeStatusProbeError.parseFailed {
+            return
+        } catch ClaudeStatusProbeError.timedOut {
+            return
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func parseClaudeStatus_statusOnlyOutputDoesNotFallbackToZero() {
+        let sample = """
+        Claude Code v2.1.32
+        01:07 |  | Opus 4.6 | default | ░░░░░░░░░░ 0% left
+        Status: Partially Degraded Service
+        /status
+        """
+
+        do {
+            _ = try ClaudeStatusProbe.parse(text: sample)
+            #expect(Bool(false), "Parsing should fail when /usage windows are missing")
+        } catch ClaudeStatusProbeError.parseFailed {
+            return
+        } catch ClaudeStatusProbeError.timedOut {
+            return
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func parseClaudeStatus_placeholderUsageWindowDoesNotUseStatusBarPercent() {
+        let sample = """
+        Claude Code v2.1.32
+        01:07 |  | Opus 4.6 | default | ░░░░░░░░░░ 0% left
+        Settings: Status   Config   Usage
+        Current session
+        Current week (all models)
+        Current week (Sonnet only)
+        """
+
+        do {
+            _ = try ClaudeStatusProbe.parse(text: sample)
+            #expect(Bool(false), "Parsing should fail when only status-bar percentages are present")
+        } catch ClaudeStatusProbeError.parseFailed {
+            return
+        } catch ClaudeStatusProbeError.timedOut {
+            return
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func parseClaudeStatus_compactMarkersStillParse() throws {
+        let sample = """
+        Settings:StatusConfigUsage(←/→ortabtocycle)
+        Loadingusagedata…
+        Curretsession
+        ███6%used
+        Resets4:29am(Asia/Calcutta)
+        Currentweek(allmodels)
+        ██4%used
+        ResetsFeb12at1:29pm(Asia/Calcutta)
+        Currentweek(Sonnetonly)
+        ▌1%used
+        ResetsFeb12at1:29pm(Asia/Calcutta)
+        """
+
+        let snap = try ClaudeStatusProbe.parse(text: sample)
+        #expect(snap.sessionPercentLeft == 94)
+        #expect(snap.weeklyPercentLeft == 96)
+        #expect(snap.opusPercentLeft == 99)
+    }
+
+    @Test
     func parseClaudeStatusWithBracketPlanNoiseNoEsc() throws {
         let sample = """
         Login method: [22m Claude Max Account
@@ -320,25 +438,25 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parsesClaudeResetTimeOnly() {
+    func parsesClaudeResetTimeOnly() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets 12:59pm (Europe/Helsinki)", now: now)
-        let tz = TimeZone(identifier: "Europe/Helsinki")!
+        let tz = try #require(TimeZone(identifier: "Europe/Helsinki"))
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = tz
-        var expected = calendar.date(bySettingHour: 12, minute: 59, second: 0, of: now)!
+        var expected = try #require(calendar.date(bySettingHour: 12, minute: 59, second: 0, of: now))
         if expected < now {
-            expected = calendar.date(byAdding: .day, value: 1, to: expected)!
+            expected = try #require(calendar.date(byAdding: .day, value: 1, to: expected))
         }
         #expect(parsed == expected)
     }
 
     @Test
-    func parsesClaudeResetDateAndTime() {
+    func parsesClaudeResetDateAndTime() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets Dec 9, 8:59am (Europe/Helsinki)", now: now)
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Europe/Helsinki")!
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Helsinki"))
         let expected = calendar.date(from: DateComponents(
             year: calendar.component(.year, from: now),
             month: 12,
@@ -350,24 +468,24 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parsesClaudeResetWithDotSeparatedTime() {
+    func parsesClaudeResetWithDotSeparatedTime() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets Dec 9 at 5.27am (UTC)", now: now)
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
         let expected = calendar.date(from: DateComponents(year: 2024, month: 12, day: 9, hour: 5, minute: 27))
         #expect(parsed == expected)
     }
 
     @Test
-    func parsesClaudeResetWithCompactTimes() {
+    func parsesClaudeResetWithCompactTimes() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsedTimeOnly = ClaudeStatusProbe.parseResetDate(from: "Resets 1pm (UTC)", now: now)
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
-        var expected = calendar.date(bySettingHour: 13, minute: 0, second: 0, of: now)!
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+        var expected = try #require(calendar.date(bySettingHour: 13, minute: 0, second: 0, of: now))
         if expected < now {
-            expected = calendar.date(byAdding: .day, value: 1, to: expected)!
+            expected = try #require(calendar.date(byAdding: .day, value: 1, to: expected))
         }
         #expect(parsedTimeOnly == expected)
 

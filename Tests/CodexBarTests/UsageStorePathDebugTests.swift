@@ -7,9 +7,9 @@ import Testing
 @Suite
 struct UsageStorePathDebugTests {
     @Test
-    func refreshPathDebugInfoPopulatesSnapshot() async {
+    func refreshPathDebugInfoPopulatesSnapshot() async throws {
         let suite = "UsageStorePathDebugTests-path"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(

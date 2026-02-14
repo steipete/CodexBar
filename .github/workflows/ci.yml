@@ -16,31 +16,27 @@ jobs:
           set -euo pipefail
           for candidate in /Applications/Xcode_26.1.1.app /Applications/Xcode_26.1.app /Applications/Xcode.app; do
             if [[ -d "$candidate" ]]; then
-              sudo xcode-select -s "$candidate"
+              sudo xcode-select -s "${candidate}/Contents/Developer"
               echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
               break
             fi
           done
           /usr/bin/xcodebuild -version
 
-      - name: Install Swift 6.2 toolchain
+      - name: Swift toolchain version
         run: |
-          curl -L https://download.swift.org/swift-6.2-release/xcode/swift-6.2-RELEASE/swift-6.2-RELEASE-osx.pkg -o /tmp/swift.pkg
-          sudo installer -pkg /tmp/swift.pkg -target /
-          echo "/Library/Developer/Toolchains/swift-6.2-RELEASE.xctoolchain/usr/bin" >> "$GITHUB_PATH"
-          echo "TOOLCHAINS=swift-6.2-RELEASE" >> "$GITHUB_ENV"
+          set -euo pipefail
+          swift --version
+          swift package --version
 
       - name: Install lint tools
-        run: brew install swiftlint swiftformat
+        run: ./Scripts/install_lint_tools.sh
 
-      - name: SwiftFormat (lint)
-        run: swiftformat Sources Tests --lint
-
-      - name: SwiftLint
-        run: swiftlint --strict
+      - name: Lint
+        run: ./Scripts/lint.sh lint
 
       - name: Swift Test
-        run: swift test --parallel
+        run: swift test --no-parallel
 
   build-linux-cli:
     strategy:
