@@ -57,6 +57,13 @@ final class OpenAIDashboardWebViewCache {
         }
         self.entries.removeAll()
     }
+
+    /// Returns whether the cached WebView is currently attached to the host window (for testing).
+    func isWebViewAttachedForTesting(for websiteDataStore: WKWebsiteDataStore) -> Bool {
+        let key = ObjectIdentifier(websiteDataStore)
+        guard let entry = self.entries[key] else { return false }
+        return entry.host.isWebViewAttachedForTesting()
+    }
     #endif
 
     func acquire(
@@ -259,6 +266,14 @@ private final class OffscreenWebViewHost {
                 window.close()
             })
     }
+
+    #if DEBUG
+    fileprivate func isWebViewAttachedForTesting() -> Bool {
+        guard let webView = self.webView else { return false }
+        guard let contentView = self.window.contentView else { return false }
+        return contentView === webView
+    }
+    #endif
 
     private func attachWebViewIfNeeded() {
         guard let webView = self.webView else { return }

@@ -67,6 +67,41 @@ struct OpenAIDashboardWebViewCacheTests {
         cache.clearAllForTesting()
     }
 
+    @Test("Cached WebView should detach when hidden and reattach on reuse")
+    func cachedWebViewDetachesAndReattaches() async throws {
+        let cache = OpenAIDashboardWebViewCache()
+        let store = WKWebsiteDataStore.nonPersistent()
+        let url = try #require(URL(string: "about:blank"))
+
+        // Acquire shows (attaches) the WebView.
+        let lease1 = try await cache.acquire(
+            websiteDataStore: store,
+            usageURL: url,
+            logger: nil)
+        let webView1 = lease1.webView
+
+        #expect(cache.isWebViewAttachedForTesting(for: store), "WebView should be attached after acquire")
+
+        // Release hides and should detach the cached WebView from the host window.
+        lease1.release()
+
+        #expect(cache.hasCachedEntry(for: store), "WebView should remain cached after release")
+        #expect(!cache.isWebViewAttachedForTesting(for: store), "WebView should be detached after release")
+
+        // Reacquire should reuse and reattach the same WebView.
+        let lease2 = try await cache.acquire(
+            websiteDataStore: store,
+            usageURL: url,
+            logger: nil)
+        let webView2 = lease2.webView
+
+        #expect(webView1 === webView2, "Should reuse the same WebView instance")
+        #expect(cache.isWebViewAttachedForTesting(for: store), "WebView should reattach after reacquire")
+
+        lease2.release()
+        cache.clearAllForTesting()
+    }
+
     @Test("Different data stores should have separate cached WebViews")
     func separateCachesPerDataStore() async throws {
         let cache = OpenAIDashboardWebViewCache()
