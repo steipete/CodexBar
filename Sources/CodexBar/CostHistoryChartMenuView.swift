@@ -153,7 +153,7 @@ struct CostHistoryChartMenuView: View {
         for entry in sorted {
             guard let costUSD = entry.costUSD, costUSD > 0 else { continue }
             guard let date = self.dateFromDayKey(entry.date) else { continue }
-            let point = Point(date: date, costUSD: costUSD, totalTokens: entry.totalTokens)
+            let point = Point(date: date, costUSD: costUSD, totalTokens: entry.processedTokens ?? entry.totalTokens)
             points.append(point)
             pointsByKey[entry.date] = point
             entriesByKey[entry.date] = entry
