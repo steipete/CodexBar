@@ -892,7 +892,8 @@ extension UsageMenuCardView.Model {
         guard let snapshot else { return nil }
 
         let sessionCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-        let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
+        let sessionTokensValue = snapshot.sessionProcessedTokens ?? snapshot.sessionTokens
+        let sessionTokens = sessionTokensValue.map { UsageFormatter.tokenCountString($0) }
         let sessionLine: String = {
             if let sessionTokens {
                 return "Today: \(sessionCost) · \(sessionTokens) tokens"
@@ -901,8 +902,10 @@ extension UsageMenuCardView.Model {
         }()
 
         let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-        let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
-        let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
+        let fallbackTokens = snapshot.daily.compactMap { $0.processedTokens ?? $0.totalTokens }.reduce(0, +)
+        let monthTokensValue = snapshot.last30DaysProcessedTokens
+            ?? snapshot.last30DaysTokens
+            ?? (fallbackTokens > 0 ? fallbackTokens : nil)
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
         let monthLine: String = {
             if let monthTokens {
