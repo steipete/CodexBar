@@ -74,6 +74,8 @@ struct ClaudeOAuthCredentialsStoreTests {
     func loadRecord_nonInteractiveRepairCanBeDisabled() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try KeychainCacheStore.withServiceOverrideForTesting(service) {
+            // Make the test independent of any persisted debugDisableKeychainAccess UserDefaults value.
+            try KeychainAccessGate.withTaskOverrideForTesting(false) {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -126,6 +128,7 @@ struct ClaudeOAuthCredentialsStoreTests {
                         }
                     }
                 }
+            }
             }
         }
     }

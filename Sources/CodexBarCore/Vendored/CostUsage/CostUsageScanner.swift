@@ -63,45 +63,14 @@ enum CostUsageScanner {
             return self.loadCodexDaily(range: range, now: now, options: options)
         case .claude:
             return self.loadClaudeDaily(provider: .claude, range: range, now: now, options: options)
-        case .zai:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .gemini:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .antigravity:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .windsurf:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .cursor:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .opencode:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .factory:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .copilot:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .minimax:
-            return CostUsageDailyReport(data: [], summary: nil)
         case .vertexai:
             var filtered = options
             if filtered.claudeLogProviderFilter == .all {
                 filtered.claudeLogProviderFilter = .vertexAIOnly
             }
             return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
-        case .kiro:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .kimi:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .kimik2:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .augment:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .jetbrains:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .amp:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .synthetic:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .warp:
+        case .zai, .gemini, .antigravity, .windsurf, .cursor, .opencode, .factory, .copilot, .minimax, .kiro,
+             .kimi, .kimik2, .augment, .jetbrains, .amp, .synthetic, .warp:
             return CostUsageDailyReport(data: [], summary: nil)
         }
     }
