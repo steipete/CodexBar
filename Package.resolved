@@ -1,5 +1,5 @@
 {
-  "originHash" : "74bd6f3ab6e0b0cb0c2cddb00f2167c2ab0a1c00cd54ffc1a2899c7ef8c56367",
+  "originHash" : "66b529b6903a4fe22f46995c23619a9167071a16b5e66c4ee2fffc1dd364f421",
   "pins" : [
     {
       "identity" : "commander",
@@ -31,10 +31,10 @@
     {
       "identity" : "sweetcookiekit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/steipete/SweetCookieKit",
+      "location" : "https://github.com/Hilo-Hilo/SweetCookieKit",
       "state" : {
-        "revision" : "4d5b71ffbb296937dc5ee8472f64721bca771cf0",
-        "version" : "0.4.0"
+        "branch" : "feature/add-comet-browser",
+        "revision" : "209d26b82355f4250a072d89e0ccc7f476ea48c5"
       }
     },
     {
