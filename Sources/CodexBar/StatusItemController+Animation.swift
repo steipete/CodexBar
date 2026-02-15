@@ -384,12 +384,30 @@ extension StatusItemController {
     }
 
     func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
-        MenuBarDisplayText.displayText(
+        let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
+        let displayText = MenuBarDisplayText.displayText(
             mode: self.settings.menuBarDisplayMode,
             provider: provider,
-            percentWindow: self.menuBarPercentWindow(for: provider, snapshot: snapshot),
+            percentWindow: percentWindow,
             paceWindow: snapshot?.secondary,
             showUsed: self.settings.usageBarsShowUsed)
+
+        let sessionExhausted = (snapshot?.primary?.remainingPercent ?? 100) <= 0
+        let weeklyExhausted = (snapshot?.secondary?.remainingPercent ?? 100) <= 0
+
+        if provider == .codex,
+           self.settings.menuBarDisplayMode == .percent,
+           !self.settings.usageBarsShowUsed,
+           (sessionExhausted || weeklyExhausted),
+           let creditsRemaining = self.store.credits?.remaining,
+           creditsRemaining > 0
+        {
+            return UsageFormatter
+                .creditsString(from: creditsRemaining)
+                .replacingOccurrences(of: " left", with: "")
+        }
+
+        return displayText
     }
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
