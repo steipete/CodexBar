@@ -45,6 +45,36 @@ struct TokenAccountEnvironmentPrecedenceTests {
         #expect(env[ZaiSettingsReader.apiTokenKey] != "config-token")
     }
 
+    @Test
+    func ollamaTokenAccountSelectionForcesManualCookieSourceInCLISettingsSnapshot() throws {
+        let accounts = ProviderTokenAccountData(
+            version: 1,
+            accounts: [
+                ProviderTokenAccount(
+                    id: UUID(),
+                    label: "Primary",
+                    token: "session=account-token",
+                    addedAt: 0,
+                    lastUsed: nil),
+            ],
+            activeIndex: 0)
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .ollama,
+                    cookieSource: .auto,
+                    tokenAccounts: accounts),
+            ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let account = try #require(tokenContext.resolvedAccounts(for: .ollama).first)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .ollama, account: account))
+        let ollamaSettings = try #require(snapshot.ollama)
+
+        #expect(ollamaSettings.cookieSource == .manual)
+        #expect(ollamaSettings.manualCookieHeader == "session=account-token")
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

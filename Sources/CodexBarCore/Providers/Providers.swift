@@ -20,6 +20,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case jetbrains
     case kimik2
     case amp
+    case ollama
     case synthetic
     case warp
 }
@@ -44,6 +45,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case augment
     case jetbrains
     case amp
+    case ollama
     case synthetic
     case warp
     case combined

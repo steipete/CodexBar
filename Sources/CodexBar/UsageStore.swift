@@ -1150,109 +1150,77 @@ extension UsageStore {
         let keepCLISessionsAlive = self.settings.debugKeepCLISessionsAlive
         let cursorCookieSource = self.settings.cursorCookieSource
         let cursorCookieHeader = self.settings.cursorCookieHeader
+        let ampCookieSource = self.settings.ampCookieSource
+        let ampCookieHeader = self.settings.ampCookieHeader
+        let ollamaCookieSource = self.settings.ollamaCookieSource
+        let ollamaCookieHeader = self.settings.ollamaCookieHeader
         return await Task.detached(priority: .utility) { () -> String in
+            let unimplementedDebugLogMessages: [UsageProvider: String] = [
+                .gemini: "Gemini debug log not yet implemented",
+                .antigravity: "Antigravity debug log not yet implemented",
+                .opencode: "OpenCode debug log not yet implemented",
+                .factory: "Droid debug log not yet implemented",
+                .copilot: "Copilot debug log not yet implemented",
+                .vertexai: "Vertex AI debug log not yet implemented",
+                .kiro: "Kiro debug log not yet implemented",
+                .kimi: "Kimi debug log not yet implemented",
+                .kimik2: "Kimi K2 debug log not yet implemented",
+                .jetbrains: "JetBrains AI debug log not yet implemented",
+            ]
+            let text: String
             switch provider {
             case .codex:
-                let raw = await self.codexFetcher.debugRawRateLimits()
-                await MainActor.run { self.probeLogs[.codex] = raw }
-                return raw
+                text = await self.codexFetcher.debugRawRateLimits()
             case .claude:
-                let text = await self.debugClaudeLog(
+                text = await self.debugClaudeLog(
                     claudeWebExtrasEnabled: claudeWebExtrasEnabled,
                     claudeUsageDataSource: claudeUsageDataSource,
                     claudeCookieSource: claudeCookieSource,
                     claudeCookieHeader: claudeCookieHeader,
                     keepCLISessionsAlive: keepCLISessionsAlive)
-                await MainActor.run { self.probeLogs[.claude] = text }
-                return text
             case .zai:
                 let resolution = ProviderTokenResolver.zaiResolution()
                 let hasAny = resolution != nil
                 let source = resolution?.source.rawValue ?? "none"
-                let text = "Z_AI_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-                await MainActor.run { self.probeLogs[.zai] = text }
-                return text
+                text = "Z_AI_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
             case .synthetic:
                 let resolution = ProviderTokenResolver.syntheticResolution()
                 let hasAny = resolution != nil
                 let source = resolution?.source.rawValue ?? "none"
-                let text = "SYNTHETIC_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-                await MainActor.run { self.probeLogs[.synthetic] = text }
-                return text
-            case .gemini:
-                let text = "Gemini debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.gemini] = text }
-                return text
-            case .antigravity:
-                let text = "Antigravity debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.antigravity] = text }
-                return text
+                text = "SYNTHETIC_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
             case .cursor:
-                let text = await self.debugCursorLog(
+                text = await self.debugCursorLog(
                     cursorCookieSource: cursorCookieSource,
                     cursorCookieHeader: cursorCookieHeader)
-                await MainActor.run { self.probeLogs[.cursor] = text }
-                return text
-            case .opencode:
-                let text = "OpenCode debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.opencode] = text }
-                return text
-            case .factory:
-                let text = "Droid debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.factory] = text }
-                return text
-            case .copilot:
-                let text = "Copilot debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.copilot] = text }
-                return text
             case .minimax:
                 let tokenResolution = ProviderTokenResolver.minimaxTokenResolution()
                 let cookieResolution = ProviderTokenResolver.minimaxCookieResolution()
                 let tokenSource = tokenResolution?.source.rawValue ?? "none"
                 let cookieSource = cookieResolution?.source.rawValue ?? "none"
-                let text = "MINIMAX_API_KEY=\(tokenResolution == nil ? "missing" : "present") " +
+                text = "MINIMAX_API_KEY=\(tokenResolution == nil ? "missing" : "present") " +
                     "source=\(tokenSource) MINIMAX_COOKIE=\(cookieResolution == nil ? "missing" : "present") " +
                     "source=\(cookieSource)"
-                await MainActor.run { self.probeLogs[.minimax] = text }
-                return text
-            case .vertexai:
-                let text = "Vertex AI debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.vertexai] = text }
-                return text
-            case .kiro:
-                let text = "Kiro debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.kiro] = text }
-                return text
             case .augment:
-                let text = await self.debugAugmentLog()
-                await MainActor.run { self.probeLogs[.augment] = text }
-                return text
-            case .kimi:
-                let text = "Kimi debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.kimi] = text }
-                return text
-            case .kimik2:
-                let text = "Kimi K2 debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.kimik2] = text }
-                return text
+                text = await self.debugAugmentLog()
             case .amp:
-                let text = await self.debugAmpLog(
-                    ampCookieSource: self.settings.ampCookieSource,
-                    ampCookieHeader: self.settings.ampCookieHeader)
-                await MainActor.run { self.probeLogs[.amp] = text }
-                return text
-            case .jetbrains:
-                let text = "JetBrains AI debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.jetbrains] = text }
-                return text
+                text = await self.debugAmpLog(
+                    ampCookieSource: ampCookieSource,
+                    ampCookieHeader: ampCookieHeader)
+            case .ollama:
+                text = await self.debugOllamaLog(
+                    ollamaCookieSource: ollamaCookieSource,
+                    ollamaCookieHeader: ollamaCookieHeader)
             case .warp:
                 let resolution = ProviderTokenResolver.warpResolution()
                 let hasAny = resolution != nil
                 let source = resolution?.source.rawValue ?? "none"
-                let text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-                await MainActor.run { self.probeLogs[.warp] = text }
-                return text
+                text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+            case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kiro, .kimi, .kimik2, .jetbrains:
+                text = unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
             }
+
+            await MainActor.run { self.probeLogs[provider] = text }
+            return text
         }.value
     }
 
@@ -1431,6 +1399,21 @@ extension UsageStore {
                 ? CookieHeaderNormalizer.normalize(ampCookieHeader)
                 : nil
             return await fetcher.debugRawProbe(cookieHeaderOverride: manualHeader)
+        }
+    }
+
+    private func debugOllamaLog(
+        ollamaCookieSource: ProviderCookieSource,
+        ollamaCookieHeader: String) async -> String
+    {
+        await self.runWithTimeout(seconds: 15) {
+            let fetcher = OllamaUsageFetcher(browserDetection: self.browserDetection)
+            let manualHeader = ollamaCookieSource == .manual
+                ? CookieHeaderNormalizer.normalize(ollamaCookieHeader)
+                : nil
+            return await fetcher.debugRawProbe(
+                cookieHeaderOverride: manualHeader,
+                manualCookieMode: ollamaCookieSource == .manual)
         }
     }
 

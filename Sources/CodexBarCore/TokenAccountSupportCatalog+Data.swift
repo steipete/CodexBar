@@ -51,5 +51,12 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .ollama: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Ollama Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
     ]
 }

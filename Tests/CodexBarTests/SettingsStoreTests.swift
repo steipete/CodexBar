@@ -363,6 +363,7 @@ struct SettingsStoreTests {
             .jetbrains,
             .kimik2,
             .amp,
+            .ollama,
             .synthetic,
             .warp,
         ])

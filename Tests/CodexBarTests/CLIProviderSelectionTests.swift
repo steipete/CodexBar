@@ -21,6 +21,7 @@ struct CLIProviderSelectionTests {
             "|synthetic|",
             "|kiro|",
             "|warp|",
+            "|ollama|",
             "|both|",
             "|all]",
         ]

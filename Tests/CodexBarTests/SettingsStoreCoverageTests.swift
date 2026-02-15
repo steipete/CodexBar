@@ -124,6 +124,7 @@ struct SettingsStoreCoverageTests {
         settings.ensureKimiK2APITokenLoaded()
         settings.ensureAugmentCookieLoaded()
         settings.ensureAmpCookieLoaded()
+        settings.ensureOllamaCookieLoaded()
         settings.ensureCopilotAPITokenLoaded()
         settings.ensureTokenAccountsLoaded()
 
