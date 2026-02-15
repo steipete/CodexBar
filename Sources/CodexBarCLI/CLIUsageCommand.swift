@@ -95,7 +95,7 @@ extension CodexBarCLI {
         }
 
         #if !os(macOS)
-        if parsedSourceMode?.usesWeb == true {
+        if parsedSourceMode == .web {
             Self.exit(
                 code: .failure,
                 message: "Error: --source web/auto is only supported on macOS.",
@@ -246,7 +246,7 @@ extension CodexBarCLI {
             account: account)
 
         #if !os(macOS)
-        if effectiveSourceMode.usesWeb {
+        if effectiveSourceMode == .web {
             return Self.webSourceUnsupportedOutput(
                 provider: provider,
                 account: account,
