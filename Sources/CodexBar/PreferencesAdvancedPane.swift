@@ -64,6 +64,10 @@ struct AdvancedPane: View {
                         title: "Surprise me",
                         subtitle: "Check if you like your agents having some fun up there.",
                         binding: self.$settings.randomBlinkEnabled)
+                    PreferenceToggleRow(
+                        title: "Color-coded icons",
+                        subtitle: "Tint menu bar icons green, yellow, or red based on session usage.",
+                        binding: self.$settings.colorCodedIcons)
                 }
 
                 Divider()

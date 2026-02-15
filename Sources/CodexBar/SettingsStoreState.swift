@@ -15,6 +15,7 @@ struct SettingsDefaultsState: Sendable {
     var resetTimesShowAbsolute: Bool
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarDisplayModeRaw: String?
+    var menuBarSeparatorStyleRaw: String?
     var showAllTokenAccountsInMenu: Bool
     var menuBarMetricPreferencesRaw: [String: String]
     var costUsageEnabled: Bool
@@ -26,6 +27,7 @@ struct SettingsDefaultsState: Sendable {
     var showOptionalCreditsAndExtraUsage: Bool
     var openAIWebAccessEnabled: Bool
     var jetbrainsIDEBasePath: String
+    var colorCodedIcons: Bool
     var mergeIcons: Bool
     var switcherShowsIcons: Bool
     var selectedMenuProviderRaw: String?

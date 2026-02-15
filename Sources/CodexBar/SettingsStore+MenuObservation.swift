@@ -36,6 +36,8 @@ extension SettingsStore {
         _ = self.kimiCookieSource
         _ = self.augmentCookieSource
         _ = self.ampCookieSource
+        _ = self.colorCodedIcons
+        _ = self.menuBarSeparatorStyle
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
         _ = self.zaiAPIToken

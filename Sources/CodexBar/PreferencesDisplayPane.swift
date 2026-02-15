@@ -52,6 +52,28 @@ struct DisplayPane: View {
                     }
                     .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
                     .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Separator")
+                                .font(.body)
+                            Text("Character between percent and pace (e.g. 45% | +5%).")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Picker("Separator", selection: self.$settings.menuBarSeparatorStyle) {
+                            ForEach(MenuBarSeparatorStyle.allCases) { style in
+                                Text(style.label).tag(style)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 200)
+                    }
+                    .disabled(!self.settings.menuBarShowsBrandIconWithPercent ||
+                        self.settings.menuBarDisplayMode != .both)
+                    .opacity(self.settings.menuBarShowsBrandIconWithPercent &&
+                        self.settings.menuBarDisplayMode == .both ? 1 : 0.5)
                 }
 
                 Divider()
