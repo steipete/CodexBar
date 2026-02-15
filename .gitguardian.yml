@@ -1,0 +1,14 @@
+version: 2
+
+# GitGuardian configuration
+# See: https://docs.gitguardian.com/ggshield-docs/configuration
+
+secret:
+  ignored_matches:
+    # Antigravity Google OAuth public client credentials
+    # These are public OAuth client IDs meant to be embedded in the app
+    # They are distributed with the client and visible in OAuth flows
+    - match: 1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com
+      name: Antigravity OAuth Client ID
+    - match: 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
+      name: Antigravity OAuth Client Secret

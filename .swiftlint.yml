@@ -24,6 +24,8 @@ excluded:
   - "*.playground"
   # Exclude specific files that should not be linted/formatted
   - "Core/PeekabooCore/Sources/PeekabooCore/Extensions/NSArray+Extensions.swift"
+  # Protobuf generated file
+  - "Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/antigravity_state.pb.swift"
 
 # Analyzer rules (require compilation)
 analyzer_rules:

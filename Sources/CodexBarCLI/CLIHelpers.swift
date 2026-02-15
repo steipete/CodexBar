@@ -197,6 +197,9 @@ extension CodexBarCLI {
             return .web
         }
         guard let raw = values.options["source"]?.last?.lowercased() else { return nil }
+        if raw == "local" {
+            return .cli
+        }
         return ProviderSourceMode(rawValue: raw)
     }
 
