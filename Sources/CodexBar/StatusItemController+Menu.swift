@@ -120,9 +120,11 @@ extension StatusItemController {
 
         let hasTokenAccountSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
         let switcherProvidersMatch = enabledProviders == self.lastSwitcherProviders
+        let switcherUsageBarsShowUsedMatch = self.settings.usageBarsShowUsed == self.lastSwitcherUsageBarsShowUsed
         let canSmartUpdate = self.shouldMergeIcons &&
             enabledProviders.count > 1 &&
             switcherProvidersMatch &&
+            switcherUsageBarsShowUsedMatch &&
             tokenAccountDisplay == nil &&
             !hasTokenAccountSwitcher &&
             !menu.items.isEmpty &&
@@ -154,6 +156,7 @@ extension StatusItemController {
         // Track which providers the switcher was built with for smart update detection
         if self.shouldMergeIcons, enabledProviders.count > 1 {
             self.lastSwitcherProviders = enabledProviders
+            self.lastSwitcherUsageBarsShowUsed = self.settings.usageBarsShowUsed
         }
         self.addTokenAccountSwitcherIfNeeded(to: menu, display: tokenAccountDisplay)
         let menuContext = MenuCardContext(
