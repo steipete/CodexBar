@@ -62,6 +62,28 @@ struct UsagePaceTests {
     }
 
     @Test
+    func sessionPace_computesDeltaAndEtaFor5HourWindow() {
+        let now = Date(timeIntervalSince1970: 0)
+        // 300-minute (5-hour) window, 2 hours remaining => 3 hours elapsed
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(2 * 3600),
+            resetDescription: nil)
+
+        let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 300)
+
+        #expect(pace != nil)
+        guard let pace else { return }
+        // elapsed = 3h of 5h => expected = 60%
+        #expect(abs(pace.expectedUsedPercent - 60.0) < 0.01)
+        // delta = 50 - 60 = -10 => behind (in reserve)
+        #expect(abs(pace.deltaPercent - (-10.0)) < 0.01)
+        #expect(pace.stage == .behind)
+        #expect(pace.willLastToReset == true)
+    }
+
+    @Test
     func weeklyPace_hidesWhenUsageExistsButNoElapsed() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
