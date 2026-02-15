@@ -10,6 +10,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case factory
     case gemini
     case antigravity
+    case windsurf
     case copilot
     case zai
     case minimax
@@ -33,6 +34,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case minimax
     case gemini
     case antigravity
+    case windsurf
     case cursor
     case opencode
     case factory

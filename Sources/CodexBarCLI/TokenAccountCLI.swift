@@ -147,7 +147,7 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(
                 jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
                     ideBasePath: nil))
-        case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .warp:
+        case .gemini, .antigravity, .windsurf, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .warp:
             return nil
         }
     }

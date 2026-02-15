@@ -157,6 +157,8 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
 
         try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            // Make the test independent of any persisted debugDisableKeychainAccess UserDefaults value.
+            try await KeychainAccessGate.withTaskOverrideForTesting(false) {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -186,6 +188,7 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
                 }
 
                 #expect(available == true)
+            }
             }
         }
     }

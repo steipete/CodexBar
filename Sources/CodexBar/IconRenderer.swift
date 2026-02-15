@@ -662,51 +662,39 @@ enum IconRenderer {
                         remaining: topValue,
                         addNotches: style == .claude,
                         addFace: style == .codex,
-                        addGeminiTwist: style == .gemini || style == .antigravity,
-                        addAntigravityTwist: style == .antigravity,
+                        addGeminiTwist: style == .gemini || style == .antigravity || style == .windsurf,
+                        addAntigravityTwist: style == .antigravity || style == .windsurf,
                         addFactoryTwist: style == .factory,
                         addWarpTwist: style == .warp,
                         blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
-                } else if !hasWeekly || warpNoBonus {
-                    if style == .warp {
-                        // Warp: no bonus or bonus exhausted -> top=monthly credits, bottom=dimmed track
+                } else if !hasWeekly {
+                    // Weekly missing (e.g. Claude enterprise): keep normal layout but
+                    // dim the bottom track to indicate N/A.
+                    if topValue == nil, let ratio = creditsRatio {
+                        // Credits-only: show credits prominently (e.g. credits loaded before usage).
+                        drawBar(
+                            rectPx: creditsRectPx,
+                            remaining: ratio,
+                            alpha: creditsAlpha,
+                            addNotches: style == .claude,
+                            addFace: style == .codex,
+                            addGeminiTwist: style == .gemini || style == .antigravity,
+                            addAntigravityTwist: style == .antigravity,
+                            addFactoryTwist: style == .factory,
+                            blink: blink)
+                        drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
+                    } else {
                         drawBar(
                             rectPx: topRectPx,
                             remaining: topValue,
-                            addWarpTwist: true,
+                            addNotches: style == .claude,
+                            addFace: style == .codex,
+                            addGeminiTwist: style == .gemini || style == .antigravity,
+                            addAntigravityTwist: style == .antigravity,
+                            addFactoryTwist: style == .factory,
                             blink: blink)
                         drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
-                    } else {
-                        // Weekly missing (e.g. Claude enterprise): keep normal layout but
-                        // dim the bottom track to indicate N/A.
-                        if topValue == nil, let ratio = creditsRatio {
-                            // Credits-only: show credits prominently (e.g. credits loaded before usage).
-                            drawBar(
-                                rectPx: creditsRectPx,
-                                remaining: ratio,
-                                alpha: creditsAlpha,
-                                addNotches: style == .claude,
-                                addFace: style == .codex,
-                                addGeminiTwist: style == .gemini || style == .antigravity,
-                                addAntigravityTwist: style == .antigravity,
-                                addFactoryTwist: style == .factory,
-                                addWarpTwist: style == .warp,
-                                blink: blink)
-                            drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
-                        } else {
-                            drawBar(
-                                rectPx: topRectPx,
-                                remaining: topValue,
-                                addNotches: style == .claude,
-                                addFace: style == .codex,
-                                addGeminiTwist: style == .gemini || style == .antigravity,
-                                addAntigravityTwist: style == .antigravity,
-                                addFactoryTwist: style == .factory,
-                                addWarpTwist: style == .warp,
-                                blink: blink)
-                            drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
-                        }
                     }
                 } else {
                     // Weekly exhausted/missing: show credits on top (thicker), weekly (likely 0) on bottom.
@@ -717,8 +705,8 @@ enum IconRenderer {
                             alpha: creditsAlpha,
                             addNotches: style == .claude,
                             addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
+                            addGeminiTwist: style == .gemini || style == .antigravity || style == .windsurf,
+                            addAntigravityTwist: style == .antigravity || style == .windsurf,
                             addFactoryTwist: style == .factory,
                             addWarpTwist: style == .warp,
                             blink: blink)
@@ -729,8 +717,8 @@ enum IconRenderer {
                             remaining: topValue,
                             addNotches: style == .claude,
                             addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
+                            addGeminiTwist: style == .gemini || style == .antigravity || style == .windsurf,
+                            addAntigravityTwist: style == .antigravity || style == .windsurf,
                             addFactoryTwist: style == .factory,
                             addWarpTwist: style == .warp,
                             blink: blink)

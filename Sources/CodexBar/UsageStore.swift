@@ -1150,6 +1150,8 @@ extension UsageStore {
         let keepCLISessionsAlive = self.settings.debugKeepCLISessionsAlive
         let cursorCookieSource = self.settings.cursorCookieSource
         let cursorCookieHeader = self.settings.cursorCookieHeader
+        let ampCookieSource = self.settings.ampCookieSource
+        let ampCookieHeader = self.settings.ampCookieHeader
         return await Task.detached(priority: .utility) { () -> String in
             switch provider {
             case .codex:
@@ -1179,31 +1181,11 @@ extension UsageStore {
                 let text = "SYNTHETIC_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 await MainActor.run { self.probeLogs[.synthetic] = text }
                 return text
-            case .gemini:
-                let text = "Gemini debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.gemini] = text }
-                return text
-            case .antigravity:
-                let text = "Antigravity debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.antigravity] = text }
-                return text
             case .cursor:
                 let text = await self.debugCursorLog(
                     cursorCookieSource: cursorCookieSource,
                     cursorCookieHeader: cursorCookieHeader)
                 await MainActor.run { self.probeLogs[.cursor] = text }
-                return text
-            case .opencode:
-                let text = "OpenCode debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.opencode] = text }
-                return text
-            case .factory:
-                let text = "Droid debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.factory] = text }
-                return text
-            case .copilot:
-                let text = "Copilot debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.copilot] = text }
                 return text
             case .minimax:
                 let tokenResolution = ProviderTokenResolver.minimaxTokenResolution()
@@ -1215,35 +1197,15 @@ extension UsageStore {
                     "source=\(cookieSource)"
                 await MainActor.run { self.probeLogs[.minimax] = text }
                 return text
-            case .vertexai:
-                let text = "Vertex AI debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.vertexai] = text }
-                return text
-            case .kiro:
-                let text = "Kiro debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.kiro] = text }
-                return text
             case .augment:
                 let text = await self.debugAugmentLog()
                 await MainActor.run { self.probeLogs[.augment] = text }
                 return text
-            case .kimi:
-                let text = "Kimi debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.kimi] = text }
-                return text
-            case .kimik2:
-                let text = "Kimi K2 debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.kimik2] = text }
-                return text
             case .amp:
                 let text = await self.debugAmpLog(
-                    ampCookieSource: self.settings.ampCookieSource,
-                    ampCookieHeader: self.settings.ampCookieHeader)
+                    ampCookieSource: ampCookieSource,
+                    ampCookieHeader: ampCookieHeader)
                 await MainActor.run { self.probeLogs[.amp] = text }
-                return text
-            case .jetbrains:
-                let text = "JetBrains AI debug log not yet implemented"
-                await MainActor.run { self.probeLogs[.jetbrains] = text }
                 return text
             case .warp:
                 let resolution = ProviderTokenResolver.warpResolution()
@@ -1252,8 +1214,42 @@ extension UsageStore {
                 let text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 await MainActor.run { self.probeLogs[.warp] = text }
                 return text
+            case .gemini, .antigravity, .windsurf, .opencode, .factory, .copilot, .vertexai, .kiro, .kimi, .kimik2,
+                 .jetbrains:
+                let text = Self.notImplementedDebugLogText(for: provider)
+                await MainActor.run { self.probeLogs[provider] = text }
+                return text
             }
         }.value
+    }
+
+    private nonisolated static func notImplementedDebugLogText(for provider: UsageProvider) -> String {
+        switch provider {
+        case .gemini:
+            "Gemini debug log not yet implemented"
+        case .antigravity:
+            "Antigravity debug log not yet implemented"
+        case .windsurf:
+            "Windsurf debug log not yet implemented"
+        case .opencode:
+            "OpenCode debug log not yet implemented"
+        case .factory:
+            "Droid debug log not yet implemented"
+        case .copilot:
+            "Copilot debug log not yet implemented"
+        case .vertexai:
+            "Vertex AI debug log not yet implemented"
+        case .kiro:
+            "Kiro debug log not yet implemented"
+        case .kimi:
+            "Kimi debug log not yet implemented"
+        case .kimik2:
+            "Kimi K2 debug log not yet implemented"
+        case .jetbrains:
+            "JetBrains AI debug log not yet implemented"
+        case .codex, .claude, .cursor, .zai, .minimax, .augment, .amp, .synthetic, .warp:
+            "Debug log not yet implemented"
+        }
     }
 
     private func debugClaudeLog(

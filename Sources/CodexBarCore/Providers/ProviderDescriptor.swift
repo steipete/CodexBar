@@ -60,6 +60,7 @@ public enum ProviderDescriptorRegistry {
         .factory: FactoryProviderDescriptor.descriptor,
         .gemini: GeminiProviderDescriptor.descriptor,
         .antigravity: AntigravityProviderDescriptor.descriptor,
+        .windsurf: WindsurfProviderDescriptor.descriptor,
         .copilot: CopilotProviderDescriptor.descriptor,
         .zai: ZaiProviderDescriptor.descriptor,
         .minimax: MiniMaxProviderDescriptor.descriptor,

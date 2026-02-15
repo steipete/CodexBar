@@ -353,6 +353,7 @@ struct SettingsStoreTests {
             .opencode,
             .factory,
             .antigravity,
+            .windsurf,
             .copilot,
             .zai,
             .minimax,
