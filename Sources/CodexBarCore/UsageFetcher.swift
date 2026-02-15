@@ -629,26 +629,36 @@ public struct UsageFetcher: Sendable {
         let authURL = URL(fileURLWithPath: self.environment["CODEX_HOME"] ?? "\(NSHomeDirectory())/.codex")
             .appendingPathComponent("auth.json")
         guard let data = try? Data(contentsOf: authURL),
-              let auth = try? JSONDecoder().decode(AuthFile.self, from: data),
-              let idToken = auth.tokens?.idToken
+              let auth = try? JSONDecoder().decode(AuthFile.self, from: data)
         else {
             return AccountInfo(email: nil, plan: nil)
         }
 
-        guard let payload = UsageFetcher.parseJWT(idToken) else {
-            return AccountInfo(email: nil, plan: nil)
+        // Try OAuth token path first (has email/plan info in JWT)
+        if let idToken = auth.tokens?.idToken {
+            guard let payload = UsageFetcher.parseJWT(idToken) else {
+                return AccountInfo(email: nil, plan: nil)
+            }
+
+            let authDict = payload["https://api.openai.com/auth"] as? [String: Any]
+            let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
+
+            let plan = (authDict?["chatgpt_plan_type"] as? String)
+                ?? (payload["chatgpt_plan_type"] as? String)
+
+            let email = (payload["email"] as? String)
+                ?? (profileDict?["email"] as? String)
+
+            return AccountInfo(email: email, plan: plan)
         }
 
-        let authDict = payload["https://api.openai.com/auth"] as? [String: Any]
-        let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
+        // Fall back to API key path (no email/plan info available)
+        if let apiKey = auth.OPENAI_API_KEY, !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // API key authentication is valid, but doesn't provide email/plan
+            return AccountInfo(email: "API Key User", plan: nil)
+        }
 
-        let plan = (authDict?["chatgpt_plan_type"] as? String)
-            ?? (payload["chatgpt_plan_type"] as? String)
-
-        let email = (payload["email"] as? String)
-            ?? (profileDict?["email"] as? String)
-
-        return AccountInfo(email: email, plan: plan)
+        return AccountInfo(email: nil, plan: nil)
     }
 
     // MARK: - Helpers
@@ -690,4 +700,10 @@ public struct UsageFetcher: Sendable {
 private struct AuthFile: Decodable {
     struct Tokens: Decodable { let idToken: String? }
     let tokens: Tokens?
+    let OPENAI_API_KEY: String?
+
+    enum CodingKeys: String, CodingKey {
+        case tokens
+        case OPENAI_API_KEY
+    }
 }
