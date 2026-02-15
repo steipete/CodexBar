@@ -122,6 +122,55 @@ struct KiroStatusProbeTests {
         }
     }
 
+    // MARK: - New Format (kiro-cli 1.24+, Q Developer)
+
+    @Test
+    func parsesQDeveloperManagedPlan() throws {
+        let output = """
+        Plan: Q Developer Pro
+        Your plan is managed by admin
+
+        Tip: to see context window usage, run /context
+        """
+
+        let probe = KiroStatusProbe()
+        let snapshot = try probe.parse(output: output)
+
+        #expect(snapshot.planName == "Q Developer Pro")
+        #expect(snapshot.creditsPercent == 0)
+        #expect(snapshot.creditsUsed == 0)
+        #expect(snapshot.creditsTotal == 0)
+        #expect(snapshot.bonusCreditsUsed == nil)
+        #expect(snapshot.resetsAt == nil)
+    }
+
+    @Test
+    func parsesQDeveloperFreePlan() throws {
+        let output = """
+        Plan: Q Developer Free
+        Your plan is managed by admin
+        """
+
+        let probe = KiroStatusProbe()
+        let snapshot = try probe.parse(output: output)
+
+        #expect(snapshot.planName == "Q Developer Free")
+        #expect(snapshot.creditsPercent == 0)
+    }
+
+    @Test
+    func parsesNewFormatWithANSICodes() throws {
+        let output = """
+        \u{001B}[38;5;141mPlan: Q Developer Pro\u{001B}[0m
+        Your plan is managed by admin
+        """
+
+        let probe = KiroStatusProbe()
+        let snapshot = try probe.parse(output: output)
+
+        #expect(snapshot.planName == "Q Developer Pro")
+    }
+
     // MARK: - Snapshot Conversion
 
     @Test
