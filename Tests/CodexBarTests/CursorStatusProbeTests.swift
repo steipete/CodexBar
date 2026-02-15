@@ -117,6 +117,50 @@ struct CursorStatusProbeTests {
         #expect(userInfo.sub == "auth0|12345")
     }
 
+    @Test
+    func detectsLikelySessionCookieNames() throws {
+        let names = [
+            "WorkosCursorSessionToken",
+            "__Secure-next-auth.session-token",
+            "next-auth.session-token",
+            "session",
+            "__recent_auth",
+            "__wuid",
+            "workos_id",
+            "__kduid",
+        ]
+
+        for name in names {
+            let cookie = try #require(HTTPCookie(properties: [
+                .name: name,
+                .value: "value",
+                .domain: "cursor.com",
+                .path: "/",
+            ]))
+            #expect(CursorCookieImporter.hasLikelySessionCookie(in: [cookie]) == true)
+        }
+    }
+
+    @Test
+    func ignoresNonSessionCookieNames() throws {
+        let names = [
+            "_ga",
+            "_fbp",
+            "cursor_anonymous_id",
+            "_forum_session",
+        ]
+
+        for name in names {
+            let cookie = try #require(HTTPCookie(properties: [
+                .name: name,
+                .value: "value",
+                .domain: "cursor.com",
+                .path: "/",
+            ]))
+            #expect(CursorCookieImporter.hasLikelySessionCookie(in: [cookie]) == false)
+        }
+    }
+
     // MARK: - Snapshot Conversion
 
     @Test
