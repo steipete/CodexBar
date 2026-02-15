@@ -485,6 +485,7 @@ extension CostUsageScanner {
         var totalCacheRead = 0
         var totalCacheCreate = 0
         var totalTokens = 0
+        var totalProcessedTokens = 0
         var totalCost: Double = 0
         var costSeen = false
         let costScale = 1_000_000_000.0
@@ -539,6 +540,7 @@ extension CostUsageScanner {
             let top = Array(breakdown.prefix(3))
 
             let dayTotal = dayInput + dayCacheRead + dayCacheCreate + dayOutput
+            let dayProcessed = dayInput + dayCacheCreate + dayOutput
             let entryCost = dayCostSeen ? dayCost : nil
             entries.append(CostUsageDailyReport.Entry(
                 date: day,
@@ -547,6 +549,7 @@ extension CostUsageScanner {
                 cacheReadTokens: dayCacheRead,
                 cacheCreationTokens: dayCacheCreate,
                 totalTokens: dayTotal,
+                processedTokens: dayProcessed,
                 costUSD: entryCost,
                 modelsUsed: modelNames,
                 modelBreakdowns: top))
@@ -556,6 +559,7 @@ extension CostUsageScanner {
             totalCacheRead += dayCacheRead
             totalCacheCreate += dayCacheCreate
             totalTokens += dayTotal
+            totalProcessedTokens += dayProcessed
             if let entryCost {
                 totalCost += entryCost
                 costSeen = true
@@ -570,6 +574,7 @@ extension CostUsageScanner {
                 cacheReadTokens: totalCacheRead,
                 cacheCreationTokens: totalCacheCreate,
                 totalTokens: totalTokens,
+                processedTokens: totalProcessedTokens,
                 totalCostUSD: costSeen ? totalCost : nil)
 
         return CostUsageDailyReport(data: entries, summary: summary)
