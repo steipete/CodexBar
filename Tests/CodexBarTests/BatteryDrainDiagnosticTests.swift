@@ -14,11 +14,9 @@ struct BatteryDrainDiagnosticTests {
     }
 
     private func makeStatusBarForTesting() -> NSStatusBar {
-        let env = ProcessInfo.processInfo.environment
-        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
-            return .system
-        }
-        return NSStatusBar()
+        // Use the real system status bar in tests. Creating standalone NSStatusBar instances
+        // has caused AppKit teardown crashes under swiftpm-testing-helper.
+        .system
     }
 
     @Test("Fallback provider should not animate when all providers are disabled")
