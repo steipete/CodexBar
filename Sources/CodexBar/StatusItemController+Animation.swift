@@ -14,6 +14,9 @@ extension StatusItemController {
     }
 
     func updateBlinkingState() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         // During the loading animation, blink ticks can overwrite the animated menu bar icon and cause flicker.
         if self.needsMenuBarIconAnimation() {
             self.stopBlinking()

@@ -319,6 +319,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func handleSettingsChange(reason: String) {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         let configChanged = self.settings.configRevision != self.lastConfigRevision
         let orderChanged = self.settings.providerOrder != self.lastProviderOrder
         let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForProviderSwitcher()
@@ -454,6 +457,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func rebuildProviderStatusItems() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         for item in self.statusItems.values {
             self.statusBar.removeStatusItem(item)
         }
