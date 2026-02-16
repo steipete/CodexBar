@@ -23,7 +23,8 @@ public enum KiloProviderDescriptor {
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
                 dashboardURL: "https://app.kilo.ai/usage",
-                statusPageURL: nil),
+                statusPageURL: nil,
+                statusLinkURL: "https://status.kilo.ai"),
             branding: ProviderBranding(
                 iconStyle: .kilo,
                 iconResourceName: "ProviderIcon-kilo",
