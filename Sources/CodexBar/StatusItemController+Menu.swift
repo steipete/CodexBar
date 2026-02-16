@@ -8,7 +8,26 @@ import SwiftUI
 
 extension StatusItemController {
     private static let menuCardBaseWidth: CGFloat = 310
-    private static let menuOpenRefreshDelay: Duration = .seconds(1.2)
+    private static let defaultMenuOpenRefreshDelay: Duration = .seconds(1.2)
+    #if DEBUG
+    private static var menuOpenRefreshDelayForTesting: Duration = .seconds(1.2)
+    static func setMenuOpenRefreshDelayForTesting(_ delay: Duration) {
+        self.menuOpenRefreshDelayForTesting = delay
+    }
+
+    static func resetMenuOpenRefreshDelayForTesting() {
+        self.menuOpenRefreshDelayForTesting = self.defaultMenuOpenRefreshDelay
+    }
+    #endif
+
+    private static var menuOpenRefreshDelay: Duration {
+        #if DEBUG
+        menuOpenRefreshDelayForTesting
+        #else
+        defaultMenuOpenRefreshDelay
+        #endif
+    }
+
     private struct OpenAIWebMenuItems {
         let hasUsageBreakdown: Bool
         let hasCreditsHistory: Bool
@@ -575,6 +594,9 @@ extension StatusItemController {
             try? await Task.sleep(for: Self.menuOpenRefreshDelay)
             guard !Task.isCancelled else { return }
             guard Self.menuRefreshEnabled else { return }
+            #if DEBUG
+            self.onDelayedMenuRefreshAttemptForTesting?()
+            #endif
             guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
             guard !self.store.isRefreshing else { return }
             let provider = self.menuProvider(for: menu) ?? self.resolvedMenuProvider()

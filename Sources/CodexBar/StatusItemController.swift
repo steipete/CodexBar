@@ -15,7 +15,17 @@ protocol StatusItemControlling: AnyObject {
 final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControlling {
     // Disable SwiftUI menu cards + menu refresh work in tests to avoid swiftpm-testing-helper crashes.
     static var menuCardRenderingEnabled = !SettingsStore.isRunningTests
-    static var menuRefreshEnabled = !SettingsStore.isRunningTests
+    private static let defaultMenuRefreshEnabled = !SettingsStore.isRunningTests
+    private(set) static var menuRefreshEnabled = !SettingsStore.isRunningTests
+    #if DEBUG
+    static func setMenuRefreshEnabledForTesting(_ enabled: Bool) {
+        self.menuRefreshEnabled = enabled
+    }
+
+    static func resetMenuRefreshEnabledForTesting() {
+        self.menuRefreshEnabled = self.defaultMenuRefreshEnabled
+    }
+    #endif
     typealias Factory = (UsageStore, SettingsStore, AccountInfo, UpdaterProviding, PreferencesSelection)
         -> StatusItemControlling
     static let defaultFactory: Factory = { store, settings, account, updater, selection in
@@ -45,6 +55,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var fallbackMenu: NSMenu?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    #if DEBUG
+    var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
+    #endif
     var blinkTask: Task<Void, Never>?
     var loginTask: Task<Void, Never>? {
         didSet { self.refreshMenusForLoginStateChange() }
