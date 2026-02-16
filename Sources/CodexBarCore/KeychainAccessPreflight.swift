@@ -139,8 +139,8 @@ public enum KeychainAccessPreflight {
             kSecAttrService as String: service,
             kSecMatchLimit as String: kSecMatchLimitOne,
             // Preflight should never trigger UI. Avoid requesting the secret payload (`kSecReturnData`) because
-            // some macOS configurations have been observed to show the legacy keychain prompt even when
-            // `kSecUseAuthenticationUIFail` is set.
+            // some macOS configurations have been observed to show the legacy keychain prompt unless the query
+            // is strictly non-interactive.
             kSecReturnAttributes as String: true,
         ]
         KeychainNoUIQuery.apply(to: &query)
