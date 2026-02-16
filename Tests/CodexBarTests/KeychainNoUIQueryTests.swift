@@ -1,4 +1,7 @@
+import Foundation
+#if os(macOS)
 import Darwin
+#endif
 import LocalAuthentication
 import Security
 import Testing

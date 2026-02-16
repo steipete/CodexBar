@@ -1,7 +1,7 @@
-import Darwin
 import Foundation
 
 #if os(macOS)
+import Darwin
 import LocalAuthentication
 import Security
 
