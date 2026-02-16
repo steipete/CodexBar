@@ -17,6 +17,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     static var menuCardRenderingEnabled = !SettingsStore.isRunningTests
     private static let defaultMenuRefreshEnabled = !SettingsStore.isRunningTests
     private(set) static var menuRefreshEnabled = !SettingsStore.isRunningTests
+    // TODO(maintainer): Confirm whether runtime toggles outside tests are supported. Current semantics assume
+    // test-only usage; enabling refresh while a menu is already open does not retro-register/schedule that menu.
     #if DEBUG
     static func setMenuRefreshEnabledForTesting(_ enabled: Bool) {
         self.menuRefreshEnabled = enabled
@@ -475,12 +477,25 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     func releaseStatusItemsForTesting() {
         self.blinkTask?.cancel()
         self.loginTask?.cancel()
+        self.animationDriver?.stop()
+        self.animationDriver = nil
+        self.animationPhase = 0
+        self.blinkForceUntil = nil
+        self.blinkStates.removeAll(keepingCapacity: false)
+        self.blinkAmounts.removeAll(keepingCapacity: false)
+        self.wiggleAmounts.removeAll(keepingCapacity: false)
+        self.tiltAmounts.removeAll(keepingCapacity: false)
 
         for task in self.menuRefreshTasks.values {
             task.cancel()
         }
         self.menuRefreshTasks.removeAll(keepingCapacity: false)
         self.openMenus.removeAll(keepingCapacity: false)
+        self.menuProviders.removeAll(keepingCapacity: false)
+        self.menuVersions.removeAll(keepingCapacity: false)
+        self.providerMenus.removeAll(keepingCapacity: false)
+        self.mergedMenu = nil
+        self.fallbackMenu = nil
 
         self.statusItem.menu = nil
         self.statusBar.removeStatusItem(self.statusItem)

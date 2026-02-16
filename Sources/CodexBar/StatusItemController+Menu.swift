@@ -66,6 +66,7 @@ extension StatusItemController {
             }
             if Self.menuRefreshEnabled {
                 // Intentionally skip open-menu tracking when refresh is disabled (tests).
+                // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
                 self.openMenus[ObjectIdentifier(menu)] = menu
             }
             // Removed redundant async refresh - single pass is sufficient after initial layout
@@ -99,6 +100,7 @@ extension StatusItemController {
         }
         if Self.menuRefreshEnabled {
             // Intentionally skip open-menu tracking when refresh is disabled (tests).
+            // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
             self.openMenus[ObjectIdentifier(menu)] = menu
         }
         // Only schedule refresh after menu is registered as open - refreshNow is called async

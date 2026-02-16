@@ -4,7 +4,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
-@Suite
+@Suite(.serialized)
 struct StatusItemAnimationTests {
     private func makeStatusBarForTesting() -> NSStatusBar {
         // Use the real system status bar in tests. Creating standalone NSStatusBar instances
