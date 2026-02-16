@@ -59,6 +59,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     #if DEBUG
     var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
+    var isReleasedForTesting = false
     #endif
     var blinkTask: Task<Void, Never>?
     var loginTask: Task<Void, Never>? {
@@ -245,6 +246,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     @objc private func handleProviderConfigDidChange(_ notification: Notification) {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         let reason = notification.userInfo?["reason"] as? String ?? "unknown"
         if let source = notification.object as? SettingsStore,
            source !== self.settings
@@ -271,6 +275,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func invalidateMenus() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         self.menuContentVersion &+= 1
         guard Self.menuRefreshEnabled else { return }
         // Don't refresh menus while they're open - wait until they close and reopen
@@ -327,6 +334,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func updateIcons() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         // Avoid flicker: when an animation driver is active, store updates can call `updateIcons()` and
         // briefly overwrite the animated frame with the static (phase=nil) icon.
         let phase: Double? = self.needsMenuBarIconAnimation() ? self.animationPhase : nil
@@ -353,6 +363,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func updateVisibility() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         let anyEnabled = !self.store.enabledProviders().isEmpty
         let force = self.store.debugForceAnimation
         let mergeIcons = self.shouldMergeIcons
@@ -475,6 +488,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     #if DEBUG
     func releaseStatusItemsForTesting() {
+        guard !self.isReleasedForTesting else { return }
+        self.isReleasedForTesting = true
         self.blinkTask?.cancel()
         self.loginTask?.cancel()
         self.animationDriver?.stop()

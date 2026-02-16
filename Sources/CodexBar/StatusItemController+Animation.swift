@@ -422,6 +422,9 @@ extension StatusItemController {
     }
 
     @objc func handleDebugBlinkNotification() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         self.forceBlinkNow()
     }
 
@@ -500,6 +503,9 @@ extension StatusItemController {
     }
 
     private func updateAnimationFrame() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         self.animationPhase += 0.045 // half-speed animation
         if self.shouldMergeIcons {
             self.applyIcon(phase: self.animationPhase)
@@ -519,6 +525,9 @@ extension StatusItemController {
     }
 
     @objc func handleDebugReplayNotification(_ notification: Notification) {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         if let raw = notification.userInfo?["pattern"] as? String,
            let selected = LoadingPattern(rawValue: raw)
         {
