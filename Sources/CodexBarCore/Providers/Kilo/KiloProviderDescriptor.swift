@@ -76,55 +76,78 @@ struct KiloWebAPIFetchStrategy: ProviderFetchStrategy {
             throw KiloAPIError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
-        // The batched response is an array, use JSONSerialization for flexible parsing
+        let snapshot = try Self._parseBatchedResponse(data, now: Date())
+
+        // Try to enrich with CLI stats
+        var enriched = snapshot
+        if let cliOutput = try? await KiloCLIFetchStrategy.runKiloStatsInternal(env: [:]) {
+            let parsed = KiloCLIFetchStrategy.parseCLIStatsOutputInternal(cliOutput)
+            enriched = KiloUsageSnapshot(
+                balanceDollars: snapshot.balanceDollars,
+                periodBaseCredits: snapshot.periodBaseCredits,
+                periodBonusCredits: snapshot.periodBonusCredits,
+                periodUsageDollars: snapshot.periodUsageDollars,
+                periodResetsAt: snapshot.periodResetsAt,
+                hasSubscription: snapshot.hasSubscription,
+                planName: snapshot.planName,
+                creditBlocks: snapshot.creditBlocks,
+                autoTopUp: snapshot.autoTopUp,
+                cliCostDollars: parsed.totalCost,
+                cliSessions: parsed.sessions,
+                cliMessages: parsed.messages,
+                cliInputTokens: parsed.inputTokens,
+                cliOutputTokens: parsed.outputTokens,
+                cliCacheReadTokens: parsed.cacheReadTokens,
+                updatedAt: snapshot.updatedAt)
+        }
+
+        return self.makeResult(
+            usage: enriched.toUsageSnapshot(),
+            sourceLabel: "api")
+    }
+
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        true
+    }
+
+    /// Parse a batched tRPC response into a KiloUsageSnapshot (without CLI stats).
+    /// Exposed as internal for testing.
+    static func _parseBatchedResponse(_ data: Data, now: Date = Date()) throws -> KiloUsageSnapshot {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
               json.count >= 2 else {
             throw KiloAPIError.invalidResponse
         }
 
-        // Response[0] = user.getCreditBlocks -> result.data has creditBlocks, totalBalance_mUsd
-        // Response[1] = kiloPass.getState -> result.data has subscription
-        
-        let creditBlocksResponse = json[0]
-        let creditBlocksResult = creditBlocksResponse["result"] as? [String: Any]
-        let creditBlocksData = creditBlocksResult?["data"] as? [String: Any]
-        let totalBalanceMUsd = creditBlocksData?["totalBalance_mUsd"] as? Int ?? 0
+        // Response[0] = user.getCreditBlocks
+        let creditBlocksResult = (json[0]["result"] as? [String: Any])?["data"] as? [String: Any]
+        let totalBalanceMUsd = creditBlocksResult?["totalBalance_mUsd"] as? Int ?? 0
 
-        // Parse individual credit blocks
         var creditBlocks: [KiloCreditBlock] = []
-        if let blocksArray = creditBlocksData?["creditBlocks"] as? [[String: Any]] {
+        if let blocksArray = creditBlocksResult?["creditBlocks"] as? [[String: Any]] {
             let blockData = try JSONSerialization.data(withJSONObject: blocksArray)
             creditBlocks = (try? JSONDecoder().decode([KiloCreditBlock].self, from: blockData)) ?? []
         }
 
-        let kiloPassResponse = json[1]
-        let kiloPassResult = kiloPassResponse["result"] as? [String: Any]
-        let kiloPassData = kiloPassResult?["data"] as? [String: Any]
+        // Response[1] = kiloPass.getState
+        let kiloPassData = ((json[1]["result"] as? [String: Any])?["data"] as? [String: Any])
         let subscriptionData = kiloPassData?["subscription"] as? [String: Any]
 
-        // Parse auto-top-up from credit blocks response
-        let autoTopUpEnabled = creditBlocksData?["autoTopUpEnabled"] as? Bool ?? false
-
-        // Try to parse response[2] for auto-top-up payment method details
+        // Auto-top-up from credit blocks response + optional response[2]
+        let autoTopUpEnabled = creditBlocksResult?["autoTopUpEnabled"] as? Bool ?? false
         var autoTopUpAmountDollars: Double = 0
         if json.count >= 3 {
-            let autoTopUpResponse = json[2]
-            let autoTopUpResult = autoTopUpResponse["result"] as? [String: Any]
-            let autoTopUpData = autoTopUpResult?["data"] as? [String: Any]
+            let autoTopUpData = ((json[2]["result"] as? [String: Any])?["data"] as? [String: Any])
             if let amountCents = autoTopUpData?["amountCents"] as? Int {
                 autoTopUpAmountDollars = Double(amountCents) / 100.0
             } else if let amount = autoTopUpData?["amount"] as? Double {
                 autoTopUpAmountDollars = amount
             }
         }
-
         let autoTopUp: KiloAutoTopUp? = autoTopUpEnabled
             ? KiloAutoTopUp(enabled: true, amountDollars: autoTopUpAmountDollars)
             : nil
 
-        let totalBalanceDollars = Double(totalBalanceMUsd) / 1_000_000.0
-
-        // Parse subscription data
+        // Parse subscription
         var periodUsageDollars: Double = 0
         var periodBaseCredits: Double = 0
         var periodBonusCredits: Double = 0
@@ -136,7 +159,6 @@ struct KiloWebAPIFetchStrategy: ProviderFetchStrategy {
             periodBaseCredits = sub["currentPeriodBaseCreditsUsd"] as? Double ?? 0
             periodBonusCredits = sub["currentPeriodBonusCreditsUsd"] as? Double ?? 0
 
-            // Derive plan name from tier (tier_19 → Starter, tier_49 → Pro, tier_199 → Expert)
             let tier = sub["tier"] as? String
             let knownTiers: [String: String] = [
                 "tier_19": "Starter",
@@ -149,41 +171,20 @@ struct KiloWebAPIFetchStrategy: ProviderFetchStrategy {
                 planName = "Kilo Pass"
             }
 
-            // Parse next billing date
             if let nextBilling = sub["nextBillingAt"] as? String {
                 let formatter = ISO8601DateFormatter()
                 formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                 if let date = formatter.date(from: nextBilling) {
                     periodResetsAt = date
                 } else {
-                    // Try without fractional seconds
                     formatter.formatOptions = [.withInternetDateTime]
                     periodResetsAt = formatter.date(from: nextBilling)
                 }
             }
         }
 
-        // Try to get CLI stats for additional info
-        var cliCost: Double = 0
-        var cliSessions: Int = 0
-        var cliMessages: Int = 0
-        
-        var cliInputTokens: Int = 0
-        var cliOutputTokens: Int = 0
-        var cliCacheReadTokens: Int = 0
-
-        if let cliOutput = try? await KiloCLIFetchStrategy.runKiloStatsInternal(env: [:]) {
-            let parsed = KiloCLIFetchStrategy.parseCLIStatsOutputInternal(cliOutput)
-            cliCost = parsed.totalCost
-            cliSessions = parsed.sessions
-            cliMessages = parsed.messages
-            cliInputTokens = parsed.inputTokens
-            cliOutputTokens = parsed.outputTokens
-            cliCacheReadTokens = parsed.cacheReadTokens
-        }
-        
-        let snapshot = KiloUsageSnapshot(
-            balanceDollars: totalBalanceDollars,
+        return KiloUsageSnapshot(
+            balanceDollars: Double(totalBalanceMUsd) / 1_000_000.0,
             periodBaseCredits: periodBaseCredits,
             periodBonusCredits: periodBonusCredits,
             periodUsageDollars: periodUsageDollars,
@@ -192,21 +193,7 @@ struct KiloWebAPIFetchStrategy: ProviderFetchStrategy {
             planName: planName,
             creditBlocks: creditBlocks,
             autoTopUp: autoTopUp,
-            cliCostDollars: cliCost,
-            cliSessions: cliSessions,
-            cliMessages: cliMessages,
-            cliInputTokens: cliInputTokens,
-            cliOutputTokens: cliOutputTokens,
-            cliCacheReadTokens: cliCacheReadTokens,
-            updatedAt: Date())
-
-        return self.makeResult(
-            usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
-        true
+            updatedAt: now)
     }
 
     private static func resolveAuthToken(environment: [String: String]) -> String? {
