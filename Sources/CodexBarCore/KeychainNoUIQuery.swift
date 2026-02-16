@@ -12,7 +12,8 @@ enum KeychainNoUIQuery {
 
         // Keep explicit UI-fail policy for legacy keychain behavior on macOS where
         // `interactionNotAllowed` alone can still surface Allow/Deny prompts.
-        query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        // Use the raw constant value to avoid deprecation warnings while preserving behavior.
+        query[kSecUseAuthenticationUI as String] = "kSecUseAuthenticationUIFail" as CFString
     }
 }
 #endif

@@ -57,6 +57,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let claudeMenu = controller.makeMenu()
         controller.menuWillOpen(claudeMenu)
@@ -103,6 +104,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let expectedResolved = store.enabledProviders().first ?? .codex
         #expect(store.enabledProviders().count > 1)
@@ -153,6 +155,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let expectedResolved = store.enabledProviders().first ?? .codex
         #expect(store.enabledProviders().count > 1)
@@ -210,6 +213,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         #expect(controller.statusItems[.claude]?.isVisible == true)
 
@@ -258,6 +262,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -319,6 +324,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -388,6 +394,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -466,6 +473,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -521,6 +529,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)

@@ -52,6 +52,7 @@ struct BatteryDrainDiagnosticTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         #expect(
             controller.needsMenuBarIconAnimation() == false,
@@ -99,6 +100,7 @@ struct BatteryDrainDiagnosticTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         #expect(
             controller.needsMenuBarIconAnimation() == false,
@@ -139,6 +141,7 @@ struct BatteryDrainDiagnosticTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         #expect(
             controller.needsMenuBarIconAnimation() == true,

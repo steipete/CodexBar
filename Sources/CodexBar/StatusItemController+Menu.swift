@@ -46,6 +46,7 @@ extension StatusItemController {
                 self.store.requestOpenAIDashboardRefreshIfStale(reason: "submenu open")
             }
             if Self.menuRefreshEnabled {
+                // Intentionally skip open-menu tracking when refresh is disabled (tests).
                 self.openMenus[ObjectIdentifier(menu)] = menu
             }
             // Removed redundant async refresh - single pass is sufficient after initial layout
@@ -78,6 +79,7 @@ extension StatusItemController {
             // Heights are already set during populateMenu, no need to remeasure
         }
         if Self.menuRefreshEnabled {
+            // Intentionally skip open-menu tracking when refresh is disabled (tests).
             self.openMenus[ObjectIdentifier(menu)] = menu
         }
         // Only schedule refresh after menu is registered as open - refreshNow is called async
@@ -518,13 +520,10 @@ extension StatusItemController {
     func refreshOpenMenusIfNeeded() {
         guard Self.menuRefreshEnabled else { return }
         guard !self.openMenus.isEmpty else { return }
+        var orphanedKeys: [ObjectIdentifier] = []
         for (key, menu) in self.openMenus {
             guard key == ObjectIdentifier(menu) else {
-                // Clean up orphaned menu entries from all tracking dictionaries
-                self.openMenus.removeValue(forKey: key)
-                self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
-                self.menuProviders.removeValue(forKey: key)
-                self.menuVersions.removeValue(forKey: key)
+                orphanedKeys.append(key)
                 continue
             }
 
@@ -539,6 +538,14 @@ extension StatusItemController {
                 self.markMenuFresh(menu)
                 // Heights are already set during populateMenu, no need to remeasure
             }
+        }
+
+        // Clean up orphaned menu entries from all tracking dictionaries.
+        for key in orphanedKeys {
+            self.openMenus.removeValue(forKey: key)
+            self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
+            self.menuProviders.removeValue(forKey: key)
+            self.menuVersions.removeValue(forKey: key)
         }
     }
 
@@ -567,6 +574,7 @@ extension StatusItemController {
             guard let self, let menu else { return }
             try? await Task.sleep(for: Self.menuOpenRefreshDelay)
             guard !Task.isCancelled else { return }
+            guard Self.menuRefreshEnabled else { return }
             guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
             guard !self.store.isRefreshing else { return }
             let provider = self.menuProvider(for: menu) ?? self.resolvedMenuProvider()

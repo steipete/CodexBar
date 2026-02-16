@@ -17,7 +17,19 @@ struct KeychainNoUIQueryTests {
         #expect(context?.interactionNotAllowed == true)
 
         let uiPolicy = query[kSecUseAuthenticationUI as String] as? String
-        #expect(uiPolicy == (kSecUseAuthenticationUIFail as String))
+        #expect(uiPolicy == "kSecUseAuthenticationUIFail")
+    }
+
+    @Test
+    func preflightQuery_isStrictlyNonInteractiveAndDoesNotRequestSecretData() {
+        let query = KeychainAccessPreflight.makeGenericPasswordPreflightQuery(
+            service: "test.service",
+            account: "test.account")
+
+        #expect(query[kSecReturnData as String] == nil)
+        #expect(query[kSecReturnAttributes as String] as? Bool == true)
+        #expect((query[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true)
+        #expect((query[kSecUseAuthenticationUI as String] as? String) == "kSecUseAuthenticationUIFail")
     }
 }
 #endif

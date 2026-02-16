@@ -458,6 +458,28 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         return "\(prefix): \(base)"
     }
 
+    #if DEBUG
+    func releaseStatusItemsForTesting() {
+        self.blinkTask?.cancel()
+        self.loginTask?.cancel()
+
+        for task in self.menuRefreshTasks.values {
+            task.cancel()
+        }
+        self.menuRefreshTasks.removeAll(keepingCapacity: false)
+        self.openMenus.removeAll(keepingCapacity: false)
+
+        self.statusItem.menu = nil
+        self.statusBar.removeStatusItem(self.statusItem)
+
+        for item in self.statusItems.values {
+            item.menu = nil
+            self.statusBar.removeStatusItem(item)
+        }
+        self.statusItems.removeAll(keepingCapacity: false)
+    }
+    #endif
+
     deinit {
         self.blinkTask?.cancel()
         self.loginTask?.cancel()
