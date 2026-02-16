@@ -102,7 +102,7 @@ struct UsageMenuCardView: View {
                 Divider()
             }
 
-            if self.model.metrics.isEmpty {
+            if self.model.metrics.isEmpty, !self.hasExtraSections {
                 if let placeholder = self.model.placeholder {
                     Text(placeholder)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
@@ -195,8 +195,13 @@ struct UsageMenuCardView: View {
     }
 
     private var hasDetails: Bool {
-        !self.model.metrics.isEmpty || self.model.placeholder != nil || self.model.tokenUsage != nil ||
-            self.model.providerCost != nil || !(self.model.creditBlocks ?? []).isEmpty
+        !self.model.metrics.isEmpty || self.model.placeholder != nil || self.hasExtraSections
+    }
+
+    /// Whether the model has credit blocks, cost, or token usage data (independent of metrics).
+    private var hasExtraSections: Bool {
+        self.model.tokenUsage != nil || self.model.providerCost != nil ||
+            !(self.model.creditBlocks ?? []).isEmpty
     }
 }
 

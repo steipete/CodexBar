@@ -34,7 +34,12 @@ enum CLIRenderer {
         } else if let cost = snapshot.providerCost {
             // Fallback to cost/quota display if no primary rate window
             let label = cost.currencyCode == "Quota" ? "Quota" : "Cost"
-            let value = "\(String(format: "%.1f", cost.used)) / \(String(format: "%.1f", cost.limit))"
+            let value: String
+            if cost.limit > 0 {
+                value = "\(String(format: "%.1f", cost.used)) / \(String(format: "%.1f", cost.limit))"
+            } else {
+                value = String(format: "$%.2f", cost.used)
+            }
             lines.append(self.labelValueLine(label, value: value, useColor: context.useColor))
         }
 
