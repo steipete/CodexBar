@@ -43,6 +43,16 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
+    func ollamaTokenAccountsSetManualCookieSourceWhenRequired() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-ollama-token-accounts")
+
+        settings.addTokenAccount(provider: .ollama, label: "Primary", token: "session=token-1")
+
+        #expect(settings.tokenAccounts(for: .ollama).count == 1)
+        #expect(settings.ollamaCookieSource == .manual)
+    }
+
+    @Test
     func detectsTokenCostUsageSourcesFromFilesystem() throws {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

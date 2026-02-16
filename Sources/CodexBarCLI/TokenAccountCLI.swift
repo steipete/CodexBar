@@ -135,6 +135,11 @@ struct TokenAccountCLIContext {
                 amp: ProviderSettingsSnapshot.AmpProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
+        case .ollama:
+            return self.makeSnapshot(
+                ollama: ProviderSettingsSnapshot.OllamaProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .kimi:
             return self.makeSnapshot(
                 kimi: ProviderSettingsSnapshot.KimiProviderSettings(
@@ -163,6 +168,7 @@ struct TokenAccountCLIContext {
         kimi: ProviderSettingsSnapshot.KimiProviderSettings? = nil,
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
         amp: ProviderSettingsSnapshot.AmpProviderSettings? = nil,
+        ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
@@ -176,6 +182,7 @@ struct TokenAccountCLIContext {
             kimi: kimi,
             augment: augment,
             amp: amp,
+            ollama: ollama,
             jetbrains: jetbrains)
     }
 
@@ -273,13 +280,13 @@ struct TokenAccountCLIContext {
         account: ProviderTokenAccount?,
         config: ProviderConfig?) -> ProviderCookieSource
     {
-        if let override = config?.cookieSource { return override }
         if let account, TokenAccountSupportCatalog.support(for: provider)?.requiresManualCookieSource == true {
             if provider == .claude, TokenAccountSupportCatalog.isClaudeOAuthToken(account.token) {
                 return .off
             }
             return .manual
         }
+        if let override = config?.cookieSource { return override }
         if config?.sanitizedCookieHeader != nil {
             return .manual
         }

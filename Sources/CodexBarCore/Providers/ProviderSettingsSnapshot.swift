@@ -16,6 +16,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         augment: AugmentProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
         kilo: KiloProviderSettings? = nil,
+        ollama: OllamaProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
@@ -33,6 +34,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             augment: augment,
             amp: amp,
             kilo: kilo,
+            ollama: ollama,
             jetbrains: jetbrains)
     }
 
@@ -173,6 +175,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         public init() {}
     }
 
+    public struct OllamaProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public let debugMenuEnabled: Bool
     public let debugKeepCLISessionsAlive: Bool
     public let codex: CodexProviderSettings?
@@ -187,6 +199,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let augment: AugmentProviderSettings?
     public let amp: AmpProviderSettings?
     public let kilo: KiloProviderSettings?
+    public let ollama: OllamaProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
@@ -208,6 +221,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         augment: AugmentProviderSettings?,
         amp: AmpProviderSettings?,
         kilo: KiloProviderSettings?,
+        ollama: OllamaProviderSettings?,
         jetbrains: JetBrainsProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
@@ -224,6 +238,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.augment = augment
         self.amp = amp
         self.kilo = kilo
+        self.ollama = ollama
         self.jetbrains = jetbrains
     }
 }
@@ -241,6 +256,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
     case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
+    case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
 }
 
@@ -259,6 +275,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
     public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
+    public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
@@ -280,6 +297,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .augment(value): self.augment = value
         case let .amp(value): self.amp = value
         case let .kilo(value): self.kilo = value
+        case let .ollama(value): self.ollama = value
         case let .jetbrains(value): self.jetbrains = value
         }
     }
@@ -300,6 +318,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             augment: self.augment,
             amp: self.amp,
             kilo: self.kilo,
+            ollama: self.ollama,
             jetbrains: self.jetbrains)
     }
 }
