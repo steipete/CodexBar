@@ -406,6 +406,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func refreshMenusForLoginStateChange() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
         self.invalidateMenus()
         if self.shouldMergeIcons {
             self.attachMenus()
