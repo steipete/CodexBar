@@ -276,6 +276,7 @@ private struct ProviderSwitchChip: View {
         case .amp: "Amp"
         case .synthetic: "Synthetic"
         case .warp: "Warp"
+        case .kilo: "Kilo"
         }
     }
 }
@@ -608,6 +609,8 @@ enum WidgetColors {
             Color(red: 20 / 255, green: 20 / 255, blue: 20 / 255) // Synthetic charcoal
         case .warp:
             Color(red: 147 / 255, green: 139 / 255, blue: 180 / 255)
+        case .kilo:
+            Color(red: 249 / 255, green: 247 / 255, blue: 110 / 255)
         }
     }
 }

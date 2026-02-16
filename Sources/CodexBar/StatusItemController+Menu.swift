@@ -753,15 +753,15 @@ extension StatusItemController {
         let primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
         var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
         if showUsed,
-           provider == .warp,
+           provider == .warp || provider == .kilo,
            let remaining = snapshot?.secondary?.remainingPercent,
            remaining <= 0
         {
-            // Preserve Warp "no bonus/exhausted bonus" layout even in show-used mode.
+            // Preserve Warp/Kilo "no bonus/exhausted bonus" layout even in show-used mode.
             weekly = 0
         }
         if showUsed,
-           provider == .warp,
+           provider == .warp || provider == .kilo,
            let remaining = snapshot?.secondary?.remainingPercent,
            remaining > 0,
            weekly == 0

@@ -652,8 +652,10 @@ enum IconRenderer {
                 let creditsRectPx = RectPx(x: barXPx, y: 14, w: barWidthPx, h: 16)
                 let creditsBottomRectPx = RectPx(x: barXPx, y: 4, w: barWidthPx, h: 6)
 
-                // Warp special case: when no bonus or bonus exhausted, show "top monthly, bottom dimmed"
+                // Warp: when no bonus or bonus exhausted, show top=monthly, bottom=dimmed
                 let warpNoBonus = style == .warp && !weeklyAvailable
+                // Kilo: when no subscription data, dim both bars
+                let kiloNoData = style == .kilo && topValue == nil
 
                 if weeklyAvailable {
                     // Normal: top=primary, bottom=secondary (bonus/weekly).
@@ -668,6 +670,10 @@ enum IconRenderer {
                         addWarpTwist: style == .warp,
                         blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
+                } else if kiloNoData {
+                    // Kilo: no percentage data available, show cost in detail text instead
+                    drawBar(rectPx: topRectPx, remaining: 0, alpha: 0.3)
+                    drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
                 } else if !hasWeekly || warpNoBonus {
                     if style == .warp {
                         // Warp: no bonus or bonus exhausted -> top=monthly credits, bottom=dimmed track

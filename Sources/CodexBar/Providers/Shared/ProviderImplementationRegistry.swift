@@ -31,6 +31,7 @@ enum ProviderImplementationRegistry {
         case .amp: AmpProviderImplementation()
         case .synthetic: SyntheticProviderImplementation()
         case .warp: WarpProviderImplementation()
+        case .kilo: KiloProviderImplementation()
         }
     }
 

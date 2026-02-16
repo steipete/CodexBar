@@ -15,6 +15,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         kimi: KimiProviderSettings? = nil,
         augment: AugmentProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
+        kilo: KiloProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
@@ -31,6 +32,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             kimi: kimi,
             augment: augment,
             amp: amp,
+            kilo: kilo,
             jetbrains: jetbrains)
     }
 
@@ -167,6 +169,10 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct KiloProviderSettings: Sendable {
+        public init() {}
+    }
+
     public let debugMenuEnabled: Bool
     public let debugKeepCLISessionsAlive: Bool
     public let codex: CodexProviderSettings?
@@ -180,6 +186,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let kimi: KimiProviderSettings?
     public let augment: AugmentProviderSettings?
     public let amp: AmpProviderSettings?
+    public let kilo: KiloProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
@@ -200,6 +207,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         kimi: KimiProviderSettings?,
         augment: AugmentProviderSettings?,
         amp: AmpProviderSettings?,
+        kilo: KiloProviderSettings?,
         jetbrains: JetBrainsProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
@@ -215,6 +223,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.kimi = kimi
         self.augment = augment
         self.amp = amp
+        self.kilo = kilo
         self.jetbrains = jetbrains
     }
 }
@@ -231,6 +240,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
+    case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
 }
 
@@ -248,6 +258,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
+    public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
@@ -268,6 +279,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .kimi(value): self.kimi = value
         case let .augment(value): self.augment = value
         case let .amp(value): self.amp = value
+        case let .kilo(value): self.kilo = value
         case let .jetbrains(value): self.jetbrains = value
         }
     }
@@ -287,6 +299,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             kimi: self.kimi,
             augment: self.augment,
             amp: self.amp,
+            kilo: self.kilo,
             jetbrains: self.jetbrains)
     }
 }

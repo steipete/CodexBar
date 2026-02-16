@@ -22,6 +22,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case amp
     case synthetic
     case warp
+    case kilo
 }
 
 // swiftformat:enable sortDeclarations
@@ -46,6 +47,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case amp
     case synthetic
     case warp
+    case kilo
     case combined
 }
 

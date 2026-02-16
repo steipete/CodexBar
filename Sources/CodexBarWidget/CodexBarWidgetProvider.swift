@@ -60,6 +60,7 @@ enum ProviderChoice: String, AppEnum {
         case .amp: return nil // Amp not yet supported in widgets
         case .synthetic: return nil // Synthetic not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets
+        case .kilo: return nil // Kilo not yet supported in widgets
         }
     }
 }

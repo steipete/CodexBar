@@ -101,6 +101,8 @@ enum CostUsageScanner {
             return CostUsageDailyReport(data: [], summary: nil)
         case .warp:
             return CostUsageDailyReport(data: [], summary: nil)
+        case .kilo:
+            return CostUsageDailyReport(data: [], summary: nil)
         }
     }
 

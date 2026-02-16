@@ -61,12 +61,25 @@ struct UsageMenuCardView: View {
             let spendLine: String
         }
 
+        struct CreditBlockItem: Identifiable, Sendable {
+            let id: String
+            let amountText: String
+            let balanceText: String
+            let dateText: String
+            let expiryText: String?
+            let percent: Double
+            let percentLabel: String
+            let isFree: Bool
+        }
+
         let providerName: String
         let email: String
         let subtitleText: String
         let subtitleStyle: SubtitleStyle
         let planText: String?
         let metrics: [Metric]
+        let creditBlocks: [CreditBlockItem]?
+        let autoTopUpText: String?
         let creditsText: String?
         let creditsRemaining: Double?
         let creditsHintText: String?
@@ -97,6 +110,7 @@ struct UsageMenuCardView: View {
                 }
             } else {
                 let hasUsage = !self.model.metrics.isEmpty
+                let hasCreditBlocks = !(self.model.creditBlocks ?? []).isEmpty
                 let hasCredits = self.model.creditsText != nil
                 let hasProviderCost = self.model.providerCost != nil
                 let hasCost = self.model.tokenUsage != nil || hasProviderCost
@@ -111,7 +125,16 @@ struct UsageMenuCardView: View {
                             }
                         }
                     }
-                    if hasUsage, hasCredits || hasCost {
+                    if hasUsage, hasCreditBlocks || hasCredits || hasCost {
+                        Divider()
+                    }
+                    if let blocks = self.model.creditBlocks, !blocks.isEmpty {
+                        CreditBlocksContent(
+                            blocks: blocks,
+                            autoTopUpText: self.model.autoTopUpText,
+                            progressColor: self.model.progressColor)
+                    }
+                    if hasCreditBlocks, hasCredits || hasCost {
                         Divider()
                     }
                     if let credits = self.model.creditsText {
@@ -173,7 +196,7 @@ struct UsageMenuCardView: View {
 
     private var hasDetails: Bool {
         !self.model.metrics.isEmpty || self.model.placeholder != nil || self.model.tokenUsage != nil ||
-            self.model.providerCost != nil
+            self.model.providerCost != nil || !(self.model.creditBlocks ?? []).isEmpty
     }
 }
 
@@ -274,6 +297,72 @@ private struct CopyIconButton: View {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(self.copyText, forType: .string)
+    }
+}
+
+private struct CreditBlocksContent: View {
+    let blocks: [UsageMenuCardView.Model.CreditBlockItem]
+    let autoTopUpText: String?
+    let progressColor: Color
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Credits")
+                    .font(.body)
+                    .fontWeight(.medium)
+                Spacer()
+                if let autoTopUpText {
+                    Text(autoTopUpText)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                }
+            }
+            ForEach(self.blocks) { block in
+                CreditBlockRow(block: block, progressColor: self.progressColor)
+            }
+        }
+    }
+}
+
+private struct CreditBlockRow: View {
+    let block: UsageMenuCardView.Model.CreditBlockItem
+    let progressColor: Color
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            UsageProgressBar(
+                percent: self.block.percent,
+                tint: self.progressColor,
+                accessibilityLabel: "Credit block usage")
+            HStack(alignment: .firstTextBaseline) {
+                Text(self.block.percentLabel)
+                    .font(.footnote)
+                Spacer()
+                if self.block.isFree {
+                    Text("Free")
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                } else if self.block.expiryText != nil {
+                    Text(self.block.dateText)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                }
+            }
+            HStack(alignment: .firstTextBaseline) {
+                Text("\(self.block.balanceText) / \(self.block.amountText)")
+                    .font(.footnote)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                if let expiry = self.block.expiryText {
+                    Spacer()
+                    Text(expiry)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                }
+            }
+        }
     }
 }
 
@@ -615,7 +704,10 @@ extension UsageMenuCardView.Model {
             provider: input.provider,
             enabled: input.tokenCostUsageEnabled,
             snapshot: input.tokenSnapshot,
-            error: input.tokenError)
+            error: input.tokenError,
+            inputSnapshot: input.snapshot)
+        let creditBlockItems = Self.creditBlockItems(snapshot: input.snapshot, showUsed: input.usageBarsShowUsed)
+        let autoTopUpText = input.snapshot?.kiloAutoTopUpText
         let subtitle = Self.subtitle(
             snapshot: input.snapshot,
             isRefreshing: input.isRefreshing,
@@ -630,6 +722,8 @@ extension UsageMenuCardView.Model {
             subtitleStyle: subtitle.style,
             planText: planText,
             metrics: metrics,
+            creditBlocks: creditBlockItems,
+            autoTopUpText: autoTopUpText,
             creditsText: creditsText,
             creditsRemaining: input.credits?.remaining,
             creditsHintText: redacted.creditsHintText,
@@ -745,14 +839,19 @@ extension UsageMenuCardView.Model {
         if let primary = snapshot.primary {
             var primaryDetailText: String? = input.provider == .zai ? zaiTokenDetail : nil
             var primaryResetText = Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now)
-            if input.provider == .warp,
+            if input.provider == .warp || input.provider == .kilo,
                let detail = primary.resetDescription,
                !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
                 primaryDetailText = detail
             }
-            if input.provider == .warp, primary.resetsAt == nil {
+            if input.provider == .warp || input.provider == .kilo, primary.resetsAt == nil {
                 primaryResetText = nil
+            }
+            // Show base/bonus boundary marker for Kilo
+            var primaryPacePercent: Double? = nil
+            if let marker = primary.markerPercent {
+                primaryPacePercent = input.usageBarsShowUsed ? marker : (100 - marker)
             }
             metrics.append(Metric(
                 id: "primary",
@@ -764,7 +863,7 @@ extension UsageMenuCardView.Model {
                 detailText: primaryDetailText,
                 detailLeftText: nil,
                 detailRightText: nil,
-                pacePercent: nil,
+                pacePercent: primaryPacePercent,
                 paceOnTop: true))
         }
         if let weekly = snapshot.secondary {
@@ -775,7 +874,7 @@ extension UsageMenuCardView.Model {
                 showUsed: input.usageBarsShowUsed)
             var weeklyResetText = Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now)
             var weeklyDetailText: String? = input.provider == .zai ? zaiTimeDetail : nil
-            if input.provider == .warp,
+            if input.provider == .warp || input.provider == .kilo,
                let detail = weekly.resetDescription,
                !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
@@ -894,8 +993,24 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider,
         enabled: Bool,
         snapshot: CostUsageTokenSnapshot?,
-        error: String?) -> TokenUsageSection?
+        error: String?,
+        inputSnapshot: UsageSnapshot?) -> TokenUsageSection?
     {
+        // Handle Kilo specially - show CLI cost stats if available
+        if provider == .kilo {
+            guard enabled else { return nil }
+            guard let kiloSnapshot = inputSnapshot else { return nil }
+            guard let cost = kiloSnapshot.providerCost, cost.used > 0 else { return nil }
+
+            let costLine = UsageFormatter.usdString(cost.used)
+            return TokenUsageSection(
+                sessionLine: "Total: \(costLine)",
+                monthLine: cost.period ?? "",
+                hintLine: nil,
+                errorLine: nil,
+                errorCopyText: nil)
+        }
+        
         guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
         guard enabled else { return nil }
         guard let snapshot else { return nil }
@@ -956,6 +1071,46 @@ extension UsageMenuCardView.Model {
             title: title,
             percentUsed: percentUsed,
             spendLine: "\(periodLabel): \(used) / \(limit)")
+    }
+
+    private static let creditBlockDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .none
+        return df
+    }()
+
+    private static func creditBlockItems(snapshot: UsageSnapshot?, showUsed: Bool) -> [CreditBlockItem]? {
+        guard let blocks = snapshot?.kiloCreditBlocks, !blocks.isEmpty else { return nil }
+
+        let dateFormatter = creditBlockDateFormatter
+
+        let items = blocks.map { block -> CreditBlockItem in
+            let dateText: String = {
+                if let d = block.effectiveDate { return dateFormatter.string(from: d) }
+                return block.effectiveDateString
+            }()
+            let expiryText: String? = {
+                guard let d = block.expiryDate else { return nil }
+                return "Expires \(dateFormatter.string(from: d))"
+            }()
+            let remaining = block.remainingFraction * 100
+            let percent = showUsed ? (100 - remaining) : remaining
+            let suffix = showUsed ? "used" : "left"
+            let percentLabel = String(format: "%.0f%% %@", percent, suffix)
+
+            return CreditBlockItem(
+                id: block.id,
+                amountText: UsageFormatter.usdString(block.amountDollars),
+                balanceText: UsageFormatter.usdString(block.balanceDollars),
+                dateText: dateText,
+                expiryText: expiryText,
+                percent: percent,
+                percentLabel: percentLabel,
+                isFree: block.isFree)
+        }
+
+        return items
     }
 
     private static func clamped(_ value: Double) -> Double {

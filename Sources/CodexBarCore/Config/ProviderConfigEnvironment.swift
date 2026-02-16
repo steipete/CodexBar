@@ -25,6 +25,8 @@ public enum ProviderConfigEnvironment {
             if let key = WarpSettingsReader.apiKeyEnvironmentKeys.first {
                 env[key] = apiKey
             }
+        case .kilo:
+            env[KiloSettingsReader.apiTokenKey] = apiKey
         default:
             break
         }

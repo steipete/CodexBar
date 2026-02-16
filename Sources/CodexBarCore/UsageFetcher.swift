@@ -6,12 +6,21 @@ public struct RateWindow: Codable, Equatable, Sendable {
     public let resetsAt: Date?
     /// Optional textual reset description (used by Claude CLI UI scrape).
     public let resetDescription: String?
+    /// Optional marker percent for the progress bar (e.g. base/bonus credit boundary).
+    public let markerPercent: Double?
 
-    public init(usedPercent: Double, windowMinutes: Int?, resetsAt: Date?, resetDescription: String?) {
+    public init(
+        usedPercent: Double,
+        windowMinutes: Int?,
+        resetsAt: Date?,
+        resetDescription: String?,
+        markerPercent: Double? = nil)
+    {
         self.usedPercent = usedPercent
         self.windowMinutes = windowMinutes
         self.resetsAt = resetsAt
         self.resetDescription = resetDescription
+        self.markerPercent = markerPercent
     }
 
     public var remainingPercent: Double {
@@ -55,6 +64,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let zaiUsage: ZaiUsageSnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
     public let cursorRequests: CursorRequestUsage?
+    public let kiloCreditBlocks: [KiloCreditBlock]?
+    public let kiloAutoTopUpText: String?
     public let updatedAt: Date
     public let identity: ProviderIdentitySnapshot?
 
@@ -78,6 +89,8 @@ public struct UsageSnapshot: Codable, Sendable {
         zaiUsage: ZaiUsageSnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
+        kiloCreditBlocks: [KiloCreditBlock]? = nil,
+        kiloAutoTopUpText: String? = nil,
         updatedAt: Date,
         identity: ProviderIdentitySnapshot? = nil)
     {
@@ -88,6 +101,8 @@ public struct UsageSnapshot: Codable, Sendable {
         self.zaiUsage = zaiUsage
         self.minimaxUsage = minimaxUsage
         self.cursorRequests = cursorRequests
+        self.kiloCreditBlocks = kiloCreditBlocks
+        self.kiloAutoTopUpText = kiloAutoTopUpText
         self.updatedAt = updatedAt
         self.identity = identity
     }
@@ -101,6 +116,8 @@ public struct UsageSnapshot: Codable, Sendable {
         self.zaiUsage = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.cursorRequests = nil // Not persisted, fetched fresh each time
+        self.kiloCreditBlocks = nil // Not persisted, fetched fresh each time
+        self.kiloAutoTopUpText = nil // Not persisted, fetched fresh each time
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
             self.identity = identity
@@ -184,6 +201,8 @@ public struct UsageSnapshot: Codable, Sendable {
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
             cursorRequests: self.cursorRequests,
+            kiloCreditBlocks: self.kiloCreditBlocks,
+            kiloAutoTopUpText: self.kiloAutoTopUpText,
             updatedAt: self.updatedAt,
             identity: scopedIdentity)
     }

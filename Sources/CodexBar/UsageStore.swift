@@ -1252,6 +1252,14 @@ extension UsageStore {
                 let text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 await MainActor.run { self.probeLogs[.warp] = text }
                 return text
+            case .kilo:
+                let resolution = ProviderTokenResolver.kiloResolution()
+                let authFilePath = NSHomeDirectory() + "/.local/share/kilo/auth.json"
+                let hasAuthFile = FileManager.default.fileExists(atPath: authFilePath)
+                let envLabel = resolution != nil ? "present" : "missing"
+                let text = "KILO_API_KEY=\(envLabel) auth.json=\(hasAuthFile ? "present" : "missing")"
+                await MainActor.run { self.probeLogs[.kilo] = text }
+                return text
             }
         }.value
     }
