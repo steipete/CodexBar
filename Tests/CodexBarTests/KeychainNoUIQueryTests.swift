@@ -1,3 +1,4 @@
+import Darwin
 import LocalAuthentication
 import Security
 import Testing
@@ -6,6 +7,19 @@ import Testing
 #if os(macOS)
 @Suite
 struct KeychainNoUIQueryTests {
+    private func resolveSecurityUIFailValue() -> String {
+        let securityPath = "/System/Library/Frameworks/Security.framework/Security"
+        guard let handle = dlopen(securityPath, RTLD_NOW) else {
+            return "u_AuthUIF"
+        }
+        defer { dlclose(handle) }
+        guard let symbol = dlsym(handle, "kSecUseAuthenticationUIFail") else {
+            return "u_AuthUIF"
+        }
+        let valuePointer = symbol.assumingMemoryBound(to: CFString?.self)
+        return (valuePointer.pointee as String?) ?? "u_AuthUIF"
+    }
+
     @Test
     func apply_setsNonInteractiveContextAndUIFailPolicy() {
         var query: [String: Any] = [:]
@@ -17,7 +31,9 @@ struct KeychainNoUIQueryTests {
         #expect(context?.interactionNotAllowed == true)
 
         let uiPolicy = query[kSecUseAuthenticationUI as String] as? String
-        #expect(uiPolicy == "kSecUseAuthenticationUIFail")
+        #expect(uiPolicy == self.resolveSecurityUIFailValue())
+        #expect(uiPolicy == (KeychainNoUIQuery.uiFailPolicyForTesting() as String))
+        #expect(uiPolicy != "kSecUseAuthenticationUIFail")
     }
 
     @Test
@@ -29,7 +45,17 @@ struct KeychainNoUIQueryTests {
         #expect(query[kSecReturnData as String] == nil)
         #expect(query[kSecReturnAttributes as String] as? Bool == true)
         #expect((query[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true)
-        #expect((query[kSecUseAuthenticationUI as String] as? String) == "kSecUseAuthenticationUIFail")
+        #expect((query[kSecUseAuthenticationUI as String] as? String) == self.resolveSecurityUIFailValue())
+    }
+
+    @Test
+    func preflightQuery_executesWithoutInvalidUIPolicy() {
+        let query = KeychainAccessPreflight.makeGenericPasswordPreflightQuery(
+            service: "codexbar.keychain.noui.\(UUID().uuidString)",
+            account: nil)
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        #expect(status == errSecItemNotFound || status == errSecInteractionNotAllowed)
     }
 }
 #endif
