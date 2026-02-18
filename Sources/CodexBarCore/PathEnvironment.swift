@@ -150,18 +150,28 @@ public enum BinaryLocator {
             return pathHit
         }
 
-        // 4) Interactive login shell lookup (captures nvm/fnm/mise paths from .zshrc/.bashrc)
-        if let shellHit = commandV(name, env["SHELL"], 2.0, fileManager),
-           fileManager.isExecutableFile(atPath: shellHit)
-        {
-            return shellHit
-        }
-
-        // 4b) Alias fallback (login shell); only attempt after all standard lookups fail.
-        if let aliasHit = aliasResolver(name, env["SHELL"], 2.0, fileManager, home),
-           fileManager.isExecutableFile(atPath: aliasHit)
-        {
-            return aliasHit
+        // 4) Interactive login shell lookup — use cache to avoid repeated shell spawns
+        //    (shell auto-start hooks like zellij create new daemon instances on each invocation)
+        let cached = BinaryResolutionCache.shared.cachedResult(for: name)
+        if let cached {
+            if let path = cached.path, fileManager.isExecutableFile(atPath: path) {
+                return path
+            }
+            // Cached nil = not found; skip shell spawns
+        } else {
+            // Not yet cached — run the shell lookups once and cache the result
+            var resolved: String? = nil
+            if let shellHit = commandV(name, env["SHELL"], 2.0, fileManager),
+               fileManager.isExecutableFile(atPath: shellHit)
+            {
+                resolved = shellHit
+            } else if let aliasHit = aliasResolver(name, env["SHELL"], 2.0, fileManager, home),
+                      fileManager.isExecutableFile(atPath: aliasHit)
+            {
+                resolved = aliasHit
+            }
+            BinaryResolutionCache.shared.store(path: resolved, for: name)
+            if let resolved { return resolved }
         }
 
         // 5) Minimal fallback
@@ -437,6 +447,44 @@ enum LoginShellPathCapturer {
         let value = extracted.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return nil }
         return value.split(separator: ":").map(String.init)
+    }
+}
+
+/// Caches the results of interactive-shell binary lookups (steps 4/4b of resolveBinary).
+/// Prevents repeated login-shell spawns — which can trigger auto-start hooks like zellij —
+/// on every refresh cycle when a binary is not found on the standard PATH.
+final class BinaryResolutionCache: @unchecked Sendable {
+    static let shared = BinaryResolutionCache()
+
+    private let lock = NSLock()
+    // nil value = binary confirmed not found; missing key = not yet looked up
+    private var cache: [String: String?] = [:]
+
+    func cachedResult(for name: String) -> (found: Bool, path: String?)? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard cache.keys.contains(name) else { return nil }
+        return (found: cache[name] != nil, path: cache[name] ?? nil)
+    }
+
+    func store(path: String?, for name: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        cache[name] = path
+    }
+
+    /// Resets a single entry (e.g., when a binary is installed/uninstalled at runtime).
+    func invalidate(_ name: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        cache.removeValue(forKey: name)
+    }
+
+    /// Resets all cached entries.
+    func invalidateAll() {
+        lock.lock()
+        defer { lock.unlock() }
+        cache.removeAll()
     }
 }
 
