@@ -52,6 +52,7 @@ public enum BinaryLocator {
             loginPATH: loginPATH,
             commandV: commandV,
             aliasResolver: aliasResolver,
+            useShellCache: true,
             fileManager: fileManager,
             home: home)
     }
@@ -72,6 +73,7 @@ public enum BinaryLocator {
             loginPATH: loginPATH,
             commandV: commandV,
             aliasResolver: aliasResolver,
+            useShellCache: true,
             fileManager: fileManager,
             home: home)
     }
@@ -92,6 +94,7 @@ public enum BinaryLocator {
             loginPATH: loginPATH,
             commandV: commandV,
             aliasResolver: aliasResolver,
+            useShellCache: true,
             fileManager: fileManager,
             home: home)
     }
@@ -112,6 +115,7 @@ public enum BinaryLocator {
             loginPATH: loginPATH,
             commandV: commandV,
             aliasResolver: aliasResolver,
+            useShellCache: true,
             fileManager: fileManager,
             home: home)
     }
@@ -124,6 +128,7 @@ public enum BinaryLocator {
         loginPATH: [String]?,
         commandV: (String, String?, TimeInterval, FileManager) -> String?,
         aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String?,
+        useShellCache: Bool,
         fileManager: FileManager,
         home: String) -> String?
     {
@@ -151,15 +156,24 @@ public enum BinaryLocator {
         }
 
         // 4) Interactive login shell lookup — use cache to avoid repeated shell spawns
-        //    (shell auto-start hooks like zellij create new daemon instances on each invocation)
-        let cached = BinaryResolutionCache.shared.cachedResult(for: name)
-        if let cached {
-            if let path = cached.path, fileManager.isExecutableFile(atPath: path) {
-                return path
+        //    (shell auto-start hooks like zellij create new daemon instances on each invocation).
+        //    Cache is bypassed when custom commandV/aliasResolver closures are injected (e.g. tests)
+        //    to prevent a cached result from one call context affecting another.
+        if useShellCache {
+            let cached = BinaryResolutionCache.shared.cachedResult(for: name)
+            if let cached {
+                if let path = cached.path {
+                    if fileManager.isExecutableFile(atPath: path) {
+                        return path
+                    }
+                    // Cached path is no longer executable (e.g. CLI uninstalled/moved) — retry
+                    BinaryResolutionCache.shared.invalidate(name)
+                } else {
+                    // Cached nil = confirmed not found; skip shell spawns
+                    return nil
+                }
             }
-            // Cached nil = not found; skip shell spawns
-        } else {
-            // Not yet cached — run the shell lookups once and cache the result
+            // Not yet cached (or just invalidated) — run the shell lookups once and cache the result
             var resolved: String? = nil
             if let shellHit = commandV(name, env["SHELL"], 2.0, fileManager),
                fileManager.isExecutableFile(atPath: shellHit)
@@ -172,6 +186,17 @@ public enum BinaryLocator {
             }
             BinaryResolutionCache.shared.store(path: resolved, for: name)
             if let resolved { return resolved }
+        } else {
+            if let shellHit = commandV(name, env["SHELL"], 2.0, fileManager),
+               fileManager.isExecutableFile(atPath: shellHit)
+            {
+                return shellHit
+            }
+            if let aliasHit = aliasResolver(name, env["SHELL"], 2.0, fileManager, home),
+               fileManager.isExecutableFile(atPath: aliasHit)
+            {
+                return aliasHit
+            }
         }
 
         // 5) Minimal fallback
