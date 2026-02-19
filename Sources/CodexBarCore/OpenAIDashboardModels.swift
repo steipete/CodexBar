@@ -3,6 +3,7 @@ import Foundation
 public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     public let signedInEmail: String?
     public let codeReviewRemainingPercent: Double?
+    public let codeReviewLogs: [OpenAICodeReviewLogEntry]
     public let creditEvents: [CreditEvent]
     public let dailyBreakdown: [OpenAIDashboardDailyBreakdown]
     /// Usage breakdown time series from the Codex dashboard chart ("Usage breakdown", 30 days).
@@ -19,6 +20,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     public init(
         signedInEmail: String?,
         codeReviewRemainingPercent: Double?,
+        codeReviewLogs: [OpenAICodeReviewLogEntry] = [],
         creditEvents: [CreditEvent],
         dailyBreakdown: [OpenAIDashboardDailyBreakdown],
         usageBreakdown: [OpenAIDashboardDailyBreakdown],
@@ -31,6 +33,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     {
         self.signedInEmail = signedInEmail
         self.codeReviewRemainingPercent = codeReviewRemainingPercent
+        self.codeReviewLogs = codeReviewLogs
         self.creditEvents = creditEvents
         self.dailyBreakdown = dailyBreakdown
         self.usageBreakdown = usageBreakdown
@@ -45,6 +48,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case signedInEmail
         case codeReviewRemainingPercent
+        case codeReviewLogs
         case creditEvents
         case dailyBreakdown
         case usageBreakdown
@@ -62,6 +66,9 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         self.codeReviewRemainingPercent = try container.decodeIfPresent(
             Double.self,
             forKey: .codeReviewRemainingPercent)
+        self.codeReviewLogs = try container.decodeIfPresent(
+            [OpenAICodeReviewLogEntry].self,
+            forKey: .codeReviewLogs) ?? []
         self.creditEvents = try container.decodeIfPresent([CreditEvent].self, forKey: .creditEvents) ?? []
         self.dailyBreakdown = try container.decodeIfPresent(
             [OpenAIDashboardDailyBreakdown].self,
@@ -106,6 +113,37 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             let total = services.reduce(0) { $0 + $1.creditsUsed }
             return OpenAIDashboardDailyBreakdown(day: day, services: services, totalCreditsUsed: total)
         }
+    }
+}
+
+public struct OpenAICodeReviewLogEntry: Codable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let title: String
+    public let subtitle: String?
+    public let url: String?
+    public let dateText: String?
+    public let bugCount: Int?
+    public let stateText: String?
+    public let actionText: String?
+
+    public init(
+        id: String,
+        title: String,
+        subtitle: String? = nil,
+        url: String? = nil,
+        dateText: String? = nil,
+        bugCount: Int? = nil,
+        stateText: String? = nil,
+        actionText: String? = nil)
+    {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.url = url
+        self.dateText = dateText
+        self.bugCount = bugCount
+        self.stateText = stateText
+        self.actionText = actionText
     }
 }
 

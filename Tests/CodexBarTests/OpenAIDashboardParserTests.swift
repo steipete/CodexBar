@@ -130,5 +130,40 @@ struct OpenAIDashboardParserTests {
         decoder.dateDecodingStrategy = .iso8601
         let snapshot = try decoder.decode(OpenAIDashboardSnapshot.self, from: Data(json.utf8))
         #expect(snapshot.usageBreakdown.isEmpty)
+        #expect(snapshot.codeReviewLogs.isEmpty)
+    }
+
+    @Test
+    func decodesSnapshotWithCodeReviewLogsField() throws {
+        let json = """
+        {
+          "signedInEmail": "user@example.com",
+          "codeReviewRemainingPercent": 42,
+          "codeReviewLogs": [
+            {
+              "id": "r1",
+              "title": "org/repo#123",
+              "subtitle": "Pending",
+              "url": "https://chatgpt.com/codex?tab=code_reviews",
+              "dateText": "Feb 17",
+              "bugCount": 2,
+              "stateText": "Merged",
+              "actionText": "Fix"
+            }
+          ],
+          "creditEvents": [],
+          "dailyBreakdown": [],
+          "updatedAt": "2025-12-18T00:00:00Z"
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let snapshot = try decoder.decode(OpenAIDashboardSnapshot.self, from: Data(json.utf8))
+        #expect(snapshot.codeReviewLogs.count == 1)
+        #expect(snapshot.codeReviewLogs.first?.title == "org/repo#123")
+        #expect(snapshot.codeReviewLogs.first?.dateText == "Feb 17")
+        #expect(snapshot.codeReviewLogs.first?.bugCount == 2)
+        #expect(snapshot.codeReviewLogs.first?.stateText == "Merged")
+        #expect(snapshot.codeReviewLogs.first?.actionText == "Fix")
     }
 }

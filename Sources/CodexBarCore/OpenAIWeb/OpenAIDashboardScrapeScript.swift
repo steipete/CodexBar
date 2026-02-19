@@ -356,6 +356,165 @@ let openAIDashboardScrapeScript = """
       })();
       const bodyText = document.body ? String(document.body.innerText || '').trim() : '';
       const href = window.location ? String(window.location.href || '') : '';
+      const codeReviewLogsJSON = (() => {
+        try {
+          if (!href || !href.includes('tab=code_reviews')) return null;
+
+          const entries = [];
+          const seen = new Set();
+          const reviewTitleRegex = /(?:\\b\\w+[\\/_-]\\w+\\b|#\\d+)/;
+          const reviewURLRegex = /(?:tab=code_reviews|\\/(?:pull|review|commit|compare)\\/)/i;
+          const onboardingRegex =
+            /(?:^download app$|^settings$|^docs$|^codex app$|^try in your terminal$|^try in your ide$)/i;
+          const onboardingExtraRegex = /(?:^tasks$|^archive$|get started with codex)/i;
+          const dateRegex =
+            /\\b(?:today|yesterday|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{1,2})\\b/i;
+          const bugRegex = /\\b(\\d+)\\s+bugs?\\b/i;
+          const normalizeLabel = raw => String(raw || '').trim().replace(/\\s+/g, ' ');
+          const metadataHasSignals = metadata =>
+            !!(metadata && (
+              metadata.dateText ||
+              metadata.bugCount !== null ||
+              metadata.stateText ||
+              metadata.actionText
+            ));
+          const resolveStateText = raw => {
+            const lower = String(raw || '').trim().toLowerCase();
+            if (!lower) return null;
+            if (/\\bmerged\\b/.test(lower)) return 'Merged';
+            if (/\\bclosed\\b/.test(lower)) return 'Closed';
+            if (/\\bin\\s+review\\b/.test(lower)) return 'In review';
+            if (/\\bpending\\b/.test(lower)) return 'Pending';
+            return null;
+          };
+          const parseMetadata = raw => {
+            const text = normalizeLabel(raw);
+            if (!text) {
+              return { dateText: null, bugCount: null, stateText: null, actionText: null };
+            }
+            const dateMatch = text.match(dateRegex);
+            const bugMatch = text.match(bugRegex);
+            const stateCandidates = text
+              .split(/[·|]/)
+              .map(part => normalizeLabel(part))
+              .filter(Boolean);
+            const stateText = resolveStateText(stateCandidates.join(' · '));
+            let actionText = null;
+            for (const candidate of stateCandidates) {
+              const actionCandidate = candidate.toLowerCase();
+              if (actionCandidate === 'fix') {
+                actionText = 'Fix';
+                break;
+              }
+              if (actionCandidate === 'open') {
+                actionText = 'Open';
+              }
+            }
+            const bugCount = bugMatch ? Number.parseInt(bugMatch[1], 10) : null;
+            return {
+              dateText: dateMatch ? dateMatch[0] : null,
+              bugCount: Number.isFinite(bugCount) ? bugCount : null,
+              stateText,
+              actionText
+            };
+          };
+          const pushEntry = (titleRaw, subtitleRaw, urlRaw, metadataRaw) => {
+            const title = titleRaw ? String(titleRaw).trim().replace(/\\s+/g, ' ') : '';
+            if (!title || title.length < 3 || title.length > 220) return;
+            const lower = title.toLowerCase();
+            if (lower === 'code review' || lower === 'code reviews' || lower === 'open' || lower === 'view') return;
+
+            const subtitleText = subtitleRaw ? String(subtitleRaw).trim().replace(/\\s+/g, ' ') : '';
+            const subtitle = subtitleText && subtitleText !== title ? subtitleText.slice(0, 280) : null;
+            const url = urlRaw ? normalizeHref(String(urlRaw)) : null;
+            const metadata = parseMetadata(metadataRaw || subtitle || '');
+            const combined = [title, subtitle || '', metadataRaw || ''].join(' · ').toLowerCase();
+            if (onboardingRegex.test(title) || onboardingRegex.test(combined)) return;
+            if (onboardingExtraRegex.test(title) || onboardingExtraRegex.test(combined)) return;
+
+            const hasReviewSignals = metadataHasSignals(metadata);
+            const looksLikeReviewTitle = reviewTitleRegex.test(title);
+            const looksLikeReviewURL = url ? reviewURLRegex.test(url) : false;
+            const wordCount = title.split(/\\s+/).filter(Boolean).length;
+            if (!hasReviewSignals && !looksLikeReviewTitle && !looksLikeReviewURL && wordCount <= 4) return;
+
+            const dedupe = `${title}\\u241f${subtitle || ''}\\u241f${metadata.dateText || ''}`.toLowerCase();
+            if (seen.has(dedupe)) return;
+            seen.add(dedupe);
+            entries.push({
+              id: url || `${title}-${entries.length + 1}`,
+              title,
+              subtitle,
+              url,
+              dateText: metadata.dateText,
+              bugCount: metadata.bugCount,
+              stateText: metadata.stateText,
+              actionText: metadata.actionText
+            });
+          };
+
+          const parseRowLike = (row) => {
+            if (!row) return;
+            const cells = Array.from(row.querySelectorAll('td,[role="cell"]'))
+              .map(cell => textOf(cell))
+              .filter(Boolean);
+            const link = row.querySelector('a[href]');
+            const title = cells[0] || (link ? textOf(link) : '');
+            const subtitleFromCells = cells.slice(1).filter(Boolean).join(' · ');
+            const tokenText = Array.from(row.querySelectorAll('button, a, span, div'))
+              .map(node => normalizeLabel(textOf(node)))
+              .filter(token => token.length > 0 && token.length <= 32)
+              .join(' · ');
+            let subtitle = subtitleFromCells || null;
+            if (!subtitle) {
+              const rowText = textOf(row);
+              if (rowText && title && rowText !== title) {
+                const compact = rowText.replace(title, '').trim();
+                if (compact) subtitle = compact;
+              }
+            }
+            const metadataRaw = [subtitleFromCells, tokenText].filter(Boolean).join(' · ');
+            pushEntry(title, subtitle, link ? link.getAttribute('href') : null, metadataRaw);
+          };
+
+          const main = document.querySelector('main') || document.body || document.documentElement;
+          const tableRows = Array.from(main.querySelectorAll('table tbody tr'));
+          for (const row of tableRows) parseRowLike(row);
+
+          const roleRows = Array.from(main.querySelectorAll('[role="row"]'))
+            .filter(row => row.querySelector('[role="cell"]'));
+          for (const row of roleRows) parseRowLike(row);
+
+          if (entries.length === 0) {
+            const headings = Array.from(main.querySelectorAll('h1,h2,h3,h4'));
+            const header = headings.find(h => textOf(h).toLowerCase().includes('code review'));
+            const container = header ? (header.closest('section') || header.parentElement || main) : main;
+            const anchors = Array.from(container.querySelectorAll('a[href]'));
+            for (const anchor of anchors) {
+              const title = textOf(anchor);
+              const hrefValue = String(anchor.getAttribute('href') || '');
+              const hrefLower = hrefValue.toLowerCase();
+              const titleLower = title.toLowerCase();
+              const relevant =
+                hrefLower.includes('review') ||
+                hrefLower.includes('codex') ||
+                titleLower.includes('review');
+              if (!relevant) continue;
+              const parentText = textOf(anchor.parentElement || anchor);
+              let subtitle = null;
+              if (parentText && parentText !== title) {
+                const compact = parentText.replace(title, '').trim();
+                if (compact) subtitle = compact;
+              }
+              pushEntry(title, subtitle, hrefValue, parentText);
+            }
+          }
+
+          return entries.length > 0 ? JSON.stringify(entries.slice(0, 80)) : null;
+        } catch {
+          return null;
+        }
+      })();
       const workspacePicker = bodyText.includes('Select a workspace');
       const title = document.title ? String(document.title || '') : '';
       const cloudflareInterstitial =
@@ -545,6 +704,7 @@ let openAIDashboardScrapeScript = """
         rows,
         usageBreakdownJSON,
         usageBreakdownDebug,
+        codeReviewLogsJSON,
         scrollY,
         scrollHeight,
         viewportHeight,

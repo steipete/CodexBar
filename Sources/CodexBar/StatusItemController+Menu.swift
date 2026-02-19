@@ -11,6 +11,7 @@ extension StatusItemController {
     private static let menuOpenRefreshDelay: Duration = .seconds(1.2)
     private struct OpenAIWebMenuItems {
         let hasUsageBreakdown: Bool
+        let hasCodeReviewLogs: Bool
         let hasCreditsHistory: Bool
         let hasCostHistory: Bool
     }
@@ -221,6 +222,7 @@ extension StatusItemController {
 
     private struct OpenAIWebContext {
         let hasUsageBreakdown: Bool
+        let hasCodeReviewLogs: Bool
         let hasCreditsHistory: Bool
         let hasCostHistory: Bool
         let hasOpenAIWebMenuItems: Bool
@@ -244,12 +246,14 @@ extension StatusItemController {
             dashboard != nil
         let hasCreditsHistory = openAIWebEligible && !(dashboard?.dailyBreakdown ?? []).isEmpty
         let hasUsageBreakdown = openAIWebEligible && !(dashboard?.usageBreakdown ?? []).isEmpty
+        let hasCodeReviewLogs = openAIWebEligible && !(dashboard?.codeReviewLogs ?? []).isEmpty
         let hasCostHistory = self.settings.isCostUsageEffectivelyEnabled(for: currentProvider) &&
             (self.store.tokenSnapshot(for: currentProvider)?.daily.isEmpty == false)
         let hasOpenAIWebMenuItems = !showAllTokenAccounts &&
-            (hasCreditsHistory || hasUsageBreakdown || hasCostHistory)
+            (hasCreditsHistory || hasUsageBreakdown || hasCodeReviewLogs || hasCostHistory)
         return OpenAIWebContext(
             hasUsageBreakdown: hasUsageBreakdown,
+            hasCodeReviewLogs: hasCodeReviewLogs,
             hasCreditsHistory: hasCreditsHistory,
             hasCostHistory: hasCostHistory,
             hasOpenAIWebMenuItems: hasOpenAIWebMenuItems)
@@ -314,6 +318,7 @@ extension StatusItemController {
         if context.openAIContext.hasOpenAIWebMenuItems {
             let webItems = OpenAIWebMenuItems(
                 hasUsageBreakdown: context.openAIContext.hasUsageBreakdown,
+                hasCodeReviewLogs: context.openAIContext.hasCodeReviewLogs,
                 hasCreditsHistory: context.openAIContext.hasCreditsHistory,
                 hasCostHistory: context.openAIContext.hasCostHistory)
             self.addMenuCardSections(
@@ -347,6 +352,9 @@ extension StatusItemController {
             // Only show these when we actually have additional data.
             if context.hasUsageBreakdown {
                 _ = self.addUsageBreakdownSubmenu(to: menu)
+            }
+            if context.hasCodeReviewLogs {
+                _ = self.addCodeReviewLogsPanelItem(to: menu)
             }
             if context.hasCreditsHistory {
                 _ = self.addCreditsHistorySubmenu(to: menu)
@@ -934,6 +942,21 @@ extension StatusItemController {
         return item
     }
 
+    private func makeCodeReviewLogsPanelItem() -> NSMenuItem {
+        let item = NSMenuItem(
+            title: "Open Code Review Logs...",
+            action: #selector(self.openCodeReviewLogsPanel),
+            keyEquivalent: "")
+        item.target = self
+        item.representedObject = "openCodeReviewLogsPanel"
+        if let image = NSImage(systemSymbolName: "list.bullet.rectangle.portrait", accessibilityDescription: nil) {
+            image.isTemplate = true
+            image.size = NSSize(width: 16, height: 16)
+            item.image = image
+        }
+        return item
+    }
+
     @discardableResult
     private func addCreditsHistorySubmenu(to menu: NSMenu) -> Bool {
         guard let submenu = self.makeCreditsHistorySubmenu() else { return false }
@@ -955,6 +978,13 @@ extension StatusItemController {
     }
 
     @discardableResult
+    private func addCodeReviewLogsPanelItem(to menu: NSMenu) -> Bool {
+        let item = self.makeCodeReviewLogsPanelItem()
+        menu.addItem(item)
+        return true
+    }
+
+    @discardableResult
     private func addCostHistorySubmenu(to menu: NSMenu, provider: UsageProvider) -> Bool {
         guard let submenu = self.makeCostHistorySubmenu(provider: provider) else { return false }
         let item = NSMenuItem(title: "Usage history (30 days)", action: nil, keyEquivalent: "")
@@ -969,13 +999,38 @@ extension StatusItemController {
         snapshot: UsageSnapshot?,
         webItems: OpenAIWebMenuItems) -> NSMenu?
     {
-        if provider == .codex, webItems.hasUsageBreakdown {
-            return self.makeUsageBreakdownSubmenu()
+        if provider == .codex, webItems.hasUsageBreakdown || webItems.hasCodeReviewLogs {
+            return self.makeCodexUsageSubmenu(
+                hasUsageBreakdown: webItems.hasUsageBreakdown,
+                hasCodeReviewLogs: webItems.hasCodeReviewLogs)
         }
         if provider == .zai {
             return self.makeZaiUsageDetailsSubmenu(snapshot: snapshot)
         }
         return nil
+    }
+
+    private func makeCodexUsageSubmenu(hasUsageBreakdown: Bool, hasCodeReviewLogs: Bool) -> NSMenu? {
+        let width = Self.menuCardBaseWidth
+        let submenu = NSMenu()
+        submenu.delegate = self
+        var addedAnyItem = false
+
+        if hasUsageBreakdown, let item = self.makeUsageBreakdownHostedItem(width: width) {
+            submenu.addItem(item)
+            addedAnyItem = true
+        }
+
+        if hasCodeReviewLogs {
+            let item = self.makeCodeReviewLogsPanelItem()
+            if addedAnyItem {
+                submenu.addItem(.separator())
+            }
+            submenu.addItem(item)
+            addedAnyItem = true
+        }
+
+        return addedAnyItem ? submenu : nil
     }
 
     private func makeZaiUsageDetailsSubmenu(snapshot: UsageSnapshot?) -> NSMenu? {
@@ -1015,9 +1070,8 @@ extension StatusItemController {
     }
 
     private func makeUsageBreakdownSubmenu() -> NSMenu? {
-        let breakdown = self.store.openAIDashboard?.usageBreakdown ?? []
         let width = Self.menuCardBaseWidth
-        guard !breakdown.isEmpty else { return nil }
+        guard let chartItem = self.makeUsageBreakdownHostedItem(width: width) else { return nil }
 
         if !Self.menuCardRenderingEnabled {
             let submenu = NSMenu()
@@ -1031,6 +1085,13 @@ extension StatusItemController {
 
         let submenu = NSMenu()
         submenu.delegate = self
+        submenu.addItem(chartItem)
+        return submenu
+    }
+
+    private func makeUsageBreakdownHostedItem(width: CGFloat) -> NSMenuItem? {
+        let breakdown = self.store.openAIDashboard?.usageBreakdown ?? []
+        guard !breakdown.isEmpty else { return nil }
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
         // Use NSHostingController for efficient size calculation without multiple layout passes
@@ -1042,8 +1103,7 @@ extension StatusItemController {
         chartItem.view = hosting
         chartItem.isEnabled = false
         chartItem.representedObject = "usageBreakdownChart"
-        submenu.addItem(chartItem)
-        return submenu
+        return chartItem
     }
 
     private func makeCreditsHistorySubmenu() -> NSMenu? {
