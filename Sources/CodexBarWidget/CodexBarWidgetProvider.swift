@@ -39,6 +39,7 @@ enum ProviderChoice: String, AppEnum {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     init?(provider: UsageProvider) {
         switch provider {
         case .codex: self = .codex
@@ -60,6 +61,7 @@ enum ProviderChoice: String, AppEnum {
         case .amp: return nil // Amp not yet supported in widgets
         case .ollama: return nil // Ollama not yet supported in widgets
         case .synthetic: return nil // Synthetic not yet supported in widgets
+        case .openrouter: return nil // OpenRouter not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets
         case .kilo: return nil // Kilo not yet supported in widgets
         }
@@ -215,7 +217,8 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
     private func availableProviders(from snapshot: WidgetSnapshot) -> [UsageProvider] {
         let enabled = snapshot.enabledProviders
         let providers = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
-        return providers.isEmpty ? [.codex] : providers
+        let supported = providers.filter { ProviderChoice(provider: $0) != nil }
+        return supported.isEmpty ? [.codex] : supported
     }
 }
 

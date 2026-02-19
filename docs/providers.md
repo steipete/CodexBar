@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -36,6 +36,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Amp | Web settings page via browser cookies (`web`). |
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | Ollama | Web settings page via browser cookies (`web`). |
+| OpenRouter | API token (config, overrides env) → credits API (`api`). |
 
 ## Codex
 - Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -153,5 +154,13 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Parses Cloud Usage plan badge, session/weekly usage, and reset timestamps.
 - Status: none yet.
 - Details: `docs/ollama.md`.
+
+## OpenRouter
+- API token from `~/.codexbar/config.json` (`providerConfig.openrouter.apiKey`) or `OPENROUTER_API_KEY` env var.
+- Credits endpoint: `https://openrouter.ai/api/v1/credits` (returns total credits purchased and usage).
+- Key info endpoint: `https://openrouter.ai/api/v1/key` (returns rate limit info).
+- Override base URL with `OPENROUTER_API_URL` env var.
+- Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
+- Details: `docs/openrouter.md`.
 
 See also: `docs/provider.md` for architecture notes.

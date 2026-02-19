@@ -171,6 +171,50 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func claudePromptPolicyPickerHiddenWhenExperimentalReaderSelected() throws {
+        let suite = "ProviderSettingsDescriptorTests-claude-prompt-hidden-experimental"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.debugDisableKeychainAccess = false
+        settings.claudeOAuthKeychainReadStrategy = .securityCLIExperimental
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        let context = ProviderSettingsContext(
+            provider: .claude,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+
+        let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
+        let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
+        #expect(keychainPicker.isVisible?() == false)
+    }
+
+    @Test
     func claudeKeychainPromptPolicyPickerDisabledWhenGlobalKeychainDisabled() throws {
         let suite = "ProviderSettingsDescriptorTests-claude-keychain-disabled"
         let defaults = try #require(UserDefaults(suiteName: suite))

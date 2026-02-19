@@ -264,21 +264,32 @@ struct ProvidersPane: View {
 
     func menuBarMetricPicker(for provider: UsageProvider) -> ProviderSettingsPickerDescriptor? {
         if provider == .zai { return nil }
-        let metadata = self.store.metadata(for: provider)
-        let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
-        var options: [ProviderSettingsPickerOption] = [
-            ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
-            ProviderSettingsPickerOption(
-                id: MenuBarMetricPreference.primary.rawValue,
-                title: "Primary (\(metadata.sessionLabel))"),
-            ProviderSettingsPickerOption(
-                id: MenuBarMetricPreference.secondary.rawValue,
-                title: "Secondary (\(metadata.weeklyLabel))"),
-        ]
-        if supportsAverage {
-            options.append(ProviderSettingsPickerOption(
-                id: MenuBarMetricPreference.average.rawValue,
-                title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
+        let options: [ProviderSettingsPickerOption]
+        if provider == .openrouter {
+            options = [
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.primary.rawValue,
+                    title: "Primary (API key limit)"),
+            ]
+        } else {
+            let metadata = self.store.metadata(for: provider)
+            let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
+            var metricOptions: [ProviderSettingsPickerOption] = [
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.primary.rawValue,
+                    title: "Primary (\(metadata.sessionLabel))"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.secondary.rawValue,
+                    title: "Secondary (\(metadata.weeklyLabel))"),
+            ]
+            if supportsAverage {
+                metricOptions.append(ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.average.rawValue,
+                    title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
+            }
+            options = metricOptions
         }
         return ProviderSettingsPickerDescriptor(
             id: "menuBarMetric",

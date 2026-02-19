@@ -185,6 +185,53 @@ struct SettingsStoreCoverageTests {
         #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
     }
 
+    @Test
+    func claudeKeychainReadStrategy_defaultsToSecurityFramework() {
+        let settings = Self.makeSettingsStore()
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+    }
+
+    @Test
+    func claudeKeychainReadStrategy_persistsAcrossStoreReload() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-read-strategy"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        first.claudeOAuthKeychainReadStrategy = .securityCLIExperimental
+        #expect(
+            defaults.string(forKey: "claudeOAuthKeychainReadStrategy")
+                == ClaudeOAuthKeychainReadStrategy.securityCLIExperimental.rawValue)
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+    }
+
+    @Test
+    func claudeKeychainReadStrategy_invalidRawFallsBackToSecurityFramework() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-read-strategy-invalid"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("invalid-strategy", forKey: "claudeOAuthKeychainReadStrategy")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+    }
+
+    @Test
+    func claudePromptFreeCredentialsToggle_mapsToReadStrategy() {
+        let settings = Self.makeSettingsStore()
+        #expect(settings.claudeOAuthPromptFreeCredentialsEnabled == false)
+
+        settings.claudeOAuthPromptFreeCredentialsEnabled = true
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+
+        settings.claudeOAuthPromptFreeCredentialsEnabled = false
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+    }
+
     private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)

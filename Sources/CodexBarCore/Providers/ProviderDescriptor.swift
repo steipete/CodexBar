@@ -72,6 +72,7 @@ public enum ProviderDescriptorRegistry {
         .amp: AmpProviderDescriptor.descriptor,
         .ollama: OllamaProviderDescriptor.descriptor,
         .synthetic: SyntheticProviderDescriptor.descriptor,
+        .openrouter: OpenRouterProviderDescriptor.descriptor,
         .warp: WarpProviderDescriptor.descriptor,
         .kilo: KiloProviderDescriptor.descriptor,
     ]

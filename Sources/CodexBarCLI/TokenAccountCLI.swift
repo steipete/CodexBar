@@ -152,7 +152,7 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(
                 jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
                     ideBasePath: nil))
-        case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .warp, .kilo:
+        case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .warp, .kilo, .openrouter:
             return nil
         }
     }
@@ -222,15 +222,7 @@ struct TokenAccountCLIContext {
             accountEmail: resolvedEmail,
             accountOrganization: existing?.accountOrganization,
             loginMethod: existing?.loginMethod)
-        return UsageSnapshot(
-            primary: snapshot.primary,
-            secondary: snapshot.secondary,
-            tertiary: snapshot.tertiary,
-            providerCost: snapshot.providerCost,
-            zaiUsage: snapshot.zaiUsage,
-            cursorRequests: snapshot.cursorRequests,
-            updatedAt: snapshot.updatedAt,
-            identity: identity)
+        return snapshot.withIdentity(identity)
     }
 
     func effectiveSourceMode(

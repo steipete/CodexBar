@@ -855,3 +855,105 @@ struct ClaudeUsageTests {
         #expect(cliVersion?.isEmpty != true)
     }
 }
+
+extension ClaudeUsageTests {
+    @Test
+    func oauthDelegatedRetry_experimental_background_ignoresOnlyOnUserActionSuppression() async throws {
+        let loadCounter = AsyncCounter()
+        let delegatedCounter = AsyncCounter()
+        let usageResponse = try Self.makeOAuthUsageResponse()
+
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            environment: [:],
+            dataSource: .oauth,
+            oauthKeychainPromptCooldownEnabled: true,
+            allowBackgroundDelegatedRefresh: false)
+
+        let fetchOverride: (@Sendable (String) async throws -> OAuthUsageResponse)? = { _ in usageResponse }
+        let delegatedOverride: (@Sendable (
+            Date,
+            TimeInterval) async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome)? = { _, _ in
+            _ = await delegatedCounter.increment()
+            return .attemptedSucceeded
+        }
+        let loadCredsOverride: (@Sendable (
+            [String: String],
+            Bool,
+            Bool) async throws -> ClaudeOAuthCredentials)? = { _, _, _ in
+            let call = await loadCounter.increment()
+            if call == 1 {
+                throw ClaudeOAuthCredentialsError.refreshDelegatedToClaudeCLI
+            }
+            return ClaudeOAuthCredentials(
+                accessToken: "fresh-token",
+                refreshToken: "refresh-token",
+                expiresAt: Date(timeIntervalSinceNow: 3600),
+                scopes: ["user:profile"],
+                rateLimitTier: nil)
+        }
+
+        let snapshot = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+            .securityCLIExperimental,
+            operation: {
+                try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                    try await ProviderInteractionContext.$current.withValue(.background) {
+                        try await ClaudeUsageFetcher.$hasCachedCredentialsOverride.withValue(true) {
+                            try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(fetchOverride) {
+                                try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(
+                                    delegatedOverride)
+                                {
+                                    try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(
+                                        loadCredsOverride)
+                                    {
+                                        try await fetcher.loadLatestUsage(model: "sonnet")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+
+        #expect(await loadCounter.current() == 2)
+        #expect(await delegatedCounter.current() == 1)
+        #expect(snapshot.primary.usedPercent == 7)
+    }
+
+    @Test
+    func oauthLoad_experimental_background_fallbackBlocked_propagatesOAuthFailure() async throws {
+        final class FlagBox: @unchecked Sendable {
+            var respectPromptCooldownFlags: [Bool] = []
+        }
+        let flags = FlagBox()
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            environment: [:],
+            dataSource: .oauth,
+            oauthKeychainPromptCooldownEnabled: true,
+            allowBackgroundDelegatedRefresh: false)
+
+        let loadCredsOverride: (@Sendable (
+            [String: String],
+            Bool,
+            Bool) async throws -> ClaudeOAuthCredentials)? = { _, _, respectKeychainPromptCooldown in
+            flags.respectPromptCooldownFlags.append(respectKeychainPromptCooldown)
+            throw ClaudeOAuthCredentialsError.notFound
+        }
+
+        await #expect(throws: ClaudeUsageError.self) {
+            try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                .securityCLIExperimental,
+                operation: {
+                    try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                        try await ProviderInteractionContext.$current.withValue(.background) {
+                            try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(loadCredsOverride) {
+                                try await fetcher.loadLatestUsage(model: "sonnet")
+                            }
+                        }
+                    }
+                })
+        }
+        #expect(flags.respectPromptCooldownFlags == [true])
+    }
+}

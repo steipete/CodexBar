@@ -59,6 +59,19 @@ struct OllamaUsageParserTests {
     }
 
     @Test
+    func classifiedParseMissingUsageReturnsTypedFailure() {
+        let html = "<html><body>No usage here. login status unknown.</body></html>"
+        let result = OllamaUsageParser.parseClassified(html: html)
+
+        switch result {
+        case .success:
+            Issue.record("Expected classified parse failure for missing usage data")
+        case let .failure(failure):
+            #expect(failure == .missingUsageData)
+        }
+    }
+
+    @Test
     func signedOutThrowsNotLoggedIn() {
         let html = """
         <html>
@@ -77,6 +90,29 @@ struct OllamaUsageParserTests {
         } throws: { error in
             guard case OllamaUsageError.notLoggedIn = error else { return false }
             return true
+        }
+    }
+
+    @Test
+    func classifiedParseSignedOutReturnsTypedFailure() {
+        let html = """
+        <html>
+          <body>
+            <h1>Sign in to Ollama</h1>
+            <form action="/auth/signin" method="post">
+              <input type="email" name="email" />
+              <input type="password" name="password" />
+            </form>
+          </body>
+        </html>
+        """
+
+        let result = OllamaUsageParser.parseClassified(html: html)
+        switch result {
+        case .success:
+            Issue.record("Expected classified parse failure for signed-out HTML")
+        case let .failure(failure):
+            #expect(failure == .notLoggedIn)
         }
     }
 

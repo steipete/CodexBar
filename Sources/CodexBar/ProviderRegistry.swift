@@ -4,7 +4,8 @@ import Foundation
 struct ProviderSpec {
     let style: IconStyle
     let isEnabled: @MainActor () -> Bool
-    let fetch: () async -> ProviderFetchOutcome
+    let descriptor: ProviderDescriptor
+    let makeFetchContext: @MainActor () -> ProviderFetchContext
 }
 
 struct ProviderRegistry {
@@ -33,22 +34,19 @@ struct ProviderRegistry {
             let spec = ProviderSpec(
                 style: descriptor.branding.iconStyle,
                 isEnabled: { settings.isProviderEnabled(provider: provider, metadata: meta) },
-                fetch: {
+                descriptor: descriptor,
+                makeFetchContext: {
                     let sourceMode = ProviderCatalog.implementation(for: provider)?
                         .sourceMode(context: ProviderSourceModeContext(provider: provider, settings: settings))
                         ?? .auto
-                    let snapshot = await MainActor.run {
-                        Self.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
-                    }
-                    let env = await MainActor.run {
-                        Self.makeEnvironment(
-                            base: ProcessInfo.processInfo.environment,
-                            provider: provider,
-                            settings: settings,
-                            tokenOverride: nil)
-                    }
+                    let snapshot = Self.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+                    let env = Self.makeEnvironment(
+                        base: ProcessInfo.processInfo.environment,
+                        provider: provider,
+                        settings: settings,
+                        tokenOverride: nil)
                     let verbose = settings.isVerboseLoggingEnabled
-                    let context = ProviderFetchContext(
+                    return ProviderFetchContext(
                         runtime: .app,
                         sourceMode: sourceMode,
                         includeCredits: false,
@@ -60,7 +58,6 @@ struct ProviderRegistry {
                         fetcher: codexFetcher,
                         claudeFetcher: claudeFetcher,
                         browserDetection: browserDetection)
-                    return await descriptor.fetchOutcome(context: context)
                 })
             specs[provider] = spec
         }

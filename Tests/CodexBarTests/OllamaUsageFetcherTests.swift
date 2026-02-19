@@ -67,6 +67,8 @@ struct OllamaUsageFetcherTests {
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(after: OllamaUsageError.invalidCredentials))
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(after: OllamaUsageError.notLoggedIn))
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(
+            after: OllamaUsageFetcher.RetryableParseFailure.missingUsageData))
+        #expect(!OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(
             after: OllamaUsageError.parseFailed("Missing Ollama usage data.")))
         #expect(!OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(
             after: OllamaUsageError.parseFailed("Unexpected parser mismatch.")))

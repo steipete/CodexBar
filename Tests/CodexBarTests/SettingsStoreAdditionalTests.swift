@@ -21,6 +21,20 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
+    func menuBarMetricPreferenceRestrictsOpenRouterToAutomaticOrPrimary() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-openrouter-metric")
+
+        settings.setMenuBarMetricPreference(.secondary, for: .openrouter)
+        #expect(settings.menuBarMetricPreference(for: .openrouter) == .automatic)
+
+        settings.setMenuBarMetricPreference(.average, for: .openrouter)
+        #expect(settings.menuBarMetricPreference(for: .openrouter) == .automatic)
+
+        settings.setMenuBarMetricPreference(.primary, for: .openrouter)
+        #expect(settings.menuBarMetricPreference(for: .openrouter) == .primary)
+    }
+
+    @Test
     func minimaxAuthModeUsesStoredValues() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-minimax")
         settings.minimaxAPIToken = "sk-api-test-token"

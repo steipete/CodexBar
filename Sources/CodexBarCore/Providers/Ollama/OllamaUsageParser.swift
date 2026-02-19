@@ -3,7 +3,28 @@ import Foundation
 enum OllamaUsageParser {
     private static let primaryUsageLabels = ["Session usage", "Hourly usage"]
 
+    enum ParseFailure: Sendable, Equatable {
+        case notLoggedIn
+        case missingUsageData
+    }
+
+    enum ClassifiedParseResult: Sendable {
+        case success(OllamaUsageSnapshot)
+        case failure(ParseFailure)
+    }
+
     static func parse(html: String, now: Date = Date()) throws -> OllamaUsageSnapshot {
+        switch self.parseClassified(html: html, now: now) {
+        case let .success(snapshot):
+            return snapshot
+        case .failure(.notLoggedIn):
+            throw OllamaUsageError.notLoggedIn
+        case .failure(.missingUsageData):
+            throw OllamaUsageError.parseFailed("Missing Ollama usage data.")
+        }
+    }
+
+    static func parseClassified(html: String, now: Date = Date()) -> ClassifiedParseResult {
         let plan = self.parsePlanName(html)
         let email = self.parseAccountEmail(html)
         let session = self.parseUsageBlock(labels: self.primaryUsageLabels, html: html)
@@ -11,19 +32,19 @@ enum OllamaUsageParser {
 
         if session == nil, weekly == nil {
             if self.looksSignedOut(html) {
-                throw OllamaUsageError.notLoggedIn
+                return .failure(.notLoggedIn)
             }
-            throw OllamaUsageError.parseFailed("Missing Ollama usage data.")
+            return .failure(.missingUsageData)
         }
 
-        return OllamaUsageSnapshot(
+        return .success(OllamaUsageSnapshot(
             planName: plan,
             accountEmail: email,
             sessionUsedPercent: session?.usedPercent,
             weeklyUsedPercent: weekly?.usedPercent,
             sessionResetsAt: session?.resetsAt,
             weeklyResetsAt: weekly?.resetsAt,
-            updatedAt: now)
+            updatedAt: now))
     }
 
     private struct UsageBlock: Sendable {

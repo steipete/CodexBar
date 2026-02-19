@@ -22,7 +22,7 @@ public enum WarpProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
-                dashboardURL: "https://app.warp.dev/settings/account",
+                dashboardURL: "https://docs.warp.dev/reference/cli/api-keys",
                 statusPageURL: nil),
             branding: ProviderBranding(
                 iconStyle: .warp,

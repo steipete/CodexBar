@@ -27,6 +27,8 @@ public enum ProviderConfigEnvironment {
             }
         case .kilo:
             env[KiloSettingsReader.apiTokenKey] = apiKey
+        case .openrouter:
+            env[OpenRouterSettingsReader.envKey] = apiKey
         default:
             break
         }

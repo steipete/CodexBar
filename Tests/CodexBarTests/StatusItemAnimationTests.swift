@@ -6,6 +6,19 @@ import Testing
 @MainActor
 @Suite
 struct StatusItemAnimationTests {
+    private func maxAlpha(in rep: NSBitmapImageRep) -> CGFloat {
+        var maxAlpha: CGFloat = 0
+        for x in 0..<rep.pixelsWide {
+            for y in 0..<rep.pixelsHigh {
+                let alpha = (rep.colorAt(x: x, y: y) ?? .clear).alphaComponent
+                if alpha > maxAlpha {
+                    maxAlpha = alpha
+                }
+            }
+        }
+        return maxAlpha
+    }
+
     private func makeStatusBarForTesting() -> NSStatusBar {
         let env = ProcessInfo.processInfo.environment
         if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
@@ -372,5 +385,39 @@ struct StatusItemAnimationTests {
 
         #expect(pace == nil)
         #expect(both == nil)
+    }
+
+    @Test
+    func brandImageWithStatusOverlayReturnsOriginalImageWhenNoIssue() {
+        let brand = NSImage(size: NSSize(width: 16, height: 16))
+        brand.isTemplate = true
+
+        let output = StatusItemController.brandImageWithStatusOverlay(brand: brand, statusIndicator: .none)
+
+        #expect(output === brand)
+    }
+
+    @Test
+    func brandImageWithStatusOverlayDrawsIssueMark() throws {
+        let size = NSSize(width: 16, height: 16)
+        let brand = NSImage(size: size)
+        brand.lockFocus()
+        NSColor.clear.setFill()
+        NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
+        brand.unlockFocus()
+        brand.isTemplate = true
+
+        let baselineData = try #require(brand.tiffRepresentation)
+        let baselineRep = try #require(NSBitmapImageRep(data: baselineData))
+        let baselineAlpha = self.maxAlpha(in: baselineRep)
+
+        let output = StatusItemController.brandImageWithStatusOverlay(brand: brand, statusIndicator: .major)
+
+        #expect(output !== brand)
+        let outputData = try #require(output.tiffRepresentation)
+        let outputRep = try #require(NSBitmapImageRep(data: outputData))
+        let outputAlpha = self.maxAlpha(in: outputRep)
+        #expect(baselineAlpha < 0.01)
+        #expect(outputAlpha > 0.01)
     }
 }

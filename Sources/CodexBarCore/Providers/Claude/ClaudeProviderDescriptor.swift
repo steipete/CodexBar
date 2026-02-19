@@ -202,11 +202,13 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         //
         // User actions should be able to recover immediately even if a prior background attempt tripped the
         // keychain cooldown gate. Clear the cooldown before deciding availability so the fetch path can proceed.
-        if ProviderInteractionContext.current == .userInitiated {
+        let promptPolicyApplicable = ClaudeOAuthKeychainPromptPreference.isApplicable()
+        if promptPolicyApplicable, ProviderInteractionContext.current == .userInitiated {
             _ = ClaudeOAuthKeychainAccessGate.clearDenied()
         }
 
-        let shouldAllowStartupBootstrap = context.runtime == .app &&
+        let shouldAllowStartupBootstrap = promptPolicyApplicable &&
+            context.runtime == .app &&
             ProviderRefreshContext.current == .startup &&
             ProviderInteractionContext.current == .background &&
             ClaudeOAuthKeychainPromptPreference.current() == .onlyOnUserAction &&
@@ -215,7 +217,11 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             return ClaudeOAuthKeychainAccessGate.shouldAllowPrompt()
         }
 
-        guard ClaudeOAuthKeychainAccessGate.shouldAllowPrompt() else { return false }
+        if promptPolicyApplicable,
+           !ClaudeOAuthKeychainAccessGate.shouldAllowPrompt()
+        {
+            return false
+        }
         return ClaudeOAuthCredentialsStore.hasClaudeKeychainCredentialsWithoutPrompt()
     }
 

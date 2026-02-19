@@ -33,37 +33,57 @@ struct ClaudeOAuthCredentialsStoreTests {
 
                     ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
                     defer { ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting() }
+                    try ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                        try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                            let tempDir = FileManager.default.temporaryDirectory
+                                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                            let fileURL = tempDir.appendingPathComponent("credentials.json")
+                            try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                                let expiredData = self.makeCredentialsData(
+                                    accessToken: "expired",
+                                    expiresAt: Date(timeIntervalSinceNow: -3600))
+                                try expiredData.write(to: fileURL)
 
-                    let tempDir = FileManager.default.temporaryDirectory
-                        .appendingPathComponent(UUID().uuidString, isDirectory: true)
-                    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-                    let fileURL = tempDir.appendingPathComponent("credentials.json")
-                    try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
-                        let expiredData = self.makeCredentialsData(
-                            accessToken: "expired",
-                            expiresAt: Date(timeIntervalSinceNow: -3600))
-                        try expiredData.write(to: fileURL)
+                                let cachedData = self.makeCredentialsData(
+                                    accessToken: "cached",
+                                    expiresAt: Date(timeIntervalSinceNow: 3600))
+                                let cacheEntry = ClaudeOAuthCredentialsStore.CacheEntry(
+                                    data: cachedData,
+                                    storedAt: Date())
+                                let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                                ClaudeOAuthCredentialsStore.invalidateCache()
+                                KeychainCacheStore.store(key: cacheKey, entry: cacheEntry)
+                                defer { KeychainCacheStore.clear(key: cacheKey) }
+                                _ = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                                    .securityFramework)
+                                {
+                                    try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
+                                        .onlyOnUserAction)
+                                    {
+                                        try ClaudeOAuthCredentialsStore.load(
+                                            environment: [:],
+                                            allowKeychainPrompt: false)
+                                    }
+                                }
+                                // Re-store to cache after file check has marked file as "seen"
+                                KeychainCacheStore.store(key: cacheKey, entry: cacheEntry)
+                                let creds = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                                    .securityFramework)
+                                {
+                                    try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
+                                        .onlyOnUserAction)
+                                    {
+                                        try ClaudeOAuthCredentialsStore.load(
+                                            environment: [:],
+                                            allowKeychainPrompt: false)
+                                    }
+                                }
 
-                        let cachedData = self.makeCredentialsData(
-                            accessToken: "cached",
-                            expiresAt: Date(timeIntervalSinceNow: 3600))
-                        let cacheEntry = ClaudeOAuthCredentialsStore.CacheEntry(data: cachedData, storedAt: Date())
-                        let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
-                        ClaudeOAuthCredentialsStore.invalidateCache()
-                        KeychainCacheStore.store(key: cacheKey, entry: cacheEntry)
-                        defer { KeychainCacheStore.clear(key: cacheKey) }
-                        _ = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
-                            try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: false)
-                        }
-                        // Re-store to cache after file check has marked file as "seen"
-                        KeychainCacheStore.store(key: cacheKey, entry: cacheEntry)
-                        let creds = try ClaudeOAuthKeychainPromptPreference
-                            .withTaskOverrideForTesting(.onlyOnUserAction) {
-                                try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: false)
+                                #expect(creds.accessToken == "cached")
+                                #expect(creds.isExpired == false)
                             }
-
-                        #expect(creds.accessToken == "cached")
-                        #expect(creds.isExpired == false)
+                        }
                     }
                 }
             }

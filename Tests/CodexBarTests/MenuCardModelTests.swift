@@ -392,6 +392,133 @@ struct MenuCardModelTests {
     }
 
     @Test
+    @MainActor
+    func openRouterModel_usesAPIKeyQuotaBarAndQuotaDetail() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.openrouter])
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45.3895596325,
+            balance: 4.6104403675,
+            usedPercent: 90.779119265,
+            keyLimit: 20,
+            keyUsage: 0.5,
+            rateLimit: nil,
+            updatedAt: now).toUsageSnapshot()
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .openrouter,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.creditsText == nil)
+        #expect(model.metrics.count == 1)
+        #expect(model.usageNotes.isEmpty)
+        let metric = try #require(model.metrics.first)
+        let popupTitle = UsageMenuCardView.popupMetricTitle(
+            provider: .openrouter,
+            metric: metric)
+        #expect(popupTitle == "API key limit")
+        #expect(metric.resetText == "$19.50/$20.00 left")
+        #expect(metric.detailRightText == nil)
+    }
+
+    @Test
+    func openRouterModel_withoutKeyLimitShowsTextOnlySummary() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.openrouter])
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45.3895596325,
+            balance: 4.6104403675,
+            usedPercent: 90.779119265,
+            keyDataFetched: true,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: now).toUsageSnapshot()
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .openrouter,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.isEmpty)
+        #expect(model.creditsText == nil)
+        #expect(model.placeholder == nil)
+        #expect(model.usageNotes == ["No limit set for the API key"])
+    }
+
+    @Test
+    func openRouterModel_whenKeyFetchUnavailableShowsUnavailableNote() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.openrouter])
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45.3895596325,
+            balance: 4.6104403675,
+            usedPercent: 90.779119265,
+            keyDataFetched: false,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: now).toUsageSnapshot()
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .openrouter,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.isEmpty)
+        #expect(model.usageNotes == ["API key limit unavailable right now"])
+    }
+
+    @Test
     func hidesEmailWhenPersonalInfoHidden() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(

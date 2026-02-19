@@ -1154,6 +1154,15 @@ extension UsageStore {
         let ampCookieHeader = self.settings.ampCookieHeader
         let ollamaCookieSource = self.settings.ollamaCookieSource
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
+        let processEnvironment = ProcessInfo.processInfo.environment
+        let openRouterConfigToken = self.settings.providerConfig(for: .openrouter)?.sanitizedAPIKey
+        let openRouterHasConfigToken = !(openRouterConfigToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true)
+        let openRouterHasEnvToken = OpenRouterSettingsReader.apiToken(environment: processEnvironment) != nil
+        let openRouterEnvironment = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: processEnvironment,
+            provider: .openrouter,
+            config: self.settings.providerConfig(for: .openrouter))
         return await Task.detached(priority: .utility) { () -> String in
             let unimplementedDebugLogMessages: [UsageProvider: String] = [
                 .gemini: "Gemini debug log not yet implemented",
@@ -1210,6 +1219,19 @@ extension UsageStore {
                 text = await self.debugOllamaLog(
                     ollamaCookieSource: ollamaCookieSource,
                     ollamaCookieHeader: ollamaCookieHeader)
+            case .openrouter:
+                let resolution = ProviderTokenResolver.openRouterResolution(environment: openRouterEnvironment)
+                let hasAny = resolution != nil
+                let source: String = if resolution == nil {
+                    "none"
+                } else if openRouterHasConfigToken, openRouterHasEnvToken {
+                    "settings-config (overrides env)"
+                } else if openRouterHasConfigToken {
+                    "settings-config"
+                } else {
+                    resolution?.source.rawValue ?? "environment"
+                }
+                text = "OPENROUTER_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
             case .warp:
                 let resolution = ProviderTokenResolver.warpResolution()
                 let hasAny = resolution != nil
@@ -1237,7 +1259,14 @@ extension UsageStore {
         claudeCookieHeader: String,
         keepCLISessionsAlive: Bool) async -> String
     {
-        await self.runWithTimeout(seconds: 15) {
+        struct OAuthDebugProbe: Sendable {
+            let hasCredentials: Bool
+            let ownerRawValue: String
+            let sourceRawValue: String
+            let isExpired: Bool
+        }
+
+        return await self.runWithTimeout(seconds: 15) {
             var lines: [String] = []
             let manualHeader = claudeCookieSource == .manual
                 ? CookieHeaderNormalizer.normalize(claudeCookieHeader)
@@ -1247,12 +1276,20 @@ extension UsageStore {
             } else {
                 ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection) { msg in lines.append(msg) }
             }
-            // Don't prompt for keychain access during debug dump
-            let oauthRecord = try? ClaudeOAuthCredentialsStore.loadRecord(
-                allowKeychainPrompt: false,
-                respectKeychainPromptCooldown: true,
-                allowClaudeKeychainRepairWithoutPrompt: false)
-            let hasOAuthCredentials = oauthRecord?.credentials.scopes.contains("user:profile") == true
+            // Run potentially blocking keychain probes off MainActor so debug dumps don't stall UI rendering.
+            let oauthProbe = await Task.detached(priority: .utility) {
+                // Don't prompt for keychain access during debug dump.
+                let oauthRecord = try? ClaudeOAuthCredentialsStore.loadRecord(
+                    allowKeychainPrompt: false,
+                    respectKeychainPromptCooldown: true,
+                    allowClaudeKeychainRepairWithoutPrompt: false)
+                return OAuthDebugProbe(
+                    hasCredentials: oauthRecord?.credentials.scopes.contains("user:profile") == true,
+                    ownerRawValue: oauthRecord?.owner.rawValue ?? "none",
+                    sourceRawValue: oauthRecord?.source.rawValue ?? "none",
+                    isExpired: oauthRecord?.credentials.isExpired ?? false)
+            }.value
+            let hasOAuthCredentials = oauthProbe.hasCredentials
             let hasClaudeBinary = ClaudeOAuthDelegatedRefreshCoordinator.isClaudeCLIAvailable()
             let delegatedCooldownSeconds = ClaudeOAuthDelegatedRefreshCoordinator.cooldownRemainingSeconds()
 
@@ -1271,9 +1308,9 @@ extension UsageStore {
             }
             lines.append("hasSessionKey=\(hasKey)")
             lines.append("hasOAuthCredentials=\(hasOAuthCredentials)")
-            lines.append("oauthCredentialOwner=\(oauthRecord?.owner.rawValue ?? "none")")
-            lines.append("oauthCredentialSource=\(oauthRecord?.source.rawValue ?? "none")")
-            lines.append("oauthCredentialExpired=\(oauthRecord?.credentials.isExpired ?? false)")
+            lines.append("oauthCredentialOwner=\(oauthProbe.ownerRawValue)")
+            lines.append("oauthCredentialSource=\(oauthProbe.sourceRawValue)")
+            lines.append("oauthCredentialExpired=\(oauthProbe.isExpired)")
             lines.append("delegatedRefreshCLIAvailable=\(hasClaudeBinary)")
             lines.append("delegatedRefreshCooldownActive=\(delegatedCooldownSeconds != nil)")
             if let delegatedCooldownSeconds {

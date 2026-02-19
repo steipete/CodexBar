@@ -42,7 +42,18 @@ extension UsageStore {
             }
         }
 
-        let outcome = await spec.fetch()
+        let fetchContext = spec.makeFetchContext()
+        let descriptor = spec.descriptor
+        // Keep provider fetch work off MainActor so slow keychain/process reads don't stall menu/UI responsiveness.
+        let outcome = await withTaskGroup(
+            of: ProviderFetchOutcome.self,
+            returning: ProviderFetchOutcome.self)
+        { group in
+            group.addTask {
+                await descriptor.fetchOutcome(context: fetchContext)
+            }
+            return await group.next()!
+        }
         if provider == .claude,
            ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
         {
