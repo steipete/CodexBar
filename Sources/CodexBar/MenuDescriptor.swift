@@ -152,7 +152,11 @@ struct MenuDescriptor {
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed,
                     resetOverride: weeklyResetOverride)
-                if let paceSummary = UsagePaceText.weeklySummary(provider: provider, window: weekly) {
+                if let paceSummary = UsagePaceText.weeklySummary(
+                    provider: provider,
+                    window: weekly,
+                    profile: store.paceProfile(for: provider))
+                {
                     entries.append(.text(paceSummary, .secondary))
                 }
             }

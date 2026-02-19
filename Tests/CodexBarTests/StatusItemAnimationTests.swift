@@ -346,7 +346,7 @@ struct StatusItemAnimationTests {
     }
 
     @Test
-    func menuBarDisplayTextHidesWhenPaceUnavailable() {
+    func menuBarDisplayTextShowsPaceForWeeklyWindowProviders() {
         let now = Date(timeIntervalSince1970: 0)
         let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         let paceWindow = RateWindow(
@@ -370,7 +370,7 @@ struct StatusItemAnimationTests {
             showUsed: true,
             now: now)
 
-        #expect(pace == nil)
-        #expect(both == nil)
+        #expect(pace == "+16%")
+        #expect(both == "40% · +16%")
     }
 }

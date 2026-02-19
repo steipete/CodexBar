@@ -80,6 +80,7 @@ extension UsageStore {
             await MainActor.run {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
                 self.snapshots[provider] = scoped
+                self.paceProfileStore.record(provider: provider, snapshot: scoped, now: scoped.updatedAt)
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
