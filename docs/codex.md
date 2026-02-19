@@ -80,7 +80,8 @@ Usage source picker:
   - `Credits:` line
   - `5h limit` line → percent + reset text
   - `Weekly limit` line → percent + reset text
-- Retry once with a larger terminal size on parse failure.
+- Retry once with a larger terminal size on parse failure (short retry window).
+- Do not retry on timeout; timed-out probes fail fast and wait for the next refresh cycle.
 - Detects update prompts and surfaces a "CLI update needed" error.
 
 ## Account identity resolution (for web matching)
