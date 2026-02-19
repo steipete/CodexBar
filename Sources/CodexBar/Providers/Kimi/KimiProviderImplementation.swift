@@ -10,7 +10,7 @@ struct KimiProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "web" }
+        ProviderPresentation { _ in L10n.tr("web") }
     }
 
     @MainActor
@@ -39,16 +39,16 @@ struct KimiProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.kimiCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a cookie header or the kimi-auth token value.",
-                off: "Kimi cookies are disabled.")
+                auto: L10n.tr("Automatic imports browser cookies."),
+                manual: L10n.tr("Paste a cookie header or the kimi-auth token value."),
+                off: L10n.tr("Kimi cookies are disabled."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "kimi-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
+                title: L10n.tr("Cookie source"),
+                subtitle: L10n.tr("Automatic imports browser cookies."),
                 dynamicSubtitle: subtitle,
                 binding: cookieBinding,
                 options: options,
@@ -65,12 +65,12 @@ struct KimiProviderImplementation: ProviderImplementation {
                 title: "",
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Cookie: \u{2026}\n\nor paste the kimi-auth token value",
+                placeholder: L10n.tr("Cookie: ...\n\nor paste the kimi-auth token value"),
                 binding: context.stringBinding(\.kimiManualCookieHeader),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "kimi-open-console",
-                        title: "Open Console",
+                        title: L10n.tr("Open Console"),
                         style: .link,
                         isVisible: nil,
                         perform: {

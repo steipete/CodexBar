@@ -14,9 +14,9 @@ enum UsagePaceText {
     static func weeklySummary(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> String? {
         guard let detail = weeklyDetail(provider: provider, window: window, now: now) else { return nil }
         if let rightLabel = detail.rightLabel {
-            return "Pace: \(detail.leftLabel) · \(rightLabel)"
+            return L10n.format("Pace: %@ · %@", detail.leftLabel, rightLabel)
         }
-        return "Pace: \(detail.leftLabel)"
+        return L10n.format("Pace: %@", detail.leftLabel)
     }
 
     static func weeklyDetail(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> WeeklyDetail? {
@@ -32,26 +32,26 @@ enum UsagePaceText {
         let deltaValue = Int(abs(pace.deltaPercent).rounded())
         switch pace.stage {
         case .onTrack:
-            return "On pace"
+            return L10n.tr("On pace")
         case .slightlyAhead, .ahead, .farAhead:
-            return "\(deltaValue)% in deficit"
+            return L10n.format("%d%% in deficit", deltaValue)
         case .slightlyBehind, .behind, .farBehind:
-            return "\(deltaValue)% in reserve"
+            return L10n.format("%d%% in reserve", deltaValue)
         }
     }
 
     private static func detailRightLabel(for pace: UsagePace, now: Date) -> String? {
-        if pace.willLastToReset { return "Lasts until reset" }
+        if pace.willLastToReset { return L10n.tr("Lasts until reset") }
         guard let etaSeconds = pace.etaSeconds else { return nil }
         let etaText = Self.durationText(seconds: etaSeconds, now: now)
-        if etaText == "now" { return "Runs out now" }
-        return "Runs out in \(etaText)"
+        if etaText == L10n.tr("now") { return L10n.tr("Runs out now") }
+        return L10n.format("Runs out in %@", etaText)
     }
 
     private static func durationText(seconds: TimeInterval, now: Date) -> String {
         let date = now.addingTimeInterval(seconds)
         let countdown = UsageFormatter.resetCountdownDescription(from: date, now: now)
-        if countdown == "now" { return "now" }
+        if countdown == "now" { return L10n.tr("now") }
         if countdown.hasPrefix("in ") { return String(countdown.dropFirst(3)) }
         return countdown
     }

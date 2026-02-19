@@ -6,7 +6,11 @@ struct ProviderPresentation {
 
     @MainActor
     static func standardDetailLine(context: ProviderPresentationContext) -> String {
-        let versionText = context.store.version(for: context.provider) ?? "not detected"
-        return "\(context.metadata.cliName) \(versionText)"
+        let rawVersion = context.store.version(for: context.provider) ?? L10n.tr("not detected")
+        let versionText = L10n.localizedDynamicValue(rawVersion)
+        if versionText == L10n.tr("not detected") {
+            return L10n.format("Provider detail missing: %@ %@", context.metadata.displayName, versionText)
+        }
+        return L10n.format("Provider detail: %@ %@", context.metadata.displayName, versionText)
     }
 }

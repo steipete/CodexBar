@@ -5,7 +5,7 @@ extension StatusItemController {
     func runAntigravityLoginFlow() async {
         self.loginPhase = .idle
         self.presentLoginAlert(
-            title: "Antigravity login is managed in the app",
-            message: "Open Antigravity to sign in, then refresh CodexBar.")
+            title: L10n.tr("Antigravity login is managed in the app"),
+            message: L10n.tr("Open Antigravity to sign in, then refresh CodexBar."))
     }
 }

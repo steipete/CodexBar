@@ -217,11 +217,11 @@ public enum UsageError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .noSessions:
-            "No Codex sessions found yet. Run at least one Codex prompt first."
+            NSLocalizedString("No Codex sessions found yet. Run at least one Codex prompt first.", comment: "")
         case .noRateLimitsFound:
-            "Found sessions, but no rate limit events yet."
+            NSLocalizedString("Found sessions, but no rate limit events yet.", comment: "")
         case .decodeFailed:
-            "Could not parse Codex session log."
+            NSLocalizedString("Could not parse Codex session log.", comment: "")
         }
     }
 }
@@ -292,11 +292,17 @@ private enum RPCWireError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .startFailed(message):
-            "Codex not running. Try running a Codex command first. (\(message))"
+            String(
+                format: NSLocalizedString("Codex not running. Try running a Codex command first. (%@)", comment: ""),
+                message)
         case let .requestFailed(message):
-            "Codex connection failed: \(message)"
+            String(
+                format: NSLocalizedString("Codex connection failed: %@", comment: ""),
+                message)
         case let .malformed(message):
-            "Codex returned invalid data: \(message)"
+            String(
+                format: NSLocalizedString("Codex returned invalid data: %@", comment: ""),
+                message)
         }
     }
 }

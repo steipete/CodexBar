@@ -14,7 +14,7 @@ extension Date {
     func relativeDescription(now: Date = .now) -> String {
         let seconds = abs(now.timeIntervalSince(self))
         if seconds < 15 {
-            return "just now"
+            return L10n.tr("just now")
         }
         return RelativeTimeFormatters.full.localizedString(for: self, relativeTo: now)
     }

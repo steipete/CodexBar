@@ -42,11 +42,11 @@ struct MenuContent: View {
         case let .text(text, style):
             switch style {
             case .headline:
-                Text(text).font(.headline)
+                Text(L10n.tr(text)).font(.headline)
             case .primary:
-                Text(text)
+                Text(L10n.tr(text))
             case .secondary:
-                Text(text).foregroundStyle(.secondary).font(.footnote)
+                Text(L10n.tr(text)).foregroundStyle(.secondary).font(.footnote)
             }
         case let .action(title, action):
             Button {
@@ -57,11 +57,11 @@ struct MenuContent: View {
                         Image(systemName: icon)
                             .imageScale(.medium)
                             .frame(width: 18, alignment: .center)
-                        Text(title)
+                        Text(L10n.tr(title))
                     }
                     .foregroundStyle(.primary)
                 } else {
-                    Text(title)
+                    Text(L10n.tr(title))
                 }
             }
             .buttonStyle(.plain)

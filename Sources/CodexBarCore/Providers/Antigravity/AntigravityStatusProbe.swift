@@ -24,7 +24,7 @@ public struct AntigravityStatusSnapshot: Sendable {
     public func toUsageSnapshot() throws -> UsageSnapshot {
         let ordered = Self.selectModels(self.modelQuotas)
         guard let primaryQuota = ordered.first else {
-            throw AntigravityStatusProbeError.parseFailed("No quota models available")
+            throw AntigravityStatusProbeError.parseFailed(NSLocalizedString("No quota models available", comment: ""))
         }
 
         let primary = Self.rateWindow(for: primaryQuota)
@@ -108,36 +108,36 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .notRunning:
-            "Antigravity language server not detected. Launch Antigravity and retry."
+            NSLocalizedString("Antigravity language server not detected. Launch Antigravity and retry.", comment: "")
         case .missingCSRFToken:
-            "Antigravity CSRF token not found. Restart Antigravity and retry."
+            NSLocalizedString("Antigravity CSRF token not found. Restart Antigravity and retry.", comment: "")
         case let .portDetectionFailed(message):
             Self.portDetectionDescription(message)
         case let .apiError(message):
             Self.apiErrorDescription(message)
         case let .parseFailed(message):
-            "Could not parse Antigravity quota: \(message)"
+            String(format: NSLocalizedString("Could not parse Antigravity quota: %@", comment: ""), message)
         case .timedOut:
-            "Antigravity quota request timed out."
+            NSLocalizedString("Antigravity quota request timed out.", comment: "")
         }
     }
 
     private static func portDetectionDescription(_ message: String) -> String {
         switch message {
         case "lsof not available":
-            "Antigravity port detection needs lsof. Install it, then retry."
+            NSLocalizedString("Antigravity port detection needs lsof. Install it, then retry.", comment: "")
         case "no listening ports found":
-            "Antigravity is running but not exposing ports yet. Try again in a few seconds."
+            NSLocalizedString("Antigravity is running but not exposing ports yet. Try again in a few seconds.", comment: "")
         default:
-            "Antigravity port detection failed: \(message)"
+            String(format: NSLocalizedString("Antigravity port detection failed: %@", comment: ""), message)
         }
     }
 
     private static func apiErrorDescription(_ message: String) -> String {
         if message.contains("HTTP 401") || message.contains("HTTP 403") {
-            return "Antigravity session expired. Restart Antigravity and retry."
+            return NSLocalizedString("Antigravity session expired. Restart Antigravity and retry.", comment: "")
         }
-        return "Antigravity API error: \(message)"
+        return String(format: NSLocalizedString("Antigravity API error: %@", comment: ""), message)
     }
 }
 
@@ -222,7 +222,7 @@ public struct AntigravityStatusProbe: Sendable {
             throw AntigravityStatusProbeError.apiError(invalid)
         }
         guard let userStatus = response.userStatus else {
-            throw AntigravityStatusProbeError.parseFailed("Missing userStatus")
+            throw AntigravityStatusProbeError.parseFailed(NSLocalizedString("Missing userStatus", comment: ""))
         }
 
         let modelConfigs = userStatus.cascadeModelConfigData?.clientModelConfigs ?? []
@@ -243,7 +243,7 @@ public struct AntigravityStatusProbe: Sendable {
             throw AntigravityStatusProbeError.apiError(invalid)
         }
         guard let userStatus = response.userStatus else {
-            throw AntigravityStatusProbeError.parseFailed("Missing userStatus")
+            throw AntigravityStatusProbeError.parseFailed(NSLocalizedString("Missing userStatus", comment: ""))
         }
         guard let planInfo = userStatus.planStatus?.planInfo else { return nil }
         return AntigravityPlanInfoSummary(

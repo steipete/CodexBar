@@ -16,14 +16,13 @@ struct CopilotLoginFlow {
             pb.setString(code.userCode, forType: .string)
 
             let alert = NSAlert()
-            alert.messageText = "GitHub Copilot Login"
-            alert.informativeText = """
-            A device code has been copied to your clipboard: \(code.userCode)
-
-            Please verify it at: \(code.verificationUri)
-            """
-            alert.addButton(withTitle: "Open Browser")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = L10n.tr("GitHub Copilot Login")
+            alert.informativeText = L10n.format(
+                "A device code has been copied to your clipboard: %@\n\nPlease verify it at: %@",
+                code.userCode,
+                code.verificationUri)
+            alert.addButton(withTitle: L10n.tr("Open Browser"))
+            alert.addButton(withTitle: L10n.tr("Cancel"))
 
             let response = alert.runModal()
             if response == .alertSecondButtonReturn {
@@ -43,12 +42,10 @@ struct CopilotLoginFlow {
 
             // Let's show a "Waiting" alert that can be cancelled.
             let waitingAlert = NSAlert()
-            waitingAlert.messageText = "Waiting for Authentication..."
-            waitingAlert.informativeText = """
-            Please complete the login in your browser.
-            This window will close automatically when finished.
-            """
-            waitingAlert.addButton(withTitle: "Cancel")
+            waitingAlert.messageText = L10n.tr("Waiting for Authentication...")
+            waitingAlert.informativeText = L10n.tr(
+                "Please complete the login in your browser. This window will close automatically when finished.")
+            waitingAlert.addButton(withTitle: L10n.tr("Cancel"))
             let parentWindow = Self.resolveWaitingParentWindow()
             let hostWindow = parentWindow ?? Self.makeWaitingHostWindow()
             let shouldCloseHostWindow = parentWindow == nil
@@ -87,19 +84,19 @@ struct CopilotLoginFlow {
                     enabled: true)
 
                 let success = NSAlert()
-                success.messageText = "Login Successful"
+                success.messageText = L10n.tr("Login Successful")
                 success.runModal()
             case let .failure(error):
                 guard !(error is CancellationError) else { return }
                 let err = NSAlert()
-                err.messageText = "Login Failed"
+                err.messageText = L10n.tr("Login Failed")
                 err.informativeText = error.localizedDescription
                 err.runModal()
             }
 
         } catch {
             let err = NSAlert()
-            err.messageText = "Login Failed"
+            err.messageText = L10n.tr("Login Failed")
             err.informativeText = error.localizedDescription
             err.runModal()
         }

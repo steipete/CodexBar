@@ -45,6 +45,7 @@ resolve_signing_mode() {
 
   local candidate=""
   for candidate in \
+    "Apple Development: shawnrain@foxmail.com (ZQG28N5AK8)" \
     "Developer ID Application: Peter Steinberger (Y5PE65HELJ)" \
     "CodexBar Development"
   do

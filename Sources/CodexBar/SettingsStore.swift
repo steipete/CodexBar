@@ -28,12 +28,12 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .manual: "Manual"
-        case .oneMinute: "1 min"
-        case .twoMinutes: "2 min"
-        case .fiveMinutes: "5 min"
-        case .fifteenMinutes: "15 min"
-        case .thirtyMinutes: "30 min"
+        case .manual: L10n.tr("Manual")
+        case .oneMinute: L10n.tr("1 min")
+        case .twoMinutes: L10n.tr("2 min")
+        case .fiveMinutes: L10n.tr("5 min")
+        case .fifteenMinutes: L10n.tr("15 min")
+        case .thirtyMinutes: L10n.tr("30 min")
         }
     }
 }
@@ -50,10 +50,10 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .automatic: "Automatic"
-        case .primary: "Primary"
-        case .secondary: "Secondary"
-        case .average: "Average"
+        case .automatic: L10n.tr("Automatic")
+        case .primary: L10n.tr("Primary")
+        case .secondary: L10n.tr("Secondary")
+        case .average: L10n.tr("Average")
         }
     }
 }

@@ -39,3 +39,9 @@
 - Keep provider data siloed: when rendering usage or account info for a provider (Claude vs Codex), never display identity/plan fields sourced from a different provider.***
 - Claude CLI status line is custom + user-configurable; never rely on it for usage parsing.
 - Cookie imports: default Chrome-only when possible to avoid other browser prompts; override via browser list when needed.
+- Signing identities: verify with `security find-identity -v -p codesigning` (prefer running with elevated permissions if sandboxed). A CA certificate alone (e.g., `Developer ID Certification Authority`) is not a signing identity.
+- Preferred local signing: use available `Apple Development` identity (for this machine: `Apple Development: shawnrain@foxmail.com (ZQG28N5AK8)`) unless a valid `Developer ID Application` identity is installed.
+- `Scripts/package_app.sh` uses `--timestamp` when signing with identity; if timestamp service is unavailable, build release with `CODEXBAR_SIGNING=adhoc ./Scripts/package_app.sh release` and then re-sign the app without timestamp:
+  `codesign --force --deep --options runtime --sign 'Apple Development: shawnrain@foxmail.com (ZQG28N5AK8)' /Users/shawnrain/CodexBar/CodexBar.app`
+- Install to system Applications with:
+  `ditto /Users/shawnrain/CodexBar/CodexBar.app /Applications/CodexBar.app`

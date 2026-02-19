@@ -7,20 +7,12 @@ extension StatusItemController {
     func runVertexAILoginFlow() async {
         // Show alert with instructions
         let alert = NSAlert()
-        alert.messageText = "Vertex AI Login"
-        alert.informativeText = """
-        To use Vertex AI tracking, you need to authenticate with Google Cloud.
-
-        1. Open Terminal
-        2. Run: gcloud auth application-default login
-        3. Follow the browser prompts to sign in
-        4. Set your project: gcloud config set project PROJECT_ID
-
-        Would you like to open Terminal now?
-        """
+        alert.messageText = L10n.tr("Vertex AI Login")
+        alert.informativeText = L10n.tr(
+            "To use Vertex AI tracking, you need to authenticate with Google Cloud.\n\n1. Open Terminal\n2. Run: gcloud auth application-default login\n3. Follow the browser prompts to sign in\n4. Set your project: gcloud config set project PROJECT_ID\n\nWould you like to open Terminal now?")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Open Terminal")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L10n.tr("Open Terminal"))
+        alert.addButton(withTitle: L10n.tr("Cancel"))
 
         let response = alert.runModal()
 

@@ -38,14 +38,14 @@ struct ProviderDetailView: View {
 
                 if let errorDisplay {
                     ProviderErrorView(
-                        title: "Last \(self.store.metadata(for: self.provider).displayName) fetch failed:",
+                        title: L10n.format("Last %@ fetch failed:", self.store.metadata(for: self.provider).displayName),
                         display: errorDisplay,
                         isExpanded: self.$isErrorExpanded,
                         onCopy: { self.onCopyError(errorDisplay.full) })
                 }
 
                 if self.hasSettings {
-                    ProviderSettingsSection(title: "Settings") {
+                    ProviderSettingsSection(title: L10n.tr("Settings")) {
                         ForEach(self.settingsPickers) { picker in
                             ProviderSettingsPickerRowView(picker: picker)
                         }
@@ -61,7 +61,7 @@ struct ProviderDetailView: View {
                 }
 
                 if !self.settingsToggles.isEmpty {
-                    ProviderSettingsSection(title: "Options") {
+                    ProviderSettingsSection(title: L10n.tr("Options")) {
                         ForEach(self.settingsToggles) { toggle in
                             ProviderSettingsToggleRowView(toggle: toggle)
                         }
@@ -82,26 +82,26 @@ struct ProviderDetailView: View {
     }
 
     private var detailLabelWidth: CGFloat {
-        var infoLabels = ["State", "Source", "Version", "Updated"]
+        var infoLabels = [L10n.tr("State"), L10n.tr("Source"), L10n.tr("Version"), L10n.tr("Updated")]
         if self.store.status(for: self.provider) != nil {
-            infoLabels.append("Status")
+            infoLabels.append(L10n.tr("Status"))
         }
         if !self.model.email.isEmpty {
-            infoLabels.append("Account")
+            infoLabels.append(L10n.tr("Account"))
         }
         if let plan = self.model.planText, !plan.isEmpty {
-            infoLabels.append("Plan")
+            infoLabels.append(L10n.tr("Plan"))
         }
 
         var metricLabels = self.model.metrics.map(\.title)
         if self.model.creditsText != nil {
-            metricLabels.append("Credits")
+            metricLabels.append(L10n.tr("Credits"))
         }
         if let providerCost = self.model.providerCost {
             metricLabels.append(providerCost.title)
         }
         if self.model.tokenUsage != nil {
-            metricLabels.append("Cost")
+            metricLabels.append(L10n.tr("Cost"))
         }
 
         let infoWidth = ProviderSettingsMetrics.labelWidth(
@@ -147,7 +147,7 @@ private struct ProviderDetailHeaderView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .help("Refresh")
+                .help(L10n.tr("Refresh"))
 
                 Toggle("", isOn: self.$isEnabled)
                     .labelsHidden()
@@ -206,32 +206,32 @@ private struct ProviderDetailInfoGrid: View {
 
     var body: some View {
         let status = self.store.status(for: self.provider)
-        let source = self.store.sourceLabel(for: self.provider)
-        let version = self.store.version(for: self.provider) ?? "not detected"
+        let source = L10n.localizedDynamicValue(self.store.sourceLabel(for: self.provider))
+        let version = L10n.localizedDynamicValue(self.store.version(for: self.provider) ?? L10n.tr("not detected"))
         let updated = self.updatedText
         let email = self.model.email
         let plan = self.model.planText ?? ""
-        let enabledText = self.isEnabled ? "Enabled" : "Disabled"
+        let enabledText = self.isEnabled ? L10n.tr("Enabled") : L10n.tr("Disabled")
 
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
-            ProviderDetailInfoRow(label: "State", value: enabledText, labelWidth: self.labelWidth)
-            ProviderDetailInfoRow(label: "Source", value: source, labelWidth: self.labelWidth)
-            ProviderDetailInfoRow(label: "Version", value: version, labelWidth: self.labelWidth)
-            ProviderDetailInfoRow(label: "Updated", value: updated, labelWidth: self.labelWidth)
+            ProviderDetailInfoRow(label: L10n.tr("State"), value: enabledText, labelWidth: self.labelWidth)
+            ProviderDetailInfoRow(label: L10n.tr("Source"), value: source, labelWidth: self.labelWidth)
+            ProviderDetailInfoRow(label: L10n.tr("Version"), value: version, labelWidth: self.labelWidth)
+            ProviderDetailInfoRow(label: L10n.tr("Updated"), value: updated, labelWidth: self.labelWidth)
 
             if let status {
                 ProviderDetailInfoRow(
-                    label: "Status",
-                    value: status.description ?? status.indicator.label,
+                    label: L10n.tr("Status"),
+                    value: self.localizedStatusText(status),
                     labelWidth: self.labelWidth)
             }
 
             if !email.isEmpty {
-                ProviderDetailInfoRow(label: "Account", value: email, labelWidth: self.labelWidth)
+                ProviderDetailInfoRow(label: L10n.tr("Account"), value: email, labelWidth: self.labelWidth)
             }
 
             if !plan.isEmpty {
-                ProviderDetailInfoRow(label: "Plan", value: plan, labelWidth: self.labelWidth)
+                ProviderDetailInfoRow(label: L10n.tr("Plan"), value: plan, labelWidth: self.labelWidth)
             }
         }
         .font(.footnote)
@@ -243,9 +243,36 @@ private struct ProviderDetailInfoGrid: View {
             return UsageFormatter.updatedString(from: updated)
         }
         if self.store.refreshingProviders.contains(self.provider) {
-            return "Refreshing"
+            return L10n.tr("Refreshing")
         }
-        return "Not fetched yet"
+        return L10n.tr("Not fetched yet")
+    }
+
+    private func localizedStatusText(_ status: ProviderStatus) -> String {
+        guard let description = status.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !description.isEmpty
+        else {
+            return status.indicator.label
+        }
+
+        switch description.lowercased() {
+        case "all systems operational":
+            return L10n.tr("All Systems Operational")
+        case "operational":
+            return L10n.tr("Operational")
+        case "partial outage":
+            return L10n.tr("Partial outage")
+        case "major outage":
+            return L10n.tr("Major outage")
+        case "critical issue":
+            return L10n.tr("Critical issue")
+        case "maintenance":
+            return L10n.tr("Maintenance")
+        case "status unknown":
+            return L10n.tr("Status unknown")
+        default:
+            return description
+        }
     }
 }
 
@@ -273,7 +300,7 @@ struct ProviderMetricsInlineView: View {
 
     var body: some View {
         ProviderSettingsSection(
-            title: "Usage",
+            title: L10n.tr("Usage"),
             spacing: 8,
             verticalPadding: 6,
             horizontalPadding: 0)
@@ -294,7 +321,7 @@ struct ProviderMetricsInlineView: View {
 
                 if let credits = self.model.creditsText {
                     ProviderMetricInlineTextRow(
-                        title: "Credits",
+                        title: L10n.tr("Credits"),
                         value: credits,
                         labelWidth: self.labelWidth)
                 }
@@ -308,7 +335,7 @@ struct ProviderMetricsInlineView: View {
 
                 if let tokenUsage = self.model.tokenUsage {
                     ProviderMetricInlineTextRow(
-                        title: "Cost",
+                        title: L10n.tr("Cost"),
                         value: tokenUsage.sessionLine,
                         labelWidth: self.labelWidth)
                     ProviderMetricInlineTextRow(
@@ -322,9 +349,9 @@ struct ProviderMetricsInlineView: View {
 
     private var placeholderText: String {
         if !self.isEnabled {
-            return "Disabled — no recent data"
+            return L10n.tr("Disabled — no recent data")
         }
-        return self.model.placeholder ?? "No usage yet"
+        return self.model.placeholder ?? L10n.tr("No usage yet")
     }
 }
 

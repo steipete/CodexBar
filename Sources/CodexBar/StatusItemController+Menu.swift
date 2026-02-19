@@ -369,21 +369,23 @@ extension StatusItemController {
             for entry in section.entries {
                 switch entry {
                 case let .text(text, style):
-                    let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+                    let localizedText = L10n.tr(text)
+                    let item = NSMenuItem(title: localizedText, action: nil, keyEquivalent: "")
                     item.isEnabled = false
                     if style == .headline {
                         let font = NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
-                        item.attributedTitle = NSAttributedString(string: text, attributes: [.font: font])
+                        item.attributedTitle = NSAttributedString(string: localizedText, attributes: [.font: font])
                     } else if style == .secondary {
                         let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
                         item.attributedTitle = NSAttributedString(
-                            string: text,
+                            string: localizedText,
                             attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor])
                     }
                     menu.addItem(item)
                 case let .action(title, action):
                     let (selector, represented) = self.selector(for: action)
-                    let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
+                    let localizedTitle = L10n.tr(title)
+                    let item = NSMenuItem(title: localizedTitle, action: selector, keyEquivalent: "")
                     item.target = self
                     item.representedObject = represented
                     if let iconName = action.systemImageName,
@@ -397,7 +399,7 @@ extension StatusItemController {
                        let subtitle = self.switchAccountSubtitle(for: targetProvider)
                     {
                         item.isEnabled = false
-                        self.applySubtitle(subtitle, to: item, title: title)
+                        self.applySubtitle(L10n.tr(subtitle), to: item, title: localizedTitle)
                     }
                     menu.addItem(item)
                 case .divider:
@@ -924,7 +926,7 @@ extension StatusItemController {
     }
 
     private func makeBuyCreditsItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Buy Credits...", action: #selector(self.openCreditsPurchase), keyEquivalent: "")
+        let item = NSMenuItem(title: L10n.tr("Buy Credits..."), action: #selector(self.openCreditsPurchase), keyEquivalent: "")
         item.target = self
         if let image = NSImage(systemSymbolName: "plus.circle", accessibilityDescription: nil) {
             image.isTemplate = true
@@ -937,7 +939,7 @@ extension StatusItemController {
     @discardableResult
     private func addCreditsHistorySubmenu(to menu: NSMenu) -> Bool {
         guard let submenu = self.makeCreditsHistorySubmenu() else { return false }
-        let item = NSMenuItem(title: "Credits history", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L10n.tr("Credits history"), action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.submenu = submenu
         menu.addItem(item)
@@ -947,7 +949,7 @@ extension StatusItemController {
     @discardableResult
     private func addUsageBreakdownSubmenu(to menu: NSMenu) -> Bool {
         guard let submenu = self.makeUsageBreakdownSubmenu() else { return false }
-        let item = NSMenuItem(title: "Usage breakdown", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L10n.tr("Usage breakdown"), action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.submenu = submenu
         menu.addItem(item)
@@ -957,7 +959,7 @@ extension StatusItemController {
     @discardableResult
     private func addCostHistorySubmenu(to menu: NSMenu, provider: UsageProvider) -> Bool {
         guard let submenu = self.makeCostHistorySubmenu(provider: provider) else { return false }
-        let item = NSMenuItem(title: "Usage history (30 days)", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L10n.tr("Usage history (30 days)"), action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.submenu = submenu
         menu.addItem(item)
@@ -984,12 +986,12 @@ extension StatusItemController {
 
         let submenu = NSMenu()
         submenu.delegate = self
-        let titleItem = NSMenuItem(title: "MCP details", action: nil, keyEquivalent: "")
+        let titleItem = NSMenuItem(title: L10n.tr("MCP details"), action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         submenu.addItem(titleItem)
 
         if let window = timeLimit.windowLabel {
-            let item = NSMenuItem(title: "Window: \(window)", action: nil, keyEquivalent: "")
+            let item = NSMenuItem(title: L10n.format("Window: %@", window), action: nil, keyEquivalent: "")
             item.isEnabled = false
             submenu.addItem(item)
         }
@@ -997,7 +999,7 @@ extension StatusItemController {
             let reset = self.settings.resetTimeDisplayStyle == .absolute
                 ? UsageFormatter.resetDescription(from: resetTime)
                 : UsageFormatter.resetCountdownDescription(from: resetTime)
-            let item = NSMenuItem(title: "Resets: \(reset)", action: nil, keyEquivalent: "")
+            let item = NSMenuItem(title: L10n.format("Resets: %@", reset), action: nil, keyEquivalent: "")
             item.isEnabled = false
             submenu.addItem(item)
         }
@@ -1008,7 +1010,7 @@ extension StatusItemController {
         }
         for detail in sortedDetails {
             let usage = UsageFormatter.tokenCountString(detail.usage)
-            let item = NSMenuItem(title: "\(detail.modelCode): \(usage)", action: nil, keyEquivalent: "")
+            let item = NSMenuItem(title: L10n.format("%@: %@", detail.modelCode, usage), action: nil, keyEquivalent: "")
             submenu.addItem(item)
         }
         return submenu

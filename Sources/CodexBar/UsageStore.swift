@@ -80,12 +80,12 @@ enum ProviderStatusIndicator: String {
 
     var label: String {
         switch self {
-        case .none: "Operational"
-        case .minor: "Partial outage"
-        case .major: "Major outage"
-        case .critical: "Critical issue"
-        case .maintenance: "Maintenance"
-        case .unknown: "Status unknown"
+        case .none: L10n.tr("Operational")
+        case .minor: L10n.tr("Partial outage")
+        case .major: L10n.tr("Major outage")
+        case .critical: L10n.tr("Critical issue")
+        case .maintenance: L10n.tr("Maintenance")
+        case .unknown: L10n.tr("Status unknown")
         }
     }
 }

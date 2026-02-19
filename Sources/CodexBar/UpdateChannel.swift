@@ -10,18 +10,18 @@ enum UpdateChannel: String, CaseIterable, Codable, Sendable {
     var displayName: String {
         switch self {
         case .stable:
-            "Stable"
+            L10n.tr("Stable")
         case .beta:
-            "Beta"
+            L10n.tr("Beta")
         }
     }
 
     var description: String {
         switch self {
         case .stable:
-            "Receive only stable, production-ready releases."
+            L10n.tr("Receive only stable, production-ready releases.")
         case .beta:
-            "Receive stable releases plus beta previews."
+            L10n.tr("Receive stable releases plus beta previews.")
         }
     }
 

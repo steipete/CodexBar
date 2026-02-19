@@ -44,9 +44,13 @@ final class SessionQuotaNotifier {
         case .none:
             ("", "")
         case .depleted:
-            ("\(providerName) session depleted", "0% left. Will notify when it's available again.")
+            (
+                L10n.format("%@ session depleted", providerName),
+                L10n.tr("0% left. Will notify when it's available again."))
         case .restored:
-            ("\(providerName) session restored", "Session quota is available again.")
+            (
+                L10n.format("%@ session restored", providerName),
+                L10n.tr("Session quota is available again."))
         }
 
         let providerText = provider.rawValue

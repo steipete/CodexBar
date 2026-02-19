@@ -10,7 +10,7 @@ struct CursorProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "web" }
+        ProviderPresentation { _ in L10n.tr("web") }
     }
 
     @MainActor
@@ -53,16 +53,16 @@ struct CursorProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.cursorCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies or stored sessions.",
-                manual: "Paste a Cookie header from a cursor.com request.",
-                off: "Cursor cookies are disabled.")
+                auto: L10n.tr("Automatic imports browser cookies or stored sessions."),
+                manual: L10n.tr("Paste a Cookie header from a cursor.com request."),
+                off: L10n.tr("Cursor cookies are disabled."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "cursor-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies or stored sessions.",
+                title: L10n.tr("Cookie source"),
+                subtitle: L10n.tr("Automatic imports browser cookies or stored sessions."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -71,7 +71,7 @@ struct CursorProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard let entry = CookieHeaderCache.load(provider: .cursor) else { return nil }
                     let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
+                    return L10n.format("Cached: %@ • %@", entry.sourceLabel, when)
                 }),
         ]
     }
@@ -94,9 +94,9 @@ struct CursorProviderImplementation: ProviderImplementation {
         let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
         if cost.limit > 0 {
             let limitStr = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-            entries.append(.text("On-Demand: \(used) / \(limitStr)", .primary))
+            entries.append(.text(L10n.format("On-Demand: %@ / %@", used, limitStr), .primary))
         } else {
-            entries.append(.text("On-Demand: \(used)", .primary))
+            entries.append(.text(L10n.format("On-Demand: %@", used), .primary))
         }
     }
 }

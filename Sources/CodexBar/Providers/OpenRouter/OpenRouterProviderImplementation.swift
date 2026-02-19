@@ -10,7 +10,7 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "api" }
+        ProviderPresentation { _ in L10n.tr("api") }
     }
 
     @MainActor
@@ -42,10 +42,10 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-api-key",
-                title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys.",
+                title: L10n.tr("API key"),
+                subtitle: L10n.tr("Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys."),
                 kind: .secure,
-                placeholder: "sk-or-v1-...",
+                placeholder: L10n.tr("sk-or-v1-..."),
                 binding: context.stringBinding(\.openRouterAPIToken),
                 actions: [],
                 isVisible: nil,

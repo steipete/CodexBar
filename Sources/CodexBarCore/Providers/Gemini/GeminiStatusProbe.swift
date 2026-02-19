@@ -731,24 +731,18 @@ public struct GeminiStatusProbe: Sendable {
 
     private static func formatResetTime(_ isoString: String) -> String {
         guard let resetDate = parseResetTime(isoString) else {
-            return "Resets soon"
+            return NSLocalizedString("Resets soon", comment: "")
         }
 
         let now = Date()
         let interval = resetDate.timeIntervalSince(now)
 
         if interval <= 0 {
-            return "Resets soon"
+            return NSLocalizedString("Resets soon", comment: "")
         }
 
-        let hours = Int(interval / 3600)
-        let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
-
-        if hours > 0 {
-            return "Resets in \(hours)h \(minutes)m"
-        } else {
-            return "Resets in \(minutes)m"
-        }
+        let countdown = UsageFormatter.resetCountdownDescription(from: resetDate, now: now)
+        return String(format: NSLocalizedString("Resets %@", comment: ""), countdown)
     }
 
     // MARK: - Legacy CLI parsing (kept for fallback)

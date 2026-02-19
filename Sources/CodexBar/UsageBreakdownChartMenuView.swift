@@ -31,7 +31,7 @@ struct UsageBreakdownChartMenuView: View {
         let model = Self.makeModel(from: self.breakdown)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No usage breakdown data.")
+                Text(L10n.tr("No usage breakdown data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {

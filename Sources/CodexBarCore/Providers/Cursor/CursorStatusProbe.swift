@@ -318,10 +318,8 @@ public struct CursorStatusSnapshot: Sendable {
     }
 
     private static func formatResetDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d 'at' h:mma"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return "Resets " + formatter.string(from: date)
+        let text = date.formatted(date: .abbreviated, time: .shortened)
+        return String(format: NSLocalizedString("Resets %@", comment: ""), text)
     }
 
     private static func formatMembershipType(_ type: String) -> String {

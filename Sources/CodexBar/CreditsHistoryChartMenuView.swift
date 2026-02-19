@@ -29,7 +29,7 @@ struct CreditsHistoryChartMenuView: View {
         let model = Self.makeModel(from: self.breakdown)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No credits history data.")
+                Text(L10n.tr("No credits history data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -98,7 +98,9 @@ struct CreditsHistoryChartMenuView: View {
                 }
 
                 if let total = model.totalCreditsUsed {
-                    Text("Total (30d): \(total.formatted(.number.precision(.fractionLength(0...2)))) credits")
+                    Text(L10n.format(
+                        "Total (30d): %@ credits",
+                        total.formatted(.number.precision(.fractionLength(0...2)))))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

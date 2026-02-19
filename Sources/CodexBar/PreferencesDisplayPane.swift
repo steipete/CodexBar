@@ -8,40 +8,40 @@ struct DisplayPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 SettingsSection(contentSpacing: 12) {
-                    Text("Menu bar")
+                    Text(L10n.tr("Menu bar"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     PreferenceToggleRow(
-                        title: "Merge Icons",
-                        subtitle: "Use a single menu bar icon with a provider switcher.",
+                        title: L10n.tr("Merge Icons"),
+                        subtitle: L10n.tr("Use a single menu bar icon with a provider switcher."),
                         binding: self.$settings.mergeIcons)
                     PreferenceToggleRow(
-                        title: "Switcher shows icons",
-                        subtitle: "Show provider icons in the switcher (otherwise show a weekly progress line).",
+                        title: L10n.tr("Switcher shows icons"),
+                        subtitle: L10n.tr("Show provider icons in the switcher (otherwise show a weekly progress line)."),
                         binding: self.$settings.switcherShowsIcons)
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
-                        title: "Show most-used provider",
-                        subtitle: "Menu bar auto-shows the provider closest to its rate limit.",
+                        title: L10n.tr("Show most-used provider"),
+                        subtitle: L10n.tr("Menu bar auto-shows the provider closest to its rate limit."),
                         binding: self.$settings.menuBarShowsHighestUsage)
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
-                        title: "Menu bar shows percent",
-                        subtitle: "Replace critter bars with provider branding icons and a percentage.",
+                        title: L10n.tr("Menu bar shows percent"),
+                        subtitle: L10n.tr("Replace critter bars with provider branding icons and a percentage."),
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Display mode")
+                            Text(L10n.tr("Display mode"))
                                 .font(.body)
-                            Text("Choose what to show in the menu bar (Pace shows usage vs. expected).")
+                            Text(L10n.tr("Choose what to show in the menu bar (Pace shows usage vs. expected)."))
                                 .font(.footnote)
                                 .foregroundStyle(.tertiary)
                         }
                         Spacer()
-                        Picker("Display mode", selection: self.$settings.menuBarDisplayMode) {
+                        Picker(L10n.tr("Display mode"), selection: self.$settings.menuBarDisplayMode) {
                             ForEach(MenuBarDisplayMode.allCases) { mode in
                                 Text(mode.label).tag(mode)
                             }
@@ -57,25 +57,25 @@ struct DisplayPane: View {
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {
-                    Text("Menu content")
+                    Text(L10n.tr("Menu content"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     PreferenceToggleRow(
-                        title: "Show usage as used",
-                        subtitle: "Progress bars fill as you consume quota (instead of showing remaining).",
+                        title: L10n.tr("Show usage as used"),
+                        subtitle: L10n.tr("Progress bars fill as you consume quota (instead of showing remaining)."),
                         binding: self.$settings.usageBarsShowUsed)
                     PreferenceToggleRow(
-                        title: "Show reset time as clock",
-                        subtitle: "Display reset times as absolute clock values instead of countdowns.",
+                        title: L10n.tr("Show reset time as clock"),
+                        subtitle: L10n.tr("Display reset times as absolute clock values instead of countdowns."),
                         binding: self.$settings.resetTimesShowAbsolute)
                     PreferenceToggleRow(
-                        title: "Show credits + extra usage",
-                        subtitle: "Show Codex Credits and Claude Extra usage sections in the menu.",
+                        title: L10n.tr("Show credits + extra usage"),
+                        subtitle: L10n.tr("Show Codex Credits and Claude Extra usage sections in the menu."),
                         binding: self.$settings.showOptionalCreditsAndExtraUsage)
                     PreferenceToggleRow(
-                        title: "Show all token accounts",
-                        subtitle: "Stack token accounts in the menu (otherwise show an account switcher bar).",
+                        title: L10n.tr("Show all token accounts"),
+                        subtitle: L10n.tr("Stack token accounts in the menu (otherwise show an account switcher bar)."),
                         binding: self.$settings.showAllTokenAccountsInMenu)
                 }
             }

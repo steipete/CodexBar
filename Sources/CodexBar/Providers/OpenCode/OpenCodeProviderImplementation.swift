@@ -10,7 +10,7 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "web" }
+        ProviderPresentation { _ in L10n.tr("web") }
     }
 
     @MainActor
@@ -54,16 +54,16 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.opencodeCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies from opencode.ai.",
-                manual: "Paste a Cookie header captured from the billing page.",
-                off: "OpenCode cookies are disabled.")
+                auto: L10n.tr("Automatic imports browser cookies from opencode.ai."),
+                manual: L10n.tr("Paste a Cookie header captured from the billing page."),
+                off: L10n.tr("OpenCode cookies are disabled."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "opencode-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies from opencode.ai.",
+                title: L10n.tr("Cookie source"),
+                subtitle: L10n.tr("Automatic imports browser cookies from opencode.ai."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -72,7 +72,7 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard let entry = CookieHeaderCache.load(provider: .opencode) else { return nil }
                     let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
+                    return L10n.format("Cached: %@ • %@", entry.sourceLabel, when)
                 }),
         ]
     }
@@ -82,10 +82,10 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "opencode-workspace-id",
-                title: "Workspace ID",
-                subtitle: "Optional override if workspace lookup fails.",
+                title: L10n.tr("Workspace ID"),
+                subtitle: L10n.tr("Optional override if workspace lookup fails."),
                 kind: .plain,
-                placeholder: "wrk_…",
+                placeholder: L10n.tr("wrk_..."),
                 binding: context.stringBinding(\.opencodeWorkspaceID),
                 actions: [],
                 isVisible: nil,
