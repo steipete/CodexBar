@@ -389,7 +389,8 @@ extension StatusItemController {
             provider: provider,
             percentWindow: self.menuBarPercentWindow(for: provider, snapshot: snapshot),
             paceWindow: snapshot?.secondary,
-            showUsed: self.settings.usageBarsShowUsed)
+            showUsed: self.settings.usageBarsShowUsed,
+            paceProfile: self.store.paceProfile(for: provider))
     }
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {

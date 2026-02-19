@@ -122,4 +122,36 @@ struct UsagePaceTextTests {
 
         #expect(detail == nil)
     }
+
+    @Test
+    func weeklyPaceDetail_showsLowConfidenceBadgeWhenFallingBackToLinear() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 3600),
+            resetDescription: nil)
+
+        let detail = UsagePaceText.weeklyDetail(
+            provider: .codex,
+            window: window,
+            now: now,
+            profile: .empty)
+
+        #expect(detail?.rightLabel?.contains("Low confidence") == true)
+    }
+
+    @Test
+    func weeklyPaceDetail_supportsAllProvidersForWeeklyWindows() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 3600),
+            resetDescription: nil)
+
+        let detail = UsagePaceText.weeklyDetail(provider: .gemini, window: window, now: now)
+
+        #expect(detail != nil)
+    }
 }

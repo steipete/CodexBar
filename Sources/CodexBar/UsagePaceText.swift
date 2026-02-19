@@ -10,17 +10,33 @@ enum UsagePaceText {
     }
 
     private static let minimumExpectedPercent: Double = 3
+    private static let weeklyWindowMinutes = 7 * 24 * 60
+    private static let weeklyWindowToleranceMinutes = 24 * 60
 
-    static func weeklySummary(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> String? {
-        guard let detail = weeklyDetail(provider: provider, window: window, now: now) else { return nil }
+    static func weeklySummary(
+        provider: UsageProvider,
+        window: RateWindow,
+        now: Date = .init(),
+        profile: UsagePaceProfile? = nil) -> String?
+    {
+        guard let detail = weeklyDetail(provider: provider, window: window, now: now, profile: profile) else {
+            return nil
+        }
         if let rightLabel = detail.rightLabel {
             return "Pace: \(detail.leftLabel) · \(rightLabel)"
         }
         return "Pace: \(detail.leftLabel)"
     }
 
-    static func weeklyDetail(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> WeeklyDetail? {
-        guard let pace = weeklyPace(provider: provider, window: window, now: now) else { return nil }
+    static func weeklyDetail(
+        provider: UsageProvider,
+        window: RateWindow,
+        now: Date = .init(),
+        profile: UsagePaceProfile? = nil) -> WeeklyDetail?
+    {
+        guard let pace = weeklyPace(provider: provider, window: window, now: now, profile: profile) else {
+            return nil
+        }
         return WeeklyDetail(
             leftLabel: Self.detailLeftLabel(for: pace),
             rightLabel: Self.detailRightLabel(for: pace, now: now),
@@ -41,11 +57,24 @@ enum UsagePaceText {
     }
 
     private static func detailRightLabel(for pace: UsagePace, now: Date) -> String? {
-        if pace.willLastToReset { return "Lasts until reset" }
-        guard let etaSeconds = pace.etaSeconds else { return nil }
-        let etaText = Self.durationText(seconds: etaSeconds, now: now)
-        if etaText == "now" { return "Runs out now" }
-        return "Runs out in \(etaText)"
+        let runwayLabel: String? = {
+            if pace.willLastToReset { return "Lasts until reset" }
+            guard let etaSeconds = pace.etaSeconds else { return nil }
+            let etaText = Self.durationText(seconds: etaSeconds, now: now)
+            if etaText == "now" { return "Runs out now" }
+            return "Runs out in \(etaText)"
+        }()
+
+        let confidenceLabel: String? = if pace.confidence == .low, pace.isFallbackLinear {
+            "Low confidence"
+        } else {
+            nil
+        }
+
+        if let runwayLabel, let confidenceLabel {
+            return "\(runwayLabel) · \(confidenceLabel)"
+        }
+        return runwayLabel ?? confidenceLabel
     }
 
     private static func durationText(seconds: TimeInterval, now: Date) -> String {
@@ -56,11 +85,29 @@ enum UsagePaceText {
         return countdown
     }
 
-    static func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date) -> UsagePace? {
-        guard provider == .codex || provider == .claude else { return nil }
+    static func weeklyPace(
+        provider _: UsageProvider,
+        window: RateWindow,
+        now: Date,
+        profile: UsagePaceProfile? = nil) -> UsagePace?
+    {
         guard window.remainingPercent > 0 else { return nil }
-        guard let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080) else { return nil }
+        guard self.isWeeklyWindow(window) else { return nil }
+        guard let pace = UsagePace.weekly(
+            window: window,
+            now: now,
+            defaultWindowMinutes: weeklyWindowMinutes,
+            profile: profile)
+        else {
+            return nil
+        }
         guard pace.expectedUsedPercent >= Self.minimumExpectedPercent else { return nil }
         return pace
+    }
+
+    static func isWeeklyWindow(_ window: RateWindow) -> Bool {
+        let minutes = window.windowMinutes ?? Self.weeklyWindowMinutes
+        let delta = abs(minutes - Self.weeklyWindowMinutes)
+        return delta <= Self.weeklyWindowToleranceMinutes
     }
 }

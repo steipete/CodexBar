@@ -74,4 +74,59 @@ struct UsagePaceTests {
 
         #expect(pace == nil)
     }
+
+    @Test
+    func weeklyPace_marksLowConfidenceOnLinearFallbackWhenProfileIsInsufficient() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 3600),
+            resetDescription: nil)
+
+        let pace = UsagePace.weekly(window: window, now: now, profile: .empty)
+
+        #expect(pace != nil)
+        guard let pace else { return }
+        #expect(pace.model == .linear)
+        #expect(pace.confidence == .low)
+        #expect(pace.isFallbackLinear == true)
+    }
+
+    @Test
+    func weeklyPace_usesTimeOfDayProfileWhenConfidenceIsHigh() {
+        let now = Date(timeIntervalSince1970: 0)
+        let reset = now.addingTimeInterval((4 * 24 * 3600) + (6 * 3600))
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 10080,
+            resetsAt: reset,
+            resetDescription: nil)
+
+        let duration = TimeInterval(7 * 24 * 3600)
+        let start = reset.addingTimeInterval(-duration)
+
+        var bins = Array(repeating: 0.2, count: UsagePaceProfile.binsPerWeek)
+        var cursor = start
+        while cursor < now {
+            let idx = UsagePaceProfile.binIndex(for: cursor)
+            bins[idx] = 2.0
+            cursor = cursor.addingTimeInterval(3600)
+        }
+
+        let profile = UsagePaceProfile(
+            hourlyIntensity: bins,
+            sampleCount: 120,
+            activeBinCount: UsagePaceProfile.binsPerWeek,
+            spanHours: 240)
+
+        let pace = UsagePace.weekly(window: window, now: now, profile: profile)
+
+        #expect(pace != nil)
+        guard let pace else { return }
+        #expect(pace.model == .timeOfDayProfile)
+        #expect(pace.confidence == .high)
+        #expect(pace.isFallbackLinear == false)
+        #expect(pace.expectedUsedPercent > 55)
+    }
 }

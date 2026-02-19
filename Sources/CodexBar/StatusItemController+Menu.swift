@@ -1207,6 +1207,7 @@ extension StatusItemController {
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             hidePersonalInfo: self.settings.hidePersonalInfo,
+            paceProfile: self.store.paceProfile(for: target),
             now: Date())
         return UsageMenuCardView.Model.make(input)
     }
