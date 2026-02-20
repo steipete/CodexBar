@@ -128,6 +128,14 @@ public struct ClaudeUsageStrategy: Equatable, Sendable {
     public let useWebExtras: Bool
 }
 
+#if DEBUG
+extension ClaudeProviderDescriptor {
+    public static func _snapshotFromClaudeUsageForTesting(_ usage: ClaudeUsageSnapshot) -> UsageSnapshot {
+        ClaudeOAuthFetchStrategy._snapshotForTesting(from: usage)
+    }
+}
+#endif
+
 struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     let id: String = "claude.oauth"
     let kind: ProviderFetchKind = .oauth
@@ -248,19 +256,40 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     fileprivate static func snapshot(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {
+        let hideUsageMetrics = Self.shouldHideUsageMetrics(for: usage)
+        let primary: RateWindow? = hideUsageMetrics ? nil : usage.primary
+        let secondary: RateWindow? = hideUsageMetrics ? nil : usage.secondary
+        let tertiary: RateWindow? = hideUsageMetrics ? nil : usage.opus
         let identity = ProviderIdentitySnapshot(
             providerID: .claude,
             accountEmail: usage.accountEmail,
             accountOrganization: usage.accountOrganization,
             loginMethod: usage.loginMethod)
         return UsageSnapshot(
-            primary: usage.primary,
-            secondary: usage.secondary,
-            tertiary: usage.opus,
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
             providerCost: usage.providerCost,
             updatedAt: usage.updatedAt,
             identity: identity)
     }
+
+    private static func shouldHideUsageMetrics(for usage: ClaudeUsageSnapshot) -> Bool {
+        // Claude Enterprise web accounts can return HTTP 200 with all usage windows set to null.
+        // In this case, showing "Session 100% left" is misleading; keep only account/cost info.
+        guard usage.secondary == nil, usage.opus == nil else { return false }
+        guard usage.primary.usedPercent == 0 else { return false }
+        guard usage.primary.resetsAt == nil, usage.primary.resetDescription == nil else { return false }
+        // Web path provides account identity; OAuth generally does not.
+        guard usage.accountEmail != nil else { return false }
+        return true
+    }
+
+    #if DEBUG
+    static func _snapshotForTesting(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {
+        self.snapshot(from: usage)
+    }
+    #endif
 }
 
 struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
