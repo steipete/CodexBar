@@ -75,9 +75,15 @@ extension StatusItemController {
         self.codeReviewLogsWindow = controller
 
         self.codeReviewLogsRefreshTask?.cancel()
+        self.codeReviewLogsRefreshGeneration &+= 1
+        let refreshGeneration = self.codeReviewLogsRefreshGeneration
         self.codeReviewLogsRefreshTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { self.codeReviewLogsRefreshTask = nil }
+            defer {
+                if self.codeReviewLogsRefreshGeneration == refreshGeneration {
+                    self.codeReviewLogsRefreshTask = nil
+                }
+            }
             let accountEmail = self.store.codexAccountEmailForOpenAIDashboard()
             let fetcher = OpenAIDashboardFetcher()
             var refreshedEntries = await fetcher.loadCodeReviewLogs(

@@ -222,7 +222,7 @@ public struct OpenAIDashboardFetcher {
                 return OpenAIDashboardSnapshot(
                     signedInEmail: scrape.signedInEmail,
                     codeReviewRemainingPercent: codeReview,
-                    codeReviewLogs: [],
+                    codeReviewLogs: scrape.codeReviewLogs,
                     creditEvents: events,
                     dailyBreakdown: breakdown,
                     usageBreakdown: usageBreakdown,
