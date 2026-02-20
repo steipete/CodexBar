@@ -728,6 +728,7 @@ struct ClaudeUsageTests {
         }
     }
 
+    @Test
     func parsesClaudeWebAPIOverageSpendLimit() {
         let json = """
         {
