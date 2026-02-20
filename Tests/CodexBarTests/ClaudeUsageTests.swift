@@ -684,8 +684,12 @@ struct ClaudeUsageTests {
         let json = """
         {
           "five_hour": null,
+          "seven_day_oauth_apps": null,
           "seven_day": null,
-          "seven_day_opus": null
+          "seven_day_opus": null,
+          "seven_day_sonnet": null,
+          "seven_day_cowork": null,
+          "iguana_necktie": null
         }
         """
         let data = Data(json.utf8)
@@ -693,6 +697,35 @@ struct ClaudeUsageTests {
         #expect(parsed.sessionPercentUsed == 0)
         #expect(parsed.weeklyPercentUsed == nil)
         #expect(parsed.opusPercentUsed == nil)
+        #expect(parsed.usageMetricsUnavailable == true)
+    }
+
+    @Test
+    func parsesClaudeWebAPIUsageResponseWhenPresentUsageWindowsAreAllNull() throws {
+        let json = """
+        {
+          "five_hour": null,
+          "seven_day": null
+        }
+        """
+        let data = Data(json.utf8)
+        let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
+        #expect(parsed.sessionPercentUsed == 0)
+        #expect(parsed.usageMetricsUnavailable == true)
+    }
+
+    @Test
+    func rejectsClaudeWebAPIUsageResponseWhenSessionWindowMissingAndPayloadNotAllNull() {
+        let json = """
+        {
+          "five_hour": null,
+          "seven_day": { "utilization": 12, "resets_at": "2025-12-29T23:00:00.000Z" }
+        }
+        """
+        let data = Data(json.utf8)
+        #expect(throws: ClaudeWebAPIFetcher.FetchError.self) {
+            _ = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
+        }
     }
 
     func parsesClaudeWebAPIOverageSpendLimit() {
@@ -912,6 +945,7 @@ struct ClaudeUsageTests {
             primary: RateWindow(usedPercent: 0, windowMinutes: 5 * 60, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             opus: nil,
+            usageMetricsUnavailable: true,
             providerCost: ProviderCostSnapshot(
                 used: 140.25,
                 limit: 300,
@@ -942,6 +976,7 @@ struct ClaudeUsageTests {
                 resetDescription: "Dec 1 at 1:00PM"),
             secondary: nil,
             opus: nil,
+            usageMetricsUnavailable: false,
             providerCost: nil,
             updatedAt: Date(),
             accountEmail: "member@example.com",

@@ -84,6 +84,7 @@ public enum ClaudeWebAPIFetcher {
         public let weeklyPercentUsed: Double?
         public let weeklyResetsAt: Date?
         public let opusPercentUsed: Double?
+        public let usageMetricsUnavailable: Bool
         public let extraUsageCost: ProviderCostSnapshot?
         public let accountOrganization: String?
         public let accountEmail: String?
@@ -95,6 +96,7 @@ public enum ClaudeWebAPIFetcher {
             weeklyPercentUsed: Double?,
             weeklyResetsAt: Date?,
             opusPercentUsed: Double?,
+            usageMetricsUnavailable: Bool,
             extraUsageCost: ProviderCostSnapshot?,
             accountOrganization: String?,
             accountEmail: String?,
@@ -105,6 +107,7 @@ public enum ClaudeWebAPIFetcher {
             self.weeklyPercentUsed = weeklyPercentUsed
             self.weeklyResetsAt = weeklyResetsAt
             self.opusPercentUsed = opusPercentUsed
+            self.usageMetricsUnavailable = usageMetricsUnavailable
             self.extraUsageCost = extraUsageCost
             self.accountOrganization = accountOrganization
             self.accountEmail = accountEmail
@@ -200,6 +203,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                usageMetricsUnavailable: usage.usageMetricsUnavailable,
                 extraUsageCost: extra,
                 accountOrganization: usage.accountOrganization,
                 accountEmail: usage.accountEmail,
@@ -212,6 +216,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                usageMetricsUnavailable: usage.usageMetricsUnavailable,
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: usage.accountOrganization,
                 accountEmail: account.email,
@@ -224,6 +229,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                usageMetricsUnavailable: usage.usageMetricsUnavailable,
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: name,
                 accountEmail: usage.accountEmail,
@@ -458,7 +464,8 @@ public enum ClaudeWebAPIFetcher {
         }
 
         // Parse five_hour (session) usage
-        var sessionPercent: Double = 0
+        let usageMetricsUnavailable = self.usageWindowsUnavailable(in: json)
+        var sessionPercent: Double?
         var sessionResets: Date?
         if let fiveHour = json["five_hour"] as? [String: Any] {
             if let utilization = fiveHour["utilization"] as? NSNumber {
@@ -467,6 +474,10 @@ public enum ClaudeWebAPIFetcher {
             if let resetsAt = fiveHour["resets_at"] as? String {
                 sessionResets = self.parseISO8601Date(resetsAt)
             }
+        }
+        guard sessionPercent != nil || usageMetricsUnavailable else {
+            // Keep malformed payloads on the fallback path. Only all-null enterprise payloads are accepted.
+            throw FetchError.invalidResponse
         }
 
         // Parse seven_day (weekly) usage
@@ -490,15 +501,31 @@ public enum ClaudeWebAPIFetcher {
         }
 
         return WebUsageData(
-            sessionPercentUsed: sessionPercent,
+            sessionPercentUsed: sessionPercent ?? 0,
             sessionResetsAt: sessionResets,
             weeklyPercentUsed: weeklyPercent,
             weeklyResetsAt: weeklyResets,
             opusPercentUsed: opusPercent,
+            usageMetricsUnavailable: usageMetricsUnavailable,
             extraUsageCost: nil,
             accountOrganization: nil,
             accountEmail: nil,
             loginMethod: nil)
+    }
+
+    private static func usageWindowsUnavailable(in json: [String: Any]) -> Bool {
+        let keys = [
+            "five_hour",
+            "seven_day",
+            "seven_day_oauth_apps",
+            "seven_day_opus",
+            "seven_day_sonnet",
+            "seven_day_cowork",
+            "iguana_necktie",
+        ]
+        let values = keys.compactMap { json[$0] }
+        guard !values.isEmpty else { return false }
+        return values.allSatisfy { $0 is NSNull }
     }
 
     // MARK: - Extra usage cost (Claude "Extra")

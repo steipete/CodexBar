@@ -10,6 +10,7 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let primary: RateWindow
     public let secondary: RateWindow?
     public let opus: RateWindow?
+    public let usageMetricsUnavailable: Bool
     public let providerCost: ProviderCostSnapshot?
     public let updatedAt: Date
     public let accountEmail: String?
@@ -21,6 +22,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         primary: RateWindow,
         secondary: RateWindow?,
         opus: RateWindow?,
+        usageMetricsUnavailable: Bool = false,
         providerCost: ProviderCostSnapshot? = nil,
         updatedAt: Date,
         accountEmail: String?,
@@ -31,6 +33,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.primary = primary
         self.secondary = secondary
         self.opus = opus
+        self.usageMetricsUnavailable = usageMetricsUnavailable
         self.providerCost = providerCost
         self.updatedAt = updatedAt
         self.accountEmail = accountEmail
@@ -801,6 +804,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             primary: primary,
             secondary: secondary,
             opus: opus,
+            usageMetricsUnavailable: webData.usageMetricsUnavailable,
             providerCost: providerCost,
             updatedAt: Date(),
             accountEmail: webData.accountEmail,

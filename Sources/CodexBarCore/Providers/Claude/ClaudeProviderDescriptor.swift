@@ -275,14 +275,8 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func shouldHideUsageMetrics(for usage: ClaudeUsageSnapshot) -> Bool {
-        // Claude Enterprise web accounts can return HTTP 200 with all usage windows set to null.
-        // In this case, showing "Session 100% left" is misleading; keep only account/cost info.
-        guard usage.secondary == nil, usage.opus == nil else { return false }
-        guard usage.primary.usedPercent == 0 else { return false }
-        guard usage.primary.resetsAt == nil, usage.primary.resetDescription == nil else { return false }
-        // Web path provides account identity; OAuth generally does not.
-        guard usage.accountEmail != nil else { return false }
-        return true
+        // Derived directly from the web usage payload shape to avoid depending on best-effort account fetches.
+        usage.usageMetricsUnavailable
     }
 
     #if DEBUG
