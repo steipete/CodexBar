@@ -383,10 +383,6 @@ public struct TTYCommandRunner {
         /// while bootstrapping the CLI (e.g. when it prompts for login/telemetry).
         func cleanup() {
             guard !cleanedUp else { return }
-            cleanedUp = true
-            if didLaunch {
-                TTYCommandRunnerActiveProcessRegistry.unregister(pid: proc.processIdentifier)
-            }
 
             if didLaunch, proc.isRunning {
                 Self.log.debug("PTY stopping", metadata: ["binary": binaryName])
@@ -417,6 +413,11 @@ public struct TTYCommandRunner {
             }
             if didLaunch {
                 proc.waitUntilExit()
+            }
+
+            cleanedUp = true
+            if didLaunch {
+                TTYCommandRunnerActiveProcessRegistry.unregister(pid: proc.processIdentifier)
             }
         }
 
