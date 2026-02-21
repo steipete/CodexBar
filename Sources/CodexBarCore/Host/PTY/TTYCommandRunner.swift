@@ -451,7 +451,7 @@ public struct TTYCommandRunner {
 
         let deadline = Date().addingTimeInterval(options.timeout)
         let trimmed = script.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isCodex = (binary == "codex")
+        let isCodex = (binaryName == "codex")
         let isCodexStatus = isCodex && trimmed == "/status"
 
         var buffer = Data()
