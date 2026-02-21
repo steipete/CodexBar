@@ -106,7 +106,9 @@ enum UsagePaceText {
     }
 
     static func isWeeklyWindow(_ window: RateWindow) -> Bool {
-        let minutes = window.windowMinutes ?? Self.weeklyWindowMinutes
+        guard let minutes = window.windowMinutes else {
+            return false
+        }
         let delta = abs(minutes - Self.weeklyWindowMinutes)
         return delta <= Self.weeklyWindowToleranceMinutes
     }

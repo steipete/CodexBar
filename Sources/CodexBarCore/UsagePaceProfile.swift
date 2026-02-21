@@ -12,7 +12,7 @@ public enum UsagePaceConfidence: String, Codable, Sendable {
 
 public struct UsagePaceProfile: Codable, Equatable, Sendable {
     public static let binsPerWeek = 7 * 24
-    public static let minimumSampleCount = 24
+    public static let minimumSampleCount = 20
     public static let minimumActiveBinCount = 8
     public static let minimumSpanHours = 48
 

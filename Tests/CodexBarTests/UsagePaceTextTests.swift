@@ -124,6 +124,20 @@ struct UsagePaceTextTests {
     }
 
     @Test
+    func weeklyPaceDetail_hidesWhenWindowDurationIsUnknown() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: nil,
+            resetsAt: now.addingTimeInterval(4 * 24 * 3600),
+            resetDescription: nil)
+
+        let detail = UsagePaceText.weeklyDetail(provider: .codex, window: window, now: now)
+
+        #expect(detail == nil)
+    }
+
+    @Test
     func weeklyPaceDetail_showsLowConfidenceBadgeWhenFallingBackToLinear() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
