@@ -5,6 +5,49 @@ import Testing
 @Suite
 struct TTYCommandRunnerEnvTests {
     @Test
+    func shutdownCleanupDrainsTrackedTTYProcesses() {
+        TTYCommandRunner._test_resetTrackedProcesses()
+        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+
+        TTYCommandRunner._test_trackProcess(pid: pid_t(Int32.max), binary: "codex", processGroup: nil)
+        #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
+
+        TTYCommandRunner.terminateActiveProcessesForAppShutdown()
+        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+    }
+
+    @Test
+    func trackedProcessHelpersIgnoreInvalidPID() {
+        TTYCommandRunner._test_resetTrackedProcesses()
+        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+
+        TTYCommandRunner._test_trackProcess(pid: 0, binary: "codex", processGroup: nil)
+        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+    }
+
+    @Test
+    func shutdownResolverSkipsHostProcessGroupFallback() {
+        let hostGroup: pid_t = 4242
+        let targets: [(pid: pid_t, binary: String, processGroup: pid_t?)] = [
+            (pid: 100, binary: "codex", processGroup: nil),
+            (pid: 101, binary: "codex", processGroup: hostGroup),
+            (pid: 102, binary: "codex", processGroup: 7777),
+        ]
+
+        let resolved = TTYCommandRunner._test_resolveShutdownTargets(
+            targets,
+            hostProcessGroup: hostGroup,
+            groupResolver: { pid in
+                pid == 100 ? hostGroup : -1
+            })
+
+        #expect(resolved.count == 3)
+        #expect(resolved[0].processGroup == nil)
+        #expect(resolved[1].processGroup == nil)
+        #expect(resolved[2].processGroup == 7777)
+    }
+
+    @Test
     func preservesEnvironmentAndSetsTerm() {
         let baseEnv: [String: String] = [
             "PATH": "/custom/bin",

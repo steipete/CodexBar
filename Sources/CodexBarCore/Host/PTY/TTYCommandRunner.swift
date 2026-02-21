@@ -5,6 +5,72 @@ import Glibc
 #endif
 import Foundation
 
+private enum TTYCommandRunnerActiveProcessRegistry {
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var processes: [pid_t: ProcessInfo] = [:]
+
+    private struct ProcessInfo {
+        let binary: String
+        var processGroup: pid_t?
+    }
+
+    static func register(pid: pid_t, binary: String) {
+        guard pid > 0 else { return }
+        self.lock.lock()
+        self.processes[pid] = ProcessInfo(binary: binary, processGroup: nil)
+        self.lock.unlock()
+    }
+
+    static func updateProcessGroup(pid: pid_t, processGroup: pid_t?) {
+        guard pid > 0 else { return }
+        self.lock.lock()
+        guard var existing = self.processes[pid] else {
+            self.lock.unlock()
+            return
+        }
+        existing.processGroup = processGroup
+        self.processes[pid] = existing
+        self.lock.unlock()
+    }
+
+    static func unregister(pid: pid_t) {
+        guard pid > 0 else { return }
+        self.lock.lock()
+        self.processes.removeValue(forKey: pid)
+        self.lock.unlock()
+    }
+
+    static func drain() -> [(pid: pid_t, binary: String, processGroup: pid_t?)] {
+        self.lock.lock()
+        let drained = self.processes.map {
+            (pid: $0.key, binary: $0.value.binary, processGroup: $0.value.processGroup)
+        }
+        self.processes.removeAll()
+        self.lock.unlock()
+        return drained
+    }
+
+    static func reset() {
+        self.lock.lock()
+        self.processes.removeAll()
+        self.lock.unlock()
+    }
+
+    static func count() -> Int {
+        self.lock.lock()
+        let count = self.processes.count
+        self.lock.unlock()
+        return count
+    }
+
+    static func testTrackProcess(pid: pid_t, binary: String, processGroup: pid_t?) {
+        guard pid > 0 else { return }
+        self.lock.lock()
+        self.processes[pid] = ProcessInfo(binary: binary, processGroup: processGroup)
+        self.lock.unlock()
+    }
+}
+
 /// Executes an interactive CLI inside a pseudo-terminal and returns all captured text.
 /// Keeps it minimal so we can reuse for Codex and Claude without tmux.
 public struct TTYCommandRunner {
@@ -75,6 +141,54 @@ public struct TTYCommandRunner {
     }
 
     public init() {}
+
+    public static func terminateActiveProcessesForAppShutdown() {
+        let targets = TTYCommandRunnerActiveProcessRegistry.drain()
+        guard !targets.isEmpty else { return }
+
+        let resolvedTargets = self.resolveShutdownTargets(
+            targets,
+            hostProcessGroup: getpgrp(),
+            groupResolver: { getpgid($0) })
+
+        for target in resolvedTargets where target.pid > 0 {
+            if let pgid = target.processGroup {
+                kill(-pgid, SIGTERM)
+            }
+            kill(target.pid, SIGTERM)
+        }
+
+        for target in resolvedTargets where target.pid > 0 {
+            if let pgid = target.processGroup {
+                kill(-pgid, SIGKILL)
+            }
+            kill(target.pid, SIGKILL)
+        }
+    }
+
+    private static func resolveShutdownTargets(
+        _ targets: [(pid: pid_t, binary: String, processGroup: pid_t?)],
+        hostProcessGroup: pid_t,
+        groupResolver: (pid_t) -> pid_t) -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+    {
+        var resolvedTargets: [(pid: pid_t, binary: String, processGroup: pid_t?)] = []
+        resolvedTargets.reserveCapacity(targets.count)
+
+        for target in targets {
+            var resolvedGroup = target.processGroup
+            if resolvedGroup == nil {
+                let pgid = groupResolver(target.pid)
+                if pgid > 0, pgid != hostProcessGroup {
+                    resolvedGroup = pgid
+                }
+            } else if resolvedGroup == hostProcessGroup {
+                resolvedGroup = nil
+            }
+
+            resolvedTargets.append((pid: target.pid, binary: target.binary, processGroup: resolvedGroup))
+        }
+        return resolvedTargets
+    }
 
     struct RollingBuffer: Sendable {
         private let maxNeedle: Int
@@ -270,6 +384,9 @@ public struct TTYCommandRunner {
         func cleanup() {
             guard !cleanedUp else { return }
             cleanedUp = true
+            if didLaunch {
+                TTYCommandRunnerActiveProcessRegistry.unregister(pid: proc.processIdentifier)
+            }
 
             if didLaunch, proc.isRunning {
                 Self.log.debug("PTY stopping", metadata: ["binary": binaryName])
@@ -309,6 +426,7 @@ public struct TTYCommandRunner {
         do {
             try proc.run()
             didLaunch = true
+            TTYCommandRunnerActiveProcessRegistry.register(pid: proc.processIdentifier, binary: binaryName)
             Self.log.debug("PTY launched", metadata: ["binary": binaryName])
         } catch {
             Self.log.warning(
@@ -323,6 +441,7 @@ public struct TTYCommandRunner {
         let pid = proc.processIdentifier
         if setpgid(pid, pid) == 0 {
             processGroup = pid
+            TTYCommandRunnerActiveProcessRegistry.updateProcessGroup(pid: pid, processGroup: pid)
         }
 
         func send(_ text: String) throws {
@@ -699,5 +818,28 @@ public struct TTYCommandRunner {
             env["CI"] = "0"
         }
         return env
+    }
+
+    static func _test_resetTrackedProcesses() {
+        TTYCommandRunnerActiveProcessRegistry.reset()
+    }
+
+    static func _test_trackProcess(pid: pid_t, binary: String, processGroup: pid_t?) {
+        TTYCommandRunnerActiveProcessRegistry.testTrackProcess(
+            pid: pid,
+            binary: binary,
+            processGroup: processGroup)
+    }
+
+    static func _test_trackedProcessCount() -> Int {
+        TTYCommandRunnerActiveProcessRegistry.count()
+    }
+
+    static func _test_resolveShutdownTargets(
+        _ targets: [(pid: pid_t, binary: String, processGroup: pid_t?)],
+        hostProcessGroup: pid_t,
+        groupResolver: (pid_t) -> pid_t) -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+    {
+        self.resolveShutdownTargets(targets, hostProcessGroup: hostProcessGroup, groupResolver: groupResolver)
     }
 }
