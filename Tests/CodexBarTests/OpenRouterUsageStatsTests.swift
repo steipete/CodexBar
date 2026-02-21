@@ -5,19 +5,60 @@ import Testing
 @Suite(.serialized)
 struct OpenRouterUsageStatsTests {
     @Test
-    func toUsageSnapshot_doesNotSetSyntheticResetDescription() {
+    func toUsageSnapshot_usesKeyQuotaForPrimaryWindow() {
         let snapshot = OpenRouterUsageSnapshot(
             totalCredits: 50,
             totalUsage: 45.3895596325,
             balance: 4.6104403675,
             usedPercent: 90.779119265,
+            keyLimit: 20,
+            keyUsage: 5,
             rateLimit: nil,
             updatedAt: Date(timeIntervalSince1970: 1_739_841_600))
 
         let usage = snapshot.toUsageSnapshot()
 
+        #expect(usage.primary?.usedPercent == 25)
         #expect(usage.primary?.resetsAt == nil)
         #expect(usage.primary?.resetDescription == nil)
+        #expect(usage.openRouterUsage?.keyQuotaStatus == .available)
+    }
+
+    @Test
+    func toUsageSnapshot_withoutValidKeyLimitOmitsPrimaryWindow() {
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45.3895596325,
+            balance: 4.6104403675,
+            usedPercent: 90.779119265,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_739_841_600))
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary == nil)
+        #expect(usage.openRouterUsage?.keyQuotaStatus == .unavailable)
+    }
+
+    @Test
+    func toUsageSnapshot_whenNoLimitConfiguredOmitsPrimaryAndMarksNoLimit() {
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45.3895596325,
+            balance: 4.6104403675,
+            usedPercent: 90.779119265,
+            keyDataFetched: true,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_739_841_600))
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary == nil)
+        #expect(usage.openRouterUsage?.keyQuotaStatus == .noLimitConfigured)
     }
 
     @Test
@@ -92,7 +133,7 @@ struct OpenRouterUsageStatsTests {
                 let body = #"{"data":{"total_credits":100,"total_usage":40}}"#
                 return Self.makeResponse(url: url, body: body, statusCode: 200)
             case "/api/v1/key":
-                let body = #"{"data":{"rate_limit":{"requests":120,"interval":"10s"}}}"#
+                let body = #"{"data":{"limit":20,"usage":0.5,"rate_limit":{"requests":120,"interval":"10s"}}}"#
                 return Self.makeResponse(url: url, body: body, statusCode: 200)
             default:
                 return Self.makeResponse(url: url, body: "{}", statusCode: 404)
@@ -109,6 +150,65 @@ struct OpenRouterUsageStatsTests {
 
         #expect(usage.totalCredits == 100)
         #expect(usage.totalUsage == 40)
+        #expect(usage.keyDataFetched)
+        #expect(usage.keyLimit == 20)
+        #expect(usage.keyUsage == 0.5)
+        #expect(usage.keyRemaining == 19.5)
+        #expect(usage.keyUsedPercent == 2.5)
+        #expect(usage.keyQuotaStatus == .available)
+    }
+
+    @Test
+    func fetchUsage_whenKeyEndpointFailsMarksQuotaUnavailable() async throws {
+        let registered = URLProtocol.registerClass(OpenRouterStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(OpenRouterStubURLProtocol.self)
+            }
+            OpenRouterStubURLProtocol.handler = nil
+        }
+
+        OpenRouterStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            switch url.path {
+            case "/api/v1/credits":
+                let body = #"{"data":{"total_credits":100,"total_usage":40}}"#
+                return Self.makeResponse(url: url, body: body, statusCode: 200)
+            case "/api/v1/key":
+                return Self.makeResponse(url: url, body: "{}", statusCode: 500)
+            default:
+                return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+            }
+        }
+
+        let usage = try await OpenRouterUsageFetcher.fetchUsage(
+            apiKey: "sk-or-v1-test",
+            environment: ["OPENROUTER_API_URL": "https://openrouter.test/api/v1"])
+
+        #expect(!usage.keyDataFetched)
+        #expect(usage.keyQuotaStatus == .unavailable)
+    }
+
+    @Test
+    func usageSnapshot_roundTripPersistsOpenRouterUsageMetadata() throws {
+        let openRouter = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45.3895596325,
+            balance: 4.6104403675,
+            usedPercent: 90.779119265,
+            keyDataFetched: true,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_739_841_600))
+        let snapshot = openRouter.toUsageSnapshot()
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(snapshot)
+        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: data)
+
+        #expect(decoded.openRouterUsage?.keyDataFetched == true)
+        #expect(decoded.openRouterUsage?.keyQuotaStatus == .noLimitConfigured)
     }
 
     private static func makeResponse(

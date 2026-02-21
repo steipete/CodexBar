@@ -81,6 +81,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastProviderOrder: [UsageProvider]
     private var lastMergeIcons: Bool
     private var lastSwitcherShowsIcons: Bool
+    private var lastObservedUsageBarsShowUsed: Bool
+    /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
+    /// Used to decide whether we can "smart update" menu content without rebuilding the switcher.
+    var lastSwitcherUsageBarsShowUsed: Bool
     /// Tracks which providers the merged menu's switcher was built with, to detect when it needs full rebuild.
     var lastSwitcherProviders: [UsageProvider] = []
     let loginLogger = CodexBarLog.logger(LogCategories.login)
@@ -152,6 +156,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastProviderOrder = settings.providerOrder
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
+        self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
+        self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
         self.statusBar = statusBar
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
         // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
@@ -289,6 +295,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let showsIcons = self.settings.switcherShowsIcons
         if showsIcons != self.lastSwitcherShowsIcons {
             self.lastSwitcherShowsIcons = showsIcons
+            shouldRefresh = true
+        }
+        let usageBarsShowUsed = self.settings.usageBarsShowUsed
+        if usageBarsShowUsed != self.lastObservedUsageBarsShowUsed {
+            self.lastObservedUsageBarsShowUsed = usageBarsShowUsed
             shouldRefresh = true
         }
         return shouldRefresh

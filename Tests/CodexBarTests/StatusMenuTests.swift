@@ -184,6 +184,53 @@ struct StatusMenuTests {
     }
 
     @Test
+    func openMergedMenuRebuildsSwitcherWhenUsageBarsModeChanges() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.usageBarsShowUsed = false
+
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            let shouldEnable = provider == .codex || provider == .claude
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        #expect(store.enabledProviders().count == 2)
+        #expect(controller.shouldMergeIcons == true)
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+
+        let initialSwitcher = menu.items.first?.view as? ProviderSwitcherView
+        #expect(initialSwitcher != nil)
+        let initialSwitcherID = initialSwitcher.map(ObjectIdentifier.init)
+
+        settings.usageBarsShowUsed = true
+        controller.handleProviderConfigChange(reason: "usageBarsShowUsed")
+
+        let updatedSwitcher = menu.items.first?.view as? ProviderSwitcherView
+        #expect(updatedSwitcher != nil)
+        if let initialSwitcherID, let updatedSwitcher {
+            #expect(initialSwitcherID != ObjectIdentifier(updatedSwitcher))
+        }
+    }
+
+    @Test
     func providerToggleUpdatesStatusItemVisibility() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
