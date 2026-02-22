@@ -494,7 +494,18 @@ final class UsageStore {
         self.timerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(wait))
-                await self?.refresh()
+                // We use a 60-second window to allow all providers ample time to finish under normal conditions.
+                guard let store = self else { return }
+                try? await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask { await store.refresh() }
+                    group.addTask {
+                        try await Task.sleep(for: .seconds(60))
+                        store.providerLogger.error("GLOBAL REFRESH HANG DETECTED: reached 60s safety timeout")
+                        throw SubprocessRunnerError.timedOut("global refresh")
+                    }
+                    _ = try await group.next()
+                    group.cancelAll()
+                }
             }
         }
     }
