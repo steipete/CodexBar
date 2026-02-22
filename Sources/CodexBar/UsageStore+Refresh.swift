@@ -55,7 +55,11 @@ extension UsageStore {
                 await descriptor.fetchOutcome(context: fetchContext)
             }
             group.addTask {
-                try? await Task.sleep(for: .seconds(30))
+                do {
+                    try await Task.sleep(for: .seconds(30))
+                } catch {
+                    return nil
+                }
                 self.providerLogger.warning("Provider refresh timed out", metadata: ["provider": provider.rawValue])
                 return nil
             }
