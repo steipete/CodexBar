@@ -521,6 +521,9 @@ extension StatusItemController {
                         image.size = NSSize(width: 16, height: 16)
                         item.image = image
                     }
+                    if case .floatingDashboard = action {
+                        item.state = self.settings.floatingDashboardEnabled ? .on : .off
+                    }
                     if case let .switchAccount(targetProvider) = action,
                        let subtitle = self.switchAccountSubtitle(for: targetProvider)
                     {
@@ -1001,6 +1004,7 @@ extension StatusItemController {
         case let .switchAccount(provider): (#selector(self.runSwitchAccount(_:)), provider.rawValue)
         case let .openTerminal(command): (#selector(self.openTerminalCommand(_:)), command)
         case let .loginToProvider(url): (#selector(self.openLoginToProvider(_:)), url)
+        case .floatingDashboard: (#selector(self.toggleFloatingDashboard), nil)
         case .settings: (#selector(self.showSettingsGeneral), nil)
         case .about: (#selector(self.showSettingsAbout), nil)
         case .quit: (#selector(self.quit), nil)

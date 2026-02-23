@@ -222,6 +222,9 @@ extension SettingsStore {
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
+        let floatingDashboardEnabled = userDefaults.object(forKey: "floatingDashboardEnabled") as? Bool ?? false
+        let floatingDashboardPosition = userDefaults.dictionary(forKey: "floatingDashboardPosition") as? [String: Double]
+        let floatingDashboardHorizontal = userDefaults.object(forKey: "floatingDashboardHorizontal") as? Bool ?? false
 
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -255,7 +258,10 @@ extension SettingsStore {
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
-            providerDetectionCompleted: providerDetectionCompleted)
+            providerDetectionCompleted: providerDetectionCompleted,
+            floatingDashboardEnabled: floatingDashboardEnabled,
+            floatingDashboardPosition: floatingDashboardPosition,
+            floatingDashboardHorizontal: floatingDashboardHorizontal)
     }
 }
 

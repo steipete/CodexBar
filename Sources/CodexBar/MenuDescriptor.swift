@@ -20,6 +20,7 @@ struct MenuDescriptor {
         case switchAccount = "key"
         case openTerminal = "terminal"
         case loginToProvider = "arrow.right.square"
+        case floatingDashboard = "rectangle.on.rectangle"
         case settings = "gearshape"
         case about = "info.circle"
         case quit = "xmark.rectangle"
@@ -41,6 +42,7 @@ struct MenuDescriptor {
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
         case loginToProvider(url: String)
+        case floatingDashboard
         case settings
         case about
         case quit
@@ -97,7 +99,9 @@ struct MenuDescriptor {
                 sections.append(actions)
             }
         }
-        sections.append(Self.metaSection(updateReady: updateReady))
+        sections.append(Self.metaSection(
+            updateReady: updateReady,
+            floatingDashboardEnabled: settings.floatingDashboardEnabled))
 
         return MenuDescriptor(sections: sections)
     }
@@ -313,11 +317,12 @@ struct MenuDescriptor {
         return Section(entries: entries)
     }
 
-    private static func metaSection(updateReady: Bool) -> Section {
+    private static func metaSection(updateReady: Bool, floatingDashboardEnabled: Bool = false) -> Section {
         var entries: [Entry] = []
         if updateReady {
             entries.append(.action("Update ready, restart now?", .installUpdate))
         }
+        entries.append(.action("Floating Dashboard", .floatingDashboard))
         entries.append(contentsOf: [
             .action("Settings...", .settings),
             .action("About CodexBar", .about),
@@ -416,6 +421,7 @@ extension MenuDescriptor.MenuAction {
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
+        case .floatingDashboard: MenuDescriptor.MenuActionSystemImage.floatingDashboard.rawValue
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue
         }
     }

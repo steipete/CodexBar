@@ -102,6 +102,8 @@ struct MenuContent: View {
             self.actions.quit()
         case let .copyError(message):
             self.actions.copyError(message)
+        case .floatingDashboard:
+            self.actions.toggleFloatingDashboard()
         }
     }
 }
@@ -118,6 +120,7 @@ struct MenuActions {
     let openAbout: () -> Void
     let quit: () -> Void
     let copyError: (String) -> Void
+    let toggleFloatingDashboard: () -> Void
 }
 
 @MainActor

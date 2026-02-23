@@ -128,6 +128,10 @@ extension StatusItemController {
         }
     }
 
+    @objc func toggleFloatingDashboard() {
+        self.settings.floatingDashboardEnabled.toggle()
+    }
+
     @objc func showSettingsGeneral() {
         self.openSettings(tab: .general)
     }

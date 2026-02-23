@@ -5,6 +5,10 @@ extension EnvironmentValues {
 }
 
 enum MenuHighlightStyle {
+    // Solarized Light palette
+    static let solarizedLightBase3 = NSColor(srgbRed: 253 / 255.0, green: 246 / 255.0, blue: 227 / 255.0, alpha: 1.0)
+    static let solarizedLightBase3Color = Color(nsColor: solarizedLightBase3)
+
     static let selectionText = Color(nsColor: .selectedMenuItemTextColor)
     static let normalPrimaryText = Color(nsColor: .controlTextColor)
     static let normalSecondaryText = Color(nsColor: .secondaryLabelColor)

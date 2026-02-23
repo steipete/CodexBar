@@ -33,4 +33,7 @@ struct SettingsDefaultsState: Sendable {
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
+    var floatingDashboardEnabled: Bool
+    var floatingDashboardPosition: [String: Double]?
+    var floatingDashboardHorizontal: Bool
 }

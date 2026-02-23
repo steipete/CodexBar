@@ -51,6 +51,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     var creditsPurchaseWindow: OpenAICreditsPurchaseWindowController?
+    var floatingDashboard: FloatingDashboardWindowController?
 
     var activeLoginProvider: UsageProvider? {
         didSet {
@@ -178,6 +179,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
         self.wireBindings()
+        self.setupFloatingDashboard()
         self.updateIcons()
         self.updateVisibility()
         NotificationCenter.default.addObserver(
@@ -202,6 +204,36 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.observeDebugForceAnimation()
         self.observeSettingsChanges()
         self.observeUpdaterChanges()
+    }
+
+    private func setupFloatingDashboard() {
+        if self.settings.floatingDashboardEnabled {
+            let controller = FloatingDashboardWindowController(store: self.store, settings: self.settings)
+            controller.show()
+            self.floatingDashboard = controller
+        }
+        self.observeFloatingDashboardSetting()
+    }
+
+    private func observeFloatingDashboardSetting() {
+        withObservationTracking {
+            _ = self.settings.floatingDashboardEnabled
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.observeFloatingDashboardSetting()
+                if self.settings.floatingDashboardEnabled {
+                    if self.floatingDashboard == nil {
+                        self.floatingDashboard = FloatingDashboardWindowController(
+                            store: self.store,
+                            settings: self.settings)
+                    }
+                    self.floatingDashboard?.show()
+                } else {
+                    self.floatingDashboard?.hide()
+                }
+            }
+        }
     }
 
     private func observeStoreChanges() {

@@ -34,6 +34,10 @@ struct DisplayPane: View {
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
+                        title: "Floating dashboard",
+                        subtitle: "Show a floating panel on the desktop with live usage data.",
+                        binding: self.$settings.floatingDashboardEnabled)
+                    PreferenceToggleRow(
                         title: "Menu bar shows percent",
                         subtitle: "Replace critter bars with provider branding icons and a percentage.",
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)

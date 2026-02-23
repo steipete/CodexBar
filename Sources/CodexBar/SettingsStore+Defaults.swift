@@ -470,6 +470,34 @@ extension SettingsStore {
         get { self.debugLoadingPatternRaw.flatMap(LoadingPattern.init(rawValue:)) }
         set { self.debugLoadingPatternRaw = newValue?.rawValue }
     }
+
+    var floatingDashboardEnabled: Bool {
+        get { self.defaultsState.floatingDashboardEnabled }
+        set {
+            self.defaultsState.floatingDashboardEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "floatingDashboardEnabled")
+        }
+    }
+
+    var floatingDashboardPosition: [String: Double]? {
+        get { self.defaultsState.floatingDashboardPosition }
+        set {
+            self.defaultsState.floatingDashboardPosition = newValue
+            if let value = newValue {
+                self.userDefaults.set(value, forKey: "floatingDashboardPosition")
+            } else {
+                self.userDefaults.removeObject(forKey: "floatingDashboardPosition")
+            }
+        }
+    }
+
+    var floatingDashboardHorizontal: Bool {
+        get { self.defaultsState.floatingDashboardHorizontal }
+        set {
+            self.defaultsState.floatingDashboardHorizontal = newValue
+            self.userDefaults.set(newValue, forKey: "floatingDashboardHorizontal")
+        }
+    }
 }
 
 extension SettingsStore {
