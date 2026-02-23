@@ -19,11 +19,18 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        if Self.shouldIgnoreNavigationError(error) { return }
         self.completeOnce(.failure(error))
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        if Self.shouldIgnoreNavigationError(error) { return }
         self.completeOnce(.failure(error))
+    }
+
+    nonisolated static func shouldIgnoreNavigationError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 
     private func completeOnce(_ result: Result<Void, Error>) {

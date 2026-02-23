@@ -54,7 +54,8 @@ struct MenuDescriptor {
         store: UsageStore,
         settings: SettingsStore,
         account: AccountInfo,
-        updateReady: Bool) -> MenuDescriptor
+        updateReady: Bool,
+        includeContextualActions: Bool = true) -> MenuDescriptor
     {
         var sections: [Section] = []
 
@@ -90,9 +91,11 @@ struct MenuDescriptor {
             }
         }
 
-        let actions = Self.actionsSection(for: provider, store: store, account: account)
-        if !actions.entries.isEmpty {
-            sections.append(actions)
+        if includeContextualActions {
+            let actions = Self.actionsSection(for: provider, store: store, account: account)
+            if !actions.entries.isEmpty {
+                sections.append(actions)
+            }
         }
         sections.append(Self.metaSection(updateReady: updateReady))
 

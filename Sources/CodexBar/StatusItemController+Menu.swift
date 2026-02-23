@@ -4,10 +4,49 @@ import Observation
 import QuartzCore
 import SwiftUI
 
+extension ProviderSwitcherSelection {
+    fileprivate var provider: UsageProvider? {
+        switch self {
+        case .overview:
+            nil
+        case let .provider(provider):
+            provider
+        }
+    }
+}
+
+private struct OverviewMenuCardRowView: View {
+    let model: UsageMenuCardView.Model
+    let width: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            UsageMenuCardHeaderSectionView(
+                model: self.model,
+                showDivider: self.hasUsageBlock,
+                width: self.width)
+            if self.hasUsageBlock {
+                UsageMenuCardUsageSectionView(
+                    model: self.model,
+                    showBottomDivider: false,
+                    bottomPadding: 6,
+                    width: self.width)
+            }
+        }
+        .frame(width: self.width, alignment: .leading)
+    }
+
+    private var hasUsageBlock: Bool {
+        !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty || self.model.placeholder != nil
+    }
+}
+
 // MARK: - NSMenu construction
 
 extension StatusItemController {
     private static let menuCardBaseWidth: CGFloat = 310
+    private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
+    private static let overviewRowIdentifierPrefix = "overviewRow-"
     private static let menuOpenRefreshDelay: Duration = .seconds(1.2)
     private struct OpenAIWebMenuItems {
         let hasUsageBreakdown: Bool
@@ -108,11 +147,22 @@ extension StatusItemController {
     }
 
     private func populateMenu(_ menu: NSMenu, provider: UsageProvider?) {
-        let selectedProvider = provider
         let enabledProviders = self.store.enabledProviders()
+        let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
+        let switcherSelection = self.shouldMergeIcons && enabledProviders.count > 1
+            ? self.resolvedSwitcherSelection(
+                enabledProviders: enabledProviders,
+                includesOverview: includesOverview)
+            : nil
+        let isOverviewSelected = switcherSelection == .overview
+        let selectedProvider = if isOverviewSelected {
+            self.resolvedMenuProvider(enabledProviders: enabledProviders)
+        } else {
+            switcherSelection?.provider ?? provider
+        }
         let menuWidth = self.menuCardWidth(for: enabledProviders, menu: menu)
         let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
-        let tokenAccountDisplay = self.tokenAccountMenuDisplay(for: currentProvider)
+        let tokenAccountDisplay = isOverviewSelected ? nil : self.tokenAccountMenuDisplay(for: currentProvider)
         let showAllTokenAccounts = tokenAccountDisplay?.showAll ?? false
         let openAIContext = self.openAIWebContext(
             currentProvider: currentProvider,
@@ -120,9 +170,16 @@ extension StatusItemController {
 
         let hasTokenAccountSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
         let switcherProvidersMatch = enabledProviders == self.lastSwitcherProviders
+        let switcherUsageBarsShowUsedMatch = self.settings.usageBarsShowUsed == self.lastSwitcherUsageBarsShowUsed
+        let switcherSelectionMatches = switcherSelection == self.lastMergedSwitcherSelection
+        let switcherOverviewAvailabilityMatches = includesOverview == self.lastSwitcherIncludesOverview
         let canSmartUpdate = self.shouldMergeIcons &&
             enabledProviders.count > 1 &&
+            !isOverviewSelected &&
             switcherProvidersMatch &&
+            switcherUsageBarsShowUsedMatch &&
+            switcherSelectionMatches &&
+            switcherOverviewAvailabilityMatches &&
             tokenAccountDisplay == nil &&
             !hasTokenAccountSwitcher &&
             !menu.items.isEmpty &&
@@ -145,15 +202,20 @@ extension StatusItemController {
             store: self.store,
             settings: self.settings,
             account: self.account,
-            updateReady: self.updater.updateStatus.isUpdateReady)
+            updateReady: self.updater.updateStatus.isUpdateReady,
+            includeContextualActions: !isOverviewSelected)
 
         self.addProviderSwitcherIfNeeded(
             to: menu,
             enabledProviders: enabledProviders,
-            selectedProvider: selectedProvider)
+            includesOverview: includesOverview,
+            selection: switcherSelection ?? .provider(currentProvider))
         // Track which providers the switcher was built with for smart update detection
         if self.shouldMergeIcons, enabledProviders.count > 1 {
             self.lastSwitcherProviders = enabledProviders
+            self.lastSwitcherUsageBarsShowUsed = self.settings.usageBarsShowUsed
+            self.lastMergedSwitcherSelection = switcherSelection
+            self.lastSwitcherIncludesOverview = includesOverview
         }
         self.addTokenAccountSwitcherIfNeeded(to: menu, display: tokenAccountDisplay)
         let menuContext = MenuCardContext(
@@ -162,12 +224,25 @@ extension StatusItemController {
             menuWidth: menuWidth,
             tokenAccountDisplay: tokenAccountDisplay,
             openAIContext: openAIContext)
-        let addedOpenAIWebItems = self.addMenuCards(to: menu, context: menuContext)
-        self.addOpenAIWebItemsIfNeeded(
-            to: menu,
-            currentProvider: currentProvider,
-            context: openAIContext,
-            addedOpenAIWebItems: addedOpenAIWebItems)
+        if isOverviewSelected {
+            if self.addOverviewRows(
+                to: menu,
+                enabledProviders: enabledProviders,
+                menuWidth: menuWidth)
+            {
+                menu.addItem(.separator())
+            } else {
+                self.addOverviewEmptyState(to: menu, enabledProviders: enabledProviders)
+                menu.addItem(.separator())
+            }
+        } else {
+            let addedOpenAIWebItems = self.addMenuCards(to: menu, context: menuContext)
+            self.addOpenAIWebItemsIfNeeded(
+                to: menu,
+                currentProvider: currentProvider,
+                context: openAIContext,
+                addedOpenAIWebItems: addedOpenAIWebItems)
+        }
         self.addActionableSections(descriptor.sections, to: menu)
     }
 
@@ -258,12 +333,14 @@ extension StatusItemController {
     private func addProviderSwitcherIfNeeded(
         to menu: NSMenu,
         enabledProviders: [UsageProvider],
-        selectedProvider: UsageProvider?)
+        includesOverview: Bool,
+        selection: ProviderSwitcherSelection)
     {
         guard self.shouldMergeIcons, enabledProviders.count > 1 else { return }
         let switcherItem = self.makeProviderSwitcherItem(
             providers: enabledProviders,
-            selected: selectedProvider,
+            includesOverview: includesOverview,
+            selected: selection,
             menu: menu)
         menu.addItem(switcherItem)
         menu.addItem(.separator())
@@ -274,6 +351,57 @@ extension StatusItemController {
         let switcherItem = self.makeTokenAccountSwitcherItem(display: display, menu: menu)
         menu.addItem(switcherItem)
         menu.addItem(.separator())
+    }
+
+    @discardableResult
+    private func addOverviewRows(
+        to menu: NSMenu,
+        enabledProviders: [UsageProvider],
+        menuWidth: CGFloat) -> Bool
+    {
+        let overviewProviders = self.settings.reconcileMergedOverviewSelectedProviders(
+            activeProviders: enabledProviders)
+        let rows: [(provider: UsageProvider, model: UsageMenuCardView.Model)] = overviewProviders
+            .compactMap { provider in
+                guard let model = self.menuCardModel(for: provider) else { return nil }
+                return (provider: provider, model: model)
+            }
+        guard !rows.isEmpty else { return false }
+
+        for (index, row) in rows.enumerated() {
+            let identifier = "\(Self.overviewRowIdentifierPrefix)\(row.provider.rawValue)"
+            let item = self.makeMenuCardItem(
+                OverviewMenuCardRowView(model: row.model, width: menuWidth),
+                id: identifier,
+                width: menuWidth,
+                onClick: { [weak self, weak menu] in
+                    guard let self, let menu else { return }
+                    self.selectOverviewProvider(row.provider, menu: menu)
+                })
+            // Keep menu item action wired for keyboard activation and accessibility action paths.
+            item.target = self
+            item.action = #selector(self.selectOverviewProvider(_:))
+            menu.addItem(item)
+            if index < rows.count - 1 {
+                menu.addItem(.separator())
+            }
+        }
+        return true
+    }
+
+    private func addOverviewEmptyState(to menu: NSMenu, enabledProviders: [UsageProvider]) {
+        let resolvedProviders = self.settings.resolvedMergedOverviewProviders(
+            activeProviders: enabledProviders,
+            maxVisibleProviders: Self.maxOverviewProviders)
+        let message = if resolvedProviders.isEmpty {
+            "No providers selected for Overview."
+        } else {
+            "No overview data available."
+        }
+        let item = NSMenuItem(title: message, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        item.representedObject = "overviewEmptyState"
+        menu.addItem(item)
     }
 
     private func addMenuCards(to menu: NSMenu, context: MenuCardContext) -> Bool {
@@ -422,12 +550,14 @@ extension StatusItemController {
 
     private func makeProviderSwitcherItem(
         providers: [UsageProvider],
-        selected: UsageProvider?,
+        includesOverview: Bool,
+        selected: ProviderSwitcherSelection,
         menu: NSMenu) -> NSMenuItem
     {
         let view = ProviderSwitcherView(
             providers: providers,
             selected: selected,
+            includesOverview: includesOverview,
             width: self.menuCardWidth(for: providers, menu: menu),
             showsIcons: self.settings.switcherShowsIcons,
             iconProvider: { [weak self] provider in
@@ -436,11 +566,22 @@ extension StatusItemController {
             weeklyRemainingProvider: { [weak self] provider in
                 self?.switcherWeeklyRemaining(for: provider)
             },
-            onSelect: { [weak self, weak menu] provider in
+            onSelect: { [weak self, weak menu] selection in
                 guard let self, let menu else { return }
-                self.selectedMenuProvider = provider
-                self.lastMenuProvider = provider
-                self.populateMenu(menu, provider: provider)
+                switch selection {
+                case .overview:
+                    self.settings.mergedMenuLastSelectedWasOverview = true
+                    self.lastMergedSwitcherSelection = .overview
+                    let provider = self.resolvedMenuProvider()
+                    self.lastMenuProvider = provider ?? .codex
+                    self.populateMenu(menu, provider: provider)
+                case let .provider(provider):
+                    self.settings.mergedMenuLastSelectedWasOverview = false
+                    self.lastMergedSwitcherSelection = .provider(provider)
+                    self.selectedMenuProvider = provider
+                    self.lastMenuProvider = provider
+                    self.populateMenu(menu, provider: provider)
+                }
                 self.markMenuFresh(menu)
                 self.applyIcon(phase: nil)
             })
@@ -476,13 +617,29 @@ extension StatusItemController {
         return item
     }
 
-    private func resolvedMenuProvider() -> UsageProvider? {
-        let enabled = self.store.enabledProviders()
+    private func resolvedMenuProvider(enabledProviders: [UsageProvider]? = nil) -> UsageProvider? {
+        let enabled = enabledProviders ?? self.store.enabledProviders()
         if enabled.isEmpty { return .codex }
         if let selected = self.selectedMenuProvider, enabled.contains(selected) {
             return selected
         }
         return enabled.first
+    }
+
+    private func includesOverviewTab(enabledProviders: [UsageProvider]) -> Bool {
+        !self.settings.resolvedMergedOverviewProviders(
+            activeProviders: enabledProviders,
+            maxVisibleProviders: Self.maxOverviewProviders).isEmpty
+    }
+
+    private func resolvedSwitcherSelection(
+        enabledProviders: [UsageProvider],
+        includesOverview: Bool) -> ProviderSwitcherSelection
+    {
+        if includesOverview, self.settings.mergedMenuLastSelectedWasOverview {
+            return .overview
+        }
+        return .provider(self.resolvedMenuProvider(enabledProviders: enabledProviders) ?? .codex)
     }
 
     private func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
@@ -564,12 +721,41 @@ extension StatusItemController {
             guard !Task.isCancelled else { return }
             guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
             guard !self.store.isRefreshing else { return }
-            let provider = self.menuProvider(for: menu) ?? self.resolvedMenuProvider()
-            let isStale = provider.map { self.store.isStale(provider: $0) } ?? self.store.isStale
-            let hasSnapshot = provider.map { self.store.snapshot(for: $0) != nil } ?? true
-            guard isStale || !hasSnapshot else { return }
+            guard self.menuNeedsDelayedRefreshRetry(for: menu) else { return }
             self.refreshStore(forceTokenUsage: false)
         }
+    }
+
+    private func menuNeedsDelayedRefreshRetry(for menu: NSMenu) -> Bool {
+        let providersToCheck = self.delayedRefreshRetryProviders(for: menu)
+        guard !providersToCheck.isEmpty else { return false }
+        return providersToCheck.contains { provider in
+            self.store.isStale(provider: provider) || self.store.snapshot(for: provider) == nil
+        }
+    }
+
+    private func delayedRefreshRetryProviders(for menu: NSMenu) -> [UsageProvider] {
+        let enabledProviders = self.store.enabledProviders()
+        guard !enabledProviders.isEmpty else { return [] }
+        let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
+
+        if self.shouldMergeIcons,
+           enabledProviders.count > 1,
+           self.resolvedSwitcherSelection(
+               enabledProviders: enabledProviders,
+               includesOverview: includesOverview) == .overview
+        {
+            return self.settings.resolvedMergedOverviewProviders(
+                activeProviders: enabledProviders,
+                maxVisibleProviders: Self.maxOverviewProviders)
+        }
+
+        if let provider = self.menuProvider(for: menu)
+            ?? self.resolvedMenuProvider(enabledProviders: enabledProviders)
+        {
+            return [provider]
+        }
+        return enabledProviders
     }
 
     private func refreshMenuCardHeights(in menu: NSMenu) {
@@ -592,7 +778,8 @@ extension StatusItemController {
         _ view: some View,
         id: String,
         width: CGFloat,
-        submenu: NSMenu? = nil) -> NSMenuItem
+        submenu: NSMenu? = nil,
+        onClick: (() -> Void)? = nil) -> NSMenuItem
     {
         if !Self.menuCardRenderingEnabled {
             let item = NSMenuItem()
@@ -613,7 +800,7 @@ extension StatusItemController {
         {
             view
         }
-        let hosting = MenuCardItemHostingView(rootView: wrapped, highlightState: highlightState)
+        let hosting = MenuCardItemHostingView(rootView: wrapped, highlightState: highlightState, onClick: onClick)
         // Set frame with target width immediately
         let height = self.menuCardHeight(for: hosting, width: width)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
@@ -847,6 +1034,7 @@ extension StatusItemController {
     private final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, MenuCardHighlighting,
     MenuCardMeasuring {
         private let highlightState: MenuCardHighlightState
+        private let onClick: (() -> Void)?
         override var allowsVibrancy: Bool {
             true
         }
@@ -857,19 +1045,35 @@ extension StatusItemController {
             return NSSize(width: self.frame.width, height: size.height)
         }
 
-        init(rootView: Content, highlightState: MenuCardHighlightState) {
+        init(rootView: Content, highlightState: MenuCardHighlightState, onClick: (() -> Void)? = nil) {
             self.highlightState = highlightState
+            self.onClick = onClick
             super.init(rootView: rootView)
+            if onClick != nil {
+                let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
+                recognizer.buttonMask = 0x1
+                self.addGestureRecognizer(recognizer)
+            }
         }
 
         required init(rootView: Content) {
             self.highlightState = MenuCardHighlightState()
+            self.onClick = nil
             super.init(rootView: rootView)
         }
 
         @available(*, unavailable)
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
+        }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+
+        @objc private func handlePrimaryClick(_ recognizer: NSClickGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            self.onClick?()
         }
 
         func measuredHeight(width: CGFloat) -> CGFloat {
@@ -1213,6 +1417,33 @@ extension StatusItemController {
 
     @objc private func menuCardNoOp(_ sender: NSMenuItem) {
         _ = sender
+    }
+
+    @objc private func selectOverviewProvider(_ sender: NSMenuItem) {
+        guard let represented = sender.representedObject as? String,
+              represented.hasPrefix(Self.overviewRowIdentifierPrefix)
+        else {
+            return
+        }
+        let rawProvider = String(represented.dropFirst(Self.overviewRowIdentifierPrefix.count))
+        guard let provider = UsageProvider(rawValue: rawProvider),
+              let menu = sender.menu
+        else {
+            return
+        }
+
+        self.selectOverviewProvider(provider, menu: menu)
+    }
+
+    private func selectOverviewProvider(_ provider: UsageProvider, menu: NSMenu) {
+        if !self.settings.mergedMenuLastSelectedWasOverview, self.selectedMenuProvider == provider { return }
+        self.settings.mergedMenuLastSelectedWasOverview = false
+        self.lastMergedSwitcherSelection = nil
+        self.selectedMenuProvider = provider
+        self.lastMenuProvider = provider
+        self.populateMenu(menu, provider: provider)
+        self.markMenuFresh(menu)
+        self.applyIcon(phase: nil)
     }
 
     private func applySubtitle(_ subtitle: String, to item: NSMenuItem, title: String) {

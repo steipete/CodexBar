@@ -161,6 +161,10 @@ public struct OpenCodeUsageFetcher: Sendable {
         if self.looksSignedOut(text: text) {
             throw OpenCodeUsageError.invalidCredentials
         }
+        if self.isExplicitNullPayload(text: text) {
+            Self.log.warning("OpenCode subscription GET returned null; skipping POST fallback.")
+            throw self.missingSubscriptionDataError(workspaceID: workspaceID)
+        }
         if self.parseSubscriptionJSON(text: text, now: Date()) == nil,
            self.extractDouble(
                pattern: #"rollingUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)"#,
@@ -178,9 +182,32 @@ public struct OpenCodeUsageFetcher: Sendable {
             if self.looksSignedOut(text: fallback) {
                 throw OpenCodeUsageError.invalidCredentials
             }
+            if self.isExplicitNullPayload(text: fallback) {
+                Self.log.warning("OpenCode subscription POST returned null.")
+                throw self.missingSubscriptionDataError(workspaceID: workspaceID)
+            }
             return fallback
         }
         return text
+    }
+
+    private static func isExplicitNullPayload(text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.caseInsensitiveCompare("null") == .orderedSame {
+            return true
+        }
+        guard let data = trimmed.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data, options: [])
+        else {
+            return false
+        }
+        return object is NSNull
+    }
+
+    private static func missingSubscriptionDataError(workspaceID: String) -> OpenCodeUsageError {
+        OpenCodeUsageError.apiError(
+            "No subscription usage data was returned for workspace \(workspaceID). " +
+                "This usually means this workspace does not have OpenCode Black usage data.")
     }
 
     private static func normalizeWorkspaceID(_ raw: String?) -> String? {

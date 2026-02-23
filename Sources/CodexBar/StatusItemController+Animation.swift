@@ -259,6 +259,16 @@ extension StatusItemController {
             return
         }
 
+        if Self.shouldUseOpenRouterBrandFallback(provider: primaryProvider, snapshot: snapshot),
+           let brand = ProviderBrandIcon.image(for: primaryProvider)
+        {
+            self.setButtonTitle(nil, for: button)
+            self.setButtonImage(
+                Self.brandImageWithStatusOverlay(brand: brand, statusIndicator: statusIndicator),
+                for: button)
+            return
+        }
+
         self.setButtonTitle(nil, for: button)
         if let morphProgress {
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
@@ -292,6 +302,18 @@ extension StatusItemController {
             let displayText = self.menuBarDisplayText(for: provider, snapshot: snapshot)
             self.setButtonImage(brand, for: button)
             self.setButtonTitle(displayText, for: button)
+            return
+        }
+
+        if Self.shouldUseOpenRouterBrandFallback(provider: provider, snapshot: snapshot),
+           let brand = ProviderBrandIcon.image(for: provider)
+        {
+            self.setButtonTitle(nil, for: button)
+            self.setButtonImage(
+                Self.brandImageWithStatusOverlay(
+                    brand: brand,
+                    statusIndicator: self.store.statusIndicator(for: provider)),
+                for: button)
             return
         }
         var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
@@ -384,12 +406,30 @@ extension StatusItemController {
     }
 
     func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
-        MenuBarDisplayText.displayText(
+        let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
+        let displayText = MenuBarDisplayText.displayText(
             mode: self.settings.menuBarDisplayMode,
             provider: provider,
-            percentWindow: self.menuBarPercentWindow(for: provider, snapshot: snapshot),
+            percentWindow: percentWindow,
             paceWindow: snapshot?.secondary,
             showUsed: self.settings.usageBarsShowUsed)
+
+        let sessionExhausted = (snapshot?.primary?.remainingPercent ?? 100) <= 0
+        let weeklyExhausted = (snapshot?.secondary?.remainingPercent ?? 100) <= 0
+
+        if provider == .codex,
+           self.settings.menuBarDisplayMode == .percent,
+           !self.settings.usageBarsShowUsed,
+           sessionExhausted || weeklyExhausted,
+           let creditsRemaining = self.store.credits?.remaining,
+           creditsRemaining > 0
+        {
+            return UsageFormatter
+                .creditsString(from: creditsRemaining)
+                .replacingOccurrences(of: " left", with: "")
+        }
+
+        return displayText
     }
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
@@ -505,6 +545,58 @@ extension StatusItemController {
             self.applyIcon(phase: self.animationPhase)
         } else {
             UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: self.animationPhase) }
+        }
+    }
+
+    nonisolated static func shouldUseOpenRouterBrandFallback(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?) -> Bool
+    {
+        guard provider == .openrouter,
+              let openRouterUsage = snapshot?.openRouterUsage
+        else {
+            return false
+        }
+        return openRouterUsage.keyQuotaStatus == .noLimitConfigured
+    }
+
+    nonisolated static func brandImageWithStatusOverlay(
+        brand: NSImage,
+        statusIndicator: ProviderStatusIndicator) -> NSImage
+    {
+        guard statusIndicator.hasIssue else { return brand }
+
+        let image = NSImage(size: brand.size)
+        image.lockFocus()
+        brand.draw(
+            at: .zero,
+            from: NSRect(origin: .zero, size: brand.size),
+            operation: .sourceOver,
+            fraction: 1.0)
+        Self.drawBrandStatusOverlay(indicator: statusIndicator, size: brand.size)
+        image.unlockFocus()
+        image.isTemplate = brand.isTemplate
+        return image
+    }
+
+    private nonisolated static func drawBrandStatusOverlay(indicator: ProviderStatusIndicator, size: NSSize) {
+        guard indicator.hasIssue else { return }
+
+        let color = NSColor.labelColor
+        switch indicator {
+        case .minor, .maintenance:
+            let dotSize = CGSize(width: 4, height: 4)
+            let dotOrigin = CGPoint(x: size.width - dotSize.width - 2, y: 2)
+            color.setFill()
+            NSBezierPath(ovalIn: CGRect(origin: dotOrigin, size: dotSize)).fill()
+        case .major, .critical, .unknown:
+            color.setFill()
+            let lineRect = CGRect(x: size.width - 6, y: 4, width: 2, height: 6)
+            NSBezierPath(roundedRect: lineRect, xRadius: 1, yRadius: 1).fill()
+            let dotRect = CGRect(x: size.width - 6, y: 2, width: 2, height: 2)
+            NSBezierPath(ovalIn: dotRect).fill()
+        case .none:
+            break
         }
     }
 

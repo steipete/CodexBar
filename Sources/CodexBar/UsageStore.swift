@@ -314,8 +314,8 @@ final class UsageStore {
         for provider in self.enabledProviders() {
             guard let snapshot = self.snapshots[provider] else { continue }
             // Use the same window selection logic as menuBarPercentWindow:
-            // Factory uses secondary (premium) first, others use primary (session) first.
-            let window: RateWindow? = if provider == .factory {
+            // Factory and Kimi use secondary first, others use primary first.
+            let window: RateWindow? = if provider == .factory || provider == .kimi {
                 snapshot.secondary ?? snapshot.primary
             } else {
                 snapshot.primary ?? snapshot.secondary

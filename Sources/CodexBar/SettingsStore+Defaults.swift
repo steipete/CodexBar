@@ -3,6 +3,8 @@ import Foundation
 import ServiceManagement
 
 extension SettingsStore {
+    private static let mergedOverviewSelectionEditedActiveProvidersKey = "mergedOverviewSelectionEditedActiveProviders"
+
     var refreshFrequency: RefreshFrequency {
         get { self.defaultsState.refreshFrequency }
         set {
@@ -278,6 +280,22 @@ extension SettingsStore {
         }
     }
 
+    var mergedMenuLastSelectedWasOverview: Bool {
+        get { self.defaultsState.mergedMenuLastSelectedWasOverview }
+        set {
+            self.defaultsState.mergedMenuLastSelectedWasOverview = newValue
+            self.userDefaults.set(newValue, forKey: "mergedMenuLastSelectedWasOverview")
+        }
+    }
+
+    private var mergedOverviewSelectedProvidersRaw: [String] {
+        get { self.defaultsState.mergedOverviewSelectedProvidersRaw }
+        set {
+            self.defaultsState.mergedOverviewSelectedProvidersRaw = newValue
+            self.userDefaults.set(newValue, forKey: "mergedOverviewSelectedProviders")
+        }
+    }
+
     private var selectedMenuProviderRaw: String? {
         get { self.defaultsState.selectedMenuProviderRaw }
         set {
@@ -297,6 +315,149 @@ extension SettingsStore {
         }
     }
 
+    var mergedOverviewSelectedProviders: [UsageProvider] {
+        get {
+            Self.decodeProviders(
+                self.mergedOverviewSelectedProvidersRaw,
+                maxCount: Self.mergedOverviewProviderLimit)
+        }
+        set {
+            let normalized = Self.normalizeProviders(newValue, maxCount: Self.mergedOverviewProviderLimit)
+            self.mergedOverviewSelectedProvidersRaw = normalized.map(\.rawValue)
+        }
+    }
+
+    private var hasMergedOverviewSelectionPreference: Bool {
+        self.userDefaults.object(forKey: "mergedOverviewSelectedProviders") != nil
+    }
+
+    private var mergedOverviewSelectionEditedActiveProvidersRaw: [String]? {
+        get {
+            self.userDefaults.array(forKey: Self.mergedOverviewSelectionEditedActiveProvidersKey) as? [String]
+        }
+        set {
+            if let newValue {
+                self.userDefaults.set(newValue, forKey: Self.mergedOverviewSelectionEditedActiveProvidersKey)
+            } else {
+                self.userDefaults.removeObject(forKey: Self.mergedOverviewSelectionEditedActiveProvidersKey)
+            }
+        }
+    }
+
+    private func mergedOverviewSelectionApplies(to activeProviders: [UsageProvider]) -> Bool {
+        guard let editedRaw = self.mergedOverviewSelectionEditedActiveProvidersRaw else { return false }
+        let editedSet = Set(editedRaw)
+        let activeSet = Set(Self.normalizeProviders(activeProviders).map(\.rawValue))
+        return editedSet == activeSet
+    }
+
+    private func markMergedOverviewSelectionEdited(for activeProviders: [UsageProvider]) {
+        let signature = Set(Self.normalizeProviders(activeProviders).map(\.rawValue))
+        self.mergedOverviewSelectionEditedActiveProvidersRaw = Array(signature).sorted()
+    }
+
+    private func clearMergedOverviewSelectionPreference() {
+        self.defaultsState.mergedOverviewSelectedProvidersRaw = []
+        self.userDefaults.removeObject(forKey: "mergedOverviewSelectedProviders")
+        self.mergedOverviewSelectionEditedActiveProvidersRaw = nil
+    }
+
+    func resolvedMergedOverviewProviders(
+        activeProviders: [UsageProvider],
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+    {
+        guard maxVisibleProviders > 0 else { return [] }
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        guard self.hasMergedOverviewSelectionPreference else {
+            return Array(normalizedActive.prefix(maxVisibleProviders))
+        }
+        if normalizedActive.count <= maxVisibleProviders,
+           !self.mergedOverviewSelectionApplies(to: normalizedActive)
+        {
+            return normalizedActive
+        }
+
+        let selectedSet = Set(self.mergedOverviewSelectedProviders)
+        return Array(normalizedActive.filter { selectedSet.contains($0) }.prefix(maxVisibleProviders))
+    }
+
+    @discardableResult
+    func reconcileMergedOverviewSelectedProviders(
+        activeProviders: [UsageProvider],
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+    {
+        guard maxVisibleProviders > 0 else {
+            self.clearMergedOverviewSelectionPreference()
+            return []
+        }
+
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        if normalizedActive.isEmpty {
+            self.clearMergedOverviewSelectionPreference()
+            return []
+        }
+
+        let shouldPersistResolvedSelection = normalizedActive.count > maxVisibleProviders ||
+            self.mergedOverviewSelectionApplies(to: normalizedActive)
+
+        if self.hasMergedOverviewSelectionPreference, shouldPersistResolvedSelection {
+            let selectedSet = Set(self.mergedOverviewSelectedProviders)
+            let sanitizedSelection = Array(
+                normalizedActive
+                    .filter { selectedSet.contains($0) }
+                    .prefix(maxVisibleProviders))
+            if sanitizedSelection != self.mergedOverviewSelectedProviders {
+                self.mergedOverviewSelectedProviders = sanitizedSelection
+            }
+        }
+
+        return self.resolvedMergedOverviewProviders(
+            activeProviders: normalizedActive,
+            maxVisibleProviders: maxVisibleProviders)
+    }
+
+    @discardableResult
+    func setMergedOverviewProviderSelection(
+        provider: UsageProvider,
+        isSelected: Bool,
+        activeProviders: [UsageProvider],
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+    {
+        guard maxVisibleProviders > 0 else {
+            self.clearMergedOverviewSelectionPreference()
+            return []
+        }
+
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        guard normalizedActive.contains(provider) else {
+            return self.resolvedMergedOverviewProviders(
+                activeProviders: normalizedActive,
+                maxVisibleProviders: maxVisibleProviders)
+        }
+
+        let currentSelection = self.resolvedMergedOverviewProviders(
+            activeProviders: normalizedActive,
+            maxVisibleProviders: maxVisibleProviders)
+        var updatedSet = Set(currentSelection)
+
+        if isSelected {
+            guard updatedSet.contains(provider) || currentSelection.count < maxVisibleProviders else {
+                return currentSelection
+            }
+            updatedSet.insert(provider)
+        } else {
+            updatedSet.remove(provider)
+        }
+
+        let updatedSelection = Array(
+            normalizedActive
+                .filter { updatedSet.contains($0) }
+                .prefix(maxVisibleProviders))
+        self.mergedOverviewSelectedProviders = updatedSelection
+        self.markMergedOverviewSelectionEdited(for: normalizedActive)
+        return updatedSelection
+    }
+
     var providerDetectionCompleted: Bool {
         get { self.defaultsState.providerDetectionCompleted }
         set {
@@ -308,5 +469,28 @@ extension SettingsStore {
     var debugLoadingPattern: LoadingPattern? {
         get { self.debugLoadingPatternRaw.flatMap(LoadingPattern.init(rawValue:)) }
         set { self.debugLoadingPatternRaw = newValue?.rawValue }
+    }
+}
+
+extension SettingsStore {
+    private static func normalizeProviders(_ providers: [UsageProvider], maxCount: Int? = nil) -> [UsageProvider] {
+        var seen: Set<UsageProvider> = []
+        var normalized: [UsageProvider] = []
+        for provider in providers where !seen.contains(provider) {
+            seen.insert(provider)
+            normalized.append(provider)
+            if let maxCount, normalized.count >= maxCount { break }
+        }
+        return normalized
+    }
+
+    private static func decodeProviders(_ rawProviders: [String], maxCount: Int? = nil) -> [UsageProvider] {
+        var providers: [UsageProvider] = []
+        providers.reserveCapacity(rawProviders.count)
+        for raw in rawProviders {
+            guard let provider = UsageProvider(rawValue: raw) else { continue }
+            providers.append(provider)
+        }
+        return self.normalizeProviders(providers, maxCount: maxCount)
     }
 }

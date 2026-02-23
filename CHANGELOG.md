@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+### Highlights
+- Add a merged-menu Overview tab with configurable providers and row-to-provider navigation (#416).
+- Add an experimental option to suppress Claude Keychain prompts (#388).
+- Add OpenRouter provider for credit-based usage tracking (#396). Thanks @chountalas!
+- Add Ollama provider, including token-account support in Settings and CLI (#380). Thanks @CryptoSageSnr!
+
+
+### Providers & Usage
+- OpenRouter: add credit tracking, key-quota popup support, token-account labels, fallback status icons, and updated icon/color (#396). Thanks @chountalas!
+- Ollama: add provider support with token-account support in app/CLI, Chrome-default auto cookie import, and manual-cookie mode (#380). Thanks @CryptoSageSnr!
+- Codex: in percent display mode with "show remaining," show remaining credits in the menu bar when session or weekly usage is exhausted (#336). Thanks @teron131!
+- Menu: rebuild the merged provider switcher when “Show usage as used” changes so switcher progress updates immediately (#306). Thanks @Flohhhhh!
+- Update Kiro parsing for `kiro-cli` 1.24+ / Q Developer formats and non-managed plan handling (#288). Thanks @kilhyeonjun!
+- OpenCode: treat explicit `null` subscription responses as missing usage data, skip POST fallback, and return a clearer workspace-specific error (#412).
+- OpenCode: surface clearer HTTP errors. Thanks @SalimBinYousuf1!
+- Warp: update API key setup guidance.
+- Fix Claude setup message package name (#376). Thanks @daegwang!
+
+### Menu & Settings
+- Merged menu: add an Overview switcher tab that shows up to three provider usage rows in provider order (#416).
+- Settings: add "Overview tab providers" controls to choose/deselect Overview providers, with persisted selection reconciliation as enabled providers change (#416).
+- Menu: hide contextual provider actions while Overview is selected and rebuild switcher state when overview availability changes (#416).
+
+### Claude OAuth & Keychain
+- Add an experimental Claude OAuth Security-CLI reader path and option in settings.
+- Apply stored prompt mode and fallback policy to silent/noninteractive keychain probes.
+- Add cooldown for background OAuth keychain retries.
+- Disable experimental toggle when keychain access is disabled.
+
+### Dev & Tests
+- Run provider fetches and Claude debug OAuth probes off `MainActor`.
+- Split Claude OAuth test overrides and isolate coordinator tests.
+
+
 ## 0.18.0-beta.3 — 2026-02-13
 ### Highlights
 - Claude OAuth/keychain flows were reworked across a series of follow-up PRs to reduce prompt storms, stabilize background behavior, surface a setting to control prompt policy and make failure modes deterministic (#245, #305, #308, #309, #364). Thanks @manikv12!

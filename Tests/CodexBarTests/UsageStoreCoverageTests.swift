@@ -72,6 +72,34 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func providerWithHighestUsagePrefersKimiRateLimitWindow() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-kimi-highest")
+        let store = Self.makeUsageStore(settings: settings)
+        let metadata = ProviderRegistry.shared.metadata
+
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .kimi, metadata: #require(metadata[.kimi]), enabled: true)
+
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            provider: .codex)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                updatedAt: now),
+            provider: .kimi)
+
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .kimi)
+        #expect(highest?.usedPercent == 80)
+    }
+
+    @Test
     func providerAvailabilityAndSubscriptionDetection() {
         let zaiStore = InMemoryZaiTokenStore(value: "zai-token")
         let syntheticStore = InMemorySyntheticTokenStore(value: "synthetic-token")

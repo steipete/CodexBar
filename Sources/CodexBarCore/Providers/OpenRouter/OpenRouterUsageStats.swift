@@ -32,12 +32,12 @@ public struct OpenRouterCreditsData: Decodable, Sendable {
     }
 }
 
-/// OpenRouter key info API response (for rate limits)
+/// OpenRouter key info API response
 public struct OpenRouterKeyResponse: Decodable, Sendable {
     public let data: OpenRouterKeyData
 }
 
-/// OpenRouter key data with rate limit info
+/// OpenRouter key data with quota and rate limit info
 public struct OpenRouterKeyData: Decodable, Sendable {
     /// Rate limit per interval
     public let rateLimit: OpenRouterRateLimit?
@@ -54,19 +54,28 @@ public struct OpenRouterKeyData: Decodable, Sendable {
 }
 
 /// OpenRouter rate limit info
-public struct OpenRouterRateLimit: Decodable, Sendable {
+public struct OpenRouterRateLimit: Codable, Sendable {
     /// Number of requests allowed
     public let requests: Int
     /// Interval for the rate limit (e.g., "10s", "1m")
     public let interval: String
 }
 
+public enum OpenRouterKeyQuotaStatus: String, Codable, Sendable {
+    case available
+    case noLimitConfigured
+    case unavailable
+}
+
 /// Complete OpenRouter usage snapshot
-public struct OpenRouterUsageSnapshot: Sendable {
+public struct OpenRouterUsageSnapshot: Codable, Sendable {
     public let totalCredits: Double
     public let totalUsage: Double
     public let balance: Double
     public let usedPercent: Double
+    public let keyDataFetched: Bool
+    public let keyLimit: Double?
+    public let keyUsage: Double?
     public let rateLimit: OpenRouterRateLimit?
     public let updatedAt: Date
 
@@ -75,6 +84,9 @@ public struct OpenRouterUsageSnapshot: Sendable {
         totalUsage: Double,
         balance: Double,
         usedPercent: Double,
+        keyDataFetched: Bool = false,
+        keyLimit: Double? = nil,
+        keyUsage: Double? = nil,
         rateLimit: OpenRouterRateLimit?,
         updatedAt: Date)
     {
@@ -82,6 +94,9 @@ public struct OpenRouterUsageSnapshot: Sendable {
         self.totalUsage = totalUsage
         self.balance = balance
         self.usedPercent = usedPercent
+        self.keyDataFetched = keyDataFetched || keyLimit != nil || keyUsage != nil
+        self.keyLimit = keyLimit
+        self.keyUsage = keyUsage
         self.rateLimit = rateLimit
         self.updatedAt = updatedAt
     }
@@ -90,16 +105,62 @@ public struct OpenRouterUsageSnapshot: Sendable {
     public var isValid: Bool {
         self.totalCredits >= 0
     }
+
+    public var hasValidKeyQuota: Bool {
+        guard self.keyDataFetched,
+              let keyLimit,
+              let keyUsage
+        else {
+            return false
+        }
+        return keyLimit > 0 && keyUsage >= 0
+    }
+
+    public var keyQuotaStatus: OpenRouterKeyQuotaStatus {
+        if self.hasValidKeyQuota {
+            return .available
+        }
+        guard self.keyDataFetched else {
+            return .unavailable
+        }
+        if let keyLimit, keyLimit > 0 {
+            return .unavailable
+        }
+        return .noLimitConfigured
+    }
+
+    public var keyRemaining: Double? {
+        guard self.hasValidKeyQuota,
+              let keyLimit,
+              let keyUsage
+        else {
+            return nil
+        }
+        return max(0, keyLimit - keyUsage)
+    }
+
+    public var keyUsedPercent: Double? {
+        guard self.hasValidKeyQuota,
+              let keyLimit,
+              let keyUsage
+        else {
+            return nil
+        }
+        return min(100, max(0, (keyUsage / keyLimit) * 100))
+    }
 }
 
 extension OpenRouterUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary: credits usage percentage
-        let primary = RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: nil,
-            resetsAt: nil,
-            resetDescription: nil)
+        let primary: RateWindow? = if let keyUsedPercent {
+            RateWindow(
+                usedPercent: keyUsedPercent,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: nil)
+        } else {
+            nil
+        }
 
         // Format balance for identity display
         let balanceStr = String(format: "$%.2f", balance)
@@ -176,9 +237,9 @@ public struct OpenRouterUsageFetcher: Sendable {
             let decoder = JSONDecoder()
             let creditsResponse = try decoder.decode(OpenRouterCreditsResponse.self, from: data)
 
-            // Optionally fetch rate limit info from /key endpoint, but keep this bounded so
+            // Optionally fetch key quota/rate-limit info from /key endpoint, but keep this bounded so
             // credits updates are not blocked by a slow or unavailable secondary endpoint.
-            let rateLimit = await fetchRateLimit(
+            let keyFetch = await fetchKeyData(
                 apiKey: apiKey,
                 baseURL: baseURL,
                 timeoutSeconds: Self.rateLimitTimeoutSeconds)
@@ -188,7 +249,10 @@ public struct OpenRouterUsageFetcher: Sendable {
                 totalUsage: creditsResponse.data.totalUsage,
                 balance: creditsResponse.data.balance,
                 usedPercent: creditsResponse.data.usedPercent,
-                rateLimit: rateLimit,
+                keyDataFetched: keyFetch.fetched,
+                keyLimit: keyFetch.data?.limit,
+                keyUsage: keyFetch.data?.usage,
+                rateLimit: keyFetch.data?.rateLimit,
                 updatedAt: Date())
         } catch let error as DecodingError {
             Self.log.error("OpenRouter JSON decoding error: \(error.localizedDescription)")
@@ -201,18 +265,23 @@ public struct OpenRouterUsageFetcher: Sendable {
         }
     }
 
-    /// Fetches rate limit info from /key endpoint
-    private static func fetchRateLimit(
+    /// Fetches key quota/rate-limit info from /key endpoint
+    private struct OpenRouterKeyFetchResult: Sendable {
+        let data: OpenRouterKeyData?
+        let fetched: Bool
+    }
+
+    private static func fetchKeyData(
         apiKey: String,
         baseURL: URL,
-        timeoutSeconds: TimeInterval) async -> OpenRouterRateLimit?
+        timeoutSeconds: TimeInterval) async -> OpenRouterKeyFetchResult
     {
         let timeout = max(0.1, timeoutSeconds)
         let timeoutNanoseconds = UInt64(timeout * 1_000_000_000)
 
-        return await withTaskGroup(of: OpenRouterRateLimit?.self) { group in
+        return await withTaskGroup(of: OpenRouterKeyFetchResult.self) { group in
             group.addTask {
-                await Self.fetchRateLimitRequest(
+                await Self.fetchKeyDataRequest(
                     apiKey: apiKey,
                     baseURL: baseURL,
                     timeoutSeconds: timeout)
@@ -222,11 +291,13 @@ public struct OpenRouterUsageFetcher: Sendable {
                     try await Task.sleep(nanoseconds: timeoutNanoseconds)
                 } catch {
                     // Cancelled because the /key request finished first.
-                    return nil
+                    return OpenRouterKeyFetchResult(data: nil, fetched: false)
                 }
-                guard !Task.isCancelled else { return nil }
+                guard !Task.isCancelled else {
+                    return OpenRouterKeyFetchResult(data: nil, fetched: false)
+                }
                 Self.log.debug("OpenRouter /key enrichment timed out after \(timeout)s")
-                return nil
+                return OpenRouterKeyFetchResult(data: nil, fetched: false)
             }
 
             let result = await group.next()
@@ -234,14 +305,14 @@ public struct OpenRouterUsageFetcher: Sendable {
             if let result {
                 return result
             }
-            return nil
+            return OpenRouterKeyFetchResult(data: nil, fetched: false)
         }
     }
 
-    private static func fetchRateLimitRequest(
+    private static func fetchKeyDataRequest(
         apiKey: String,
         baseURL: URL,
-        timeoutSeconds: TimeInterval) async -> OpenRouterRateLimit?
+        timeoutSeconds: TimeInterval) async -> OpenRouterKeyFetchResult
     {
         let keyURL = baseURL.appendingPathComponent("key")
 
@@ -257,15 +328,15 @@ public struct OpenRouterUsageFetcher: Sendable {
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200
             else {
-                return nil
+                return OpenRouterKeyFetchResult(data: nil, fetched: false)
             }
 
             let decoder = JSONDecoder()
             let keyResponse = try decoder.decode(OpenRouterKeyResponse.self, from: data)
-            return keyResponse.data.rateLimit
+            return OpenRouterKeyFetchResult(data: keyResponse.data, fetched: true)
         } catch {
-            Self.log.debug("Failed to fetch OpenRouter rate limit: \(error.localizedDescription)")
-            return nil
+            Self.log.debug("Failed to fetch OpenRouter /key enrichment: \(error.localizedDescription)")
+            return OpenRouterKeyFetchResult(data: nil, fetched: false)
         }
     }
 

@@ -41,6 +41,8 @@ extension SettingsStore {
         _ = self.ollamaCookieSource
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
+        _ = self.mergedMenuLastSelectedWasOverview
+        _ = self.mergedOverviewSelectedProviders
         _ = self.zaiAPIToken
         _ = self.syntheticAPIToken
         _ = self.codexCookieHeader

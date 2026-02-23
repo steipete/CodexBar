@@ -17,6 +17,31 @@ struct ProviderDetailView: View {
     let onCopyError: (String) -> Void
     let onRefresh: () -> Void
 
+    static func metricTitle(provider: UsageProvider, metric: UsageMenuCardView.Model.Metric) -> String {
+        UsageMenuCardView.popupMetricTitle(provider: provider, metric: metric)
+    }
+
+    static func planRow(provider: UsageProvider, planText: String?) -> (label: String, value: String)? {
+        guard let rawPlan = planText?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawPlan.isEmpty
+        else {
+            return nil
+        }
+        guard provider == .openrouter else {
+            return (label: "Plan", value: rawPlan)
+        }
+
+        let prefix = "Balance:"
+        if rawPlan.hasPrefix(prefix) {
+            let valueStart = rawPlan.index(rawPlan.startIndex, offsetBy: prefix.count)
+            let trimmedValue = rawPlan[valueStart...].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedValue.isEmpty {
+                return (label: "Balance", value: trimmedValue)
+            }
+        }
+        return (label: "Balance", value: rawPlan)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -89,11 +114,13 @@ struct ProviderDetailView: View {
         if !self.model.email.isEmpty {
             infoLabels.append("Account")
         }
-        if let plan = self.model.planText, !plan.isEmpty {
-            infoLabels.append("Plan")
+        if let planRow = Self.planRow(provider: self.provider, planText: self.model.planText) {
+            infoLabels.append(planRow.label)
         }
 
-        var metricLabels = self.model.metrics.map(\.title)
+        var metricLabels = self.model.metrics.map { metric in
+            Self.metricTitle(provider: self.provider, metric: metric)
+        }
         if self.model.creditsText != nil {
             metricLabels.append("Credits")
         }
@@ -210,7 +237,6 @@ private struct ProviderDetailInfoGrid: View {
         let version = self.store.version(for: self.provider) ?? "not detected"
         let updated = self.updatedText
         let email = self.model.email
-        let plan = self.model.planText ?? ""
         let enabledText = self.isEnabled ? "Enabled" : "Disabled"
 
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
@@ -230,8 +256,8 @@ private struct ProviderDetailInfoGrid: View {
                 ProviderDetailInfoRow(label: "Account", value: email, labelWidth: self.labelWidth)
             }
 
-            if !plan.isEmpty {
-                ProviderDetailInfoRow(label: "Plan", value: plan, labelWidth: self.labelWidth)
+            if let planRow = ProviderDetailView.planRow(provider: self.provider, planText: self.model.planText) {
+                ProviderDetailInfoRow(label: planRow.label, value: planRow.value, labelWidth: self.labelWidth)
             }
         }
         .font(.footnote)
@@ -272,15 +298,18 @@ struct ProviderMetricsInlineView: View {
     let labelWidth: CGFloat
 
     var body: some View {
+        let hasMetrics = !self.model.metrics.isEmpty
+        let hasUsageNotes = !self.model.usageNotes.isEmpty
+        let hasCredits = self.model.creditsText != nil
+        let hasProviderCost = self.model.providerCost != nil
+        let hasTokenUsage = self.model.tokenUsage != nil
         ProviderSettingsSection(
             title: "Usage",
             spacing: 8,
             verticalPadding: 6,
             horizontalPadding: 0)
         {
-            if self.model.metrics.isEmpty, self.model.providerCost == nil,
-               self.model.creditsText == nil, self.model.tokenUsage == nil
-            {
+            if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage {
                 Text(self.placeholderText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -288,8 +317,16 @@ struct ProviderMetricsInlineView: View {
                 ForEach(self.model.metrics, id: \.id) { metric in
                     ProviderMetricInlineRow(
                         metric: metric,
+                        title: ProviderDetailView.metricTitle(provider: self.provider, metric: metric),
                         progressColor: self.model.progressColor,
                         labelWidth: self.labelWidth)
+                }
+
+                if hasUsageNotes {
+                    ProviderUsageNotesInlineView(
+                        notes: self.model.usageNotes,
+                        labelWidth: self.labelWidth,
+                        alignsWithMetricContent: hasMetrics)
                 }
 
                 if let credits = self.model.creditsText {
@@ -330,12 +367,13 @@ struct ProviderMetricsInlineView: View {
 
 private struct ProviderMetricInlineRow: View {
     let metric: UsageMenuCardView.Model.Metric
+    let title: String
     let progressColor: Color
     let labelWidth: CGFloat
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Text(self.metric.title)
+            Text(self.title)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
                 .frame(width: self.labelWidth, alignment: .leading)
@@ -394,6 +432,32 @@ private struct ProviderMetricInlineRow: View {
     private var detailText: String? {
         guard let detailText = self.metric.detailText, !detailText.isEmpty else { return nil }
         return detailText
+    }
+}
+
+private struct ProviderUsageNotesInlineView: View {
+    let notes: [String]
+    let labelWidth: CGFloat
+    let alignsWithMetricContent: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            if self.alignsWithMetricContent {
+                Spacer()
+                    .frame(width: self.labelWidth)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(self.notes.enumerated()), id: \.offset) { _, note in
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 2)
     }
 }
 
