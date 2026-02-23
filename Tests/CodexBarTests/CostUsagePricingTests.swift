@@ -7,6 +7,7 @@ struct CostUsagePricingTests {
     func normalizesCodexModelVariants() {
         #expect(CostUsagePricing.normalizeCodexModel("openai/gpt-5-codex") == "gpt-5")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.2-codex") == "gpt-5.2")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.3-codex") == "gpt-5.3")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.1-codex-max") == "gpt-5.1")
     }
 
@@ -14,6 +15,16 @@ struct CostUsagePricingTests {
     func codexCostSupportsGpt51CodexMax() {
         let cost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.1-codex-max",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5)
+        #expect(cost != nil)
+    }
+
+    @Test
+    func codexCostSupportsGpt53Codex() {
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.3-codex",
             inputTokens: 100,
             cachedInputTokens: 10,
             outputTokens: 5)
