@@ -10,6 +10,8 @@ read_when:
 ## Menu bar
 - LSUIElement app: no Dock icon; status item uses custom NSImage.
 - Merge Icons toggle combines providers into one status item with a switcher.
+- When Overview has selected providers, the switcher includes an Overview tab that renders up to 3 provider rows.
+- Overview row order follows provider order; selecting a row jumps to that provider detail card.
 
 ## Icon rendering
 - 18×18 template image.
@@ -26,6 +28,8 @@ read_when:
 
 ## Preferences notes
 - Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.
+- Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 3).
+- If no providers are selected for Overview, the Overview tab is hidden.
 - Providers → Claude: “Keychain prompt policy” controls Claude OAuth prompt behavior (Never / Only on user action /
   Always allow prompts).
 - When “Disable Keychain access” is enabled in Advanced, the Claude keychain prompt policy remains visible but is

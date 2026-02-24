@@ -4,6 +4,8 @@ import QuartzCore
 
 extension StatusItemController {
     private static let loadingPercentEpsilon = 0.0001
+    private static let blinkActiveTickInterval: Duration = .milliseconds(75)
+    private static let blinkIdleFallbackInterval: Duration = .seconds(1)
 
     func needsMenuBarIconAnimation() -> Bool {
         if self.shouldMergeIcons {
@@ -32,7 +34,10 @@ extension StatusItemController {
                 self.seedBlinkStatesIfNeeded()
                 self.blinkTask = Task { [weak self] in
                     while !Task.isCancelled {
-                        try? await Task.sleep(for: .milliseconds(75))
+                        let delay = await MainActor.run {
+                            self?.blinkTickSleepDuration(now: Date()) ?? Self.blinkIdleFallbackInterval
+                        }
+                        try? await Task.sleep(for: delay)
                         await MainActor.run { self?.tickBlink() }
                     }
                 }
@@ -61,6 +66,36 @@ extension StatusItemController {
                 self.applyIcon(for: provider, phase: phase)
             }
         }
+    }
+
+    private func blinkTickSleepDuration(now: Date) -> Duration {
+        let mergeIcons = self.shouldMergeIcons
+        var nextWakeAt: Date?
+
+        for provider in UsageProvider.allCases {
+            let shouldRender = mergeIcons ? self.isEnabled(provider) : self.isVisible(provider)
+            guard shouldRender, !self.shouldAnimate(provider: provider, mergeIcons: mergeIcons) else { continue }
+
+            let state = self
+                .blinkStates[provider] ?? BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
+            if state.blinkStart != nil {
+                return Self.blinkActiveTickInterval
+            }
+
+            let candidate: Date = state.pendingSecondStart ?? state.nextBlink
+            if let current = nextWakeAt {
+                if candidate < current {
+                    nextWakeAt = candidate
+                }
+            } else {
+                nextWakeAt = candidate
+            }
+        }
+
+        guard let nextWakeAt else { return Self.blinkIdleFallbackInterval }
+        let delay = nextWakeAt.timeIntervalSince(now)
+        if delay <= 0 { return Self.blinkActiveTickInterval }
+        return .seconds(delay)
     }
 
     private func tickBlink(now: Date = .init()) {
@@ -483,6 +518,10 @@ extension StatusItemController {
             self.assignMotion(amount: 0, for: provider, effect: state.effect)
         }
 
+        // If the blink task is currently in a long idle sleep, restart it so this forced blink
+        // keeps animating on the active frame cadence immediately.
+        self.blinkTask?.cancel()
+        self.blinkTask = nil
         self.updateBlinkingState()
         self.tickBlink(now: now)
     }

@@ -6,6 +6,7 @@
 - Add an experimental option to suppress Claude Keychain prompts (#388).
 - Add OpenRouter provider for credit-based usage tracking (#396). Thanks @chountalas!
 - Add Ollama provider, including token-account support in Settings and CLI (#380). Thanks @CryptoSageSnr!
+- Reduce CPU/energy regressions and JSONL scanner overhead in Codex/web usage paths (#402, #392). Thanks @bald-ai and @asonawalla!
 
 
 ### Providers & Usage
@@ -14,6 +15,7 @@
 - Codex: in percent display mode with "show remaining," show remaining credits in the menu bar when session or weekly usage is exhausted (#336). Thanks @teron131!
 - Menu: rebuild the merged provider switcher when “Show usage as used” changes so switcher progress updates immediately (#306). Thanks @Flohhhhh!
 - Update Kiro parsing for `kiro-cli` 1.24+ / Q Developer formats and non-managed plan handling (#288). Thanks @kilhyeonjun!
+- Kimi: in automatic metric mode, prioritize the 5-hour rate-limit window for menu bar and merged highest-usage calculations (#390). Thanks @ajaxjiang96!
 - OpenCode: treat explicit `null` subscription responses as missing usage data, skip POST fallback, and return a clearer workspace-specific error (#412).
 - OpenCode: surface clearer HTTP errors. Thanks @SalimBinYousuf1!
 - Warp: update API key setup guidance.
@@ -29,6 +31,10 @@
 - Apply stored prompt mode and fallback policy to silent/noninteractive keychain probes.
 - Add cooldown for background OAuth keychain retries.
 - Disable experimental toggle when keychain access is disabled.
+
+### Performance & Reliability
+- Codex/OpenAI web: reduce CPU and energy overhead by shortening failed CLI probe windows, capping web retry timeouts, and using adaptive idle blink scheduling (#402). Thanks @bald-ai!
+- Cost usage scanner: optimize JSONL chunk parsing to avoid buffer-front removal overhead on large logs (#392). Thanks @asonawalla!
 
 ### Dev & Tests
 - Run provider fetches and Claude debug OAuth probes off `MainActor`.

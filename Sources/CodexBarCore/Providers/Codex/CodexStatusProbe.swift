@@ -47,13 +47,20 @@ public enum CodexStatusProbeError: LocalizedError, Sendable {
 
 /// Runs `codex` inside a PTY, sends `/status`, captures text, and parses credits/limits.
 public struct CodexStatusProbe {
+    private static let defaultTimeoutSeconds: TimeInterval = 8.0
+    private static let parseRetryTimeoutSeconds: TimeInterval = 4.0
+
     public var codexBinary: String = "codex"
-    public var timeout: TimeInterval = 18.0
+    public var timeout: TimeInterval = Self.defaultTimeoutSeconds
     public var keepCLISessionsAlive: Bool = false
 
     public init() {}
 
-    public init(codexBinary: String = "codex", timeout: TimeInterval = 18.0, keepCLISessionsAlive: Bool = false) {
+    public init(
+        codexBinary: String = "codex",
+        timeout: TimeInterval = 8.0,
+        keepCLISessionsAlive: Bool = false)
+    {
         self.codexBinary = codexBinary
         self.timeout = timeout
         self.keepCLISessionsAlive = keepCLISessionsAlive
@@ -69,14 +76,14 @@ public struct CodexStatusProbe {
         do {
             return try await self.runAndParse(binary: resolved, rows: 60, cols: 200, timeout: self.timeout)
         } catch let error as CodexStatusProbeError {
-            // Codex sometimes returns an incomplete screen on the first try; retry once with a longer window.
+            // Retry only parser-level flakes with a short second attempt.
             switch error {
-            case .parseFailed, .timedOut:
+            case .parseFailed:
                 return try await self.runAndParse(
                     binary: resolved,
                     rows: 70,
                     cols: 220,
-                    timeout: max(self.timeout, 24.0))
+                    timeout: Self.parseRetryTimeoutSeconds)
             default:
                 throw error
             }
