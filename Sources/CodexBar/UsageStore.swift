@@ -598,6 +598,15 @@ final class UsageStore {
     }
 
     func handleQuotaWarningTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
+        // Always update tracking state so baselines stay current even when
+        // notifications are disabled. This prevents retroactive alerts when
+        // the user re-enables notifications after quota has dropped.
+        defer {
+            if let secondary = snapshot.secondary {
+                self.lastKnownSecondaryRemaining[provider] = secondary.remainingPercent
+            }
+        }
+
         guard self.settings.quotaWarningNotificationsEnabled else { return }
         let thresholds = self.settings.quotaWarningThresholds.sorted(by: >)
         guard !thresholds.isEmpty else { return }
@@ -618,7 +627,6 @@ final class UsageStore {
                 currentRemaining: secondary.remainingPercent,
                 previousRemaining: self.lastKnownSecondaryRemaining[provider],
                 thresholds: thresholds)
-            self.lastKnownSecondaryRemaining[provider] = secondary.remainingPercent
         }
     }
 
