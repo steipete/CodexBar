@@ -53,8 +53,6 @@ struct DetachedPanelContentView: View {
     }
 
     private var overviewProviders: [UsageProvider] {
-        let ordered = self.settings.orderedProviders()
-        let enabled = Set(self.store.enabledProviders())
-        return ordered.filter { enabled.contains($0) }
+        self.settings.resolvedMergedOverviewProviders(activeProviders: self.store.enabledProviders())
     }
 }

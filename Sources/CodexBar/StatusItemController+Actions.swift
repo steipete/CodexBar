@@ -159,7 +159,14 @@ extension StatusItemController {
                 self?.detachedPanel = nil
             })
         self.detachedPanel = controller
-        controller.show(anchoredTo: self.statusItem.button)
+        let anchorButton: NSStatusBarButton? = if self.shouldMergeIcons {
+            self.statusItem.button
+        } else if let provider = self.lastMenuProvider {
+            self.statusItems[provider]?.button
+        } else {
+            self.statusItem.button
+        }
+        controller.show(anchoredTo: anchorButton)
     }
 
     func openMenuFromShortcut() {
