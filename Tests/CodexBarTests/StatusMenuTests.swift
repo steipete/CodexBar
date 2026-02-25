@@ -977,4 +977,36 @@ extension StatusMenuTests {
         #expect(ids.contains(where: { $0.hasPrefix("overviewRow-") }) == false)
         #expect(self.switcherButtons(in: menu).first(where: { $0.state == .on })?.tag == 2)
     }
+
+    @Test
+    func menuIncludesPopOutBeforeSettings() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        let popOutIndex = try #require(menu.items.firstIndex(where: { $0.title == "Pop Out" }))
+        let settingsIndex = try #require(menu.items.firstIndex(where: { $0.title == "Settings..." }))
+        #expect(popOutIndex < settingsIndex)
+    }
 }

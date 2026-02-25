@@ -136,6 +136,32 @@ extension StatusItemController {
         self.openSettings(tab: .about)
     }
 
+    @objc func popOutPanelFromMenu(_ sender: Any?) {
+        _ = sender
+        self.popOutPanel()
+    }
+
+    func popOutPanel() {
+        NSApp.sendAction(#selector(NSMenu.cancelTracking), to: nil, from: nil)
+
+        if let detachedPanel {
+            detachedPanel.bringToFront()
+            return
+        }
+
+        let controller = DetachedPanelController(
+            store: self.store,
+            settings: self.settings,
+            menuCardModelProvider: { [weak self] provider in
+                self?.menuCardModel(for: provider)
+            },
+            onClose: { [weak self] in
+                self?.detachedPanel = nil
+            })
+        self.detachedPanel = controller
+        controller.show(anchoredTo: self.statusItem.button)
+    }
+
     func openMenuFromShortcut() {
         if self.shouldMergeIcons {
             self.statusItem.button?.performClick(nil)
