@@ -127,6 +127,260 @@ struct MenuCardModelTests {
     }
 
     @Test
+    func cursorPrimaryMetricShowsPlanDollarUsageDetail() throws {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .cursor,
+            accountEmail: "cursor@example.com",
+            accountOrganization: nil,
+            loginMethod: "Cursor Ultra")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 5,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(86400),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            cursorPlanCost: ProviderCostSnapshot(
+                used: 20,
+                limit: 400,
+                currencyCode: "USD",
+                period: "monthly",
+                resetsAt: now.addingTimeInterval(86400),
+                updatedAt: now),
+            updatedAt: now,
+            identity: identity)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "cursor@example.com", plan: "Cursor Ultra"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.customLabel == "$20.00 / $400.00 used")
+        #expect(primary.detailText == nil)
+    }
+
+    @Test
+    func cursorPrimaryMetricShowsUnavailableLabelWhenPlanCostMissing() throws {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .cursor,
+            accountEmail: "cursor@example.com",
+            accountOrganization: nil,
+            loginMethod: "Cursor Ultra")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 5,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(86400),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            cursorPlanCost: nil,
+            updatedAt: now,
+            identity: identity)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "cursor@example.com", plan: "Cursor Ultra"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.customLabel == "Usage unavailable")
+        #expect(primary.percentLabel == "Usage unavailable")
+    }
+
+    @Test
+    func cursorPrimaryMetricShowsOverLimitLabelWhenShowingUsed() throws {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .cursor,
+            accountEmail: "cursor@example.com",
+            accountOrganization: nil,
+            loginMethod: "Cursor Pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 200,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(86400),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            cursorPlanCost: ProviderCostSnapshot(
+                used: 400,
+                limit: 200,
+                currencyCode: "USD",
+                period: "monthly",
+                resetsAt: now.addingTimeInterval(86400),
+                updatedAt: now),
+            updatedAt: now,
+            identity: identity)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "cursor@example.com", plan: "Cursor Pro"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.customLabel == "$200.00 over limit")
+        #expect(primary.detailText == nil)
+        #expect(primary.percent == 100)
+    }
+
+    @Test
+    func cursorPrimaryMetricShowsRemainingDollarUsageDetail() throws {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .cursor,
+            accountEmail: "cursor@example.com",
+            accountOrganization: nil,
+            loginMethod: "Cursor Ultra")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 5,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(86400),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            cursorPlanCost: ProviderCostSnapshot(
+                used: 20,
+                limit: 400,
+                currencyCode: "USD",
+                period: "monthly",
+                resetsAt: now.addingTimeInterval(86400),
+                updatedAt: now),
+            updatedAt: now,
+            identity: identity)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "cursor@example.com", plan: "Cursor Ultra"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.customLabel == "$380.00 / $400.00 left")
+    }
+
+    @Test
+    func cursorPrimaryMetricShowsOverLimitLabelWhenShowingRemaining() throws {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .cursor,
+            accountEmail: "cursor@example.com",
+            accountOrganization: nil,
+            loginMethod: "Cursor Pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 200,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(86400),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            cursorPlanCost: ProviderCostSnapshot(
+                used: 22,
+                limit: 20,
+                currencyCode: "USD",
+                period: "monthly",
+                resetsAt: now.addingTimeInterval(86400),
+                updatedAt: now),
+            updatedAt: now,
+            identity: identity)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "cursor@example.com", plan: "Cursor Pro"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.customLabel == "$2.00 over limit")
+        #expect(primary.percent == 0)
+    }
+
+    @Test
     func showsCodeReviewMetricWhenDashboardPresent() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(

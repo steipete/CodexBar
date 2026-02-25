@@ -52,6 +52,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let secondary: RateWindow?
     public let tertiary: RateWindow?
     public let providerCost: ProviderCostSnapshot?
+    public let cursorPlanCost: ProviderCostSnapshot?
     public let zaiUsage: ZaiUsageSnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
@@ -64,6 +65,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case secondary
         case tertiary
         case providerCost
+        case cursorPlanCost
         case openRouterUsage
         case updatedAt
         case identity
@@ -77,6 +79,7 @@ public struct UsageSnapshot: Codable, Sendable {
         secondary: RateWindow?,
         tertiary: RateWindow? = nil,
         providerCost: ProviderCostSnapshot? = nil,
+        cursorPlanCost: ProviderCostSnapshot? = nil,
         zaiUsage: ZaiUsageSnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
         openRouterUsage: OpenRouterUsageSnapshot? = nil,
@@ -88,6 +91,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.secondary = secondary
         self.tertiary = tertiary
         self.providerCost = providerCost
+        self.cursorPlanCost = cursorPlanCost
         self.zaiUsage = zaiUsage
         self.minimaxUsage = minimaxUsage
         self.openRouterUsage = openRouterUsage
@@ -102,6 +106,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.secondary = try container.decodeIfPresent(RateWindow.self, forKey: .secondary)
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
+        self.cursorPlanCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .cursorPlanCost)
         self.zaiUsage = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.openRouterUsage = try container.decodeIfPresent(OpenRouterUsageSnapshot.self, forKey: .openRouterUsage)
@@ -132,6 +137,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encode(self.secondary, forKey: .secondary)
         try container.encode(self.tertiary, forKey: .tertiary)
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
+        try container.encodeIfPresent(self.cursorPlanCost, forKey: .cursorPlanCost)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
         try container.encode(self.updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(self.identity, forKey: .identity)
@@ -185,6 +191,7 @@ public struct UsageSnapshot: Codable, Sendable {
             secondary: self.secondary,
             tertiary: self.tertiary,
             providerCost: self.providerCost,
+            cursorPlanCost: self.cursorPlanCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
             openRouterUsage: self.openRouterUsage,

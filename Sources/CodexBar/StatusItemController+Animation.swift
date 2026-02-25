@@ -441,6 +441,10 @@ extension StatusItemController {
     }
 
     func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        if provider == .cursor {
+            return self.cursorMenuBarDollarText(snapshot: snapshot)
+        }
+
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
         let displayText = MenuBarDisplayText.displayText(
             mode: self.settings.menuBarDisplayMode,
@@ -469,6 +473,24 @@ extension StatusItemController {
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
         self.menuBarMetricWindow(for: provider, snapshot: snapshot)
+    }
+
+    private func cursorMenuBarDollarText(snapshot: UsageSnapshot?) -> String? {
+        guard let cost = snapshot?.cursorPlanCost, cost.limit > 0 else { return nil }
+
+        let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+        if cost.used > cost.limit {
+            let overLimit = UsageFormatter.currencyString(cost.used - cost.limit, currencyCode: cost.currencyCode)
+            return "\(overLimit) over"
+        }
+
+        if self.settings.usageBarsShowUsed {
+            let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            return "\(used)/\(limit)"
+        } else {
+            let remaining = UsageFormatter.currencyString(cost.limit - cost.used, currencyCode: cost.currencyCode)
+            return "\(remaining)/\(limit)"
+        }
     }
 
     private func primaryProviderForUnifiedIcon() -> UsageProvider {

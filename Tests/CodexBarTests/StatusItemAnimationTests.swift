@@ -427,6 +427,98 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func menuBarDisplayTextUsesCursorDollarsInsteadOfPercent() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-cursor-dollars"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .cursor
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.primary, for: .cursor)
+
+        let registry = ProviderRegistry.shared
+        if let cursorMeta = registry.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: cursorMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 1, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            cursorPlanCost: ProviderCostSnapshot(
+                used: 20,
+                limit: 400,
+                currencyCode: "USD",
+                period: "monthly",
+                resetsAt: nil,
+                updatedAt: Date()),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let displayText = controller.menuBarDisplayText(for: .cursor, snapshot: snapshot)
+
+        #expect(displayText == "$20.00/$400.00")
+    }
+
+    @Test
+    func menuBarDisplayTextHidesCursorTextWhenDollarDataMissing() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-cursor-no-dollars"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .cursor
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.primary, for: .cursor)
+
+        let registry = ProviderRegistry.shared
+        if let cursorMeta = registry.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: cursorMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            cursorPlanCost: nil,
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let displayText = controller.menuBarDisplayText(for: .cursor, snapshot: snapshot)
+
+        #expect(displayText == nil)
+    }
+
+    @Test
     func menuBarDisplayTextUsesCreditsWhenCodexWeeklyIsExhausted() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-credits-fallback"),
