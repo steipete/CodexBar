@@ -96,6 +96,13 @@ struct GeneralPane: View {
                         subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +
                             "available again.",
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
+                    PreferenceToggleRow(
+                        title: "Quota warning notifications",
+                        subtitle: "Warns before quota runs out. Fires once per threshold per window.",
+                        binding: self.$settings.quotaWarningNotificationsEnabled)
+                    if self.settings.quotaWarningNotificationsEnabled {
+                        QuotaWarningThresholdPicker(settings: self.settings)
+                    }
                 }
 
                 Divider()
@@ -161,5 +168,37 @@ struct GeneralPane: View {
         return Text("\(name): no data yet")
             .font(.footnote)
             .foregroundStyle(.tertiary)
+    }
+}
+
+@MainActor
+private struct QuotaWarningThresholdPicker: View {
+    @Bindable var settings: SettingsStore
+
+    private static let availableThresholds = [80, 50, 20, 10]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Warn at these remaining levels:")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ForEach(Self.availableThresholds, id: \.self) { threshold in
+                    Toggle("\(threshold)%", isOn: Binding(
+                        get: { self.settings.quotaWarningThresholds.contains(threshold) },
+                        set: { isOn in
+                            var current = self.settings.quotaWarningThresholds
+                            if isOn {
+                                if !current.contains(threshold) { current.append(threshold) }
+                            } else {
+                                current.removeAll { $0 == threshold }
+                            }
+                            self.settings.quotaWarningThresholds = current.sorted(by: >)
+                        }))
+                    .toggleStyle(.checkbox)
+                }
+            }
+        }
+        .padding(.leading, 20)
     }
 }

@@ -38,6 +38,8 @@ extension UsageStore {
             _ = self.settings.refreshFrequency
             _ = self.settings.statusChecksEnabled
             _ = self.settings.sessionQuotaNotificationsEnabled
+            _ = self.settings.quotaWarningNotificationsEnabled
+            _ = self.settings.quotaWarningThresholds
             _ = self.settings.usageBarsShowUsed
             _ = self.settings.costUsageEnabled
             _ = self.settings.randomBlinkEnabled
@@ -192,6 +194,10 @@ final class UsageStore {
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
+    @ObservationIgnored var lastKnownSecondaryRemaining: [UsageProvider: Double] = [:]
+    @ObservationIgnored var quotaWarningFiredThresholds: [UsageProvider: [QuotaWarningWindow: Set<Int>]] = [:]
+    @ObservationIgnored private let quotaWarningNotifier: QuotaWarningNotifier
+    @ObservationIgnored private let quotaWarningLogger = CodexBarLog.logger(LogCategories.quotaWarning)
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
@@ -204,7 +210,8 @@ final class UsageStore {
         costUsageFetcher: CostUsageFetcher = CostUsageFetcher(),
         settings: SettingsStore,
         registry: ProviderRegistry = .shared,
-        sessionQuotaNotifier: SessionQuotaNotifier = SessionQuotaNotifier())
+        sessionQuotaNotifier: SessionQuotaNotifier = SessionQuotaNotifier(),
+        quotaWarningNotifier: QuotaWarningNotifier = QuotaWarningNotifier())
     {
         self.codexFetcher = fetcher
         self.browserDetection = browserDetection
@@ -213,6 +220,7 @@ final class UsageStore {
         self.settings = settings
         self.registry = registry
         self.sessionQuotaNotifier = sessionQuotaNotifier
+        self.quotaWarningNotifier = quotaWarningNotifier
         self.providerMetadata = registry.metadata
         self
             .failureGates = Dictionary(
@@ -592,6 +600,71 @@ final class UsageStore {
         self.sessionQuotaLogger.info(message)
 
         self.sessionQuotaNotifier.post(transition: transition, provider: provider)
+    }
+
+    func handleQuotaWarningTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
+        guard self.settings.quotaWarningNotificationsEnabled else { return }
+        let thresholds = self.settings.quotaWarningThresholds.sorted(by: >)
+        guard !thresholds.isEmpty else { return }
+
+        if let primary = snapshot.primary {
+            self.processWarningWindow(
+                provider: provider,
+                window: .primary,
+                currentRemaining: primary.remainingPercent,
+                previousRemaining: self.lastKnownSessionRemaining[provider],
+                thresholds: thresholds)
+        }
+
+        if let secondary = snapshot.secondary {
+            self.processWarningWindow(
+                provider: provider,
+                window: .secondary,
+                currentRemaining: secondary.remainingPercent,
+                previousRemaining: self.lastKnownSecondaryRemaining[provider],
+                thresholds: thresholds)
+            self.lastKnownSecondaryRemaining[provider] = secondary.remainingPercent
+        }
+    }
+
+    private func processWarningWindow(
+        provider: UsageProvider,
+        window: QuotaWarningWindow,
+        currentRemaining: Double,
+        previousRemaining: Double?,
+        thresholds: [Int])
+    {
+        var firedSet = self.quotaWarningFiredThresholds[provider]?[window] ?? []
+
+        let restored = QuotaWarningNotificationLogic.restoredThresholds(
+            currentRemaining: currentRemaining, alreadyFired: firedSet)
+        firedSet.subtract(restored)
+
+        let crossed = QuotaWarningNotificationLogic.crossedThresholds(
+            previousRemaining: previousRemaining,
+            currentRemaining: currentRemaining,
+            thresholds: thresholds,
+            alreadyFired: firedSet)
+
+        for threshold in crossed {
+            let event = QuotaWarningEvent(
+                threshold: threshold, window: window, currentRemaining: currentRemaining)
+            self.quotaWarningLogger.info(
+                "threshold crossed",
+                metadata: [
+                    "provider": provider.rawValue,
+                    "window": window.rawValue,
+                    "threshold": "\(threshold)",
+                    "remaining": "\(currentRemaining)",
+                ])
+            self.quotaWarningNotifier.post(event: event, provider: provider)
+            firedSet.insert(threshold)
+        }
+
+        if self.quotaWarningFiredThresholds[provider] == nil {
+            self.quotaWarningFiredThresholds[provider] = [:]
+        }
+        self.quotaWarningFiredThresholds[provider]?[window] = firedSet
     }
 
     private func refreshStatus(_ provider: UsageProvider) async {
