@@ -26,6 +26,18 @@ read_when:
 - Web-only rows (when OpenAI cookies are enabled): code review remaining, usage breakdown submenu.
 - Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.
 
+## Pace tracking
+
+Pace compares your actual usage against an even-consumption budget that would spread your allowance evenly across the reset window.
+
+- **On pace** – usage matches the expected rate.
+- **X% in deficit** – you're consuming faster than the even rate; at this pace you'll run out before the window resets.
+- **X% in reserve** – you're consuming slower than the even rate; you have headroom to spare.
+
+When usage is in deficit, the right-hand label shows an estimated "Runs out in …" countdown. When usage will last until the reset, it shows "Lasts until reset".
+
+Pace is calculated for Codex and Claude weekly windows only and is hidden when less than 3% of the window has elapsed.
+
 ## Preferences notes
 - Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.
 - Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 3).
