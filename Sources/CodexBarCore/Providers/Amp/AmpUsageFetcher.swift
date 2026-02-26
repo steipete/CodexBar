@@ -321,6 +321,16 @@ public struct AmpUsageFetcher: Sendable {
             }
             completionHandler(updated)
         }
+
+        private func isLoginRedirect(_ url: URL) -> Bool {
+            let path = url.path.lowercased()
+            let query = url.query?.lowercased() ?? ""
+            return path.contains("/login") ||
+                   path.contains("/signin") ||
+                   path.contains("/sign-in") ||
+                   query.contains("login") ||
+                   query.contains("signin")
+        }
     }
 
     private struct ResponseInfo: Sendable {
