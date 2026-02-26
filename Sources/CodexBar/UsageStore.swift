@@ -93,32 +93,6 @@ enum ProviderStatusIndicator: String {
     }
 }
 
-#if DEBUG
-extension UsageStore {
-    func _setSnapshotForTesting(_ snapshot: UsageSnapshot?, provider: UsageProvider) {
-        self.snapshots[provider] = snapshot?.scoped(to: provider)
-    }
-
-    func _setTokenSnapshotForTesting(_ snapshot: CostUsageTokenSnapshot?, provider: UsageProvider) {
-        self.tokenSnapshots[provider] = snapshot
-    }
-
-    func _setTokenErrorForTesting(_ error: String?, provider: UsageProvider) {
-        self.tokenErrors[provider] = error
-    }
-
-    func _setErrorForTesting(_ error: String?, provider: UsageProvider) {
-        self.errors[provider] = error
-    }
-
-    func _setCodexHistoricalDatasetForTesting(_ dataset: CodexHistoricalDataset?, accountKey: String? = nil) {
-        self.codexHistoricalDataset = dataset
-        self.codexHistoricalDatasetAccountKey = accountKey
-        self.historicalPaceRevision += 1
-    }
-}
-#endif
-
 struct ProviderStatus {
     let indicator: ProviderStatusIndicator
     let description: String?
@@ -185,7 +159,7 @@ final class UsageStore {
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
-    @ObservationIgnored private let sessionQuotaNotifier: SessionQuotaNotifier
+    @ObservationIgnored private let sessionQuotaNotifier: any SessionQuotaNotifying
     @ObservationIgnored private let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
     @ObservationIgnored private let openAIWebLogger = CodexBarLog.logger(LogCategories.openAIWeb)
     @ObservationIgnored private let tokenCostLogger = CodexBarLog.logger(LogCategories.tokenCost)
@@ -205,6 +179,7 @@ final class UsageStore {
     @ObservationIgnored var codexHistoricalDataset: CodexHistoricalDataset?
     @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
+    @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
@@ -218,7 +193,7 @@ final class UsageStore {
         settings: SettingsStore,
         registry: ProviderRegistry = .shared,
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
-        sessionQuotaNotifier: SessionQuotaNotifier = SessionQuotaNotifier())
+        sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier())
     {
         self.codexFetcher = fetcher
         self.browserDetection = browserDetection
@@ -323,29 +298,6 @@ final class UsageStore {
         // Use cached enablement to avoid repeated UserDefaults lookups in animation ticks.
         let enabled = self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata)
         return enabled.filter { self.isProviderAvailable($0) }
-    }
-
-    /// Returns the enabled provider with the highest usage percentage (closest to rate limit).
-    /// Excludes providers already at 100% since they're fully rate-limited.
-    func providerWithHighestUsage() -> (provider: UsageProvider, usedPercent: Double)? {
-        var highest: (provider: UsageProvider, usedPercent: Double)?
-        for provider in self.enabledProviders() {
-            guard let snapshot = self.snapshots[provider] else { continue }
-            // Use the same window selection logic as menuBarPercentWindow:
-            // Factory and Kimi use secondary first, others use primary first.
-            let window: RateWindow? = if provider == .factory || provider == .kimi {
-                snapshot.secondary ?? snapshot.primary
-            } else {
-                snapshot.primary ?? snapshot.secondary
-            }
-            let percent = window?.usedPercent ?? 0
-            // Skip providers already at 100% - they're fully rate-limited
-            guard percent < 100 else { continue }
-            if highest == nil || percent > highest!.usedPercent {
-                highest = (provider, percent)
-            }
-        }
-        return highest
     }
 
     var statusChecksEnabled: Bool {
@@ -556,12 +508,51 @@ final class UsageStore {
         self.tokenRefreshSequenceTask?.cancel()
     }
 
-    func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
-        guard let primary = snapshot.primary else { return }
-        let currentRemaining = primary.remainingPercent
-        let previousRemaining = self.lastKnownSessionRemaining[provider]
+    enum SessionQuotaWindowSource: String {
+        case primary
+        case copilotSecondaryFallback
+    }
 
-        defer { self.lastKnownSessionRemaining[provider] = currentRemaining }
+    private func sessionQuotaWindow(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot) -> (window: RateWindow, source: SessionQuotaWindowSource)?
+    {
+        if let primary = snapshot.primary {
+            return (primary, .primary)
+        }
+        if provider == .copilot, let secondary = snapshot.secondary {
+            return (secondary, .copilotSecondaryFallback)
+        }
+        return nil
+    }
+
+    func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
+        // Session quota notifications are tied to the primary session window. Copilot free plans can
+        // expose only chat quota, so allow Copilot to fall back to secondary for transition tracking.
+        guard let sessionWindow = self.sessionQuotaWindow(provider: provider, snapshot: snapshot) else {
+            self.lastKnownSessionRemaining.removeValue(forKey: provider)
+            self.lastKnownSessionWindowSource.removeValue(forKey: provider)
+            return
+        }
+        let currentRemaining = sessionWindow.window.remainingPercent
+        let currentSource = sessionWindow.source
+        let previousRemaining = self.lastKnownSessionRemaining[provider]
+        let previousSource = self.lastKnownSessionWindowSource[provider]
+
+        if let previousSource, previousSource != currentSource {
+            let providerText = provider.rawValue
+            self.sessionQuotaLogger.debug(
+                "session window source changed: provider=\(providerText) prevSource=\(previousSource.rawValue) " +
+                    "currSource=\(currentSource.rawValue) curr=\(currentRemaining)")
+            self.lastKnownSessionRemaining[provider] = currentRemaining
+            self.lastKnownSessionWindowSource[provider] = currentSource
+            return
+        }
+
+        defer {
+            self.lastKnownSessionRemaining[provider] = currentRemaining
+            self.lastKnownSessionWindowSource[provider] = currentSource
+        }
 
         guard self.settings.sessionQuotaNotificationsEnabled else {
             if SessionQuotaNotificationLogic.isDepleted(currentRemaining) ||
@@ -581,7 +572,7 @@ final class UsageStore {
                 let providerText = provider.rawValue
                 let message = "startup depleted: provider=\(providerText) curr=\(currentRemaining)"
                 self.sessionQuotaLogger.info(message)
-                self.sessionQuotaNotifier.post(transition: .depleted, provider: provider)
+                self.sessionQuotaNotifier.post(transition: .depleted, provider: provider, badge: nil)
             }
             return
         }
@@ -609,7 +600,7 @@ final class UsageStore {
             "prev=\(previousRemaining ?? -1) curr=\(currentRemaining)"
         self.sessionQuotaLogger.info(message)
 
-        self.sessionQuotaNotifier.post(transition: transition, provider: provider)
+        self.sessionQuotaNotifier.post(transition: transition, provider: provider, badge: nil)
     }
 
     private func refreshStatus(_ provider: UsageProvider) async {

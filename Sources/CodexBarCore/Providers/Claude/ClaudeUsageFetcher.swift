@@ -48,7 +48,7 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .claudeNotInstalled:
-            "Claude CLI is not installed. Install it from https://docs.claude.ai/claude-code."
+            "Claude CLI is not installed. Install it from https://code.claude.com/docs/en/overview."
         case let .parseFailed(details):
             "Could not parse Claude usage: \(details)"
         case let .oauthFailed(details):

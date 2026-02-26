@@ -137,6 +137,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             if provider == .factory || provider == .kimi {
                 return snapshot?.secondary ?? snapshot?.primary
             }
+            if provider == .copilot,
+               let primary = snapshot?.primary,
+               let secondary = snapshot?.secondary
+            {
+                // Copilot can expose chat + completions quotas; show the more constrained one by default.
+                return primary.usedPercent >= secondary.usedPercent ? primary : secondary
+            }
             return snapshot?.primary ?? snapshot?.secondary
         }
     }
