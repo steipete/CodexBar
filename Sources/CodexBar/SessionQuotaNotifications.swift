@@ -30,7 +30,12 @@ enum SessionQuotaNotificationLogic {
 }
 
 @MainActor
-final class SessionQuotaNotifier {
+protocol SessionQuotaNotifying: AnyObject {
+    func post(transition: SessionQuotaTransition, provider: UsageProvider, badge: NSNumber?)
+}
+
+@MainActor
+final class SessionQuotaNotifier: SessionQuotaNotifying {
     private let logger = CodexBarLog.logger(LogCategories.sessionQuotaNotifications)
 
     init() {}
