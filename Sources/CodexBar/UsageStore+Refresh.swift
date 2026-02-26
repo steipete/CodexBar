@@ -90,6 +90,9 @@ extension UsageStore {
                     provider: provider, settings: self.settings, store: self)
                 runtime.providerDidRefresh(context: context, provider: provider)
             }
+            if provider == .codex {
+                self.recordCodexHistoricalSampleIfNeeded(snapshot: scoped)
+            }
         case let .failure(error):
             await MainActor.run {
                 let hadPriorData = self.snapshots[provider] != nil

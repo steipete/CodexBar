@@ -633,7 +633,50 @@ extension UsageMenuCardView.Model {
         let tokenCostUsageEnabled: Bool
         let showOptionalCreditsAndExtraUsage: Bool
         let hidePersonalInfo: Bool
+        let weeklyPace: UsagePace?
         let now: Date
+
+        init(
+            provider: UsageProvider,
+            metadata: ProviderMetadata,
+            snapshot: UsageSnapshot?,
+            credits: CreditsSnapshot?,
+            creditsError: String?,
+            dashboard: OpenAIDashboardSnapshot?,
+            dashboardError: String?,
+            tokenSnapshot: CostUsageTokenSnapshot?,
+            tokenError: String?,
+            account: AccountInfo,
+            isRefreshing: Bool,
+            lastError: String?,
+            usageBarsShowUsed: Bool,
+            resetTimeDisplayStyle: ResetTimeDisplayStyle,
+            tokenCostUsageEnabled: Bool,
+            showOptionalCreditsAndExtraUsage: Bool,
+            hidePersonalInfo: Bool,
+            weeklyPace: UsagePace? = nil,
+            now: Date)
+        {
+            self.provider = provider
+            self.metadata = metadata
+            self.snapshot = snapshot
+            self.credits = credits
+            self.creditsError = creditsError
+            self.dashboard = dashboard
+            self.dashboardError = dashboardError
+            self.tokenSnapshot = tokenSnapshot
+            self.tokenError = tokenError
+            self.account = account
+            self.isRefreshing = isRefreshing
+            self.lastError = lastError
+            self.usageBarsShowUsed = usageBarsShowUsed
+            self.resetTimeDisplayStyle = resetTimeDisplayStyle
+            self.tokenCostUsageEnabled = tokenCostUsageEnabled
+            self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
+            self.hidePersonalInfo = hidePersonalInfo
+            self.weeklyPace = weeklyPace
+            self.now = now
+        }
     }
 
     static func make(_ input: Input) -> UsageMenuCardView.Model {
@@ -839,9 +882,9 @@ extension UsageMenuCardView.Model {
         }
         if let weekly = snapshot.secondary {
             let paceDetail = Self.weeklyPaceDetail(
-                provider: input.provider,
                 window: weekly,
                 now: input.now,
+                pace: input.weeklyPace,
                 showUsed: input.usageBarsShowUsed)
             var weeklyResetText = Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now)
             var weeklyDetailText: String? = input.provider == .zai ? zaiTimeDetail : nil
@@ -934,12 +977,13 @@ extension UsageMenuCardView.Model {
     }
 
     private static func weeklyPaceDetail(
-        provider: UsageProvider,
         window: RateWindow,
         now: Date,
+        pace: UsagePace?,
         showUsed: Bool) -> PaceDetail?
     {
-        guard let detail = UsagePaceText.weeklyDetail(provider: provider, window: window, now: now) else { return nil }
+        guard let pace else { return nil }
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
         let expectedUsed = detail.expectedUsedPercent
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)

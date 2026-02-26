@@ -338,6 +338,10 @@ struct ProvidersPane: View {
             tokenError = nil
         }
 
+        let now = Date()
+        let weeklyPace = snapshot?.secondary.flatMap { window in
+            self.store.weeklyPace(provider: provider, window: window, now: now)
+        }
         let input = UsageMenuCardView.Model.Input(
             provider: provider,
             metadata: metadata,
@@ -356,7 +360,8 @@ struct ProvidersPane: View {
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             hidePersonalInfo: self.settings.hidePersonalInfo,
-            now: Date())
+            weeklyPace: weeklyPace,
+            now: now)
         return UsageMenuCardView.Model.make(input)
     }
 
