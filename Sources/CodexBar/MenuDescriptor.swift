@@ -141,6 +141,9 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(detail, .secondary))
                 }
+                if let paceSummary = UsagePaceText.sessionSummary(provider: provider, window: primary) {
+                    entries.append(.text(paceSummary, .secondary))
+                }
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
