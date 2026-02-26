@@ -132,12 +132,21 @@ public struct JulesStatusProbe: Sendable {
         let (email, plan) = await self.fetchIdentityFromCLIState()
 
         let binary = TTYCommandRunner.which("jules") ?? "jules"
-        let result = try await SubprocessRunner.run(
-            binary: binary,
-            arguments: ["remote", "list", "--session"],
-            environment: TTYCommandRunner.enrichedEnvironment(),
-            timeout: self.timeout,
-            label: "jules-status")
+        
+        let result: SubprocessResult
+        do {
+            result = try await SubprocessRunner.run(
+                binary: binary,
+                arguments: ["remote", "list", "--session"],
+                environment: TTYCommandRunner.enrichedEnvironment(),
+                timeout: self.timeout,
+                label: "jules-status")
+        } catch let SubprocessRunnerError.nonZeroExit(_, stderr) {
+            // Even if the command failed, it might contain the login error message.
+            return try Self.parse(text: stderr, email: email, plan: plan)
+        } catch {
+            throw error
+        }
 
         return try Self.parse(text: result.stdout + result.stderr, email: email, plan: plan)
     }
@@ -215,6 +224,7 @@ public struct JulesStatusProbe: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data("{\"metadata\":{\"ideType\":\"GEMINI_CLI\",\"pluginType\":\"GEMINI\"}}".utf8)
+        request.timeoutInterval = self.timeout
         
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
