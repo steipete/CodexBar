@@ -156,6 +156,10 @@ extension UsageStore {
                 scoped
             }
             await MainActor.run {
+                if let account, self.lastWarningAccountID[provider] != account.id {
+                    self.resetQuotaWarningState(for: provider)
+                    self.lastWarningAccountID[provider] = account.id
+                }
                 self.handleQuotaWarningTransition(provider: provider, snapshot: labeled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: labeled)
                 self.snapshots[provider] = labeled
