@@ -2,20 +2,37 @@ import Foundation
 
 public struct JulesStatusSnapshot: Sendable {
     public let activeSessions: Int
-    public let totalLimit: Int = 100 // Hardcoded as per user observation
+    public let totalLimit: Int
     public let isAuthenticated: Bool
     public let rawText: String
     public let accountEmail: String?
     public let accountPlan: String?
 
+    public init(
+        activeSessions: Int,
+        totalLimit: Int = 100,
+        isAuthenticated: Bool,
+        rawText: String,
+        accountEmail: String? = nil,
+        accountPlan: String? = nil)
+    {
+        self.activeSessions = activeSessions
+        self.totalLimit = totalLimit
+        self.isAuthenticated = isAuthenticated
+        self.rawText = rawText
+        self.accountEmail = accountEmail
+        self.accountPlan = accountPlan
+    }
+
     public func toUsageSnapshot() -> UsageSnapshot {
-        let usedPercent = (Double(self.activeSessions) / Double(self.totalLimit)) * 100.0
+        let limit = max(1, self.totalLimit)
+        let usedPercent = (Double(self.activeSessions) / Double(limit)) * 100.0
 
         let primary = RateWindow(
             usedPercent: usedPercent,
             windowMinutes: 24 * 60, // 24h rolling window
             resetsAt: nil,
-            resetDescription: "\(self.activeSessions)/\(self.totalLimit) (24h rolling)")
+            resetDescription: "\(self.activeSessions)/\(limit) (24h rolling)")
 
         let identity = ProviderIdentitySnapshot(
             providerID: .jules,
@@ -26,6 +43,12 @@ public struct JulesStatusSnapshot: Sendable {
         return UsageSnapshot(
             primary: primary,
             secondary: nil,
+            tertiary: nil,
+            providerCost: nil,
+            zaiUsage: nil,
+            minimaxUsage: nil,
+            openRouterUsage: nil,
+            cursorRequests: nil,
             updatedAt: Date(),
             identity: identity)
     }
@@ -77,6 +100,7 @@ public struct JulesStatusProbe: Sendable {
         if text.contains("No sessions found") {
             return JulesStatusSnapshot(
                 activeSessions: 0,
+                totalLimit: 100,
                 isAuthenticated: true,
                 rawText: text,
                 accountEmail: email,
@@ -92,6 +116,7 @@ public struct JulesStatusProbe: Sendable {
 
         return JulesStatusSnapshot(
             activeSessions: activeSessions,
+            totalLimit: 100,
             isAuthenticated: true,
             rawText: text,
             accountEmail: email,
@@ -191,7 +216,7 @@ public struct JulesStatusProbe: Sendable {
         request.httpBody = Data("{\"metadata\":{\"ideType\":\"GEMINI_CLI\",\"pluginType\":\"GEMINI\"}}".utf8)
         
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, _) = try await URLSession.shared.data(for: request)
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let currentTier = json["currentTier"] as? [String: Any],
                let tierId = currentTier["id"] as? String {

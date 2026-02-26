@@ -11,7 +11,7 @@ public enum JulesProviderDescriptor {
                 id: .jules,
                 displayName: "Jules",
                 sessionLabel: "Sessions",
-                weeklyLabel: "Active",
+                weeklyLabel: "",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
