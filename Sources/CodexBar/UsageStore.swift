@@ -196,6 +196,7 @@ final class UsageStore {
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSecondaryRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var quotaWarningFiredThresholds: [UsageProvider: [QuotaWarningWindow: Set<Int>]] = [:]
+    @ObservationIgnored var lastWarningAccountID: [UsageProvider: UUID] = [:]
     @ObservationIgnored private let quotaWarningNotifier: QuotaWarningNotifier
     @ObservationIgnored private let quotaWarningLogger = CodexBarLog.logger(LogCategories.quotaWarning)
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
@@ -633,6 +634,14 @@ final class UsageStore {
                 previousRemaining: self.lastKnownSecondaryRemaining[provider],
                 thresholds: thresholds)
         }
+    }
+
+    /// Resets quota warning baselines and fired thresholds for a provider.
+    /// Call when the selected token account changes to avoid false alerts
+    /// caused by a different account's remaining quota.
+    func resetQuotaWarningState(for provider: UsageProvider) {
+        self.lastKnownSecondaryRemaining.removeValue(forKey: provider)
+        self.quotaWarningFiredThresholds.removeValue(forKey: provider)
     }
 
     private func processWarningWindow(
