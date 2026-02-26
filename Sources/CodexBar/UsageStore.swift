@@ -238,6 +238,7 @@ final class UsageStore {
             codexBinary: nil,
             claudeBinary: nil,
             geminiBinary: nil,
+            julesBinary: nil,
             effectivePATH: PathBuilder.effectivePATH(purposes: [.rpc, .tty, .nodeTooling]),
             loginShellPATH: LoginShellPathCache.shared.current?.joined(separator: ":"))
         Task { @MainActor [weak self] in
@@ -1181,6 +1182,7 @@ extension UsageStore {
                 .kimi: "Kimi debug log not yet implemented",
                 .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
+                .jules: "Jules debug log not yet implemented",
             ]
             let text: String
             switch provider {
@@ -1243,7 +1245,7 @@ extension UsageStore {
                 let hasAny = resolution != nil
                 let source = resolution?.source.rawValue ?? "none"
                 text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-            case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kiro, .kimi, .kimik2, .jetbrains:
+            case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kiro, .kimi, .kimik2, .jetbrains, .jules:
                 text = unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
             }
 

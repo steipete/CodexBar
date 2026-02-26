@@ -12,6 +12,7 @@ enum ProviderChoice: String, AppEnum {
     case copilot
     case minimax
     case opencode
+    case jules
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
@@ -24,6 +25,7 @@ enum ProviderChoice: String, AppEnum {
         .copilot: DisplayRepresentation(title: "Copilot"),
         .minimax: DisplayRepresentation(title: "MiniMax"),
         .opencode: DisplayRepresentation(title: "OpenCode"),
+        .jules: DisplayRepresentation(title: "Jules"),
     ]
 
     var provider: UsageProvider {
@@ -36,6 +38,7 @@ enum ProviderChoice: String, AppEnum {
         case .copilot: .copilot
         case .minimax: .minimax
         case .opencode: .opencode
+        case .jules: .jules
         }
     }
 
@@ -63,6 +66,7 @@ enum ProviderChoice: String, AppEnum {
         case .synthetic: return nil // Synthetic not yet supported in widgets
         case .openrouter: return nil // OpenRouter not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets
+        case .jules: self = .jules
         }
     }
 }

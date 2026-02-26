@@ -28,6 +28,11 @@ public enum ProviderVersionDetector {
         return nil
     }
 
+    public static func genericVersion(command: String, argument: String = "--version") -> String? {
+        guard let path = TTYCommandRunner.which(command) else { return nil }
+        return Self.run(path: path, args: [argument])
+    }
+
     private static func run(path: String, args: [String]) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
@@ -54,10 +59,12 @@ public enum ProviderVersionDetector {
             }
             if proc.isRunning {
                 kill(proc.processIdentifier, SIGKILL)
+                proc.waitUntilExit()
             }
         }
 
         let data = out.fileHandleForReading.readDataToEndOfFile()
+        proc.waitUntilExit()
         guard proc.terminationStatus == 0,
               let text = String(data: data, encoding: .utf8)?
                   .split(whereSeparator: \.isNewline).first

@@ -2,25 +2,26 @@ import Foundation
 
 public struct JulesStatusSnapshot: Sendable {
     public let activeSessions: Int
+    public let totalLimit: Int = 100 // Hardcoded as per user observation
     public let isAuthenticated: Bool
     public let rawText: String
+    public let accountEmail: String?
+    public let accountPlan: String?
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        // We use "active sessions" as the primary usage metric.
-        // Since there is no fixed limit, we just show the count.
-        // windowMinutes/resetsAt are nil as this is a state, not a rate limit.
+        let usedPercent = (Double(self.activeSessions) / Double(self.totalLimit)) * 100.0
 
         let primary = RateWindow(
-            usedPercent: 0, // No percent, just a count
-            windowMinutes: nil,
+            usedPercent: usedPercent,
+            windowMinutes: 24 * 60, // 24h rolling window
             resetsAt: nil,
-            resetDescription: "\(self.activeSessions) active")
+            resetDescription: "\(self.activeSessions)/\(self.totalLimit) (24h rolling)")
 
         let identity = ProviderIdentitySnapshot(
             providerID: .jules,
-            accountEmail: nil,
+            accountEmail: self.accountEmail,
             accountOrganization: nil,
-            loginMethod: self.isAuthenticated ? "CLI" : nil)
+            loginMethod: self.accountPlan)
 
         return UsageSnapshot(
             primary: primary,
@@ -35,6 +36,7 @@ public enum JulesStatusProbeError: LocalizedError, Sendable, Equatable {
     case notLoggedIn
     case commandFailed(String)
     case timedOut
+    case apiError(String)
 
     public var errorDescription: String? {
         switch self {
@@ -46,29 +48,65 @@ public enum JulesStatusProbeError: LocalizedError, Sendable, Equatable {
             "Jules CLI error: \(msg)"
         case .timedOut:
             "Jules CLI request timed out."
+        case let .apiError(msg):
+            "Jules API error: \(msg)"
         }
     }
 }
 
 public struct JulesStatusProbe: Sendable {
     public var timeout: TimeInterval = 10.0
+    private static let log = CodexBarLog.logger(LogCategories.providers)
+    
+    private static let loadCodeAssistEndpoint = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
+    private static let geminiCredentialsPath = "/.gemini/oauth_creds.json"
 
     public init(timeout: TimeInterval = 10.0) {
         self.timeout = timeout
     }
 
+    public static func parse(text: String, email: String? = nil, plan: String? = nil) throws -> JulesStatusSnapshot {
+        if text.contains("did you forget to login") || text.contains("jules login") {
+            throw JulesStatusProbeError.notLoggedIn
+        }
+
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        if text.contains("No sessions found") {
+            return JulesStatusSnapshot(
+                activeSessions: 0,
+                isAuthenticated: true,
+                rawText: text,
+                accountEmail: email,
+                accountPlan: plan)
+        }
+
+        var activeSessions = 0
+        if let first = lines.first, first.contains("ID") && first.contains("Description") {
+            activeSessions = max(0, lines.count - 1)
+        } else {
+            activeSessions = lines.count
+        }
+
+        return JulesStatusSnapshot(
+            activeSessions: activeSessions,
+            isAuthenticated: true,
+            rawText: text,
+            accountEmail: email,
+            accountPlan: plan)
+    }
+
     public func fetch() async throws -> JulesStatusSnapshot {
-        // Check if jules is installed
-        // Using TTYCommandRunner.which similar to other providers
         guard TTYCommandRunner.which("jules") != nil else {
             throw JulesStatusProbeError.julesNotInstalled
         }
 
-        // Find the absolute path to ensure we run the correct binary
-        let binary = TTYCommandRunner.which("jules") ?? "jules"
+        // Try identity fetch leveraging Gemini credentials
+        let (email, plan) = await self.fetchIdentityFromGemini()
 
-        // Run `jules remote list --session` to get active sessions
-        // Using SubprocessRunner.run which is a static async method
+        let binary = TTYCommandRunner.which("jules") ?? "jules"
         let result = try await SubprocessRunner.run(
             binary: binary,
             arguments: ["remote", "list", "--session"],
@@ -76,34 +114,97 @@ public struct JulesStatusProbe: Sendable {
             timeout: self.timeout,
             label: "jules-status")
 
-        // Check for login error in stderr/stdout
-        // "Error: failed to list tasks: Trying to make a GET request without a valid client (did you forget to login?)"
-        let output = result.stdout + result.stderr
-        if output.contains("did you forget to login") || output.contains("jules login") {
+        return try Self.parse(text: result.stdout + result.stderr, email: email, plan: plan)
+    }
+
+    // MARK: - Gemini Identity Fallback
+
+    private struct OAuthCredentials {
+        let accessToken: String?
+        let idToken: String?
+    }
+
+    private func fetchIdentityFromGemini() async -> (email: String?, plan: String?) {
+        guard let creds = try? loadGeminiCredentials() else {
+            Self.log.info("No Gemini credentials found for Jules fallback")
+            return (nil, nil)
+        }
+        
+        let email = extractEmailFromToken(creds.idToken)
+        
+        var plan: String? = nil
+        if let accessToken = creds.accessToken {
+            plan = await fetchTier(accessToken: accessToken)
+        }
+        
+        return (email, plan)
+    }
+
+    private func loadGeminiCredentials() throws -> OAuthCredentials {
+        let home = NSHomeDirectory()
+        let credsURL = URL(fileURLWithPath: home + Self.geminiCredentialsPath)
+
+        guard FileManager.default.fileExists(atPath: credsURL.path) else {
             throw JulesStatusProbeError.notLoggedIn
         }
 
-        // SubprocessRunner throws nonZeroExit if exit code is not 0, so we catch it via try? or rely on the throw.
-        // However, if we want to parse the output even on failure (sometimes tools print helpful error messages),
-        // we might want to catch specific errors. But SubprocessRunner design throws on non-zero exit.
-        // We'll rely on the happy path here.
+        let data = try Data(contentsOf: credsURL)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw JulesStatusProbeError.apiError("Invalid credentials file")
+        }
 
-        // Parse output to count sessions
-        // Output format is typically a list of sessions, one per line (maybe with a header).
-        // Let's assume each line is a session for now, filtering out empty lines.
-        // If the list is empty, it might just print nothing or "No sessions found".
+        return OAuthCredentials(
+            accessToken: json["access_token"] as? String,
+            idToken: json["id_token"] as? String)
+    }
 
-        let lines = result.stdout.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+    private func extractEmailFromToken(_ idToken: String?) -> String? {
+        guard let token = idToken else { return nil }
 
-        // If there's a header, we might need to skip it.
-        // Assuming no header for now based on typical CLI tools, or we can refine later.
-        let activeSessions = lines.count
+        let parts = token.components(separatedBy: ".")
+        guard parts.count >= 2 else { return nil }
 
-        return JulesStatusSnapshot(
-            activeSessions: activeSessions,
-            isAuthenticated: true,
-            rawText: result.stdout)
+        var payload = parts[1]
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+
+        let remainder = payload.count % 4
+        if remainder > 0 {
+            payload += String(repeating: "=", count: 4 - remainder)
+        }
+
+        guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+
+        return json["email"] as? String
+    }
+
+    private func fetchTier(accessToken: String) async -> String? {
+        guard let url = URL(string: Self.loadCodeAssistEndpoint) else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data("{\"metadata\":{\"ideType\":\"GEMINI_CLI\",\"pluginType\":\"GEMINI\"}}".utf8)
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let currentTier = json["currentTier"] as? [String: Any],
+               let tierId = currentTier["id"] as? String {
+                switch tierId {
+                case "standard-tier": return "Paid"
+                case "free-tier": return "Free"
+                case "legacy-tier": return "Legacy"
+                default: return nil
+                }
+            }
+        } catch {
+            Self.log.warning("Jules/Gemini tier fetch failed", metadata: ["error": "\(error)"])
+        }
+        return nil
     }
 }

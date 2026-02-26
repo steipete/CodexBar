@@ -4,55 +4,38 @@ import Foundation
 import SwiftUI
 
 @ProviderImplementationRegistration
-public struct JulesProviderImplementation: ProviderImplementation {
-    public static let id: UsageProvider = .jules
+struct JulesProviderImplementation: ProviderImplementation {
+    let id: UsageProvider = .jules
+    let supportsLoginFlow: Bool = true
 
-    public static func makeSettingsView(
-        provider: ProviderDescriptor,
-        store: UsageStore,
-        context: ProviderSettingsContext)
-        -> AnyView
-    {
-        AnyView(JulesSettingsView(provider: provider, store: store))
-    }
-
-    public static func makeLoginView(
-        provider: ProviderDescriptor,
-        store: UsageStore,
-        context: ProviderSettingsContext)
-        -> AnyView?
-    {
-        AnyView(JulesLoginView())
-    }
-}
-
-struct JulesSettingsView: View {
-    let provider: ProviderDescriptor
-    @ObservedObject var store: UsageStore
-
-    var body: some View {
-        ProviderSettingsGroup(provider: provider, store: store) {
-            Text("Jules usage is tracked via the `jules` CLI.")
-                .font(.callout)
-                .foregroundColor(.secondary)
-        }
-    }
-}
-
-struct JulesLoginView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("To use Jules, you must be logged in via the CLI.")
-            Text("Run `jules login` in your terminal.")
-                .font(.system(.body, design: .monospaced))
-                .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-
-            Button("Check Status") {
-                // Trigger a refresh somehow, or just let the user know to wait for the next poll
+    @MainActor
+    func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
+        ProviderPresentation { context in
+            let versionText = context.store.version(for: context.provider) ?? "not detected"
+            let email = context.store.snapshot(for: .jules)?.identity?.accountEmail ?? ""
+            let plan = context.store.snapshot(for: .jules)?.identity?.loginMethod ?? ""
+            
+            var detail = "\(context.metadata.cliName) \(versionText)"
+            if !email.isEmpty {
+                detail += " • \(email)"
             }
+            if !plan.isEmpty {
+                detail += " (\(plan))"
+            }
+            return detail
         }
-        .padding()
+    }
+
+    @MainActor
+    func runLoginFlow(context: ProviderLoginContext) async -> Bool {
+        // Run `jules login` in Terminal.
+        // We can't easily automate this since it's an interactive login,
+        // so we just show an alert or instructions.
+        let alert = NSAlert()
+        alert.messageText = "Jules Login"
+        alert.informativeText = "To use Jules, you must be logged in via the CLI. Run 'jules login' in your terminal."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+        return true
     }
 }
