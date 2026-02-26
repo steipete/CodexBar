@@ -369,12 +369,14 @@ struct StatusItemAnimationTests {
             windowMinutes: 10080,
             resetsAt: now.addingTimeInterval(60 * 60 * 24 * 6),
             resetDescription: nil)
+        let paceValue = UsagePace.weekly(window: paceWindow, now: now, defaultWindowMinutes: 10080)
 
         let percent = MenuBarDisplayText.displayText(
             mode: .percent,
             provider: .codex,
             percentWindow: percentWindow,
             paceWindow: paceWindow,
+            pace: paceValue,
             showUsed: true,
             now: now)
         let pace = MenuBarDisplayText.displayText(
@@ -382,6 +384,7 @@ struct StatusItemAnimationTests {
             provider: .codex,
             percentWindow: percentWindow,
             paceWindow: paceWindow,
+            pace: paceValue,
             showUsed: true,
             now: now)
         let both = MenuBarDisplayText.displayText(
@@ -389,6 +392,7 @@ struct StatusItemAnimationTests {
             provider: .codex,
             percentWindow: percentWindow,
             paceWindow: paceWindow,
+            pace: paceValue,
             showUsed: true,
             now: now)
 
@@ -419,6 +423,37 @@ struct StatusItemAnimationTests {
             provider: .gemini,
             percentWindow: percentWindow,
             paceWindow: paceWindow,
+            showUsed: true,
+            now: now)
+
+        #expect(pace == nil)
+        #expect(both == nil)
+    }
+
+    @Test
+    func menuBarDisplayTextRequiresProvidedPaceForCodex() {
+        let now = Date(timeIntervalSince1970: 0)
+        let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let paceWindow = RateWindow(
+            usedPercent: 30,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(60 * 60 * 24 * 6),
+            resetDescription: nil)
+
+        let pace = MenuBarDisplayText.displayText(
+            mode: .pace,
+            provider: .codex,
+            percentWindow: percentWindow,
+            paceWindow: paceWindow,
+            pace: nil,
+            showUsed: true,
+            now: now)
+        let both = MenuBarDisplayText.displayText(
+            mode: .both,
+            provider: .codex,
+            percentWindow: percentWindow,
+            paceWindow: paceWindow,
+            pace: nil,
             showUsed: true,
             now: now)
 

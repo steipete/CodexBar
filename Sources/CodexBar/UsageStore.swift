@@ -30,6 +30,7 @@ extension UsageStore {
         _ = self.pathDebugInfo
         _ = self.statuses
         _ = self.probeLogs
+        _ = self.historicalPaceRevision
         return 0
     }
 
@@ -51,12 +52,14 @@ extension UsageStore {
             _ = self.settings.selectedMenuProvider
             _ = self.settings.debugLoadingPattern
             _ = self.settings.debugKeepCLISessionsAlive
+            _ = self.settings.historicalTrackingEnabled
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeSettingsChanges()
                 self.startTimer()
                 self.updateProviderRuntimes()
+                await self.refreshHistoricalDatasetIfNeeded()
                 await self.refresh()
             }
         }
@@ -106,6 +109,12 @@ extension UsageStore {
 
     func _setErrorForTesting(_ error: String?, provider: UsageProvider) {
         self.errors[provider] = error
+    }
+
+    func _setCodexHistoricalDatasetForTesting(_ dataset: CodexHistoricalDataset?, accountKey: String? = nil) {
+        self.codexHistoricalDataset = dataset
+        self.codexHistoricalDatasetAccountKey = accountKey
+        self.historicalPaceRevision += 1
     }
 }
 #endif
@@ -161,6 +170,7 @@ final class UsageStore {
     var pathDebugInfo: PathDebugSnapshot = .empty
     var statuses: [UsageProvider: ProviderStatus] = [:]
     var probeLogs: [UsageProvider: String] = [:]
+    var historicalPaceRevision: Int = 0
     @ObservationIgnored private var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored private var creditsFailureStreak: Int = 0
     @ObservationIgnored private var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
@@ -191,6 +201,9 @@ final class UsageStore {
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
+    @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
+    @ObservationIgnored var codexHistoricalDataset: CodexHistoricalDataset?
+    @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
@@ -204,6 +217,7 @@ final class UsageStore {
         costUsageFetcher: CostUsageFetcher = CostUsageFetcher(),
         settings: SettingsStore,
         registry: ProviderRegistry = .shared,
+        historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
         sessionQuotaNotifier: SessionQuotaNotifier = SessionQuotaNotifier())
     {
         self.codexFetcher = fetcher
@@ -212,6 +226,7 @@ final class UsageStore {
         self.costUsageFetcher = costUsageFetcher
         self.settings = settings
         self.registry = registry
+        self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.sessionQuotaNotifier = sessionQuotaNotifier
         self.providerMetadata = registry.metadata
         self
@@ -247,6 +262,9 @@ final class UsageStore {
             Task { @MainActor [weak self] in
                 self?.schedulePathDebugInfoRefresh()
             }
+        }
+        Task { @MainActor [weak self] in
+            await self?.refreshHistoricalDatasetIfNeeded()
         }
         Task { await self.refresh() }
         self.startTimer()
@@ -710,6 +728,7 @@ extension UsageStore {
         if let email = targetEmail, !email.isEmpty {
             OpenAIDashboardCacheStore.save(OpenAIDashboardCache(accountEmail: email, snapshot: dash))
         }
+        self.backfillCodexHistoricalFromDashboardIfNeeded(dash)
     }
 
     private func applyOpenAIDashboardFailure(message: String) async {

@@ -150,6 +150,14 @@ extension SettingsStore {
         }
     }
 
+    var historicalTrackingEnabled: Bool {
+        get { self.defaultsState.historicalTrackingEnabled }
+        set {
+            self.defaultsState.historicalTrackingEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "historicalTrackingEnabled")
+        }
+    }
+
     var menuBarMetricPreferencesRaw: [String: String] {
         get { self.defaultsState.menuBarMetricPreferencesRaw }
         set {
