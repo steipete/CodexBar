@@ -129,7 +129,7 @@ public struct JulesStatusProbe: Sendable {
         }
 
         // Try identity fetch leveraging Gemini credentials
-        let (email, plan) = await self.fetchIdentityFromGemini()
+        let (email, plan) = await self.fetchIdentityFromCLIState()
 
         let binary = TTYCommandRunner.which("jules") ?? "jules"
         let result = try await SubprocessRunner.run(
@@ -142,16 +142,17 @@ public struct JulesStatusProbe: Sendable {
         return try Self.parse(text: result.stdout + result.stderr, email: email, plan: plan)
     }
 
-    // MARK: - Gemini Identity Fallback
+    // MARK: - Identity Resolution
 
     private struct OAuthCredentials {
         let accessToken: String?
         let idToken: String?
     }
 
-    private func fetchIdentityFromGemini() async -> (email: String?, plan: String?) {
-        guard let creds = try? loadGeminiCredentials() else {
-            Self.log.info("No Gemini credentials found for Jules fallback")
+    /// Fetches identity info from shared CLI state (Gemini credentials).
+    private func fetchIdentityFromCLIState() async -> (email: String?, plan: String?) {
+        guard let creds = try? loadSharedCredentials() else {
+            Self.log.info("No shared credentials found for Jules identity")
             return (nil, nil)
         }
         
@@ -165,7 +166,7 @@ public struct JulesStatusProbe: Sendable {
         return (email, plan)
     }
 
-    private func loadGeminiCredentials() throws -> OAuthCredentials {
+    private func loadSharedCredentials() throws -> OAuthCredentials {
         let home = NSHomeDirectory()
         let credsURL = URL(fileURLWithPath: home + Self.geminiCredentialsPath)
 
@@ -228,7 +229,7 @@ public struct JulesStatusProbe: Sendable {
                 }
             }
         } catch {
-            Self.log.warning("Jules/Gemini tier fetch failed", metadata: ["error": "\(error)"])
+            Self.log.warning("Jules identity fetch failed", metadata: ["error": "\(error)"])
         }
         return nil
     }

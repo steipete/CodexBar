@@ -11,7 +11,7 @@ public enum JulesProviderDescriptor {
                 id: .jules,
                 displayName: "Jules",
                 sessionLabel: "Sessions",
-                weeklyLabel: "",
+                weeklyLabel: "Daily",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
@@ -25,7 +25,7 @@ public enum JulesProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .jules,
+                iconStyle: .gemini,
                 iconResourceName: "ProviderIcon-jules",
                 color: ProviderColor(red: 66 / 255, green: 133 / 255, blue: 244 / 255)), // Google Blue
             tokenCost: ProviderTokenCostConfig(
