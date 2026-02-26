@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, JetBrains AI, and OpenRouter limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode with a provider switcher and optional Overview tab); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Jules, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, JetBrains AI, and OpenRouter limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode with a provider switcher and optional Overview tab); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
 
@@ -26,7 +26,7 @@ Linux support via Omarchy: community Waybar module and TUI, driven by the `codex
 
 ### First run
 - Open Settings → Providers and enable what you use.
-- Install/sign in to the provider sources you rely on (e.g. `codex`, `claude`, `gemini`, browser cookies, or OAuth; Antigravity requires the Antigravity app running).
+- Install/sign in to the provider sources you rely on (e.g. `codex`, `claude`, `gemini`, `jules`, browser cookies, or OAuth; Antigravity requires the Antigravity app running).
 - Optional: Settings → Providers → Codex → OpenAI cookies (Automatic or Manual) to add dashboard extras.
 
 ## Providers
@@ -34,7 +34,7 @@ Linux support via Omarchy: community Waybar module and TUI, driven by the `codex
 - [Codex](docs/codex.md) — Local Codex CLI RPC (+ PTY fallback) and optional OpenAI web dashboard extras.
 - [Claude](docs/claude.md) — OAuth API or browser cookies (+ CLI PTY fallback); session + weekly usage.
 - [Cursor](docs/cursor.md) — Browser session cookies for plan + usage + billing resets.
-- [Gemini](docs/gemini.md) — OAuth-backed quota API using Gemini CLI credentials (no browser cookies).
+- [Gemini / Jules](docs/gemini.md) — OAuth-backed quota API using CLI credentials (no browser cookies).
 - [Antigravity](docs/antigravity.md) — Local language server probe (experimental); no external auth.
 - [Droid](docs/factory.md) — Browser cookies + WorkOS token flows for Factory usage + billing.
 - [Copilot](docs/copilot.md) — GitHub device flow + Copilot internal usage API.
@@ -75,6 +75,7 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 - **Keychain access (prompted by macOS)**:
   - Chrome cookie import needs the “Chrome Safe Storage” key to decrypt cookies.
   - Claude OAuth credentials (written by the Claude CLI) are read from Keychain when present.
+  - Gemini/Jules CLI credentials are read from Keychain or local config.
   - z.ai API token is stored in Keychain from Preferences → Providers; Copilot stores its API token in Keychain during device flow.
   - **How do I prevent those keychain alerts?**
     - Open **Keychain Access.app** → login keychain → search the item (e.g., “Claude Code-credentials”).
@@ -86,7 +87,7 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
     - Find the browser’s “Safe Storage” key (e.g., “Chrome Safe Storage”, “Brave Safe Storage”, “Firefox”, “Microsoft Edge Safe Storage”).
     - Open the item → **Access Control** → add `CodexBar.app` under “Always allow access by these applications”.
     - This removes the prompt when CodexBar decrypts cookies for that browser.
-- **Files & Folders prompts (folder/volume access)**: CodexBar launches provider CLIs (codex/claude/gemini/antigravity). If those CLIs read a project directory or external drive, macOS may ask CodexBar for that folder/volume (e.g., Desktop or an external volume). This is driven by the CLI’s working directory, not background disk scanning.
+- **Files & Folders prompts (folder/volume access)**: CodexBar launches provider CLIs (codex/claude/gemini/jules/antigravity). If those CLIs read a project directory or external drive, macOS may ask CodexBar for that folder/volume (e.g., Desktop or an external volume). This is driven by the CLI’s working directory, not background disk scanning.
 - **What we do not request**: no Screen Recording, Accessibility, or Automation permissions; no passwords are stored (browser cookies are reused when you opt in).
 
 ## Docs

@@ -54,7 +54,7 @@ See `docs/configuration.md` for the schema.
     - `web` (macOS only): web-only; no CLI fallback.
     - `cli`: CLI-only (Codex RPC → PTY fallback; Claude PTY).
     - `oauth`: Claude OAuth only (debug); no fallback. Not supported for Codex.
-    - `api`: API key flow when the provider supports it (z.ai, Gemini, Copilot, Kimi K2, MiniMax, Synthetic).
+    - `api`: API key flow when the provider supports it (z.ai, Gemini, Jules, Copilot, Kimi K2, MiniMax, Synthetic).
     - Output `source` reflects the strategy actually used (`openai-web`, `web`, `oauth`, `api`, `local`, or provider CLI label).
     - Codex web: OpenAI web dashboard (usage limits, credits remaining, code review remaining, usage breakdown).
         - `--web-timeout <seconds>` (default: 60)
@@ -102,6 +102,7 @@ codexbar --provider claude --account steipete@gmail.com
 codexbar --provider claude --all-accounts --format json --pretty
 codexbar --json-only --format json --pretty
 codexbar --provider gemini --source api --format json --pretty
+codexbar --provider jules --source cli --format json --pretty
 codexbar config validate --format json --pretty
 codexbar config dump --pretty
 ```

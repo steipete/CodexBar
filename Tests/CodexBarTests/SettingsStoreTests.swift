@@ -683,6 +683,7 @@ struct SettingsStoreTests {
             .synthetic,
             .warp,
             .openrouter,
+            .jules,
         ])
 
         // Move one provider; ensure it's persisted across instances.

@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Jules, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -20,7 +20,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | --- | --- |
 | Codex | Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`); app uses CLI usage + optional dashboard scrape. |
 | Claude | App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
-| Gemini | OAuth API via Gemini CLI credentials (`api`). |
+| Gemini / Jules | OAuth API via Gemini CLI credentials (`api`) or CLI parsing (`cli`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → stored WebKit session (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
@@ -84,6 +84,13 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - OAuth-backed quota API (`retrieveUserQuota`) using Gemini CLI credentials.
 - Token refresh via Google OAuth if expired.
 - Tier detection via `loadCodeAssist`.
+- Status: Google Workspace incidents (Gemini product).
+- Details: `docs/gemini.md`.
+
+## Jules
+- CLI-based: runs `jules remote list --session` to count active sessions.
+- Quota: 100-session daily limit with a 24h rolling window logic.
+- Identity: Fallback to Gemini credentials (`~/.gemini/oauth_creds.json`) for email and tier detection.
 - Status: Google Workspace incidents (Gemini product).
 - Details: `docs/gemini.md`.
 

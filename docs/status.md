@@ -9,7 +9,7 @@ read_when:
 
 ## Sources
 - OpenAI + Claude + Cursor + Factory + Copilot: Statuspage.io `api/v2/status.json`.
-- Gemini + Antigravity: Google Workspace incidents feed for the Gemini product.
+- Gemini + Jules + Antigravity: Google Workspace incidents feed for the Gemini product.
 
 ## Behavior
 - Toggle: Settings → Advanced → “Check provider status”.

@@ -10,6 +10,7 @@ public struct PathDebugSnapshot: Equatable, Sendable {
     public let codexBinary: String?
     public let claudeBinary: String?
     public let geminiBinary: String?
+    public let julesBinary: String?
     public let effectivePATH: String
     public let loginShellPATH: String?
 
@@ -17,6 +18,7 @@ public struct PathDebugSnapshot: Equatable, Sendable {
         codexBinary: nil,
         claudeBinary: nil,
         geminiBinary: nil,
+        julesBinary: nil,
         effectivePATH: "",
         loginShellPATH: nil)
 
@@ -24,18 +26,39 @@ public struct PathDebugSnapshot: Equatable, Sendable {
         codexBinary: String?,
         claudeBinary: String?,
         geminiBinary: String? = nil,
+        julesBinary: String? = nil,
         effectivePATH: String,
         loginShellPATH: String?)
     {
         self.codexBinary = codexBinary
         self.claudeBinary = claudeBinary
         self.geminiBinary = geminiBinary
+        self.julesBinary = julesBinary
         self.effectivePATH = effectivePATH
         self.loginShellPATH = loginShellPATH
     }
 }
 
 public enum BinaryLocator {
+    public static func resolveJulesBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "jules",
+            overrideKey: "JULES_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fileManager,
+            home: home)
+    }
     public static func resolveClaudeBinary(
         env: [String: String] = ProcessInfo.processInfo.environment,
         loginPATH: [String]? = LoginShellPathCache.shared.current,
@@ -367,11 +390,13 @@ public enum PathBuilder {
         let codex = BinaryLocator.resolveCodexBinary(env: env, loginPATH: login, home: home)
         let claude = BinaryLocator.resolveClaudeBinary(env: env, loginPATH: login, home: home)
         let gemini = BinaryLocator.resolveGeminiBinary(env: env, loginPATH: login, home: home)
+        let jules = BinaryLocator.resolveJulesBinary(env: env, loginPATH: login, home: home)
         let loginString = login?.joined(separator: ":")
         return PathDebugSnapshot(
             codexBinary: codex,
             claudeBinary: claude,
             geminiBinary: gemini,
+            julesBinary: jules,
             effectivePATH: effective,
             loginShellPATH: loginString)
     }

@@ -93,7 +93,7 @@ public struct KeepaliveConfig {
 - **Action:** OAuth token refresh using refresh token
 - **Benefit:** Prevents "session expired" errors during long coding sessions
 
-#### Cursor, Gemini, etc. (Future)
+#### Cursor, Gemini, Jules, etc. (Future)
 - **Strategy:** TBD based on provider auth mechanism
 - **Extensible:** Protocol-based design allows easy addition
 
