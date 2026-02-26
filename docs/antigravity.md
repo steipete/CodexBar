@@ -63,7 +63,7 @@ Antigravity is a local-only provider. We talk directly to the Antigravity langua
 - Provider metadata:
   - Display: `Antigravity`
   - Labels: `Claude` (primary), `Gemini Pro` (secondary), `Gemini Flash` (tertiary)
-- Status badge: Google Workspace incidents for the Gemini product.
+- Status badge: Google Workspace incidents for the Gemini/Jules product.
 
 ## Constraints
 - Internal protocol; fields may change.

@@ -18,11 +18,11 @@ Quotio is a similar macOS menu bar app for AI quota tracking with **2k stars** a
 
 ### Provider Support
 **Quotio supports:**
-- Gemini, Claude, OpenAI Codex, Qwen, Vertex AI, iFlow, Antigravity, Kiro, GitHub Copilot
+- Gemini, Jules, Claude, OpenAI Codex, Qwen, Vertex AI, iFlow, Antigravity, Kiro, GitHub Copilot
 - **IDE monitoring**: Cursor, Trae (auto-detected, monitor-only)
 
 **CodexBar supports:**
-- Codex, Claude, Cursor, Gemini, Antigravity, Droid/Factory, Copilot, z.ai, Kiro, Vertex AI, **Augment**
+- Codex, Claude, Cursor, Gemini, Jules, Antigravity, Droid/Factory, Copilot, z.ai, Kiro, Vertex AI, **Augment**
 
 **Unique to CodexBar:**
 - Augment (we just added!)
@@ -122,6 +122,7 @@ Quotio is a similar macOS menu bar app for AI quota tracking with **2k stars** a
 **Providers that benefit:**
 - Claude (session expires)
 - Augment (session expires)
+- Jules (session expires)
 - Codex (session expires)
 
 ### Priority 2: Custom Provider Framework ⭐⭐⭐

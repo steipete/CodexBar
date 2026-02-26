@@ -17,7 +17,7 @@ Goal: adding a provider should feel like:
 This doc describes the **current provider architecture** (post-macro registry) and the exact steps to add a new provider.
 
 ## Terms
-- **Provider**: a source of usage/quota/status data (Codex, Claude, Gemini, Antigravity, Cursor, …).
+- **Provider**: a source of usage/quota/status data (Codex, Claude, Gemini, Jules, Antigravity, Cursor, …).
 - **Descriptor**: the single source of truth for labels, URLs, defaults, and fetch strategies.
 - **Fetch strategy**: one concrete way to obtain usage (CLI, web cookies, OAuth API, local probe, etc.).
 - **Host APIs**: shared capabilities we provide to providers (Keychain, browser cookies, PTY, HTTP, WebView scrape, token-cost).

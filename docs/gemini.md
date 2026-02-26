@@ -1,23 +1,29 @@
 ---
-summary: "Gemini provider data sources: OAuth-backed quota APIs, token refresh, and tier detection."
+summary: "Gemini and Jules provider data sources: OAuth-backed quota APIs, token refresh, and tier detection."
 read_when:
-  - Debugging Gemini quota fetch or auth issues
-  - Updating Gemini CLI OAuth integration
+  - Debugging Gemini or Jules quota fetch or auth issues
+  - Updating Gemini/Jules CLI OAuth integration
   - Adjusting tier detection or model mapping
 ---
 
-# Gemini provider
+# Gemini and Jules providers
 
-Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser cookies.
+Gemini and Jules use the Gemini CLI OAuth credentials and private quota APIs. No browser cookies.
 
-## Data sources + fallback order
+## Data sources + fallback order (Gemini)
 
 1) **OAuth-backed quota API** (only path used in `fetch()`)
    - Reads auth type from `~/.gemini/settings.json`.
    - Supported: `oauth-personal` (or unknown → try OAuth creds).
    - Unsupported: `api-key`, `vertex-ai` (hard error).
 
-2) **Legacy CLI parsing** (parser exists but not used in current fetch path)
+## Data sources (Jules)
+
+1) **CLI-based parsing**
+   - Runs `jules remote list --session` to count active sessions.
+   - Leverages shared Gemini credentials (`~/.gemini/oauth_creds.json`) for email and tier detection via `loadCodeAssist`.
+
+## Legacy CLI parsing (Gemini)
    - `GeminiStatusProbe.parse(text:)` can parse `/stats` output.
 
 ## OAuth credentials
@@ -72,3 +78,5 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
 
 ## Key files
 - `Sources/CodexBarCore/Providers/Gemini/GeminiStatusProbe.swift`
+- `Sources/CodexBarCore/Providers/Jules/JulesStatusProbe.swift`
+- `Sources/CodexBar/Providers/Jules/JulesProviderImplementation.swift`
