@@ -10,19 +10,21 @@ extension UsageStore {
     func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> UsagePace? {
         guard provider == .codex || provider == .claude else { return nil }
         guard window.remainingPercent > 0 else { return nil }
-        let codexAccountKey = self.codexHistoricalAccountKey()
-
-        let resolved: UsagePace? = if provider == .codex,
-                                      self.settings.historicalTrackingEnabled,
-                                      self.codexHistoricalDatasetAccountKey == codexAccountKey,
-                                      let historical = CodexHistoricalPaceEvaluator.evaluate(
-                                          window: window,
-                                          now: now,
-                                          dataset: self.codexHistoricalDataset)
-        {
-            historical
+        let resolved: UsagePace?
+        if provider == .codex, self.settings.historicalTrackingEnabled {
+            let codexAccountKey = self.codexHistoricalAccountKey()
+            if self.codexHistoricalDatasetAccountKey == codexAccountKey,
+               let historical = CodexHistoricalPaceEvaluator.evaluate(
+                   window: window,
+                   now: now,
+                   dataset: self.codexHistoricalDataset)
+            {
+                resolved = historical
+            } else {
+                resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
+            }
         } else {
-            UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
+            resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
         }
 
         guard let resolved else { return nil }
