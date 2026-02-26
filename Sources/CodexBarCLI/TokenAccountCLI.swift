@@ -152,7 +152,15 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(
                 jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
                     ideBasePath: nil))
-        case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp:
+        case .antigravity:
+            let usageSourceRaw = config?.usageSource ?? ""
+            let usageSource = AntigravityUsageSource(rawValue: usageSourceRaw) ?? .auto
+            return self.makeSnapshot(
+                antigravity: ProviderSettingsSnapshot.AntigravityProviderSettings(
+                    usageSource: usageSource,
+                    accountLabel: account?.label,
+                    tokenAccounts: config?.tokenAccounts))
+        case .gemini, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp:
             return nil
         }
     }
@@ -169,7 +177,8 @@ struct TokenAccountCLIContext {
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
         amp: ProviderSettingsSnapshot.AmpProviderSettings? = nil,
         ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
-        jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil) -> ProviderSettingsSnapshot
+        jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
+        antigravity: ProviderSettingsSnapshot.AntigravityProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
@@ -183,7 +192,8 @@ struct TokenAccountCLIContext {
             augment: augment,
             amp: amp,
             ollama: ollama,
-            jetbrains: jetbrains)
+            jetbrains: jetbrains,
+            antigravity: antigravity)
     }
 
     func environment(

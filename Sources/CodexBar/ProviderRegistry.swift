@@ -23,7 +23,9 @@ struct ProviderRegistry {
         metadata: [UsageProvider: ProviderMetadata],
         codexFetcher: UsageFetcher,
         claudeFetcher: any ClaudeUsageFetching,
-        browserDetection: BrowserDetection) -> [UsageProvider: ProviderSpec]
+        browserDetection: BrowserDetection,
+        onAntigravityCredentialsRefreshed:
+        (@Sendable (String, AntigravityOAuthCredentials) -> Void)? = nil) -> [UsageProvider: ProviderSpec]
     {
         var specs: [UsageProvider: ProviderSpec] = [:]
         specs.reserveCapacity(UsageProvider.allCases.count)
@@ -57,7 +59,8 @@ struct ProviderRegistry {
                         settings: snapshot,
                         fetcher: codexFetcher,
                         claudeFetcher: claudeFetcher,
-                        browserDetection: browserDetection)
+                        browserDetection: browserDetection,
+                        onAntigravityCredentialsRefreshed: onAntigravityCredentialsRefreshed)
                 })
             specs[provider] = spec
         }
