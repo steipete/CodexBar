@@ -16,10 +16,11 @@ Tracks usage for [Kimi For Coding](https://www.kimi.com/code) in CodexBar.
 - Shows current 5-hour rate limit usage
 - Automatic and manual authentication methods
 - Automatic refresh countdown
+- Headless-friendly auth via env var (no GUI required)
 
 ## Setup
 
-Choose one of two authentication methods:
+Choose one of the authentication methods:
 
 ### Method 1: Automatic Browser Import (Recommended)
 
@@ -50,6 +51,15 @@ Alternatively, set the `KIMI_AUTH_TOKEN` environment variable:
 
 ```bash
 export KIMI_AUTH_TOKEN="jwt-token-here"
+```
+
+This is the recommended approach for CLI/headless usage.
+
+With `KIMI_AUTH_TOKEN` set, the default `codexbar usage --provider kimi` (`--source auto`) will fetch usage via Kimi's HTTP endpoint.
+
+```bash
+export KIMI_AUTH_TOKEN="<paste kimi-auth cookie here>"
+codexbar usage --provider kimi
 ```
 
 ## Authentication Priority
