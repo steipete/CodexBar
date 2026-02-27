@@ -1007,6 +1007,13 @@ extension UsageMenuCardView.Model {
             {
                 weeklyDetailText = detail
             }
+            // Perplexity bonus credits don't reset; show balance without "Resets" prefix.
+            if input.provider == .perplexity,
+               let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !detail.isEmpty
+            {
+                weeklyResetText = detail
+            }
             metrics.append(Metric(
                 id: "secondary",
                 title: input.metadata.weeklyLabel,
@@ -1039,12 +1046,16 @@ extension UsageMenuCardView.Model {
             {
                 tertiaryDetailText = detail
             }
+            // Perplexity purchased credits don't reset; show balance without "Resets" prefix.
+            let opusResetText: String? = input.provider == .perplexity
+                ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                : Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now)
             metrics.append(Metric(
                 id: "tertiary",
                 title: input.metadata.opusLabel ?? "Sonnet",
                 percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
                 percentStyle: percentStyle,
-                resetText: Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now),
+                resetText: opusResetText,
                 detailText: tertiaryDetailText,
                 detailLeftText: nil,
                 detailRightText: nil,

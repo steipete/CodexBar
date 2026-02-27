@@ -65,6 +65,12 @@ public enum ProviderTokenResolver {
         self.openRouterResolution(environment: environment)?.token
     }
 
+    public static func perplexitySessionToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.perplexityResolution(environment: environment)?.token
+    }
+
     public static func zaiResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
@@ -149,6 +155,25 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(OpenRouterSettingsReader.apiToken(environment: environment))
+    }
+
+    public static func perplexityResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        if let resolution = self.resolveEnv(PerplexitySettingsReader.sessionToken(environment: environment)) {
+            return resolution
+        }
+        #if os(macOS)
+        do {
+            let session = try PerplexityCookieImporter.importSession()
+            if let token = session.sessionToken {
+                return ProviderTokenResolution(token: token, source: .environment)
+            }
+        } catch {
+            // No browser cookies found, continue to fallback
+        }
+        #endif
+        return nil
     }
 
     private static func cleaned(_ raw: String?) -> String? {
