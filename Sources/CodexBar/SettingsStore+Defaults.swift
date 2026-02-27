@@ -137,9 +137,26 @@ extension SettingsStore {
         }
     }
 
+    private var codexMenuBarVisualizationModeRaw: String? {
+        get { self.defaultsState.codexMenuBarVisualizationModeRaw }
+        set {
+            self.defaultsState.codexMenuBarVisualizationModeRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "codexMenuBarVisualizationMode")
+            } else {
+                self.userDefaults.removeObject(forKey: "codexMenuBarVisualizationMode")
+            }
+        }
+    }
+
     var menuBarDisplayMode: MenuBarDisplayMode {
         get { MenuBarDisplayMode(rawValue: self.menuBarDisplayModeRaw ?? "") ?? .percent }
         set { self.menuBarDisplayModeRaw = newValue.rawValue }
+    }
+
+    var codexMenuBarVisualizationMode: CodexMenuBarVisualizationMode {
+        get { CodexMenuBarVisualizationMode(rawValue: self.codexMenuBarVisualizationModeRaw ?? "") ?? .classic }
+        set { self.codexMenuBarVisualizationModeRaw = newValue.rawValue }
     }
 
     var showAllTokenAccountsInMenu: Bool {

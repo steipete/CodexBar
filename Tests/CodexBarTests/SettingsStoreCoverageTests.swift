@@ -52,6 +52,11 @@ struct SettingsStoreCoverageTests {
 
         settings.menuBarDisplayMode = .pace
         #expect(settings.menuBarDisplayMode == .pace)
+        #expect(settings.codexMenuBarVisualizationMode == .classic)
+        settings.codexMenuBarVisualizationMode = .pieRing
+        #expect(settings.codexMenuBarVisualizationMode == .pieRing)
+        settings.codexMenuBarVisualizationMode = .pieRingSwapped
+        #expect(settings.codexMenuBarVisualizationMode == .pieRingSwapped)
 
         settings.resetTimesShowAbsolute = true
         #expect(settings.resetTimeDisplayStyle == .absolute)

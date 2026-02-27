@@ -57,6 +57,26 @@ struct DisplayPane: View {
                     }
                     .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
                     .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Codex icon style")
+                                .font(.body)
+                            Text("Codex-only: Choose whether weekly or 5-hour usage appears in the pie vs ring.")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Picker("Codex icon style", selection: self.$settings.codexMenuBarVisualizationMode) {
+                            ForEach(CodexMenuBarVisualizationMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 200)
+                    }
+                    .disabled(self.settings.menuBarShowsBrandIconWithPercent)
+                    .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 0.5 : 1)
                 }
 
                 Divider()

@@ -15,6 +15,7 @@ struct SettingsDefaultsState: Sendable {
     var resetTimesShowAbsolute: Bool
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarDisplayModeRaw: String?
+    var codexMenuBarVisualizationModeRaw: String?
     var showAllTokenAccountsInMenu: Bool
     var menuBarMetricPreferencesRaw: [String: String]
     var costUsageEnabled: Bool

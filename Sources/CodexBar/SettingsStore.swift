@@ -190,6 +190,8 @@ extension SettingsStore {
             forKey: "menuBarShowsBrandIconWithPercent") as? Bool ?? false
         let menuBarDisplayModeRaw = userDefaults.string(forKey: "menuBarDisplayMode")
             ?? MenuBarDisplayMode.percent.rawValue
+        let codexMenuBarVisualizationModeRaw = userDefaults.string(forKey: "codexMenuBarVisualizationMode")
+            ?? CodexMenuBarVisualizationMode.classic.rawValue
         let showAllTokenAccountsInMenu = userDefaults.object(forKey: "showAllTokenAccountsInMenu") as? Bool ?? false
         let storedPreferences = userDefaults.dictionary(forKey: "menuBarMetricPreferences") as? [String: String] ?? [:]
         var resolvedPreferences = storedPreferences
@@ -238,6 +240,7 @@ extension SettingsStore {
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
+            codexMenuBarVisualizationModeRaw: codexMenuBarVisualizationModeRaw,
             showAllTokenAccountsInMenu: showAllTokenAccountsInMenu,
             menuBarMetricPreferencesRaw: resolvedPreferences,
             costUsageEnabled: costUsageEnabled,

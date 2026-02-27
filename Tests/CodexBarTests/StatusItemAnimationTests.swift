@@ -6,6 +6,23 @@ import Testing
 @MainActor
 @Suite
 struct StatusItemAnimationTests {
+    private let outerRingSamplePoints: [(Int, Int)] = [
+        (16, 31), (17, 31), (18, 31), (19, 31), (20, 31),
+        (16, 32), (17, 32), (18, 32), (19, 32), (20, 32),
+    ]
+
+    private func alphaAt(_ x: Int, _ y: Int, in rep: NSBitmapImageRep) -> CGFloat {
+        (rep.colorAt(x: x, y: y) ?? .clear).alphaComponent
+    }
+
+    private func averageAlpha(in rep: NSBitmapImageRep, points: [(Int, Int)]) -> CGFloat {
+        guard !points.isEmpty else { return 0 }
+        let total = points.reduce(CGFloat(0)) { partial, point in
+            partial + self.alphaAt(point.0, point.1, in: rep)
+        }
+        return total / CGFloat(points.count)
+    }
+
     private func maxAlpha(in rep: NSBitmapImageRep) -> CGFloat {
         var maxAlpha: CGFloat = 0
         for x in 0..<rep.pixelsWide {
@@ -83,6 +100,8 @@ struct StatusItemAnimationTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
         settings.menuBarShowsBrandIconWithPercent = false
+        settings.codexMenuBarVisualizationMode = .classic
+        settings.codexMenuBarVisualizationMode = .classic
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
@@ -516,6 +535,186 @@ struct StatusItemAnimationTests {
             .replacingOccurrences(of: " left", with: "")
 
         #expect(displayText == expected)
+    }
+
+    @Test
+    func codexPieRingModeSelectionHonorsProviderAndBrandMode() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-pie-ring"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarShowsBrandIconWithPercent = false
+        settings.codexMenuBarVisualizationMode = .classic
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        #expect(controller.shouldUseCodexPieRingMenuBarIcon(provider: .codex, showBrandPercent: false) == false)
+        settings.codexMenuBarVisualizationMode = .pieRing
+        #expect(controller.shouldUseCodexPieRingMenuBarIcon(provider: .codex, showBrandPercent: false))
+        settings.codexMenuBarVisualizationMode = .pieRingSwapped
+        #expect(controller.shouldUseCodexPieRingMenuBarIcon(provider: .codex, showBrandPercent: false))
+        #expect(controller.shouldUseCodexPieRingMenuBarIcon(provider: .claude, showBrandPercent: false) == false)
+        #expect(controller.shouldUseCodexPieRingMenuBarIcon(provider: .codex, showBrandPercent: true) == false)
+    }
+
+    @Test
+    func codexPieRingRespectsShowUsedPreference() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-pie-ring-show-used"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.menuBarShowsBrandIconWithPercent = false
+        settings.codexMenuBarVisualizationMode = .pieRing
+        settings.usageBarsShowUsed = true
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        controller.applyIcon(for: .codex, phase: nil)
+        let showUsedImage = controller.statusItems[.codex]?.button?.image
+
+        settings.usageBarsShowUsed = false
+        controller.applyIcon(for: .codex, phase: nil)
+        let showRemainingImage = controller.statusItems[.codex]?.button?.image
+
+        let expectedShowUsedImage = IconRenderer.makeCodexPieRingIcon(
+            weeklyUsed: 30,
+            sessionUsed: 20,
+            mode: .pieRing,
+            stale: false)
+        let expectedShowRemainingImage = IconRenderer.makeCodexPieRingIcon(
+            weeklyUsed: 70,
+            sessionUsed: 80,
+            mode: .pieRing,
+            stale: false)
+
+        #expect(showUsedImage?.tiffRepresentation != nil)
+        #expect(showRemainingImage?.tiffRepresentation != nil)
+
+        #expect(showUsedImage?.tiffRepresentation == expectedShowUsedImage.tiffRepresentation)
+        #expect(showRemainingImage?.tiffRepresentation == expectedShowRemainingImage.tiffRepresentation)
+    }
+
+    @Test
+    func codexPieRingIconRendersWeeklyPieAndSessionRingFills() {
+        let partialUsage = IconRenderer.makeCodexPieRingIcon(
+            weeklyUsed: 25,
+            sessionUsed: 25,
+            mode: .pieRing,
+            stale: false)
+        let fullUsage = IconRenderer.makeCodexPieRingIcon(
+            weeklyUsed: 100,
+            sessionUsed: 100,
+            mode: .pieRing,
+            stale: false)
+        let zeroUsage = IconRenderer.makeCodexPieRingIcon(
+            weeklyUsed: 0,
+            sessionUsed: 0,
+            mode: .pieRing,
+            stale: false)
+        let tinyUsage = IconRenderer.makeCodexPieRingIcon(
+            weeklyUsed: 1,
+            sessionUsed: 1,
+            mode: .pieRing,
+            stale: false)
+        let swappedUsage = IconRenderer.makeCodexPieRingIcon(
+            weeklyUsed: 25,
+            sessionUsed: 25,
+            mode: .pieRingSwapped,
+            stale: false)
+        let invalidRingAvailableFlash = IconRenderer.makeCodexPieRingIcon(
+            weeklyUsed: 25,
+            sessionUsed: nil,
+            mode: .pieRing,
+            invalidCharts: [.ring],
+            flashInvalidChartsAsUsed: false,
+            stale: false)
+        let invalidRingUsedFlash = IconRenderer.makeCodexPieRingIcon(
+            weeklyUsed: 25,
+            sessionUsed: nil,
+            mode: .pieRing,
+            invalidCharts: [.ring],
+            flashInvalidChartsAsUsed: true,
+            stale: false)
+
+        let partialRep = partialUsage.representations.compactMap { $0 as? NSBitmapImageRep }.first(where: {
+            $0.pixelsWide == 36 && $0.pixelsHigh == 36
+        })
+        let fullRep = fullUsage.representations.compactMap { $0 as? NSBitmapImageRep }.first(where: {
+            $0.pixelsWide == 36 && $0.pixelsHigh == 36
+        })
+        let zeroRep = zeroUsage.representations.compactMap { $0 as? NSBitmapImageRep }.first(where: {
+            $0.pixelsWide == 36 && $0.pixelsHigh == 36
+        })
+        let tinyRep = tinyUsage.representations.compactMap { $0 as? NSBitmapImageRep }.first(where: {
+            $0.pixelsWide == 36 && $0.pixelsHigh == 36
+        })
+        let swappedRep = swappedUsage.representations.compactMap { $0 as? NSBitmapImageRep }.first(where: {
+            $0.pixelsWide == 36 && $0.pixelsHigh == 36
+        })
+        let invalidRingAvailableRep =
+            invalidRingAvailableFlash.representations.compactMap { $0 as? NSBitmapImageRep }.first(where: {
+                $0.pixelsWide == 36 && $0.pixelsHigh == 36
+            })
+        let invalidRingUsedRep = invalidRingUsedFlash.representations.compactMap { $0 as? NSBitmapImageRep }
+            .first(where: {
+                $0.pixelsWide == 36 && $0.pixelsHigh == 36
+            })
+
+        #expect(partialRep != nil)
+        #expect(fullRep != nil)
+        #expect(zeroRep != nil)
+        #expect(tinyRep != nil)
+        #expect(swappedRep != nil)
+        #expect(invalidRingAvailableRep != nil)
+        #expect(invalidRingUsedRep != nil)
+
+        if let zeroRep, let tinyRep, let fullRep {
+            let zeroOuterAlpha = self.averageAlpha(in: zeroRep, points: self.outerRingSamplePoints)
+            let tinyOuterAlpha = self.averageAlpha(in: tinyRep, points: self.outerRingSamplePoints)
+            let fullOuterAlpha = self.averageAlpha(in: fullRep, points: self.outerRingSamplePoints)
+            #expect(fullOuterAlpha > zeroOuterAlpha + 0.06)
+            #expect(tinyOuterAlpha < zeroOuterAlpha + (fullOuterAlpha - zeroOuterAlpha) * 0.4)
+        }
+        if let invalidRingAvailableRep, let invalidRingUsedRep {
+            let availableOuterAlpha = self.averageAlpha(in: invalidRingAvailableRep, points: self.outerRingSamplePoints)
+            let usedOuterAlpha = self.averageAlpha(in: invalidRingUsedRep, points: self.outerRingSamplePoints)
+            #expect(usedOuterAlpha > availableOuterAlpha + 0.06)
+        }
     }
 
     @Test

@@ -16,6 +16,7 @@ extension SettingsStore {
         _ = self.menuBarShowsBrandIconWithPercent
         _ = self.menuBarShowsHighestUsage
         _ = self.menuBarDisplayMode
+        _ = self.codexMenuBarVisualizationMode
         _ = self.showAllTokenAccountsInMenu
         _ = self.menuBarMetricPreferencesRaw
         _ = self.costUsageEnabled
