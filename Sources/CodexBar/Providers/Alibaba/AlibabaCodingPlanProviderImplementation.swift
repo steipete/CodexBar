@@ -28,22 +28,6 @@ struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        if AlibabaCodingPlanSettingsReader.apiToken(environment: context.environment) != nil {
-            return true
-        }
-        if AlibabaCodingPlanSettingsReader.cookieHeader(environment: context.environment) != nil {
-            return true
-        }
-        context.settings.ensureAlibabaCodingPlanAPITokenLoaded()
-        let hasToken = !context.settings.alibabaCodingPlanAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let hasManualCookie =
-            context.settings.alibabaCodingPlanCookieSource == .manual &&
-            !context.settings.alibabaCodingPlanCookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return hasToken || hasManualCookie
-    }
-
-    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         let binding = Binding(
             get: { context.settings.alibabaCodingPlanAPIRegion.rawValue },

@@ -206,6 +206,27 @@ struct AlibabaCodingPlanUsageParsingTests {
     }
 
     @Test
+    func doesNotFallbackForInactivePlanWithoutQuota() {
+        let json = """
+        {
+          "data": {
+            "codingPlanInstanceInfos": [
+              {
+                "planName": "Coding Plan Lite",
+                "status": "EXPIRED"
+              }
+            ]
+          },
+          "status_code": 0
+        }
+        """
+
+        #expect(throws: AlibabaCodingPlanUsageError.self) {
+            try AlibabaCodingPlanUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+        }
+    }
+
+    @Test
     func consoleNeedLoginPayloadMapsToLoginRequired() {
         let json = """
         {

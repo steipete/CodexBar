@@ -524,7 +524,9 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     {
         let source = instanceInfo ?? payload
         let status = self.anyString(for: ["status", "instanceStatus"], in: source)?.uppercased()
-        guard status == "VALID" || status == "ACTIVE" || instanceInfo != nil else { return nil }
+        if let status, status != "VALID", status != "ACTIVE" {
+            return nil
+        }
 
         let reset =
             self.anyDate(for: ["per5HourQuotaNextRefreshTime", "nextRefreshTime", "endTime", "periodEndTime"], in: source) ??
