@@ -47,6 +47,19 @@ struct GeneralPane: View {
                                     .font(.footnote)
                                     .foregroundStyle(.tertiary)
 
+                                Toggle(isOn: self.$settings.showEstimatedCostForSubscriptions) {
+                                    Text("Include cost for subscription plans")
+                                        .font(.body)
+                                }
+                                .toggleStyle(.checkbox)
+
+                                Text(
+                                    "Show API-equivalent cost estimates for Claude subscription users (Pro, Max, Team). These are not actual charges."
+                                )
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+
                                 self.costStatusLine(provider: .claude)
                                 self.costStatusLine(provider: .codex)
                             }

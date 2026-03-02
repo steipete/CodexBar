@@ -166,6 +166,14 @@ extension SettingsStore {
         }
     }
 
+    var showEstimatedCostForSubscriptions: Bool {
+        get { self.defaultsState.showEstimatedCostForSubscriptions }
+        set {
+            self.defaultsState.showEstimatedCostForSubscriptions = newValue
+            self.userDefaults.set(newValue, forKey: "showEstimatedCostForSubscriptions")
+        }
+    }
+
     var hidePersonalInfo: Bool {
         get { self.defaultsState.hidePersonalInfo }
         set {
