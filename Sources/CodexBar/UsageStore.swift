@@ -927,6 +927,16 @@ extension UsageStore {
         await self.refreshOpenAIDashboardIfNeeded(force: true)
     }
 
+    func testOpenAIDashboardCookieNow() async {
+        await MainActor.run {
+            self.openAIDashboardCookieImportStatus = "Testing OpenAI cookie…"
+        }
+        self.resetOpenAIWebDebugLog(context: "manual cookie test")
+        let targetEmail = self.codexAccountEmailForOpenAIDashboard()
+        _ = await self.importOpenAIDashboardCookiesIfNeeded(targetEmail: targetEmail, force: true)
+        await self.refreshOpenAIDashboardIfNeeded(force: true)
+    }
+
     private func importOpenAIDashboardCookiesIfNeeded(targetEmail: String?, force: Bool) async -> String? {
         let normalizedTarget = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let allowAnyAccount = normalizedTarget == nil || normalizedTarget?.isEmpty == true
@@ -1039,15 +1049,27 @@ extension UsageStore {
                 }
                 self.logOpenAIWeb("[\(stamp)] import mismatch: \(foundText)")
                 await MainActor.run {
-                    self.openAIDashboardCookieImportStatus = allowAnyAccount
-                        ? [
-                            "No signed-in OpenAI web session found.",
-                            "Found \(foundText).",
-                        ].joined(separator: " ")
-                        : [
-                            "Browser cookies do not match Codex account (\(normalizedTarget ?? "unknown")).",
-                            "Found \(foundText).",
-                        ].joined(separator: " ")
+                    if cookieSource == .manual {
+                        self.openAIDashboardCookieImportStatus = allowAnyAccount
+                            ? [
+                                "Manual cookie does not map to a signed-in OpenAI dashboard session.",
+                                "Found \(foundText).",
+                            ].joined(separator: " ")
+                            : [
+                                "Manual cookie does not match Codex account (\(normalizedTarget ?? "unknown")).",
+                                "Found \(foundText).",
+                            ].joined(separator: " ")
+                    } else {
+                        self.openAIDashboardCookieImportStatus = allowAnyAccount
+                            ? [
+                                "No signed-in OpenAI web session found.",
+                                "Found \(foundText).",
+                            ].joined(separator: " ")
+                            : [
+                                "Browser cookies do not match Codex account (\(normalizedTarget ?? "unknown")).",
+                                "Found \(foundText).",
+                            ].joined(separator: " ")
+                    }
                     // Treat mismatch like "not logged in" for the current Codex account.
                     self.openAIDashboardRequiresLogin = true
                     self.openAIDashboard = nil

@@ -191,8 +191,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                         isVisible: nil,
                         perform: {
                             await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                                await context.store.importOpenAIDashboardBrowserCookiesNow()
-                                await context.store.refreshProvider(.codex, allowDisabled: true)
+                                await context.store.testOpenAIDashboardCookieNow()
                             }
                         }),
                     ProviderSettingsActionDescriptor(
