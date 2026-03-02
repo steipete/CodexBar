@@ -1109,6 +1109,11 @@ extension UsageStore {
     }
 
     func codexAccountEmailForOpenAIDashboard() -> String? {
+        if self.settings.codexCookieSource == .manual,
+           !self.settings.tokenAccounts(for: .codex).isEmpty
+        {
+            return nil
+        }
         let direct = self.snapshots[.codex]?.accountEmail(for: .codex)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let direct, !direct.isEmpty { return direct }

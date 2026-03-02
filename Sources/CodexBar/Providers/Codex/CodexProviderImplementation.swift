@@ -60,10 +60,19 @@ struct CodexProviderImplementation: ProviderImplementation {
 
     @MainActor
     func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        if context.settings.codexUsageDataSource == .auto,
+           context.settings.codexCookieSource == .manual,
+           !context.settings.tokenAccounts(for: .codex).isEmpty
+        {
+            return ProviderSourceMode.web
+        }
         switch context.settings.codexUsageDataSource {
-        case .auto: .auto
-        case .oauth: .oauth
-        case .cli: .cli
+        case .auto:
+            return ProviderSourceMode.auto
+        case .oauth:
+            return ProviderSourceMode.oauth
+        case .cli:
+            return ProviderSourceMode.cli
         }
     }
 

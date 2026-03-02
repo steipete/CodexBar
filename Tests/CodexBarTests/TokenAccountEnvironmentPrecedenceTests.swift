@@ -247,6 +247,20 @@ struct TokenAccountEnvironmentPrecedenceTests {
         #expect(mode == .web)
     }
 
+    @Test
+    func codexProviderAutoModeUsesWebWhenManualTokenAccountsExist() {
+        let settings = Self
+            .makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-provider-source-mode")
+        settings.codexUsageDataSource = .auto
+        settings.codexCookieSource = .manual
+        settings.addTokenAccount(provider: .codex, label: "Account 1", token: "session=account-token")
+
+        let mode = CodexProviderImplementation().sourceMode(
+            context: ProviderSourceModeContext(provider: .codex, settings: settings))
+
+        #expect(mode == .web)
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

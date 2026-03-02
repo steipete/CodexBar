@@ -62,4 +62,36 @@ struct OpenAIWebAccountSwitchTests {
         store.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: "a@example.com")
         #expect(store.openAIDashboard == dash)
     }
+
+    @Test
+    func manualCodexTokenAccountsDoNotForceTargetEmail() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-token-accounts"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.codexCookieSource = .manual
+        settings.addTokenAccount(provider: .codex, label: "personal", token: "session=first")
+        settings.addTokenAccount(provider: .codex, label: "simon", token: "session=second")
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        store.snapshots[.codex] = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            providerCost: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "old@example.com",
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let target = store.codexAccountEmailForOpenAIDashboard()
+        #expect(target == nil)
+    }
 }
