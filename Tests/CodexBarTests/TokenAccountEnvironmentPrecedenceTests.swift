@@ -130,6 +130,48 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func codexTokenAccountsAreSupportedInCatalog() throws {
+        let support = try #require(TokenAccountSupportCatalog.support(for: .codex))
+        #expect(support.requiresManualCookieSource)
+        switch support.injection {
+        case .cookieHeader:
+            #expect(Bool(true))
+        case .environment:
+            Issue.record("Codex token accounts should inject as cookie headers")
+        }
+    }
+
+    @Test
+    func codexTokenAccountSelectionForcesManualCookieSourceInCLISettingsSnapshot() throws {
+        let accounts = ProviderTokenAccountData(
+            version: 1,
+            accounts: [
+                ProviderTokenAccount(
+                    id: UUID(),
+                    label: "Primary",
+                    token: "session=account-token",
+                    addedAt: 0,
+                    lastUsed: nil),
+            ],
+            activeIndex: 0)
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .codex,
+                    cookieSource: .auto,
+                    tokenAccounts: accounts),
+            ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let account = try #require(tokenContext.resolvedAccounts(for: .codex).first)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .codex, account: account))
+        let codexSettings = try #require(snapshot.codex)
+
+        #expect(codexSettings.cookieSource == .manual)
+        #expect(codexSettings.manualCookieHeader == "session=account-token")
+    }
+
+    @Test
     func applyAccountLabelInAppPreservesSnapshotFields() {
         let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-apply-app")
         let store = Self.makeUsageStore(settings: settings)
