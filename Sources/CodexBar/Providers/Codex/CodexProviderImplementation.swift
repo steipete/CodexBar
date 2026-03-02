@@ -120,12 +120,17 @@ struct CodexProviderImplementation: ProviderImplementation {
             keychainDisabled: context.settings.debugDisableKeychainAccess)
 
         let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
+            let base = ProviderCookieSourceUI.subtitle(
                 source: context.settings.codexCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
                 auto: "Automatic imports browser cookies for dashboard extras.",
                 manual: "Paste a Cookie header from a chatgpt.com request.",
                 off: "Disable OpenAI dashboard cookie usage.")
+            let status = context.store.openAIDashboardCookieImportStatus?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let status, !status.isEmpty else { return base }
+            guard !base.isEmpty else { return status }
+            return "\(base)\n\(status)"
         }
 
         return [
@@ -169,7 +174,36 @@ struct CodexProviderImplementation: ProviderImplementation {
                 kind: .secure,
                 placeholder: "Cookie: …",
                 binding: context.stringBinding(\.codexCookieHeader),
-                actions: [],
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "codex-test-cookie",
+                        title: "Test cookie",
+                        style: .bordered,
+                        isVisible: nil,
+                        perform: {
+                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                await context.store.importOpenAIDashboardBrowserCookiesNow()
+                                await context.store.refreshProvider(.codex, allowDisabled: true)
+                            }
+                        }),
+                    ProviderSettingsActionDescriptor(
+                        id: "codex-save-cookie-account",
+                        title: "Save as account",
+                        style: .link,
+                        isVisible: nil,
+                        perform: {
+                            let token = context.settings.codexCookieHeader
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !token.isEmpty else { return }
+                            context.settings.addTokenAccount(
+                                provider: .codex,
+                                label: "",
+                                token: token)
+                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                await context.store.refreshProvider(.codex, allowDisabled: true)
+                            }
+                        }),
+                ],
                 isVisible: {
                     context.settings.codexCookieSource == .manual
                 },
