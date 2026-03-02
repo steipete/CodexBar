@@ -20,6 +20,8 @@ Use it when you need usage numbers in scripts, CI, or dashboards without UI.
 - Homebrew (Linuxbrew, Linux only): `brew install steipete/tap/codexbar`.
 - Download `CodexBarCLI-v<tag>-linux-<arch>.tar.gz` from GitHub Releases (x86_64 + aarch64).
 - Extract; run `./codexbar` (symlink) or `./CodexBarCLI`.
+- Native tray MVP from source: `swift build -c release --product CodexBarLinuxTray && ./.build/release/CodexBarLinuxTray`.
+- Headless mode for CI: set `CODEXBAR_TRAY_STDOUT_ONLY=1`.
 
 ```
 tar -xzf CodexBarCLI-v0.17.0-linux-x86_64.tar.gz
