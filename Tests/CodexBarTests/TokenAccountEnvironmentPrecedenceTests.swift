@@ -46,6 +46,60 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func tokenAccountEnvironmentOverridesConfigAPIKey_forAdditionalAPIProviders() throws {
+        let cases: [(provider: UsageProvider, envKey: String)] = [
+            (.copilot, "COPILOT_API_TOKEN"),
+            (.kimik2, KimiK2SettingsReader.apiKeyEnvironmentKeys[0]),
+            (.synthetic, SyntheticSettingsReader.apiKeyKey),
+            (.warp, WarpSettingsReader.apiKeyEnvironmentKeys[0]),
+            (.openrouter, OpenRouterSettingsReader.envKey),
+        ]
+
+        for (provider, envKey) in cases {
+            let suite = "TokenAccountEnvironmentPrecedenceTests-\(provider.rawValue)-api"
+            let settings = Self.makeSettingsStore(suite: suite)
+            settings.updateProviderConfig(provider: provider) { entry in
+                entry.apiKey = "config-token"
+            }
+            settings.addTokenAccount(provider: provider, label: "Account 1", token: "account-token")
+
+            let appEnv = ProviderRegistry.makeEnvironment(
+                base: [:],
+                provider: provider,
+                settings: settings,
+                tokenOverride: nil)
+
+            #expect(appEnv[envKey] == "account-token")
+            #expect(appEnv[envKey] != "config-token")
+
+            let config = CodexBarConfig(
+                providers: [
+                    ProviderConfig(
+                        id: provider,
+                        apiKey: "config-token",
+                        tokenAccounts: ProviderTokenAccountData(
+                            version: 1,
+                            accounts: [
+                                ProviderTokenAccount(
+                                    id: UUID(),
+                                    label: "Account 1",
+                                    token: "account-token",
+                                    addedAt: Date().timeIntervalSince1970,
+                                    lastUsed: nil),
+                            ],
+                            activeIndex: 0)),
+                ])
+            let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+            let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+            let account = try #require(tokenContext.resolvedAccounts(for: provider).first)
+
+            let cliEnv = tokenContext.environment(base: [:], provider: provider, account: account)
+            #expect(cliEnv[envKey] == "account-token")
+            #expect(cliEnv[envKey] != "config-token")
+        }
+    }
+
+    @Test
     func ollamaTokenAccountSelectionForcesManualCookieSourceInCLISettingsSnapshot() throws {
         let accounts = ProviderTokenAccountData(
             version: 1,
