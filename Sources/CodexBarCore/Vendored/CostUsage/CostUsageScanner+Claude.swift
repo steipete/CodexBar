@@ -260,14 +260,12 @@ extension CostUsageScanner {
 
     private final class ClaudeScanState {
         var cache: CostUsageCache
-        var rootCache: [String: Int64]
         var touched: Set<String>
         let range: CostUsageDayRange
         let providerFilter: ClaudeLogProviderFilter
 
         init(cache: CostUsageCache, range: CostUsageDayRange, providerFilter: ClaudeLogProviderFilter) {
             self.cache = cache
-            self.rootCache = cache.roots ?? [:]
             self.touched = []
             self.range = range
             self.providerFilter = providerFilter
@@ -339,9 +337,6 @@ extension CostUsageScanner {
             path.hasSuffix("/") ? path : "\(path)/"
         }
         let rootExists = rootCandidates.contains { FileManager.default.fileExists(atPath: $0) }
-        let canonicalRootPath = rootCandidates.first(where: {
-            FileManager.default.fileExists(atPath: $0)
-        }) ?? rootPath
 
         guard rootExists else {
             let stale = state.cache.files.keys.filter { path in
@@ -353,44 +348,16 @@ extension CostUsageScanner {
                 }
                 state.cache.files.removeValue(forKey: path)
             }
-            for candidate in rootCandidates {
-                state.rootCache.removeValue(forKey: candidate)
-            }
             return
         }
 
-        let rootAttrs = (try? FileManager.default.attributesOfItem(atPath: canonicalRootPath)) ?? [:]
-        let rootMtime = (rootAttrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let rootMtimeMs = Int64(rootMtime * 1000)
-        let cachedRootMtime = rootCandidates.compactMap { state.rootCache[$0] }.first
-        let canSkipEnumeration = cachedRootMtime == rootMtimeMs && rootMtimeMs > 0
-
-        if canSkipEnumeration {
-            let cachedPaths = state.cache.files.keys.filter { path in
-                prefixes.contains(where: { path.hasPrefix($0) })
-            }
-            for path in cachedPaths {
-                guard FileManager.default.fileExists(atPath: path) else {
-                    if let old = state.cache.files[path] {
-                        Self.applyFileDays(cache: &state.cache, fileDays: old.days, sign: -1)
-                    }
-                    state.cache.files.removeValue(forKey: path)
-                    continue
-                }
-                let attrs = (try? FileManager.default.attributesOfItem(atPath: path)) ?? [:]
-                let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
-                if size <= 0 { continue }
-                let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-                let mtimeMs = Int64(mtime * 1000)
-                Self.processClaudeFile(
-                    url: URL(fileURLWithPath: path),
-                    size: size,
-                    mtimeMs: mtimeMs,
-                    state: state)
-            }
-            return
-        }
-
+        // Always enumerate the directory tree. The per-file mtime/size cache in
+        // processClaudeFile already skips unchanged files, so the only cost here is
+        // the directory walk itself. The previous root-mtime optimization skipped
+        // enumeration entirely when the root directory mtime was unchanged, but on
+        // POSIX systems a directory mtime only updates for direct child changes —
+        // not for files created or modified inside subdirectories. This caused new
+        // session logs to go undetected until the cache was manually cleared.
         let keys: [URLResourceKey] = [
             .isRegularFileKey,
             .contentModificationDateKey,
@@ -419,12 +386,7 @@ extension CostUsageScanner {
                 state: state)
         }
 
-        if rootMtimeMs > 0 {
-            state.rootCache[canonicalRootPath] = rootMtimeMs
-            for candidate in rootCandidates where candidate != canonicalRootPath {
-                state.rootCache.removeValue(forKey: candidate)
-            }
-        }
+        // Root mtime caching removed — see comment above.
     }
 
     static func loadClaudeDaily(
@@ -458,7 +420,7 @@ extension CostUsageScanner {
 
             cache = scanState.cache
             touched = scanState.touched
-            cache.roots = scanState.rootCache.isEmpty ? nil : scanState.rootCache
+            cache.roots = nil
 
             for key in cache.files.keys where !touched.contains(key) {
                 if let old = cache.files[key] {
