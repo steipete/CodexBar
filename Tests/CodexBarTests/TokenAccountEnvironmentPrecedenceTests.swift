@@ -211,6 +211,42 @@ struct TokenAccountEnvironmentPrecedenceTests {
         #expect(labeled.identity?.accountEmail == "CLI Account")
     }
 
+    @Test
+    func codexAccountLabelDoesNotOverrideProviderIdentityEmail() {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-label")
+        let store = Self.makeUsageStore(settings: settings)
+        let snapshot = Self.makeSnapshotWithAllFields(provider: .codex)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "personal",
+            token: "session=account-token",
+            addedAt: 0,
+            lastUsed: nil)
+
+        let labeled = store.applyAccountLabel(snapshot, provider: .codex, account: account)
+
+        #expect(labeled.identity?.providerID == .codex)
+        #expect(labeled.identity?.accountEmail == snapshot.identity?.accountEmail)
+    }
+
+    @Test
+    func codexTokenAccountFetchUsesWebSourceWhenManualCookiesEnabled() {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-source-mode")
+        settings.codexCookieSource = .manual
+        let store = Self.makeUsageStore(settings: settings)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Account 1",
+            token: "session=account-token",
+            addedAt: 0,
+            lastUsed: nil)
+        let override = TokenAccountOverride(provider: .codex, account: account)
+
+        let mode = store.sourceMode(for: .codex, override: override)
+
+        #expect(mode == .web)
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
