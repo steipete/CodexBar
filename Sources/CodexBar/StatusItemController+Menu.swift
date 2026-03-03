@@ -602,6 +602,15 @@ extension StatusItemController {
             onSelect: { [weak self, weak menu] index in
                 guard let self, let menu else { return }
                 self.settings.setActiveTokenAccountIndex(index, for: display.provider)
+                // Clear stale provider data immediately so the open menu never
+                // keeps rendering a previous account's identity/usage while
+                // the new selection refresh is in flight.
+                self.store.snapshots.removeValue(forKey: display.provider)
+                self.store.errors.removeValue(forKey: display.provider)
+                if display.provider == .codex {
+                    self.store.openAIDashboard = nil
+                    self.store.lastOpenAIDashboardError = nil
+                }
                 Task { @MainActor in
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
                         await self.store.refresh()
