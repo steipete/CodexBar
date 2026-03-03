@@ -680,6 +680,55 @@ struct ClaudeUsageTests {
     }
 
     @Test
+    func parsesClaudeWebAPIUsageResponseWhenAllUsageWindowsAreNull() throws {
+        let json = """
+        {
+          "five_hour": null,
+          "seven_day_oauth_apps": null,
+          "seven_day": null,
+          "seven_day_opus": null,
+          "seven_day_sonnet": null,
+          "seven_day_cowork": null,
+          "iguana_necktie": null
+        }
+        """
+        let data = Data(json.utf8)
+        let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
+        #expect(parsed.sessionPercentUsed == 0)
+        #expect(parsed.weeklyPercentUsed == nil)
+        #expect(parsed.opusPercentUsed == nil)
+        #expect(parsed.usageMetricsUnavailable == true)
+    }
+
+    @Test
+    func parsesClaudeWebAPIUsageResponseWhenPresentUsageWindowsAreAllNull() throws {
+        let json = """
+        {
+          "five_hour": null,
+          "seven_day": null
+        }
+        """
+        let data = Data(json.utf8)
+        let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
+        #expect(parsed.sessionPercentUsed == 0)
+        #expect(parsed.usageMetricsUnavailable == true)
+    }
+
+    @Test
+    func rejectsClaudeWebAPIUsageResponseWhenSessionWindowMissingAndPayloadNotAllNull() {
+        let json = """
+        {
+          "five_hour": null,
+          "seven_day": { "utilization": 12, "resets_at": "2025-12-29T23:00:00.000Z" }
+        }
+        """
+        let data = Data(json.utf8)
+        #expect(throws: ClaudeWebAPIFetcher.FetchError.self) {
+            _ = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
+        }
+    }
+
+    @Test
     func parsesClaudeWebAPIOverageSpendLimit() {
         let json = """
         {
@@ -713,6 +762,27 @@ struct ClaudeUsageTests {
         #expect(cost?.currencyCode == "USD")
         #expect(cost?.limit == 123.45)
         #expect(cost?.used == 67.89)
+    }
+
+    @Test
+    func parsesClaudeWebAPIOverageSpendLimitEnterpriseMemberPayload() {
+        let json = """
+        {
+          "organization_uuid": "00000000-0000-0000-0000-000000000001",
+          "limit_type": "member",
+          "seat_tier": null,
+          "account_uuid": "00000000-0000-0000-0000-000000000002",
+          "monthly_credit_limit": 30000,
+          "currency": "USD",
+          "used_credits": 14025,
+          "is_enabled": true
+        }
+        """
+        let data = Data(json.utf8)
+        let cost = ClaudeWebAPIFetcher._parseOverageSpendLimitForTesting(data)
+        #expect(cost?.currencyCode == "USD")
+        #expect(cost?.limit == 300)
+        #expect(cost?.used == 140.25)
     }
 
     @Test
@@ -776,6 +846,7 @@ struct ClaudeUsageTests {
         let data = Data(json.utf8)
         let info = ClaudeWebAPIFetcher._parseAccountInfoForTesting(data, orgId: "org-123")
         #expect(info?.email == "steipete@gmail.com")
+        #expect(info?.accountUUID == nil)
         #expect(info?.loginMethod == "Claude Max")
     }
 
@@ -840,6 +911,20 @@ struct ClaudeUsageTests {
     }
 
     @Test
+    func parsesClaudeWebAPIAccountInfoWithAccountUUID() {
+        let json = """
+        {
+          "uuid": "00000000-0000-0000-0000-000000000003",
+          "email_address": "account@example.com",
+          "memberships": []
+        }
+        """
+        let data = Data(json.utf8)
+        let info = ClaudeWebAPIFetcher._parseAccountInfoForTesting(data, orgId: nil)
+        #expect(info?.accountUUID == "00000000-0000-0000-0000-000000000003")
+    }
+
+    @Test
     func claudeUsageFetcherInitWithDataSources() {
         // Verify we can create fetchers with both configurations
         let browserDetection = BrowserDetection(cacheTTL: 0)
@@ -853,6 +938,55 @@ struct ClaudeUsageTests {
         #expect(defaultVersion?.isEmpty != true)
         #expect(webVersion?.isEmpty != true)
         #expect(cliVersion?.isEmpty != true)
+    }
+
+    @Test
+    func hidesClaudeUsageMetricsWhenEnterpriseWebUsageWindowsAreAllNull() {
+        let usage = ClaudeUsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 5 * 60, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            opus: nil,
+            usageMetricsUnavailable: true,
+            providerCost: ProviderCostSnapshot(
+                used: 140.25,
+                limit: 300,
+                currencyCode: "USD",
+                period: "Monthly",
+                resetsAt: nil,
+                updatedAt: Date()),
+            updatedAt: Date(),
+            accountEmail: "member@example.com",
+            accountOrganization: "Example Org",
+            loginMethod: "Claude Enterprise",
+            rawText: nil)
+
+        let snapshot = ClaudeProviderDescriptor._snapshotFromClaudeUsageForTesting(usage)
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary == nil)
+        #expect(snapshot.tertiary == nil)
+        #expect(snapshot.providerCost != nil)
+    }
+
+    @Test
+    func keepsClaudeUsageMetricsWhenSessionResetExists() {
+        let usage = ClaudeUsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 5 * 60,
+                resetsAt: Date(timeIntervalSince1970: 1_700_000_000),
+                resetDescription: "Dec 1 at 1:00PM"),
+            secondary: nil,
+            opus: nil,
+            usageMetricsUnavailable: false,
+            providerCost: nil,
+            updatedAt: Date(),
+            accountEmail: "member@example.com",
+            accountOrganization: "Example Org",
+            loginMethod: "Claude Enterprise",
+            rawText: nil)
+
+        let snapshot = ClaudeProviderDescriptor._snapshotFromClaudeUsageForTesting(usage)
+        #expect(snapshot.primary != nil)
     }
 }
 

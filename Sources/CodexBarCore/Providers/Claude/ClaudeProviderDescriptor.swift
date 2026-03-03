@@ -128,6 +128,14 @@ public struct ClaudeUsageStrategy: Equatable, Sendable {
     public let useWebExtras: Bool
 }
 
+#if DEBUG
+extension ClaudeProviderDescriptor {
+    public static func _snapshotFromClaudeUsageForTesting(_ usage: ClaudeUsageSnapshot) -> UsageSnapshot {
+        ClaudeOAuthFetchStrategy._snapshotForTesting(from: usage)
+    }
+}
+#endif
+
 struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     let id: String = "claude.oauth"
     let kind: ProviderFetchKind = .oauth
@@ -248,19 +256,34 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     fileprivate static func snapshot(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {
+        let hideUsageMetrics = Self.shouldHideUsageMetrics(for: usage)
+        let primary: RateWindow? = hideUsageMetrics ? nil : usage.primary
+        let secondary: RateWindow? = hideUsageMetrics ? nil : usage.secondary
+        let tertiary: RateWindow? = hideUsageMetrics ? nil : usage.opus
         let identity = ProviderIdentitySnapshot(
             providerID: .claude,
             accountEmail: usage.accountEmail,
             accountOrganization: usage.accountOrganization,
             loginMethod: usage.loginMethod)
         return UsageSnapshot(
-            primary: usage.primary,
-            secondary: usage.secondary,
-            tertiary: usage.opus,
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
             providerCost: usage.providerCost,
             updatedAt: usage.updatedAt,
             identity: identity)
     }
+
+    private static func shouldHideUsageMetrics(for usage: ClaudeUsageSnapshot) -> Bool {
+        // Derived directly from the web usage payload shape to avoid depending on best-effort account fetches.
+        usage.usageMetricsUnavailable
+    }
+
+    #if DEBUG
+    static func _snapshotForTesting(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {
+        self.snapshot(from: usage)
+    }
+    #endif
 }
 
 struct ClaudeWebFetchStrategy: ProviderFetchStrategy {

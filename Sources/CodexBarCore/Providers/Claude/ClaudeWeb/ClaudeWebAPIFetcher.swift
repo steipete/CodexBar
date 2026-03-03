@@ -84,6 +84,7 @@ public enum ClaudeWebAPIFetcher {
         public let weeklyPercentUsed: Double?
         public let weeklyResetsAt: Date?
         public let opusPercentUsed: Double?
+        public let usageMetricsUnavailable: Bool
         public let extraUsageCost: ProviderCostSnapshot?
         public let accountOrganization: String?
         public let accountEmail: String?
@@ -95,6 +96,7 @@ public enum ClaudeWebAPIFetcher {
             weeklyPercentUsed: Double?,
             weeklyResetsAt: Date?,
             opusPercentUsed: Double?,
+            usageMetricsUnavailable: Bool,
             extraUsageCost: ProviderCostSnapshot?,
             accountOrganization: String?,
             accountEmail: String?,
@@ -105,6 +107,7 @@ public enum ClaudeWebAPIFetcher {
             self.weeklyPercentUsed = weeklyPercentUsed
             self.weeklyResetsAt = weeklyResetsAt
             self.opusPercentUsed = opusPercentUsed
+            self.usageMetricsUnavailable = usageMetricsUnavailable
             self.extraUsageCost = extraUsageCost
             self.accountOrganization = accountOrganization
             self.accountEmail = accountEmail
@@ -185,9 +188,14 @@ public enum ClaudeWebAPIFetcher {
         let organization = try await fetchOrganizationInfo(sessionKey: sessionKey, logger: log)
         log("Organization resolved")
 
+        let account = await fetchAccountInfo(sessionKey: sessionKey, orgId: organization.id, logger: log)
         var usage = try await fetchUsageData(orgId: organization.id, sessionKey: sessionKey, logger: log)
         if usage.extraUsageCost == nil,
-           let extra = await fetchExtraUsageCost(orgId: organization.id, sessionKey: sessionKey, logger: log)
+           let extra = await fetchExtraUsageCost(
+               orgId: organization.id,
+               accountUUID: account?.accountUUID,
+               sessionKey: sessionKey,
+               logger: log)
         {
             usage = WebUsageData(
                 sessionPercentUsed: usage.sessionPercentUsed,
@@ -195,18 +203,20 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                usageMetricsUnavailable: usage.usageMetricsUnavailable,
                 extraUsageCost: extra,
                 accountOrganization: usage.accountOrganization,
                 accountEmail: usage.accountEmail,
                 loginMethod: usage.loginMethod)
         }
-        if let account = await fetchAccountInfo(sessionKey: sessionKey, orgId: organization.id, logger: log) {
+        if let account {
             usage = WebUsageData(
                 sessionPercentUsed: usage.sessionPercentUsed,
                 sessionResetsAt: usage.sessionResetsAt,
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                usageMetricsUnavailable: usage.usageMetricsUnavailable,
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: usage.accountOrganization,
                 accountEmail: account.email,
@@ -219,6 +229,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                usageMetricsUnavailable: usage.usageMetricsUnavailable,
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: name,
                 accountEmail: usage.accountEmail,
@@ -453,18 +464,19 @@ public enum ClaudeWebAPIFetcher {
         }
 
         // Parse five_hour (session) usage
+        let usageMetricsUnavailable = self.usageWindowsUnavailable(in: json)
         var sessionPercent: Double?
         var sessionResets: Date?
         if let fiveHour = json["five_hour"] as? [String: Any] {
-            if let utilization = fiveHour["utilization"] as? Int {
-                sessionPercent = Double(utilization)
+            if let utilization = fiveHour["utilization"] as? NSNumber {
+                sessionPercent = utilization.doubleValue
             }
             if let resetsAt = fiveHour["resets_at"] as? String {
                 sessionResets = self.parseISO8601Date(resetsAt)
             }
         }
-        guard let sessionPercent else {
-            // If we can't parse session utilization, treat this as a failure so callers can fall back to the CLI.
+        guard sessionPercent != nil || usageMetricsUnavailable else {
+            // Keep malformed payloads on the fallback path. Only all-null enterprise payloads are accepted.
             throw FetchError.invalidResponse
         }
 
@@ -472,8 +484,8 @@ public enum ClaudeWebAPIFetcher {
         var weeklyPercent: Double?
         var weeklyResets: Date?
         if let sevenDay = json["seven_day"] as? [String: Any] {
-            if let utilization = sevenDay["utilization"] as? Int {
-                weeklyPercent = Double(utilization)
+            if let utilization = sevenDay["utilization"] as? NSNumber {
+                weeklyPercent = utilization.doubleValue
             }
             if let resetsAt = sevenDay["resets_at"] as? String {
                 weeklyResets = self.parseISO8601Date(resetsAt)
@@ -483,21 +495,37 @@ public enum ClaudeWebAPIFetcher {
         // Parse seven_day_opus (Opus-specific weekly) usage
         var opusPercent: Double?
         if let sevenDayOpus = json["seven_day_opus"] as? [String: Any] {
-            if let utilization = sevenDayOpus["utilization"] as? Int {
-                opusPercent = Double(utilization)
+            if let utilization = sevenDayOpus["utilization"] as? NSNumber {
+                opusPercent = utilization.doubleValue
             }
         }
 
         return WebUsageData(
-            sessionPercentUsed: sessionPercent,
+            sessionPercentUsed: sessionPercent ?? 0,
             sessionResetsAt: sessionResets,
             weeklyPercentUsed: weeklyPercent,
             weeklyResetsAt: weeklyResets,
             opusPercentUsed: opusPercent,
+            usageMetricsUnavailable: usageMetricsUnavailable,
             extraUsageCost: nil,
             accountOrganization: nil,
             accountEmail: nil,
             loginMethod: nil)
+    }
+
+    private static func usageWindowsUnavailable(in json: [String: Any]) -> Bool {
+        let keys = [
+            "five_hour",
+            "seven_day",
+            "seven_day_oauth_apps",
+            "seven_day_opus",
+            "seven_day_sonnet",
+            "seven_day_cowork",
+            "iguana_necktie",
+        ]
+        let values = keys.compactMap { json[$0] }
+        guard !values.isEmpty else { return false }
+        return values.allSatisfy { $0 is NSNull }
     }
 
     // MARK: - Extra usage cost (Claude "Extra")
@@ -519,10 +547,24 @@ public enum ClaudeWebAPIFetcher {
     /// Best-effort fetch of Claude Extra spend/limit (does not fail the main usage fetch).
     private static func fetchExtraUsageCost(
         orgId: String,
+        accountUUID: String?,
         sessionKey: String,
         logger: ((String) -> Void)? = nil) async -> ProviderCostSnapshot?
     {
-        let url = URL(string: "\(baseURL)/organizations/\(orgId)/overage_spend_limit")!
+        let preferredURL = self.overageSpendLimitURL(orgId: orgId, accountUUID: accountUUID)
+        if let snapshot = await self.fetchExtraUsageCost(url: preferredURL, sessionKey: sessionKey, logger: logger) {
+            return snapshot
+        }
+        guard accountUUID != nil else { return nil }
+        let fallbackURL = self.overageSpendLimitURL(orgId: orgId, accountUUID: nil)
+        return await self.fetchExtraUsageCost(url: fallbackURL, sessionKey: sessionKey, logger: logger)
+    }
+
+    private static func fetchExtraUsageCost(
+        url: URL,
+        sessionKey: String,
+        logger: ((String) -> Void)? = nil) async -> ProviderCostSnapshot?
+    {
         var request = URLRequest(url: url)
         request.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -538,6 +580,14 @@ public enum ClaudeWebAPIFetcher {
         } catch {
             return nil
         }
+    }
+
+    private static func overageSpendLimitURL(orgId: String, accountUUID: String?) -> URL {
+        var components = URLComponents(string: "\(baseURL)/organizations/\(orgId)/overage_spend_limit")!
+        if let accountUUID {
+            components.queryItems = [URLQueryItem(name: "account_uuid", value: accountUUID)]
+        }
+        return components.url!
     }
 
     private static func parseOverageSpendLimit(_ data: Data) -> ProviderCostSnapshot? {
@@ -628,19 +678,25 @@ public enum ClaudeWebAPIFetcher {
 
     public struct WebAccountInfo: Sendable {
         public let email: String?
+        public let accountUUID: String?
         public let loginMethod: String?
 
-        public init(email: String?, loginMethod: String?) {
+        public init(email: String?, accountUUID: String?, loginMethod: String?) {
             self.email = email
+            self.accountUUID = accountUUID
             self.loginMethod = loginMethod
         }
     }
 
     private struct AccountResponse: Decodable {
+        let uuid: String?
+        let accountUUID: String?
         let emailAddress: String?
         let memberships: [Membership]?
 
         enum CodingKeys: String, CodingKey {
+            case uuid
+            case accountUUID = "account_uuid"
             case emailAddress = "email_address"
             case memberships
         }
@@ -690,11 +746,13 @@ public enum ClaudeWebAPIFetcher {
     private static func parseAccountInfo(_ data: Data, orgId: String?) -> WebAccountInfo? {
         guard let response = try? JSONDecoder().decode(AccountResponse.self, from: data) else { return nil }
         let email = response.emailAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let accountUUID = (response.accountUUID ?? response.uuid)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let membership = Self.selectMembership(response.memberships, orgId: orgId)
         let plan = Self.inferPlan(
             rateLimitTier: membership?.organization.rateLimitTier,
             billingType: membership?.organization.billingType)
-        return WebAccountInfo(email: email, loginMethod: plan)
+        return WebAccountInfo(email: email, accountUUID: accountUUID, loginMethod: plan)
     }
 
     private static func selectMembership(
