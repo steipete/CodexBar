@@ -497,8 +497,12 @@ struct StatusMenuTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
         let titles = Set(menu.items.map(\.title))
+        let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
         #expect(!titles.contains("Credits history"))
         #expect(!titles.contains("Usage breakdown"))
+        #expect(
+            usageItem?.submenu?.items
+                .contains { ($0.representedObject as? String) == "openCodeReviewLogsPanel" } != true)
     }
 
     @Test
@@ -538,9 +542,17 @@ struct StatusMenuTests {
 
         let events = [CreditEvent(date: date, service: "CLI", creditsUsed: 1)]
         let breakdown = OpenAIDashboardSnapshot.makeDailyBreakdown(from: events, maxDays: 30)
+        let codeReviewLogs = [
+            OpenAICodeReviewLogEntry(
+                id: "review-1",
+                title: "repo/pull-request-123",
+                subtitle: "Pending · 2 files",
+                url: "https://chatgpt.com/codex?tab=code_reviews"),
+        ]
         store.openAIDashboard = OpenAIDashboardSnapshot(
             signedInEmail: "user@example.com",
             codeReviewRemainingPercent: 100,
+            codeReviewLogs: codeReviewLogs,
             creditEvents: events,
             dailyBreakdown: breakdown,
             usageBreakdown: breakdown,
@@ -562,6 +574,9 @@ struct StatusMenuTests {
         #expect(
             usageItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "usageBreakdownChart" } == true)
+        #expect(
+            usageItem?.submenu?.items
+                .contains { ($0.representedObject as? String) == "openCodeReviewLogsPanel" } == true)
         #expect(
             creditsItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true)
