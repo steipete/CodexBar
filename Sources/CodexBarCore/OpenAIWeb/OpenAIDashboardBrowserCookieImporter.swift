@@ -190,6 +190,9 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
         let pairs = CookieHeaderNormalizer.pairs(from: normalized)
         guard !pairs.isEmpty else { throw ImportError.manualCookieHeaderInvalid }
+        guard Self.manualHeaderContainsSessionCookie(pairs: pairs) else {
+            throw ImportError.manualCookieHeaderInvalid
+        }
         let cookies = self.cookies(from: pairs)
         guard !cookies.isEmpty else { throw ImportError.manualCookieHeaderInvalid }
 
@@ -212,8 +215,19 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
             throw ImportError.noMatchingAccount(found: [])
         case .loginRequired:
-            throw ImportError.manualCookieHeaderInvalid
+            throw ImportError.dashboardStillRequiresLogin
         }
+    }
+
+    public nonisolated static func manualHeaderContainsSessionCookie(pairs: [(name: String, value: String)]) -> Bool {
+        for pair in pairs {
+            let name = pair.name.lowercased()
+            if name.contains("session-token") || name.contains("authjs") || name.contains("next-auth") {
+                return true
+            }
+            if name == "_account" { return true }
+        }
+        return false
     }
 
     private func trySafari(
