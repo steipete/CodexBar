@@ -699,14 +699,13 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         let currency = extra.currency?.trimmingCharacters(in: .whitespacesAndNewlines)
         let code = (currency?.isEmpty ?? true) ? "USD" : currency!
         let normalized = Self.normalizeClaudeExtraUsageAmounts(used: used, limit: limit)
-        let snapshot = ProviderCostSnapshot(
+        return ProviderCostSnapshot(
             used: normalized.used,
             limit: normalized.limit,
             currencyCode: code,
             period: "Monthly",
             resetsAt: nil,
             updatedAt: Date())
-        return snapshot
     }
 
     private static func normalizeClaudeExtraUsageAmounts(used: Double, limit: Double) -> (
@@ -1038,6 +1037,5 @@ extension ClaudeUsageFetcher {
             rateLimitTier: rateLimitTier)
         return try Self.mapOAuthUsage(usage, credentials: creds)
     }
-
 }
 #endif
