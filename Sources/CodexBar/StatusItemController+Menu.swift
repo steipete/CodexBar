@@ -606,6 +606,9 @@ extension StatusItemController {
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
                         await self.store.refresh()
                     }
+                    self.populateMenu(menu, provider: display.provider)
+                    self.markMenuFresh(menu)
+                    self.applyIcon(phase: nil)
                 }
                 self.populateMenu(menu, provider: display.provider)
                 self.markMenuFresh(menu)
