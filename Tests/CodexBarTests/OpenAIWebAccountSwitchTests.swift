@@ -94,4 +94,35 @@ struct OpenAIWebAccountSwitchTests {
         let target = store.codexAccountEmailForOpenAIDashboard()
         #expect(target == nil)
     }
+
+    @Test
+    func clearsDashboardWhenTokenAccountChangesWithoutEmailTarget() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-token-id-change"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        let first = UUID()
+        let second = UUID()
+        store.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: nil, tokenAccountID: first)
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "first@example.com",
+            codeReviewRemainingPercent: 100,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            updatedAt: Date())
+
+        store.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: nil, tokenAccountID: second)
+        #expect(store.openAIDashboard == nil)
+        #expect(store.openAIDashboardRequiresLogin == true)
+        #expect(store.openAIDashboardCookieImportStatus?.contains("Codex account changed") == true)
+    }
 }

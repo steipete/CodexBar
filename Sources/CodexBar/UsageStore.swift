@@ -165,6 +165,7 @@ final class UsageStore {
     @ObservationIgnored private var creditsFailureStreak: Int = 0
     @ObservationIgnored private var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
     @ObservationIgnored private var lastOpenAIDashboardTargetEmail: String?
+    @ObservationIgnored private var lastOpenAIDashboardTargetTokenAccountID: UUID?
     @ObservationIgnored private var lastOpenAIDashboardCookieImportAttemptAt: Date?
     @ObservationIgnored private var lastOpenAIDashboardCookieImportEmail: String?
     @ObservationIgnored private var openAIWebAccountDidChange: Bool = false
@@ -750,7 +751,8 @@ extension UsageStore {
         }
 
         let targetEmail = self.codexAccountEmailForOpenAIDashboard()
-        self.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: targetEmail)
+        let tokenAccountID = self.settings.selectedTokenAccount(for: .codex)?.id
+        self.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: targetEmail, tokenAccountID: tokenAccountID)
 
         let now = Date()
         let minInterval = self.openAIWebRefreshIntervalSeconds()
@@ -891,23 +893,39 @@ extension UsageStore {
 
     /// Detect Codex account email changes and clear stale OpenAI web state so the UI can't show the wrong user.
     /// This does not delete other per-email WebKit cookie stores (we keep multiple accounts around).
-    func handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: String?) {
+    func handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: String?, tokenAccountID: UUID? = nil) {
         let normalized = targetEmail?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
-        guard let normalized, !normalized.isEmpty else { return }
-
+        let normalizedOrNil: String?
+        if let normalized, !normalized.isEmpty {
+            normalizedOrNil = normalized
+        } else {
+            normalizedOrNil = nil
+        }
         let previous = self.lastOpenAIDashboardTargetEmail
-        self.lastOpenAIDashboardTargetEmail = normalized
+        let previousTokenAccountID = self.lastOpenAIDashboardTargetTokenAccountID
+        self.lastOpenAIDashboardTargetEmail = normalizedOrNil
+        self.lastOpenAIDashboardTargetTokenAccountID = tokenAccountID
 
-        if let previous,
-           !previous.isEmpty,
-           previous != normalized
-        {
+        let emailChanged = if let previous, !previous.isEmpty, let normalizedOrNil {
+            previous != normalizedOrNil
+        } else {
+            false
+        }
+        let tokenAccountChanged = if let previousTokenAccountID {
+            previousTokenAccountID != tokenAccountID
+        } else {
+            false
+        }
+
+        if emailChanged || tokenAccountChanged {
+            let fromText = previous ?? "unknown"
+            let toText = normalizedOrNil ?? "unknown"
             let stamp = Date().formatted(date: .abbreviated, time: .shortened)
             self.logOpenAIWeb(
-                "[\(stamp)] Codex account changed: \(previous) → \(normalized); " +
+                "[\(stamp)] Codex account changed: \(fromText) → \(toText); " +
                     "clearing OpenAI web snapshot")
             self.openAIWebAccountDidChange = true
             self.openAIDashboard = nil
@@ -978,7 +996,7 @@ extension UsageStore {
             switch cookieSource {
             case .manual:
                 self.settings.ensureCodexCookieLoaded()
-                let manualHeader = self.settings.codexCookieHeader
+                let manualHeader = self.settings.selectedTokenAccount(for: .codex)?.token ?? self.settings.codexCookieHeader
                 guard CookieHeaderNormalizer.normalize(manualHeader) != nil else {
                     throw OpenAIDashboardBrowserCookieImporter.ImportError.manualCookieHeaderInvalid
                 }
@@ -1117,6 +1135,7 @@ extension UsageStore {
         self.lastOpenAIDashboardError = nil
         self.lastOpenAIDashboardSnapshot = nil
         self.lastOpenAIDashboardTargetEmail = nil
+        self.lastOpenAIDashboardTargetTokenAccountID = nil
         self.openAIDashboardRequiresLogin = false
         self.openAIDashboardCookieImportStatus = nil
         self.openAIDashboardCookieImportDebugLog = nil
