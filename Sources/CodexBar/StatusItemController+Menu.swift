@@ -1393,6 +1393,9 @@ extension StatusItemController {
             tokenError = nil
         }
 
+        let sourceLabel = snapshotOverride == nil ? self.store.sourceLabel(for: target) : nil
+        let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
+
         let input = UsageMenuCardView.Model.Input(
             provider: target,
             metadata: metadata,
@@ -1410,6 +1413,8 @@ extension StatusItemController {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            sourceLabel: sourceLabel,
+            kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             now: Date())
         return UsageMenuCardView.Model.make(input)

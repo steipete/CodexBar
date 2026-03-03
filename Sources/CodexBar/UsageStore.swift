@@ -1194,6 +1194,7 @@ extension UsageStore {
                 .factory: "Droid debug log not yet implemented",
                 .copilot: "Copilot debug log not yet implemented",
                 .vertexai: "Vertex AI debug log not yet implemented",
+                .kilo: "Kilo debug log not yet implemented",
                 .kiro: "Kiro debug log not yet implemented",
                 .kimi: "Kimi debug log not yet implemented",
                 .kimik2: "Kimi K2 debug log not yet implemented",
@@ -1260,7 +1261,8 @@ extension UsageStore {
                 let hasAny = resolution != nil
                 let source = resolution?.source.rawValue ?? "none"
                 text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-            case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kiro, .kimi, .kimik2, .jetbrains:
+            case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi, .kimik2,
+                 .jetbrains:
                 text = unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
             }
 

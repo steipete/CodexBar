@@ -460,6 +460,68 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func defaultsKiloUsageSourceToAuto() throws {
+        let suite = "SettingsStoreTests-kilo-source"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.kiloUsageDataSource == .auto)
+    }
+
+    @Test
+    func persistsKiloUsageSourceAcrossInstances() throws {
+        let suite = "SettingsStoreTests-kilo-source-persist"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        storeA.kiloUsageDataSource = .cli
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.kiloUsageDataSource == .cli)
+    }
+
+    @Test
+    func kiloExtrasOnlyApplyInAutoMode() throws {
+        let suite = "SettingsStoreTests-kilo-extras"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        store.kiloExtrasEnabled = true
+        #expect(store.kiloExtrasEnabled)
+
+        store.kiloUsageDataSource = .api
+        #expect(!store.kiloExtrasEnabled)
+
+        store.kiloUsageDataSource = .auto
+        #expect(store.kiloExtrasEnabled)
+    }
+
+    @Test
     @MainActor
     func applyExternalConfigDoesNotBroadcast() throws {
         let suite = "SettingsStoreTests-external-config"
@@ -673,6 +735,7 @@ struct SettingsStoreTests {
             .zai,
             .minimax,
             .kimi,
+            .kilo,
             .kiro,
             .vertexai,
             .augment,

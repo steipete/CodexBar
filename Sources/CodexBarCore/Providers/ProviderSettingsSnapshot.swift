@@ -12,6 +12,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         minimax: MiniMaxProviderSettings? = nil,
         zai: ZaiProviderSettings? = nil,
         copilot: CopilotProviderSettings? = nil,
+        kilo: KiloProviderSettings? = nil,
         kimi: KimiProviderSettings? = nil,
         augment: AugmentProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
@@ -29,6 +30,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             minimax: minimax,
             zai: zai,
             copilot: copilot,
+            kilo: kilo,
             kimi: kimi,
             augment: augment,
             amp: amp,
@@ -131,6 +133,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         public init() {}
     }
 
+    public struct KiloProviderSettings: Sendable {
+        public let usageDataSource: KiloUsageDataSource
+        public let extrasEnabled: Bool
+
+        public init(usageDataSource: KiloUsageDataSource, extrasEnabled: Bool) {
+            self.usageDataSource = usageDataSource
+            self.extrasEnabled = extrasEnabled
+        }
+    }
+
     public struct KimiProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -189,6 +201,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let minimax: MiniMaxProviderSettings?
     public let zai: ZaiProviderSettings?
     public let copilot: CopilotProviderSettings?
+    public let kilo: KiloProviderSettings?
     public let kimi: KimiProviderSettings?
     public let augment: AugmentProviderSettings?
     public let amp: AmpProviderSettings?
@@ -210,6 +223,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         minimax: MiniMaxProviderSettings?,
         zai: ZaiProviderSettings?,
         copilot: CopilotProviderSettings?,
+        kilo: KiloProviderSettings?,
         kimi: KimiProviderSettings?,
         augment: AugmentProviderSettings?,
         amp: AmpProviderSettings?,
@@ -226,6 +240,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.minimax = minimax
         self.zai = zai
         self.copilot = copilot
+        self.kilo = kilo
         self.kimi = kimi
         self.augment = augment
         self.amp = amp
@@ -243,6 +258,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case minimax(ProviderSettingsSnapshot.MiniMaxProviderSettings)
     case zai(ProviderSettingsSnapshot.ZaiProviderSettings)
     case copilot(ProviderSettingsSnapshot.CopilotProviderSettings)
+    case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
     case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
@@ -261,6 +277,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings?
     public var zai: ProviderSettingsSnapshot.ZaiProviderSettings?
     public var copilot: ProviderSettingsSnapshot.CopilotProviderSettings?
+    public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
     public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
@@ -282,6 +299,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .minimax(value): self.minimax = value
         case let .zai(value): self.zai = value
         case let .copilot(value): self.copilot = value
+        case let .kilo(value): self.kilo = value
         case let .kimi(value): self.kimi = value
         case let .augment(value): self.augment = value
         case let .amp(value): self.amp = value
@@ -302,6 +320,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             minimax: self.minimax,
             zai: self.zai,
             copilot: self.copilot,
+            kilo: self.kilo,
             kimi: self.kimi,
             augment: self.augment,
             amp: self.amp,

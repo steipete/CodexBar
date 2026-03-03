@@ -96,6 +96,38 @@ extension CodexBarCLI {
         }
     }
 
+    static func usageTextNotes(
+        provider: UsageProvider,
+        sourceMode: ProviderSourceMode,
+        resolvedSourceLabel: String) -> [String]
+    {
+        guard provider == .kilo,
+              sourceMode == .auto,
+              resolvedSourceLabel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "cli"
+        else {
+            return []
+        }
+        return ["Using CLI fallback"]
+    }
+
+    static func kiloAutoFallbackSummary(
+        provider: UsageProvider,
+        sourceMode: ProviderSourceMode,
+        attempts: [ProviderFetchAttempt]) -> String?
+    {
+        guard provider == .kilo, sourceMode == .auto, !attempts.isEmpty else { return nil }
+        let parts = attempts.map { attempt in
+            let label = Self.fetchKindLabel(attempt.kind)
+            let message = attempt.errorDescription?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !message.isEmpty {
+                return "\(label): \(message)"
+            }
+            return "\(label): \(attempt.wasAvailable ? "success" : "unavailable")"
+        }
+        guard !parts.isEmpty else { return nil }
+        return "Kilo auto fallback attempts: " + parts.joined(separator: " -> ")
+    }
+
     private static func fetchKindLabel(_ kind: ProviderFetchKind) -> String {
         switch kind {
         case .cli: "cli"

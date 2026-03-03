@@ -519,6 +519,52 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func menuBarDisplayTextShowsZeroPercentForKiloZeroTotalEdge() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-kilo-zero-edge"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .kilo
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primary, for: .kilo)
+
+        let registry = ProviderRegistry.shared
+        if let kiloMeta = registry.metadata[.kilo] {
+            settings.setProviderEnabled(provider: .kilo, metadata: kiloMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = KiloUsageSnapshot(
+            creditsUsed: 0,
+            creditsTotal: 0,
+            creditsRemaining: 0,
+            planName: "Kilo Pass Pro",
+            autoTopUpEnabled: true,
+            autoTopUpMethod: "visa",
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .kilo)
+        store._setErrorForTesting(nil, provider: .kilo)
+
+        let displayText = controller.menuBarDisplayText(for: .kilo, snapshot: snapshot)
+
+        #expect(displayText == "0%")
+    }
+
+    @Test
     func brandImageWithStatusOverlayReturnsOriginalImageWhenNoIssue() {
         let brand = NSImage(size: NSSize(width: 16, height: 16))
         brand.isTemplate = true

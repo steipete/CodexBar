@@ -72,6 +72,15 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func sourceLabelUsesConfiguredKiloSource() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-kilo-source")
+        settings.kiloUsageDataSource = .api
+
+        let store = Self.makeUsageStore(settings: settings)
+        #expect(store.sourceLabel(for: .kilo) == "api")
+    }
+
+    @Test
     func providerWithHighestUsagePrefersKimiRateLimitWindow() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-kimi-highest")
         let store = Self.makeUsageStore(settings: settings)

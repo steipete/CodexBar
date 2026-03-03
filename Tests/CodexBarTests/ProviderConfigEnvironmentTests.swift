@@ -41,6 +41,18 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func appliesAPIKeyOverrideForKilo() {
+        let config = ProviderConfig(id: .kilo, apiKey: "kilo-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .kilo,
+            config: config)
+
+        #expect(env[KiloSettingsReader.apiTokenKey] == "kilo-token")
+        #expect(ProviderTokenResolver.kiloToken(environment: env, authFileURL: nil) == "kilo-token")
+    }
+
+    @Test
     func openRouterConfigOverrideWinsOverEnvironmentToken() {
         let config = ProviderConfig(id: .openrouter, apiKey: "config-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
