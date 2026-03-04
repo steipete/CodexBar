@@ -1,0 +1,5 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+<!-- Manus logo placeholder: stylised "M" letterform -->
+<rect width="512" height="512" rx="96" fill="currentColor" opacity="0.08"/>
+<path d="M80 400 L80 112 L176 112 L256 280 L336 112 L432 112 L432 400 L368 400 L368 224 L296 400 L216 400 L144 224 L144 400 Z" fill="currentColor"/>
+</svg>

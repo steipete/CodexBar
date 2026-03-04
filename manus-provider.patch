@@ -1,0 +1,824 @@
+diff --git a/Sources/CodexBar/Providers/Manus/ManusProviderImplementation.swift b/Sources/CodexBar/Providers/Manus/ManusProviderImplementation.swift
+new file mode 100644
+index 0000000..16ab306
+--- /dev/null
++++ b/Sources/CodexBar/Providers/Manus/ManusProviderImplementation.swift
+@@ -0,0 +1,86 @@
++import AppKit
++import CodexBarCore
++import CodexBarMacroSupport
++import Foundation
++import SwiftUI
++
++@ProviderImplementationRegistration
++struct ManusProviderImplementation: ProviderImplementation {
++    let id: UsageProvider = .manus
++
++    @MainActor
++    func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
++        ProviderPresentation { _ in "web" }
++    }
++
++    @MainActor
++    func observeSettings(_ settings: SettingsStore) {
++        _ = settings.manusCookieSource
++        _ = settings.manusManualCookieHeader
++    }
++
++    @MainActor
++    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
++        .manus(context.settings.manusSettingsSnapshot(tokenOverride: context.tokenOverride))
++    }
++
++    @MainActor
++    func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
++        let cookieBinding = Binding(
++            get: { context.settings.manusCookieSource.rawValue },
++            set: { raw in
++                context.settings.manusCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
++            })
++        let options = ProviderCookieSourceUI.options(
++            allowsOff: true,
++            keychainDisabled: context.settings.debugDisableKeychainAccess)
++
++        let subtitle: () -> String? = {
++            ProviderCookieSourceUI.subtitle(
++                source: context.settings.manusCookieSource,
++                keychainDisabled: context.settings.debugDisableKeychainAccess,
++                auto: "Automatic imports browser cookies.",
++                manual: "Paste the session_id cookie value.",
++                off: "Manus cookies are disabled.")
++        }
++
++        return [
++            ProviderSettingsPickerDescriptor(
++                id: "manus-cookie-source",
++                title: "Cookie source",
++                subtitle: "Automatic imports browser cookies.",
++                dynamicSubtitle: subtitle,
++                binding: cookieBinding,
++                options: options,
++                isVisible: nil,
++                onChange: nil),
++        ]
++    }
++
++    @MainActor
++    func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
++        [
++            ProviderSettingsFieldDescriptor(
++                id: "manus-cookie",
++                title: "",
++                subtitle: "",
++                kind: .secure,
++                placeholder: "Paste your manus.im session_id cookie value here",
++                binding: context.stringBinding(\.manusManualCookieHeader),
++                actions: [
++                    ProviderSettingsActionDescriptor(
++                        id: "manus-open-dashboard",
++                        title: "Open Manus",
++                        style: .link,
++                        isVisible: nil,
++                        perform: {
++                            if let url = URL(string: "https://manus.im") {
++                                NSWorkspace.shared.open(url)
++                            }
++                        }),
++                ],
++                isVisible: { context.settings.manusCookieSource == .manual },
++                onActivate: nil),
++        ]
++    }
++}
+diff --git a/Sources/CodexBar/Providers/Manus/ManusSettingsStore.swift b/Sources/CodexBar/Providers/Manus/ManusSettingsStore.swift
+new file mode 100644
+index 0000000..8816d76
+--- /dev/null
++++ b/Sources/CodexBar/Providers/Manus/ManusSettingsStore.swift
+@@ -0,0 +1,33 @@
++import CodexBarCore
++import Foundation
++
++extension SettingsStore {
++    var manusManualCookieHeader: String {
++        get { self.configSnapshot.providerConfig(for: .manus)?.sanitizedCookieHeader ?? "" }
++        set {
++            self.updateProviderConfig(provider: .manus) { entry in
++                entry.cookieHeader = self.normalizedConfigValue(newValue)
++            }
++            self.logSecretUpdate(provider: .manus, field: "cookieHeader", value: newValue)
++        }
++    }
++
++    var manusCookieSource: ProviderCookieSource {
++        get { self.resolvedCookieSource(provider: .manus, fallback: .auto) }
++        set {
++            self.updateProviderConfig(provider: .manus) { entry in
++                entry.cookieSource = newValue
++            }
++            self.logProviderModeChange(provider: .manus, field: "cookieSource", value: newValue.rawValue)
++        }
++    }
++}
++
++extension SettingsStore {
++    func manusSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.ManusProviderSettings {
++        _ = tokenOverride
++        return ProviderSettingsSnapshot.ManusProviderSettings(
++            cookieSource: self.manusCookieSource,
++            manualCookieHeader: self.manusManualCookieHeader)
++    }
++}
+diff --git a/Sources/CodexBar/Providers/Shared/ProviderImplementationRegistry.swift b/Sources/CodexBar/Providers/Shared/ProviderImplementationRegistry.swift
+index 7938b3d..b611339 100644
+--- a/Sources/CodexBar/Providers/Shared/ProviderImplementationRegistry.swift
++++ b/Sources/CodexBar/Providers/Shared/ProviderImplementationRegistry.swift
+@@ -35,6 +35,7 @@ enum ProviderImplementationRegistry {
+         case .synthetic: SyntheticProviderImplementation()
+         case .openrouter: OpenRouterProviderImplementation()
+         case .warp: WarpProviderImplementation()
++        case .manus: ManusProviderImplementation()
+         }
+     }
+ 
+diff --git a/Sources/CodexBar/Resources/ProviderIcon-manus.svg b/Sources/CodexBar/Resources/ProviderIcon-manus.svg
+new file mode 100644
+index 0000000..6688a4d
+--- /dev/null
++++ b/Sources/CodexBar/Resources/ProviderIcon-manus.svg
+@@ -0,0 +1,5 @@
++<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
++<!-- Manus logo placeholder: stylised "M" letterform -->
++<rect width="512" height="512" rx="96" fill="currentColor" opacity="0.08"/>
++<path d="M80 400 L80 112 L176 112 L256 280 L336 112 L432 112 L432 400 L368 400 L368 224 L296 400 L216 400 L144 224 L144 400 Z" fill="currentColor"/>
++</svg>
+diff --git a/Sources/CodexBarCore/Logging/LogCategories.swift b/Sources/CodexBarCore/Logging/LogCategories.swift
+index 37a7726..4bd8ced 100644
+--- a/Sources/CodexBarCore/Logging/LogCategories.swift
++++ b/Sources/CodexBarCore/Logging/LogCategories.swift
+@@ -32,6 +32,8 @@ public enum LogCategories {
+     public static let launchAtLogin = "launch-at-login"
+     public static let login = "login"
+     public static let logging = "logging"
++    public static let manusCookie = "manus-cookie"
++    public static let manusUsage = "manus-usage"
+     public static let minimaxAPITokenStore = "minimax-api-token-store"
+     public static let minimaxCookie = "minimax-cookie"
+     public static let minimaxCookieStore = "minimax-cookie-store"
+diff --git a/Sources/CodexBarCore/Providers/Manus/ManusCookieImporter.swift b/Sources/CodexBarCore/Providers/Manus/ManusCookieImporter.swift
+new file mode 100644
+index 0000000..e585ee9
+--- /dev/null
++++ b/Sources/CodexBarCore/Providers/Manus/ManusCookieImporter.swift
+@@ -0,0 +1,179 @@
++import Foundation
++
++#if os(macOS)
++import SweetCookieKit
++
++public enum ManusCookieImporter {
++    private static let log = CodexBarLog.logger(LogCategories.manusCookie)
++    private static let cookieClient = BrowserCookieClient()
++    private static let cookieDomains = ["manus.im", "www.manus.im"]
++    private static let cookieImportOrder: BrowserCookieImportOrder =
++        ProviderDefaults.metadata[.manus]?.browserCookieOrder ?? Browser.defaultImportOrder
++
++    public struct SessionInfo: Sendable {
++        public let cookies: [HTTPCookie]
++        public let sourceLabel: String
++
++        public init(cookies: [HTTPCookie], sourceLabel: String) {
++            self.cookies = cookies
++            self.sourceLabel = sourceLabel
++        }
++
++        public var sessionToken: String? {
++            self.cookies.first(where: { $0.name == "session_id" })?.value
++        }
++    }
++
++    public static func importSessions(
++        browserDetection: BrowserDetection = BrowserDetection(),
++        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
++    {
++        var sessions: [SessionInfo] = []
++        let candidates = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
++        for browserSource in candidates {
++            do {
++                let perSource = try self.importSessions(from: browserSource, logger: logger)
++                sessions.append(contentsOf: perSource)
++            } catch {
++                BrowserCookieAccessGate.recordIfNeeded(error)
++                self.emit(
++                    "\(browserSource.displayName) cookie import failed: \(error.localizedDescription)",
++                    logger: logger)
++            }
++        }
++
++        guard !sessions.isEmpty else {
++            throw ManusCookieImportError.noCookies
++        }
++        return sessions
++    }
++
++    public static func importSessions(
++        from browserSource: Browser,
++        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
++    {
++        let query = BrowserCookieQuery(domains: self.cookieDomains)
++        let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
++        let sources = try Self.cookieClient.records(
++            matching: query,
++            in: browserSource,
++            logger: log)
++
++        var sessions: [SessionInfo] = []
++        let grouped = Dictionary(grouping: sources, by: { $0.store.profile.id })
++        let sortedGroups = grouped.values.sorted { lhs, rhs in
++            self.mergedLabel(for: lhs) < self.mergedLabel(for: rhs)
++        }
++
++        for group in sortedGroups where !group.isEmpty {
++            let label = self.mergedLabel(for: group)
++            let mergedRecords = self.mergeRecords(group)
++            guard !mergedRecords.isEmpty else { continue }
++            let httpCookies = BrowserCookieClient.makeHTTPCookies(mergedRecords, origin: query.origin)
++            guard !httpCookies.isEmpty else { continue }
++
++            // Only include sessions that have the session_id cookie
++            guard httpCookies.contains(where: { $0.name == "session_id" }) else {
++                continue
++            }
++
++            log("Found session_id cookie in \(label)")
++            sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: label))
++        }
++        return sessions
++    }
++
++    public static func importSession(
++        browserDetection: BrowserDetection = BrowserDetection(),
++        logger: ((String) -> Void)? = nil) throws -> SessionInfo
++    {
++        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
++        guard let first = sessions.first else {
++            throw ManusCookieImportError.noCookies
++        }
++        return first
++    }
++
++    public static func hasSession(
++        browserDetection: BrowserDetection = BrowserDetection(),
++        logger: ((String) -> Void)? = nil) -> Bool
++    {
++        do {
++            return try !self.importSessions(browserDetection: browserDetection, logger: logger).isEmpty
++        } catch {
++            return false
++        }
++    }
++
++    private static func emit(_ message: String, logger: ((String) -> Void)?) {
++        logger?("[manus-cookie] \(message)")
++        self.log.debug(message)
++    }
++
++    private static func mergedLabel(for sources: [BrowserCookieStoreRecords]) -> String {
++        guard let base = sources.map(\.label).min() else {
++            return "Unknown"
++        }
++        if base.hasSuffix(" (Network)") {
++            return String(base.dropLast(" (Network)".count))
++        }
++        return base
++    }
++
++    private static func mergeRecords(_ sources: [BrowserCookieStoreRecords]) -> [BrowserCookieRecord] {
++        let sortedSources = sources.sorted { lhs, rhs in
++            self.storePriority(lhs.store.kind) < self.storePriority(rhs.store.kind)
++        }
++        var mergedByKey: [String: BrowserCookieRecord] = [:]
++        for source in sortedSources {
++            for record in source.records {
++                let key = self.recordKey(record)
++                if let existing = mergedByKey[key] {
++                    if self.shouldReplace(existing: existing, candidate: record) {
++                        mergedByKey[key] = record
++                    }
++                } else {
++                    mergedByKey[key] = record
++                }
++            }
++        }
++        return Array(mergedByKey.values)
++    }
++
++    private static func storePriority(_ kind: BrowserCookieStoreKind) -> Int {
++        switch kind {
++        case .network: 0
++        case .primary: 1
++        case .safari: 2
++        }
++    }
++
++    private static func recordKey(_ record: BrowserCookieRecord) -> String {
++        "\(record.name)|\(record.domain)|\(record.path)"
++    }
++
++    private static func shouldReplace(existing: BrowserCookieRecord, candidate: BrowserCookieRecord) -> Bool {
++        switch (existing.expires, candidate.expires) {
++        case let (lhs?, rhs?):
++            rhs > lhs
++        case (nil, .some):
++            true
++        case (.some, nil):
++            false
++        case (nil, nil):
++            false
++        }
++    }
++}
++
++enum ManusCookieImportError: LocalizedError {
++    case noCookies
++
++    var errorDescription: String? {
++        switch self {
++        case .noCookies:
++            "No Manus session cookies found in browsers."
++        }
++    }
++}
++#endif
+diff --git a/Sources/CodexBarCore/Providers/Manus/ManusProviderDescriptor.swift b/Sources/CodexBarCore/Providers/Manus/ManusProviderDescriptor.swift
+new file mode 100644
+index 0000000..a4c5a6a
+--- /dev/null
++++ b/Sources/CodexBarCore/Providers/Manus/ManusProviderDescriptor.swift
+@@ -0,0 +1,98 @@
++import CodexBarMacroSupport
++import Foundation
++
++@ProviderDescriptorRegistration
++@ProviderDescriptorDefinition
++public enum ManusProviderDescriptor {
++    static func makeDescriptor() -> ProviderDescriptor {
++        ProviderDescriptor(
++            id: .manus,
++            metadata: ProviderMetadata(
++                id: .manus,
++                displayName: "Manus",
++                sessionLabel: "Credits",
++                weeklyLabel: "Credits",
++                opusLabel: nil,
++                supportsOpus: false,
++                supportsCredits: true,
++                creditsHint: "Shows remaining Manus AI credits.",
++                toggleTitle: "Show Manus usage",
++                cliName: "manus",
++                defaultEnabled: false,
++                isPrimaryProvider: false,
++                usesAccountFallback: false,
++                browserCookieOrder: nil,
++                dashboardURL: "https://manus.im",
++                statusPageURL: nil),
++            branding: ProviderBranding(
++                iconStyle: .manus,
++                iconResourceName: "ProviderIcon-manus",
++                color: ProviderColor(red: 30 / 255, green: 30 / 255, blue: 30 / 255)),
++            tokenCost: ProviderTokenCostConfig(
++                supportsTokenCost: false,
++                noDataMessage: { "Manus cost summary is not supported." }),
++            fetchPlan: ProviderFetchPlan(
++                sourceModes: [.auto, .web],
++                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ManusWebFetchStrategy()] })),
++            cli: ProviderCLIConfig(
++                name: "manus",
++                aliases: [],
++                versionDetector: nil))
++    }
++}
++
++struct ManusWebFetchStrategy: ProviderFetchStrategy {
++    let id: String = "manus.web"
++    let kind: ProviderFetchKind = .web
++    private static let log = CodexBarLog.logger(LogCategories.manusUsage)
++
++    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
++        if let token = self.resolveToken(context: context), !token.isEmpty {
++            return true
++        }
++        return false
++    }
++
++    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
++        guard let token = self.resolveToken(context: context) else {
++            throw ManusAPIError.missingToken
++        }
++
++        let response = try await ManusUsageFetcher.fetchUsage(sessionToken: token)
++        return self.makeResult(
++            usage: response.toUsageSnapshot(),
++            sourceLabel: "web")
++    }
++
++    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
++        if case ManusAPIError.missingToken = error { return false }
++        if case ManusAPIError.invalidToken = error { return false }
++        return true
++    }
++
++    private func resolveToken(context: ProviderFetchContext) -> String? {
++        // Manual cookie override from settings (highest priority when set)
++        if let settings = context.settings?.manus, settings.cookieSource == .manual {
++            if let manual = settings.manualCookieHeader, !manual.isEmpty {
++                return manual
++            }
++        }
++
++        // Try browser cookie import when auto mode is enabled
++        #if os(macOS)
++        if context.settings?.manus?.cookieSource != .off {
++            do {
++                let session = try ManusCookieImporter.importSession()
++                if let token = session.sessionToken {
++                    return token
++                }
++            } catch {
++                // No browser cookies found; fall through
++            }
++        }
++        #endif
++
++        // Fall back to environment variable
++        return ProviderTokenResolver.manusSessionToken(environment: context.env)
++    }
++}
+diff --git a/Sources/CodexBarCore/Providers/Manus/ManusSettingsReader.swift b/Sources/CodexBarCore/Providers/Manus/ManusSettingsReader.swift
+new file mode 100644
+index 0000000..9eaeceb
+--- /dev/null
++++ b/Sources/CodexBarCore/Providers/Manus/ManusSettingsReader.swift
+@@ -0,0 +1,24 @@
++import Foundation
++
++public enum ManusSettingsReader {
++    public static func sessionToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
++        let raw = environment["MANUS_SESSION_TOKEN"] ?? environment["manus_session_token"]
++        return self.cleaned(raw)
++    }
++
++    private static func cleaned(_ raw: String?) -> String? {
++        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
++            return nil
++        }
++
++        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
++            (value.hasPrefix("'") && value.hasSuffix("'"))
++        {
++            value.removeFirst()
++            value.removeLast()
++        }
++
++        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
++        return value.isEmpty ? nil : value
++    }
++}
+diff --git a/Sources/CodexBarCore/Providers/Manus/ManusUsageFetcher.swift b/Sources/CodexBarCore/Providers/Manus/ManusUsageFetcher.swift
+new file mode 100644
+index 0000000..aa1d008
+--- /dev/null
++++ b/Sources/CodexBarCore/Providers/Manus/ManusUsageFetcher.swift
+@@ -0,0 +1,166 @@
++import Foundation
++
++#if canImport(FoundationNetworking)
++import FoundationNetworking
++#endif
++
++/// Manus GetAvailableCredits API response
++public struct ManusCreditsResponse: Decodable, Sendable {
++    /// Total remaining credits across all credit types
++    public let totalCredits: Double
++    /// Free (non-plan) credits remaining
++    public let freeCredits: Double
++    /// Monthly plan credits remaining
++    public let periodicCredits: Double
++    /// Add-on credits remaining
++    public let addonCredits: Double
++    /// Auto-refresh credits remaining
++    public let refreshCredits: Double
++    /// Maximum auto-refresh credits
++    public let maxRefreshCredits: Double
++    /// Monthly plan credit limit (> 0 on paid plans)
++    public let proMonthlyCredits: Double
++    /// Event / promotional credits remaining
++    public let eventCredits: Double
++
++    private enum CodingKeys: String, CodingKey {
++        case totalCredits
++        case freeCredits
++        case periodicCredits
++        case addonCredits
++        case refreshCredits
++        case maxRefreshCredits
++        case proMonthlyCredits
++        case eventCredits
++    }
++}
++
++/// Fetches credit usage from the Manus API using a session_id bearer token
++public enum ManusUsageFetcher {
++    private static let log = CodexBarLog.logger(LogCategories.manusUsage)
++    private static let creditsURL =
++        URL(string: "https://api.manus.im/user.v1.UserService/GetAvailableCredits")!
++    private static let requestTimeoutSeconds: TimeInterval = 15
++
++    public static func fetchUsage(sessionToken: String, now: Date = Date()) async throws -> ManusCreditsResponse {
++        guard !sessionToken.isEmpty else {
++            throw ManusAPIError.missingToken
++        }
++
++        var request = URLRequest(url: self.creditsURL)
++        request.httpMethod = "POST"
++        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
++        request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
++        request.setValue("application/json", forHTTPHeaderField: "Accept")
++        request.setValue("https://manus.im", forHTTPHeaderField: "Origin")
++        request.setValue("https://manus.im/", forHTTPHeaderField: "Referer")
++        let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
++            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
++        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
++        request.setValue("1", forHTTPHeaderField: "Connect-Protocol-Version")
++        request.httpBody = try? JSONSerialization.data(withJSONObject: [String: String]())
++        request.timeoutInterval = Self.requestTimeoutSeconds
++
++        let (data, response) = try await URLSession.shared.data(for: request)
++
++        guard let httpResponse = response as? HTTPURLResponse else {
++            throw ManusAPIError.networkError("Invalid response")
++        }
++
++        guard httpResponse.statusCode == 200 else {
++            let responseBody = String(data: data, encoding: .utf8) ?? "<binary data>"
++            Self.log.error("Manus API returned \(httpResponse.statusCode): \(responseBody)")
++
++            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
++                throw ManusAPIError.invalidToken
++            }
++            throw ManusAPIError.apiError("HTTP \(httpResponse.statusCode)")
++        }
++
++        do {
++            let decoder = JSONDecoder()
++            return try decoder.decode(ManusCreditsResponse.self, from: data)
++        } catch let error as DecodingError {
++            Self.log.error("Manus JSON decoding error: \(error.localizedDescription)")
++            throw ManusAPIError.parseFailed(error.localizedDescription)
++        }
++    }
++}
++
++extension ManusCreditsResponse {
++    public func toUsageSnapshot(now: Date = Date()) -> UsageSnapshot {
++        // On paid plans, proMonthlyCredits > 0. Show plan utilisation as a percentage bar.
++        let primary: RateWindow? = if self.proMonthlyCredits > 0 {
++            RateWindow(
++                usedPercent: min(
++                    100,
++                    max(0, (self.proMonthlyCredits - self.periodicCredits) / self.proMonthlyCredits * 100)),
++                windowMinutes: nil,
++                resetsAt: nil,
++                resetDescription: nil)
++        } else {
++            nil
++        }
++
++        let balanceStr = String(format: "%.0f credits", self.totalCredits)
++        let identity = ProviderIdentitySnapshot(
++            providerID: .manus,
++            accountEmail: nil,
++            accountOrganization: nil,
++            loginMethod: "Balance: \(balanceStr)")
++
++        // Represent credit balance as a ProviderCostSnapshot (used / limit in "credits" currency).
++        // On paid plans: used = plan credits consumed, limit = plan total.
++        // On free plans: used = 0, limit = freeCredits (remaining is the limit itself).
++        let providerCost: ProviderCostSnapshot?
++        if self.proMonthlyCredits > 0 {
++            let used = max(0, self.proMonthlyCredits - self.periodicCredits)
++            providerCost = ProviderCostSnapshot(
++                used: used,
++                limit: self.proMonthlyCredits,
++                currencyCode: "credits",
++                period: "Monthly",
++                resetsAt: nil,
++                updatedAt: now)
++        } else {
++            providerCost = ProviderCostSnapshot(
++                used: 0,
++                limit: self.totalCredits,
++                currencyCode: "credits",
++                period: nil,
++                resetsAt: nil,
++                updatedAt: now)
++        }
++
++        return UsageSnapshot(
++            primary: primary,
++            secondary: nil,
++            tertiary: nil,
++            providerCost: providerCost,
++            updatedAt: now,
++            identity: identity)
++    }
++}
++
++public enum ManusAPIError: LocalizedError, Sendable {
++    case missingToken
++    case invalidToken
++    case networkError(String)
++    case apiError(String)
++    case parseFailed(String)
++
++    public var errorDescription: String? {
++        switch self {
++        case .missingToken:
++            "No Manus session token provided."
++        case .invalidToken:
++            "Invalid Manus session token."
++        case let .networkError(message):
++            "Manus network error: \(message)"
++        case let .apiError(message):
++            "Manus API error: \(message)"
++        case let .parseFailed(message):
++            "Failed to parse Manus response: \(message)"
++        }
++    }
++}
+diff --git a/Sources/CodexBarCore/Providers/ProviderDescriptor.swift b/Sources/CodexBarCore/Providers/ProviderDescriptor.swift
+index d7a3669..ba11158 100644
+--- a/Sources/CodexBarCore/Providers/ProviderDescriptor.swift
++++ b/Sources/CodexBarCore/Providers/ProviderDescriptor.swift
+@@ -75,6 +75,7 @@ public enum ProviderDescriptorRegistry {
+         .synthetic: SyntheticProviderDescriptor.descriptor,
+         .openrouter: OpenRouterProviderDescriptor.descriptor,
+         .warp: WarpProviderDescriptor.descriptor,
++        .manus: ManusProviderDescriptor.descriptor,
+     ]
+     private static let bootstrap: Void = {
+         for provider in UsageProvider.allCases {
+diff --git a/Sources/CodexBarCore/Providers/ProviderSettingsSnapshot.swift b/Sources/CodexBarCore/Providers/ProviderSettingsSnapshot.swift
+index e9bf84f..86a2363 100644
+--- a/Sources/CodexBarCore/Providers/ProviderSettingsSnapshot.swift
++++ b/Sources/CodexBarCore/Providers/ProviderSettingsSnapshot.swift
+@@ -14,6 +14,7 @@ public struct ProviderSettingsSnapshot: Sendable {
+         copilot: CopilotProviderSettings? = nil,
+         kilo: KiloProviderSettings? = nil,
+         kimi: KimiProviderSettings? = nil,
++        manus: ManusProviderSettings? = nil,
+         augment: AugmentProviderSettings? = nil,
+         amp: AmpProviderSettings? = nil,
+         ollama: OllamaProviderSettings? = nil,
+@@ -32,6 +33,7 @@ public struct ProviderSettingsSnapshot: Sendable {
+             copilot: copilot,
+             kilo: kilo,
+             kimi: kimi,
++            manus: manus,
+             augment: augment,
+             amp: amp,
+             ollama: ollama,
+@@ -153,6 +155,16 @@ public struct ProviderSettingsSnapshot: Sendable {
+         }
+     }
+ 
++    public struct ManusProviderSettings: Sendable {
++        public let cookieSource: ProviderCookieSource
++        public let manualCookieHeader: String?
++
++        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
++            self.cookieSource = cookieSource
++            self.manualCookieHeader = manualCookieHeader
++        }
++    }
++
+     public struct AugmentProviderSettings: Sendable {
+         public let cookieSource: ProviderCookieSource
+         public let manualCookieHeader: String?
+@@ -203,6 +215,7 @@ public struct ProviderSettingsSnapshot: Sendable {
+     public let copilot: CopilotProviderSettings?
+     public let kilo: KiloProviderSettings?
+     public let kimi: KimiProviderSettings?
++    public let manus: ManusProviderSettings?
+     public let augment: AugmentProviderSettings?
+     public let amp: AmpProviderSettings?
+     public let ollama: OllamaProviderSettings?
+@@ -225,6 +238,7 @@ public struct ProviderSettingsSnapshot: Sendable {
+         copilot: CopilotProviderSettings?,
+         kilo: KiloProviderSettings?,
+         kimi: KimiProviderSettings?,
++        manus: ManusProviderSettings?,
+         augment: AugmentProviderSettings?,
+         amp: AmpProviderSettings?,
+         ollama: OllamaProviderSettings?,
+@@ -242,6 +256,7 @@ public struct ProviderSettingsSnapshot: Sendable {
+         self.copilot = copilot
+         self.kilo = kilo
+         self.kimi = kimi
++        self.manus = manus
+         self.augment = augment
+         self.amp = amp
+         self.ollama = ollama
+@@ -260,6 +275,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
+     case copilot(ProviderSettingsSnapshot.CopilotProviderSettings)
+     case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
+     case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
++    case manus(ProviderSettingsSnapshot.ManusProviderSettings)
+     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
+     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
+     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
+@@ -279,6 +295,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
+     public var copilot: ProviderSettingsSnapshot.CopilotProviderSettings?
+     public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
+     public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
++    public var manus: ProviderSettingsSnapshot.ManusProviderSettings?
+     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
+     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
+     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
+@@ -301,6 +318,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
+         case let .copilot(value): self.copilot = value
+         case let .kilo(value): self.kilo = value
+         case let .kimi(value): self.kimi = value
++        case let .manus(value): self.manus = value
+         case let .augment(value): self.augment = value
+         case let .amp(value): self.amp = value
+         case let .ollama(value): self.ollama = value
+@@ -322,6 +340,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
+             copilot: self.copilot,
+             kilo: self.kilo,
+             kimi: self.kimi,
++            manus: self.manus,
+             augment: self.augment,
+             amp: self.amp,
+             ollama: self.ollama,
+diff --git a/Sources/CodexBarCore/Providers/ProviderTokenResolver.swift b/Sources/CodexBarCore/Providers/ProviderTokenResolver.swift
+index ada9fac..b35181e 100644
+--- a/Sources/CodexBarCore/Providers/ProviderTokenResolver.swift
++++ b/Sources/CodexBarCore/Providers/ProviderTokenResolver.swift
+@@ -61,6 +61,10 @@ public enum ProviderTokenResolver {
+         self.openRouterResolution(environment: environment)?.token
+     }
+ 
++    public static func manusSessionToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
++        self.manusResolution(environment: environment)?.token
++    }
++
+     public static func zaiResolution(
+         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+     {
+@@ -141,6 +145,25 @@ public enum ProviderTokenResolver {
+         self.resolveEnv(OpenRouterSettingsReader.apiToken(environment: environment))
+     }
+ 
++    public static func manusResolution(
++        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
++    {
++        if let resolution = self.resolveEnv(ManusSettingsReader.sessionToken(environment: environment)) {
++            return resolution
++        }
++        #if os(macOS)
++        do {
++            let session = try ManusCookieImporter.importSession()
++            if let token = session.sessionToken {
++                return ProviderTokenResolution(token: token, source: .environment)
++            }
++        } catch {
++            // No browser cookies found, continue to fallback
++        }
++        #endif
++        return nil
++    }
++
+     private static func cleaned(_ raw: String?) -> String? {
+         guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+             return nil
+diff --git a/Sources/CodexBarCore/Providers/Providers.swift b/Sources/CodexBarCore/Providers/Providers.swift
+index f48eefe..54eccdd 100644
+--- a/Sources/CodexBarCore/Providers/Providers.swift
++++ b/Sources/CodexBarCore/Providers/Providers.swift
+@@ -25,6 +25,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
+     case synthetic
+     case warp
+     case openrouter
++    case manus
+ }
+ 
+ // swiftformat:enable sortDeclarations
+@@ -52,6 +53,7 @@ public enum IconStyle: Sendable, CaseIterable {
+     case synthetic
+     case warp
+     case openrouter
++    case manus
+     case combined
+ }
+ 

@@ -32,6 +32,8 @@ public enum LogCategories {
     public static let launchAtLogin = "launch-at-login"
     public static let login = "login"
     public static let logging = "logging"
+    public static let manusCookie = "manus-cookie"
+    public static let manusUsage = "manus-usage"
     public static let minimaxAPITokenStore = "minimax-api-token-store"
     public static let minimaxCookie = "minimax-cookie"
     public static let minimaxCookieStore = "minimax-cookie-store"

@@ -14,6 +14,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         copilot: CopilotProviderSettings? = nil,
         kilo: KiloProviderSettings? = nil,
         kimi: KimiProviderSettings? = nil,
+        manus: ManusProviderSettings? = nil,
         augment: AugmentProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
         ollama: OllamaProviderSettings? = nil,
@@ -32,6 +33,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             copilot: copilot,
             kilo: kilo,
             kimi: kimi,
+            manus: manus,
             augment: augment,
             amp: amp,
             ollama: ollama,
@@ -153,6 +155,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct ManusProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct AugmentProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -203,6 +215,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let copilot: CopilotProviderSettings?
     public let kilo: KiloProviderSettings?
     public let kimi: KimiProviderSettings?
+    public let manus: ManusProviderSettings?
     public let augment: AugmentProviderSettings?
     public let amp: AmpProviderSettings?
     public let ollama: OllamaProviderSettings?
@@ -225,6 +238,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         copilot: CopilotProviderSettings?,
         kilo: KiloProviderSettings?,
         kimi: KimiProviderSettings?,
+        manus: ManusProviderSettings?,
         augment: AugmentProviderSettings?,
         amp: AmpProviderSettings?,
         ollama: OllamaProviderSettings?,
@@ -242,6 +256,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.copilot = copilot
         self.kilo = kilo
         self.kimi = kimi
+        self.manus = manus
         self.augment = augment
         self.amp = amp
         self.ollama = ollama
@@ -260,6 +275,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case copilot(ProviderSettingsSnapshot.CopilotProviderSettings)
     case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
     case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
+    case manus(ProviderSettingsSnapshot.ManusProviderSettings)
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
@@ -279,6 +295,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var copilot: ProviderSettingsSnapshot.CopilotProviderSettings?
     public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
     public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
+    public var manus: ProviderSettingsSnapshot.ManusProviderSettings?
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
@@ -301,6 +318,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .copilot(value): self.copilot = value
         case let .kilo(value): self.kilo = value
         case let .kimi(value): self.kimi = value
+        case let .manus(value): self.manus = value
         case let .augment(value): self.augment = value
         case let .amp(value): self.amp = value
         case let .ollama(value): self.ollama = value
@@ -322,6 +340,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             copilot: self.copilot,
             kilo: self.kilo,
             kimi: self.kimi,
+            manus: self.manus,
             augment: self.augment,
             amp: self.amp,
             ollama: self.ollama,
