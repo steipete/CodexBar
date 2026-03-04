@@ -305,6 +305,9 @@ fi
 # Embed Sparkle.framework
 if [[ -d ".build/$CONF/Sparkle.framework" ]]; then
   cp -R ".build/$CONF/Sparkle.framework" "$APP/Contents/Frameworks/"
+  # Clean extended attributes immediately after copying
+  xattr -cr "$APP/Contents/Frameworks/Sparkle.framework"
+  find "$APP/Contents/Frameworks/Sparkle.framework" -name '._*' -delete
   chmod -R a+rX "$APP/Contents/Frameworks/Sparkle.framework"
   install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/CodexBar"
   # Re-sign Sparkle and all nested components with Developer ID + timestamp
@@ -324,6 +327,9 @@ function resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }
   resign "$SPARKLE"
   resign "$SPARKLE/Versions/B/Sparkle"
   resign "$SPARKLE/Versions/B/Autoupdate"
+  # Clean Updater.app specifically before signing to remove any detritus
+  xattr -cr "$SPARKLE/Versions/B/Updater.app" 2>/dev/null || true
+  find "$SPARKLE/Versions/B/Updater.app" -name '._*' -delete 2>/dev/null || true
   resign "$SPARKLE/Versions/B/Updater.app"
   resign "$SPARKLE/Versions/B/Updater.app/Contents/MacOS/Updater"
   resign "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
@@ -335,13 +341,20 @@ function resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }
 fi
 
 if [[ -f "$ICON_TARGET" ]]; then
+  echo "Copying icon from $ICON_TARGET to $APP/Contents/Resources/Icon.icns" >&2
   cp "$ICON_TARGET" "$APP/Contents/Resources/Icon.icns"
+else
+  echo "WARNING: Icon file not found at $ICON_TARGET" >&2
 fi
 
 # Bundle app resources (provider icons, etc.).
 APP_RESOURCES_DIR="$ROOT/Sources/CodexBar/Resources"
 if [[ -d "$APP_RESOURCES_DIR" ]]; then
+  echo "Copying app resources from $APP_RESOURCES_DIR to $APP/Contents/Resources/" >&2
   cp -R "$APP_RESOURCES_DIR/." "$APP/Contents/Resources/"
+  echo "Copied $(ls -1 "$APP_RESOURCES_DIR" | wc -l) resource files" >&2
+else
+  echo "WARNING: App resources directory not found at $APP_RESOURCES_DIR" >&2
 fi
 if [[ ! -f "$APP/Contents/Resources/Icon-classic.icns" ]]; then
   echo "ERROR: Missing Icon-classic.icns in app bundle resources." >&2
@@ -366,12 +379,13 @@ if [[ ! -d "$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle" 
   exit 1
 fi
 
-# Ensure contents are writable before stripping attributes and signing.
-chmod -R u+w "$APP"
+# Strip extended attributes FIRST to prevent AppleDouble (._*) files that break code sealing
+# This must happen before any chmod or other operations
+xattr -cr "$APP" 2>/dev/null || true
+find "$APP" -name '._*' -delete 2>/dev/null || true
 
-# Strip extended attributes to prevent AppleDouble (._*) files that break code sealing
-xattr -cr "$APP"
-find "$APP" -name '._*' -delete
+# Ensure contents are writable after cleaning attributes
+chmod -R u+w "$APP"
 
 # Sign helper binaries if present
 if [[ -f "${APP}/Contents/Helpers/CodexBarCLI" ]]; then
@@ -383,6 +397,9 @@ fi
 
 # Sign widget extension if present
 if [[ -d "${APP}/Contents/PlugIns/CodexBarWidget.appex" ]]; then
+  # Clean widget extension before signing to remove any detritus
+  xattr -cr "${APP}/Contents/PlugIns/CodexBarWidget.appex" 2>/dev/null || true
+  find "${APP}/Contents/PlugIns/CodexBarWidget.appex" -name '._*' -delete 2>/dev/null || true
   codesign "${CODESIGN_ARGS[@]}" \
     --entitlements "$WIDGET_ENTITLEMENTS" \
     "$APP/Contents/PlugIns/CodexBarWidget.appex/Contents/MacOS/CodexBarWidget"
@@ -392,6 +409,21 @@ if [[ -d "${APP}/Contents/PlugIns/CodexBarWidget.appex" ]]; then
 fi
 
 # Finally sign the app bundle itself
+# Use ditto to strip resource forks by copying to temp location and back
+# This is the most reliable way to remove all Finder info and resource forks
+TEMP_APP="${APP}.tmp"
+if [[ -d "$TEMP_APP" ]]; then
+  rm -rf "$TEMP_APP"
+fi
+# Copy without resource forks (--norsrc strips resource forks and extended attributes)
+ditto --norsrc "$APP" "$TEMP_APP"
+# Remove old app and move clean copy back
+rm -rf "$APP"
+mv "$TEMP_APP" "$APP"
+# Final cleanup pass
+xattr -cr "$APP" 2>/dev/null || true
+find "$APP" -name '._*' -delete 2>/dev/null || true
+find "$APP" -name '.DS_Store' -delete 2>/dev/null || true
 codesign "${CODESIGN_ARGS[@]}" \
   --entitlements "$APP_ENTITLEMENTS" \
   "$APP"
