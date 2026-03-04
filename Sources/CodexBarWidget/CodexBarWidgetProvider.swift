@@ -76,6 +76,7 @@ enum ProviderChoice: String, AppEnum {
         case .openrouter: return nil // OpenRouter not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets
         case .perplexity: return nil // Perplexity not yet supported in widgets
+        case .abacus: return nil // Abacus AI not yet supported in widgets
         }
     }
 }

@@ -28,6 +28,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case warp
     case openrouter
     case perplexity
+    case abacus
 }
 
 // swiftformat:enable sortDeclarations
@@ -58,6 +59,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case warp
     case openrouter
     case perplexity
+    case abacus
     case combined
 }
 
