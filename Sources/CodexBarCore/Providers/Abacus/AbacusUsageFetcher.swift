@@ -86,8 +86,8 @@ public struct AbacusUsageSnapshot: Sendable {
 
         let identity = ProviderIdentitySnapshot(
             providerID: .abacus,
-            accountEmail: nil,
-            accountOrganization: nil,
+            accountEmail: self.accountEmail,
+            accountOrganization: self.accountOrganization,
             loginMethod: self.planName)
 
         return UsageSnapshot(

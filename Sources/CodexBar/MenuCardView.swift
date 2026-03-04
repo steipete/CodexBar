@@ -1057,6 +1057,31 @@ extension UsageMenuCardView.Model {
         if input.provider == .warp || input.provider == .kilo, primary.resetsAt == nil {
             primaryResetText = nil
         }
+        // Abacus: show credits as detail, compute pace on the primary monthly window
+        var primaryDetailLeft: String?
+        var primaryDetailRight: String?
+        var primaryPacePercent: Double?
+        var primaryPaceOnTop = true
+        if input.provider == .abacus {
+            if let detail = primary.resetDescription,
+               !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                primaryDetailText = detail
+            }
+            if let pace = input.weeklyPace {
+                let paceDetail = Self.weeklyPaceDetail(
+                    window: primary,
+                    now: input.now,
+                    pace: pace,
+                    showUsed: input.usageBarsShowUsed)
+                if let paceDetail {
+                    primaryDetailLeft = paceDetail.leftLabel
+                    primaryDetailRight = paceDetail.rightLabel
+                    primaryPacePercent = paceDetail.pacePercent
+                    primaryPaceOnTop = paceDetail.paceOnTop
+                }
+            }
+        }
         return Metric(
             id: "primary",
             title: input.metadata.sessionLabel,
@@ -1065,10 +1090,10 @@ extension UsageMenuCardView.Model {
             percentStyle: percentStyle,
             resetText: primaryResetText,
             detailText: primaryDetailText,
-            detailLeftText: nil,
-            detailRightText: nil,
-            pacePercent: nil,
-            paceOnTop: true)
+            detailLeftText: primaryDetailLeft,
+            detailRightText: primaryDetailRight,
+            pacePercent: primaryPacePercent,
+            paceOnTop: primaryPaceOnTop)
     }
 
     private static func secondaryMetric(
