@@ -54,12 +54,8 @@ public enum AbacusCookieImporter {
 public struct AbacusUsageSnapshot: Sendable {
     public let creditsUsed: Double?
     public let creditsTotal: Double?
-    public let last24HoursUsage: Double?
-    public let last7DaysUsage: Double?
     public let resetsAt: Date?
     public let planName: String?
-    public let accountEmail: String?
-    public let accountOrganization: String?
 
     public func toUsageSnapshot() -> UsageSnapshot {
         let percentUsed: Double = if let used = self.creditsUsed, let total = self.creditsTotal, total > 0 {
@@ -86,8 +82,8 @@ public struct AbacusUsageSnapshot: Sendable {
 
         let identity = ProviderIdentitySnapshot(
             providerID: .abacus,
-            accountEmail: self.accountEmail,
-            accountOrganization: self.accountOrganization,
+            accountEmail: nil,
+            accountOrganization: nil,
             loginMethod: self.planName)
 
         return UsageSnapshot(
@@ -136,7 +132,10 @@ public enum AbacusUsageError: LocalizedError, Sendable {
 // MARK: - Abacus Usage Fetcher
 
 public enum AbacusUsageFetcher {
-    private static let apiURL = URL(string: "https://apps.abacus.ai/api/v0/describeUser")!
+    private static let computePointsURL =
+        URL(string: "https://apps.abacus.ai/api/_getOrganizationComputePoints")!
+    private static let billingInfoURL =
+        URL(string: "https://apps.abacus.ai/api/_getBillingInfo")!
 
     public static func fetchUsage(
         cookieHeaderOverride: String? = nil,
@@ -187,18 +186,35 @@ public enum AbacusUsageFetcher {
         _ cookieHeader: String,
         timeout: TimeInterval) async throws -> AbacusUsageSnapshot
     {
-        var request = URLRequest(url: apiURL)
-        request.httpMethod = "POST"
+        // Fetch compute points (GET) and billing info (POST) concurrently
+        async let computePoints = Self.fetchJSON(
+            url: computePointsURL, method: "GET", cookieHeader: cookieHeader, timeout: timeout)
+        async let billingInfo = Self.fetchJSON(
+            url: billingInfoURL, method: "POST", cookieHeader: cookieHeader, timeout: timeout)
+
+        let cpResult = try await computePoints
+        let biResult = (try? await billingInfo) ?? [:]
+
+        return Self.parseResults(computePoints: cpResult, billingInfo: biResult)
+    }
+
+    private static func fetchJSON(
+        url: URL, method: String, cookieHeader: String, timeout: TimeInterval
+    ) async throws -> [String: Any] {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
         request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        request.httpBody = "{}".data(using: .utf8)
+        if method == "POST" {
+            request.httpBody = "{}".data(using: .utf8)
+        }
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw AbacusUsageError.networkError("Invalid response")
+            throw AbacusUsageError.networkError("Invalid response from \(url.lastPathComponent)")
         }
 
         if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
@@ -210,55 +226,45 @@ public enum AbacusUsageFetcher {
             throw AbacusUsageError.networkError("HTTP \(httpResponse.statusCode): \(body)")
         }
 
-        return try Self.parseResponse(data)
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AbacusUsageError.parseFailed("Invalid JSON from \(url.lastPathComponent)")
+        }
+
+        guard root["success"] as? Bool == true,
+              let result = root["result"] as? [String: Any]
+        else {
+            let errorMsg = root["error"] as? String ?? "Unknown error"
+            throw AbacusUsageError.parseFailed("\(url.lastPathComponent): \(errorMsg)")
+        }
+
+        return result
     }
 
-    // MARK: - Manual JSON Parsing (resilient, no Codable)
+    // MARK: - Parsing
 
-    private static func parseResponse(_ data: Data) throws -> AbacusUsageSnapshot {
-        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw AbacusUsageError.parseFailed("Invalid JSON")
+    private static func parseResults(
+        computePoints: [String: Any], billingInfo: [String: Any]
+    ) -> AbacusUsageSnapshot {
+        // _getOrganizationComputePoints returns values already in credits (no division needed)
+        let totalCredits = Self.double(from: computePoints["totalComputePoints"])
+        let creditsLeft = Self.double(from: computePoints["computePointsLeft"])
+        let creditsUsed: Double? = if let total = totalCredits, let left = creditsLeft {
+            total - left
+        } else {
+            nil
         }
 
-        guard root["success"] as? Bool == true else {
-            let errorMsg = root["error"] as? String ?? "Unknown error"
-            throw AbacusUsageError.parseFailed("API returned error: \(errorMsg)")
-        }
+        // _getBillingInfo returns the exact next billing date and plan tier
+        let nextBillingDate = billingInfo["nextBillingDate"] as? String
+        let currentTier = billingInfo["currentTier"] as? String
 
-        guard let result = root["result"] as? [String: Any] else {
-            throw AbacusUsageError.parseFailed("Missing 'result' object")
-        }
-
-        let email = result["email"] as? String
-        let organization = (result["organization"] as? [String: Any])
-        let orgName = organization?["name"] as? String
-        let subscriptionTier = organization?["subscriptionTier"] as? String
-        let lastBilledAt = organization?["lastBilledAt"] as? String
-
-        let computePointInfo = organization?["computePointInfo"] as? [String: Any]
-        let currMonthAvailPoints = Self.double(from: computePointInfo?["currMonthAvailPoints"])
-        let currMonthUsage = Self.double(from: computePointInfo?["currMonthUsage"])
-        let last24HoursUsage = Self.double(from: computePointInfo?["last24HoursUsage"])
-        let last7DaysUsage = Self.double(from: computePointInfo?["last7DaysUsage"])
-
-        // Divide all point values by 100 (centi-credits)
-        let creditsUsed = currMonthUsage.map { $0 / 100.0 }
-        let creditsTotal = currMonthAvailPoints.map { $0 / 100.0 }
-        let daily = last24HoursUsage.map { $0 / 100.0 }
-        let weekly = last7DaysUsage.map { $0 / 100.0 }
-
-        // Compute reset date: lastBilledAt + 1 calendar month
-        let resetsAt: Date? = Self.computeResetDate(from: lastBilledAt)
+        let resetsAt = Self.parseDate(nextBillingDate)
 
         return AbacusUsageSnapshot(
             creditsUsed: creditsUsed,
-            creditsTotal: creditsTotal,
-            last24HoursUsage: daily,
-            last7DaysUsage: weekly,
+            creditsTotal: totalCredits,
             resetsAt: resetsAt,
-            planName: subscriptionTier,
-            accountEmail: email,
-            accountOrganization: orgName)
+            planName: currentTier)
     }
 
     private static func double(from value: Any?) -> Double? {
@@ -268,17 +274,13 @@ public enum AbacusUsageFetcher {
         return nil
     }
 
-    private static func computeResetDate(from isoString: String?) -> Date? {
+    private static func parseDate(_ isoString: String?) -> Date? {
         guard let isoString else { return nil }
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        var date = formatter.date(from: isoString)
-        if date == nil {
-            formatter.formatOptions = [.withInternetDateTime]
-            date = formatter.date(from: isoString)
-        }
-        guard let billedAt = date else { return nil }
-        return Calendar.current.date(byAdding: .month, value: 1, to: billedAt)
+        if let date = formatter.date(from: isoString) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: isoString)
     }
 }
 
