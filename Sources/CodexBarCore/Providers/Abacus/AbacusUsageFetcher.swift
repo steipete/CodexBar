@@ -74,31 +74,25 @@ public struct AbacusUsageSnapshot: Sendable {
             nil
         }
 
+        // Use windowMinutes matching the monthly billing cycle so pace calculation works.
+        // Approximate 1 month as 30 days.
+        let windowMinutes = 30 * 24 * 60
+
         let primary = RateWindow(
             usedPercent: percentUsed,
-            windowMinutes: nil,
+            windowMinutes: windowMinutes,
             resetsAt: self.resetsAt,
             resetDescription: resetDesc)
 
-        let secondary: RateWindow? = if let weekly = self.last7DaysUsage {
-            RateWindow(
-                usedPercent: 0,
-                windowMinutes: 7 * 24 * 60,
-                resetsAt: nil,
-                resetDescription: "\(Self.formatCredits(weekly)) credits (7 days)")
-        } else {
-            nil
-        }
-
         let identity = ProviderIdentitySnapshot(
             providerID: .abacus,
-            accountEmail: self.accountEmail,
-            accountOrganization: self.accountOrganization,
+            accountEmail: nil,
+            accountOrganization: nil,
             loginMethod: self.planName)
 
         return UsageSnapshot(
             primary: primary,
-            secondary: secondary,
+            secondary: nil,
             tertiary: nil,
             providerCost: nil,
             updatedAt: Date(),
@@ -106,11 +100,11 @@ public struct AbacusUsageSnapshot: Sendable {
     }
 
     private static func formatCredits(_ value: Double) -> String {
-        if value >= 1000 {
-            let formatted = String(format: "%,.0f", value)
-            return formatted
-        }
-        return String(format: "%.1f", value)
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = value >= 1000 ? 0 : 1
+        formatter.groupingSeparator = ","
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
     }
 }
 

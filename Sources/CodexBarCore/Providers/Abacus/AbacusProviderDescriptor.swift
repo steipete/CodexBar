@@ -27,7 +27,7 @@ public enum AbacusProviderDescriptor {
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://apps.abacus.ai/chatllm/admin/compute-points-usage",
-                statusPageURL: "https://status.abacus.ai",
+                statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
                 iconStyle: .abacus,
