@@ -16,7 +16,7 @@ public struct PerplexityUsageSnapshot: Sendable {
     public init(response: PerplexityCreditsResponse, now: Date) {
         let recurring = response.creditGrants.filter { $0.type == "recurring" }
         let promotional = response.creditGrants.filter {
-            $0.type == "promotional" && ($0.expiresAtTs.map { $0 > now.timeIntervalSince1970 } ?? true)
+            $0.type == "promotional" && ($0.expiresAtTs ?? .infinity) > now.timeIntervalSince1970
         }
 
         // All timestamps from the Perplexity API are Unix seconds (verified Feb 2026).

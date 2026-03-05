@@ -16,7 +16,7 @@ struct PerplexityProviderImplementation: ProviderImplementation {
 
     @MainActor
     func runLoginFlow(context _: ProviderLoginContext) async -> Bool {
-        if let url = URL(string: "https://www.perplexity.ai/signin") {
+        if let url = URL(string: "https://www.perplexity.ai/") {
             NSWorkspace.shared.open(url)
         }
         return false

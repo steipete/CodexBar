@@ -10,9 +10,6 @@ public enum PerplexityCookieImporter {
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.perplexity]?.browserCookieOrder ?? Browser.defaultImportOrder
 
-    // The session cookie set on HTTPS is prefixed with __Secure-
-    private static let sessionCookieName = "__Secure-next-auth.session-token"
-
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
         public let sourceLabel: String
@@ -22,8 +19,17 @@ public enum PerplexityCookieImporter {
             self.sourceLabel = sourceLabel
         }
 
+        public var sessionCookie: PerplexityCookieOverride? {
+            for expected in PerplexityCookieHeader.supportedSessionCookieNames {
+                if let cookie = self.cookies.first(where: { $0.name.caseInsensitiveCompare(expected) == .orderedSame }) {
+                    return PerplexityCookieOverride(name: cookie.name, token: cookie.value)
+                }
+            }
+            return nil
+        }
+
         public var sessionToken: String? {
-            self.cookies.first(where: { $0.name == sessionCookieName })?.value
+            self.sessionCookie?.token
         }
     }
 
@@ -75,12 +81,13 @@ public enum PerplexityCookieImporter {
             let httpCookies = BrowserCookieClient.makeHTTPCookies(mergedRecords, origin: query.origin)
             guard !httpCookies.isEmpty else { continue }
 
-            guard httpCookies.contains(where: { $0.name == sessionCookieName }) else {
+            let session = SessionInfo(cookies: httpCookies, sourceLabel: label)
+            guard let sessionCookie = session.sessionCookie else {
                 continue
             }
 
-            log("Found \(sessionCookieName) cookie in \(label)")
-            sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: label))
+            log("Found \(sessionCookie.name) cookie in \(label)")
+            sessions.append(session)
         }
         return sessions
     }
