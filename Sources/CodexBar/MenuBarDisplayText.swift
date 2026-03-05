@@ -18,16 +18,10 @@ enum MenuBarDisplayText {
 
     static func displayText(
         mode: MenuBarDisplayMode,
-        provider: UsageProvider,
         percentWindow: RateWindow?,
-        paceWindow: RateWindow?,
         pace: UsagePace? = nil,
-        showUsed: Bool,
-        now: Date = .init()) -> String?
+        showUsed: Bool) -> String?
     {
-        _ = provider
-        _ = paceWindow
-        _ = now
         switch mode {
         case .percent:
             return self.percentText(window: percentWindow, showUsed: showUsed)

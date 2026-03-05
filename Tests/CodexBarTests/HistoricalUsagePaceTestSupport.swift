@@ -4,6 +4,16 @@ import Testing
 @testable import CodexBar
 
 extension HistoricalUsagePaceTests {
+    private static let utcTimeZone: TimeZone = {
+        if let zone = TimeZone(identifier: "UTC") {
+            return zone
+        }
+        if let zone = TimeZone(secondsFromGMT: 0) {
+            return zone
+        }
+        return TimeZone.current
+    }()
+
     static func linearCurve(end: Double) -> [Double] {
         let clampedEnd = max(0, min(100, end))
         let count = CodexHistoricalDataset.gridPointCount
@@ -35,10 +45,10 @@ extension HistoricalUsagePaceTests {
         overridesByDayOffset: [Int: Double] = [:]) -> [OpenAIDashboardDailyBreakdown]
     {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone.current
+        calendar.timeZone = Self.utcTimeZone
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
+        formatter.timeZone = Self.utcTimeZone
         formatter.dateFormat = "yyyy-MM-dd"
 
         let endDay = calendar.startOfDay(for: endDate)
@@ -55,10 +65,10 @@ extension HistoricalUsagePaceTests {
 
     static func gregorianDate(year: Int, month: Int, day: Int, hour: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone.current
+        calendar.timeZone = Self.utcTimeZone
         var components = DateComponents()
         components.calendar = calendar
-        components.timeZone = calendar.timeZone
+        components.timeZone = Self.utcTimeZone
         components.year = year
         components.month = month
         components.day = day
@@ -81,10 +91,10 @@ extension HistoricalUsagePaceTests {
             return nil
         }
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone.current
+        calendar.timeZone = Self.utcTimeZone
         var dateComponents = DateComponents()
         dateComponents.calendar = calendar
-        dateComponents.timeZone = calendar.timeZone
+        dateComponents.timeZone = Self.utcTimeZone
         dateComponents.year = year
         dateComponents.month = month
         dateComponents.day = day

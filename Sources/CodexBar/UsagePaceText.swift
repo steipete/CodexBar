@@ -66,12 +66,8 @@ enum UsagePaceText {
     }
 
     private static func roundedRiskPercent(_ probability: Double) -> Int {
-        let percent = Self.clamp(probability, lower: 0, upper: 1) * 100
+        let percent = probability.clamped(to: 0...1) * 100
         let rounded = (percent / 5).rounded() * 5
         return Int(rounded)
-    }
-
-    private static func clamp(_ value: Double, lower: Double, upper: Double) -> Double {
-        min(upper, max(lower, value))
     }
 }

@@ -50,9 +50,9 @@ public struct UsagePace: Sendable {
         let timeUntilReset = resetsAt.timeIntervalSince(now)
         guard timeUntilReset > 0 else { return nil }
         guard timeUntilReset <= duration else { return nil }
-        let elapsed = Self.clamp(duration - timeUntilReset, lower: 0, upper: duration)
-        let expected = Self.clamp((elapsed / duration) * 100, lower: 0, upper: 100)
-        let actual = Self.clamp(window.usedPercent, lower: 0, upper: 100)
+        let elapsed = (duration - timeUntilReset).clamped(to: 0...duration)
+        let expected = ((elapsed / duration) * 100).clamped(to: 0...100)
+        let actual = window.usedPercent.clamped(to: 0...100)
         if elapsed == 0, actual > 0 {
             return nil
         }
@@ -94,8 +94,8 @@ public struct UsagePace: Sendable {
         willLastToReset: Bool,
         runOutProbability: Double?) -> UsagePace
     {
-        let expected = Self.clamp(expectedUsedPercent, lower: 0, upper: 100)
-        let actual = Self.clamp(actualUsedPercent, lower: 0, upper: 100)
+        let expected = expectedUsedPercent.clamped(to: 0...100)
+        let actual = actualUsedPercent.clamped(to: 0...100)
         let delta = actual - expected
         return UsagePace(
             stage: Self.stage(for: delta),
@@ -113,9 +113,5 @@ public struct UsagePace: Sendable {
         if absDelta <= 6 { return delta >= 0 ? .slightlyAhead : .slightlyBehind }
         if absDelta <= 12 { return delta >= 0 ? .ahead : .behind }
         return delta >= 0 ? .farAhead : .farBehind
-    }
-
-    private static func clamp(_ value: Double, lower: Double, upper: Double) -> Double {
-        min(upper, max(lower, value))
     }
 }
