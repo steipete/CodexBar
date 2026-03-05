@@ -22,10 +22,9 @@ public struct PerplexityUsageFetcher: Sendable {
 
     public static func fetchCredits(
         sessionToken: String,
-        cookieName: String = "__Secure-next-auth.session-token",
+        cookieName: String = PerplexityCookieHeader.defaultSessionCookieName,
         now: Date = Date()) async throws -> PerplexityUsageSnapshot
     {
-        Self.log.debug("Perplexity fetchCredits starting cookieName=\(cookieName)")
         var request = URLRequest(url: self.creditsURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 15
@@ -61,6 +60,8 @@ public struct PerplexityUsageFetcher: Sendable {
                 "Perplexity credits parsed balance=\(snapshot.balanceCents) totalUsage=\(snapshot.totalUsageCents)")
             return snapshot
         } catch {
+            let preview = String(data: data.prefix(500), encoding: .utf8) ?? "<binary>"
+            Self.log.error("Perplexity parse failed: \(error) — response: \(preview)")
             throw PerplexityAPIError.parseFailed(error.localizedDescription)
         }
     }
