@@ -1262,7 +1262,7 @@ extension UsageStore {
                 let source = resolution?.source.rawValue ?? "none"
                 text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
             case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi, .kimik2,
-                 .jetbrains:
+                 .jetbrains, .perplexity:
                 text = unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
             }
 

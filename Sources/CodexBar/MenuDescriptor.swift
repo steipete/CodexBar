@@ -144,7 +144,7 @@ struct MenuDescriptor {
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
-                    guard provider == .warp || provider == .kilo else { return nil }
+                    guard provider == .warp || provider == .kilo || provider == .perplexity else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let detail, !detail.isEmpty else { return nil }
                     if provider == .kilo, weekly.resetsAt != nil {
@@ -171,12 +171,17 @@ struct MenuDescriptor {
                 }
             }
             if meta.supportsOpus, let opus = snap.tertiary {
+                // Perplexity purchased credits don't reset; show the balance as plain text.
+                let opusResetOverride: String? = provider == .perplexity
+                    ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    : nil
                 Self.appendRateWindow(
                     entries: &entries,
                     title: meta.opusLabel ?? "Sonnet",
                     window: opus,
                     resetStyle: resetStyle,
-                    showUsed: settings.usageBarsShowUsed)
+                    showUsed: settings.usageBarsShowUsed,
+                    resetOverride: opusResetOverride)
             }
 
             if let cost = snap.providerCost {
