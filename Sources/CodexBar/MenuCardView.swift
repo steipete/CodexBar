@@ -635,6 +635,7 @@ extension UsageMenuCardView.Model {
         let sourceLabel: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
+        let weeklyPace: UsagePace?
         let now: Date
 
         init(
@@ -657,6 +658,7 @@ extension UsageMenuCardView.Model {
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
+            weeklyPace: UsagePace? = nil,
             now: Date)
         {
             self.provider = provider
@@ -678,6 +680,7 @@ extension UsageMenuCardView.Model {
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
+            self.weeklyPace = weeklyPace
             self.now = now
         }
     }
@@ -933,9 +936,9 @@ extension UsageMenuCardView.Model {
         }
         if let weekly = snapshot.secondary {
             let paceDetail = Self.weeklyPaceDetail(
-                provider: input.provider,
                 window: weekly,
                 now: input.now,
+                pace: input.weeklyPace,
                 showUsed: input.usageBarsShowUsed)
             var weeklyResetText = Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now)
             var weeklyDetailText: String? = input.provider == .zai ? zaiTimeDetail : nil
@@ -1049,12 +1052,13 @@ extension UsageMenuCardView.Model {
     }
 
     private static func weeklyPaceDetail(
-        provider: UsageProvider,
         window: RateWindow,
         now: Date,
+        pace: UsagePace?,
         showUsed: Bool) -> PaceDetail?
     {
-        guard let detail = UsagePaceText.weeklyDetail(provider: provider, window: window, now: now) else { return nil }
+        guard let pace else { return nil }
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
         let expectedUsed = detail.expectedUsedPercent
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
