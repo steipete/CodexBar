@@ -100,4 +100,43 @@ struct CLIWebFallbackTests {
         #expect(strategy.shouldFallback(on: error, context: self.makeContext(runtime: .cli, sourceMode: .auto)))
         #expect(!strategy.shouldFallback(on: error, context: self.makeContext(runtime: .app, sourceMode: .auto)))
     }
+
+    @Test
+    func codexWebImportUsesManualCookieHeaderWhenConfigured() {
+        let settings = ProviderSettingsSnapshot.CodexProviderSettings(
+            usageDataSource: .auto,
+            cookieSource: .manual,
+            manualCookieHeader: "__Secure-next-auth.session-token=abc; oai-sc=def")
+
+        let input = CodexWebDashboardStrategy.resolveCookieImportInput(
+            settings: settings,
+            fallbackAccountEmail: "old@example.com")
+
+        switch input.mode {
+        case let .manual(cookieHeader):
+            #expect(cookieHeader.contains("__Secure-next-auth.session-token="))
+            #expect(input.accountEmail == nil)
+        case .browser:
+            Issue.record("Expected manual cookie import mode")
+        }
+    }
+
+    @Test
+    func codexWebImportUsesBrowserCookiesWhenManualHeaderMissing() {
+        let settings = ProviderSettingsSnapshot.CodexProviderSettings(
+            usageDataSource: .auto,
+            cookieSource: .manual,
+            manualCookieHeader: nil)
+
+        let input = CodexWebDashboardStrategy.resolveCookieImportInput(
+            settings: settings,
+            fallbackAccountEmail: "old@example.com")
+
+        switch input.mode {
+        case .manual:
+            Issue.record("Expected browser import mode")
+        case .browser:
+            #expect(input.accountEmail == "old@example.com")
+        }
+    }
 }

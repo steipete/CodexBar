@@ -28,6 +28,20 @@ struct CodexProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
+        guard support.requiresManualCookieSource else { return true }
+        if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
+        return context.settings.codexCookieSource == .manual
+    }
+
+    @MainActor
+    func applyTokenAccountCookieSource(settings: SettingsStore) {
+        if settings.codexCookieSource != .manual {
+            settings.codexCookieSource = .manual
+        }
+    }
+
+    @MainActor
     func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
         context.settings.codexUsageDataSource.rawValue
     }
@@ -46,10 +60,19 @@ struct CodexProviderImplementation: ProviderImplementation {
 
     @MainActor
     func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        if context.settings.codexUsageDataSource == .auto,
+           context.settings.codexCookieSource == .manual,
+           !context.settings.tokenAccounts(for: .codex).isEmpty
+        {
+            return ProviderSourceMode.web
+        }
         switch context.settings.codexUsageDataSource {
-        case .auto: .auto
-        case .oauth: .oauth
-        case .cli: .cli
+        case .auto:
+            return ProviderSourceMode.auto
+        case .oauth:
+            return ProviderSourceMode.oauth
+        case .cli:
+            return ProviderSourceMode.cli
         }
     }
 
@@ -106,12 +129,17 @@ struct CodexProviderImplementation: ProviderImplementation {
             keychainDisabled: context.settings.debugDisableKeychainAccess)
 
         let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
+            let base = ProviderCookieSourceUI.subtitle(
                 source: context.settings.codexCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
                 auto: "Automatic imports browser cookies for dashboard extras.",
                 manual: "Paste a Cookie header from a chatgpt.com request.",
                 off: "Disable OpenAI dashboard cookie usage.")
+            let status = context.store.openAIDashboardCookieImportStatus?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let status, !status.isEmpty else { return base }
+            guard !base.isEmpty else { return status }
+            return "\(base)\n\(status)"
         }
 
         return [
@@ -155,7 +183,35 @@ struct CodexProviderImplementation: ProviderImplementation {
                 kind: .secure,
                 placeholder: "Cookie: …",
                 binding: context.stringBinding(\.codexCookieHeader),
-                actions: [],
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "codex-test-cookie",
+                        title: "Test cookie",
+                        style: .bordered,
+                        isVisible: nil,
+                        perform: {
+                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                await context.store.testOpenAIDashboardCookieNow()
+                            }
+                        }),
+                    ProviderSettingsActionDescriptor(
+                        id: "codex-save-cookie-account",
+                        title: "Save as account",
+                        style: .link,
+                        isVisible: nil,
+                        perform: {
+                            let token = context.settings.codexCookieHeader
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !token.isEmpty else { return }
+                            context.settings.addTokenAccount(
+                                provider: .codex,
+                                label: "",
+                                token: token)
+                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                await context.store.refreshProvider(.codex, allowDisabled: true)
+                            }
+                        }),
+                ],
                 isVisible: {
                     context.settings.codexCookieSource == .manual
                 },

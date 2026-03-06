@@ -79,7 +79,7 @@ extension UsageStore {
         override: TokenAccountOverride?) async -> ProviderFetchOutcome
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-        let sourceMode = self.sourceMode(for: provider)
+        let sourceMode = self.sourceMode(for: provider, override: override)
         let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: override)
         let env = ProviderRegistry.makeEnvironment(
             base: ProcessInfo.processInfo.environment,
@@ -102,8 +102,14 @@ extension UsageStore {
         return await descriptor.fetchOutcome(context: context)
     }
 
-    func sourceMode(for provider: UsageProvider) -> ProviderSourceMode {
-        ProviderCatalog.implementation(for: provider)?
+    func sourceMode(for provider: UsageProvider, override: TokenAccountOverride? = nil) -> ProviderSourceMode {
+        if provider == .codex,
+           override != nil,
+           self.settings.codexCookieSource == .manual
+        {
+            return .web
+        }
+        return ProviderCatalog.implementation(for: provider)?
             .sourceMode(context: ProviderSourceModeContext(provider: provider, settings: self.settings))
             ?? .auto
     }
@@ -182,6 +188,7 @@ extension UsageStore {
         provider: UsageProvider,
         account: ProviderTokenAccount) -> UsageSnapshot
     {
+        if provider == .codex { return snapshot }
         let label = account.label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !label.isEmpty else { return snapshot }
         let existing = snapshot.identity(for: provider)

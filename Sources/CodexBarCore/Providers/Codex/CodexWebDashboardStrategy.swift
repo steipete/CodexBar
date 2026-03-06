@@ -18,14 +18,17 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
             _ = NSApplication.shared
         }
 
-        let accountEmail = context.fetcher.loadAccountInfo().email?
+        let fallbackAccountEmail = context.fetcher.loadAccountInfo().email?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let importInput = Self.resolveCookieImportInput(
+            settings: context.settings?.codex,
+            fallbackAccountEmail: fallbackAccountEmail)
         let options = OpenAIWebOptions(
             timeout: context.webTimeout,
             debugDumpHTML: context.webDebugDumpHTML,
             verbose: context.verbose)
         let result = try await Self.fetchOpenAIWebCodex(
-            accountEmail: accountEmail,
+            importInput: importInput,
             fetcher: context.fetcher,
             options: options,
             browserDetection: context.browserDetection)
@@ -47,6 +50,16 @@ private struct OpenAIWebCodexResult: Sendable {
     let usage: UsageSnapshot
     let credits: CreditsSnapshot?
     let dashboard: OpenAIDashboardSnapshot
+}
+
+enum CodexCookieImportMode: Sendable {
+    case browser
+    case manual(cookieHeader: String)
+}
+
+struct CodexCookieImportInput: Sendable {
+    let mode: CodexCookieImportMode
+    let accountEmail: String?
 }
 
 private enum OpenAIWebCodexError: LocalizedError {
@@ -94,9 +107,23 @@ private final class WebLogBuffer {
 }
 
 extension CodexWebDashboardStrategy {
+    static func resolveCookieImportInput(
+        settings: ProviderSettingsSnapshot.CodexProviderSettings?,
+        fallbackAccountEmail: String?) -> CodexCookieImportInput
+    {
+        let fallback = fallbackAccountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if settings?.cookieSource == .manual,
+           let manual = settings?.manualCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !manual.isEmpty
+        {
+            return CodexCookieImportInput(mode: .manual(cookieHeader: manual), accountEmail: nil)
+        }
+        return CodexCookieImportInput(mode: .browser, accountEmail: fallback?.isEmpty == false ? fallback : nil)
+    }
+
     @MainActor
     fileprivate static func fetchOpenAIWebCodex(
-        accountEmail: String?,
+        importInput: CodexCookieImportInput,
         fetcher: UsageFetcher,
         options: OpenAIWebOptions,
         browserDetection: BrowserDetection) async throws -> OpenAIWebCodexResult
@@ -106,12 +133,12 @@ extension CodexWebDashboardStrategy {
             logger.append(line)
         }
         let dashboard = try await Self.fetchOpenAIWebDashboard(
-            accountEmail: accountEmail,
+            importInput: importInput,
             fetcher: fetcher,
             options: options,
             browserDetection: browserDetection,
             logger: log)
-        guard let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: accountEmail) else {
+        guard let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: importInput.accountEmail) else {
             throw OpenAIWebCodexError.missingUsage
         }
         let credits = dashboard.toCreditsSnapshot()
@@ -120,19 +147,31 @@ extension CodexWebDashboardStrategy {
 
     @MainActor
     fileprivate static func fetchOpenAIWebDashboard(
-        accountEmail: String?,
+        importInput: CodexCookieImportInput,
         fetcher: UsageFetcher,
         options: OpenAIWebOptions,
         browserDetection: BrowserDetection,
         logger: @MainActor @escaping (String) -> Void) async throws -> OpenAIDashboardSnapshot
     {
-        let trimmed = accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let fallback = fetcher.loadAccountInfo().email?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let codexEmail = trimmed?.isEmpty == false ? trimmed : (fallback?.isEmpty == false ? fallback : nil)
+        let codexEmail = importInput.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? (fallback?.isEmpty == false ? fallback : nil)
         let allowAnyAccount = codexEmail == nil
 
-        let importResult = try await OpenAIDashboardBrowserCookieImporter(browserDetection: browserDetection)
-            .importBestCookies(intoAccountEmail: codexEmail, allowAnyAccount: allowAnyAccount, logger: logger)
+        let importer = OpenAIDashboardBrowserCookieImporter(browserDetection: browserDetection)
+        let importResult: OpenAIDashboardBrowserCookieImporter.ImportResult = switch importInput.mode {
+        case let .manual(cookieHeader):
+            try await importer.importManualCookies(
+                cookieHeader: cookieHeader,
+                intoAccountEmail: codexEmail,
+                allowAnyAccount: allowAnyAccount,
+                logger: logger)
+        case .browser:
+            try await importer.importBestCookies(
+                intoAccountEmail: codexEmail,
+                allowAnyAccount: allowAnyAccount,
+                logger: logger)
+        }
         let effectiveEmail = codexEmail ?? importResult.signedInEmail?
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
