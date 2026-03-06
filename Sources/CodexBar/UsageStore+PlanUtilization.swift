@@ -5,7 +5,7 @@ extension UsageStore {
     private nonisolated static let codexCreditsMonthlyCapTokens: Double = 1000
     private nonisolated static let persistenceCoordinator = PlanUtilizationHistoryPersistenceCoordinator()
     private nonisolated static let planUtilizationMinSampleIntervalSeconds: TimeInterval = 60 * 60
-    private nonisolated static let planUtilizationMaxSamples: Int = 24 * 400
+    private nonisolated static let planUtilizationMaxSamples: Int = 24 * 730
 
     func planUtilizationHistory(for provider: UsageProvider) -> [PlanUtilizationHistorySample] {
         self.planUtilizationHistory[provider] ?? []
@@ -97,6 +97,10 @@ extension UsageStore {
             existingHistory: existingHistory,
             sample: sample,
             now: now)
+    }
+
+    nonisolated static var _planUtilizationMaxSamplesForTesting: Int {
+        self.planUtilizationMaxSamples
     }
     #endif
 

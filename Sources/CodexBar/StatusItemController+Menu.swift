@@ -1030,7 +1030,7 @@ extension StatusItemController {
         var isHighlighted = false
     }
 
-    private final class MenuHostingView<Content: View>: NSHostingView<Content> {
+    final class MenuHostingView<Content: View>: NSHostingView<Content> {
         override var allowsVibrancy: Bool {
             true
         }

@@ -37,7 +37,7 @@ extension StatusItemController {
         }
 
         let chartView = PlanUtilizationHistoryChartMenuView(provider: provider, samples: samples, width: width)
-        let hosting = NSHostingView(rootView: chartView)
+        let hosting = MenuHostingView(rootView: chartView)
         let controller = NSHostingController(rootView: chartView)
         let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))

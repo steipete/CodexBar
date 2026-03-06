@@ -232,4 +232,131 @@ struct UsageStorePlanUtilizationTests {
         #expect(monthly != nil)
         #expect(abs((monthly ?? 0) - 36) < 0.001)
     }
+
+    @Test
+    func trimsHistoryToExpandedRetentionLimit() throws {
+        let maxSamples = UsageStore._planUtilizationMaxSamplesForTesting
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        var history: [PlanUtilizationHistorySample] = []
+
+        for offset in 0..<maxSamples {
+            history.append(PlanUtilizationHistorySample(
+                capturedAt: base.addingTimeInterval(Double(offset) * 3600),
+                dailyUsedPercent: Double(offset % 100),
+                weeklyUsedPercent: nil,
+                monthlyUsedPercent: nil))
+        }
+
+        let appended = PlanUtilizationHistorySample(
+            capturedAt: base.addingTimeInterval(Double(maxSamples) * 3600),
+            dailyUsedPercent: 50,
+            weeklyUsedPercent: 60,
+            monthlyUsedPercent: 70)
+
+        let updated = try #require(
+            UsageStore._updatedPlanUtilizationHistoryForTesting(
+                provider: .codex,
+                existingHistory: history,
+                sample: appended,
+                now: appended.capturedAt))
+
+        #expect(updated.count == maxSamples)
+        #expect(updated.first?.capturedAt == history[1].capturedAt)
+        #expect(updated.last == appended)
+    }
+
+    @MainActor
+    @Test
+    func dailyModelLeftAlignsSparseHistory() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 3, day: 6)))
+        let samples = [
+            PlanUtilizationHistorySample(
+                capturedAt: now,
+                dailyUsedPercent: 20,
+                weeklyUsedPercent: 35,
+                monthlyUsedPercent: 20),
+            PlanUtilizationHistorySample(
+                capturedAt: now.addingTimeInterval(-24 * 3600),
+                dailyUsedPercent: 48,
+                weeklyUsedPercent: 48,
+                monthlyUsedPercent: 30),
+            PlanUtilizationHistorySample(
+                capturedAt: now.addingTimeInterval(-2 * 24 * 3600),
+                dailyUsedPercent: 62,
+                weeklyUsedPercent: 62,
+                monthlyUsedPercent: 40),
+        ]
+
+        let model = try #require(
+            PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+                periodRawValue: "daily",
+                samples: samples,
+                provider: .codex))
+
+        #expect(model.pointCount == 3)
+        #expect(model.axisIndexes == [0, 2])
+        #expect(model.xDomain == -0.5...29.5)
+    }
+
+    @MainActor
+    @Test
+    func weeklyModelPacksExistingPeriodsWithoutPlaceholderGaps() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 3, day: 6)))
+        let samples = [
+            PlanUtilizationHistorySample(
+                capturedAt: now,
+                dailyUsedPercent: 10,
+                weeklyUsedPercent: 35,
+                monthlyUsedPercent: 20),
+            PlanUtilizationHistorySample(
+                capturedAt: now.addingTimeInterval(-7 * 24 * 3600),
+                dailyUsedPercent: 20,
+                weeklyUsedPercent: 48,
+                monthlyUsedPercent: 30),
+            PlanUtilizationHistorySample(
+                capturedAt: now.addingTimeInterval(-14 * 24 * 3600),
+                dailyUsedPercent: 30,
+                weeklyUsedPercent: 62,
+                monthlyUsedPercent: 40),
+        ]
+
+        let model = try #require(
+            PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+                periodRawValue: "weekly",
+                samples: samples,
+                provider: .codex))
+
+        #expect(model.pointCount == 3)
+        #expect(model.axisIndexes == [2])
+        #expect(model.xDomain == -0.5...23.5)
+    }
+
+    @MainActor
+    @Test
+    func monthlyModelShowsExpandedTwoYearWindow() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let start = try #require(calendar.date(from: DateComponents(year: 2024, month: 1, day: 1)))
+        var samples: [PlanUtilizationHistorySample] = []
+
+        for monthOffset in 0..<30 {
+            let date = try #require(calendar.date(byAdding: .month, value: monthOffset, to: start))
+            samples.append(PlanUtilizationHistorySample(
+                capturedAt: date,
+                dailyUsedPercent: nil,
+                weeklyUsedPercent: nil,
+                monthlyUsedPercent: Double((monthOffset % 10) * 10)))
+        }
+
+        let model = try #require(
+            PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+                periodRawValue: "monthly",
+                samples: samples,
+                provider: .codex))
+
+        #expect(model.pointCount == 24)
+        #expect(model.axisIndexes == [23])
+        #expect(model.xDomain == -0.5...23.5)
+    }
 }

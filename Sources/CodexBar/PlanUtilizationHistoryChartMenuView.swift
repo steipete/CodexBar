@@ -46,9 +46,9 @@ struct PlanUtilizationHistoryChartMenuView: View {
             case .daily:
                 30
             case .weekly:
-                16
+                24
             case .monthly:
-                12
+                24
             }
         }
     }
@@ -159,7 +159,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         let barColor: Color
     }
 
-    private static func makeModel(
+    private nonisolated static func makeModel(
         period: Period,
         samples: [PlanUtilizationHistorySample],
         provider: UsageProvider) -> Model
@@ -232,11 +232,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
                 usedPercent: point.usedPercent)
         }
 
-        let axisIndexes: [Double] = {
-            guard let first = points.first?.index, let last = points.last?.index else { return [] }
-            if first == last { return [Double(first)] }
-            return [Double(first), Double(last)]
-        }()
+        let axisIndexes = Self.axisIndexes(points: points, period: period)
         let xDomain = Self.xDomain(points: points, period: period)
 
         let pointsByID = Dictionary(uniqueKeysWithValues: points.map { ($0.id, $0) })
@@ -253,12 +249,44 @@ struct PlanUtilizationHistoryChartMenuView: View {
             barColor: barColor)
     }
 
-    private static func xDomain(points: [Point], period: Period) -> ClosedRange<Double>? {
-        guard points.count < period.maxPoints else { return nil }
-        return 0...Double(period.maxPoints - 1)
+    private nonisolated static func xDomain(points: [Point], period: Period) -> ClosedRange<Double>? {
+        guard !points.isEmpty else { return nil }
+        return -0.5...(Double(period.maxPoints) - 0.5)
     }
 
-    private static func usedPercent(for sample: PlanUtilizationHistorySample, period: Period) -> Double? {
+    private nonisolated static func axisIndexes(points: [Point], period: Period) -> [Double] {
+        guard let first = points.first?.index, let last = points.last?.index else { return [] }
+        if first == last { return [Double(first)] }
+        switch period {
+        case .daily:
+            return [Double(first), Double(last)]
+        case .weekly, .monthly:
+            return [Double(last)]
+        }
+    }
+
+    #if DEBUG
+    struct ModelSnapshot: Equatable {
+        let pointCount: Int
+        let axisIndexes: [Double]
+        let xDomain: ClosedRange<Double>?
+    }
+
+    nonisolated static func _modelSnapshotForTesting(
+        periodRawValue: String,
+        samples: [PlanUtilizationHistorySample],
+        provider: UsageProvider) -> ModelSnapshot?
+    {
+        guard let period = Period(rawValue: periodRawValue) else { return nil }
+        let model = self.makeModel(period: period, samples: samples, provider: provider)
+        return ModelSnapshot(
+            pointCount: model.points.count,
+            axisIndexes: model.axisIndexes,
+            xDomain: model.xDomain)
+    }
+    #endif
+
+    private nonisolated static func usedPercent(for sample: PlanUtilizationHistorySample, period: Period) -> Double? {
         switch period {
         case .daily:
             sample.dailyUsedPercent
@@ -269,7 +297,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         }
     }
 
-    private static func bucketDate(for date: Date, period: Period, calendar: Calendar) -> Date? {
+    private nonisolated static func bucketDate(for date: Date, period: Period, calendar: Calendar) -> Date? {
         switch period {
         case .daily:
             calendar.startOfDay(for: date)
@@ -280,7 +308,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         }
     }
 
-    private static func pointID(date: Date, period: Period) -> String {
+    private nonisolated static func pointID(date: Date, period: Period) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone.current
