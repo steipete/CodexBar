@@ -14,6 +14,7 @@ extension UsageStore {
             self.refreshingProviders.remove(provider)
             await MainActor.run {
                 self.snapshots.removeValue(forKey: provider)
+                self.lastKnownResetTimes.removeValue(forKey: provider)
                 self.errors[provider] = nil
                 self.lastSourceLabels.removeValue(forKey: provider)
                 self.lastFetchAttempts.removeValue(forKey: provider)
@@ -60,6 +61,7 @@ extension UsageStore {
         {
             await MainActor.run {
                 self.snapshots.removeValue(forKey: .claude)
+                self.lastKnownResetTimes.removeValue(forKey: .claude)
                 self.errors[.claude] = nil
                 self.lastSourceLabels.removeValue(forKey: .claude)
                 self.lastFetchAttempts.removeValue(forKey: .claude)
@@ -80,7 +82,9 @@ extension UsageStore {
             let scoped = result.usage.scoped(to: provider)
             await MainActor.run {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
-                self.snapshots[provider] = scoped
+                let backfilled = scoped.backfillingResetTimes(from: self.lastKnownResetTimes[provider])
+                self.lastKnownResetTimes[provider] = backfilled
+                self.snapshots[provider] = backfilled
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
