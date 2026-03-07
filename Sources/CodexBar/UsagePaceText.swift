@@ -57,7 +57,7 @@ enum UsagePaceText {
     }
 
     static func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date) -> UsagePace? {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard provider == .codex || provider == .claude || provider == .abacus else { return nil }
         guard window.remainingPercent > 0 else { return nil }
         guard let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080) else { return nil }
         guard pace.expectedUsedPercent >= Self.minimumExpectedPercent else { return nil }
