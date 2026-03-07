@@ -37,6 +37,12 @@ struct DisplayPane: View {
                         title: "Menu bar shows percent",
                         subtitle: "Replace critter bars with provider branding icons and a percentage.",
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)
+                    PreferenceToggleRow(
+                        title: "Show time until reset",
+                        subtitle: "Display a countdown (e.g. \"28m\") next to the percentage in the menu bar.",
+                        binding: self.$settings.menuBarShowsTimeUntilReset)
+                        .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
+                        .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Display mode")

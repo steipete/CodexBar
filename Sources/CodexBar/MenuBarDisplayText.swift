@@ -2,6 +2,20 @@ import CodexBarCore
 import Foundation
 
 enum MenuBarDisplayText {
+    /// Returns a compact countdown string (e.g. "28m" or "2h 5m") until the next quota reset.
+    /// Returns nil if `resetsAt` is nil or already in the past.
+    static func timeUntilResetText(resetsAt: Date?, now: Date = .init()) -> String? {
+        guard let resetsAt, resetsAt > now else { return nil }
+        let totalSeconds = Int(resetsAt.timeIntervalSince(now))
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return minutes > 0 ? "\(minutes)m" : "<1m"
+        }
+    }
+
     static func percentText(window: RateWindow?, showUsed: Bool) -> String? {
         guard let window else { return nil }
         let percent = showUsed ? window.usedPercent : window.remainingPercent
