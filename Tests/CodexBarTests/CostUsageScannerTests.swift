@@ -204,6 +204,7 @@ struct CostUsageScannerTests {
         #expect(report.data[0].cacheReadTokens == 25)
         #expect(report.data[0].outputTokens == 80)
         #expect(report.data[0].totalTokens == 355)
+        #expect(report.data[0].processedTokens == 330)
         #expect((report.data[0].costUSD ?? 0) > 0)
     }
 
@@ -439,6 +440,7 @@ struct CostUsageScannerTests {
             now: day,
             options: options)
         #expect(firstReport.data.first?.totalTokens == 355)
+        #expect(firstReport.data.first?.processedTokens == 330)
 
         let second: [String: Any] = [
             "type": "assistant",
@@ -462,6 +464,7 @@ struct CostUsageScannerTests {
             now: day,
             options: options)
         #expect(secondReport.data.first?.totalTokens == 430)
+        #expect(secondReport.data.first?.processedTokens == 400)
     }
 
     @Test
@@ -707,6 +710,7 @@ struct CostUsageScannerTests {
         #expect(report.data[0].cacheReadTokens == 25)
         #expect(report.data[0].outputTokens == 10)
         #expect(report.data[0].totalTokens == 185)
+        #expect(report.data[0].processedTokens == 160)
     }
 
     @Test
