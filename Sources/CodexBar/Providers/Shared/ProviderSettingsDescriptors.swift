@@ -76,6 +76,7 @@ struct ProviderSettingsFieldDescriptor: Identifiable {
     let id: String
     let title: String
     let subtitle: String
+    var footerText: String? = nil
     let kind: Kind
     let placeholder: String?
     let binding: Binding<String>
