@@ -117,6 +117,14 @@ extension SettingsStore {
         }
     }
 
+    var menuBarShowsTimeUntilReset: Bool {
+        get { self.defaultsState.menuBarShowsTimeUntilReset }
+        set {
+            self.defaultsState.menuBarShowsTimeUntilReset = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarShowsTimeUntilReset")
+        }
+    }
+
     var menuBarShowsBrandIconWithPercent: Bool {
         get { self.defaultsState.menuBarShowsBrandIconWithPercent }
         set {

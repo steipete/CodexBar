@@ -464,7 +464,19 @@ extension StatusItemController {
                 .replacingOccurrences(of: " left", with: "")
         }
 
-        return displayText
+        guard let base = displayText else { return displayText }
+
+        if self.settings.menuBarShowsTimeUntilReset {
+            // Pick the nearest upcoming reset across primary and secondary windows.
+            let now = Date()
+            let dates = [snapshot?.primary?.resetsAt, snapshot?.secondary?.resetsAt].compactMap { $0 }
+            let nearest = dates.filter { $0 > now }.min()
+            if let countdown = MenuBarDisplayText.timeUntilResetText(resetsAt: nearest, now: now) {
+                return "\(base) · \(countdown)"
+            }
+        }
+
+        return base
     }
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
