@@ -691,7 +691,7 @@ public enum ClaudeWebAPIFetcher {
         guard let response = try? JSONDecoder().decode(AccountResponse.self, from: data) else { return nil }
         let email = response.emailAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
         let membership = Self.selectMembership(response.memberships, orgId: orgId)
-        let plan = Self.inferPlan(
+        let plan = ClaudePlan.webLoginMethod(
             rateLimitTier: membership?.organization.rateLimitTier,
             billingType: membership?.organization.billingType)
         return WebAccountInfo(email: email, loginMethod: plan)
@@ -706,17 +706,6 @@ public enum ClaudeWebAPIFetcher {
             if let match = memberships.first(where: { $0.organization.uuid == orgId }) { return match }
         }
         return memberships.first
-    }
-
-    private static func inferPlan(rateLimitTier: String?, billingType: String?) -> String? {
-        let tier = rateLimitTier?.lowercased() ?? ""
-        let billing = billingType?.lowercased() ?? ""
-        if tier.contains("max") { return "Claude Max" }
-        if tier.contains("pro") { return "Claude Pro" }
-        if tier.contains("team") { return "Claude Team" }
-        if tier.contains("enterprise") { return "Claude Enterprise" }
-        if billing.contains("stripe"), tier.contains("claude") { return "Claude Pro" }
-        return nil
     }
 
     private struct ProbeParseResult: Sendable {

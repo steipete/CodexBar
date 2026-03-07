@@ -9,14 +9,19 @@ read_when:
 
 # Claude provider
 
-Claude supports three usage data paths plus local cost usage. Source selection is automatic unless debug override is set.
+Claude supports three usage data paths plus local cost usage. The main provider pipeline uses runtime-specific
+automatic selection, but the codebase still has multiple active Claude `.auto` decision sites while the refactor is
+pending. For the exact current-state parity contract, see
+[docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 
 ## Data sources + selection order
 
 ### Default selection (debug menu disabled)
-1) OAuth API (if Claude CLI credentials include `user:profile` scope).
-2) CLI PTY (`claude`), if OAuth is unavailable or fails.
-3) Web API (browser cookies, `sessionKey`), if OAuth + CLI are unavailable or fail.
+- App runtime main pipeline: OAuth API → CLI PTY → Web API.
+- CLI runtime main pipeline: Web API → CLI PTY.
+- Explicit picker modes (OAuth/Web/CLI) bypass automatic fallback.
+- A lower-level direct Claude fetcher still contains a separate `.auto` order. That inconsistency is tracked in
+  [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
@@ -57,8 +62,10 @@ Usage source picker:
 - Manual mode accepts a `Cookie:` header from a claude.ai request.
 - Multi-account manual tokens: add entries to `~/.codexbar/config.json` (`tokenAccounts`) and set Claude cookies to
   Manual. The menu can show all accounts stacked or a switcher bar (Preferences → Advanced → Display).
-- Claude token accounts accept either `sessionKey` cookies or OAuth access tokens (`sk-ant-oat...`). OAuth tokens use
-  the Anthropic OAuth usage endpoint; to force cookie mode, paste `sessionKey=<value>` or a full `Cookie:` header.
+- Claude token accounts accept either `sessionKey` cookies or OAuth access tokens (`sk-ant-oat...`). OAuth-token
+  accounts route to the OAuth path and disable cookie mode; session-key or cookie-header accounts stay in manual
+  cookie mode. The exact edge-routing rules are documented in
+  [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 - Cookie source order:
   1) Safari: `~/Library/Cookies/Cookies.binarycookies`
   2) Chrome/Chromium forks: `~/Library/Application Support/Google/Chrome/*/Cookies`
