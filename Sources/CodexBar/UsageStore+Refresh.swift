@@ -46,14 +46,33 @@ extension UsageStore {
         let fetchContext = spec.makeFetchContext()
         let descriptor = spec.descriptor
         // Keep provider fetch work off MainActor so slow keychain/process reads don't stall menu/UI responsiveness.
+        // We use a withTaskGroup with a 30-second timeout leg to ensure that a single hanging provider 
+        // does not block the entire refresh task group permanently.
         let outcome = await withTaskGroup(
-            of: ProviderFetchOutcome.self,
+            of: ProviderFetchOutcome?.self,
             returning: ProviderFetchOutcome.self)
         { group in
             group.addTask {
                 await descriptor.fetchOutcome(context: fetchContext)
             }
-            return await group.next()!
+            group.addTask {
+                do {
+                    try await Task.sleep(for: .seconds(30))
+                } catch {
+                    return nil
+                }
+                self.providerLogger.warning("Provider refresh timed out", metadata: ["provider": provider.rawValue])
+                return nil
+            }
+            let first = await group.next()
+            group.cancelAll()
+            if let first, let outcome = first {
+                return outcome
+            } else {
+                return ProviderFetchOutcome(
+                    result: .failure(SubprocessRunnerError.timedOut("\(provider.rawValue) fetch")),
+                    attempts: [])
+            }
         }
         if provider == .claude,
            ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
