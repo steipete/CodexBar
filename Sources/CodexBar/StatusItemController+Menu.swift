@@ -998,6 +998,7 @@ extension StatusItemController {
         case .refreshAugmentSession: (#selector(self.refreshAugmentSession), nil)
         case .dashboard: (#selector(self.openDashboard), nil)
         case .statusPage: (#selector(self.openStatusPage), nil)
+        case .popOut: (#selector(self.popOutPanelFromMenu(_:)), nil)
         case let .switchAccount(provider): (#selector(self.runSwitchAccount(_:)), provider.rawValue)
         case let .openTerminal(command): (#selector(self.openTerminalCommand(_:)), command)
         case let .loginToProvider(url): (#selector(self.openLoginToProvider(_:)), url)
@@ -1355,7 +1356,7 @@ extension StatusItemController {
         }
     }
 
-    private func menuCardModel(
+    func menuCardModel(
         for provider: UsageProvider?,
         snapshotOverride: UsageSnapshot? = nil,
         errorOverride: String? = nil) -> UsageMenuCardView.Model?
