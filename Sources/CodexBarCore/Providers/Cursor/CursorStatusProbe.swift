@@ -280,6 +280,18 @@ public struct CursorStatusSnapshot: Sendable {
             nil
         }
 
+        let cursorPlanCost: ProviderCostSnapshot? = if self.planLimitUSD > 0 {
+            ProviderCostSnapshot(
+                used: self.planUsedUSD,
+                limit: self.planLimitUSD,
+                currencyCode: "USD",
+                period: "monthly",
+                resetsAt: self.billingCycleEnd,
+                updatedAt: Date())
+        } else {
+            nil
+        }
+
         // Provider cost snapshot for on-demand usage
         let providerCost: ProviderCostSnapshot? = if resolvedOnDemandUsed > 0 {
             ProviderCostSnapshot(
@@ -312,6 +324,7 @@ public struct CursorStatusSnapshot: Sendable {
             secondary: secondary,
             tertiary: nil,
             providerCost: providerCost,
+            cursorPlanCost: cursorPlanCost,
             cursorRequests: cursorRequests,
             updatedAt: Date(),
             identity: identity)
@@ -695,10 +708,9 @@ public struct CursorStatusProbe: Sendable {
         let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
         let planUsed = planUsedRaw / 100.0
         let planLimit = planLimitRaw / 100.0
+        // Cursor plan display is dollar-first. If limit is missing, do not fall back to percent-only fields.
         let planPercentUsed: Double = if planLimitRaw > 0 {
             (planUsedRaw / planLimitRaw) * 100
-        } else if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
-            totalPercentUsed <= 1 ? totalPercentUsed * 100 : totalPercentUsed
         } else {
             0
         }

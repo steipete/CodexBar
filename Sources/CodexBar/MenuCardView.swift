@@ -35,9 +35,13 @@ struct UsageMenuCardView: View {
             let detailRightText: String?
             let pacePercent: Double?
             let paceOnTop: Bool
+            let customLabel: String?
 
             var percentLabel: String {
-                String(format: "%.0f%% %@", self.percent, self.percentStyle.labelSuffix)
+                if let customLabel {
+                    return customLabel
+                }
+                return String(format: "%.0f%% %@", self.percent, self.percentStyle.labelSuffix)
             }
         }
 
@@ -900,7 +904,14 @@ extension UsageMenuCardView.Model {
         let zaiUsage = input.provider == .zai ? snapshot.zaiUsage : nil
         let zaiTokenDetail = Self.zaiLimitDetailText(limit: zaiUsage?.tokenLimit)
         let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
-        let openRouterQuotaDetail = Self.openRouterQuotaDetail(provider: input.provider, snapshot: snapshot)
+        let openRouterQuotaDetail = Self.openRouterQuotaDetail(
+            provider: input.provider,
+            snapshot: snapshot,
+            showUsed: input.usageBarsShowUsed)
+        let cursorPlanUsageDetail = Self.cursorPlanUsageDetail(
+            provider: input.provider,
+            snapshot: snapshot,
+            showUsed: input.usageBarsShowUsed)
         if let primary = snapshot.primary {
             var primaryDetailText: String? = input.provider == .zai ? zaiTokenDetail : nil
             var primaryResetText = Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now)
@@ -918,18 +929,33 @@ extension UsageMenuCardView.Model {
             if input.provider == .warp || input.provider == .kilo, primary.resetsAt == nil {
                 primaryResetText = nil
             }
+            // For Cursor, show dollar-based bar instead of percentage
+            var primaryPercent = Self.clamped(
+                input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent)
+            var primaryCustomLabel: String?
+            if input.provider == .cursor {
+                if let cost = snapshot.cursorPlanCost,
+                   cost.limit > 0
+                {
+                    let usedPercent = (cost.used / cost.limit) * 100
+                    primaryPercent = Self.clamped(input.usageBarsShowUsed ? usedPercent : (100 - usedPercent))
+                    primaryCustomLabel = cursorPlanUsageDetail
+                } else {
+                    primaryCustomLabel = "Usage unavailable"
+                }
+            }
             metrics.append(Metric(
                 id: "primary",
                 title: input.metadata.sessionLabel,
-                percent: Self.clamped(
-                    input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
+                percent: primaryPercent,
                 percentStyle: percentStyle,
                 resetText: primaryResetText,
                 detailText: primaryDetailText,
                 detailLeftText: nil,
                 detailRightText: nil,
                 pacePercent: nil,
-                paceOnTop: true))
+                paceOnTop: true,
+                customLabel: primaryCustomLabel))
         }
         if let weekly = snapshot.secondary {
             let paceDetail = Self.weeklyPaceDetail(
@@ -965,7 +991,8 @@ extension UsageMenuCardView.Model {
                 detailLeftText: paceDetail?.leftLabel,
                 detailRightText: paceDetail?.rightLabel,
                 pacePercent: paceDetail?.pacePercent,
-                paceOnTop: paceDetail?.paceOnTop ?? true))
+                paceOnTop: paceDetail?.paceOnTop ?? true,
+                customLabel: nil))
         }
         if input.provider == .kilo,
            metrics.contains(where: { $0.id == "primary" }),
@@ -990,7 +1017,8 @@ extension UsageMenuCardView.Model {
                 detailLeftText: nil,
                 detailRightText: nil,
                 pacePercent: nil,
-                paceOnTop: true))
+                paceOnTop: true,
+                customLabel: nil))
         }
 
         if input.provider == .codex, let remaining = input.dashboard?.codeReviewRemainingPercent {
@@ -1005,7 +1033,8 @@ extension UsageMenuCardView.Model {
                 detailLeftText: nil,
                 detailRightText: nil,
                 pacePercent: nil,
-                paceOnTop: true))
+                paceOnTop: true,
+                customLabel: nil))
         }
         return metrics
     }
@@ -1026,7 +1055,11 @@ extension UsageMenuCardView.Model {
         return nil
     }
 
-    private static func openRouterQuotaDetail(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
+    private static func openRouterQuotaDetail(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        showUsed: Bool) -> String?
+    {
         guard provider == .openrouter,
               let usage = snapshot.openRouterUsage,
               usage.hasValidKeyQuota,
@@ -1036,9 +1069,41 @@ extension UsageMenuCardView.Model {
             return nil
         }
 
-        let remaining = UsageFormatter.usdString(keyRemaining)
         let limit = UsageFormatter.usdString(keyLimit)
-        return "\(remaining)/\(limit) left"
+        if showUsed {
+            let used = UsageFormatter.usdString(keyLimit - keyRemaining)
+            return "\(used)/\(limit) used"
+        } else {
+            let remaining = UsageFormatter.usdString(keyRemaining)
+            return "\(remaining)/\(limit) left"
+        }
+    }
+
+    private static func cursorPlanUsageDetail(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        showUsed: Bool) -> String?
+    {
+        guard provider == .cursor,
+              let cost = snapshot.cursorPlanCost,
+              cost.limit > 0
+        else {
+            return nil
+        }
+
+        let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+        if cost.used > cost.limit {
+            let overLimit = UsageFormatter.currencyString(cost.used - cost.limit, currencyCode: cost.currencyCode)
+            return "\(overLimit) over limit"
+        }
+
+        if showUsed {
+            let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            return "\(used) / \(limit) used"
+        } else {
+            let remaining = UsageFormatter.currencyString(cost.limit - cost.used, currencyCode: cost.currencyCode)
+            return "\(remaining) / \(limit) left"
+        }
     }
 
     private struct PaceDetail {
