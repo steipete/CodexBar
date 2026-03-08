@@ -1,6 +1,6 @@
 import Foundation
 
-struct SettingsDefaultsState: Sendable {
+struct SettingsDefaultsState {
     var refreshFrequency: RefreshFrequency
     var launchAtLogin: Bool
     var debugMenuEnabled: Bool
@@ -34,4 +34,5 @@ struct SettingsDefaultsState: Sendable {
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
+    var appLanguageRaw: String?
 }

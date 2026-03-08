@@ -478,6 +478,26 @@ extension SettingsStore {
         get { self.debugLoadingPatternRaw.flatMap(LoadingPattern.init(rawValue:)) }
         set { self.debugLoadingPatternRaw = newValue?.rawValue }
     }
+
+    private var appLanguageRaw: String? {
+        get { self.defaultsState.appLanguageRaw }
+        set {
+            self.defaultsState.appLanguageRaw = newValue
+            if let newValue {
+                self.userDefaults.set(newValue, forKey: "appLanguage")
+            } else {
+                self.userDefaults.removeObject(forKey: "appLanguage")
+            }
+        }
+    }
+
+    var appLanguage: AppLanguage {
+        get { self.appLanguageRaw.flatMap(AppLanguage.init(rawValue:)) ?? .system }
+        set {
+            self.appLanguageRaw = newValue.rawValue
+            AppLanguage.applyLanguage(newValue)
+        }
+    }
 }
 
 extension SettingsStore {

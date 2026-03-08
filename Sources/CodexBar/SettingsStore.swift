@@ -152,6 +152,7 @@ final class SettingsStore {
         self.openAIWebAccessEnabled = self.codexCookieSource.isEnabled
         Self.sharedDefaults?.set(self.debugDisableKeychainAccess, forKey: "debugDisableKeychainAccess")
         KeychainAccessGate.isDisabled = self.debugDisableKeychainAccess
+        AppLanguage.applyLanguage(self.appLanguage)
     }
 }
 
@@ -223,6 +224,7 @@ extension SettingsStore {
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
+        let appLanguageRaw = userDefaults.string(forKey: "appLanguage")
 
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -257,7 +259,8 @@ extension SettingsStore {
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
-            providerDetectionCompleted: providerDetectionCompleted)
+            providerDetectionCompleted: providerDetectionCompleted,
+            appLanguageRaw: appLanguageRaw)
     }
 }
 

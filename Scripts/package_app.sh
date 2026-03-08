@@ -197,6 +197,18 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>SUEnableAutomaticChecks</key><${AUTO_CHECKS}/>
     <key>CodexBuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>CodexGitCommit</key><string>${GIT_COMMIT}</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>zh-Hans</string>
+        <string>zh-Hant</string>
+        <string>ja</string>
+        <string>ko</string>
+        <string>fr</string>
+        <string>de</string>
+        <string>es</string>
+    </array>
 </dict>
 </plist>
 PLIST
@@ -365,6 +377,16 @@ if [[ ! -d "$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle" 
   echo "Expected: ${PREFERRED_BUILD_DIR}/KeyboardShortcuts_KeyboardShortcuts.bundle" >&2
   exit 1
 fi
+
+# Compile .xcstrings into .lproj directories so macOS can load localized strings at runtime.
+shopt -s nullglob
+XCSTRINGS_FILES=("$APP/Contents/Resources/"*.xcstrings "$APP/Contents/Resources/"*.bundle/*.xcstrings)
+shopt -u nullglob
+for xcs in "${XCSTRINGS_FILES[@]}"; do
+  PARENT_DIR="$(dirname "$xcs")"
+  xcrun xcstringstool compile "$xcs" --output-directory "$PARENT_DIR" 2>/dev/null || true
+  rm -f "$xcs"
+done
 
 # Ensure contents are writable before stripping attributes and signing.
 chmod -R u+w "$APP"

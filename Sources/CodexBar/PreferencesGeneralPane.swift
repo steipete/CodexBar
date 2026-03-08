@@ -6,6 +6,7 @@ import SwiftUI
 struct GeneralPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
+    @State private var pendingLanguage: AppLanguage?
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -16,9 +17,50 @@ struct GeneralPane: View {
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     PreferenceToggleRow(
-                        title: "Start at Login",
-                        subtitle: "Automatically opens CodexBar when you start your Mac.",
+                        title: String(localized: "Start at Login"),
+                        subtitle: String(localized: "Automatically opens CodexBar when you start your Mac."),
                         binding: self.$settings.launchAtLogin)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Language")
+                                .font(.body)
+                            Text("Restart required after changing.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Picker("", selection: Binding(
+                            get: { self.settings.appLanguage },
+                            set: { newValue in
+                                self.settings.appLanguage = newValue
+                                self.pendingLanguage = newValue
+                            })) {
+                                ForEach(AppLanguage.allCases) { lang in
+                                    Text(lang.displayName).tag(lang)
+                                }
+                            }
+                            .labelsHidden()
+                                .frame(maxWidth: 200)
+                    }
+                    .alert(
+                        String(localized: "Restart Required"),
+                        isPresented: Binding(
+                            get: { self.pendingLanguage != nil },
+                            set: { if !$0 { self.pendingLanguage = nil } }))
+                    {
+                        Button(String(localized: "Restart Now")) {
+                            let task = Process()
+                            task.launchPath = "/usr/bin/open"
+                            task.arguments = ["-n", Bundle.main.bundlePath]
+                            try? task.run()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                NSApplication.shared.terminate(nil)
+                            }
+                        }
+                        Button(String(localized: "Later"), role: .cancel) {}
+                    } message: {
+                        Text("The app needs to restart for the language change to take effect.")
+                    }
                 }
 
                 Divider()
@@ -87,14 +129,14 @@ struct GeneralPane: View {
                         }
                     }
                     PreferenceToggleRow(
-                        title: "Check provider status",
-                        subtitle: "Polls OpenAI/Claude status pages and Google Workspace for " +
-                            "Gemini/Antigravity, surfacing incidents in the icon and menu.",
+                        title: String(localized: "Check provider status"),
+                        subtitle: String(
+                            localized: "Polls OpenAI/Claude status pages and Google Workspace for Gemini/Antigravity, surfacing incidents in the icon and menu."),
                         binding: self.$settings.statusChecksEnabled)
                     PreferenceToggleRow(
-                        title: "Session quota notifications",
-                        subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +
-                            "available again.",
+                        title: String(localized: "Session quota notifications"),
+                        subtitle: String(
+                            localized: "Notifies when the 5-hour session quota hits 0% and when it becomes available again."),
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
                 }
 

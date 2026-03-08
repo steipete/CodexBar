@@ -1,0 +1,164 @@
+{
+  "sourceLanguage": "en",
+  "version": "1.0",
+  "strings": {
+    "Open CodexBar": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Open CodexBar" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "打开 CodexBar" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "開啟 CodexBar" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "CodexBar を開く" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "CodexBar 열기" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Ouvrir CodexBar" } },
+        "de": { "stringUnit": { "state": "translated", "value": "CodexBar öffnen" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Abrir CodexBar" } }
+      }
+    },
+    "Usage data will appear once the app refreshes.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Usage data will appear once the app refreshes." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "应用刷新后将显示用量数据。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "應用程式重新整理後將顯示用量資料。" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "アプリを更新すると使用状況が表示されます。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "앱을 새로고침하면 사용량 데이터가 표시됩니다." } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Les données d'utilisation apparaîtront après l'actualisation." } },
+        "de": { "stringUnit": { "state": "translated", "value": "Nutzungsdaten werden nach der Aktualisierung angezeigt." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Los datos de uso aparecerán tras actualizar la app." } }
+      }
+    },
+    "Usage history will appear after a refresh.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Usage history will appear after a refresh." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "刷新后将显示使用历史记录。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新整理後將顯示使用歷史紀錄。" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "更新後に使用履歴が表示されます。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "새로고침 후 사용 기록이 표시됩니다." } },
+        "fr": { "stringUnit": { "state": "translated", "value": "L'historique d'utilisation apparaîtra après l'actualisation." } },
+        "de": { "stringUnit": { "state": "translated", "value": "Der Nutzungsverlauf wird nach der Aktualisierung angezeigt." } },
+        "es": { "stringUnit": { "state": "translated", "value": "El historial de uso aparecerá tras actualizar." } }
+      }
+    },
+    "Usage data appears after a refresh.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Usage data appears after a refresh." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "刷新后将显示用量数据。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新整理後將顯示用量資料。" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "更新後に使用状況が表示されます。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "새로고침 후 사용량 데이터가 표시됩니다." } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Les données d'utilisation apparaissent après l'actualisation." } },
+        "de": { "stringUnit": { "state": "translated", "value": "Nutzungsdaten erscheinen nach der Aktualisierung." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Los datos de uso aparecen tras actualizar." } }
+      }
+    },
+    "Credits left": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Credits left" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "剩余额度" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "剩餘額度" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "残りクレジット" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "남은 크레딧" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Crédits restants" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Verbleibende Credits" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Créditos restantes" } }
+      }
+    },
+    "Today cost": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Today cost" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "今日花费" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "今日花費" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "今日のコスト" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "오늘 비용" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Coût du jour" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Kosten heute" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Coste de hoy" } }
+      }
+    },
+    "30d cost": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "30d cost" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "30 天花费" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "30 天花費" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "30 日間のコスト" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "30일 비용" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Coût sur 30 j" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Kosten 30 Tage" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Coste 30 días" } }
+      }
+    },
+    "Credits": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Credits" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "额度" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "額度" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "クレジット" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "크레딧" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Crédits" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Credits" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Créditos" } }
+      }
+    },
+    "Today": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Today" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "今日" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "今日" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "今日" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "오늘" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Aujourd'hui" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Heute" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Hoy" } }
+      }
+    },
+    "30d": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "30d" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "30 天" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "30 天" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "30 日" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "30일" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "30 j" } },
+        "de": { "stringUnit": { "state": "translated", "value": "30 T." } },
+        "es": { "stringUnit": { "state": "translated", "value": "30 d" } }
+      }
+    },
+    "Session": {
+      "comment": "Fallback label for session usage bar",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Session" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "会话" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作階段" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "セッション" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "세션" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Session" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Sitzung" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Sesión" } }
+      }
+    },
+    "Weekly": {
+      "comment": "Fallback label for weekly usage bar",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Weekly" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "每周" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "每週" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "週間" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "주간" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Hebdomadaire" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Wöchentlich" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Semanal" } }
+      }
+    },
+    "Code review": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Code review" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "代码审查" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "程式碼審查" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "コードレビュー" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "코드 리뷰" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Revue de code" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Code-Review" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Revisión de código" } }
+      }
+    }
+  }
+}
