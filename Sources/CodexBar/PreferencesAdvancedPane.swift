@@ -57,12 +57,12 @@ struct AdvancedPane: View {
 
                 SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
-                        title: "Show Debug Settings",
-                        subtitle: "Expose troubleshooting tools in the Debug tab.",
+                        title: String(localized: "Show Debug Settings"),
+                        subtitle: String(localized: "Expose troubleshooting tools in the Debug tab."),
                         binding: self.$settings.debugMenuEnabled)
                     PreferenceToggleRow(
-                        title: "Surprise me",
-                        subtitle: "Check if you like your agents having some fun up there.",
+                        title: String(localized: "Surprise me"),
+                        subtitle: String(localized: "Check if you like your agents having some fun up there."),
                         binding: self.$settings.randomBlinkEnabled)
                 }
 
@@ -70,22 +70,22 @@ struct AdvancedPane: View {
 
                 SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
-                        title: "Hide personal information",
-                        subtitle: "Obscure email addresses in the menu bar and menu UI.",
+                        title: String(localized: "Hide personal information"),
+                        subtitle: String(localized: "Obscure email addresses in the menu bar and menu UI."),
                         binding: self.$settings.hidePersonalInfo)
                 }
 
                 Divider()
 
                 SettingsSection(
-                    title: "Keychain access",
-                    caption: """
+                    title: String(localized: "Keychain access"),
+                    caption: String(localized: """
                     Disable all Keychain reads and writes. Browser cookie import is unavailable; paste Cookie \
                     headers manually in Providers.
-                    """) {
+                    """)) {
                         PreferenceToggleRow(
-                            title: "Disable Keychain access",
-                            subtitle: "Prevents any Keychain access while enabled.",
+                            title: String(localized: "Disable Keychain access"),
+                            subtitle: String(localized: "Prevents any Keychain access while enabled."),
                             binding: self.$settings.debugDisableKeychainAccess)
                     }
             }
@@ -105,7 +105,7 @@ extension AdvancedPane {
         let helperURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/CodexBarCLI")
         let fm = FileManager.default
         guard fm.fileExists(atPath: helperURL.path) else {
-            self.cliStatus = "CodexBarCLI not found in app bundle."
+            self.cliStatus = String(localized: "CodexBarCLI not found in app bundle.")
             return
         }
 
@@ -141,7 +141,7 @@ extension AdvancedPane {
         }
 
         self.cliStatus = results.isEmpty
-            ? "No writable bin dirs found."
+            ? String(localized: "No writable bin dirs found.")
             : results.joined(separator: " · ")
     }
 

@@ -29,15 +29,15 @@ struct CopilotProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "copilot-api-token",
-                title: "GitHub Login",
-                subtitle: "Requires authentication via GitHub Device Flow.",
+                title: String(localized: "GitHub Login"),
+                subtitle: String(localized: "Requires authentication via GitHub Device Flow."),
                 kind: .secure,
                 placeholder: "Sign in via button below",
                 binding: context.stringBinding(\.copilotAPIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "copilot-login",
-                        title: "Sign in with GitHub",
+                        title: String(localized: "Sign in with GitHub"),
                         style: .bordered,
                         isVisible: { context.settings.copilotAPIToken.isEmpty },
                         perform: {
@@ -45,7 +45,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                         }),
                     ProviderSettingsActionDescriptor(
                         id: "copilot-relogin",
-                        title: "Sign in again",
+                        title: String(localized: "Sign in again"),
                         style: .link,
                         isVisible: { !context.settings.copilotAPIToken.isEmpty },
                         perform: {

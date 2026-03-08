@@ -174,7 +174,7 @@ struct MenuDescriptor {
             if meta.supportsOpus, let opus = snap.tertiary {
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.opusLabel ?? "Sonnet",
+                    title: meta.opusLabel ?? String(localized: "Sonnet"),
                     window: opus,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)

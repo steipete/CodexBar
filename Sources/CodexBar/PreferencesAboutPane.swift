@@ -51,10 +51,10 @@ struct AboutPane: View {
             VStack(spacing: 2) {
                 Text("CodexBar")
                     .font(.title3).bold()
-                Text("Version \(self.versionString)")
+                Text(String(localized: "Version \(self.versionString)"))
                     .foregroundStyle(.secondary)
                 if let buildTimestamp {
-                    Text("Built \(buildTimestamp)")
+                    Text(String(localized: "Built \(buildTimestamp)"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -66,11 +66,11 @@ struct AboutPane: View {
             VStack(alignment: .center, spacing: 10) {
                 AboutLinkRow(
                     icon: "chevron.left.slash.chevron.right",
-                    title: "GitHub",
+                    title: String(localized: "GitHub"),
                     url: "https://github.com/steipete/CodexBar")
-                AboutLinkRow(icon: "globe", title: "Website", url: "https://steipete.me")
-                AboutLinkRow(icon: "bird", title: "Twitter", url: "https://twitter.com/steipete")
-                AboutLinkRow(icon: "envelope", title: "Email", url: "mailto:peter@steipete.me")
+                AboutLinkRow(icon: "globe", title: String(localized: "Website"), url: "https://steipete.me")
+                AboutLinkRow(icon: "bird", title: String(localized: "Twitter"), url: "https://twitter.com/steipete")
+                AboutLinkRow(icon: "envelope", title: String(localized: "Email"), url: "mailto:peter@steipete.me")
             }
             .padding(.top, 8)
             .frame(maxWidth: .infinity)
@@ -105,7 +105,7 @@ struct AboutPane: View {
                     Button("Check for Updates…") { self.updater.checkForUpdates(nil) }
                 }
             } else {
-                Text(self.updater.unavailableReason ?? "Updates unavailable in this build.")
+                Text(self.updater.unavailableReason ?? String(localized: "Updates unavailable in this build."))
                     .foregroundStyle(.secondary)
             }
 

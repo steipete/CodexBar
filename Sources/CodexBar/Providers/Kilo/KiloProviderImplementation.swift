@@ -54,8 +54,8 @@ struct KiloProviderImplementation: ProviderImplementation {
         return [
             ProviderSettingsPickerDescriptor(
                 id: "kilo-usage-source",
-                title: "Usage source",
-                subtitle: "Auto uses API first, then falls back to CLI on auth failures.",
+                title: String(localized: "Usage source"),
+                subtitle: String(localized: "Auto uses API first, then falls back to CLI on auth failures."),
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -73,9 +73,9 @@ struct KiloProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "kilo-api-key",
-                title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or "
-                    + "~/.local/share/kilo/auth.json (kilo.access).",
+                title: String(localized: "API key"),
+                subtitle: String(
+                    localized: "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)."),
                 kind: .secure,
                 placeholder: "kilo_...",
                 binding: context.stringBinding(\.kiloAPIToken),

@@ -39,16 +39,16 @@ struct KimiProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.kimiCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a cookie header or the kimi-auth token value.",
-                off: "Kimi cookies are disabled.")
+                auto: String(localized: "Automatic imports browser cookies."),
+                manual: String(localized: "Paste a cookie header or the kimi-auth token value."),
+                off: String(localized: "Kimi cookies are disabled."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "kimi-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
+                title: String(localized: "Cookie source"),
+                subtitle: String(localized: "Automatic imports browser cookies."),
                 dynamicSubtitle: subtitle,
                 binding: cookieBinding,
                 options: options,
@@ -70,7 +70,7 @@ struct KimiProviderImplementation: ProviderImplementation {
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "kimi-open-console",
-                        title: "Open Console",
+                        title: String(localized: "Open Console"),
                         style: .link,
                         isVisible: nil,
                         perform: {

@@ -26,10 +26,10 @@ struct DebugPane: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 20) {
-                SettingsSection(title: "Logging") {
+                SettingsSection(title: String(localized: "Logging")) {
                     PreferenceToggleRow(
-                        title: "Enable file logging",
-                        subtitle: "Write logs to \(self.fileLogPath) for debugging.",
+                        title: String(localized: "Enable file logging"),
+                        subtitle: String(localized: "Write logs to \(self.fileLogPath) for debugging."),
                         binding: self.$debugFileLoggingEnabled)
                         .onChange(of: self.debugFileLoggingEnabled) { _, newValue in
                             if self.settings.debugFileLoggingEnabled != newValue {
@@ -66,14 +66,15 @@ struct DebugPane: View {
 
                 SettingsSection {
                     PreferenceToggleRow(
-                        title: "Force animation on next refresh",
-                        subtitle: "Temporarily shows the loading animation after the next refresh.",
+                        title: String(localized: "Force animation on next refresh"),
+                        subtitle: String(localized: "Temporarily shows the loading animation after the next refresh."),
                         binding: self.$store.debugForceAnimation)
                 }
 
                 SettingsSection(
-                    title: "Loading animations",
-                    caption: "Pick a pattern and replay it in the menu bar. \"Random\" keeps the existing behavior.")
+                    title: String(localized: "Loading animations"),
+                    caption: String(
+                        localized: "Pick a pattern and replay it in the menu bar. \"Random\" keeps the existing behavior."))
                 {
                     Picker("Animation pattern", selection: self.animationPatternBinding) {
                         Text("Random (default)").tag(nil as LoadingPattern?)
@@ -97,8 +98,9 @@ struct DebugPane: View {
                 }
 
                 SettingsSection(
-                    title: "Probe logs",
-                    caption: "Fetch the latest probe output for debugging; Copy keeps the full text.")
+                    title: String(localized: "Probe logs"),
+                    caption: String(
+                        localized: "Fetch the latest probe output for debugging; Copy keeps the full text."))
                 {
                     Picker("Provider", selection: self.$currentLogProvider) {
                         Text("Codex").tag(UsageProvider.codex)
@@ -165,8 +167,8 @@ struct DebugPane: View {
                 }
 
                 SettingsSection(
-                    title: "Fetch strategy attempts",
-                    caption: "Last fetch pipeline decisions and errors for a provider.")
+                    title: String(localized: "Fetch strategy attempts"),
+                    caption: String(localized: "Last fetch pipeline decisions and errors for a provider."))
                 {
                     Picker("Provider", selection: self.$currentFetchProvider) {
                         ForEach(UsageProvider.allCases, id: \.self) { provider in
@@ -190,8 +192,9 @@ struct DebugPane: View {
 
                 if !self.settings.debugDisableKeychainAccess {
                     SettingsSection(
-                        title: "OpenAI cookies",
-                        caption: "Cookie import + WebKit scrape logs from the last OpenAI cookies attempt.")
+                        title: String(localized: "OpenAI cookies"),
+                        caption: String(
+                            localized: "Cookie import + WebKit scrape logs from the last OpenAI cookies attempt."))
                     {
                         HStack(spacing: 12) {
                             Button {
@@ -206,7 +209,9 @@ struct DebugPane: View {
                             Text(
                                 self.store.openAIDashboardCookieImportDebugLog?.isEmpty == false
                                     ? (self.store.openAIDashboardCookieImportDebugLog ?? "")
-                                    : "No log yet. Update OpenAI cookies in Providers → Codex to run an import.")
+                                    :
+                                    String(
+                                        localized: "No log yet. Update OpenAI cookies in Providers → Codex to run an import."))
                                 .font(.system(.footnote, design: .monospaced))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -219,8 +224,8 @@ struct DebugPane: View {
                 }
 
                 SettingsSection(
-                    title: "Caches",
-                    caption: "Clear cached cost scan results.")
+                    title: String(localized: "Caches"),
+                    caption: String(localized: "Clear cached cost scan results."))
                 {
                     let isTokenRefreshActive = self.store.isTokenRefreshInFlight(for: .codex)
                         || self.store.isTokenRefreshInFlight(for: .claude)
@@ -242,8 +247,9 @@ struct DebugPane: View {
                 }
 
                 SettingsSection(
-                    title: "Notifications",
-                    caption: "Trigger test notifications for the 5-hour session window (depleted/restored).")
+                    title: String(localized: "Notifications"),
+                    caption: String(
+                        localized: "Trigger test notifications for the 5-hour session window (depleted/restored)."))
                 {
                     Picker("Provider", selection: self.$currentLogProvider) {
                         Text("Codex").tag(UsageProvider.codex)
@@ -270,12 +276,13 @@ struct DebugPane: View {
                 }
 
                 SettingsSection(
-                    title: "CLI sessions",
-                    caption: "Keep Codex/Claude CLI sessions alive after a probe. Default exits once data is captured.")
+                    title: String(localized: "CLI sessions"),
+                    caption: String(
+                        localized: "Keep Codex/Claude CLI sessions alive after a probe. Default exits once data is captured."))
                 {
                     PreferenceToggleRow(
-                        title: "Keep CLI sessions alive",
-                        subtitle: "Skip teardown between probes (debug-only).",
+                        title: String(localized: "Keep CLI sessions alive"),
+                        subtitle: String(localized: "Skip teardown between probes (debug-only)."),
                         binding: self.$settings.debugKeepCLISessionsAlive)
 
                     Button {
@@ -290,8 +297,8 @@ struct DebugPane: View {
 
                 #if DEBUG
                 SettingsSection(
-                    title: "Error simulation",
-                    caption: "Inject a fake error message into the menu card for layout testing.")
+                    title: String(localized: "Error simulation"),
+                    caption: String(localized: "Inject a fake error message into the menu card for layout testing."))
                 {
                     Picker("Provider", selection: self.$currentErrorProvider) {
                         Text("Codex").tag(UsageProvider.codex)
@@ -350,11 +357,16 @@ struct DebugPane: View {
                 #endif
 
                 SettingsSection(
-                    title: "CLI paths",
-                    caption: "Resolved Codex binary and PATH layers; startup login PATH capture (short timeout).")
+                    title: String(localized: "CLI paths"),
+                    caption: String(
+                        localized: "Resolved Codex binary and PATH layers; startup login PATH capture (short timeout)."))
                 {
-                    self.binaryRow(title: "Codex binary", value: self.store.pathDebugInfo.codexBinary)
-                    self.binaryRow(title: "Claude binary", value: self.store.pathDebugInfo.claudeBinary)
+                    self.binaryRow(
+                        title: String(localized: "Codex binary"),
+                        value: self.store.pathDebugInfo.codexBinary)
+                    self.binaryRow(
+                        title: String(localized: "Claude binary"),
+                        value: self.store.pathDebugInfo.claudeBinary)
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Effective PATH")
@@ -362,7 +374,7 @@ struct DebugPane: View {
                         ScrollView {
                             Text(
                                 self.store.pathDebugInfo.effectivePATH.isEmpty
-                                    ? "Unavailable"
+                                    ? String(localized: "Unavailable")
                                     : self.store.pathDebugInfo.effectivePATH)
                                 .font(.system(.footnote, design: .monospaced))
                                 .textSelection(.enabled)
@@ -422,7 +434,7 @@ struct DebugPane: View {
 
     private var displayedLog: String {
         if self.logText.isEmpty {
-            return self.isLoadingLog ? "Loading…" : "No log yet. Fetch to load."
+            return self.isLoadingLog ? String(localized: "Loading…") : String(localized: "No log yet. Fetch to load.")
         }
         return self.logText
     }
@@ -460,7 +472,7 @@ struct DebugPane: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.callout.weight(.semibold))
-            Text(value ?? "Not found")
+            Text(value ?? String(localized: "Not found"))
                 .font(.system(.footnote, design: .monospaced))
                 .foregroundStyle(value == nil ? .secondary : .primary)
         }
@@ -488,16 +500,16 @@ struct DebugPane: View {
         defer { self.isClearingCostCache = false }
 
         if let error = await self.store.clearCostUsageCache() {
-            self.costCacheStatus = "Failed: \(error)"
+            self.costCacheStatus = String(localized: "Failed: \(error)")
             return
         }
 
-        self.costCacheStatus = "Cleared."
+        self.costCacheStatus = String(localized: "Cleared.")
     }
 
     private func fetchAttemptsText(for provider: UsageProvider) -> String {
         let attempts = self.store.fetchAttempts(for: provider)
-        guard !attempts.isEmpty else { return "No fetch attempts yet." }
+        guard !attempts.isEmpty else { return String(localized: "No fetch attempts yet.") }
         return attempts.map { attempt in
             let kind = Self.fetchKindLabel(attempt.kind)
             var line = "\(attempt.strategyID) (\(kind))"

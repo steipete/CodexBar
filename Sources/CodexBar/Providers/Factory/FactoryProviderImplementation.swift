@@ -48,16 +48,16 @@ struct FactoryProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.factoryCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies and WorkOS tokens.",
-                manual: "Paste a Cookie header from app.factory.ai.",
-                off: "Factory cookies are disabled.")
+                auto: String(localized: "Automatic imports browser cookies and WorkOS tokens."),
+                manual: String(localized: "Paste a Cookie header from app.factory.ai."),
+                off: String(localized: "Factory cookies are disabled."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "factory-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies and WorkOS tokens.",
+                title: String(localized: "Cookie source"),
+                subtitle: String(localized: "Automatic imports browser cookies and WorkOS tokens."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,

@@ -5,7 +5,7 @@ import SwiftUI
 /// SwiftUI card used inside the NSMenu to mirror Apple's rich menu panels.
 struct UsageMenuCardView: View {
     struct Model {
-        enum PercentStyle: String, Sendable {
+        enum PercentStyle: String {
             case left
             case used
 
@@ -18,8 +18,8 @@ struct UsageMenuCardView: View {
 
             var accessibilityLabel: String {
                 switch self {
-                case .left: "Usage remaining"
-                case .used: "Usage used"
+                case .left: String(localized: "Usage remaining")
+                case .used: String(localized: "Usage used")
                 }
             }
         }
@@ -47,7 +47,7 @@ struct UsageMenuCardView: View {
             case error
         }
 
-        struct TokenUsageSection: Sendable {
+        struct TokenUsageSection {
             let sessionLine: String
             let monthLine: String
             let hintLine: String?
@@ -55,7 +55,7 @@ struct UsageMenuCardView: View {
             let errorCopyText: String?
         }
 
-        struct ProviderCostSection: Sendable {
+        struct ProviderCostSection {
             let title: String
             let percentUsed: Double
             let spendLine: String
@@ -283,7 +283,7 @@ private struct CopyIconButton: View {
                 .frame(width: 18, height: 18)
         }
         .buttonStyle(CopyIconButtonStyle(isHighlighted: self.isHighlighted))
-        .accessibilityLabel(self.didCopy ? "Copied" : "Copy error")
+        .accessibilityLabel(self.didCopy ? String(localized: "Copied") : String(localized: "Copy error"))
     }
 
     private func copyToPasteboard() {
@@ -306,12 +306,12 @@ private struct ProviderCostContent: View {
             UsageProgressBar(
                 percent: self.section.percentUsed,
                 tint: self.progressColor,
-                accessibilityLabel: "Extra usage spent")
+                accessibilityLabel: String(localized: "Extra usage spent"))
             HStack(alignment: .firstTextBaseline) {
                 Text(self.section.spendLine)
                     .font(.footnote)
                 Spacer()
-                Text(String(format: "%.0f%% used", min(100, max(0, self.section.percentUsed))))
+                Text(String(localized: "\(Int(min(100, max(0, self.section.percentUsed))))% used"))
                     .font(.footnote)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
             }
@@ -502,7 +502,7 @@ private struct CreditsBarContent: View {
 
     private var scaleText: String {
         let scale = UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))
-        return "\(scale) tokens"
+        return String(localized: "\(scale) tokens")
     }
 
     var body: some View {
@@ -514,7 +514,7 @@ private struct CreditsBarContent: View {
                 UsageProgressBar(
                     percent: percentLeft,
                     tint: self.progressColor,
-                    accessibilityLabel: "Credits remaining")
+                    accessibilityLabel: String(localized: "Credits remaining"))
                 HStack(alignment: .firstTextBaseline) {
                     Text(self.creditsText)
                         .font(.caption)
@@ -985,7 +985,7 @@ extension UsageMenuCardView.Model {
         if input.metadata.supportsOpus, let opus = snapshot.tertiary {
             metrics.append(Metric(
                 id: "tertiary",
-                title: input.metadata.opusLabel ?? "Sonnet",
+                title: input.metadata.opusLabel ?? String(localized: "Sonnet"),
                 percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now),
@@ -1000,7 +1000,7 @@ extension UsageMenuCardView.Model {
             let percent = input.usageBarsShowUsed ? (100 - remaining) : remaining
             metrics.append(Metric(
                 id: "code-review",
-                title: "Code review",
+                title: String(localized: "Code review"),
                 percent: Self.clamped(percent),
                 percentStyle: percentStyle,
                 resetText: nil,
@@ -1108,9 +1108,9 @@ extension UsageMenuCardView.Model {
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
         let sessionLine: String = {
             if let sessionTokens {
-                return "Today: \(sessionCost) · \(sessionTokens) tokens"
+                return String(localized: "Today: \(sessionCost) · \(sessionTokens) tokens")
             }
-            return "Today: \(sessionCost)"
+            return String(localized: "Today: \(sessionCost)")
         }()
 
         let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
@@ -1119,9 +1119,9 @@ extension UsageMenuCardView.Model {
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
         let monthLine: String = {
             if let monthTokens {
-                return "Last 30 days: \(monthCost) · \(monthTokens) tokens"
+                return String(localized: "Last 30 days: \(monthCost) · \(monthTokens) tokens")
             }
-            return "Last 30 days: \(monthCost)"
+            return String(localized: "Last 30 days: \(monthCost)")
         }()
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
