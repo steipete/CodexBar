@@ -247,6 +247,12 @@ extension StatusItemController {
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
             self.setButtonImage(image, for: button)
         } else {
+            // Compute weekly pace marker from the secondary (weekly) rate window.
+            let pace: UsagePace? = snapshot?.secondary.flatMap { UsagePace.weekly(window: $0) }
+            let weeklyPacePosition: Double? = pace.map { p in
+                // Convert pace's expected-used-% to the same space as the `weekly` fill value.
+                showUsed ? p.expectedUsedPercent : (100 - p.expectedUsedPercent)
+            }
             let image = IconRenderer.makeIcon(
                 primaryRemaining: primary,
                 weeklyRemaining: weekly,
@@ -256,7 +262,9 @@ extension StatusItemController {
                 blink: blink,
                 wiggle: wiggle,
                 tilt: tilt,
-                statusIndicator: statusIndicator)
+                statusIndicator: statusIndicator,
+                weeklyPacePosition: weeklyPacePosition,
+                weeklyPaceStage: pace?.stage)
             self.setButtonImage(image, for: button)
         }
     }

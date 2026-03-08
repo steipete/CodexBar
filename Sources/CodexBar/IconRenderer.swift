@@ -34,6 +34,8 @@ enum IconRenderer {
         let stale: Bool
         let style: Int
         let indicator: Int
+        // Pace marker (0 = absent, 1-100 = quantized expected position, plus stage bucket)
+        let pace: Int
     }
 
     private final class IconCacheStore: @unchecked Sendable {
@@ -117,7 +119,9 @@ enum IconRenderer {
         blink: CGFloat = 0,
         wiggle: CGFloat = 0,
         tilt: CGFloat = 0,
-        statusIndicator: ProviderStatusIndicator = .none) -> NSImage
+        statusIndicator: ProviderStatusIndicator = .none,
+        weeklyPacePosition: Double? = nil,
+        weeklyPaceStage: UsagePace.Stage? = nil) -> NSImage
     {
         let shouldCache = blink <= 0.0001 && wiggle <= 0.0001 && tilt <= 0.0001
         let render = {
@@ -140,7 +144,9 @@ enum IconRenderer {
                     addGeminiTwist: Bool = false,
                     addAntigravityTwist: Bool = false,
                     addFactoryTwist: Bool = false,
-                    blink: CGFloat = 0)
+                    blink: CGFloat = 0,
+                    pacePosition: Double? = nil,
+                    paceStage: UsagePace.Stage? = nil)
                 {
                     let rect = rectPx.rect()
                     // Claude reads better as a blockier critter; Codex stays as a capsule.
@@ -183,6 +189,27 @@ enum IconRenderer {
                                     h: rectPx.h)).fill()
                             NSGraphicsContext.current?.cgContext.restoreGState()
                         }
+                    }
+
+                    // Pace marker: a thin vertical line showing where usage "should" be by now.
+                    // Color encodes status: green = within budget, orange = slightly over, red = over limit.
+                    if let pos = pacePosition, let stage = paceStage, pos >= 0, pos <= 100 {
+                        let clampedPos = max(0, min(pos / 100, 1))
+                        let markerXPx = rectPx.x + Int((CGFloat(rectPx.w) * CGFloat(clampedPos)).rounded())
+                        let markerColor: NSColor = {
+                            switch stage {
+                            case .onTrack, .slightlyBehind, .behind, .farBehind:
+                                return .systemGreen     // using ≤ expected → good
+                            case .slightlyAhead:
+                                return .systemOrange    // slightly over expected → caution
+                            case .ahead, .farAhead:
+                                return .systemRed       // well over expected → warning
+                            }
+                        }()
+                        markerColor.setFill()
+                        // 2px wide line (1pt at 2× scale) spanning full bar height.
+                        let lineRect = Self.grid.rect(x: markerXPx, y: rectPx.y, w: 2, h: rectPx.h)
+                        NSBezierPath(rect: lineRect).fill()
                     }
 
                     // Codex face: eye cutouts plus faint eyelids to give the prompt some personality.
@@ -599,7 +626,8 @@ enum IconRenderer {
                         addAntigravityTwist: style == .antigravity,
                         addFactoryTwist: style == .factory,
                         blink: blink)
-                    drawBar(rectPx: bottomRectPx, remaining: bottomValue)
+                    drawBar(rectPx: bottomRectPx, remaining: bottomValue,
+                            pacePosition: weeklyPacePosition, paceStage: weeklyPaceStage)
                 } else if !hasWeekly {
                     // Weekly missing (e.g. Claude enterprise): keep normal layout but
                     // dim the bottom track to indicate N/A.
@@ -661,22 +689,27 @@ enum IconRenderer {
         }
 
         if shouldCache {
+            let paceKey = Self.quantizedPace(weeklyPacePosition, stage: weeklyPaceStage)
             let key = IconCacheKey(
                 primary: self.quantizedPercent(primaryRemaining),
                 weekly: self.quantizedPercent(weeklyRemaining),
                 credits: self.quantizedCredits(creditsRemaining),
                 stale: stale,
                 style: self.styleKey(style),
-                indicator: self.indicatorKey(statusIndicator))
+                indicator: self.indicatorKey(statusIndicator),
+                pace: paceKey)
             if let cached = self.cachedIcon(for: key) {
                 return cached
             }
             let image = render()
+            if weeklyPacePosition != nil { image.isTemplate = false }
             self.storeIcon(image, for: key)
             return image
         }
 
-        return render()
+        let image = render()
+        if weeklyPacePosition != nil { image.isTemplate = false }
+        return image
     }
 
     // swiftlint:enable function_body_length
@@ -704,6 +737,24 @@ enum IconRenderer {
         guard let value else { return -1 }
         let clamped = max(0, min(value, self.creditsCap))
         return Int((clamped * 10).rounded())
+    }
+
+    /// Combines pace position (quantized to 2% buckets) and stage into a single cache key.
+    private static func quantizedPace(_ position: Double?, stage: UsagePace.Stage?) -> Int {
+        guard let pos = position, let stage else { return 0 }
+        let bucket = Int((pos / 2).rounded()) // 2% buckets → 51 distinct values
+        let stageBit: Int = {
+            switch stage {
+            case .onTrack: return 0
+            case .slightlyBehind: return 1
+            case .behind: return 2
+            case .farBehind: return 3
+            case .slightlyAhead: return 4
+            case .ahead: return 5
+            case .farAhead: return 6
+            }
+        }()
+        return bucket * 10 + stageBit + 1 // +1 so 0 is unambiguously "no pace data"
     }
 
     private static let styleKeyLookup: [IconStyle: Int] = {
