@@ -384,7 +384,10 @@ XCSTRINGS_FILES=("$APP/Contents/Resources/"*.xcstrings "$APP/Contents/Resources/
 shopt -u nullglob
 for xcs in "${XCSTRINGS_FILES[@]}"; do
   PARENT_DIR="$(dirname "$xcs")"
-  xcrun xcstringstool compile "$xcs" --output-directory "$PARENT_DIR" 2>/dev/null || true
+  if ! xcrun xcstringstool compile "$xcs" --output-directory "$PARENT_DIR"; then
+    echo "ERROR: Failed to compile $xcs" >&2
+    exit 1
+  fi
   rm -f "$xcs"
 done
 
