@@ -45,8 +45,7 @@ jobs:
           uname -m
           swift --version
 
-      - name: Setup Swift 6.2.1 (Linux)
-        if: matrix.platform == 'linux'
+      - name: Setup Swift 6.2.1
         uses: swift-actions/setup-swift@v3
         with:
           swift-version: "6.2.1"
