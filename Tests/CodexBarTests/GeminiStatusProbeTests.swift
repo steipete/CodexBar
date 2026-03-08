@@ -146,11 +146,13 @@ struct GeminiStatusProbeTests {
         // Test that flash/pro keyword filtering works (model names may change)
         let snap = try GeminiStatusProbe.parse(text: Self.sampleStatsOutput)
 
-        let flashQuotas = snap.modelQuotas.filter { $0.modelId.contains("flash") }
+        let flashQuotas = snap.modelQuotas.filter { $0.modelId.contains("flash") && !$0.modelId.contains("flash-lite") }
+        let flashLiteQuotas = snap.modelQuotas.filter { $0.modelId.contains("flash-lite") }
         let proQuotas = snap.modelQuotas.filter { $0.modelId.contains("pro") }
 
         // Should have at least one of each tier in sample
         #expect(!flashQuotas.isEmpty)
+        #expect(!flashLiteQuotas.isEmpty)
         #expect(!proQuotas.isEmpty)
     }
 
@@ -183,6 +185,70 @@ struct GeminiStatusProbeTests {
         // At least some quotas should have reset descriptions
         let hasResets = snap.modelQuotas.contains { $0.resetDescription != nil }
         #expect(hasResets)
+    }
+
+    @Test
+    func toUsageSnapshotCreatesSeparateFlashAndFlashLiteMeters() throws {
+        let snap = try GeminiStatusProbe.parse(text: Self.sampleStatsOutput)
+        let usage = snap.toUsageSnapshot()
+
+        #expect(usage.primary?.remainingPercent == 100.0)
+        #expect(usage.secondary?.remainingPercent == 99.8)
+        #expect(usage.tertiary?.remainingPercent == 99.8)
+        #expect(usage.primary?.windowMinutes == 1440)
+        #expect(usage.secondary?.windowMinutes == 1440)
+        #expect(usage.tertiary?.windowMinutes == 1440)
+        #expect(usage.secondary?.resetDescription == "Resets in 20h 37m")
+        #expect(usage.tertiary?.resetDescription == "Resets in 20h 37m")
+    }
+
+    @Test
+    func toUsageSnapshotDoesNotLetFlashLiteContaminateFlashBucket() throws {
+        let output = """
+        │  gemini-2.5-flash                           10       91.0% (Resets in 12h)  │
+        │  gemini-2.5-flash-lite                       5       33.0% (Resets in 6h)   │
+        │  gemini-2.5-pro                              2       80.0% (Resets in 24h)  │
+        """
+        let snap = try GeminiStatusProbe.parse(text: output)
+        let usage = snap.toUsageSnapshot()
+
+        #expect(usage.secondary?.remainingPercent == 91.0)
+        #expect(usage.tertiary?.remainingPercent == 33.0)
+        #expect(usage.secondary?.resetDescription == "Resets in 12h")
+        #expect(usage.tertiary?.resetDescription == "Resets in 6h")
+    }
+
+    @Test
+    func toUsageSnapshotOmitsTertiaryWhenNoFlashLiteExists() throws {
+        let output = """
+        │  gemini-2.5-flash                           10       85.0% (Resets in 12h)  │
+        │  gemini-2.5-pro                              2       95.0% (Resets in 24h)  │
+        """
+        let snap = try GeminiStatusProbe.parse(text: output)
+        let usage = snap.toUsageSnapshot()
+
+        #expect(usage.secondary?.remainingPercent == 85.0)
+        #expect(usage.tertiary == nil)
+    }
+
+    @Test
+    func toUsageSnapshotUsesLowestRemainingQuotaPerTier() throws {
+        let output = """
+        │  gemini-a-flash                            10       91.0% (Resets in 12h)  │
+        │  gemini-b-flash                             5       74.0% (Resets in 10h)  │
+        │  gemini-c-flash-lite                        8       66.0% (Resets in 9h)   │
+        │  gemini-d-flash-lite                        1       42.0% (Resets in 7h)   │
+        │  gemini-e-pro                               2       88.0% (Resets in 24h)  │
+        │  gemini-f-pro                               1       97.0% (Resets in 25h)  │
+        """
+        let snap = try GeminiStatusProbe.parse(text: output)
+        let usage = snap.toUsageSnapshot()
+
+        #expect(usage.primary?.remainingPercent == 88.0)
+        #expect(usage.secondary?.remainingPercent == 74.0)
+        #expect(usage.tertiary?.remainingPercent == 42.0)
+        #expect(usage.secondary?.resetDescription == "Resets in 10h")
+        #expect(usage.tertiary?.resetDescription == "Resets in 7h")
     }
 
     // MARK: - Live API test
