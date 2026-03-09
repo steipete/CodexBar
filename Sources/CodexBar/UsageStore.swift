@@ -492,6 +492,7 @@ final class UsageStore {
         self.timerTask?.cancel()
         self.tokenTimerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
+        self.pathDebugRefreshTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {

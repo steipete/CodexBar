@@ -1067,8 +1067,17 @@ public enum ClaudeOAuthCredentialsStore {
                 promptMode: promptMode),
                 !data.isEmpty
             {
-                // Same as above: store fingerprint after interactive read to avoid background "sync" reads.
-                self.saveClaudeKeychainFingerprint(self.currentClaudeKeychainFingerprintWithoutPrompt())
+                // Build fingerprint from the legacy candidate directly rather than using
+                // currentClaudeKeychainFingerprintWithoutPrompt(), which prefers the newest
+                // candidate and may return a fingerprint for a different keychain item.
+                if let legacyCandidate = self.claudeKeychainLegacyCandidateWithoutPrompt(
+                    promptMode: promptMode)
+                {
+                    self.saveClaudeKeychainFingerprint(ClaudeKeychainFingerprint(
+                        modifiedAt: legacyCandidate.modifiedAt.map { Int($0.timeIntervalSince1970) },
+                        createdAt: legacyCandidate.createdAt.map { Int($0.timeIntervalSince1970) },
+                        persistentRefHash: Self.sha256Prefix(legacyCandidate.persistentRef)))
+                }
                 return data
             }
         } catch let error as ClaudeOAuthCredentialsError {
@@ -1592,7 +1601,19 @@ extension ClaudeOAuthCredentialsStore {
            let creds = try? ClaudeOAuthCredentials.parse(data: legacyData),
            !creds.isExpired
         {
-            self.saveClaudeKeychainFingerprint(self.currentClaudeKeychainFingerprintWithoutPrompt())
+            // Build fingerprint from the legacy candidate directly, matching the candidate
+            // path above. currentClaudeKeychainFingerprintWithoutPrompt() prefers the newest
+            // candidate and may return a fingerprint for a different keychain item, causing
+            // stale comparisons on subsequent background sync checks.
+            if let legacyCandidate = self.claudeKeychainLegacyCandidateWithoutPrompt(
+                promptMode: fallbackPromptMode)
+            {
+                let legacyFingerprint = ClaudeKeychainFingerprint(
+                    modifiedAt: legacyCandidate.modifiedAt.map { Int($0.timeIntervalSince1970) },
+                    createdAt: legacyCandidate.createdAt.map { Int($0.timeIntervalSince1970) },
+                    persistentRefHash: Self.sha256Prefix(legacyCandidate.persistentRef))
+                self.saveClaudeKeychainFingerprint(legacyFingerprint)
+            }
             self.writeMemoryCache(
                 record: ClaudeOAuthCredentialRecord(credentials: creds, owner: .claudeCLI, source: .memoryCache),
                 timestamp: now)
