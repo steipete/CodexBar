@@ -18,6 +18,7 @@ import os
 import shlex
 import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Dict, List
 from urllib.parse import parse_qs, urlparse
@@ -155,6 +156,56 @@ def build_models(rows: List[Dict[str, Any]], range_name: str) -> Dict[str, Any]:
     }
 
 
+def build_providers(rows: List[Dict[str, Any]], range_name: str) -> Dict[str, Any]:
+    usage_key = "weekly_used" if range_name == "weekly" else "monthly_used"
+    limit_key = "weekly_limit" if range_name == "weekly" else "monthly_limit"
+    agg: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        p = r["provider"]
+        if p not in agg:
+            agg[p] = {"provider": p, "used": 0.0, "limit": 0.0, "costUsd": 0.0}
+        agg[p]["used"] += float(r.get(usage_key, 0.0))
+        agg[p]["limit"] += float(r.get(limit_key, 0.0))
+        agg[p]["costUsd"] += float(r.get("cost", 0.0))
+    providers = list(agg.values())
+    providers.sort(key=lambda x: x["used"], reverse=True)
+    for p in providers:
+        p["utilizationPct"] = round((p["used"] / p["limit"] * 100.0), 2) if p["limit"] > 0 else None
+        p["costUsd"] = round(p["costUsd"], 4)
+    return {"range": range_name, "count": len(providers), "providers": providers}
+
+
+CACHE_PATH = Path.home() / ".codexbar_usage_history.jsonl"
+
+
+def append_history(summary_payload: Dict[str, Any]) -> None:
+    rec = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "totalUsed": summary_payload.get("totalUsed"),
+        "totalLimit": summary_payload.get("totalLimit"),
+        "utilizationPct": summary_payload.get("utilizationPct"),
+        "costUsd": summary_payload.get("costUsd"),
+    }
+    with CACHE_PATH.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+def build_timeseries(limit: int = 60) -> Dict[str, Any]:
+    if not CACHE_PATH.exists():
+        return {"count": 0, "points": []}
+    points: List[Dict[str, Any]] = []
+    with CACHE_PATH.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                points.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return {"count": len(points), "points": points[-limit:]}
+
+
 class Handler(BaseHTTPRequestHandler):
     binary = "codexbar"
 
@@ -179,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
         if range_name not in {"daily", "weekly", "monthly"}:
             range_name = "monthly"
 
-        if parsed.path not in {"/api/usage/summary", "/api/usage/models", "/healthz"}:
+        if parsed.path not in {"/api/usage/summary", "/api/usage/models", "/api/usage/providers", "/api/usage/timeseries", "/healthz"}:
             self._write_json(404, {"ok": False, "error": "not_found"})
             return
 
@@ -188,10 +239,18 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         try:
+            if parsed.path == "/api/usage/timeseries":
+                data = build_timeseries(limit=int(qs.get("limit", ["60"])[0]))
+                self._write_json(200, {"ok": True, "source": "history", "ts": datetime.now(timezone.utc).isoformat(), "data": data})
+                return
+
             raw = run_codexbar_usage_json(self.binary)
             rows = normalize_payload(raw)
             if parsed.path == "/api/usage/summary":
                 data = build_summary(rows, range_name)
+                append_history(data)
+            elif parsed.path == "/api/usage/providers":
+                data = build_providers(rows, range_name)
             else:
                 data = build_models(rows, range_name)
             self._write_json(

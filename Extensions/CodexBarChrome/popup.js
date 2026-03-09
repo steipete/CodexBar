@@ -27,10 +27,26 @@ async function fetchJson(url) {
   return json;
 }
 
+async function detectBaseUrl(primary) {
+  const candidates = [primary, 'http://127.0.0.1:8787', 'http://localhost:8787'];
+  for (const c of candidates) {
+    try {
+      const r = await fetch(`${c.replace(/\/$/, '')}/healthz`);
+      if (r.ok) return c.replace(/\/$/, '');
+    } catch (_) {}
+  }
+  return null;
+}
+
 async function refresh() {
   const settings = await getSettings();
   const range = document.getElementById('range').value;
-  const base = settings.baseUrl.replace(/\/$/, '');
+  const baseDetected = await detectBaseUrl(settings.baseUrl);
+  if (!baseDetected) {
+    setStatus('Bridge not found. Open Settings → confirm URL, then start bridge command.', false);
+    return;
+  }
+  const base = baseDetected;
   try {
     setStatus('Loading…', true);
     const [summary, models] = await Promise.all([
@@ -53,6 +69,7 @@ async function refresh() {
       : '<tr><td colspan="3" class="muted">No model data</td></tr>';
 
     setStatus(`Connected • ${range}`, true);
+    chrome.storage.sync.set({ baseUrl: base });
   } catch (e) {
     setStatus(`Bridge unavailable: ${e.message}`, false);
   }
