@@ -1396,7 +1396,9 @@ extension StatusItemController {
         let sourceLabel = snapshotOverride == nil ? self.store.sourceLabel(for: target) : nil
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
         let now = Date()
-        let weeklyPace = snapshot?.secondary.flatMap { window in
+        // Abacus uses primary for monthly credits (no secondary window)
+        let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
+        let weeklyPace = paceWindow.flatMap { window in
             self.store.weeklyPace(provider: target, window: window, now: now)
         }
         let input = UsageMenuCardView.Model.Input(

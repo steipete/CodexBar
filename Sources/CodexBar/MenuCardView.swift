@@ -933,9 +933,9 @@ extension UsageMenuCardView.Model {
                     primaryDetailText = detail
                 }
                 if let paceDetail = Self.weeklyPaceDetail(
-                    provider: input.provider,
                     window: primary,
                     now: input.now,
+                    pace: input.weeklyPace,
                     showUsed: input.usageBarsShowUsed)
                 {
                     primaryDetailLeft = paceDetail.leftLabel
