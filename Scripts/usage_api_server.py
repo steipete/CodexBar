@@ -27,7 +27,11 @@ from urllib.parse import parse_qs, urlparse
 def run_codexbar_usage_json(binary: str) -> List[Dict[str, Any]]:
     base = shlex.split(binary)
     cmd = base + ["usage", "--format", "json", "--provider", "all"]
-    p = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"cli_timeout: CodexBarCLI did not return within 20s ({' '.join(cmd[:4])} ...)") from e
+
     if p.returncode != 0:
         raise RuntimeError(f"codexbar usage failed ({p.returncode}): {p.stderr.strip()[:500]}")
     out = p.stdout.strip()
