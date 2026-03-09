@@ -32,7 +32,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 title: String(localized: "GitHub Login"),
                 subtitle: String(localized: "Requires authentication via GitHub Device Flow."),
                 kind: .secure,
-                placeholder: "Sign in via button below",
+                placeholder: String(localized: "Sign in via button below"),
                 binding: context.stringBinding(\.copilotAPIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(

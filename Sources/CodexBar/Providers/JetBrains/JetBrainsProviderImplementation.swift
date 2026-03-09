@@ -53,7 +53,7 @@ struct JetBrainsProviderImplementation: ProviderImplementation {
                 title: String(localized: "Custom Path"),
                 subtitle: String(localized: "Override auto-detection with a custom IDE base path"),
                 kind: .plain,
-                placeholder: "~/Library/Application Support/JetBrains/IntelliJIdea2024.3",
+                placeholder: String(localized: "~/Library/Application Support/JetBrains/IntelliJIdea2024.3"),
                 binding: context.stringBinding(\.jetbrainsIDEBasePath),
                 actions: [],
                 isVisible: {

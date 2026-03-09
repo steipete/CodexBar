@@ -74,10 +74,9 @@ struct KiloProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "kilo-api-key",
                 title: String(localized: "API key"),
-                subtitle: String(
-                    localized: "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)."),
+                subtitle: String(localized: "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)."),
                 kind: .secure,
-                placeholder: "kilo_...",
+                placeholder: String(localized: "kilo_..."),
                 binding: context.stringBinding(\.kiloAPIToken),
                 actions: [],
                 isVisible: nil,

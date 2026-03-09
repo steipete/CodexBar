@@ -74,7 +74,7 @@ struct OllamaProviderImplementation: ProviderImplementation {
                 title: "",
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Cookie: …",
+                placeholder: String(localized: "Cookie: …"),
                 binding: context.stringBinding(\.ollamaCookieHeader),
                 actions: [
                     ProviderSettingsActionDescriptor(

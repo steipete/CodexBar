@@ -85,7 +85,7 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
                 title: String(localized: "Workspace ID"),
                 subtitle: String(localized: "Optional override if workspace lookup fails."),
                 kind: .plain,
-                placeholder: "wrk_…",
+                placeholder: String(localized: "wrk_…"),
                 binding: context.stringBinding(\.opencodeWorkspaceID),
                 actions: [],
                 isVisible: nil,

@@ -74,8 +74,7 @@ struct CodexProviderImplementation: ProviderImplementation {
             ProviderSettingsToggleDescriptor(
                 id: "codex-historical-tracking",
                 title: String(localized: "Historical tracking"),
-                subtitle: String(
-                    localized: "Stores local Codex usage history (8 weeks) to personalize Pace predictions."),
+                subtitle: String(localized: "Stores local Codex usage history (8 weeks) to personalize Pace predictions."),
                 binding: context.boolBinding(\.historicalTrackingEnabled),
                 statusText: nil,
                 actions: [],
@@ -165,7 +164,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 title: "",
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Cookie: …",
+                placeholder: String(localized: "Cookie: …"),
                 binding: context.stringBinding(\.codexCookieHeader),
                 actions: [],
                 isVisible: {
@@ -182,9 +181,9 @@ struct CodexProviderImplementation: ProviderImplementation {
         else { return }
 
         if let credits = context.store.credits {
-            entries.append(.text("Credits: \(UsageFormatter.creditsString(from: credits.remaining))", .primary))
+            entries.append(.text(String(localized: "Credits: \(UsageFormatter.creditsString(from: credits.remaining))"), .primary))
             if let latest = credits.events.first {
-                entries.append(.text("Last spend: \(UsageFormatter.creditEventSummary(latest))", .secondary))
+                entries.append(.text(String(localized: "Last spend: \(UsageFormatter.creditEventSummary(latest))"), .secondary))
             }
         } else {
             let hint = context.store.lastCreditsError ?? context.metadata.creditsHint

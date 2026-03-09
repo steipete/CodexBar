@@ -36,16 +36,16 @@ struct CreditsHistoryChartMenuView: View {
                 Chart {
                     ForEach(model.points) { point in
                         BarMark(
-                            x: .value("Day", point.date, unit: .day),
-                            y: .value("Credits used", point.creditsUsed))
+                            x: .value(String(localized: "Day"), point.date, unit: .day),
+                            y: .value(String(localized: "Credits used"), point.creditsUsed))
                             .foregroundStyle(Self.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
                         let capStart = max(peak.creditsUsed - Self.capHeight(maxValue: model.maxCreditsUsed), 0)
                         BarMark(
-                            x: .value("Day", peak.date, unit: .day),
-                            yStart: .value("Cap start", capStart),
-                            yEnd: .value("Cap end", peak.creditsUsed))
+                            x: .value(String(localized: "Day"), peak.date, unit: .day),
+                            yStart: .value(String(localized: "Cap start"), capStart),
+                            yEnd: .value(String(localized: "Cap end"), peak.creditsUsed))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
@@ -98,9 +98,7 @@ struct CreditsHistoryChartMenuView: View {
                 }
 
                 if let total = model.totalCreditsUsed {
-                    Text(
-                        String(
-                            localized: "Total (30d): \(total.formatted(.number.precision(.fractionLength(0...2)))) credits"))
+                    Text(String(localized: "Total (30d): \(total.formatted(.number.precision(.fractionLength(0...2)))) credits"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

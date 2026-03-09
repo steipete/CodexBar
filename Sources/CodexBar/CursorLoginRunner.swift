@@ -7,15 +7,15 @@ import WebKit
 /// Captures session cookies after successful authentication.
 @MainActor
 final class CursorLoginRunner: NSObject {
-    enum Phase {
+    enum Phase: Sendable {
         case loading
         case waitingLogin
         case success
         case failed(String)
     }
 
-    struct Result {
-        enum Outcome {
+    struct Result: Sendable {
+        enum Outcome: Sendable {
             case success
             case cancelled
             case failed(String)
@@ -72,7 +72,7 @@ final class CursorLoginRunner: NSObject {
             backing: .buffered,
             defer: false)
         window.isReleasedWhenClosed = false
-        window.title = "Cursor Login"
+        window.title = String(localized: "Cursor Login")
         window.contentView = webView
         window.center()
         window.delegate = self

@@ -65,7 +65,7 @@ struct KimiProviderImplementation: ProviderImplementation {
                 title: "",
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Cookie: \u{2026}\n\nor paste the kimi-auth token value",
+                placeholder: String(localized: "Cookie: \u{2026}\n\nor paste the kimi-auth token value"),
                 binding: context.stringBinding(\.kimiManualCookieHeader),
                 actions: [
                     ProviderSettingsActionDescriptor(

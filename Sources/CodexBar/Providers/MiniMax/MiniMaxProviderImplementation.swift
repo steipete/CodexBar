@@ -117,7 +117,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 title: String(localized: "API token"),
                 subtitle: String(localized: "Stored in ~/.codexbar/config.json. Paste your MiniMax API key."),
                 kind: .secure,
-                placeholder: "Paste API token…",
+                placeholder: String(localized: "Paste API token…"),
                 binding: context.stringBinding(\.minimaxAPIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(
@@ -136,7 +136,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 title: String(localized: "Cookie header"),
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Cookie: …",
+                placeholder: String(localized: "Cookie: …"),
                 binding: context.stringBinding(\.minimaxCookieHeader),
                 actions: [
                     ProviderSettingsActionDescriptor(

@@ -60,7 +60,7 @@ struct AmpProviderImplementation: ProviderImplementation {
                 title: "",
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Cookie: …",
+                placeholder: String(localized: "Cookie: …"),
                 binding: context.stringBinding(\.ampCookieHeader),
                 actions: [
                     ProviderSettingsActionDescriptor(

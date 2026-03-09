@@ -20,7 +20,7 @@ struct KimiK2ProviderImplementation: ProviderImplementation {
                 title: String(localized: "API key"),
                 subtitle: String(localized: "Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai."),
                 kind: .secure,
-                placeholder: "Paste API key…",
+                placeholder: String(localized: "Paste API key…"),
                 binding: context.stringBinding(\.kimiK2APIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(

@@ -1128,7 +1128,7 @@ extension StatusItemController {
     }
 
     private func makeBuyCreditsItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Buy Credits...", action: #selector(self.openCreditsPurchase), keyEquivalent: "")
+        let item = NSMenuItem(title: String(localized: "Buy Credits..."), action: #selector(self.openCreditsPurchase), keyEquivalent: "")
         item.target = self
         if let image = NSImage(systemSymbolName: "plus.circle", accessibilityDescription: nil) {
             image.isTemplate = true
@@ -1212,10 +1212,7 @@ extension StatusItemController {
         }
         for detail in sortedDetails {
             let usage = UsageFormatter.tokenCountString(detail.usage)
-            let item = NSMenuItem(
-                title: String(localized: "\(detail.modelCode): \(usage)"),
-                action: nil,
-                keyEquivalent: "")
+            let item = NSMenuItem(title: String(localized: "\(detail.modelCode): \(usage)"), action: nil, keyEquivalent: "")
             submenu.addItem(item)
         }
         return submenu
@@ -1323,7 +1320,7 @@ extension StatusItemController {
     }
 
     private func isHostedSubviewMenu(_ menu: NSMenu) -> Bool {
-        let ids: Set = [
+        let ids: Set<String> = [
             "usageBreakdownChart",
             "creditsHistoryChart",
             "costHistoryChart",
@@ -1335,7 +1332,7 @@ extension StatusItemController {
     }
 
     private func isOpenAIWebSubviewMenu(_ menu: NSMenu) -> Bool {
-        let ids: Set = [
+        let ids: Set<String> = [
             "usageBreakdownChart",
             "creditsHistoryChart",
         ]

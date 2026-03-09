@@ -138,11 +138,9 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         }
         let keychainPromptPolicySubtitle: () -> String? = {
             if context.settings.debugDisableKeychainAccess {
-                return String(
-                    localized: "Global Keychain access is disabled in Advanced, so this setting is currently inactive.")
+                return String(localized: "Global Keychain access is disabled in Advanced, so this setting is currently inactive.")
             }
-            return String(
-                localized: "Controls Claude OAuth Keychain prompts when experimental reader mode is off. Choosing \"Never prompt\" can make OAuth unavailable; use Web/CLI when needed.")
+            return String(localized: "Controls Claude OAuth Keychain prompts when experimental reader mode is off. Choosing \"Never prompt\" can make OAuth unavailable; use Web/CLI when needed.")
         }
 
         return [
@@ -201,7 +199,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
         if context.snapshot?.secondary == nil {
-            entries.append(.text("Weekly usage unavailable for this account.", .secondary))
+            entries.append(.text(String(localized: "Weekly usage unavailable for this account."), .secondary))
         }
 
         if let cost = context.snapshot?.providerCost,
@@ -210,7 +208,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         {
             let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-            entries.append(.text("Extra usage: \(used) / \(limit)", .primary))
+            entries.append(.text(String(localized: "Extra usage: \(used) / \(limit)"), .primary))
         }
     }
 
@@ -219,7 +217,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         -> (label: String, action: MenuDescriptor.MenuAction)?
     {
         guard self.shouldOpenTerminalForOAuthError(store: context.store) else { return nil }
-        return ("Open Terminal", .openTerminal(command: "claude"))
+        return (String(localized: "Open Terminal"), .openTerminal(command: "claude"))
     }
 
     @MainActor

@@ -420,7 +420,7 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false)
-        window.title = "Buy Credits"
+        window.title = String(localized: "Buy Credits")
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.contentView = container

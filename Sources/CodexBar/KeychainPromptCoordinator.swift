@@ -22,94 +22,47 @@ enum KeychainPromptCoordinator {
     }
 
     private static func presentBrowserCookiePrompt(_ context: BrowserCookieKeychainPromptContext) {
-        let title = "Keychain Access Required"
-        let message = [
-            "CodexBar will ask macOS Keychain for “\(context.label)” so it can decrypt browser cookies",
-            "and authenticate your account. Click OK to continue.",
-        ].joined(separator: " ")
+        let title = String(localized: "Keychain Access Required")
+        let message = String(localized: "CodexBar will ask macOS Keychain for \(context.label) so it can decrypt browser cookies and authenticate your account. Click OK to continue.")
         self.log.info("Browser cookie keychain prompt requested", metadata: ["label": context.label])
         self.presentAlert(title: title, message: message)
     }
 
     private static func keychainCopy(for context: KeychainPromptContext) -> (title: String, message: String) {
-        let title = "Keychain Access Required"
-        switch context.kind {
+        let title = String(localized: "Keychain Access Required")
+        let message: String = switch context.kind {
         case .claudeOAuth:
-            return (title, [
-                "CodexBar will ask macOS Keychain for the Claude Code OAuth token",
-                "so it can fetch your Claude usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue.")
         case .codexCookie:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your OpenAI cookie header",
-                "so it can fetch Codex dashboard extras. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue.")
         case .claudeCookie:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your Claude cookie header",
-                "so it can fetch Claude web usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your Claude cookie header so it can fetch Claude web usage. Click OK to continue.")
         case .cursorCookie:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your Cursor cookie header",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue.")
         case .opencodeCookie:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your OpenCode cookie header",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue.")
         case .factoryCookie:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your Factory cookie header",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue.")
         case .zaiToken:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your z.ai API token",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue.")
         case .syntheticToken:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your Synthetic API key",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue.")
         case .copilotToken:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your GitHub Copilot token",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue.")
         case .kimiToken:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your Kimi auth token",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue.")
         case .kimiK2Token:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your Kimi K2 API key",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue.")
         case .minimaxCookie:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your MiniMax cookie header",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue.")
         case .minimaxToken:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your MiniMax API token",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue.")
         case .augmentCookie:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your Augment cookie header",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue.")
         case .ampCookie:
-            return (title, [
-                "CodexBar will ask macOS Keychain for your Amp cookie header",
-                "so it can fetch usage. Click OK to continue.",
-            ].joined(separator: " "))
+            String(localized: "CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue.")
         }
+        return (title, message)
     }
 
     private static func presentAlert(title: String, message: String) {
@@ -134,7 +87,7 @@ enum KeychainPromptCoordinator {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         _ = alert.runModal()
     }
 }

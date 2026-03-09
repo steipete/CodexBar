@@ -43,10 +43,9 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-api-key",
                 title: String(localized: "API key"),
-                subtitle: String(
-                    localized: "Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys and set a key spending limit there to enable API key quota tracking."),
+                subtitle: String(localized: "Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys and set a key spending limit there to enable API key quota tracking."),
                 kind: .secure,
-                placeholder: "sk-or-v1-...",
+                placeholder: String(localized: "sk-or-v1-..."),
                 binding: context.stringBinding(\.openRouterAPIToken),
                 actions: [],
                 isVisible: nil,
