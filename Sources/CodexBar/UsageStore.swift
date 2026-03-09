@@ -150,6 +150,7 @@ final class UsageStore {
     @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
     @ObservationIgnored var codexHistoricalDataset: CodexHistoricalDataset?
     @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
+    @ObservationIgnored var lastAlertedUsageThreshold: [UsageProvider: Int] = [:]
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
@@ -587,6 +588,30 @@ final class UsageStore {
         self.sessionQuotaLogger.info(message)
 
         self.sessionQuotaNotifier.post(transition: transition, provider: provider, badge: nil)
+    }
+
+    func checkUsageAlertThreshold(provider: UsageProvider, snapshot: UsageSnapshot) {
+        let threshold = self.settings.usageAlertThreshold
+        guard threshold > 0 else {
+            self.lastAlertedUsageThreshold.removeValue(forKey: provider)
+            return
+        }
+
+        let window = snapshot.primary ?? snapshot.secondary
+        guard let window else { return }
+        let usedPercent = Int(window.usedPercent.rounded())
+
+        let lastAlerted = self.lastAlertedUsageThreshold[provider]
+        if usedPercent >= threshold, lastAlerted != threshold {
+            self.lastAlertedUsageThreshold[provider] = threshold
+            let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+            let title = String(localized: "\(providerName) usage alert")
+            let body = String(localized: "Usage has reached \(usedPercent)% (threshold: \(threshold)%).")
+            let idPrefix = "usage-alert-\(provider.rawValue)-\(threshold)"
+            AppNotifications.shared.post(idPrefix: idPrefix, title: title, body: body, badge: nil)
+        } else if usedPercent < threshold {
+            self.lastAlertedUsageThreshold.removeValue(forKey: provider)
+        }
     }
 
     private func refreshStatus(_ provider: UsageProvider) async {

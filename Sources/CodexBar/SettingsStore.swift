@@ -185,6 +185,7 @@ extension SettingsStore {
         if sessionQuotaDefault == nil {
             userDefaults.set(true, forKey: "sessionQuotaNotificationsEnabled")
         }
+        let usageAlertThreshold = userDefaults.object(forKey: "usageAlertThreshold") as? Int ?? 0
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
         let menuBarShowsBrandIconWithPercent = userDefaults.object(
@@ -237,6 +238,7 @@ extension SettingsStore {
             debugKeepCLISessionsAlive: debugKeepCLISessionsAlive,
             statusChecksEnabled: statusChecksEnabled,
             sessionQuotaNotificationsEnabled: sessionQuotaNotificationsEnabled,
+            usageAlertThreshold: usageAlertThreshold,
             usageBarsShowUsed: usageBarsShowUsed,
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,

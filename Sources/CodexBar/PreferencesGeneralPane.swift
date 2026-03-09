@@ -34,20 +34,22 @@ struct GeneralPane: View {
                             set: { newValue in
                                 self.settings.appLanguage = newValue
                                 self.pendingLanguage = newValue
-                            })) {
-                                ForEach(AppLanguage.allCases) { lang in
-                                    Text(lang.displayName).tag(lang)
-                                }
                             }
-                            .labelsHidden()
-                                .frame(maxWidth: 200)
+                        )) {
+                            ForEach(AppLanguage.allCases) { lang in
+                                Text(lang.displayName).tag(lang)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: 200)
                     }
                     .alert(
                         String(localized: "Restart Required"),
                         isPresented: Binding(
                             get: { self.pendingLanguage != nil },
-                            set: { if !$0 { self.pendingLanguage = nil } }))
-                    {
+                            set: { if !$0 { self.pendingLanguage = nil } }
+                        )
+                    ) {
                         Button(String(localized: "Restart Now")) {
                             let task = Process()
                             task.launchPath = "/usr/bin/open"
@@ -130,14 +132,32 @@ struct GeneralPane: View {
                     }
                     PreferenceToggleRow(
                         title: String(localized: "Check provider status"),
-                        subtitle: String(
-                            localized: "Polls OpenAI/Claude status pages and Google Workspace for Gemini/Antigravity, surfacing incidents in the icon and menu."),
+                        subtitle: String(localized: "Polls OpenAI/Claude status pages and Google Workspace for Gemini/Antigravity, surfacing incidents in the icon and menu."),
                         binding: self.$settings.statusChecksEnabled)
                     PreferenceToggleRow(
                         title: String(localized: "Session quota notifications"),
-                        subtitle: String(
-                            localized: "Notifies when the 5-hour session quota hits 0% and when it becomes available again."),
+                        subtitle: String(localized: "Notifies when the 5-hour session quota hits 0% and when it becomes available again."),
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Usage alert threshold")
+                                .font(.body)
+                            Text("Sends a notification when any provider's usage reaches the selected percentage.")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Picker("", selection: self.$settings.usageAlertThreshold) {
+                            Text(String(localized: "Off")).tag(0)
+                            Text("50%").tag(50)
+                            Text("80%").tag(80)
+                            Text("90%").tag(90)
+                            Text("95%").tag(95)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 120)
+                    }
                 }
 
                 Divider()

@@ -1,6 +1,6 @@
 import Foundation
 
-struct SettingsDefaultsState {
+struct SettingsDefaultsState: Sendable {
     var refreshFrequency: RefreshFrequency
     var launchAtLogin: Bool
     var debugMenuEnabled: Bool
@@ -11,6 +11,7 @@ struct SettingsDefaultsState {
     var debugKeepCLISessionsAlive: Bool
     var statusChecksEnabled: Bool
     var sessionQuotaNotificationsEnabled: Bool
+    var usageAlertThreshold: Int
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
     var menuBarShowsBrandIconWithPercent: Bool

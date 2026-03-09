@@ -80,6 +80,7 @@ extension UsageStore {
             let scoped = result.usage.scoped(to: provider)
             await MainActor.run {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
+                self.checkUsageAlertThreshold(provider: provider, snapshot: scoped)
                 self.snapshots[provider] = scoped
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil

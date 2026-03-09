@@ -101,6 +101,15 @@ extension SettingsStore {
         }
     }
 
+    /// Usage alert threshold percentage (0 = disabled, 50/80/90/95 = alert when usage reaches this level).
+    var usageAlertThreshold: Int {
+        get { self.defaultsState.usageAlertThreshold }
+        set {
+            self.defaultsState.usageAlertThreshold = newValue
+            self.userDefaults.set(newValue, forKey: "usageAlertThreshold")
+        }
+    }
+
     var usageBarsShowUsed: Bool {
         get { self.defaultsState.usageBarsShowUsed }
         set {
