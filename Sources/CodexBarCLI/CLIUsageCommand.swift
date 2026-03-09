@@ -95,12 +95,17 @@ extension CodexBarCLI {
         }
 
         #if !os(macOS)
-        if parsedSourceMode?.usesWeb == true {
-            Self.exit(
-                code: .failure,
-                message: "Error: --source web/auto is only supported on macOS.",
-                output: output,
-                kind: .runtime)
+        if let parsedSourceMode {
+            let requiresWeb = providerList.contains { selectedProvider in
+                Self.sourceModeRequiresWebSupport(parsedSourceMode, provider: selectedProvider)
+            }
+            if requiresWeb {
+                Self.exit(
+                    code: .failure,
+                    message: "Error: selected source requires web support and is only supported on macOS.",
+                    output: output,
+                    kind: .runtime)
+            }
         }
         #endif
 
@@ -138,11 +143,14 @@ extension CodexBarCLI {
 
         for p in providerList {
             let status = includeStatus ? await Self.fetchStatus(for: p) : nil
-            let output = await Self.fetchUsageOutputs(
-                provider: p,
-                status: status,
-                tokenContext: tokenContext,
-                command: command)
+            // CLI usage should not clear Keychain cooldowns or attempt interactive Keychain prompts.
+            let output = await ProviderInteractionContext.$current.withValue(.background) {
+                await Self.fetchUsageOutputs(
+                    provider: p,
+                    status: status,
+                    tokenContext: tokenContext,
+                    command: command)
+            }
             if output.exitCode != .success {
                 exitCode = output.exitCode
             }
@@ -243,7 +251,7 @@ extension CodexBarCLI {
             account: account)
 
         #if !os(macOS)
-        if effectiveSourceMode.usesWeb {
+        if Self.sourceModeRequiresWebSupport(effectiveSourceMode, provider: provider) {
             return Self.webSourceUnsupportedOutput(
                 provider: provider,
                 account: account,
@@ -298,6 +306,10 @@ extension CodexBarCLI {
                     : nil)
             let source = result.sourceLabel
             let header = Self.makeHeader(provider: provider, version: version, source: source)
+            let notes = Self.usageTextNotes(
+                provider: provider,
+                sourceMode: effectiveSourceMode,
+                resolvedSourceLabel: source)
 
             switch command.format {
             case .text:
@@ -309,7 +321,8 @@ extension CodexBarCLI {
                         header: header,
                         status: status,
                         useColor: command.useColor,
-                        resetStyle: command.resetStyle))
+                        resetStyle: command.resetStyle,
+                        notes: notes))
                 if let dashboard, provider == .codex, effectiveSourceMode.usesWeb {
                     text += "\n" + Self.renderOpenAIWebDashboardText(dashboard)
                 }
@@ -343,6 +356,13 @@ extension CodexBarCLI {
                         "Error (\(provider.rawValue) - \(account.label)): \(error.localizedDescription)\n")
                 } else {
                     Self.writeStderr("Error: \(error.localizedDescription)\n")
+                }
+                if let summary = Self.kiloAutoFallbackSummary(
+                    provider: provider,
+                    sourceMode: effectiveSourceMode,
+                    attempts: outcome.attempts)
+                {
+                    Self.writeStderr("\(summary)\n")
                 }
             }
         }
@@ -391,7 +411,8 @@ extension CodexBarCLI {
         let error = NSError(
             domain: "CodexBarCLI",
             code: 1,
-            userInfo: [NSLocalizedDescriptionKey: "Error: --source web/auto is only supported on macOS."])
+            userInfo: [NSLocalizedDescriptionKey:
+                "Error: selected source requires web support and is only supported on macOS."])
         output.exitCode = .failure
         if command.format == .json {
             output.payload.append(Self.makeProviderErrorPayload(
@@ -405,5 +426,16 @@ extension CodexBarCLI {
             Self.writeStderr("Error: \(error.localizedDescription)\n")
         }
         return output
+    }
+
+    static func sourceModeRequiresWebSupport(_ sourceMode: ProviderSourceMode, provider: UsageProvider) -> Bool {
+        switch sourceMode {
+        case .web:
+            true
+        case .auto:
+            ProviderDescriptorRegistry.descriptor(for: provider).fetchPlan.sourceModes.contains(.web)
+        case .cli, .oauth, .api:
+            false
+        }
     }
 }

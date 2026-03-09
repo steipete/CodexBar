@@ -15,11 +15,21 @@ Claude supports three usage data paths plus local cost usage. Source selection i
 
 ### Default selection (debug menu disabled)
 1) OAuth API (if Claude CLI credentials include `user:profile` scope).
-2) Web API (browser cookies, `sessionKey`), if OAuth missing.
-3) CLI PTY (`claude`), if no OAuth and no web session.
+2) CLI PTY (`claude`), if OAuth is unavailable or fails.
+3) Web API (browser cookies, `sessionKey`), if OAuth + CLI are unavailable or fail.
 
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
+
+## Keychain prompt policy (Claude OAuth)
+- Preferences → Providers → Claude → Keychain prompt policy.
+- Options:
+  - `Never prompt`: never attempts interactive Claude OAuth Keychain prompts.
+  - `Only on user action` (default): interactive prompts are reserved for user-initiated repair flows.
+  - `Always allow prompts`: allows interactive prompts in both user and background flows.
+- This setting only affects Claude OAuth Keychain prompting behavior; it does not switch your Claude usage source.
+- If Preferences → Advanced → Disable Keychain access is enabled, this policy remains visible but inactive until
+  Keychain access is re-enabled.
 
 ### Debug selection (debug menu enabled)
 - The Debug pane can force OAuth / Web / CLI.

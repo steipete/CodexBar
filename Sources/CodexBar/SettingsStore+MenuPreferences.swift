@@ -4,6 +4,16 @@ import Foundation
 extension SettingsStore {
     func menuBarMetricPreference(for provider: UsageProvider) -> MenuBarMetricPreference {
         if provider == .zai { return .primary }
+        if provider == .openrouter {
+            let raw = self.menuBarMetricPreferencesRaw[provider.rawValue] ?? ""
+            let preference = MenuBarMetricPreference(rawValue: raw) ?? .automatic
+            switch preference {
+            case .automatic, .primary:
+                return preference
+            case .secondary, .average:
+                return .automatic
+            }
+        }
         let raw = self.menuBarMetricPreferencesRaw[provider.rawValue] ?? ""
         let preference = MenuBarMetricPreference(rawValue: raw) ?? .automatic
         if preference == .average, !self.menuBarMetricSupportsAverage(for: provider) {
@@ -15,6 +25,15 @@ extension SettingsStore {
     func setMenuBarMetricPreference(_ preference: MenuBarMetricPreference, for provider: UsageProvider) {
         if provider == .zai {
             self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.primary.rawValue
+            return
+        }
+        if provider == .openrouter {
+            switch preference {
+            case .automatic, .primary:
+                self.menuBarMetricPreferencesRaw[provider.rawValue] = preference.rawValue
+            case .secondary, .average:
+                self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
+            }
             return
         }
         self.menuBarMetricPreferencesRaw[provider.rawValue] = preference.rawValue

@@ -44,7 +44,9 @@ struct ProvidersPane: View {
                     onCopyError: { text in self.copyToPasteboard(text) },
                     onRefresh: {
                         Task { @MainActor in
-                            await self.store.refreshProvider(provider, allowDisabled: true)
+                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                await self.store.refreshProvider(provider, allowDisabled: true)
+                            }
                         }
                     })
             } else {
@@ -186,19 +188,25 @@ struct ProvidersPane: View {
             setActiveIndex: { index in
                 self.settings.setActiveTokenAccountIndex(index, for: provider)
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             },
             addAccount: { label, token in
                 self.settings.addTokenAccount(provider: provider, label: label, token: token)
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             },
             removeAccount: { accountID in
                 self.settings.removeTokenAccount(provider: provider, accountID: accountID)
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             },
             openConfigFile: {
@@ -207,7 +215,9 @@ struct ProvidersPane: View {
             reloadFromDisk: {
                 self.settings.reloadTokenAccounts()
                 Task { @MainActor in
-                    await self.store.refreshProvider(provider, allowDisabled: true)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
                 }
             })
     }
@@ -254,21 +264,32 @@ struct ProvidersPane: View {
 
     func menuBarMetricPicker(for provider: UsageProvider) -> ProviderSettingsPickerDescriptor? {
         if provider == .zai { return nil }
-        let metadata = self.store.metadata(for: provider)
-        let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
-        var options: [ProviderSettingsPickerOption] = [
-            ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
-            ProviderSettingsPickerOption(
-                id: MenuBarMetricPreference.primary.rawValue,
-                title: "Primary (\(metadata.sessionLabel))"),
-            ProviderSettingsPickerOption(
-                id: MenuBarMetricPreference.secondary.rawValue,
-                title: "Secondary (\(metadata.weeklyLabel))"),
-        ]
-        if supportsAverage {
-            options.append(ProviderSettingsPickerOption(
-                id: MenuBarMetricPreference.average.rawValue,
-                title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
+        let options: [ProviderSettingsPickerOption]
+        if provider == .openrouter {
+            options = [
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.primary.rawValue,
+                    title: "Primary (API key limit)"),
+            ]
+        } else {
+            let metadata = self.store.metadata(for: provider)
+            let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
+            var metricOptions: [ProviderSettingsPickerOption] = [
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.primary.rawValue,
+                    title: "Primary (\(metadata.sessionLabel))"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.secondary.rawValue,
+                    title: "Secondary (\(metadata.weeklyLabel))"),
+            ]
+            if supportsAverage {
+                metricOptions.append(ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.average.rawValue,
+                    title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
+            }
+            options = metricOptions
         }
         return ProviderSettingsPickerDescriptor(
             id: "menuBarMetric",
@@ -317,6 +338,10 @@ struct ProvidersPane: View {
             tokenError = nil
         }
 
+        let now = Date()
+        let weeklyPace = snapshot?.secondary.flatMap { window in
+            self.store.weeklyPace(provider: provider, window: window, now: now)
+        }
         let input = UsageMenuCardView.Model.Input(
             provider: provider,
             metadata: metadata,
@@ -335,7 +360,8 @@ struct ProvidersPane: View {
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             hidePersonalInfo: self.settings.hidePersonalInfo,
-            now: Date())
+            weeklyPace: weeklyPace,
+            now: now)
         return UsageMenuCardView.Model.make(input)
     }
 

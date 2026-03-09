@@ -39,4 +39,24 @@ struct ConfigValidationTests {
         let issues = CodexBarConfigValidator.validate(config)
         #expect(issues.contains(where: { $0.code == "token_accounts_unused" }))
     }
+
+    @Test
+    func allowsOllamaTokenAccounts() {
+        let accounts = ProviderTokenAccountData(
+            version: 1,
+            accounts: [ProviderTokenAccount(id: UUID(), label: "a", token: "t", addedAt: 0, lastUsed: nil)],
+            activeIndex: 0)
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(id: .ollama, tokenAccounts: accounts))
+        let issues = CodexBarConfigValidator.validate(config)
+        #expect(!issues.contains(where: { $0.code == "token_accounts_unused" && $0.provider == .ollama }))
+    }
+
+    @Test
+    func acceptsKiloExtrasConfigField() {
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(id: .kilo, extrasEnabled: true))
+        let issues = CodexBarConfigValidator.validate(config)
+        #expect(!issues.contains(where: { $0.provider == .kilo && $0.field == "extrasEnabled" }))
+    }
 }

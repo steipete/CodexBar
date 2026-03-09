@@ -87,12 +87,15 @@ public struct OpenAIDashboardFetcher {
         debugDumpHTML: Bool = false,
         timeout: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot
     {
-        let lease = try await self.makeWebView(websiteDataStore: websiteDataStore, logger: logger)
+        let deadline = Self.deadline(startingAt: Date(), timeout: timeout)
+        let lease = try await self.makeWebView(
+            websiteDataStore: websiteDataStore,
+            logger: logger,
+            timeout: Self.remainingTimeout(until: deadline))
         defer { lease.release() }
         let webView = lease.webView
         let log = lease.log
 
-        let deadline = Date().addingTimeInterval(timeout)
         var lastBody: String?
         var lastHTML: String?
         var lastHref: String?
@@ -280,12 +283,15 @@ public struct OpenAIDashboardFetcher {
         logger: ((String) -> Void)? = nil,
         timeout: TimeInterval = 30) async throws -> ProbeResult
     {
-        let lease = try await self.makeWebView(websiteDataStore: websiteDataStore, logger: logger)
+        let deadline = Self.deadline(startingAt: Date(), timeout: timeout)
+        let lease = try await self.makeWebView(
+            websiteDataStore: websiteDataStore,
+            logger: logger,
+            timeout: Self.remainingTimeout(until: deadline))
         defer { lease.release() }
         let webView = lease.webView
         let log = lease.log
 
-        let deadline = Date().addingTimeInterval(timeout)
         var lastBody: String?
         var lastHref: String?
 
@@ -429,12 +435,27 @@ public struct OpenAIDashboardFetcher {
 
     private func makeWebView(
         websiteDataStore: WKWebsiteDataStore,
-        logger: ((String) -> Void)?) async throws -> OpenAIDashboardWebViewLease
+        logger: ((String) -> Void)?,
+        timeout: TimeInterval) async throws -> OpenAIDashboardWebViewLease
     {
         try await OpenAIDashboardWebViewCache.shared.acquire(
             websiteDataStore: websiteDataStore,
             usageURL: self.usageURL,
-            logger: logger)
+            logger: logger,
+            navigationTimeout: timeout)
+    }
+
+    nonisolated static func sanitizedTimeout(_ timeout: TimeInterval) -> TimeInterval {
+        guard timeout.isFinite, timeout > 0 else { return 1 }
+        return timeout
+    }
+
+    nonisolated static func deadline(startingAt start: Date, timeout: TimeInterval) -> Date {
+        start.addingTimeInterval(self.sanitizedTimeout(timeout))
+    }
+
+    nonisolated static func remainingTimeout(until deadline: Date, now: Date = Date()) -> TimeInterval {
+        max(0, deadline.timeIntervalSince(now))
     }
 
     private static func writeDebugArtifacts(html: String, bodyText: String?, logger: (String) -> Void) {

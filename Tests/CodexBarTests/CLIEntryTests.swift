@@ -124,4 +124,77 @@ struct CLIEntryTests {
         #expect(!CodexBarCLI.shouldUseColor(noColor: true, format: .text))
         #expect(!CodexBarCLI.shouldUseColor(noColor: false, format: .json))
     }
+
+    @Test
+    func kiloUsageTextNotesShowFallbackOnlyForAutoResolvedToCLI() {
+        #expect(CodexBarCLI.usageTextNotes(
+            provider: .kilo,
+            sourceMode: .auto,
+            resolvedSourceLabel: "cli") == ["Using CLI fallback"])
+        #expect(CodexBarCLI.usageTextNotes(
+            provider: .kilo,
+            sourceMode: .api,
+            resolvedSourceLabel: "cli").isEmpty)
+        #expect(CodexBarCLI.usageTextNotes(
+            provider: .codex,
+            sourceMode: .auto,
+            resolvedSourceLabel: "cli").isEmpty)
+    }
+
+    @Test
+    func kiloAutoFallbackSummaryIncludesOrderedAttemptDetails() {
+        let attempts = [
+            ProviderFetchAttempt(
+                strategyID: "kilo.api",
+                kind: .apiToken,
+                wasAvailable: true,
+                errorDescription: "Kilo authentication failed (401/403)."),
+            ProviderFetchAttempt(
+                strategyID: "kilo.cli",
+                kind: .cli,
+                wasAvailable: true,
+                errorDescription: "Kilo CLI session not found."),
+        ]
+
+        let summary = CodexBarCLI.kiloAutoFallbackSummary(
+            provider: .kilo,
+            sourceMode: .auto,
+            attempts: attempts)
+        let expected = [
+            "Kilo auto fallback attempts: api: Kilo authentication failed (401/403).",
+            " -> cli: Kilo CLI session not found.",
+        ].joined()
+
+        #expect(
+            summary ==
+                expected)
+    }
+
+    @Test
+    func kiloAutoFallbackSummaryIsNilOutsideKiloAutoFailures() {
+        let attempts = [
+            ProviderFetchAttempt(
+                strategyID: "kilo.api",
+                kind: .apiToken,
+                wasAvailable: true,
+                errorDescription: "example"),
+        ]
+
+        #expect(CodexBarCLI.kiloAutoFallbackSummary(
+            provider: .kilo,
+            sourceMode: .api,
+            attempts: attempts) == nil)
+        #expect(CodexBarCLI.kiloAutoFallbackSummary(
+            provider: .codex,
+            sourceMode: .auto,
+            attempts: attempts) == nil)
+    }
+
+    @Test
+    func sourceModeRequiresWebSupportIsProviderAware() {
+        #expect(CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .kilo))
+        #expect(CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .codex))
+        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .kilo))
+        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(.api, provider: .kilo))
+    }
 }

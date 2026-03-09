@@ -22,9 +22,9 @@ public struct ZaiLimitEntry: Sendable {
     public let type: ZaiLimitType
     public let unit: ZaiLimitUnit
     public let number: Int
-    public let usage: Int
-    public let currentValue: Int
-    public let remaining: Int
+    public let usage: Int?
+    public let currentValue: Int?
+    public let remaining: Int?
     public let percentage: Double
     public let usageDetails: [ZaiUsageDetail]
     public let nextResetTime: Date?
@@ -33,9 +33,9 @@ public struct ZaiLimitEntry: Sendable {
         type: ZaiLimitType,
         unit: ZaiLimitUnit,
         number: Int,
-        usage: Int,
-        currentValue: Int,
-        remaining: Int,
+        usage: Int?,
+        currentValue: Int?,
+        remaining: Int?,
         percentage: Double,
         usageDetails: [ZaiUsageDetail],
         nextResetTime: Date?)
@@ -93,12 +93,23 @@ extension ZaiLimitEntry {
     }
 
     private var computedUsedPercent: Double? {
-        guard self.usage > 0 else { return nil }
-        let limit = max(0, self.usage)
-        guard limit > 0 else { return nil }
+        guard let limit = self.usage, limit > 0 else { return nil }
 
-        let usedFromRemaining = limit - self.remaining
-        let used = max(0, min(limit, max(usedFromRemaining, self.currentValue)))
+        // z.ai sometimes omits quota fields; don't invent zeros (can yield 100% used incorrectly).
+        var usedRaw: Int?
+        if let remaining = self.remaining {
+            let usedFromRemaining = limit - remaining
+            if let currentValue = self.currentValue {
+                usedRaw = max(usedFromRemaining, currentValue)
+            } else {
+                usedRaw = usedFromRemaining
+            }
+        } else if let currentValue = self.currentValue {
+            usedRaw = currentValue
+        }
+        guard let usedRaw else { return nil }
+
+        let used = max(0, min(limit, usedRaw))
         let percent = (Double(used) / Double(limit)) * 100
         return min(100, max(0, percent))
     }
@@ -225,9 +236,9 @@ private struct ZaiLimitRaw: Codable {
     let type: String
     let unit: Int
     let number: Int
-    let usage: Int
-    let currentValue: Int
-    let remaining: Int
+    let usage: Int?
+    let currentValue: Int?
+    let remaining: Int?
     let percentage: Int
     let usageDetails: [ZaiUsageDetail]?
     let nextResetTime: Int?
@@ -304,6 +315,14 @@ public struct ZaiUsageFetcher: Sendable {
             throw ZaiUsageError.apiError("HTTP \(httpResponse.statusCode): \(errorMessage)")
         }
 
+        // Some upstream issues (wrong endpoint/region/proxy) can yield HTTP 200 with an empty body.
+        // JSONDecoder will otherwise throw an opaque Cocoa error ("data is missing").
+        guard !data.isEmpty else {
+            Self.log.error("z.ai API returned empty body (HTTP 200) for \(Self.safeURLForLogging(quotaURL))")
+            throw ZaiUsageError.parseFailed(
+                "Empty response body (HTTP 200). Check z.ai API region (Global vs BigModel CN) and your API token.")
+        }
+
         // Log raw response for debugging
         if let jsonString = String(data: data, encoding: .utf8) {
             Self.log.debug("z.ai API response: \(jsonString)")
@@ -322,7 +341,18 @@ public struct ZaiUsageFetcher: Sendable {
         }
     }
 
+    private static func safeURLForLogging(_ url: URL) -> String {
+        let host = url.host ?? "<unknown-host>"
+        let port = url.port.map { ":\($0)" } ?? ""
+        let path = url.path.isEmpty ? "/" : url.path
+        return "\(host)\(port)\(path)"
+    }
+
     static func parseUsageSnapshot(from data: Data) throws -> ZaiUsageSnapshot {
+        guard !data.isEmpty else {
+            throw ZaiUsageError.parseFailed("Empty response body")
+        }
+
         let decoder = JSONDecoder()
         let apiResponse = try decoder.decode(ZaiQuotaLimitResponse.self, from: data)
 

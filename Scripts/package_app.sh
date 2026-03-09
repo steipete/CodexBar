@@ -210,6 +210,21 @@ build_product_path() {
   esac
 }
 
+# Resolve path to built binary; some SwiftPM versions use .build/$CONF/ when building for host only.
+resolve_binary_path() {
+  local name="$1"
+  local arch="$2"
+  local candidate
+  candidate=$(build_product_path "$name" "$arch")
+  if [[ -f "$candidate" ]]; then
+    echo "$candidate"
+    return
+  fi
+  if [[ "$arch" == "arm64" || "$arch" == "x86_64" ]] && [[ -f ".build/$CONF/$name" ]]; then
+    echo ".build/$CONF/$name"
+  fi
+}
+
 verify_binary_arches() {
   local binary="$1"; shift
   local expected=("$@")
@@ -236,9 +251,9 @@ install_binary() {
   local binaries=()
   for arch in "${ARCH_LIST[@]}"; do
     local src
-    src=$(build_product_path "$name" "$arch")
-    if [[ ! -f "$src" ]]; then
-      echo "ERROR: Missing ${name} build for ${arch} at ${src}" >&2
+    src=$(resolve_binary_path "$name" "$arch")
+    if [[ -z "$src" || ! -f "$src" ]]; then
+      echo "ERROR: Missing ${name} build for ${arch} at $(build_product_path "$name" "$arch")" >&2
       exit 1
     fi
     binaries+=("$src")
@@ -254,14 +269,14 @@ install_binary() {
 
 install_binary "CodexBar" "$APP/Contents/MacOS/CodexBar"
 # Ship CodexBarCLI alongside the app for easy symlinking.
-if [[ -f "$(build_product_path "CodexBarCLI" "${ARCH_LIST[0]}")" ]]; then
+if [[ -n "$(resolve_binary_path "CodexBarCLI" "${ARCH_LIST[0]}")" ]]; then
   install_binary "CodexBarCLI" "$APP/Contents/Helpers/CodexBarCLI"
 fi
 # Watchdog helper: ensures `claude` probes die when CodexBar crashes/gets killed.
-if [[ -f "$(build_product_path "CodexBarClaudeWatchdog" "${ARCH_LIST[0]}")" ]]; then
+if [[ -n "$(resolve_binary_path "CodexBarClaudeWatchdog" "${ARCH_LIST[0]}")" ]]; then
   install_binary "CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
 fi
-if [[ -f "$(build_product_path "CodexBarWidget" "${ARCH_LIST[0]}")" ]]; then
+if [[ -n "$(resolve_binary_path "CodexBarWidget" "${ARCH_LIST[0]}")" ]]; then
   WIDGET_APP="$APP/Contents/PlugIns/CodexBarWidget.appex"
   mkdir -p "$WIDGET_APP/Contents/MacOS" "$WIDGET_APP/Contents/Resources"
   cat > "$WIDGET_APP/Contents/Info.plist" <<PLIST
@@ -334,7 +349,8 @@ if [[ ! -f "$APP/Contents/Resources/Icon-classic.icns" ]]; then
 fi
 
 # SwiftPM resource bundles (e.g. KeyboardShortcuts) are emitted next to the built binary.
-PREFERRED_BUILD_DIR="$(dirname "$(build_product_path "CodexBar" "${ARCH_LIST[0]}")")"
+CODEXBAR_BINARY="$(resolve_binary_path "CodexBar" "${ARCH_LIST[0]}")"
+PREFERRED_BUILD_DIR="$(dirname "${CODEXBAR_BINARY:-$(build_product_path "CodexBar" "${ARCH_LIST[0]}")}")"
 shopt -s nullglob
 SWIFTPM_BUNDLES=("${PREFERRED_BUILD_DIR}/"*.bundle)
 shopt -u nullglob

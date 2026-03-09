@@ -14,13 +14,17 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case zai
     case minimax
     case kimi
+    case kilo
     case kiro
     case vertexai
     case augment
     case jetbrains
     case kimik2
     case amp
+    case ollama
     case synthetic
+    case warp
+    case openrouter
 }
 
 // swiftformat:enable sortDeclarations
@@ -38,12 +42,16 @@ public enum IconStyle: Sendable, CaseIterable {
     case copilot
     case kimi
     case kimik2
+    case kilo
     case kiro
     case vertexai
     case augment
     case jetbrains
     case amp
+    case ollama
     case synthetic
+    case warp
+    case openrouter
     case combined
 }
 

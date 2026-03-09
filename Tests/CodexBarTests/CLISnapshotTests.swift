@@ -66,6 +66,160 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func rendersWarpUnlimitedAsDetailNotReset() {
+        let meta = ProviderDescriptorRegistry.descriptor(for: .warp).metadata
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: "Unlimited"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: ProviderIdentitySnapshot(
+                providerID: .warp,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let output = CLIRenderer.renderText(
+            provider: .warp,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Warp 0.0.0 (warp)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("\(meta.sessionLabel): 100% left"))
+        #expect(!output.contains("Resets Unlimited"))
+        #expect(output.contains("Unlimited"))
+    }
+
+    @Test
+    func rendersWarpCreditsAsDetailAndResetAsDate() {
+        let meta = ProviderDescriptorRegistry.descriptor(for: .warp).metadata
+        let now = Date(timeIntervalSince1970: 0)
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 10,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: "10/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .warp,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let output = CLIRenderer.renderText(
+            provider: .warp,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Warp 0.0.0 (warp)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("\(meta.sessionLabel): 90% left"))
+        #expect(output.contains("Resets"))
+        #expect(output.contains("10/100 credits"))
+        #expect(!output.contains("Resets 10/100 credits"))
+    }
+
+    @Test
+    func rendersKiloPlanActivityAndFallbackNote() {
+        let now = Date(timeIntervalSince1970: 0)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .kilo,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "Kilo Pass Pro · Auto top-up: visa")
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: "40/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .kilo,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Kilo (cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute,
+                notes: ["Using CLI fallback"]))
+
+        #expect(output.contains("Credits: 60% left"))
+        #expect(output.contains("40/100 credits"))
+        #expect(!output.contains("Resets 40/100 credits"))
+        #expect(output.contains("Plan: Kilo Pass Pro"))
+        #expect(output.contains("Activity: Auto top-up: visa"))
+        #expect(output.contains("Note: Using CLI fallback"))
+    }
+
+    @Test
+    func rendersKiloZeroTotalEdgeStateAsDetail() {
+        let now = Date(timeIntervalSince1970: 0)
+        let snap = KiloUsageSnapshot(
+            creditsUsed: 0,
+            creditsTotal: 0,
+            creditsRemaining: 0,
+            planName: "Kilo Pass Pro",
+            autoTopUpEnabled: true,
+            autoTopUpMethod: "visa",
+            updatedAt: now).toUsageSnapshot()
+
+        let output = CLIRenderer.renderText(
+            provider: .kilo,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Kilo (api)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Credits: 0% left"))
+        #expect(output.contains("0/0 credits"))
+        #expect(!output.contains("Resets 0/0 credits"))
+    }
+
+    @Test
+    func rendersKiloAutoTopUpOnlyAsActivityWithoutPlan() {
+        let now = Date(timeIntervalSince1970: 0)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .kilo,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "Auto top-up: off")
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .kilo,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Kilo (cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Activity: Auto top-up: off"))
+        #expect(!output.contains("Plan: Auto top-up: off"))
+    }
+
+    @Test
     func rendersPaceLineWhenWeeklyHasReset() {
         let now = Date()
         let snap = UsageSnapshot(

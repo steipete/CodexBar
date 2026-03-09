@@ -54,7 +54,8 @@ struct MenuDescriptor {
         store: UsageStore,
         settings: SettingsStore,
         account: AccountInfo,
-        updateReady: Bool) -> MenuDescriptor
+        updateReady: Bool,
+        includeContextualActions: Bool = true) -> MenuDescriptor
     {
         var sections: [Section] = []
 
@@ -90,9 +91,11 @@ struct MenuDescriptor {
             }
         }
 
-        let actions = Self.actionsSection(for: provider, store: store, account: account)
-        if !actions.entries.isEmpty {
-            sections.append(actions)
+        if includeContextualActions {
+            let actions = Self.actionsSection(for: provider, store: store, account: account)
+            if !actions.entries.isEmpty {
+                sections.append(actions)
+            }
         }
         sections.append(Self.metaSection(updateReady: updateReady))
 
@@ -115,21 +118,56 @@ struct MenuDescriptor {
         if let snap = store.snapshot(for: provider) {
             let resetStyle = settings.resetTimeDisplayStyle
             if let primary = snap.primary {
+                let primaryWindow = if provider == .warp || provider == .kilo {
+                    // Warp/Kilo primary uses resetDescription for non-reset detail (e.g., "Unlimited", "X/Y credits").
+                    // Avoid rendering it as a "Resets ..." line.
+                    RateWindow(
+                        usedPercent: primary.usedPercent,
+                        windowMinutes: primary.windowMinutes,
+                        resetsAt: primary.resetsAt,
+                        resetDescription: nil)
+                } else {
+                    primary
+                }
                 Self.appendRateWindow(
                     entries: &entries,
                     title: meta.sessionLabel,
-                    window: primary,
+                    window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
+                if provider == .warp || provider == .kilo,
+                   let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !detail.isEmpty
+                {
+                    entries.append(.text(detail, .secondary))
+                }
             }
             if let weekly = snap.secondary {
+                let weeklyResetOverride: String? = {
+                    guard provider == .warp || provider == .kilo else { return nil }
+                    let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard let detail, !detail.isEmpty else { return nil }
+                    if provider == .kilo, weekly.resetsAt != nil {
+                        return nil
+                    }
+                    return detail
+                }()
                 Self.appendRateWindow(
                     entries: &entries,
                     title: meta.weeklyLabel,
                     window: weekly,
                     resetStyle: resetStyle,
-                    showUsed: settings.usageBarsShowUsed)
-                if let paceSummary = UsagePaceText.weeklySummary(provider: provider, window: weekly) {
+                    showUsed: settings.usageBarsShowUsed,
+                    resetOverride: weeklyResetOverride)
+                if provider == .kilo,
+                   weekly.resetsAt != nil,
+                   let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !detail.isEmpty
+                {
+                    entries.append(.text(detail, .secondary))
+                }
+                if let pace = store.weeklyPace(provider: provider, window: weekly) {
+                    let paceSummary = UsagePaceText.weeklySummary(pace: pace)
                     entries.append(.text(paceSummary, .secondary))
                 }
             }
@@ -193,15 +231,23 @@ struct MenuDescriptor {
         var entries: [Entry] = []
         let emailText = snapshot?.accountEmail(for: provider)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let planText = snapshot?.loginMethod(for: provider)?
+        let loginMethodText = snapshot?.loginMethod(for: provider)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let redactedEmail = PersonalInfoRedactor.redactEmail(emailText, isEnabled: hidePersonalInfo)
 
         if let emailText, !emailText.isEmpty {
             entries.append(.text("Account: \(redactedEmail)", .secondary))
         }
-        if let planText, !planText.isEmpty {
-            entries.append(.text("Plan: \(AccountFormatter.plan(planText))", .secondary))
+        if provider == .kilo {
+            let kiloLogin = self.kiloLoginParts(loginMethod: loginMethodText)
+            if let pass = kiloLogin.pass {
+                entries.append(.text("Plan: \(AccountFormatter.plan(pass))", .secondary))
+            }
+            for detail in kiloLogin.details {
+                entries.append(.text("Activity: \(detail)", .secondary))
+            }
+        } else if let loginMethodText, !loginMethodText.isEmpty {
+            entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText))", .secondary))
         }
 
         if metadata.usesAccountFallback {
@@ -209,12 +255,35 @@ struct MenuDescriptor {
                 let redacted = PersonalInfoRedactor.redactEmail(fallbackEmail, isEnabled: hidePersonalInfo)
                 entries.append(.text("Account: \(redacted)", .secondary))
             }
-            if planText?.isEmpty ?? true, let fallbackPlan = fallback.plan, !fallbackPlan.isEmpty {
+            if loginMethodText?.isEmpty ?? true, let fallbackPlan = fallback.plan, !fallbackPlan.isEmpty {
                 entries.append(.text("Plan: \(AccountFormatter.plan(fallbackPlan))", .secondary))
             }
         }
 
         return entries
+    }
+
+    private static func kiloLoginParts(loginMethod: String?) -> (pass: String?, details: [String]) {
+        guard let loginMethod else {
+            return (nil, [])
+        }
+        let parts = loginMethod
+            .components(separatedBy: "·")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !parts.isEmpty else {
+            return (nil, [])
+        }
+        let first = parts[0]
+        if self.isKiloActivitySegment(first) {
+            return (nil, parts)
+        }
+        return (first, Array(parts.dropFirst()))
+    }
+
+    private static func isKiloActivitySegment(_ text: String) -> Bool {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.hasPrefix("auto top-up:")
     }
 
     private static func accountProviderForCombined(store: UsageStore) -> UsageProvider? {
@@ -343,12 +412,15 @@ struct MenuDescriptor {
         title: String,
         window: RateWindow,
         resetStyle: ResetTimeDisplayStyle,
-        showUsed: Bool)
+        showUsed: Bool,
+        resetOverride: String? = nil)
     {
         let line = UsageFormatter
             .usageLine(remaining: window.remainingPercent, used: window.usedPercent, showUsed: showUsed)
         entries.append(.text("\(title): \(line)", .primary))
-        if let reset = UsageFormatter.resetLine(for: window, style: resetStyle) {
+        if let resetOverride {
+            entries.append(.text(resetOverride, .secondary))
+        } else if let reset = UsageFormatter.resetLine(for: window, style: resetStyle) {
             entries.append(.text(reset, .secondary))
         }
     }

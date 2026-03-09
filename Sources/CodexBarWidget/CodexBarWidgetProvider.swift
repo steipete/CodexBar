@@ -11,6 +11,7 @@ enum ProviderChoice: String, AppEnum {
     case zai
     case copilot
     case minimax
+    case kilo
     case opencode
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
@@ -23,6 +24,7 @@ enum ProviderChoice: String, AppEnum {
         .zai: DisplayRepresentation(title: "z.ai"),
         .copilot: DisplayRepresentation(title: "Copilot"),
         .minimax: DisplayRepresentation(title: "MiniMax"),
+        .kilo: DisplayRepresentation(title: "Kilo"),
         .opencode: DisplayRepresentation(title: "OpenCode"),
     ]
 
@@ -35,10 +37,12 @@ enum ProviderChoice: String, AppEnum {
         case .zai: .zai
         case .copilot: .copilot
         case .minimax: .minimax
+        case .kilo: .kilo
         case .opencode: .opencode
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     init?(provider: UsageProvider) {
         switch provider {
         case .codex: self = .codex
@@ -52,13 +56,17 @@ enum ProviderChoice: String, AppEnum {
         case .copilot: self = .copilot
         case .minimax: self = .minimax
         case .vertexai: return nil // Vertex AI not yet supported in widgets
+        case .kilo: self = .kilo
         case .kiro: return nil // Kiro not yet supported in widgets
         case .augment: return nil // Augment not yet supported in widgets
         case .jetbrains: return nil // JetBrains not yet supported in widgets
         case .kimi: return nil // Kimi not yet supported in widgets
         case .kimik2: return nil // Kimi K2 not yet supported in widgets
         case .amp: return nil // Amp not yet supported in widgets
+        case .ollama: return nil // Ollama not yet supported in widgets
         case .synthetic: return nil // Synthetic not yet supported in widgets
+        case .openrouter: return nil // OpenRouter not yet supported in widgets
+        case .warp: return nil // Warp not yet supported in widgets
         }
     }
 }
@@ -212,7 +220,8 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
     private func availableProviders(from snapshot: WidgetSnapshot) -> [UsageProvider] {
         let enabled = snapshot.enabledProviders
         let providers = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
-        return providers.isEmpty ? [.codex] : providers
+        let supported = providers.filter { ProviderChoice(provider: $0) != nil }
+        return supported.isEmpty ? [.codex] : supported
     }
 }
 

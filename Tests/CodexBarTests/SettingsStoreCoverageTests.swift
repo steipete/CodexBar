@@ -52,6 +52,9 @@ struct SettingsStoreCoverageTests {
 
         settings.menuBarDisplayMode = .pace
         #expect(settings.menuBarDisplayMode == .pace)
+        #expect(settings.historicalTrackingEnabled == false)
+        settings.historicalTrackingEnabled = true
+        #expect(settings.historicalTrackingEnabled == true)
 
         settings.resetTimesShowAbsolute = true
         #expect(settings.resetTimeDisplayStyle == .absolute)
@@ -124,6 +127,7 @@ struct SettingsStoreCoverageTests {
         settings.ensureKimiK2APITokenLoaded()
         settings.ensureAugmentCookieLoaded()
         settings.ensureAmpCookieLoaded()
+        settings.ensureOllamaCookieLoaded()
         settings.ensureCopilotAPITokenLoaded()
         settings.ensureTokenAccountsLoaded()
 
@@ -147,6 +151,88 @@ struct SettingsStoreCoverageTests {
         #expect(settings.codexCookieSource == .manual)
         #expect(settings.claudeCookieSource == .manual)
         #expect(settings.kimiCookieSource == .off)
+    }
+
+    @Test
+    func claudeKeychainPromptMode_defaultsToOnlyOnUserAction() {
+        let settings = Self.makeSettingsStore()
+        #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
+    }
+
+    @Test
+    func claudeKeychainPromptMode_persistsAcrossStoreReload() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-prompt-mode"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        first.claudeOAuthKeychainPromptMode = .never
+        #expect(
+            defaults.string(forKey: "claudeOAuthKeychainPromptMode")
+                == ClaudeOAuthKeychainPromptMode.never.rawValue)
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.claudeOAuthKeychainPromptMode == .never)
+    }
+
+    @Test
+    func claudeKeychainPromptMode_invalidRawFallsBackToOnlyOnUserAction() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-prompt-mode-invalid"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("invalid-mode", forKey: "claudeOAuthKeychainPromptMode")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
+    }
+
+    @Test
+    func claudeKeychainReadStrategy_defaultsToSecurityFramework() {
+        let settings = Self.makeSettingsStore()
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+    }
+
+    @Test
+    func claudeKeychainReadStrategy_persistsAcrossStoreReload() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-read-strategy"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        first.claudeOAuthKeychainReadStrategy = .securityCLIExperimental
+        #expect(
+            defaults.string(forKey: "claudeOAuthKeychainReadStrategy")
+                == ClaudeOAuthKeychainReadStrategy.securityCLIExperimental.rawValue)
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+    }
+
+    @Test
+    func claudeKeychainReadStrategy_invalidRawFallsBackToSecurityFramework() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-read-strategy-invalid"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("invalid-strategy", forKey: "claudeOAuthKeychainReadStrategy")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+    }
+
+    @Test
+    func claudePromptFreeCredentialsToggle_mapsToReadStrategy() {
+        let settings = Self.makeSettingsStore()
+        #expect(settings.claudeOAuthPromptFreeCredentialsEnabled == false)
+
+        settings.claudeOAuthPromptFreeCredentialsEnabled = true
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+
+        settings.claudeOAuthPromptFreeCredentialsEnabled = false
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
     }
 
     private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {

@@ -15,12 +15,20 @@ public enum ProviderConfigEnvironment {
             env["COPILOT_API_TOKEN"] = apiKey
         case .minimax:
             env[MiniMaxAPISettingsReader.apiTokenKey] = apiKey
+        case .kilo:
+            env[KiloSettingsReader.apiTokenKey] = apiKey
         case .kimik2:
             if let key = KimiK2SettingsReader.apiKeyEnvironmentKeys.first {
                 env[key] = apiKey
             }
         case .synthetic:
             env[SyntheticSettingsReader.apiKeyKey] = apiKey
+        case .warp:
+            if let key = WarpSettingsReader.apiKeyEnvironmentKeys.first {
+                env[key] = apiKey
+            }
+        case .openrouter:
+            env[OpenRouterSettingsReader.envKey] = apiKey
         default:
             break
         }

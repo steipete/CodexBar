@@ -76,6 +76,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public let id: UsageProvider
     public var enabled: Bool?
     public var source: ProviderSourceMode?
+    public var extrasEnabled: Bool?
     public var apiKey: String?
     public var cookieHeader: String?
     public var cookieSource: ProviderCookieSource?
@@ -87,6 +88,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         id: UsageProvider,
         enabled: Bool? = nil,
         source: ProviderSourceMode? = nil,
+        extrasEnabled: Bool? = nil,
         apiKey: String? = nil,
         cookieHeader: String? = nil,
         cookieSource: ProviderCookieSource? = nil,
@@ -97,6 +99,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.id = id
         self.enabled = enabled
         self.source = source
+        self.extrasEnabled = extrasEnabled
         self.apiKey = apiKey
         self.cookieHeader = cookieHeader
         self.cookieSource = cookieSource

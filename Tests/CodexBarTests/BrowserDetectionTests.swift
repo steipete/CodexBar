@@ -112,6 +112,28 @@ struct BrowserDetectionTests {
         FileManager.default.createFile(atPath: profile.appendingPathComponent("cookies.sqlite").path, contents: Data())
         #expect(detection.isCookieSourceAvailable(.firefox) == true)
     }
+
+    @Test
+    func zenAcceptsUppercaseDefaultProfileDir() throws {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let profiles = temp
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Application Support")
+            .appendingPathComponent("zen")
+            .appendingPathComponent("Profiles")
+        try FileManager.default.createDirectory(at: profiles, withIntermediateDirectories: true)
+
+        let detection = BrowserDetection(homeDirectory: temp.path, cacheTTL: 0)
+        #expect(detection.isCookieSourceAvailable(.zen) == false)
+
+        let profile = profiles.appendingPathComponent("abc.Default (release)")
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: profile.appendingPathComponent("cookies.sqlite").path, contents: Data())
+        #expect(detection.isCookieSourceAvailable(.zen) == true)
+    }
 }
 
 #else

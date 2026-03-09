@@ -161,6 +161,10 @@ public struct OpenCodeUsageFetcher: Sendable {
         if self.looksSignedOut(text: text) {
             throw OpenCodeUsageError.invalidCredentials
         }
+        if self.isExplicitNullPayload(text: text) {
+            Self.log.warning("OpenCode subscription GET returned null; skipping POST fallback.")
+            throw self.missingSubscriptionDataError(workspaceID: workspaceID)
+        }
         if self.parseSubscriptionJSON(text: text, now: Date()) == nil,
            self.extractDouble(
                pattern: #"rollingUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)"#,
@@ -178,9 +182,32 @@ public struct OpenCodeUsageFetcher: Sendable {
             if self.looksSignedOut(text: fallback) {
                 throw OpenCodeUsageError.invalidCredentials
             }
+            if self.isExplicitNullPayload(text: fallback) {
+                Self.log.warning("OpenCode subscription POST returned null.")
+                throw self.missingSubscriptionDataError(workspaceID: workspaceID)
+            }
             return fallback
         }
         return text
+    }
+
+    private static func isExplicitNullPayload(text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.caseInsensitiveCompare("null") == .orderedSame {
+            return true
+        }
+        guard let data = trimmed.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data, options: [])
+        else {
+            return false
+        }
+        return object is NSNull
+    }
+
+    private static func missingSubscriptionDataError(workspaceID: String) -> OpenCodeUsageError {
+        OpenCodeUsageError.apiError(
+            "No subscription usage data was returned for workspace \(workspaceID). " +
+                "This usually means this workspace does not have OpenCode Black usage data.")
     }
 
     private static func normalizeWorkspaceID(_ raw: String?) -> String? {
@@ -409,17 +436,26 @@ public struct OpenCodeUsageFetcher: Sendable {
 
     private static func extractServerErrorMessage(from text: String) -> String? {
         guard let data = text.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data, options: []),
-              let dict = object as? [String: Any]
+              let object = try? JSONSerialization.jsonObject(with: data, options: [])
         else {
+            // If it's not JSON, try to extract error from HTML if possible
+            if let match = text.range(of: #"(?i)<title>([^<]+)</title>"#, options: .regularExpression) {
+                return String(text[match].dropFirst(7).dropLast(8)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
             return nil
         }
+
+        guard let dict = object as? [String: Any] else { return nil }
 
         if let message = dict["message"] as? String, !message.isEmpty {
             return message
         }
         if let error = dict["error"] as? String, !error.isEmpty {
             return error
+        }
+        // Check for common error fields in some frameworks
+        if let detail = dict["detail"] as? String, !detail.isEmpty {
+            return detail
         }
         return nil
     }

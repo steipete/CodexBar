@@ -273,35 +273,32 @@ struct KimiUsageSnapshotConversionTests {
 struct KimiTokenResolverTests {
     @Test
     func resolvesTokenFromEnvironment() {
-        let previous = KeychainAccessGate.isDisabled
-        KeychainAccessGate.isDisabled = true
-        defer { KeychainAccessGate.isDisabled = previous }
-        let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
-        let token = ProviderTokenResolver.kimiAuthToken(environment: env)
-        #expect(token == "test.jwt.token")
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
+            let token = ProviderTokenResolver.kimiAuthToken(environment: env)
+            #expect(token == "test.jwt.token")
+        }
     }
 
     @Test
     func resolvesTokenFromKeychainFirst() {
         // This test would require mocking the keychain.
-        let previous = KeychainAccessGate.isDisabled
-        KeychainAccessGate.isDisabled = true
-        defer { KeychainAccessGate.isDisabled = previous }
-        let env = ["KIMI_AUTH_TOKEN": "test.env.token"]
-        let token = ProviderTokenResolver.kimiAuthToken(environment: env)
-        #expect(token == "test.env.token")
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            let env = ["KIMI_AUTH_TOKEN": "test.env.token"]
+            let token = ProviderTokenResolver.kimiAuthToken(environment: env)
+            #expect(token == "test.env.token")
+        }
     }
 
     @Test
     func resolutionIncludesSource() {
-        let previous = KeychainAccessGate.isDisabled
-        KeychainAccessGate.isDisabled = true
-        defer { KeychainAccessGate.isDisabled = previous }
-        let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
-        let resolution = ProviderTokenResolver.kimiAuthResolution(environment: env)
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
+            let resolution = ProviderTokenResolver.kimiAuthResolution(environment: env)
 
-        #expect(resolution?.token == "test.jwt.token")
-        #expect(resolution?.source == .environment)
+            #expect(resolution?.token == "test.jwt.token")
+            #expect(resolution?.source == .environment)
+        }
     }
 }
 

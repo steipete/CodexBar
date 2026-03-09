@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kimi K2, Kiro, Vertex AI, Augment, Amp, JetBrains AI)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -19,7 +19,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
 | Codex | Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`); app uses CLI usage + optional dashboard scrape. |
-| Claude | OAuth API (`oauth`) → Web API (`web`) → CLI PTY (`claude`). |
+| Claude | App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
 | Gemini | OAuth API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → stored WebKit session (`web`). |
@@ -28,12 +28,16 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | z.ai | API token (Keychain/env) → quota API (`api`). |
 | MiniMax | Manual cookie header (Keychain/env) → browser cookies (+ local storage access token) → coding plan page (HTML) with remains API fallback (`web`). |
 | Kimi | API token (JWT from `kimi-auth` cookie) → usage API (`api`). |
+| Kilo | API token (`KILO_API_KEY`) → usage API (`api`); auto falls back to CLI session auth (`cli`). |
 | Copilot | API token (device flow/env) → copilot_internal API (`api`). |
 | Kimi K2 | API key (Keychain/env) → credit endpoint (`api`). |
 | Kiro | CLI command via `kiro-cli chat --no-interactive "/usage"` (`cli`). |
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Web settings page via browser cookies (`web`). |
+| Warp | API token (config/env) → GraphQL request limits (`api`). |
+| Ollama | Web settings page via browser cookies (`web`). |
+| OpenRouter | API token (config, overrides env) → credits API (`api`). |
 
 ## Codex
 - Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -44,9 +48,8 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Details: `docs/codex.md`.
 
 ## Claude
-- OAuth API (preferred when CLI credentials exist).
-- Web API (browser cookies) fallback when OAuth missing.
-- CLI PTY fallback when OAuth + web are unavailable.
+- App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
+- CLI Auto: Web API (`web`) → CLI PTY (`claude`).
 - Local cost usage: scans `~/.config/claude/projects/**/*.jsonl` (last 30 days).
 - Status: Statuspage.io (Anthropic).
 - Details: `docs/claude.md`.
@@ -70,6 +73,14 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Shows weekly quota and 5-hour rate limit (300 minutes).
 - Status: none yet.
 - Details: `docs/kimi.md`.
+
+## Kilo
+- API token from `~/.codexbar/config.json` (`providers[].apiKey`) or `KILO_API_KEY`.
+- Auto mode tries API first and falls back to CLI auth when API credentials are missing or unauthorized.
+- CLI auth source: `~/.local/share/kilo/auth.json` (`kilo.access`), typically created by `kilo login`.
+- Usage endpoint: `https://app.kilo.ai/api/trpc`.
+- Status: none yet.
+- Details: `docs/kilo.md`.
 
 ## Kimi K2
 - API key via Settings (Keychain) or `KIMI_K2_API_KEY`/`KIMI_API_KEY` env var.
@@ -121,6 +132,13 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Status: AWS Health Dashboard (manual link, no auto-polling).
 - Details: `docs/kiro.md`.
 
+## Warp
+- API token from Settings or `WARP_API_KEY` / `WARP_TOKEN` env var.
+- GraphQL credit limits: `https://app.warp.dev/graphql/v2?op=GetRequestLimitInfo`.
+- Shows monthly credits usage and next refresh time.
+- Status: none yet.
+- Details: `docs/warp.md`.
+
 ## Vertex AI
 - OAuth credentials from `gcloud auth application-default login` (ADC).
 - Quota usage via Cloud Monitoring `consumer_quota` metrics for `aiplatform.googleapis.com`.
@@ -139,4 +157,19 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Parses Amp Free usage from the settings HTML.
 - Status: none yet.
 - Details: `docs/amp.md`.
+
+## Ollama
+- Web settings page (`https://ollama.com/settings`) via browser cookies.
+- Parses Cloud Usage plan badge, session/weekly usage, and reset timestamps.
+- Status: none yet.
+- Details: `docs/ollama.md`.
+
+## OpenRouter
+- API token from `~/.codexbar/config.json` (`providerConfig.openrouter.apiKey`) or `OPENROUTER_API_KEY` env var.
+- Credits endpoint: `https://openrouter.ai/api/v1/credits` (returns total credits purchased and usage).
+- Key info endpoint: `https://openrouter.ai/api/v1/key` (returns rate limit info).
+- Override base URL with `OPENROUTER_API_URL` env var.
+- Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
+- Details: `docs/openrouter.md`.
+
 See also: `docs/provider.md` for architecture notes.

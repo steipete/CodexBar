@@ -5,7 +5,11 @@ extension StatusItemController {
     // MARK: - Actions reachable from menus
 
     func refreshStore(forceTokenUsage: Bool) {
-        Task { await self.store.refresh(forceTokenUsage: forceTokenUsage) }
+        Task {
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await self.store.refresh(forceTokenUsage: forceTokenUsage)
+            }
+        }
     }
 
     @objc func refreshNow() {
@@ -16,7 +20,9 @@ extension StatusItemController {
         Task {
             await self.store.forceRefreshAugmentSession()
             // Also trigger a full refresh to update the menu and clear any stale errors
-            await self.store.refresh(forceTokenUsage: false)
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await self.store.refresh(forceTokenUsage: false)
+            }
         }
     }
 
@@ -114,7 +120,9 @@ extension StatusItemController {
 
             let shouldRefresh = await self.runLoginFlow(provider: provider)
             if shouldRefresh {
-                await self.store.refresh()
+                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await self.store.refresh()
+                }
                 self.loginLogger.info("Triggered refresh after login", metadata: ["provider": provider.rawValue])
             }
         }
@@ -222,7 +230,7 @@ extension StatusItemController {
         case .missingBinary:
             self.presentLoginAlert(
                 title: "Claude CLI not found",
-                message: "Install the Claude CLI (npm i -g @anthropic-ai/claude-cli) and try again.")
+                message: "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again.")
         case let .launchFailed(message):
             self.presentLoginAlert(title: "Could not start claude /login", message: message)
         case .timedOut:

@@ -23,6 +23,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeUsageDataSource
         _ = settings.claudeCookieSource
         _ = settings.claudeCookieHeader
+        _ = settings.claudeOAuthKeychainPromptMode
+        _ = settings.claudeOAuthKeychainReadStrategy
         _ = settings.claudeWebExtrasEnabled
     }
 
@@ -61,6 +63,36 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
+        let subtitle = if context.settings.debugDisableKeychainAccess {
+            "Inactive while \"Disable Keychain access\" is enabled in Advanced."
+        } else {
+            "Use /usr/bin/security to read Claude credentials and avoid CodexBar keychain prompts."
+        }
+
+        let promptFreeBinding = Binding(
+            get: { context.settings.claudeOAuthPromptFreeCredentialsEnabled },
+            set: { enabled in
+                guard !context.settings.debugDisableKeychainAccess else { return }
+                context.settings.claudeOAuthPromptFreeCredentialsEnabled = enabled
+            })
+
+        return [
+            ProviderSettingsToggleDescriptor(
+                id: "claude-oauth-prompt-free-credentials",
+                title: "Avoid Keychain prompts (experimental)",
+                subtitle: subtitle,
+                binding: promptFreeBinding,
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+        ]
+    }
+
+    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         let usageBinding = Binding(
             get: { context.settings.claudeUsageDataSource.rawValue },
@@ -72,6 +104,12 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             set: { raw in
                 context.settings.claudeCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
             })
+        let keychainPromptPolicyBinding = Binding(
+            get: { context.settings.claudeOAuthKeychainPromptMode.rawValue },
+            set: { raw in
+                context.settings.claudeOAuthKeychainPromptMode = ClaudeOAuthKeychainPromptMode(rawValue: raw)
+                    ?? .onlyOnUserAction
+            })
 
         let usageOptions = ClaudeUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
@@ -79,7 +117,17 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         let cookieOptions = ProviderCookieSourceUI.options(
             allowsOff: false,
             keychainDisabled: context.settings.debugDisableKeychainAccess)
-
+        let keychainPromptPolicyOptions: [ProviderSettingsPickerOption] = [
+            ProviderSettingsPickerOption(
+                id: ClaudeOAuthKeychainPromptMode.never.rawValue,
+                title: "Never prompt"),
+            ProviderSettingsPickerOption(
+                id: ClaudeOAuthKeychainPromptMode.onlyOnUserAction.rawValue,
+                title: "Only on user action"),
+            ProviderSettingsPickerOption(
+                id: ClaudeOAuthKeychainPromptMode.always.rawValue,
+                title: "Always allow prompts"),
+        ]
         let cookieSubtitle: () -> String? = {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.claudeCookieSource,
@@ -87,6 +135,13 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 auto: "Automatic imports browser cookies for the web API.",
                 manual: "Paste a Cookie header from a claude.ai request.",
                 off: "Claude cookies are disabled.")
+        }
+        let keychainPromptPolicySubtitle: () -> String? = {
+            if context.settings.debugDisableKeychainAccess {
+                return "Global Keychain access is disabled in Advanced, so this setting is currently inactive."
+            }
+            return "Controls Claude OAuth Keychain prompts when experimental reader mode is off. Choosing " +
+                "\"Never prompt\" can make OAuth unavailable; use Web/CLI when needed."
         }
 
         return [
@@ -103,6 +158,16 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                     let label = context.store.sourceLabel(for: .claude)
                     return label == "auto" ? nil : label
                 }),
+            ProviderSettingsPickerDescriptor(
+                id: "claude-keychain-prompt-policy",
+                title: "Keychain prompt policy",
+                subtitle: "Applies only to the Security.framework OAuth keychain reader.",
+                dynamicSubtitle: keychainPromptPolicySubtitle,
+                binding: keychainPromptPolicyBinding,
+                options: keychainPromptPolicyOptions,
+                isVisible: { context.settings.claudeOAuthKeychainReadStrategy == .securityFramework },
+                isEnabled: { !context.settings.debugDisableKeychainAccess },
+                onChange: nil),
             ProviderSettingsPickerDescriptor(
                 id: "claude-cookie-source",
                 title: "Claude cookies",

@@ -15,18 +15,23 @@ struct SettingsDefaultsState: Sendable {
     var resetTimesShowAbsolute: Bool
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarDisplayModeRaw: String?
+    var historicalTrackingEnabled: Bool
     var showAllTokenAccountsInMenu: Bool
     var menuBarMetricPreferencesRaw: [String: String]
     var costUsageEnabled: Bool
     var hidePersonalInfo: Bool
     var randomBlinkEnabled: Bool
     var menuBarShowsHighestUsage: Bool
+    var claudeOAuthKeychainPromptModeRaw: String?
+    var claudeOAuthKeychainReadStrategyRaw: String?
     var claudeWebExtrasEnabledRaw: Bool
     var showOptionalCreditsAndExtraUsage: Bool
     var openAIWebAccessEnabled: Bool
     var jetbrainsIDEBasePath: String
     var mergeIcons: Bool
     var switcherShowsIcons: Bool
+    var mergedMenuLastSelectedWasOverview: Bool
+    var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
 }

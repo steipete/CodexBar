@@ -64,13 +64,17 @@ public enum ProviderDescriptorRegistry {
         .zai: ZaiProviderDescriptor.descriptor,
         .minimax: MiniMaxProviderDescriptor.descriptor,
         .kimi: KimiProviderDescriptor.descriptor,
+        .kilo: KiloProviderDescriptor.descriptor,
         .kiro: KiroProviderDescriptor.descriptor,
         .vertexai: VertexAIProviderDescriptor.descriptor,
         .augment: AugmentProviderDescriptor.descriptor,
         .jetbrains: JetBrainsProviderDescriptor.descriptor,
         .kimik2: KimiK2ProviderDescriptor.descriptor,
         .amp: AmpProviderDescriptor.descriptor,
+        .ollama: OllamaProviderDescriptor.descriptor,
         .synthetic: SyntheticProviderDescriptor.descriptor,
+        .openrouter: OpenRouterProviderDescriptor.descriptor,
+        .warp: WarpProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

@@ -201,12 +201,12 @@ if [[ -n "${RELEASE_ARCHES}" ]]; then
   ARCHES_VALUE="${RELEASE_ARCHES}"
 fi
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
-  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh" debug
+  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh" debug
 else
   if [[ -n "${SIGNING_MODE}" ]]; then
-    run_step "package app" env CODEXBAR_SIGNING="${SIGNING_MODE}" ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
+    run_step "package app" env CODEXBAR_SIGNING="${SIGNING_MODE}" ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh"
   else
-    run_step "package app" env ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/scripts/package_app.sh"
+    run_step "package app" env ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh"
   fi
 fi
 

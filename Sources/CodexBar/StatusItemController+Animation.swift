@@ -4,6 +4,8 @@ import QuartzCore
 
 extension StatusItemController {
     private static let loadingPercentEpsilon = 0.0001
+    private static let blinkActiveTickInterval: Duration = .milliseconds(75)
+    private static let blinkIdleFallbackInterval: Duration = .seconds(1)
 
     func needsMenuBarIconAnimation() -> Bool {
         if self.shouldMergeIcons {
@@ -32,7 +34,10 @@ extension StatusItemController {
                 self.seedBlinkStatesIfNeeded()
                 self.blinkTask = Task { [weak self] in
                     while !Task.isCancelled {
-                        try? await Task.sleep(for: .milliseconds(75))
+                        let delay = await MainActor.run {
+                            self?.blinkTickSleepDuration(now: Date()) ?? Self.blinkIdleFallbackInterval
+                        }
+                        try? await Task.sleep(for: delay)
                         await MainActor.run { self?.tickBlink() }
                     }
                 }
@@ -61,6 +66,36 @@ extension StatusItemController {
                 self.applyIcon(for: provider, phase: phase)
             }
         }
+    }
+
+    private func blinkTickSleepDuration(now: Date) -> Duration {
+        let mergeIcons = self.shouldMergeIcons
+        var nextWakeAt: Date?
+
+        for provider in UsageProvider.allCases {
+            let shouldRender = mergeIcons ? self.isEnabled(provider) : self.isVisible(provider)
+            guard shouldRender, !self.shouldAnimate(provider: provider, mergeIcons: mergeIcons) else { continue }
+
+            let state = self
+                .blinkStates[provider] ?? BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
+            if state.blinkStart != nil {
+                return Self.blinkActiveTickInterval
+            }
+
+            let candidate: Date = state.pendingSecondStart ?? state.nextBlink
+            if let current = nextWakeAt {
+                if candidate < current {
+                    nextWakeAt = candidate
+                }
+            } else {
+                nextWakeAt = candidate
+            }
+        }
+
+        guard let nextWakeAt else { return Self.blinkIdleFallbackInterval }
+        let delay = nextWakeAt.timeIntervalSince(now)
+        if delay <= 0 { return Self.blinkActiveTickInterval }
+        return .seconds(delay)
     }
 
     private func tickBlink(now: Date = .init()) {
@@ -195,6 +230,23 @@ extension StatusItemController {
         // user setting we pass either "percent left" or "percent used".
         var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
         var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        if showUsed,
+           primaryProvider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining <= 0
+        {
+            // Preserve Warp "no bonus/exhausted bonus" layout even in show-used mode.
+            weekly = 0
+        }
+        if showUsed,
+           primaryProvider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining > 0,
+           weekly == 0
+        {
+            // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
+            weekly = Self.loadingPercentEpsilon
+        }
         var credits: Double? = primaryProvider == .codex ? self.store.credits?.remaining : nil
         var stale = self.store.isStale(provider: primaryProvider)
         var morphProgress: Double?
@@ -242,6 +294,16 @@ extension StatusItemController {
             return
         }
 
+        if Self.shouldUseOpenRouterBrandFallback(provider: primaryProvider, snapshot: snapshot),
+           let brand = ProviderBrandIcon.image(for: primaryProvider)
+        {
+            self.setButtonTitle(nil, for: button)
+            self.setButtonImage(
+                Self.brandImageWithStatusOverlay(brand: brand, statusIndicator: statusIndicator),
+                for: button)
+            return
+        }
+
         self.setButtonTitle(nil, for: button)
         if let morphProgress {
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
@@ -285,8 +347,37 @@ extension StatusItemController {
             self.setButtonTitle(displayText, for: button)
             return
         }
+
+        if Self.shouldUseOpenRouterBrandFallback(provider: provider, snapshot: snapshot),
+           let brand = ProviderBrandIcon.image(for: provider)
+        {
+            self.setButtonTitle(nil, for: button)
+            self.setButtonImage(
+                Self.brandImageWithStatusOverlay(
+                    brand: brand,
+                    statusIndicator: self.store.statusIndicator(for: provider)),
+                for: button)
+            return
+        }
         var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
         var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        if showUsed,
+           provider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining <= 0
+        {
+            // Preserve Warp "no bonus/exhausted bonus" layout even in show-used mode.
+            weekly = 0
+        }
+        if showUsed,
+           provider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining > 0,
+           weekly == 0
+        {
+            // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
+            weekly = Self.loadingPercentEpsilon
+        }
         var credits: Double? = provider == .codex ? self.store.credits?.remaining : nil
         var stale = self.store.isStale(provider: provider)
         var morphProgress: Double?
@@ -312,7 +403,14 @@ extension StatusItemController {
         }
 
         let style: IconStyle = self.store.style(for: provider)
-        let blink = self.blinkAmount(for: provider)
+        let isLoading = phase != nil && self.shouldAnimate(provider: provider)
+        let blink: CGFloat = {
+            guard isLoading, style == .warp, let phase else {
+                return self.blinkAmount(for: provider)
+            }
+            let normalized = (sin(phase * 3) + 1) / 2
+            return CGFloat(max(0, min(normalized, 1)))
+        }()
         let wiggle = self.wiggleAmount(for: provider)
         let tilt = self.tiltAmount(for: provider) * .pi / 28 // limit to ~6.4°
         if let morphProgress {
@@ -351,12 +449,39 @@ extension StatusItemController {
     }
 
     func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
-        MenuBarDisplayText.displayText(
-            mode: self.settings.menuBarDisplayMode,
-            provider: provider,
-            percentWindow: self.menuBarPercentWindow(for: provider, snapshot: snapshot),
-            paceWindow: snapshot?.secondary,
+        let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
+        let mode = self.settings.menuBarDisplayMode
+        let now = Date()
+        let pace: UsagePace? = switch mode {
+        case .percent:
+            nil
+        case .pace, .both:
+            snapshot?.secondary.flatMap { window in
+                self.store.weeklyPace(provider: provider, window: window, now: now)
+            }
+        }
+        let displayText = MenuBarDisplayText.displayText(
+            mode: mode,
+            percentWindow: percentWindow,
+            pace: pace,
             showUsed: self.settings.usageBarsShowUsed)
+
+        let sessionExhausted = (snapshot?.primary?.remainingPercent ?? 100) <= 0
+        let weeklyExhausted = (snapshot?.secondary?.remainingPercent ?? 100) <= 0
+
+        if provider == .codex,
+           mode == .percent,
+           !self.settings.usageBarsShowUsed,
+           sessionExhausted || weeklyExhausted,
+           let creditsRemaining = self.store.credits?.remaining,
+           creditsRemaining > 0
+        {
+            return UsageFormatter
+                .creditsString(from: creditsRemaining)
+                .replacingOccurrences(of: " left", with: "")
+        }
+
+        return displayText
     }
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
@@ -410,6 +535,10 @@ extension StatusItemController {
             self.assignMotion(amount: 0, for: provider, effect: state.effect)
         }
 
+        // If the blink task is currently in a long idle sleep, restart it so this forced blink
+        // keeps animating on the active frame cadence immediately.
+        self.blinkTask?.cancel()
+        self.blinkTask = nil
         self.updateBlinkingState()
         self.tickBlink(now: now)
     }
@@ -429,6 +558,9 @@ extension StatusItemController {
 
         let isStale = self.store.isStale(provider: provider)
         let hasData = self.store.snapshot(for: provider) != nil
+        if provider == .warp, !hasData, self.store.refreshingProviders.contains(provider) {
+            return true
+        }
         return !hasData && !isStale
     }
 
@@ -469,6 +601,58 @@ extension StatusItemController {
             self.applyIcon(phase: self.animationPhase)
         } else {
             UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: self.animationPhase) }
+        }
+    }
+
+    nonisolated static func shouldUseOpenRouterBrandFallback(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?) -> Bool
+    {
+        guard provider == .openrouter,
+              let openRouterUsage = snapshot?.openRouterUsage
+        else {
+            return false
+        }
+        return openRouterUsage.keyQuotaStatus == .noLimitConfigured
+    }
+
+    nonisolated static func brandImageWithStatusOverlay(
+        brand: NSImage,
+        statusIndicator: ProviderStatusIndicator) -> NSImage
+    {
+        guard statusIndicator.hasIssue else { return brand }
+
+        let image = NSImage(size: brand.size)
+        image.lockFocus()
+        brand.draw(
+            at: .zero,
+            from: NSRect(origin: .zero, size: brand.size),
+            operation: .sourceOver,
+            fraction: 1.0)
+        Self.drawBrandStatusOverlay(indicator: statusIndicator, size: brand.size)
+        image.unlockFocus()
+        image.isTemplate = brand.isTemplate
+        return image
+    }
+
+    private nonisolated static func drawBrandStatusOverlay(indicator: ProviderStatusIndicator, size: NSSize) {
+        guard indicator.hasIssue else { return }
+
+        let color = NSColor.labelColor
+        switch indicator {
+        case .minor, .maintenance:
+            let dotSize = CGSize(width: 4, height: 4)
+            let dotOrigin = CGPoint(x: size.width - dotSize.width - 2, y: 2)
+            color.setFill()
+            NSBezierPath(ovalIn: CGRect(origin: dotOrigin, size: dotSize)).fill()
+        case .major, .critical, .unknown:
+            color.setFill()
+            let lineRect = CGRect(x: size.width - 6, y: 4, width: 2, height: 6)
+            NSBezierPath(roundedRect: lineRect, xRadius: 1, yRadius: 1).fill()
+            let dotRect = CGRect(x: size.width - 6, y: 2, width: 2, height: 2)
+            NSBezierPath(ovalIn: dotRect).fill()
+        case .none:
+            break
         }
     }
 

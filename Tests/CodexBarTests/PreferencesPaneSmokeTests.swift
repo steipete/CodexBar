@@ -12,7 +12,7 @@ struct PreferencesPaneSmokeTests {
         let store = Self.makeUsageStore(settings: settings)
 
         _ = GeneralPane(settings: settings, store: store).body
-        _ = DisplayPane(settings: settings).body
+        _ = DisplayPane(settings: settings, store: store).body
         _ = AdvancedPane(settings: settings).body
         _ = ProvidersPane(settings: settings, store: store).body
         _ = DebugPane(settings: settings, store: store).body
@@ -30,13 +30,14 @@ struct PreferencesPaneSmokeTests {
         settings.hidePersonalInfo = true
         settings.resetTimesShowAbsolute = true
         settings.debugDisableKeychainAccess = true
+        settings.claudeOAuthKeychainPromptMode = .always
         settings.refreshFrequency = .manual
 
         let store = Self.makeUsageStore(settings: settings)
         store._setErrorForTesting("Example error", provider: .codex)
 
         _ = GeneralPane(settings: settings, store: store).body
-        _ = DisplayPane(settings: settings).body
+        _ = DisplayPane(settings: settings, store: store).body
         _ = AdvancedPane(settings: settings).body
         _ = ProvidersPane(settings: settings, store: store).body
         _ = DebugPane(settings: settings, store: store).body

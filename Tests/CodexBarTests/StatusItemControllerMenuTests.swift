@@ -50,4 +50,59 @@ struct StatusItemControllerMenuTests {
 
         #expect(percent == 80)
     }
+
+    @Test
+    func openRouterBrandFallbackEnabledWhenNoKeyLimitConfigured() {
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45,
+            balance: 5,
+            usedPercent: 90,
+            keyDataFetched: true,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        #expect(StatusItemController.shouldUseOpenRouterBrandFallback(
+            provider: .openrouter,
+            snapshot: snapshot))
+        #expect(MenuBarDisplayText.percentText(window: snapshot.primary, showUsed: false) == nil)
+    }
+
+    @Test
+    func openRouterBrandFallbackDisabledWhenKeyQuotaFetchUnavailable() {
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45,
+            balance: 5,
+            usedPercent: 90,
+            keyDataFetched: false,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        #expect(!StatusItemController.shouldUseOpenRouterBrandFallback(
+            provider: .openrouter,
+            snapshot: snapshot))
+    }
+
+    @Test
+    func openRouterBrandFallbackDisabledWhenKeyQuotaAvailable() {
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45,
+            balance: 5,
+            usedPercent: 90,
+            keyLimit: 20,
+            keyUsage: 2,
+            rateLimit: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        #expect(!StatusItemController.shouldUseOpenRouterBrandFallback(
+            provider: .openrouter,
+            snapshot: snapshot))
+        #expect(snapshot.primary?.usedPercent == 10)
+    }
 }
