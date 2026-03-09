@@ -204,8 +204,10 @@ class Handler(BaseHTTPRequestHandler):
                     "data": data,
                 },
             )
+        except FileNotFoundError as e:
+            self._write_json(500, {"ok": False, "error": "runtime_missing", "detail": str(e)})
         except Exception as e:
-            self._write_json(500, {"ok": False, "error": str(e)})
+            self._write_json(500, {"ok": False, "error": "bridge_error", "detail": str(e)})
 
 
 def main() -> None:

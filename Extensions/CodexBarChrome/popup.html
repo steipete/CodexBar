@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;width:340px;margin:0;background:#f8fafc;color:#0f172a}
+    .wrap{padding:12px}
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-bottom:8px}
+    h1{font-size:16px;margin:0 0 8px}
+    .muted{font-size:12px;color:#64748b}
+    .kpi{display:flex;justify-content:space-between;margin:5px 0;font-size:13px}
+    button,select{width:100%;padding:8px;border-radius:8px;border:1px solid #cbd5e1;background:#fff}
+    .btn{background:#2563eb;color:#fff;border:none;font-weight:600}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th,td{padding:5px;border-bottom:1px solid #e2e8f0;text-align:left}
+    .ok{color:#15803d;font-weight:600}
+    .err{color:#b91c1c;font-weight:600}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>CodexBar Usage</h1>
+      <div id="status" class="muted">Checking local bridge…</div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <select id="range">
+          <option value="daily">Daily</option>
+          <option value="weekly" selected>Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+        <button id="refresh">Refresh</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="kpi"><span>Total Used</span><strong id="used">-</strong></div>
+      <div class="kpi"><span>Total Limit</span><strong id="limit">-</strong></div>
+      <div class="kpi"><span>Utilization</span><strong id="util">-</strong></div>
+      <div class="kpi"><span>Cost (USD)</span><strong id="cost">-</strong></div>
+      <div class="kpi"><span>Providers</span><strong id="providers">-</strong></div>
+      <div class="kpi"><span>Models</span><strong id="models">-</strong></div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px">Top models</div>
+      <table>
+        <thead><tr><th>Model</th><th>Used</th><th>%</th></tr></thead>
+        <tbody id="modelRows"><tr><td colspan="3" class="muted">No data</td></tr></tbody>
+      </table>
+    </div>
+
+    <button id="openOptions" class="btn">Settings</button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
