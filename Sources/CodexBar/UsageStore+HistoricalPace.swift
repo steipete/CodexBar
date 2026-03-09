@@ -8,7 +8,7 @@ extension UsageStore {
     private static let backfillMaxTimestampMismatch: TimeInterval = 5 * 60
 
     func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> UsagePace? {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard provider == .codex || provider == .claude || provider == .abacus else { return nil }
         guard window.remainingPercent > 0 else { return nil }
         let resolved: UsagePace?
         if provider == .codex, self.settings.historicalTrackingEnabled {
