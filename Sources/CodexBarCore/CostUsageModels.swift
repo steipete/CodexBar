@@ -29,11 +29,13 @@ public struct CostUsageDailyReport: Sendable, Decodable {
     public struct ModelBreakdown: Sendable, Decodable, Equatable {
         public let modelName: String
         public let costUSD: Double?
+        public let totalTokens: Int?
 
         private enum CodingKeys: String, CodingKey {
             case modelName
             case costUSD
             case cost
+            case totalTokens
         }
 
         public init(from decoder: Decoder) throws {
@@ -42,11 +44,13 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.costUSD =
                 try container.decodeIfPresent(Double.self, forKey: .costUSD)
                 ?? container.decodeIfPresent(Double.self, forKey: .cost)
+            self.totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
         }
 
-        public init(modelName: String, costUSD: Double?) {
+        public init(modelName: String, costUSD: Double?, totalTokens: Int? = nil) {
             self.modelName = modelName
             self.costUSD = costUSD
+            self.totalTokens = totalTokens
         }
     }
 

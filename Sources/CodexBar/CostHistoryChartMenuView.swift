@@ -9,14 +9,27 @@ struct CostHistoryChartMenuView: View {
     private struct Point: Identifiable {
         let id: String
         let date: Date
-        let costUSD: Double
+        let displayCostUSD: Double
+        let actualCostUSD: Double?
         let totalTokens: Int?
+        let hasUsage: Bool
+        let isPlaceholder: Bool
 
-        init(date: Date, costUSD: Double, totalTokens: Int?) {
+        init(
+            date: Date,
+            displayCostUSD: Double,
+            actualCostUSD: Double?,
+            totalTokens: Int?,
+            hasUsage: Bool,
+            isPlaceholder: Bool = false)
+        {
             self.date = date
-            self.costUSD = costUSD
+            self.displayCostUSD = displayCostUSD
+            self.actualCostUSD = actualCostUSD
             self.totalTokens = totalTokens
-            self.id = "\(Int(date.timeIntervalSince1970))-\(costUSD)"
+            self.hasUsage = hasUsage
+            self.isPlaceholder = isPlaceholder
+            self.id = "\(Int(date.timeIntervalSince1970))-\(displayCostUSD)-\(isPlaceholder)-\(hasUsage)"
         }
     }
 
@@ -25,6 +38,16 @@ struct CostHistoryChartMenuView: View {
     private let totalCostUSD: Double?
     private let width: CGFloat
     @State private var selectedDateKey: String?
+
+    private struct DetailModelLine: Identifiable {
+        let id: String
+        let text: String
+    }
+
+    private struct DetailContent {
+        let primary: String
+        let models: [DetailModelLine]
+    }
 
     init(provider: UsageProvider, daily: [DailyEntry], totalCostUSD: Double?, width: CGFloat) {
         self.provider = provider
@@ -45,15 +68,16 @@ struct CostHistoryChartMenuView: View {
                     ForEach(model.points) { point in
                         BarMark(
                             x: .value("Day", point.date, unit: .day),
-                            y: .value("Cost", point.costUSD))
-                            .foregroundStyle(model.barColor)
+                            y: .value("Cost", point.displayCostUSD))
+                            .foregroundStyle(point.isPlaceholder ? Color.clear : model.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
-                        let capStart = max(peak.costUSD - Self.capHeight(maxValue: model.maxCostUSD), 0)
+                        let peakCostUSD = peak.actualCostUSD ?? 0
+                        let capStart = max(peakCostUSD - Self.capHeight(maxValue: model.maxCostUSD), 0)
                         BarMark(
                             x: .value("Day", peak.date, unit: .day),
                             yStart: .value("Cap start", capStart),
-                            yEnd: .value("Cap end", peak.costUSD))
+                            yEnd: .value("Cap end", peakCostUSD))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
@@ -68,7 +92,8 @@ struct CostHistoryChartMenuView: View {
                     }
                 }
                 .chartLegend(.hidden)
-                .frame(height: 130)
+                .chartYScale(domain: 0...model.chartMaxCostUSD)
+                .frame(maxWidth: .infinity, minHeight: 130, maxHeight: 130)
                 .chartOverlay { proxy in
                     GeometryReader { geo in
                         ZStack(alignment: .topLeading) {
@@ -88,21 +113,27 @@ struct CostHistoryChartMenuView: View {
                     }
                 }
 
-                let detail = self.detailLines(model: model)
+                let detail = self.detailContent(model: model)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(detail.primary)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .frame(height: 16, alignment: .leading)
-                    Text(detail.secondary ?? " ")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(height: 16, alignment: .leading)
-                        .opacity(detail.secondary == nil ? 0 : 1)
+                        .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(0..<model.maxDetailLineCount, id: \.self) { index in
+                            let line = index < detail.models.count ? detail.models[index] : nil
+                            Text(line?.text ?? " ")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .opacity(line == nil ? 0 : 1)
+                        }
+                    }
+                    .padding(.top, 6)
                 }
             }
 
@@ -110,11 +141,12 @@ struct CostHistoryChartMenuView: View {
                 Text("Total (30d): \(UsageFormatter.usdString(total))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .frame(minWidth: self.width, maxWidth: .infinity, alignment: .leading)
+        .frame(width: self.width, alignment: .leading)
     }
 
     private struct Model {
@@ -126,6 +158,9 @@ struct CostHistoryChartMenuView: View {
         let barColor: Color
         let peakKey: String?
         let maxCostUSD: Double
+        let minimumVisibleCostUSD: Double
+        let chartMaxCostUSD: Double
+        let maxDetailLineCount: Int
     }
 
     private static let selectionBandColor = Color(nsColor: .labelColor).opacity(0.1)
@@ -136,34 +171,72 @@ struct CostHistoryChartMenuView: View {
 
     private static func makeModel(provider: UsageProvider, daily: [DailyEntry]) -> Model {
         let sorted = daily.sorted { lhs, rhs in lhs.date < rhs.date }
-        var points: [Point] = []
-        points.reserveCapacity(sorted.count)
-
-        var pointsByKey: [String: Point] = [:]
-        pointsByKey.reserveCapacity(sorted.count)
-
         var entriesByKey: [String: DailyEntry] = [:]
         entriesByKey.reserveCapacity(sorted.count)
 
+        for entry in sorted {
+            entriesByKey[entry.date] = entry
+        }
+
+        let dayRange = Self.contiguousDayKeys(from: sorted)
+
+        var points: [Point] = []
+        points.reserveCapacity(dayRange.count)
+
+        var pointsByKey: [String: Point] = [:]
+        pointsByKey.reserveCapacity(dayRange.count)
+
         var dateKeys: [(key: String, date: Date)] = []
-        dateKeys.reserveCapacity(sorted.count)
+        dateKeys.reserveCapacity(dayRange.count)
 
         var peak: (key: String, costUSD: Double)?
         var maxCostUSD: Double = 0
+        var maxDetailLineCount = 1
+
         for entry in sorted {
-            guard let costUSD = entry.costUSD, costUSD > 0 else { continue }
-            guard let date = self.dateFromDayKey(entry.date) else { continue }
-            let point = Point(date: date, costUSD: costUSD, totalTokens: entry.totalTokens)
-            points.append(point)
-            pointsByKey[entry.date] = point
-            entriesByKey[entry.date] = entry
-            dateKeys.append((entry.date, date))
-            if let cur = peak {
-                if costUSD > cur.costUSD { peak = (entry.date, costUSD) }
-            } else {
-                peak = (entry.date, costUSD)
+            if let costUSD = entry.costUSD, costUSD > 0 {
+                maxCostUSD = max(maxCostUSD, costUSD)
             }
-            maxCostUSD = max(maxCostUSD, costUSD)
+        }
+
+        let minimumVisibleCostUSD: Double = if maxCostUSD > 0 {
+            maxCostUSD * 0.01
+        } else if sorted.contains(where: Self.hasUsage(entry:)) {
+            1
+        } else {
+            0
+        }
+
+        for item in dayRange {
+            let entry = entriesByKey[item.key]
+            let actualCostUSD = entry.flatMap(\.costUSD).map { max(0, $0) }
+            let hasUsage = entry.map { Self.hasUsage(entry: $0) } ?? false
+            let displayCostUSD = if hasUsage {
+                max(actualCostUSD ?? 0.0, minimumVisibleCostUSD)
+            } else {
+                0.0
+            }
+            let point = Point(
+                date: item.date,
+                displayCostUSD: displayCostUSD,
+                actualCostUSD: actualCostUSD,
+                totalTokens: entry?.totalTokens,
+                hasUsage: hasUsage,
+                isPlaceholder: entry == nil)
+            points.append(point)
+            pointsByKey[item.key] = point
+            dateKeys.append((item.key, item.date))
+            if let entry {
+                maxDetailLineCount = max(maxDetailLineCount, Self.detailLineCount(for: entry))
+            }
+
+            if let actualCostUSD, actualCostUSD > 0 {
+                if let cur = peak {
+                    if actualCostUSD > cur.costUSD { peak = (item.key, actualCostUSD) }
+                } else {
+                    peak = (item.key, actualCostUSD)
+                }
+            }
         }
 
         let axisDates: [Date] = {
@@ -171,6 +244,8 @@ struct CostHistoryChartMenuView: View {
             if Calendar.current.isDate(first, inSameDayAs: last) { return [first] }
             return [first, last]
         }()
+
+        let chartMaxCostUSD = max(maxCostUSD, minimumVisibleCostUSD * 8, 1)
 
         let barColor = Self.barColor(for: provider)
         return Model(
@@ -181,7 +256,10 @@ struct CostHistoryChartMenuView: View {
             axisDates: axisDates,
             barColor: barColor,
             peakKey: peak?.key,
-            maxCostUSD: maxCostUSD)
+            maxCostUSD: maxCostUSD,
+            minimumVisibleCostUSD: minimumVisibleCostUSD,
+            chartMaxCostUSD: chartMaxCostUSD,
+            maxDetailLineCount: maxDetailLineCount)
     }
 
     private static func barColor(for provider: UsageProvider) -> Color {
@@ -206,9 +284,52 @@ struct CostHistoryChartMenuView: View {
         return comps.date
     }
 
+    private static func contiguousDayKeys(from sorted: [DailyEntry]) -> [(key: String, date: Date)] {
+        guard let firstEntry = sorted.first,
+              let lastEntry = sorted.last,
+              let firstDate = self.dateFromDayKey(firstEntry.date),
+              let lastDate = self.dateFromDayKey(lastEntry.date)
+        else {
+            return []
+        }
+
+        var days: [(key: String, date: Date)] = []
+        var current = firstDate
+        let calendar = Calendar.current
+
+        while current <= lastDate {
+            let comps = calendar.dateComponents([.year, .month, .day], from: current)
+            let key = String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
+            days.append((key, current))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+
+        return days
+    }
+
     private static func peakPoint(model: Model) -> Point? {
         guard let key = model.peakKey else { return nil }
         return model.pointsByDateKey[key]
+    }
+
+    private static func detailLineCount(for entry: DailyEntry) -> Int {
+        guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return 1 }
+        return breakdown.count
+    }
+
+    private static func hasUsage(entry: DailyEntry) -> Bool {
+        if let totalTokens = entry.totalTokens, totalTokens > 0 {
+            return true
+        }
+        if (entry.inputTokens ?? 0) > 0
+            || (entry.outputTokens ?? 0) > 0
+            || (entry.cacheCreationTokens ?? 0) > 0
+            || (entry.cacheReadTokens ?? 0) > 0
+        {
+            return true
+        }
+        return false
     }
 
     private func selectionBandRect(model: Model, proxy: ChartProxy, geo: GeometryProxy) -> CGRect? {
@@ -286,41 +407,70 @@ struct CostHistoryChartMenuView: View {
         return best?.key
     }
 
-    private func detailLines(model: Model) -> (primary: String, secondary: String?) {
+    private func detailContent(model: Model) -> DetailContent {
         guard let key = self.selectedDateKey,
               let point = model.pointsByDateKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return ("Hover a bar for details", nil)
+            return DetailContent(primary: "Hover a bar for details", models: [])
+        }
+
+        guard !point.isPlaceholder else {
+            let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
+            return DetailContent(primary: "\(dayLabel): No cost data", models: [])
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
-        let cost = UsageFormatter.usdString(point.costUSD)
-        if let tokens = point.totalTokens {
-            let primary = "\(dayLabel): \(cost) · \(UsageFormatter.tokenCountString(tokens)) tokens"
-            let secondary = self.topModelsText(key: key, model: model)
-            return (primary, secondary)
+        let partial = self.hasUnpricedModels(key: key, model: model) ? " partial" : ""
+        let models = self.topModelLines(key: key, model: model)
+        let primary = if let actualCostUSD = point.actualCostUSD, actualCostUSD > 0 {
+            "\(dayLabel): \(UsageFormatter.usdString(actualCostUSD))\(partial)"
+        } else if point.hasUsage {
+            "\(dayLabel): No priced cost data"
+        } else {
+            "\(dayLabel): No cost data"
         }
-        let primary = "\(dayLabel): \(cost)"
-        let secondary = self.topModelsText(key: key, model: model)
-        return (primary, secondary)
+
+        if let tokens = point.totalTokens {
+            return DetailContent(
+                primary: "\(primary) · \(UsageFormatter.tokenCountString(tokens)) tokens",
+                models: models)
+        }
+        return DetailContent(primary: primary, models: models)
     }
 
-    private func topModelsText(key: String, model: Model) -> String? {
-        guard let entry = model.entriesByDateKey[key] else { return nil }
-        guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return nil }
+    private func hasUnpricedModels(key: String, model: Model) -> Bool {
+        guard let entry = model.entriesByDateKey[key],
+              let breakdown = entry.modelBreakdowns
+        else {
+            return false
+        }
+        return breakdown.contains { $0.costUSD == nil }
+    }
+
+    private func topModelLines(key: String, model: Model) -> [DetailModelLine] {
+        guard let entry = model.entriesByDateKey[key] else { return [] }
+        guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return [] }
         let parts = breakdown
-            .compactMap { item -> (name: String, costUSD: Double)? in
-                guard let costUSD = item.costUSD, costUSD > 0 else { return nil }
-                return (UsageFormatter.modelDisplayName(item.modelName), costUSD)
+            .map { item in
+                (
+                    name: UsageFormatter.modelDisplayName(item.modelName),
+                    costUSD: item.costUSD,
+                    totalTokens: item.totalTokens)
             }
             .sorted { lhs, rhs in
-                if lhs.costUSD == rhs.costUSD { return lhs.name < rhs.name }
-                return lhs.costUSD > rhs.costUSD
+                lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
             }
-            .prefix(3)
-            .map { "\($0.name) \(UsageFormatter.usdString($0.costUSD))" }
-        guard !parts.isEmpty else { return nil }
-        return "Top: \(parts.joined(separator: " · "))"
+            .map { item in
+                let tokensSuffix = item.totalTokens.map { " · \(UsageFormatter.tokenCountString($0)) tokens" } ?? ""
+                if let costUSD = item.costUSD, costUSD > 0 {
+                    return DetailModelLine(
+                        id: item.name,
+                        text: "\(item.name): \(UsageFormatter.usdString(costUSD))\(tokensSuffix)")
+                }
+                let suffix = item.name == "GPT-5.3 Spark" ? "Research Preview" : "unpriced"
+                return DetailModelLine(id: item.name, text: "\(item.name): \(suffix)\(tokensSuffix)")
+            }
+        return Array(parts)
     }
 }

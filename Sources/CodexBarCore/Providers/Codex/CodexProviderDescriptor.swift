@@ -12,8 +12,8 @@ public enum CodexProviderDescriptor {
                 displayName: "Codex",
                 sessionLabel: "Session",
                 weeklyLabel: "Weekly",
-                opusLabel: nil,
-                supportsOpus: false,
+                opusLabel: "Spark",
+                supportsOpus: true,
                 supportsCredits: true,
                 creditsHint: "Credits unavailable; keep Codex running to refresh.",
                 toggleTitle: "Show Codex usage",
@@ -164,6 +164,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
     private static func mapUsage(_ response: CodexUsageResponse, credentials: CodexOAuthCredentials) -> UsageSnapshot {
         let primary = Self.makeWindow(response.rateLimit?.primaryWindow)
         let secondary = Self.makeWindow(response.rateLimit?.secondaryWindow)
+        let tertiary = Self.makeSparkWindow(response.additionalRateLimits)
 
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -174,7 +175,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         return UsageSnapshot(
             primary: primary ?? RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: secondary,
-            tertiary: nil,
+            tertiary: tertiary,
             updatedAt: Date(),
             identity: identity)
     }
@@ -193,6 +194,22 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             windowMinutes: window.limitWindowSeconds / 60,
             resetsAt: resetDate,
             resetDescription: resetDescription)
+    }
+
+    private static func makeSparkWindow(_ rateLimits: [CodexUsageResponse.AdditionalRateLimit]?) -> RateWindow? {
+        guard let sparkRateLimit = rateLimits?.first(where: self.isSparkRateLimit) else { return nil }
+        return self.makeWindow(sparkRateLimit.rateLimit?.secondaryWindow)
+            ?? self.makeWindow(sparkRateLimit.rateLimit?.primaryWindow)
+    }
+
+    private static func isSparkRateLimit(_ rateLimit: CodexUsageResponse.AdditionalRateLimit) -> Bool {
+        let limitName = rateLimit.limitName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if limitName == "gpt-5.3-codex-spark" {
+            return true
+        }
+
+        let meteredFeature = rateLimit.meteredFeature?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return meteredFeature == "codex_bengalfox"
     }
 
     private static func resolveAccountEmail(from credentials: CodexOAuthCredentials) -> String? {

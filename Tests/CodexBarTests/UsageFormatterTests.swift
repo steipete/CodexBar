@@ -99,6 +99,14 @@ struct UsageFormatterTests {
         #expect(UsageFormatter.modelDisplayName("gpt-4o-2024-08-06") == "gpt-4o")
         #expect(UsageFormatter.modelDisplayName("Claude Opus 4.5 2025 1101") == "Claude Opus 4.5")
         #expect(UsageFormatter.modelDisplayName("claude-sonnet-4-5") == "claude-sonnet-4-5")
+        #expect(UsageFormatter.modelDisplayName("gpt-5.4") == "GPT-5.4")
+        #expect(UsageFormatter.modelDisplayName("gpt-5-mini") == "GPT-5 Mini")
+        #expect(UsageFormatter.modelDisplayName("gpt-5-nano") == "GPT-5 Nano")
+        #expect(UsageFormatter.modelDisplayName("gpt-5.2-pro") == "GPT-5.2 Pro")
+        #expect(UsageFormatter.modelDisplayName("gpt-5.2-codex") == "GPT-5.2 Codex")
+        #expect(UsageFormatter.modelDisplayName("gpt-5.1-codex-max") == "GPT-5.1 Codex Max")
+        #expect(UsageFormatter.modelDisplayName("gpt-5.3-codex-spark") == "GPT-5.3 Spark")
+        #expect(UsageFormatter.modelDisplayName("unknown") == "Unknown model")
     }
 
     @Test

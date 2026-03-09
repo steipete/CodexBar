@@ -6,6 +6,8 @@ public enum ResetTimeDisplayStyle: String, Codable, Sendable {
 }
 
 public enum UsageFormatter {
+    private static let gptModelRegex = try? NSRegularExpression(pattern: #"^gpt-([0-9.]+)(?:-(.+))?$"#)
+
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
         let clamped = min(100, max(0, percent))
@@ -186,6 +188,10 @@ public enum UsageFormatter {
         var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return raw }
 
+        if cleaned.lowercased() == "unknown" {
+            return "Unknown model"
+        }
+
         let patterns = [
             #"(?:-|\s)\d{8}$"#,
             #"(?:-|\s)\d{4}-\d{2}-\d{2}$"#,
@@ -203,7 +209,43 @@ public enum UsageFormatter {
             cleaned.removeSubrange(trailing)
         }
 
+        let lower = cleaned.lowercased()
+        if lower.hasPrefix("gpt-5") {
+            return self.gptModelDisplayName(from: lower) ?? cleaned
+        }
+
         return cleaned.isEmpty ? raw : cleaned
+    }
+
+    private static func gptModelDisplayName(from raw: String) -> String? {
+        guard let regex = self.gptModelRegex else { return nil }
+        let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
+        guard let match = regex.firstMatch(in: raw, range: range) else { return nil }
+        guard let versionRange = Range(match.range(at: 1), in: raw) else { return nil }
+
+        let version = raw[versionRange]
+        guard let suffixRange = Range(match.range(at: 2), in: raw) else {
+            return "GPT-\(version)"
+        }
+
+        let suffix = String(raw[suffixRange])
+        switch suffix {
+        case "codex":
+            return "GPT-\(version) Codex"
+        case "codex-max":
+            return "GPT-\(version) Codex Max"
+        case "codex-mini":
+            return "GPT-\(version) Codex Mini"
+        case "codex-spark":
+            return "GPT-\(version) Spark"
+        default:
+            let words = suffix.split(separator: "-").map { part in
+                let text = String(part)
+                if text.uppercased() == "GPT" { return "GPT" }
+                return String(text.prefix(1)).uppercased() + String(text.dropFirst())
+            }
+            return "GPT-\(version) \(words.joined(separator: " "))"
+        }
     }
 
     /// Cleans a provider plan string: strip ANSI/bracket noise, drop boilerplate words, collapse whitespace, and

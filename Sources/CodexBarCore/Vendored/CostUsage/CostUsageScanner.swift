@@ -1,6 +1,13 @@
 import Foundation
 
 enum CostUsageScanner {
+    private static let codexSessionMetaModelRegex = try? NSRegularExpression(
+        pattern: #"GPT-([0-9]+(?:\.[0-9]+)?)(?:\s+(Codex|Mini|Nano|Pro))?(?:\s+(Max|Mini|Spark))?"#,
+        options: [.caseInsensitive])
+    private static let codexTurnContextModelRegex = try? NSRegularExpression(
+        pattern: #""model":"([^"]+)""#,
+        options: [])
+
     enum ClaudeLogProviderFilter: Sendable {
         case all
         case vertexAIOnly
@@ -241,14 +248,14 @@ enum CostUsageScanner {
         func add(dayKey: String, model: String, input: Int, cached: Int, output: Int) {
             guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
             else { return }
-            let normModel = CostUsagePricing.normalizeCodexModel(model)
+            let displayModel = CostUsagePricing.displayCodexModel(model)
 
             var dayModels = days[dayKey] ?? [:]
-            var packed = dayModels[normModel] ?? [0, 0, 0]
+            var packed = dayModels[displayModel] ?? [0, 0, 0]
             packed[0] = (packed[safe: 0] ?? 0) + input
             packed[1] = (packed[safe: 1] ?? 0) + cached
             packed[2] = (packed[safe: 2] ?? 0) + output
-            dayModels[normModel] = packed
+            dayModels[displayModel] = packed
             days[dayKey] = dayModels
         }
 
@@ -262,7 +269,13 @@ enum CostUsageScanner {
             prefixBytes: prefixBytes,
             onLine: { line in
                 guard !line.bytes.isEmpty else { return }
-                guard !line.wasTruncated else { return }
+
+                if line.wasTruncated {
+                    Self.updateCodexStateFromTruncatedLine(
+                        line: line,
+                        currentModel: &currentModel)
+                    return
+                }
 
                 guard
                     line.bytes.containsAscii(#""type":"event_msg""#)
@@ -280,14 +293,17 @@ enum CostUsageScanner {
                 else { return }
 
                 if type == "session_meta" {
+                    let payload = obj["payload"] as? [String: Any]
                     if sessionId == nil {
-                        let payload = obj["payload"] as? [String: Any]
                         sessionId = payload?["session_id"] as? String
                             ?? payload?["sessionId"] as? String
                             ?? payload?["id"] as? String
                             ?? obj["session_id"] as? String
                             ?? obj["sessionId"] as? String
                             ?? obj["id"] as? String
+                    }
+                    if currentModel == nil {
+                        currentModel = Self.codexModelFromSessionMeta(payload: payload)
                     }
                     return
                 }
@@ -315,7 +331,10 @@ enum CostUsageScanner {
                     ?? info?["model_name"] as? String
                     ?? payload["model"] as? String
                     ?? obj["model"] as? String
-                let model = modelFromInfo ?? currentModel ?? "gpt-5"
+                let model = modelFromInfo
+                    ?? currentModel
+                    ?? Self.codexModelFromRateLimits(payload: payload, info: info)
+                    ?? "unknown"
 
                 func toInt(_ v: Any?) -> Int {
                     if let n = v as? NSNumber { return n.intValue }
@@ -358,6 +377,92 @@ enum CostUsageScanner {
             lastModel: currentModel,
             lastTotals: previousTotals,
             sessionId: sessionId)
+    }
+
+    private static func updateCodexStateFromTruncatedLine(line: CostUsageJsonl.Line, currentModel: inout String?) {
+        guard line.bytes.containsAscii(#""type":"turn_context""#) || line.bytes.containsAscii(#""type":"session_meta""#)
+        else {
+            return
+        }
+
+        if currentModel == nil {
+            currentModel = self.codexModelFromTruncatedLinePrefix(line.bytes)
+        }
+    }
+
+    private static func codexModelFromTruncatedLinePrefix(_ bytes: Data) -> String? {
+        guard let text = String(data: bytes, encoding: .utf8) else { return nil }
+
+        if let regex = self.codexTurnContextModelRegex {
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            if let match = regex.firstMatch(in: text, range: range),
+               let modelRange = Range(match.range(at: 1), in: text)
+            {
+                return String(text[modelRange])
+            }
+        }
+
+        return Self.codexModelFromInstructions(text)
+    }
+
+    private static func codexModelFromSessionMeta(payload: [String: Any]?) -> String? {
+        guard let payload else { return nil }
+
+        if let model = payload["model"] as? String {
+            return model
+        }
+
+        if let baseInstructions = (payload["base_instructions"] as? [String: Any])?["text"] as? String {
+            return Self.codexModelFromInstructions(baseInstructions)
+        }
+
+        return nil
+    }
+
+    private static func codexModelFromInstructions(_ text: String) -> String? {
+        guard let regex = self.codexSessionMetaModelRegex else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, range: range) else { return nil }
+        guard let versionRange = Range(match.range(at: 1), in: text) else { return nil }
+
+        let version = text[versionRange].lowercased()
+        var model = "gpt-\(version)"
+
+        let primaryTier = Range(match.range(at: 2), in: text).map { text[$0].lowercased() }
+        let secondaryTier = Range(match.range(at: 3), in: text).map { text[$0].lowercased() }
+
+        switch primaryTier {
+        case "codex":
+            model += "-codex"
+            if let secondaryTier {
+                model += "-\(secondaryTier)"
+            }
+        case "mini", "nano", "pro":
+            model += "-\(primaryTier!)"
+        default:
+            break
+        }
+
+        return model
+    }
+
+    private static func codexModelFromRateLimits(payload: [String: Any], info: [String: Any]?) -> String? {
+        let rateLimits = payload["rate_limits"] as? [String: Any]
+            ?? info?["rate_limits"] as? [String: Any]
+
+        if let limitName = rateLimits?["limit_name"] as? String,
+           limitName.caseInsensitiveCompare("GPT-5.3-Codex-Spark") == .orderedSame
+        {
+            return "gpt-5.3-codex-spark"
+        }
+
+        if let meteredFeature = rateLimits?["metered_feature"] as? String,
+           meteredFeature.localizedCaseInsensitiveContains("spark")
+        {
+            return "gpt-5.3-codex-spark"
+        }
+
+        return nil
     }
 
     private static func scanCodexFile(
@@ -536,6 +641,7 @@ enum CostUsageScanner {
         var totalTokens = 0
         var totalCost: Double = 0
         var costSeen = false
+        var hasUnknownCost = false
 
         let dayKeys = cache.days.keys.sorted().filter {
             CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
@@ -551,6 +657,7 @@ enum CostUsageScanner {
             var breakdown: [CostUsageDailyReport.ModelBreakdown] = []
             var dayCost: Double = 0
             var dayCostSeen = false
+            var dayHasUnknownCost = false
 
             for model in modelNames {
                 let packed = models[model] ?? [0, 0, 0]
@@ -566,15 +673,21 @@ enum CostUsageScanner {
                     inputTokens: input,
                     cachedInputTokens: cached,
                     outputTokens: output)
-                breakdown.append(CostUsageDailyReport.ModelBreakdown(modelName: model, costUSD: cost))
+                breakdown.append(CostUsageDailyReport.ModelBreakdown(
+                    modelName: model,
+                    costUSD: cost,
+                    totalTokens: input + output))
                 if let cost {
                     dayCost += cost
                     dayCostSeen = true
+                } else if input > 0 || cached > 0 || output > 0 {
+                    dayHasUnknownCost = true
                 }
             }
 
-            breakdown.sort { lhs, rhs in (rhs.costUSD ?? -1) < (lhs.costUSD ?? -1) }
-            let top = Array(breakdown.prefix(3))
+            breakdown.sort {
+                $0.modelName.localizedStandardCompare($1.modelName) == .orderedAscending
+            }
 
             let dayTotal = dayInput + dayOutput
             let entryCost = dayCostSeen ? dayCost : nil
@@ -585,11 +698,14 @@ enum CostUsageScanner {
                 totalTokens: dayTotal,
                 costUSD: entryCost,
                 modelsUsed: modelNames,
-                modelBreakdowns: top))
+                modelBreakdowns: breakdown))
 
             totalInput += dayInput
             totalOutput += dayOutput
             totalTokens += dayTotal
+            if dayHasUnknownCost {
+                hasUnknownCost = true
+            }
             if let entryCost {
                 totalCost += entryCost
                 costSeen = true
@@ -602,7 +718,7 @@ enum CostUsageScanner {
                 totalInputTokens: totalInput,
                 totalOutputTokens: totalOutput,
                 totalTokens: totalTokens,
-                totalCostUSD: costSeen ? totalCost : nil)
+                totalCostUSD: costSeen && !hasUnknownCost ? totalCost : nil)
 
         return CostUsageDailyReport(data: entries, summary: summary)
     }

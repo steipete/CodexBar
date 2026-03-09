@@ -57,7 +57,10 @@ struct CLICostTests {
                     costUSD: 0.01,
                     modelsUsed: ["claude-sonnet-4-20250514"],
                     modelBreakdowns: [
-                        CostModelBreakdownPayload(modelName: "claude-sonnet-4-20250514", costUSD: 0.01),
+                        CostModelBreakdownPayload(
+                            modelName: "claude-sonnet-4-20250514",
+                            costUSD: 0.01,
+                            totalTokens: 15),
                     ]),
             ],
             totals: CostTotalsPayload(

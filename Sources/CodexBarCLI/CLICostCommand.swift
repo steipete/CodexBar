@@ -117,7 +117,10 @@ extension CodexBarCLI {
                 costUSD: entry.costUSD,
                 modelsUsed: entry.modelsUsed,
                 modelBreakdowns: entry.modelBreakdowns?.map { breakdown in
-                    CostModelBreakdownPayload(modelName: breakdown.modelName, costUSD: breakdown.costUSD)
+                    CostModelBreakdownPayload(
+                        modelName: breakdown.modelName,
+                        costUSD: breakdown.costUSD,
+                        totalTokens: breakdown.totalTokens)
                 })
         } ?? []
 
@@ -272,10 +275,12 @@ struct CostDailyEntryPayload: Encodable {
 struct CostModelBreakdownPayload: Encodable {
     let modelName: String
     let costUSD: Double?
+    let totalTokens: Int?
 
     private enum CodingKeys: String, CodingKey {
         case modelName
         case costUSD = "cost"
+        case totalTokens
     }
 }
 

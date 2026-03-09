@@ -32,13 +32,16 @@ enum CostUsageJsonl {
         func appendSegment(_ segment: Data.SubSequence) {
             guard !segment.isEmpty else { return }
             lineBytes += segment.count
-            guard !truncated else { return }
+            if !truncated {
+                let remainingPrefix = max(0, prefixBytes - current.count)
+                if remainingPrefix > 0 {
+                    current.append(contentsOf: segment.prefix(remainingPrefix))
+                }
+            }
             if lineBytes > maxLineBytes || lineBytes > prefixBytes {
                 truncated = true
-                current.removeAll(keepingCapacity: true)
                 return
             }
-            current.append(contentsOf: segment)
         }
 
         func flushLine() {
