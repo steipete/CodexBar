@@ -1344,7 +1344,9 @@ extension StatusItemController {
         {
             self.store.weeklyPace(provider: target, window: weekly, now: now)
         } else {
-            snapshot?.secondary.flatMap { window in
+            // Abacus uses primary for monthly credits (no secondary window)
+            let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
+            paceWindow.flatMap { window in
                 self.store.weeklyPace(provider: target, window: window, now: now)
             }
         }

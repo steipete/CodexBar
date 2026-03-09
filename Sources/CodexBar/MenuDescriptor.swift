@@ -170,8 +170,9 @@ struct MenuDescriptor {
                     entries.append(.text(detail, .secondary))
                 }
                 if provider == .abacus,
-                   let paceSummary = UsagePaceText.weeklySummary(provider: provider, window: primary)
+                   let pace = store.weeklyPace(provider: provider, window: primary)
                 {
+                    let paceSummary = UsagePaceText.weeklySummary(pace: pace)
                     entries.append(.text(paceSummary, .secondary))
                 }
             }
