@@ -255,11 +255,11 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
             let securityData = self.makeCredentialsData(
                 accessToken: "security-token-a",
                 expiresAt: Date(timeIntervalSinceNow: 3600))
-            ClaudeOAuthCredentialsStore.setSecurityCLIReadOverrideForTesting(.data(securityData))
-            defer { ClaudeOAuthCredentialsStore.setSecurityCLIReadOverrideForTesting(nil) }
-            let outcome = await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
-                now: Date(timeIntervalSince1970: 60000),
-                timeout: 0.1)
+            let outcome = await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.data(securityData)) {
+                await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                    now: Date(timeIntervalSince1970: 60000),
+                    timeout: 0.1)
+            }
 
             guard case .attemptedFailed = outcome else {
                 Issue.record("Expected .attemptedFailed outcome")
@@ -325,12 +325,13 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
             ClaudeOAuthDelegatedRefreshCoordinator.setTouchAuthPathOverrideForTesting { _ in
                 dataBox.store(afterData)
             }
-            ClaudeOAuthCredentialsStore.setSecurityCLIReadOverrideForTesting(.dynamic { _ in dataBox.load() })
-            defer { ClaudeOAuthCredentialsStore.setSecurityCLIReadOverrideForTesting(nil) }
-
-            let outcome = await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
-                now: Date(timeIntervalSince1970: 61000),
-                timeout: 0.1)
+            let outcome = await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.dynamic { _ in
+                dataBox.load()
+            }) {
+                await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                    now: Date(timeIntervalSince1970: 61000),
+                    timeout: 0.1)
+            }
 
             #expect(outcome == .attemptedSucceeded)
             #expect(fingerprintCounter.count < 1)
@@ -390,12 +391,13 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
             ClaudeOAuthDelegatedRefreshCoordinator.setTouchAuthPathOverrideForTesting { _ in
                 dataBox.store(afterData)
             }
-            ClaudeOAuthCredentialsStore.setSecurityCLIReadOverrideForTesting(.dynamic { _ in dataBox.load() })
-            defer { ClaudeOAuthCredentialsStore.setSecurityCLIReadOverrideForTesting(nil) }
-
-            let outcome = await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
-                now: Date(timeIntervalSince1970: 61500),
-                timeout: 0.1)
+            let outcome = await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.dynamic { _ in
+                dataBox.load()
+            }) {
+                await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                    now: Date(timeIntervalSince1970: 61500),
+                    timeout: 0.1)
+            }
 
             guard case .attemptedFailed = outcome else {
                 Issue.record("Expected .attemptedFailed outcome when baseline is unavailable")
@@ -428,15 +430,15 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
                 expiresAt: Date(timeIntervalSinceNow: 3600))
             ClaudeOAuthDelegatedRefreshCoordinator.setCLIAvailableOverrideForTesting(true)
             ClaudeOAuthDelegatedRefreshCoordinator.setTouchAuthPathOverrideForTesting { _ in }
-            ClaudeOAuthCredentialsStore.setSecurityCLIReadOverrideForTesting(.dynamic { _ in
+            let outcome = await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.dynamic { _ in
                 securityReadCounter.increment()
                 return securityData
-            })
-            defer { ClaudeOAuthCredentialsStore.setSecurityCLIReadOverrideForTesting(nil) }
-            let outcome = await KeychainAccessGate.withTaskOverrideForTesting(true) {
-                await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
-                    now: Date(timeIntervalSince1970: 62000),
-                    timeout: 0.1)
+            }) {
+                await KeychainAccessGate.withTaskOverrideForTesting(true) {
+                    await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                        now: Date(timeIntervalSince1970: 62000),
+                        timeout: 0.1)
+                }
             }
 
             guard case .attemptedFailed = outcome else {
