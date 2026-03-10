@@ -48,7 +48,7 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .claudeNotInstalled:
-            "Claude CLI is not installed. Install it from https://docs.claude.ai/claude-code."
+            "Claude CLI is not installed. Install it from https://code.claude.com/docs/en/overview."
         case let .parseFailed(details):
             "Could not parse Claude usage: \(details)"
         case let .oauthFailed(details):
@@ -273,20 +273,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     // MARK: - Public API
 
     public func detectVersion() -> String? {
-        // Avoid leaking terminal control sequences (some `claude` builds write to /dev/tty even when stdout is piped).
-        guard TTYCommandRunner.which("claude") != nil else { return nil }
-        do {
-            let out = try TTYCommandRunner().run(
-                binary: "claude",
-                send: "",
-                options: TTYCommandRunner.Options(
-                    timeout: 5.0,
-                    extraArgs: ["--allowed-tools", "", "--version"],
-                    initialDelay: 0.0)).text
-            return TextParsing.stripANSICodes(out).trimmingCharacters(in: .whitespacesAndNewlines)
-        } catch {
-            return nil
-        }
+        ProviderVersionDetector.claudeVersion()
     }
 
     public func debugRawProbe(model: String = "sonnet") async -> String {
@@ -699,14 +686,13 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         let currency = extra.currency?.trimmingCharacters(in: .whitespacesAndNewlines)
         let code = (currency?.isEmpty ?? true) ? "USD" : currency!
         let normalized = Self.normalizeClaudeExtraUsageAmounts(used: used, limit: limit)
-        let snapshot = ProviderCostSnapshot(
+        return ProviderCostSnapshot(
             used: normalized.used,
             limit: normalized.limit,
             currencyCode: code,
             period: "Monthly",
             resetsAt: nil,
             updatedAt: Date())
-        return Self.rescaleClaudeExtraUsageCostIfNeeded(snapshot, loginMethod: loginMethod)
     }
 
     private static func normalizeClaudeExtraUsageAmounts(used: Double, limit: Double) -> (
@@ -714,38 +700,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     {
         // Claude's OAuth API returns values in cents (minor units), same as the Web API.
         // Always convert to dollars (major units) for display consistency.
-        // This removes the fragile heuristic that could fail on non-whole cent values
-        // (e.g., 5472.50 cents would not be detected as needing conversion).
         // See: ClaudeWebAPIFetcher.swift which always divides by 100.
         (used: used / 100.0, limit: limit / 100.0)
-    }
-
-    /// Some non-enterprise plans report extra usage amounts 100x too high.
-    /// Scale down again when limits are implausible.
-    private static func rescaleClaudeExtraUsageCostIfNeeded(
-        _ cost: ProviderCostSnapshot?,
-        loginMethod: String?) -> ProviderCostSnapshot?
-    {
-        guard let cost else { return nil }
-        guard let threshold = Self.extraUsageRescaleThreshold(for: loginMethod) else { return cost }
-        guard cost.limit >= threshold else { return cost }
-
-        return ProviderCostSnapshot(
-            used: cost.used / 100.0,
-            limit: cost.limit / 100.0,
-            currencyCode: cost.currencyCode,
-            period: cost.period,
-            resetsAt: cost.resetsAt,
-            updatedAt: cost.updatedAt)
-    }
-
-    private static func extraUsageRescaleThreshold(for loginMethod: String?) -> Double? {
-        let normalized =
-            loginMethod?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased() ?? ""
-        if normalized.contains("enterprise") { return nil }
-        return 1000
     }
 
     private static func inferPlan(rateLimitTier: String?) -> String? {
@@ -793,15 +749,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 resetDescription: webData.weeklyResetsAt.map { Self.formatResetDate($0) })
         }
 
-        let providerCost = Self.rescaleClaudeExtraUsageCostIfNeeded(
-            webData.extraUsageCost,
-            loginMethod: webData.loginMethod)
-
         return ClaudeUsageSnapshot(
             primary: primary,
             secondary: secondary,
             opus: opus,
-            providerCost: providerCost,
+            providerCost: webData.extraUsageCost,
             updatedAt: Date(),
             accountEmail: webData.accountEmail,
             accountOrganization: webData.accountOrganization,
@@ -881,14 +833,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 }
             // Only merge cost extras; keep identity fields from the primary data source.
             if snapshot.providerCost == nil, let extra = webData.extraUsageCost {
-                let normalizedExtra = Self.rescaleClaudeExtraUsageCostIfNeeded(
-                    extra,
-                    loginMethod: snapshot.loginMethod ?? webData.loginMethod)
                 return ClaudeUsageSnapshot(
                     primary: snapshot.primary,
                     secondary: snapshot.secondary,
                     opus: snapshot.opus,
-                    providerCost: normalizedExtra,
+                    providerCost: extra,
                     updatedAt: snapshot.updatedAt,
                     accountEmail: snapshot.accountEmail,
                     accountOrganization: snapshot.accountOrganization,
@@ -1074,15 +1023,6 @@ extension ClaudeUsageFetcher {
             scopes: [],
             rateLimitTier: rateLimitTier)
         return try Self.mapOAuthUsage(usage, credentials: creds)
-    }
-
-    public static func _rescaleExtraUsageForTesting(
-        _ cost: ProviderCostSnapshot?,
-        snapshotLoginMethod: String?,
-        webLoginMethod: String?) -> ProviderCostSnapshot?
-    {
-        let loginMethod = snapshotLoginMethod ?? webLoginMethod
-        return Self.rescaleClaudeExtraUsageCostIfNeeded(cost, loginMethod: loginMethod)
     }
 }
 #endif

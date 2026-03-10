@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 @Suite
 struct ClaudeOAuthTests {
@@ -122,7 +122,7 @@ struct ClaudeOAuthTests {
     }
 
     @Test
-    func rescalesOAuthExtraUsageWhenLimitIsImplausiblyHigh() throws {
+    func normalizesHighLimitOAuthExtraUsage() throws {
         let json = """
         {
           "five_hour": { "utilization": 1, "resets_at": "2025-12-25T12:00:00.000Z" },
@@ -138,12 +138,12 @@ struct ClaudeOAuthTests {
             Data(json.utf8),
             rateLimitTier: "claude_pro")
         #expect(snap.providerCost?.currencyCode == "USD")
-        #expect(snap.providerCost?.limit == 20)
-        #expect(snap.providerCost?.used == 2.22)
+        #expect(snap.providerCost?.limit == 2000)
+        #expect(snap.providerCost?.used == 222)
     }
 
     @Test
-    func rescalesOAuthExtraUsageWhenPlanMissing() throws {
+    func normalizesOAuthExtraUsageCentsToMajorUnits() throws {
         let json = """
         {
           "five_hour": { "utilization": 1, "resets_at": "2025-12-25T12:00:00.000Z" },
@@ -157,46 +157,8 @@ struct ClaudeOAuthTests {
         """
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
         #expect(snap.providerCost?.currencyCode == "USD")
-        #expect(snap.providerCost?.limit == 20)
-        #expect(snap.providerCost?.used == 2.22)
-    }
-
-    @Test
-    func doesNotRescaleOAuthExtraUsageForEnterprisePlans() throws {
-        let json = """
-        {
-          "five_hour": { "utilization": 1, "resets_at": "2025-12-25T12:00:00.000Z" },
-          "extra_usage": {
-            "is_enabled": true,
-            "monthly_limit": 200000,
-            "used_credits": 22200,
-            "currency": "USD"
-          }
-        }
-        """
-        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(
-            Data(json.utf8),
-            rateLimitTier: "claude_enterprise")
-        #expect(snap.providerCost?.currencyCode == "USD")
         #expect(snap.providerCost?.limit == 2000)
         #expect(snap.providerCost?.used == 222)
-    }
-
-    @Test
-    func rescalesWebExtraUsageWhenSnapshotPlanMissing() {
-        let cost = ProviderCostSnapshot(
-            used: 222,
-            limit: 2000,
-            currencyCode: "USD",
-            period: "Monthly",
-            resetsAt: nil,
-            updatedAt: Date())
-        let rescaled = ClaudeUsageFetcher._rescaleExtraUsageForTesting(
-            cost,
-            snapshotLoginMethod: nil,
-            webLoginMethod: "Claude Pro")
-        #expect(rescaled?.limit == 20)
-        #expect(rescaled?.used == 2.22)
     }
 
     @Test
@@ -218,6 +180,14 @@ struct ClaudeOAuthTests {
             "HTTP 403: OAuth token does not meet scope requirement user:profile")
         #expect(err.localizedDescription.contains("user:profile"))
         #expect(err.localizedDescription.contains("HTTP 403"))
+    }
+
+    @Test
+    func oauthUsageUserAgentUsesClaudeCodeVersion() {
+        #expect(
+            ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: "2.1.70 (Claude Code)")
+                == "claude-code/2.1.70")
+        #expect(ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: nil) == "claude-code/2.1.0")
     }
 
     @Test

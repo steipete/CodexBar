@@ -6,6 +6,12 @@ include version.env
 export MARKETING_VERSION
 export BUILD_NUMBER
 
+# Auto-detect Developer ID signing identity to avoid keychain prompts on rebuild.
+# Override: make run APP_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+APP_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null \
+	| grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')
+export APP_IDENTITY
+
 .PHONY: help build build-release test run run-test lint format \
         sign package release appcast check-release validate-changelog \
         check-upstream clean

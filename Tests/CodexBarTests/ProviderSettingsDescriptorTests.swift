@@ -119,8 +119,10 @@ struct ProviderSettingsDescriptorTests {
             requestConfirmation: { _ in })
 
         let pickers = CodexProviderImplementation().settingsPickers(context: context)
+        let toggles = CodexProviderImplementation().settingsToggles(context: context)
         #expect(pickers.contains(where: { $0.id == "codex-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "codex-cookie-source" }))
+        #expect(toggles.contains(where: { $0.id == "codex-historical-tracking" }))
     }
 
     @Test
@@ -275,5 +277,51 @@ struct ProviderSettingsDescriptorTests {
 
         settings.claudeUsageDataSource = .oauth
         #expect(settings.claudeWebExtrasEnabled == false)
+    }
+
+    @Test
+    func kiloExposesUsageSourcePickerAndApiFieldOnly() throws {
+        let suite = "ProviderSettingsDescriptorTests-kilo"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        let context = ProviderSettingsContext(
+            provider: .kilo,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+
+        let implementation = KiloProviderImplementation()
+        let toggles = implementation.settingsToggles(context: context)
+        let pickers = implementation.settingsPickers(context: context)
+        let fields = implementation.settingsFields(context: context)
+
+        #expect(toggles.isEmpty)
+        #expect(pickers.contains(where: { $0.id == "kilo-usage-source" }))
+        #expect(fields.contains(where: { $0.id == "kilo-api-key" }))
     }
 }

@@ -64,6 +64,7 @@ public enum ProviderDescriptorRegistry {
         .zai: ZaiProviderDescriptor.descriptor,
         .minimax: MiniMaxProviderDescriptor.descriptor,
         .kimi: KimiProviderDescriptor.descriptor,
+        .kilo: KiloProviderDescriptor.descriptor,
         .kiro: KiroProviderDescriptor.descriptor,
         .vertexai: VertexAIProviderDescriptor.descriptor,
         .augment: AugmentProviderDescriptor.descriptor,

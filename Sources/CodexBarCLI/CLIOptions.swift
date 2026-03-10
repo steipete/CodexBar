@@ -7,9 +7,9 @@ import Foundation
 struct UsageOptions: CommanderParsable {
     private static let sourceHelp: String = {
         #if os(macOS)
-        "Data source: auto | web | cli | oauth | api (auto uses web then falls back on missing cookies)"
+        "Data source: auto | web | cli | oauth | api (auto behavior is provider-specific)"
         #else
-        "Data source: auto | web | cli | oauth | api (web/auto are macOS only)"
+        "Data source: auto | web | cli | oauth | api (web/auto are macOS only for web-capable providers)"
         #endif
     }()
 

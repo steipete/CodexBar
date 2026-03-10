@@ -18,63 +18,27 @@ enum CLIRenderer {
         let now = Date()
         var lines: [String] = []
         lines.append(self.headerLine(context.header, useColor: context.useColor))
-
-        if let primary = snapshot.primary {
-            lines.append(self.rateLine(title: meta.sessionLabel, window: primary, useColor: context.useColor))
-            if provider == .warp {
-                if let reset = self.resetLineForWarp(window: primary, style: context.resetStyle, now: now) {
-                    lines.append(self.subtleLine(reset, useColor: context.useColor))
-                }
-                if let detail = self.detailLineForWarp(window: primary) {
-                    lines.append(self.subtleLine(detail, useColor: context.useColor))
-                }
-            } else if let reset = self.resetLine(for: primary, style: context.resetStyle, now: now) {
-                lines.append(self.subtleLine(reset, useColor: context.useColor))
-            }
-        } else if let cost = snapshot.providerCost {
-            // Fallback to cost/quota display if no primary rate window
-            let label = cost.currencyCode == "Quota" ? "Quota" : "Cost"
-            let value = "\(String(format: "%.1f", cost.used)) / \(String(format: "%.1f", cost.limit))"
-            lines.append(self.labelValueLine(label, value: value, useColor: context.useColor))
-        }
-
-        if let weekly = snapshot.secondary {
-            lines.append(self.rateLine(title: meta.weeklyLabel, window: weekly, useColor: context.useColor))
-            if let pace = self.paceLine(provider: provider, window: weekly, useColor: context.useColor, now: now) {
-                lines.append(pace)
-            }
-            if provider == .warp {
-                if let reset = self.resetLineForWarp(window: weekly, style: context.resetStyle, now: now) {
-                    lines.append(self.subtleLine(reset, useColor: context.useColor))
-                }
-                if let detail = self.detailLineForWarp(window: weekly) {
-                    lines.append(self.subtleLine(detail, useColor: context.useColor))
-                }
-            } else if let reset = self.resetLine(for: weekly, style: context.resetStyle, now: now) {
-                lines.append(self.subtleLine(reset, useColor: context.useColor))
-            }
-        }
-
-        if meta.supportsOpus, let opus = snapshot.tertiary {
-            lines.append(self.rateLine(title: meta.opusLabel ?? "Sonnet", window: opus, useColor: context.useColor))
-            if let reset = self.resetLine(for: opus, style: context.resetStyle, now: now) {
-                lines.append(self.subtleLine(reset, useColor: context.useColor))
-            }
-        }
-
-        if provider == .codex, let credits {
-            lines.append(self.labelValueLine(
-                "Credits",
-                value: UsageFormatter.creditsString(from: credits.remaining),
-                useColor: context.useColor))
-        }
-
-        if let email = snapshot.accountEmail(for: provider), !email.isEmpty {
-            lines.append(self.labelValueLine("Account", value: email, useColor: context.useColor))
-        }
-        if let plan = snapshot.loginMethod(for: provider), !plan.isEmpty {
-            lines.append(self.labelValueLine("Plan", value: plan.capitalized, useColor: context.useColor))
-        }
+        self.appendPrimaryLines(
+            provider: provider,
+            snapshot: snapshot,
+            metadata: meta,
+            context: context,
+            now: now,
+            lines: &lines)
+        self.appendSecondaryLines(
+            provider: provider,
+            snapshot: snapshot,
+            metadata: meta,
+            context: context,
+            now: now,
+            lines: &lines)
+        self.appendTertiaryLines(snapshot: snapshot, metadata: meta, context: context, now: now, lines: &lines)
+        self.appendCreditsLine(provider: provider, credits: credits, useColor: context.useColor, lines: &lines)
+        self.appendIdentityAndNotes(
+            provider: provider,
+            snapshot: snapshot,
+            context: context,
+            lines: &lines)
 
         if let status = context.status {
             let statusLine = "Status: \(status.indicator.label)\(status.descriptionSuffix)"
@@ -94,12 +58,168 @@ enum CLIRenderer {
         return "\(title): \(colored) \(bar)"
     }
 
+    // swiftlint:disable:next function_parameter_count
+    private static func appendPrimaryLines(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        metadata: ProviderMetadata,
+        context: RenderContext,
+        now: Date,
+        lines: inout [String])
+    {
+        if let primary = snapshot.primary {
+            self.appendRateWindowLines(
+                provider: provider,
+                title: metadata.sessionLabel,
+                window: primary,
+                includePace: false,
+                context: context,
+                now: now,
+                lines: &lines)
+            return
+        }
+
+        guard let cost = snapshot.providerCost else { return }
+        // Fallback to cost/quota display if no primary rate window.
+        let label = cost.currencyCode == "Quota" ? "Quota" : "Cost"
+        let value = "\(String(format: "%.1f", cost.used)) / \(String(format: "%.1f", cost.limit))"
+        lines.append(self.labelValueLine(label, value: value, useColor: context.useColor))
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private static func appendSecondaryLines(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        metadata: ProviderMetadata,
+        context: RenderContext,
+        now: Date,
+        lines: inout [String])
+    {
+        guard let weekly = snapshot.secondary else { return }
+        self.appendRateWindowLines(
+            provider: provider,
+            title: metadata.weeklyLabel,
+            window: weekly,
+            includePace: true,
+            context: context,
+            now: now,
+            lines: &lines)
+    }
+
+    private static func appendTertiaryLines(
+        snapshot: UsageSnapshot,
+        metadata: ProviderMetadata,
+        context: RenderContext,
+        now: Date,
+        lines: inout [String])
+    {
+        guard metadata.supportsOpus, let opus = snapshot.tertiary else { return }
+        lines.append(self.rateLine(title: metadata.opusLabel ?? "Sonnet", window: opus, useColor: context.useColor))
+        if let reset = self.resetLine(for: opus, style: context.resetStyle, now: now) {
+            lines.append(self.subtleLine(reset, useColor: context.useColor))
+        }
+    }
+
+    private static func appendCreditsLine(
+        provider: UsageProvider,
+        credits: CreditsSnapshot?,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard provider == .codex, let credits else { return }
+        lines.append(self.labelValueLine(
+            "Credits",
+            value: UsageFormatter.creditsString(from: credits.remaining),
+            useColor: useColor))
+    }
+
+    private static func appendIdentityAndNotes(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        context: RenderContext,
+        lines: inout [String])
+    {
+        if let email = snapshot.accountEmail(for: provider), !email.isEmpty {
+            lines.append(self.labelValueLine("Account", value: email, useColor: context.useColor))
+        }
+
+        if provider == .kilo {
+            let kiloLogin = self.kiloLoginParts(snapshot: snapshot)
+            if let pass = kiloLogin.pass {
+                let cleaned = UsageFormatter.cleanPlanName(pass)
+                lines.append(self.labelValueLine("Plan", value: cleaned, useColor: context.useColor))
+            }
+            for detail in kiloLogin.details {
+                lines.append(self.labelValueLine("Activity", value: detail, useColor: context.useColor))
+            }
+        } else if let plan = snapshot.loginMethod(for: provider), !plan.isEmpty {
+            lines.append(self.labelValueLine("Plan", value: plan.capitalized, useColor: context.useColor))
+        }
+
+        for note in context.notes {
+            let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            lines.append(self.labelValueLine("Note", value: trimmed, useColor: context.useColor))
+        }
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private static func appendRateWindowLines(
+        provider: UsageProvider,
+        title: String,
+        window: RateWindow,
+        includePace: Bool,
+        context: RenderContext,
+        now: Date,
+        lines: inout [String])
+    {
+        lines.append(self.rateLine(title: title, window: window, useColor: context.useColor))
+        if includePace,
+           let pace = self.paceLine(provider: provider, window: window, useColor: context.useColor, now: now)
+        {
+            lines.append(pace)
+        }
+        self.appendResetAndDetailLines(
+            provider: provider,
+            window: window,
+            context: context,
+            now: now,
+            lines: &lines)
+    }
+
+    private static func appendResetAndDetailLines(
+        provider: UsageProvider,
+        window: RateWindow,
+        context: RenderContext,
+        now: Date,
+        lines: inout [String])
+    {
+        if provider == .warp || provider == .kilo {
+            if let reset = self.resetLineForDetailBackedWindow(window: window, style: context.resetStyle, now: now) {
+                lines.append(self.subtleLine(reset, useColor: context.useColor))
+            }
+            if let detail = self.detailLineForDetailBackedWindow(window: window) {
+                lines.append(self.subtleLine(detail, useColor: context.useColor))
+            }
+            return
+        }
+
+        if let reset = self.resetLine(for: window, style: context.resetStyle, now: now) {
+            lines.append(self.subtleLine(reset, useColor: context.useColor))
+        }
+    }
+
     private static func resetLine(for window: RateWindow, style: ResetTimeDisplayStyle, now: Date) -> String? {
         UsageFormatter.resetLine(for: window, style: style, now: now)
     }
 
-    private static func resetLineForWarp(window: RateWindow, style: ResetTimeDisplayStyle, now: Date) -> String? {
-        // Warp uses resetDescription for non-reset detail. Only render "Resets ..." when a concrete reset date exists.
+    private static func resetLineForDetailBackedWindow(
+        window: RateWindow,
+        style: ResetTimeDisplayStyle,
+        now: Date) -> String?
+    {
+        // Warp/Kilo use resetDescription for non-reset detail.
+        // Only render "Resets ..." when a concrete reset date exists.
         guard window.resetsAt != nil else { return nil }
         let resetOnlyWindow = RateWindow(
             usedPercent: window.usedPercent,
@@ -109,10 +229,33 @@ enum CLIRenderer {
         return UsageFormatter.resetLine(for: resetOnlyWindow, style: style, now: now)
     }
 
-    private static func detailLineForWarp(window: RateWindow) -> String? {
+    private static func detailLineForDetailBackedWindow(window: RateWindow) -> String? {
         guard let desc = window.resetDescription else { return nil }
         let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func kiloLoginParts(snapshot: UsageSnapshot) -> (pass: String?, details: [String]) {
+        guard let loginMethod = snapshot.loginMethod(for: .kilo) else {
+            return (nil, [])
+        }
+        let parts = loginMethod
+            .components(separatedBy: "·")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !parts.isEmpty else {
+            return (nil, [])
+        }
+        let first = parts[0]
+        if self.isKiloActivitySegment(first) {
+            return (nil, parts)
+        }
+        return (first, Array(parts.dropFirst()))
+    }
+
+    private static func isKiloActivitySegment(_ text: String) -> Bool {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.hasPrefix("auto top-up:")
     }
 
     private static func headerLine(_ header: String, useColor: Bool) -> String {
@@ -237,4 +380,19 @@ struct RenderContext {
     let status: ProviderStatusPayload?
     let useColor: Bool
     let resetStyle: ResetTimeDisplayStyle
+    let notes: [String]
+
+    init(
+        header: String,
+        status: ProviderStatusPayload?,
+        useColor: Bool,
+        resetStyle: ResetTimeDisplayStyle,
+        notes: [String] = [])
+    {
+        self.header = header
+        self.status = status
+        self.useColor = useColor
+        self.resetStyle = resetStyle
+        self.notes = notes
+    }
 }

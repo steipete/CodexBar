@@ -18,6 +18,7 @@ struct SettingsDefaultsState: Sendable {
     var menuBarSeparatorStyleRaw: String?
     var menuBarPercentTimeWindowRaw: String?
     var menuBarPaceTimeWindowRaw: String?
+    var historicalTrackingEnabled: Bool
     var showAllTokenAccountsInMenu: Bool
     var menuBarMetricPreferencesRaw: [String: String]
     var costUsageEnabled: Bool
@@ -33,6 +34,8 @@ struct SettingsDefaultsState: Sendable {
     var colorCodedIcons: Bool
     var mergeIcons: Bool
     var switcherShowsIcons: Bool
+    var mergedMenuLastSelectedWasOverview: Bool
+    var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
 }

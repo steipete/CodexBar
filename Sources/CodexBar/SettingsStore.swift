@@ -62,6 +62,7 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
 @Observable
 final class SettingsStore {
     static let sharedDefaults = UserDefaults(suiteName: "group.com.steipete.codexbar")
+    static let mergedOverviewProviderLimit = 3
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
         if env["XCTestConfigurationFilePath"] != nil { return true }
@@ -195,6 +196,7 @@ extension SettingsStore {
             ?? MenuBarTimeWindow.session.rawValue
         let menuBarPaceTimeWindowRaw = userDefaults.string(forKey: "menuBarPaceTimeWindow")
             ?? MenuBarTimeWindow.weekly.rawValue
+        let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
         let showAllTokenAccountsInMenu = userDefaults.object(forKey: "showAllTokenAccountsInMenu") as? Bool ?? false
         let storedPreferences = userDefaults.dictionary(forKey: "menuBarMetricPreferences") as? [String: String] ?? [:]
         var resolvedPreferences = storedPreferences
@@ -222,6 +224,10 @@ extension SettingsStore {
         let colorCodedIcons = userDefaults.object(forKey: "colorCodedIcons") as? Bool ?? true
         let mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
         let switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
+        let mergedMenuLastSelectedWasOverview = userDefaults.object(
+            forKey: "mergedMenuLastSelectedWasOverview") as? Bool ?? false
+        let mergedOverviewSelectedProvidersRaw = userDefaults.array(
+            forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
 
@@ -243,6 +249,7 @@ extension SettingsStore {
             menuBarSeparatorStyleRaw: menuBarSeparatorStyleRaw,
             menuBarPercentTimeWindowRaw: menuBarPercentTimeWindowRaw,
             menuBarPaceTimeWindowRaw: menuBarPaceTimeWindowRaw,
+            historicalTrackingEnabled: historicalTrackingEnabled,
             showAllTokenAccountsInMenu: showAllTokenAccountsInMenu,
             menuBarMetricPreferencesRaw: resolvedPreferences,
             costUsageEnabled: costUsageEnabled,
@@ -258,6 +265,8 @@ extension SettingsStore {
             colorCodedIcons: colorCodedIcons,
             mergeIcons: mergeIcons,
             switcherShowsIcons: switcherShowsIcons,
+            mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
+            mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
             providerDetectionCompleted: providerDetectionCompleted)
     }

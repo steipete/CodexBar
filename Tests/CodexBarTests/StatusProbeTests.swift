@@ -385,6 +385,25 @@ struct StatusProbeTests {
     }
 
     @Test
+    func surfacesClaudeRateLimited_compactUsageError() {
+        let sample = """
+        Settings:StatusConfigUsage(←/→ortabtocycle)
+        Error:Failedtoloadusagedata:{"error":{"message":"Ratelimited.Pleasetryagainlater.","type":"rate_limit_error"}}
+        """
+
+        do {
+            _ = try ClaudeStatusProbe.parse(text: sample)
+            #expect(Bool(false), "Parsing should fail for rate limiting")
+        } catch let ClaudeStatusProbeError.parseFailed(message) {
+            let lower = message.lowercased()
+            #expect(lower.contains("rate"))
+            #expect(lower.contains("limit"))
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func surfacesClaudeFolderTrustPrompt() {
         let sample = """
         Do you trust the files in this folder?

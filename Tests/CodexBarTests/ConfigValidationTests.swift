@@ -51,4 +51,12 @@ struct ConfigValidationTests {
         let issues = CodexBarConfigValidator.validate(config)
         #expect(!issues.contains(where: { $0.code == "token_accounts_unused" && $0.provider == .ollama }))
     }
+
+    @Test
+    func acceptsKiloExtrasConfigField() {
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(id: .kilo, extrasEnabled: true))
+        let issues = CodexBarConfigValidator.validate(config)
+        #expect(!issues.contains(where: { $0.provider == .kilo && $0.field == "extrasEnabled" }))
+    }
 }

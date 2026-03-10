@@ -11,6 +11,7 @@ enum ProviderChoice: String, AppEnum {
     case zai
     case copilot
     case minimax
+    case kilo
     case opencode
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
@@ -23,6 +24,7 @@ enum ProviderChoice: String, AppEnum {
         .zai: DisplayRepresentation(title: "z.ai"),
         .copilot: DisplayRepresentation(title: "Copilot"),
         .minimax: DisplayRepresentation(title: "MiniMax"),
+        .kilo: DisplayRepresentation(title: "Kilo"),
         .opencode: DisplayRepresentation(title: "OpenCode"),
     ]
 
@@ -35,6 +37,7 @@ enum ProviderChoice: String, AppEnum {
         case .zai: .zai
         case .copilot: .copilot
         case .minimax: .minimax
+        case .kilo: .kilo
         case .opencode: .opencode
         }
     }
@@ -53,6 +56,7 @@ enum ProviderChoice: String, AppEnum {
         case .copilot: self = .copilot
         case .minimax: self = .minimax
         case .vertexai: return nil // Vertex AI not yet supported in widgets
+        case .kilo: self = .kilo
         case .kiro: return nil // Kiro not yet supported in widgets
         case .augment: return nil // Augment not yet supported in widgets
         case .jetbrains: return nil // JetBrains not yet supported in widgets

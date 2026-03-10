@@ -43,6 +43,20 @@ resolve_signing_mode() {
     return
   fi
 
+  # Auto-detect any Developer ID Application certificate from the keychain
+  local detected=""
+  detected="$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep -o '"Developer ID Application: [^"]*"' \
+    | head -1 \
+    | tr -d '"' || true)"
+  if [[ -n "${detected}" ]]; then
+    APP_IDENTITY="${detected}"
+    export APP_IDENTITY
+    SIGNING_MODE="identity"
+    return
+  fi
+
+  # Fall back to well-known identities
   local candidate=""
   for candidate in \
     "Developer ID Application: Peter Steinberger (Y5PE65HELJ)" \

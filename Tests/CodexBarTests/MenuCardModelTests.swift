@@ -561,6 +561,241 @@ struct MenuCardModelTests {
     }
 
     @Test
+    func kiloModelSplitsPassAndActivityAndShowsFallbackNote() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.kilo])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "40/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .kilo,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Kilo Pass Pro · Auto top-up: visa"))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .kilo,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            sourceLabel: "cli",
+            kiloAutoMode: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.planText == "Kilo Pass Pro")
+        #expect(model.usageNotes.contains("Auto top-up: visa"))
+        #expect(model.usageNotes.contains("Using CLI fallback"))
+    }
+
+    @Test
+    func kiloModelTreatsAutoTopUpOnlyLoginAsActivity() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.kilo])
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .kilo,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Auto top-up: off"))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .kilo,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.planText == nil)
+        #expect(model.usageNotes.contains("Auto top-up: off"))
+    }
+
+    @Test
+    func kiloModelDoesNotShowFallbackNoteWhenNotAutoToCLI() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.kilo])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "40/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .kilo,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Kilo Pass Pro · Auto top-up: visa"))
+
+        let apiModel = UsageMenuCardView.Model.make(.init(
+            provider: .kilo,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            sourceLabel: "api",
+            kiloAutoMode: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let nonAutoModel = UsageMenuCardView.Model.make(.init(
+            provider: .kilo,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            sourceLabel: "cli",
+            kiloAutoMode: false,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(!apiModel.usageNotes.contains("Using CLI fallback"))
+        #expect(!nonAutoModel.usageNotes.contains("Using CLI fallback"))
+    }
+
+    @Test
+    func kiloModelShowsPrimaryDetailWhenResetDateMissing() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.kilo])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "10/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .kilo,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Kilo Pass Pro"))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .kilo,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.resetText == nil)
+        #expect(primary.detailText == "10/100 credits")
+    }
+
+    @Test
+    func kiloModelKeepsZeroTotalEdgeStateVisible() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.kilo])
+        let snapshot = KiloUsageSnapshot(
+            creditsUsed: 0,
+            creditsTotal: 0,
+            creditsRemaining: 0,
+            planName: "Kilo Pass Pro",
+            autoTopUpEnabled: true,
+            autoTopUpMethod: "visa",
+            updatedAt: now).toUsageSnapshot()
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .kilo,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.percent == 0)
+        #expect(primary.detailText == "0/0 credits")
+        #expect(model.placeholder == nil)
+    }
+
+    @Test
     func warpModelShowsPrimaryDetailWhenResetDateMissing() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(

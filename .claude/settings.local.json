@@ -8,7 +8,8 @@
       "mcp__plugin_github_github__get_file_contents",
       "mcp__plugin_github_github__search_code",
       "mcp__plugin_github_github__search_pull_requests",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(./Scripts/lint.sh lint:*)"
     ]
   }
 }

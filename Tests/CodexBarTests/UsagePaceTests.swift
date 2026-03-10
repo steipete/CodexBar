@@ -22,6 +22,7 @@ struct UsagePaceTests {
         #expect(pace.stage == .ahead)
         #expect(pace.willLastToReset == false)
         #expect(pace.etaSeconds != nil)
+        #expect(pace.runOutProbability == nil)
         #expect(abs((pace.etaSeconds ?? 0) - (3 * 24 * 3600)) < 1)
     }
 
@@ -40,6 +41,7 @@ struct UsagePaceTests {
         guard let pace else { return }
         #expect(pace.willLastToReset == true)
         #expect(pace.etaSeconds == nil)
+        #expect(pace.runOutProbability == nil)
         #expect(pace.stage == .farBehind)
     }
 

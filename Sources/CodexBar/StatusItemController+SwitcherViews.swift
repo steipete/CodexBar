@@ -1,21 +1,25 @@
 import AppKit
 import CodexBarCore
 
+enum ProviderSwitcherSelection: Equatable {
+    case overview
+    case provider(UsageProvider)
+}
+
 final class ProviderSwitcherView: NSView {
     private struct Segment {
-        let provider: UsageProvider
+        let selection: ProviderSwitcherSelection
         let image: NSImage
         let title: String
     }
 
     private struct WeeklyIndicator {
-        let provider: UsageProvider
         let track: NSView
         let fill: NSView
     }
 
     private let segments: [Segment]
-    private let onSelect: (UsageProvider) -> Void
+    private let onSelect: (ProviderSwitcherSelection) -> Void
     private let showsIcons: Bool
     private let weeklyRemainingProvider: (UsageProvider) -> Double?
     private var buttons: [NSButton] = []
@@ -36,29 +40,42 @@ final class ProviderSwitcherView: NSView {
 
     init(
         providers: [UsageProvider],
-        selected: UsageProvider?,
+        selected: ProviderSwitcherSelection?,
+        includesOverview: Bool,
         width: CGFloat,
         showsIcons: Bool,
         iconProvider: (UsageProvider) -> NSImage,
         weeklyRemainingProvider: @escaping (UsageProvider) -> Double?,
-        onSelect: @escaping (UsageProvider) -> Void)
+        onSelect: @escaping (ProviderSwitcherSelection) -> Void)
     {
         let minimumGap: CGFloat = 1
-        self.segments = providers.map { provider in
+        var segments = providers.map { provider in
             let fullTitle = Self.switcherTitle(for: provider)
             let icon = iconProvider(provider)
             icon.isTemplate = true
             // Avoid any resampling: we ship exact 16pt/32px assets for crisp rendering.
             icon.size = NSSize(width: 16, height: 16)
             return Segment(
-                provider: provider,
+                selection: .provider(provider),
                 image: icon,
                 title: fullTitle)
         }
+        if includesOverview {
+            let overviewIcon = Self.overviewIcon()
+            overviewIcon.isTemplate = true
+            overviewIcon.size = NSSize(width: 16, height: 16)
+            segments.insert(
+                Segment(
+                    selection: .overview,
+                    image: overviewIcon,
+                    title: "Overview"),
+                at: 0)
+        }
+        self.segments = segments
         self.onSelect = onSelect
         self.showsIcons = showsIcons
         self.weeklyRemainingProvider = weeklyRemainingProvider
-        self.stackedIcons = showsIcons && providers.count > 3
+        self.stackedIcons = showsIcons && self.segments.count > 3
         let initialOuterPadding = Self.switcherOuterPadding(
             for: width,
             count: self.segments.count,
@@ -139,8 +156,13 @@ final class ProviderSwitcherView: NSView {
                 button.imagePosition = .noImage
             }
 
-            let remaining = self.weeklyRemainingProvider(segment.provider)
-            self.addWeeklyIndicator(to: button, provider: segment.provider, remainingPercent: remaining)
+            let remaining: Double? = switch segment.selection {
+            case let .provider(provider):
+                self.weeklyRemainingProvider(provider)
+            case .overview:
+                nil
+            }
+            self.addWeeklyIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
             button.bezelStyle = .regularSquare
             button.isBordered = false
             button.controlSize = .small
@@ -150,7 +172,7 @@ final class ProviderSwitcherView: NSView {
             button.alignment = .center
             button.wantsLayer = true
             button.layer?.cornerRadius = 6
-            button.state = (selected == segment.provider) ? .on : .off
+            button.state = (selected == segment.selection) ? .on : .off
             button.toolTip = nil
             button.translatesAutoresizingMaskIntoConstraints = false
             self.buttons.append(button)
@@ -493,7 +515,7 @@ final class ProviderSwitcherView: NSView {
             button.state = (idx == index) ? .on : .off
         }
         self.updateButtonStyles()
-        self.onSelect(self.segments[index].provider)
+        self.onSelect(self.segments[index].selection)
     }
 
     private func updateButtonStyles() {
@@ -705,7 +727,7 @@ final class ProviderSwitcherView: NSView {
         return newImage
     }
 
-    private func addWeeklyIndicator(to view: NSView, provider: UsageProvider, remainingPercent: Double?) {
+    private func addWeeklyIndicator(to view: NSView, selection: ProviderSwitcherSelection, remainingPercent: Double?) {
         guard let remainingPercent else { return }
 
         let track = NSView()
@@ -718,7 +740,7 @@ final class ProviderSwitcherView: NSView {
 
         let fill = NSView()
         fill.wantsLayer = true
-        fill.layer?.backgroundColor = Self.weeklyIndicatorColor(for: provider).cgColor
+        fill.layer?.backgroundColor = Self.weeklyIndicatorColor(for: selection).cgColor
         fill.layer?.cornerRadius = 2
         fill.translatesAutoresizingMaskIntoConstraints = false
         track.addSubview(fill)
@@ -737,7 +759,7 @@ final class ProviderSwitcherView: NSView {
 
         fill.widthAnchor.constraint(equalTo: track.widthAnchor, multiplier: ratio).isActive = true
 
-        self.weeklyIndicators[ObjectIdentifier(view)] = WeeklyIndicator(provider: provider, track: track, fill: fill)
+        self.weeklyIndicators[ObjectIdentifier(view)] = WeeklyIndicator(track: track, fill: fill)
         self.updateWeeklyIndicatorVisibility(for: view)
     }
 
@@ -748,9 +770,21 @@ final class ProviderSwitcherView: NSView {
         indicator.fill.isHidden = isSelected
     }
 
-    private static func weeklyIndicatorColor(for provider: UsageProvider) -> NSColor {
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
-        return NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: 1)
+    private static func weeklyIndicatorColor(for selection: ProviderSwitcherSelection) -> NSColor {
+        switch selection {
+        case let .provider(provider):
+            let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+            return NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: 1)
+        case .overview:
+            return NSColor.secondaryLabelColor
+        }
+    }
+
+    private static func overviewIcon() -> NSImage {
+        if let symbol = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil) {
+            return symbol
+        }
+        return NSImage(size: NSSize(width: 16, height: 16))
     }
 
     private static func switcherTitle(for provider: UsageProvider) -> String {

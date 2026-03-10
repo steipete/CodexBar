@@ -2,31 +2,55 @@
 
 ## Unreleased
 ### Highlights
-- Add an experimental option to suppress Claude Keychain prompts.
+- Add a merged-menu Overview tab with configurable providers and row-to-provider navigation (#416). @ratulsarna
+- Add an experimental option to suppress Claude Keychain prompts (#388).
 - Add OpenRouter provider for credit-based usage tracking (#396). Thanks @chountalas!
 - Add Ollama provider, including token-account support in Settings and CLI (#380). Thanks @CryptoSageSnr!
-
+- Add Kilo provider support with API/CLI source modes, widget integration, and pass/credit handling (#454). Built on work by @coreh.
+- Reduce CPU/energy regressions and JSONL scanner overhead in Codex/web usage paths (#402, #392). Thanks @bald-ai and @asonawalla!
+- Add Codex historical pace with risk forecasting, backfill, and zero-usage-day handling (#482, supersedes #438). Thanks @tristanmanchester!
 
 ### Providers & Usage
-- OpenRouter: add credit tracking, key-quota popup support, token-account labels, fallback status icons, and updated icon/color (#396). Thanks @chountalas!
+- Claude: surface rate-limit errors from the CLI `/usage` probe with a user-friendly message, and harden “Failed to load usage data” matching against whitespace-collapsed output.
+- Codex: add historical pace risk forecasting and backfill, gate pace computation by display mode, and handle zero-usage days in historical data (#482, supersedes #438). Thanks @tristanmanchester!
+- OpenRouter: add provider support with credit tracking, key-quota popup support, token-account labels, fallback status icons, and updated icon/color (#396). Thanks @chountalas!
 - Ollama: add provider support with token-account support in app/CLI, Chrome-default auto cookie import, and manual-cookie mode (#380). Thanks @CryptoSageSnr!
-- Codex: in percent display mode with "show remaining," show remaining credits in the menu bar when session or weekly usage is exhausted (#336). Thanks @teron131!
+- Kilo: add provider support with source-mode fallback, clearer credential/login guidance, auto top-up activity labeling, zero-balance credit handling, and pass parsing/menu rendering (#454). Thanks @coreh!
+- Browser cookie import: match Gecko `*.default*` profile directories case-insensitively so Firefox/Zen cookie detection works with uppercase `.Default` directories (#422). Thanks @bald-ai!
+- MiniMax: make both Settings “Open Coding Plan” actions region-aware so China mainland selection opens `platform.minimaxi.com` instead of the global domain (#426, fixes #378). Thanks @bald-ai!
+- Codex: in percent display mode with “show remaining,” show remaining credits in the menu bar when session or weekly usage is exhausted (#336). Thanks @teron131!
+- Claude: fix extra-usage double conversion so OAuth/Web values stay on a single normalization path (#472, supersedes #463). Thanks @Priyans-hu!
+- Copilot: harden free-plan quota parsing and fallback behavior by treating underdetermined values as unknown, preserving missing metadata as nil (#432, supersedes #393). Thanks @emanuelst!
 - Menu: rebuild the merged provider switcher when “Show usage as used” changes so switcher progress updates immediately (#306). Thanks @Flohhhhh!
 - Update Kiro parsing for `kiro-cli` 1.24+ / Q Developer formats and non-managed plan handling (#288). Thanks @kilhyeonjun!
+- Kimi: in automatic metric mode, prioritize the 5-hour rate-limit window for menu bar and merged highest-usage calculations (#390). Thanks @ajaxjiang96!
 - OpenCode: treat explicit `null` subscription responses as missing usage data, skip POST fallback, and return a clearer workspace-specific error (#412).
 - OpenCode: surface clearer HTTP errors. Thanks @SalimBinYousuf1!
 - Warp: update API key setup guidance.
+- Claude: update the “not installed” help link to the current Claude Code documentation URL (#431). Thanks @skebby11!
 - Fix Claude setup message package name (#376). Thanks @daegwang!
 
+### Menu & Settings
+- Merged menu: add an Overview switcher tab that shows up to three provider usage rows in provider order (#416).
+- Settings: add “Overview tab providers” controls to choose/deselect Overview providers, with persisted selection reconciliation as enabled providers change (#416).
+- Menu: hide contextual provider actions while Overview is selected and rebuild switcher state when overview availability changes (#416).
+
 ### Claude OAuth & Keychain
+- Use a `claude-code/<version>` User-Agent for OAuth usage requests instead of a generic identifier.
 - Add an experimental Claude OAuth Security-CLI reader path and option in settings.
 - Apply stored prompt mode and fallback policy to silent/noninteractive keychain probes.
 - Add cooldown for background OAuth keychain retries.
 - Disable experimental toggle when keychain access is disabled.
 
+### Performance & Reliability
+- Codex/OpenAI web: reduce CPU and energy overhead by shortening failed CLI probe windows, capping web retry timeouts, and using adaptive idle blink scheduling (#402). Thanks @bald-ai!
+- Cost usage scanner: optimize JSONL chunk parsing to avoid buffer-front removal overhead on large logs (#392). Thanks @asonawalla!
+- TTY runner: fence shutdown registration to avoid launch/shutdown races, isolate process groups before shutdown rejection, and ensure lingering CLI descendants are cleaned up on app termination (#429). Thanks @uraimo!
+
 ### Dev & Tests
 - Run provider fetches and Claude debug OAuth probes off `MainActor`.
 - Split Claude OAuth test overrides and isolate coordinator tests.
+- Docs: explain pace tracking terminology in the UI guide, including "deficit", "reserve", and "on pace" meanings (#421). Thanks @bald-ai!
 
 
 ## 0.18.0-beta.3 — 2026-02-13

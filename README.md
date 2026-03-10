@@ -1,7 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out. (LARKIN FORK)
 
-Per steipete:
-> Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, JetBrains AI, and OpenRouter limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, JetBrains AI, and OpenRouter limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode with a provider switcher and optional Overview tab); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
 
@@ -24,9 +23,39 @@ steipete's is probably the most popular because of the wide range of tooling sup
 
 That's fine, but the beauty of claudecodeusage is... it just works based on your existing auth tokens from running either `claude` or `codex` in your preferred shell.
 
+- [Codex](docs/codex.md) — Local Codex CLI RPC (+ PTY fallback) and optional OpenAI web dashboard extras.
+- [Claude](docs/claude.md) — OAuth API or browser cookies (+ CLI PTY fallback); session + weekly usage.
+- [Cursor](docs/cursor.md) — Browser session cookies for plan + usage + billing resets.
+- [Gemini](docs/gemini.md) — OAuth-backed quota API using Gemini CLI credentials (no browser cookies).
+- [Antigravity](docs/antigravity.md) — Local language server probe (experimental); no external auth.
+- [Droid](docs/factory.md) — Browser cookies + WorkOS token flows for Factory usage + billing.
+- [Copilot](docs/copilot.md) — GitHub device flow + Copilot internal usage API.
+- [z.ai](docs/zai.md) — API token (Keychain) for quota + MCP windows.
+- [Kimi](docs/kimi.md) — Auth token (JWT from `kimi-auth` cookie) for weekly quota + 5‑hour rate limit.
+- [Kimi K2](docs/kimi-k2.md) — API key for credit-based usage totals.
+- [Kiro](docs/kiro.md) — CLI-based usage via `kiro-cli /usage` command; monthly credits + bonus credits.
+- [Vertex AI](docs/vertexai.md) — Google Cloud gcloud OAuth with token cost tracking from local Claude logs.
+- [Augment](docs/augment.md) — Browser cookie-based authentication with automatic session keepalive; credits tracking and usage monitoring.
+- [Amp](docs/amp.md) — Browser cookie-based authentication with Amp Free usage tracking.
+- [JetBrains AI](docs/jetbrains.md) — Local XML-based quota from JetBrains IDE configuration; monthly credits tracking.
+- [OpenRouter](docs/openrouter.md) — API token for credit-based usage tracking across multiple AI providers.
+- Open to new providers: [provider authoring guide](docs/provider.md).
+
 ## Projected Usage
 
 I like the notion of pace, but I think it's even more helpful to see the week over week pace. I also want to see it visually , so that's why there is a `Weekly Projection` option. 
+
+## Features
+- Multi-provider menu bar with per-provider toggles (Settings → Providers).
+- Session + weekly meters with reset countdowns.
+- Optional Codex web dashboard enrichments (code review remaining, usage breakdown, credits history).
+- Local cost-usage scan for Codex + Claude (last 30 days).
+- Provider status polling with incident badges in the menu and icon overlay.
+- Merge Icons mode to combine providers into one status item + switcher, with an optional Overview tab for up to three providers.
+- Refresh cadence presets (manual, 1m, 2m, 5m, 15m).
+- Bundled CLI (`codexbar`) for scripts and CI (including `codexbar cost --provider codex|claude` for local cost usage); Linux CLI builds available.
+- WidgetKit widget mirrors the menu card snapshot.
+- Privacy-first: on-device parsing by default; browser cookies are opt-in and reused (no passwords stored).
 
 ## 5 hour Window Pace
 

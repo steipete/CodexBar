@@ -24,6 +24,7 @@ extension UsageStore {
                 self.tokenFailureGates[provider]?.reset()
                 self.statuses.removeValue(forKey: provider)
                 self.lastKnownSessionRemaining.removeValue(forKey: provider)
+                self.lastKnownSessionWindowSource.removeValue(forKey: provider)
                 self.lastTokenFetchAt.removeValue(forKey: provider)
             }
             return
@@ -88,6 +89,9 @@ extension UsageStore {
                 let context = ProviderRuntimeContext(
                     provider: provider, settings: self.settings, store: self)
                 runtime.providerDidRefresh(context: context, provider: provider)
+            }
+            if provider == .codex {
+                self.recordCodexHistoricalSampleIfNeeded(snapshot: scoped)
             }
         case let .failure(error):
             await MainActor.run {

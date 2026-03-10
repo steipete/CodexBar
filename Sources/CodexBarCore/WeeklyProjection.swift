@@ -78,8 +78,7 @@ public struct WeeklyProjection: Sendable {
         let currentValues = currentWeek.compactMap { Self.value(for: $0, metric: metric) }
         let daysWithData = currentValues.count
         let latestValue = currentWeek
-            .sorted { $0.dayOfWeek < $1.dayOfWeek }
-            .last
+            .max { $0.dayOfWeek < $1.dayOfWeek }
             .flatMap { Self.value(for: $0, metric: metric) }
         let avgDailyRate: Double? = if daysWithData > 0 {
             switch metric {
@@ -182,8 +181,7 @@ public struct WeeklyProjection: Sendable {
         case .percentage:
             // For percentage, use the latest (highest dayOfWeek) value as the "total"
             return records
-                .sorted { $0.dayOfWeek < $1.dayOfWeek }
-                .last
+                .max { $0.dayOfWeek < $1.dayOfWeek }
                 .flatMap { Self.value(for: $0, metric: metric) }
         case .tokens, .cost:
             return values.reduce(0, +)

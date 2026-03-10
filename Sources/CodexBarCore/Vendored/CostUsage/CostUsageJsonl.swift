@@ -23,14 +23,23 @@ enum CostUsageJsonl {
             try handle.seek(toOffset: UInt64(startOffset))
         }
 
-        var buffer = Data()
-        buffer.reserveCapacity(64 * 1024)
-
         var current = Data()
         current.reserveCapacity(4 * 1024)
         var lineBytes = 0
         var truncated = false
         var bytesRead: Int64 = 0
+
+        func appendSegment(_ segment: Data.SubSequence) {
+            guard !segment.isEmpty else { return }
+            lineBytes += segment.count
+            guard !truncated else { return }
+            if lineBytes > maxLineBytes || lineBytes > prefixBytes {
+                truncated = true
+                current.removeAll(keepingCapacity: true)
+                return
+            }
+            current.append(contentsOf: segment)
+        }
 
         func flushLine() {
             guard lineBytes > 0 else { return }
@@ -49,23 +58,14 @@ enum CostUsageJsonl {
             }
 
             bytesRead += Int64(chunk.count)
-            buffer.append(chunk)
-
-            while true {
-                guard let nl = buffer.firstIndex(of: 0x0A) else { break }
-                let linePart = buffer[..<nl]
-                buffer.removeSubrange(...nl)
-
-                lineBytes += linePart.count
-                if !truncated {
-                    if lineBytes > maxLineBytes || lineBytes > prefixBytes {
-                        truncated = true
-                        current.removeAll(keepingCapacity: true)
-                    } else {
-                        current.append(contentsOf: linePart)
-                    }
-                }
+            var segmentStart = chunk.startIndex
+            while let nl = chunk[segmentStart...].firstIndex(of: 0x0A) {
+                appendSegment(chunk[segmentStart..<nl])
                 flushLine()
+                segmentStart = chunk.index(after: nl)
+            }
+            if segmentStart < chunk.endIndex {
+                appendSegment(chunk[segmentStart..<chunk.endIndex])
             }
         }
 

@@ -15,6 +15,8 @@ public enum ProviderConfigEnvironment {
             env["COPILOT_API_TOKEN"] = apiKey
         case .minimax:
             env[MiniMaxAPISettingsReader.apiTokenKey] = apiKey
+        case .kilo:
+            env[KiloSettingsReader.apiTokenKey] = apiKey
         case .kimik2:
             if let key = KimiK2SettingsReader.apiKeyEnvironmentKeys.first {
                 env[key] = apiKey

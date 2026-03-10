@@ -374,6 +374,7 @@ public struct ClaudeStatusProbe: Sendable {
         if let jsonHint = self.extractUsageErrorJSON(text: text) { return jsonHint }
 
         let lower = text.lowercased()
+        let compact = lower.filter { !$0.isWhitespace }
         if lower.contains("do you trust the files in this folder?"), !lower.contains("current session") {
             let folder = self.extractFirst(
                 pattern: #"Do you trust the files in this folder\?\s*(?:\r?\n)+\s*([^\r\n]+)"#,
@@ -399,7 +400,16 @@ public struct ClaudeStatusProbe: Sendable {
         if lower.contains("authentication_error") {
             return "Claude CLI authentication error. Run `claude login`."
         }
+        if lower.contains("rate_limit_error")
+            || lower.contains("rate limited")
+            || compact.contains("ratelimited")
+        {
+            return "Claude CLI usage endpoint is rate limited right now. Please try again later."
+        }
         if lower.contains("failed to load usage data") {
+            return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
+        }
+        if compact.contains("failedtoloadusagedata") {
             return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
         }
         return nil
@@ -670,7 +680,7 @@ public struct ClaudeStatusProbe: Sendable {
     }
 
     private static func extractUsageErrorJSON(text: String) -> String? {
-        let pattern = #"Failed to load usage data:\s*(\{.*\})"#
+        let pattern = #"Failed\s*to\s*load\s*usage\s*data:\s*(\{.*\})"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
             return nil
         }
@@ -695,6 +705,11 @@ public struct ClaudeStatusProbe: Sendable {
         let message = (error["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let details = error["details"] as? [String: Any]
         let code = (details?["error_code"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let type = (error["type"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if type == "rate_limit_error" {
+            return "Claude CLI usage endpoint is rate limited right now. Please try again later."
+        }
 
         var parts: [String] = []
         if let message, !message.isEmpty { parts.append(message) }
@@ -748,6 +763,8 @@ public struct ClaudeStatusProbe: Sendable {
                 "Current session",
                 "Failed to load usage data",
                 "failed to load usage data",
+                "Failedto loadusagedata",
+                "failedtoloadusagedata",
             ]
             : []
         let idleTimeout: TimeInterval? = subcommand == "/usage" ? nil : 3.0

@@ -85,8 +85,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
     /// Used to decide whether we can "smart update" menu content without rebuilding the switcher.
     var lastSwitcherUsageBarsShowUsed: Bool
+    /// Tracks whether the merged-menu switcher was built with the Overview tab visible.
+    /// Used to force switcher rebuilds when Overview availability toggles.
+    var lastSwitcherIncludesOverview: Bool = false
     /// Tracks which providers the merged menu's switcher was built with, to detect when it needs full rebuild.
     var lastSwitcherProviders: [UsageProvider] = []
+    /// Tracks which switcher tab state was used for the current merged-menu switcher instance.
+    var lastMergedSwitcherSelection: ProviderSwitcherSelection?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
     var selectedMenuProvider: UsageProvider? {
         get { self.settings.selectedMenuProvider }
@@ -131,6 +136,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         case .automatic:
             if provider == .factory || provider == .kimi {
                 return snapshot?.secondary ?? snapshot?.primary
+            }
+            if provider == .copilot,
+               let primary = snapshot?.primary,
+               let secondary = snapshot?.secondary
+            {
+                // Copilot can expose chat + completions quotas; show the more constrained one by default.
+                return primary.usedPercent >= secondary.usedPercent ? primary : secondary
             }
             return snapshot?.primary ?? snapshot?.secondary
         }
