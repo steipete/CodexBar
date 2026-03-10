@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AppKit
 import CodexBarCore
 import Foundation
@@ -33,6 +34,7 @@ extension UsageStore {
         _ = self.pathDebugInfo
         _ = self.statuses
         _ = self.probeLogs
+        _ = self.historicalPaceRevision
         return 0
     }
 
@@ -54,94 +56,48 @@ extension UsageStore {
             _ = self.settings.selectedMenuProvider
             _ = self.settings.debugLoadingPattern
             _ = self.settings.debugKeepCLISessionsAlive
+            _ = self.settings.historicalTrackingEnabled
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeSettingsChanges()
+                guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
                 self.startTimer()
                 self.updateProviderRuntimes()
+                await self.refreshHistoricalDatasetIfNeeded()
                 await self.refresh()
             }
         }
     }
 }
 
-enum ProviderStatusIndicator: String {
-    case none
-    case minor
-    case major
-    case critical
-    case maintenance
-    case unknown
-
-    var hasIssue: Bool {
-        switch self {
-        case .none: false
-        default: true
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .none: "Operational"
-        case .minor: "Partial outage"
-        case .major: "Major outage"
-        case .critical: "Critical issue"
-        case .maintenance: "Maintenance"
-        case .unknown: "Status unknown"
-        }
-    }
-}
-
-#if DEBUG
-extension UsageStore {
-    func _setSnapshotForTesting(_ snapshot: UsageSnapshot?, provider: UsageProvider) {
-        self.snapshots[provider] = snapshot?.scoped(to: provider)
-    }
-
-    func _setTokenSnapshotForTesting(_ snapshot: CostUsageTokenSnapshot?, provider: UsageProvider) {
-        self.tokenSnapshots[provider] = snapshot
-    }
-
-    func _setTokenErrorForTesting(_ error: String?, provider: UsageProvider) {
-        self.tokenErrors[provider] = error
-    }
-
-    func _setErrorForTesting(_ error: String?, provider: UsageProvider) {
-        self.errors[provider] = error
-    }
-}
-#endif
-
-struct ProviderStatus {
-    let indicator: ProviderStatusIndicator
-    let description: String?
-    let updatedAt: Date?
-}
-
-/// Tracks consecutive failures so we can ignore a single flake when we previously had fresh data.
-struct ConsecutiveFailureGate {
-    private(set) var streak: Int = 0
-
-    mutating func recordSuccess() {
-        self.streak = 0
-    }
-
-    mutating func reset() {
-        self.streak = 0
-    }
-
-    /// Returns true when the caller should surface the error to the UI.
-    mutating func shouldSurfaceError(onFailureWithPriorData hadPriorData: Bool) -> Bool {
-        self.streak += 1
-        if hadPriorData, self.streak == 1 { return false }
-        return true
-    }
-}
-
 @MainActor
 @Observable
 final class UsageStore {
+    enum StartupBehavior: Sendable {
+        case automatic
+        case full
+        case testing
+
+        var automaticallyStartsBackgroundWork: Bool {
+            switch self {
+            case .automatic, .full:
+                true
+            case .testing:
+                false
+            }
+        }
+
+        func resolved(isRunningTests: Bool) -> StartupBehavior {
+            switch self {
+            case .automatic:
+                isRunningTests ? .testing : .full
+            case .full, .testing:
+                self
+            }
+        }
+    }
+
     var snapshots: [UsageProvider: UsageSnapshot] = [:]
     var errors: [UsageProvider: String] = [:]
     var lastSourceLabels: [UsageProvider: String] = [:]
@@ -164,6 +120,7 @@ final class UsageStore {
     var pathDebugInfo: PathDebugSnapshot = .empty
     var statuses: [UsageProvider: ProviderStatus] = [:]
     var probeLogs: [UsageProvider: String] = [:]
+    var historicalPaceRevision: Int = 0
     @ObservationIgnored private var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored private var creditsFailureStreak: Int = 0
     @ObservationIgnored private var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
@@ -195,6 +152,9 @@ final class UsageStore {
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var codexPlanHistoryBackfillTask: Task<Void, Never>?
+    @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
+    @ObservationIgnored var codexHistoricalDataset: CodexHistoricalDataset?
+    @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
@@ -202,6 +162,7 @@ final class UsageStore {
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
+    @ObservationIgnored private let startupBehavior: StartupBehavior
 
     init(
         fetcher: UsageFetcher,
@@ -210,7 +171,9 @@ final class UsageStore {
         costUsageFetcher: CostUsageFetcher = CostUsageFetcher(),
         settings: SettingsStore,
         registry: ProviderRegistry = .shared,
-        sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier())
+        historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
+        sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
+        startupBehavior: StartupBehavior = .automatic)
     {
         self.codexFetcher = fetcher
         self.browserDetection = browserDetection
@@ -218,7 +181,9 @@ final class UsageStore {
         self.costUsageFetcher = costUsageFetcher
         self.settings = settings
         self.registry = registry
+        self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.sessionQuotaNotifier = sessionQuotaNotifier
+        self.startupBehavior = startupBehavior.resolved(isRunningTests: Self.isRunningTestsProcess())
         self.providerMetadata = registry.metadata
         self
             .failureGates = Dictionary(
@@ -239,14 +204,15 @@ final class UsageStore {
         self.planUtilizationHistory = PlanUtilizationHistoryStore.load()
         self.logStartupState()
         self.bindSettings()
-        self.detectVersions()
-        self.updateProviderRuntimes()
         self.pathDebugInfo = PathDebugSnapshot(
             codexBinary: nil,
             claudeBinary: nil,
             geminiBinary: nil,
             effectivePATH: PathBuilder.effectivePATH(purposes: [.rpc, .tty, .nodeTooling]),
             loginShellPATH: LoginShellPathCache.shared.current?.joined(separator: ":"))
+        guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
+        self.detectVersions()
+        self.updateProviderRuntimes()
         Task { @MainActor [weak self] in
             self?.schedulePathDebugInfoRefresh()
         }
@@ -255,9 +221,22 @@ final class UsageStore {
                 self?.schedulePathDebugInfoRefresh()
             }
         }
+        Task { @MainActor [weak self] in
+            await self?.refreshHistoricalDatasetIfNeeded()
+        }
         Task { await self.refresh() }
         self.startTimer()
         self.startTokenTimer()
+    }
+
+    private static func isRunningTestsProcess() -> Bool {
+        let environment = ProcessInfo.processInfo.environment
+        if environment["XCTestConfigurationFilePath"] != nil { return true }
+        if environment["XCTestSessionIdentifier"] != nil { return true }
+        if environment["SWIFT_TESTING_ENABLED"] != nil { return true }
+        return CommandLine.arguments.contains { argument in
+            argument.contains("xctest") || argument.contains("swift-testing")
+        }
     }
 
     /// Returns the login method (plan type) for the specified provider, if available.
@@ -521,6 +500,7 @@ final class UsageStore {
         self.timerTask?.cancel()
         self.tokenTimerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
+        self.codexPlanHistoryBackfillTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {
@@ -752,6 +732,7 @@ extension UsageStore {
         if let email = targetEmail, !email.isEmpty {
             OpenAIDashboardCacheStore.save(OpenAIDashboardCache(accountEmail: email, snapshot: dash))
         }
+        self.backfillCodexHistoricalFromDashboardIfNeeded(dash)
     }
 
     private func applyOpenAIDashboardFailure(message: String) async {

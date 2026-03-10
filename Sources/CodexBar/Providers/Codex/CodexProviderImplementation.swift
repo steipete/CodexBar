@@ -72,6 +72,17 @@ struct CodexProviderImplementation: ProviderImplementation {
 
         return [
             ProviderSettingsToggleDescriptor(
+                id: "codex-historical-tracking",
+                title: "Historical tracking",
+                subtitle: "Stores local Codex usage history (8 weeks) to personalize Pace predictions.",
+                binding: context.boolBinding(\.historicalTrackingEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
                 id: "codex-openai-web-extras",
                 title: "OpenAI web extras",
                 subtitle: "Show usage breakdown, credits history, and code review via chatgpt.com.",

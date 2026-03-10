@@ -19,7 +19,8 @@ struct UsageStorePathDebugTests {
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+            settings: settings,
+            startupBehavior: .full)
 
         let deadline = Date().addingTimeInterval(2)
         while store.pathDebugInfo == .empty, Date() < deadline {

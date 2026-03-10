@@ -62,7 +62,8 @@ final class OpenAIDashboardWebViewCache {
     func acquire(
         websiteDataStore: WKWebsiteDataStore,
         usageURL: URL,
-        logger: ((String) -> Void)?) async throws -> OpenAIDashboardWebViewLease
+        logger: ((String) -> Void)?,
+        navigationTimeout: TimeInterval = 15) async throws -> OpenAIDashboardWebViewLease
     {
         let now = Date()
         self.prune(now: now)
@@ -78,7 +79,7 @@ final class OpenAIDashboardWebViewCache {
                 let (webView, host) = self.makeWebView(websiteDataStore: websiteDataStore)
                 host.show()
                 do {
-                    try await self.prepareWebView(webView, usageURL: usageURL)
+                    try await self.prepareWebView(webView, usageURL: usageURL, timeout: navigationTimeout)
                 } catch {
                     host.close()
                     throw error
@@ -93,7 +94,7 @@ final class OpenAIDashboardWebViewCache {
             entry.lastUsedAt = now
             entry.host.show()
             do {
-                try await self.prepareWebView(entry.webView, usageURL: usageURL)
+                try await self.prepareWebView(entry.webView, usageURL: usageURL, timeout: navigationTimeout)
             } catch {
                 entry.isBusy = false
                 entry.lastUsedAt = Date()
@@ -124,7 +125,7 @@ final class OpenAIDashboardWebViewCache {
         host.show()
 
         do {
-            try await self.prepareWebView(webView, usageURL: usageURL)
+            try await self.prepareWebView(webView, usageURL: usageURL, timeout: navigationTimeout)
         } catch {
             self.entries.removeValue(forKey: key)
             host.close()
@@ -177,13 +178,14 @@ final class OpenAIDashboardWebViewCache {
         return (webView, host)
     }
 
-    private func prepareWebView(_ webView: WKWebView, usageURL: URL) async throws {
+    private func prepareWebView(_ webView: WKWebView, usageURL: URL, timeout: TimeInterval) async throws {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             let delegate = NavigationDelegate { result in
                 cont.resume(with: result)
             }
             webView.navigationDelegate = delegate
             webView.codexNavigationDelegate = delegate
+            delegate.armTimeout(seconds: timeout)
             _ = webView.load(URLRequest(url: usageURL))
         }
     }
