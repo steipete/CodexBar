@@ -132,6 +132,10 @@ extension StatusItemController {
         self.openSettings(tab: .general)
     }
 
+    @objc func showSettingsProviders() {
+        self.openSettings(tab: .providers)
+    }
+
     @objc func showSettingsAbout() {
         self.openSettings(tab: .about)
     }

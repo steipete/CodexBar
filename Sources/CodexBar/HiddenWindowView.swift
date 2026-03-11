@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct HiddenWindowView: View {
@@ -9,6 +10,10 @@ struct HiddenWindowView: View {
             .onReceive(NotificationCenter.default.publisher(for: .codexbarOpenSettings)) { _ in
                 Task { @MainActor in
                     self.openSettings()
+                    // Menu-bar apps don't automatically own keyboard focus.
+                    // Force the Settings window to become key so text fields
+                    // receive keystrokes instead of the previously-active app.
+                    Self.forceSettingsWindowKey()
                 }
             }
             .task {
@@ -16,6 +21,17 @@ struct HiddenWindowView: View {
                 await Task.detached(priority: .userInitiated) {
                     KeychainMigration.migrateIfNeeded()
                 }.value
+            }
+            // Also catch when the Settings window first appears (e.g. opened via
+            // the SwiftUI lifecycle rather than the notification path).
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeMainNotification)) { note in
+                guard let window = note.object as? NSWindow,
+                      window.canBecomeKey,
+                      window.title != "CodexBarLifecycleKeepalive"
+                else { return }
+                Task { @MainActor in
+                    Self.forceSettingsWindowKey()
+                }
             }
             .onAppear {
                 if let window = NSApp.windows.first(where: { $0.title == "CodexBarLifecycleKeepalive" }) {
@@ -34,5 +50,20 @@ struct HiddenWindowView: View {
                     window.setFrameOrigin(NSPoint(x: -5000, y: -5000))
                 }
             }
+    }
+
+    @MainActor
+    private static func forceSettingsWindowKey() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        // Give the window a moment to appear, then make it key.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { @MainActor in
+            for window in NSApp.windows where window.isVisible && window.canBecomeKey
+                && window.title != "CodexBarLifecycleKeepalive"
+            {
+                window.makeKeyAndOrderFront(nil)
+                break
+            }
+        }
     }
 }

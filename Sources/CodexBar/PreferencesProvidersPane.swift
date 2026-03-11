@@ -219,7 +219,27 @@ struct ProvidersPane: View {
                         await self.store.refreshProvider(provider, allowDisabled: true)
                     }
                 }
-            })
+            },
+            importFromFile: provider == .codex ? {
+                guard let credentials = try? CodexOAuthCredentialsStore.load() else { return }
+                let email = Self.codexEmailFromCredentials(credentials)
+                let label = email ?? "Codex (\(DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none)))"
+                self.settings.addTokenAccount(provider: .codex, label: label, token: credentials.accessToken)
+                Task { @MainActor in
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(.codex, allowDisabled: true)
+                    }
+                }
+            } : nil)
+    }
+
+    private static func codexEmailFromCredentials(_ credentials: CodexOAuthCredentials) -> String? {
+        guard let idToken = credentials.idToken,
+              let payload = UsageFetcher.parseJWT(idToken)
+        else { return nil }
+        let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
+        let email = (payload["email"] as? String) ?? (profileDict?["email"] as? String)
+        return email?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func makeSettingsContext(provider: UsageProvider) -> ProviderSettingsContext {

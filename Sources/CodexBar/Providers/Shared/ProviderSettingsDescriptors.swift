@@ -100,6 +100,7 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let removeAccount: (_ accountID: UUID) -> Void
     let openConfigFile: () -> Void
     let reloadFromDisk: () -> Void
+    var importFromFile: (() -> Void)?
 }
 
 /// Shared picker descriptor rendered in the Providers settings pane.

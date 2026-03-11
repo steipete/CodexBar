@@ -9,6 +9,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: "sessionKey"),
+        .codex: TokenAccountSupport(
+            title: "OAuth tokens",
+            subtitle: "Store Codex/OpenAI OAuth access tokens from auth.json.",
+            placeholder: "Paste access_token…",
+            injection: .environment(key: CodexSettingsReader.oauthAccessTokenKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .zai: TokenAccountSupport(
             title: "API tokens",
             subtitle: "Stored in the CodexBar config file.",
