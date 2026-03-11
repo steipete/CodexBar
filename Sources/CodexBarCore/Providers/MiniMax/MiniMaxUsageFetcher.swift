@@ -320,8 +320,27 @@ public struct MiniMaxUsageFetcher: Sendable {
     }
 
     private static func looksSignedOut(html: String) -> Bool {
-        let lower = html.lowercased()
+        let lower = self.visibleText(from: html).lowercased()
         return lower.contains("sign in") || lower.contains("log in") || lower.contains("登录") || lower.contains("登入")
+    }
+
+    private static func visibleText(from html: String) -> String {
+        let patterns = [
+            #"(?is)<script\b[^>]*>.*?</script>"#,
+            #"(?is)<style\b[^>]*>.*?</style>"#,
+            #"(?is)<!--.*?-->"#,
+            #"<[^>]+>"#,
+            #"\s+"#,
+        ]
+
+        return patterns.enumerated().reduce(html) { result, item in
+            let replacement = item.offset == patterns.count - 1 ? " " : ""
+            return result.replacingOccurrences(
+                of: item.element,
+                with: replacement,
+                options: .regularExpression)
+        }
+        .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
