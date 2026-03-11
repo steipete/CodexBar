@@ -34,6 +34,7 @@ enum ClaudeOAuthUsageFetcher {
     private static let baseURL = "https://api.anthropic.com"
     private static let usagePath = "/api/oauth/usage"
     private static let betaHeader = "oauth-2025-04-20"
+    private static let fallbackClaudeCodeVersion = "2.1.0"
 
     static func fetchUsage(accessToken: String) async throws -> OAuthUsageResponse {
         guard let url = URL(string: baseURL + usagePath) else {
@@ -48,7 +49,7 @@ enum ClaudeOAuthUsageFetcher {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // OAuth usage endpoint currently requires the beta header.
         request.setValue(Self.betaHeader, forHTTPHeaderField: "anthropic-beta")
-        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.claudeCodeUserAgent(), forHTTPHeaderField: "User-Agent")
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -86,6 +87,24 @@ enum ClaudeOAuthUsageFetcher {
         if let date = formatter.date(from: string) { return date }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: string)
+    }
+
+    private static func claudeCodeUserAgent() -> String {
+        self.claudeCodeUserAgent(versionString: ProviderVersionDetector.claudeVersion())
+    }
+
+    private static func claudeCodeUserAgent(versionString: String?) -> String {
+        let version = self.normalizedClaudeCodeVersion(versionString) ?? self.fallbackClaudeCodeVersion
+        return "claude-code/\(version)"
+    }
+
+    private static func normalizedClaudeCodeVersion(_ versionString: String?) -> String? {
+        guard let raw = versionString?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        let token = raw.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? raw
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
@@ -139,6 +158,10 @@ struct OAuthExtraUsage: Decodable, Sendable {
 extension ClaudeOAuthUsageFetcher {
     static func _decodeUsageResponseForTesting(_ data: Data) throws -> OAuthUsageResponse {
         try self.decodeUsageResponse(data)
+    }
+
+    static func _userAgentForTesting(versionString: String?) -> String {
+        self.claudeCodeUserAgent(versionString: versionString)
     }
 }
 #endif

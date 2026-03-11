@@ -273,20 +273,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     // MARK: - Public API
 
     public func detectVersion() -> String? {
-        // Avoid leaking terminal control sequences (some `claude` builds write to /dev/tty even when stdout is piped).
-        guard TTYCommandRunner.which("claude") != nil else { return nil }
-        do {
-            let out = try TTYCommandRunner().run(
-                binary: "claude",
-                send: "",
-                options: TTYCommandRunner.Options(
-                    timeout: 5.0,
-                    extraArgs: ["--allowed-tools", "", "--version"],
-                    initialDelay: 0.0)).text
-            return TextParsing.stripANSICodes(out).trimmingCharacters(in: .whitespacesAndNewlines)
-        } catch {
-            return nil
-        }
+        ProviderVersionDetector.claudeVersion()
     }
 
     public func debugRawProbe(model: String = "sonnet") async -> String {

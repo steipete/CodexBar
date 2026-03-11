@@ -9,21 +9,18 @@ enum UsagePaceText {
         let stage: UsagePace.Stage
     }
 
-    private static let minimumExpectedPercent: Double = 3
-
-    static func weeklySummary(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> String? {
-        guard let detail = weeklyDetail(provider: provider, window: window, now: now) else { return nil }
+    static func weeklySummary(pace: UsagePace, now: Date = .init()) -> String {
+        let detail = self.weeklyDetail(pace: pace, now: now)
         if let rightLabel = detail.rightLabel {
             return "Pace: \(detail.leftLabel) · \(rightLabel)"
         }
         return "Pace: \(detail.leftLabel)"
     }
 
-    static func weeklyDetail(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> WeeklyDetail? {
-        guard let pace = weeklyPace(provider: provider, window: window, now: now) else { return nil }
-        return WeeklyDetail(
-            leftLabel: Self.detailLeftLabel(for: pace),
-            rightLabel: Self.detailRightLabel(for: pace, now: now),
+    static func weeklyDetail(pace: UsagePace, now: Date = .init()) -> WeeklyDetail {
+        WeeklyDetail(
+            leftLabel: self.detailLeftLabel(for: pace),
+            rightLabel: self.detailRightLabel(for: pace, now: now),
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }
@@ -41,11 +38,23 @@ enum UsagePaceText {
     }
 
     private static func detailRightLabel(for pace: UsagePace, now: Date) -> String? {
-        if pace.willLastToReset { return "Lasts until reset" }
-        guard let etaSeconds = pace.etaSeconds else { return nil }
-        let etaText = Self.durationText(seconds: etaSeconds, now: now)
-        if etaText == "now" { return "Runs out now" }
-        return "Runs out in \(etaText)"
+        let etaLabel: String?
+        if pace.willLastToReset {
+            etaLabel = "Lasts until reset"
+        } else if let etaSeconds = pace.etaSeconds {
+            let etaText = Self.durationText(seconds: etaSeconds, now: now)
+            etaLabel = etaText == "now" ? "Runs out now" : "Runs out in \(etaText)"
+        } else {
+            etaLabel = nil
+        }
+
+        guard let runOutProbability = pace.runOutProbability else { return etaLabel }
+        let roundedRisk = self.roundedRiskPercent(runOutProbability)
+        let riskLabel = "≈ \(roundedRisk)% run-out risk"
+        if let etaLabel {
+            return "\(etaLabel) · \(riskLabel)"
+        }
+        return riskLabel
     }
 
     private static func durationText(seconds: TimeInterval, now: Date) -> String {
@@ -56,11 +65,9 @@ enum UsagePaceText {
         return countdown
     }
 
-    static func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date) -> UsagePace? {
-        guard provider == .codex || provider == .claude else { return nil }
-        guard window.remainingPercent > 0 else { return nil }
-        guard let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080) else { return nil }
-        guard pace.expectedUsedPercent >= Self.minimumExpectedPercent else { return nil }
-        return pace
+    private static func roundedRiskPercent(_ probability: Double) -> Int {
+        let percent = probability.clamped(to: 0...1) * 100
+        let rounded = (percent / 5).rounded() * 5
+        return Int(rounded)
     }
 }

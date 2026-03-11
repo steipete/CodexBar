@@ -1,6 +1,23 @@
 import Foundation
 
 public enum ProviderVersionDetector {
+    public static func claudeVersion() -> String? {
+        guard let path = TTYCommandRunner.which("claude") else { return nil }
+        do {
+            let out = try TTYCommandRunner().run(
+                binary: path,
+                send: "",
+                options: TTYCommandRunner.Options(
+                    timeout: 5.0,
+                    extraArgs: ["--allowed-tools", "", "--version"],
+                    initialDelay: 0.0)).text
+            let trimmed = TextParsing.stripANSICodes(out).trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        } catch {
+            return nil
+        }
+    }
+
     public static func codexVersion() -> String? {
         guard let path = TTYCommandRunner.which("codex") else { return nil }
         let candidates = [

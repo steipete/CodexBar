@@ -55,12 +55,25 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         // Detached to avoid inheriting the caller's executor context (e.g. MainActor) and cancellation state.
         let readStrategy = ClaudeOAuthKeychainReadStrategyPreference.current()
         let keychainAccessDisabled = KeychainAccessGate.isDisabled
+        #if DEBUG
+        let securityCLIReadOverride = ClaudeOAuthCredentialsStore.currentSecurityCLIReadOverrideForTesting()
+        #endif
         let task = Task.detached(priority: .utility) {
+            #if DEBUG
+            return await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(securityCLIReadOverride) {
+                await self.performAttempt(
+                    now: now,
+                    timeout: timeout,
+                    readStrategy: readStrategy,
+                    keychainAccessDisabled: keychainAccessDisabled)
+            }
+            #else
             await self.performAttempt(
                 now: now,
                 timeout: timeout,
                 readStrategy: readStrategy,
                 keychainAccessDisabled: keychainAccessDisabled)
+            #endif
         }
         self.inFlightAttemptID = attemptID
         self.inFlightTask = task

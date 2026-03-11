@@ -60,4 +60,29 @@ struct OpenAIDashboardNavigationDelegateTests {
             #expect(Bool(false))
         }
     }
+
+    @Test("navigation timeout fails with timed out error")
+    func navigationTimeoutFailsWithTimedOutError() async {
+        final class DelegateBox: @unchecked Sendable {
+            var delegate: NavigationDelegate?
+        }
+
+        let result = await withCheckedContinuation { (continuation: CheckedContinuation<Result<Void, Error>, Never>) in
+            Task { @MainActor in
+                let box = DelegateBox()
+                box.delegate = NavigationDelegate { result in
+                    continuation.resume(returning: result)
+                    box.delegate = nil
+                }
+                box.delegate?.armTimeout(seconds: 0.01)
+            }
+        }
+
+        switch result {
+        case let .failure(error as URLError):
+            #expect(error.code == .timedOut)
+        default:
+            #expect(Bool(false))
+        }
+    }
 }

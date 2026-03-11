@@ -187,6 +187,10 @@ extension ClaudeOAuthCredentialsStore {
         }
     }
 
+    static func currentSecurityCLIReadOverrideForTesting() -> SecurityCLIReadOverride? {
+        self.taskSecurityCLIReadOverride ?? self.securityCLIReadOverride
+    }
+
     static func withSecurityCLIReadAccountOverrideForTesting<T>(
         _ account: String?,
         operation: () throws -> T) rethrows -> T

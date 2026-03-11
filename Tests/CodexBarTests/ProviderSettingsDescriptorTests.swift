@@ -119,8 +119,10 @@ struct ProviderSettingsDescriptorTests {
             requestConfirmation: { _ in })
 
         let pickers = CodexProviderImplementation().settingsPickers(context: context)
+        let toggles = CodexProviderImplementation().settingsToggles(context: context)
         #expect(pickers.contains(where: { $0.id == "codex-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "codex-cookie-source" }))
+        #expect(toggles.contains(where: { $0.id == "codex-historical-tracking" }))
     }
 
     @Test

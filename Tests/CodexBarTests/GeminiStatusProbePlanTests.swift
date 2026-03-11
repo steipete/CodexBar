@@ -53,6 +53,9 @@ struct GeminiStatusProbePlanTests {
         let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
         let snapshot = try await probe.fetch()
         #expect(snapshot.modelQuotas.contains { $0.percentLeft == 40 })
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.secondary?.remainingPercent == 40)
+        #expect(usage.tertiary == nil)
     }
 
     @Test
@@ -107,6 +110,57 @@ struct GeminiStatusProbePlanTests {
         let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
         let snapshot = try await probe.fetch()
         #expect(snapshot.modelQuotas.contains { $0.percentLeft == 40 })
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.secondary?.remainingPercent == 40)
+        #expect(usage.tertiary == nil)
+    }
+
+    @Test
+    func separatesFlashAndFlashLiteQuotaBucketsFromApiResponse() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: nil)
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+            switch host {
+            case "cloudresourcemanager.googleapis.com":
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.jsonData(["projects": []]))
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistStandardTierResponse())
+                }
+                if url.path != "/v1internal:retrieveUserQuota" {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+                }
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.sampleQuotaResponse())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.remainingPercent == 60.0)
+        #expect(usage.secondary?.remainingPercent == 90.0)
+        #expect(usage.tertiary?.remainingPercent == 80.0)
     }
 
     @Test

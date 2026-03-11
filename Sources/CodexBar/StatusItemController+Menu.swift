@@ -1395,7 +1395,10 @@ extension StatusItemController {
 
         let sourceLabel = snapshotOverride == nil ? self.store.sourceLabel(for: target) : nil
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
-
+        let now = Date()
+        let weeklyPace = snapshot?.secondary.flatMap { window in
+            self.store.weeklyPace(provider: target, window: window, now: now)
+        }
         let input = UsageMenuCardView.Model.Input(
             provider: target,
             metadata: metadata,
@@ -1416,7 +1419,8 @@ extension StatusItemController {
             sourceLabel: sourceLabel,
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
-            now: Date())
+            weeklyPace: weeklyPace,
+            now: now)
         return UsageMenuCardView.Model.make(input)
     }
 

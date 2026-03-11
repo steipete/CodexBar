@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 @Suite
 struct ClaudeOAuthTests {
@@ -180,6 +180,14 @@ struct ClaudeOAuthTests {
             "HTTP 403: OAuth token does not meet scope requirement user:profile")
         #expect(err.localizedDescription.contains("user:profile"))
         #expect(err.localizedDescription.contains("HTTP 403"))
+    }
+
+    @Test
+    func oauthUsageUserAgentUsesClaudeCodeVersion() {
+        #expect(
+            ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: "2.1.70 (Claude Code)")
+                == "claude-code/2.1.70")
+        #expect(ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: nil) == "claude-code/2.1.0")
     }
 
     @Test
