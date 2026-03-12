@@ -100,6 +100,100 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func mapsCodexSparkWindowsFromOAuthAdditionalRateLimits() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 22,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            },
+            "secondary_window": {
+              "used_percent": 43,
+              "reset_at": 1767407914,
+              "limit_window_seconds": 604800
+            }
+          },
+          "additional_rate_limits": [
+            {
+              "limit_name": "GPT-5.3-Codex-Spark",
+              "metered_feature": "codex_bengalfox",
+              "rate_limit": {
+                "primary_window": {
+                  "used_percent": 3,
+                  "reset_at": 1766948068,
+                  "limit_window_seconds": 18000
+                },
+                "secondary_window": {
+                  "used_percent": 17,
+                  "reset_at": 1767407914,
+                  "limit_window_seconds": 604800
+                }
+              }
+            }
+          ]
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        #expect(snapshot.primary?.usedPercent == 22)
+        #expect(snapshot.secondary?.usedPercent == 43)
+        #expect(snapshot.usageBucketGroups.count == 1)
+        let sparkGroup = try #require(snapshot.usageBucketGroups.first)
+        #expect(sparkGroup.id == "codex.spark")
+        #expect(sparkGroup.title == "GPT-5.3-Codex-Spark")
+        #expect(sparkGroup.buckets.map(\.id) == ["codex.spark.session", "codex.spark.weekly"])
+        #expect(sparkGroup.buckets.map(\.title) == ["Session", "Weekly"])
+        #expect(sparkGroup.buckets.first?.window.usedPercent == 3)
+        #expect(sparkGroup.buckets.first?.window.windowMinutes == 300)
+        #expect(sparkGroup.buckets.last?.window.usedPercent == 17)
+        #expect(sparkGroup.buckets.last?.window.windowMinutes == 10080)
+    }
+
+    @Test
+    func ignoresUnrelatedOAuthAdditionalRateLimitsWhenSparkAbsent() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 22,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            }
+          },
+          "additional_rate_limits": [
+            {
+              "limit_name": "Something else",
+              "metered_feature": "codex_something_else",
+              "rate_limit": {
+                "secondary_window": {
+                  "used_percent": 88,
+                  "reset_at": 1767407914,
+                  "limit_window_seconds": 604800
+                }
+              }
+            }
+          ]
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        #expect(snapshot.primary?.usedPercent == 22)
+        #expect(snapshot.usageBucketGroups.isEmpty)
+    }
+
+    @Test
     func resolvesChatGPTUsageURLFromConfig() {
         let config = "chatgpt_base_url = \"https://chatgpt.com/backend-api/\"\n"
         let url = CodexOAuthUsageFetcher._resolveUsageURLForTesting(configContents: config)

@@ -33,6 +33,7 @@ enum CLIRenderer {
             now: now,
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, metadata: meta, context: context, now: now, lines: &lines)
+        self.appendUsageBucketGroupLines(snapshot: snapshot, context: context, now: now, lines: &lines)
         self.appendCreditsLine(provider: provider, credits: credits, useColor: context.useColor, lines: &lines)
         self.appendIdentityAndNotes(
             provider: provider,
@@ -117,6 +118,24 @@ enum CLIRenderer {
         lines.append(self.rateLine(title: metadata.opusLabel ?? "Sonnet", window: opus, useColor: context.useColor))
         if let reset = self.resetLine(for: opus, style: context.resetStyle, now: now) {
             lines.append(self.subtleLine(reset, useColor: context.useColor))
+        }
+    }
+
+    private static func appendUsageBucketGroupLines(
+        snapshot: UsageSnapshot,
+        context: RenderContext,
+        now: Date,
+        lines: inout [String])
+    {
+        for group in snapshot.usageBucketGroups {
+            guard !group.buckets.isEmpty else { continue }
+            lines.append(group.title)
+            for bucket in group.buckets {
+                lines.append(self.rateLine(title: bucket.title, window: bucket.window, useColor: context.useColor))
+                if let reset = self.resetLine(for: bucket.window, style: context.resetStyle, now: now) {
+                    lines.append(self.subtleLine(reset, useColor: context.useColor))
+                }
+            }
         }
     }
 

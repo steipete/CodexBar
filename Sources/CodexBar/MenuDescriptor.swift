@@ -179,6 +179,11 @@ struct MenuDescriptor {
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
             }
+            Self.appendUsageBucketGroupEntries(
+                entries: &entries,
+                snapshot: snap,
+                resetStyle: resetStyle,
+                showUsed: settings.usageBarsShowUsed)
 
             if let cost = snap.providerCost {
                 if cost.currencyCode == "Quota" {
@@ -405,6 +410,30 @@ struct MenuDescriptor {
             return true
         }
         return false
+    }
+
+    private static func appendUsageBucketGroupEntries(
+        entries: inout [Entry],
+        snapshot: UsageSnapshot,
+        resetStyle: ResetTimeDisplayStyle,
+        showUsed: Bool)
+    {
+        for group in snapshot.usageBucketGroups {
+            guard !group.buckets.isEmpty else { continue }
+            if entries.count > 1 {
+                entries.append(.divider)
+            }
+            entries.append(.text(group.title, .headline))
+
+            for bucket in group.buckets {
+                self.appendRateWindow(
+                    entries: &entries,
+                    title: bucket.title,
+                    window: bucket.window,
+                    resetStyle: resetStyle,
+                    showUsed: showUsed)
+            }
+        }
     }
 
     private static func appendRateWindow(

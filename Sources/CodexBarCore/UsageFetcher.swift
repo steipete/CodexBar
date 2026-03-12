@@ -19,6 +19,30 @@ public struct RateWindow: Codable, Equatable, Sendable {
     }
 }
 
+public struct UsageBucketSnapshot: Codable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let window: RateWindow
+
+    public init(id: String, title: String, window: RateWindow) {
+        self.id = id
+        self.title = title
+        self.window = window
+    }
+}
+
+public struct UsageBucketGroupSnapshot: Codable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let buckets: [UsageBucketSnapshot]
+
+    public init(id: String, title: String, buckets: [UsageBucketSnapshot]) {
+        self.id = id
+        self.title = title
+        self.buckets = buckets
+    }
+}
+
 public struct ProviderIdentitySnapshot: Codable, Sendable {
     public let providerID: UsageProvider?
     public let accountEmail: String?
@@ -51,6 +75,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let primary: RateWindow?
     public let secondary: RateWindow?
     public let tertiary: RateWindow?
+    public let usageBucketGroups: [UsageBucketGroupSnapshot]
     public let providerCost: ProviderCostSnapshot?
     public let zaiUsage: ZaiUsageSnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
@@ -63,6 +88,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case primary
         case secondary
         case tertiary
+        case usageBucketGroups
         case providerCost
         case openRouterUsage
         case updatedAt
@@ -76,6 +102,7 @@ public struct UsageSnapshot: Codable, Sendable {
         primary: RateWindow?,
         secondary: RateWindow?,
         tertiary: RateWindow? = nil,
+        usageBucketGroups: [UsageBucketGroupSnapshot] = [],
         providerCost: ProviderCostSnapshot? = nil,
         zaiUsage: ZaiUsageSnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
@@ -87,6 +114,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.primary = primary
         self.secondary = secondary
         self.tertiary = tertiary
+        self.usageBucketGroups = Self.normalizedUsageBucketGroups(usageBucketGroups)
         self.providerCost = providerCost
         self.zaiUsage = zaiUsage
         self.minimaxUsage = minimaxUsage
@@ -101,6 +129,10 @@ public struct UsageSnapshot: Codable, Sendable {
         self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
         self.secondary = try container.decodeIfPresent(RateWindow.self, forKey: .secondary)
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
+        let decodedUsageBucketGroups = try container.decodeIfPresent(
+            [UsageBucketGroupSnapshot].self,
+            forKey: .usageBucketGroups) ?? []
+        self.usageBucketGroups = Self.normalizedUsageBucketGroups(decodedUsageBucketGroups)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.zaiUsage = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
@@ -131,6 +163,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encode(self.primary, forKey: .primary)
         try container.encode(self.secondary, forKey: .secondary)
         try container.encode(self.tertiary, forKey: .tertiary)
+        try container.encode(self.usageBucketGroups, forKey: .usageBucketGroups)
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
         try container.encode(self.updatedAt, forKey: .updatedAt)
@@ -184,6 +217,7 @@ public struct UsageSnapshot: Codable, Sendable {
             primary: self.primary,
             secondary: self.secondary,
             tertiary: self.tertiary,
+            usageBucketGroups: self.usageBucketGroups,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
@@ -198,6 +232,16 @@ public struct UsageSnapshot: Codable, Sendable {
         let scopedIdentity = identity.scoped(to: provider)
         if scopedIdentity.providerID == identity.providerID { return self }
         return self.withIdentity(scopedIdentity)
+    }
+
+    private static func normalizedUsageBucketGroups(
+        _ groups: [UsageBucketGroupSnapshot]) -> [UsageBucketGroupSnapshot]
+    {
+        groups.compactMap { group in
+            let buckets = group.buckets.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            guard !buckets.isEmpty else { return nil }
+            return UsageBucketGroupSnapshot(id: group.id, title: group.title, buckets: buckets)
+        }
     }
 }
 
