@@ -120,4 +120,114 @@ struct MenuCardModelSparkTests {
         #expect(UsageMenuCardView.metricGroups(metrics: model.metrics).count == 1)
         #expect(model.metrics.contains { $0.groupID != nil } == false)
     }
+
+    @Test
+    func preservesProviderOwnedPrimaryBucketGroupAlongsideBuiltInPrimaryGroup() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 22, windowMinutes: 300, resetsAt: now, resetDescription: nil),
+            secondary: nil,
+            usageBucketGroups: [
+                UsageBucketGroupSnapshot(
+                    id: "primary",
+                    title: "Provider Primary",
+                    buckets: [
+                        UsageBucketSnapshot(
+                            id: "primary.session",
+                            title: "Session",
+                            window: RateWindow(
+                                usedPercent: 3,
+                                windowMinutes: 300,
+                                resetsAt: now.addingTimeInterval(5400),
+                                resetDescription: nil)),
+                    ]),
+            ],
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "codex@example.com",
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "codex@example.com", plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let groups = UsageMenuCardView.metricGroups(metrics: model.metrics)
+        #expect(groups.count == 2)
+        #expect(groups.map(\.kind) == [.builtInPrimary, .providerBucket])
+        #expect(groups.contains { $0.id == "primary" && $0.kind == .providerBucket })
+        #expect(UsageMenuCardView.primaryMetricGroup(metrics: model.metrics)?.kind == .builtInPrimary)
+        #expect(UsageMenuCardView.supplementalMetricGroups(metrics: model.metrics).map(\.id) == ["primary"])
+    }
+
+    @Test
+    func keepsInternalViewIdentityUniqueWhenProviderGroupMatchesBuiltInSentinel() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 22, windowMinutes: 300, resetsAt: now, resetDescription: nil),
+            secondary: nil,
+            usageBucketGroups: [
+                UsageBucketGroupSnapshot(
+                    id: "__builtInPrimary",
+                    title: "Provider Sentinel",
+                    buckets: [
+                        UsageBucketSnapshot(
+                            id: "__builtInPrimary.session",
+                            title: "Session",
+                            window: RateWindow(
+                                usedPercent: 3,
+                                windowMinutes: 300,
+                                resetsAt: now.addingTimeInterval(5400),
+                                resetDescription: nil)),
+                    ]),
+            ],
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "codex@example.com",
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "codex@example.com", plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let groups = UsageMenuCardView.metricGroups(metrics: model.metrics)
+        #expect(groups.map(\.internalID) == ["builtInPrimary", "providerBucket:__builtInPrimary"])
+    }
 }

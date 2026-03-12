@@ -52,9 +52,24 @@ struct UsageMenuCardView: View {
         }
 
         struct MetricGroup: Identifiable {
+            enum Kind {
+                case builtInPrimary
+                case providerBucket
+            }
+
             let id: String
             let title: String?
+            let kind: Kind
             let metrics: [Metric]
+
+            var internalID: String {
+                switch self.kind {
+                case .builtInPrimary:
+                    "builtInPrimary"
+                case .providerBucket:
+                    "providerBucket:\(self.id)"
+                }
+            }
         }
 
         enum SubtitleStyle {
@@ -98,6 +113,7 @@ struct UsageMenuCardView: View {
     let model: Model
     let width: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
+    private static let builtInPrimaryMetricGroupID = "__builtInPrimary"
 
     static func popupMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
         if provider == .openrouter, metric.id == "primary" {
@@ -111,7 +127,11 @@ struct UsageMenuCardView: View {
         var groups: [Model.MetricGroup] = []
         let primaryMetrics = metrics.filter { $0.groupID == nil }
         if !primaryMetrics.isEmpty {
-            groups.append(.init(id: "primary", title: nil, metrics: primaryMetrics))
+            groups.append(.init(
+                id: self.builtInPrimaryMetricGroupID,
+                title: nil,
+                kind: .builtInPrimary,
+                metrics: primaryMetrics))
         }
 
         var supplementalGroups: [String: [Model.Metric]] = [:]
@@ -126,18 +146,30 @@ struct UsageMenuCardView: View {
 
         for groupID in supplementalOrder {
             guard let metrics = supplementalGroups[groupID], !metrics.isEmpty else { continue }
-            groups.append(.init(id: groupID, title: metrics.first?.groupTitle, metrics: metrics))
+            groups.append(.init(
+                id: groupID,
+                title: metrics.first?.groupTitle,
+                kind: .providerBucket,
+                metrics: metrics))
         }
 
         return groups
     }
 
     static func primaryMetricGroup(metrics: [Model.Metric]) -> Model.MetricGroup? {
-        self.metricGroups(metrics: metrics).first { $0.id == "primary" }
+        self.metricGroups(metrics: metrics).first { $0.kind == .builtInPrimary }
     }
 
     static func supplementalMetricGroups(metrics: [Model.Metric]) -> [Model.MetricGroup] {
-        self.metricGroups(metrics: metrics).filter { $0.id != "primary" }
+        self.metricGroups(metrics: metrics).filter { $0.kind == .providerBucket }
+    }
+
+    static func emptyPrimaryMetricGroup() -> Model.MetricGroup {
+        .init(
+            id: self.builtInPrimaryMetricGroupID,
+            title: nil,
+            kind: .builtInPrimary,
+            metrics: [])
     }
 
     static func displayMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
@@ -173,7 +205,7 @@ struct UsageMenuCardView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if hasUsage {
                         VStack(alignment: .leading, spacing: 12) {
-                            ForEach(Array(metricGroups.enumerated()), id: \.element.id) { index, group in
+                            ForEach(Array(metricGroups.enumerated()), id: \.element.internalID) { index, group in
                                 if index > 0 {
                                     Divider()
                                 }
@@ -505,7 +537,7 @@ struct UsageMenuCardUsageSectionView: View {
                         .font(.subheadline)
                 }
             } else {
-                ForEach(Array(metricGroups.enumerated()), id: \.element.id) { index, group in
+                ForEach(Array(metricGroups.enumerated()), id: \.element.internalID) { index, group in
                     if index > 0 {
                         Divider()
                     }

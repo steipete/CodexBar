@@ -867,7 +867,7 @@ extension StatusItemController {
         if hasUsageBlock {
             let usageView = UsageMenuCardMetricGroupSectionView(
                 provider: provider,
-                group: primaryMetricGroup ?? .init(id: "primary", title: nil, metrics: []),
+                group: primaryMetricGroup ?? UsageMenuCardView.emptyPrimaryMetricGroup(),
                 usageNotes: model.usageNotes,
                 placeholder: model.placeholder,
                 topPadding: 10,
