@@ -40,10 +40,15 @@ public enum ClaudeOAuthKeychainPromptPreference {
         readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
         -> ClaudeOAuthKeychainPromptMode
     {
+        let stored = self.storedMode(userDefaults: userDefaults)
+        // Always honor an explicit opt-out. When set to `.never`, no Security.framework keychain queries
+        // should run — including fingerprint/sync probes — regardless of the read strategy. This prevents
+        // macOS XARA partition-check dialogs that `kSecUseAuthenticationUIFail` cannot suppress.
+        if stored == .never { return .never }
         guard self.isApplicable(readStrategy: readStrategy) else {
             return .always
         }
-        return self.storedMode(userDefaults: userDefaults)
+        return stored
     }
 
     public static func securityFrameworkFallbackMode(
