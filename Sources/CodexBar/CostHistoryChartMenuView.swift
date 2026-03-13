@@ -180,7 +180,7 @@ struct CostHistoryChartMenuView: View {
             dateKeys: dateKeys,
             axisDates: axisDates,
             barColor: barColor,
-            peakKey: peak?.key,
+            peakKey: maxCostUSD > 0 ? peak?.key : nil,
             maxCostUSD: maxCostUSD)
     }
 
