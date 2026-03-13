@@ -287,7 +287,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
             for source in sources {
                 let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                if cookies.isEmpty {
+                guard !cookies.isEmpty else {
                     log("\(source.label) produced 0 HTTPCookies.")
                     continue
                 }
