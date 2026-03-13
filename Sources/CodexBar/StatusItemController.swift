@@ -51,6 +51,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     var creditsPurchaseWindow: OpenAICreditsPurchaseWindowController?
+    var usageBar: MenuBarUsageBar?
 
     var activeLoginProvider: UsageProvider? {
         didSet {
@@ -177,6 +178,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.statusItem = item
         // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
+        self.usageBar = MenuBarUsageBar(statusBar: statusBar)
         self.wireBindings()
         self.updateIcons()
         self.updateVisibility()
@@ -345,6 +347,23 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
         self.updateAnimationState()
         self.updateBlinkingState()
+        self.updateUsageBar()
+    }
+
+    /// Refresh the colored usage-bar status item with the best remaining-percent across all enabled providers.
+    private func updateUsageBar() {
+        let enabled = self.store.enabledProviders()
+        guard !enabled.isEmpty else {
+            self.usageBar?.update(remainingPercent: nil)
+            return
+        }
+        // Pick the lowest remaining percent across enabled providers (show worst-case).
+        let worstRemaining: Double? = enabled.compactMap { provider -> Double? in
+            guard let snapshot = self.store.snapshot(for: provider) else { return nil }
+            let window = snapshot.primary ?? snapshot.secondary
+            return window?.remainingPercent
+        }.min()
+        self.usageBar?.update(remainingPercent: worstRemaining)
     }
 
     /// Lazily retrieves or creates a status item for the given provider
@@ -359,11 +378,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func updateVisibility() {
-        let anyEnabled = !self.store.enabledProviders().isEmpty
         let force = self.store.debugForceAnimation
         let mergeIcons = self.shouldMergeIcons
         if mergeIcons {
-            self.statusItem.isVisible = anyEnabled || force
+            self.statusItem.isVisible = true  // Merged icon always visible; fallback menu handles empty state
             for item in self.statusItems.values {
                 item.isVisible = false
             }

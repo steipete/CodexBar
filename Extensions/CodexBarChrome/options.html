@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:720px;margin:20px auto;padding:0 12px;color:#0f172a}
+    .card{border:1px solid #e2e8f0;border-radius:12px;padding:14px;background:#fff}
+    h1{font-size:20px;margin:0 0 10px}
+    label{display:block;font-size:13px;color:#475569;margin:8px 0 4px}
+    input{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px}
+    button{margin-top:12px;padding:10px 14px;border:none;background:#2563eb;color:#fff;border-radius:8px;font-weight:600}
+    code{background:#f1f5f9;padding:2px 6px;border-radius:6px}
+    .ok{color:#15803d;font-weight:600}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>CodexBar Usage Monitor — Settings</h1>
+    <label>Bridge Base URL</label>
+    <input id="baseUrl" placeholder="http://127.0.0.1:8787" />
+
+    <label>Utilization Alert Threshold (%)</label>
+    <input id="threshold" type="number" min="1" max="100" />
+
+    <button id="save">Save</button>
+    <div id="status" style="margin-top:8px"></div>
+
+    <p style="margin-top:16px;font-size:13px;color:#475569">
+      Start local bridge on your Mac:<br/>
+      <code>python3 Scripts/usage_api_server.py --port 8787 --binary "swift run CodexBarCLI"</code>
+    </p>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -337,4 +337,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.updaterController,
             PreferencesSelection())
     }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
+    }
 }
