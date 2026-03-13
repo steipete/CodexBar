@@ -67,6 +67,46 @@ extension StatusItemController {
         self.creditsPurchaseWindow = controller
     }
 
+    @objc func openCodeReviewLogsPanel() {
+        let controller = self.codeReviewLogsWindow ?? CodeReviewLogsPanelWindowController()
+        let initialEntries = self.store.openAIDashboard?.codeReviewLogs ?? []
+        let hadInitialEntries = !initialEntries.isEmpty
+        controller.show(entries: initialEntries)
+        self.codeReviewLogsWindow = controller
+
+        self.codeReviewLogsRefreshTask?.cancel()
+        self.codeReviewLogsRefreshGeneration &+= 1
+        let refreshGeneration = self.codeReviewLogsRefreshGeneration
+        self.codeReviewLogsRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.codeReviewLogsRefreshGeneration == refreshGeneration {
+                    self.codeReviewLogsRefreshTask = nil
+                }
+            }
+            let accountEmail = self.store.codexAccountEmailForOpenAIDashboard()
+            let fetcher = OpenAIDashboardFetcher()
+            var refreshedEntries = await fetcher.loadCodeReviewLogs(
+                accountEmail: accountEmail,
+                timeout: hadInitialEntries ? 6 : 8)
+            guard !Task.isCancelled else { return }
+            if refreshedEntries.isEmpty, !hadInitialEntries {
+                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await self.store.refresh(forceTokenUsage: true)
+                }
+                guard !Task.isCancelled else { return }
+                let fallbackEmail = self.store.codexAccountEmailForOpenAIDashboard()
+                refreshedEntries = await fetcher.loadCodeReviewLogs(
+                    accountEmail: fallbackEmail,
+                    timeout: 6)
+            }
+            guard !Task.isCancelled else { return }
+            if !refreshedEntries.isEmpty || !hadInitialEntries {
+                self.codeReviewLogsWindow?.show(entries: refreshedEntries)
+            }
+        }
+    }
+
     private static func sanitizedCreditsPurchaseURL(_ raw: String?) -> String? {
         guard let raw, let url = URL(string: raw) else { return nil }
         guard let host = url.host?.lowercased(), host.contains("chatgpt.com") else { return nil }

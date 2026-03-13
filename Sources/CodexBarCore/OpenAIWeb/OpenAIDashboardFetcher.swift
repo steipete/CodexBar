@@ -20,6 +20,7 @@ public struct OpenAIDashboardFetcher {
     }
 
     private let usageURL = URL(string: "https://chatgpt.com/codex/settings/usage")!
+    private let codeReviewsURL = URL(string: "https://chatgpt.com/codex?tab=code_reviews")!
 
     public init() {}
 
@@ -224,6 +225,7 @@ public struct OpenAIDashboardFetcher {
                 return OpenAIDashboardSnapshot(
                     signedInEmail: scrape.signedInEmail,
                     codeReviewRemainingPercent: codeReview,
+                    codeReviewLogs: scrape.codeReviewLogs,
                     creditEvents: events,
                     dailyBreakdown: breakdown,
                     usageBreakdown: usageBreakdown,
@@ -242,6 +244,80 @@ public struct OpenAIDashboardFetcher {
             Self.writeDebugArtifacts(html: html, bodyText: lastBody, logger: log)
         }
         throw FetchError.noDashboardData(body: lastBody ?? "")
+    }
+
+    public func loadCodeReviewLogs(
+        accountEmail: String?,
+        logger: ((String) -> Void)? = nil,
+        timeout: TimeInterval = 20) async -> [OpenAICodeReviewLogEntry]
+    {
+        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail)
+        return await self.loadCodeReviewLogs(
+            websiteDataStore: store,
+            logger: logger,
+            timeout: timeout)
+    }
+
+    public func loadCodeReviewLogs(
+        websiteDataStore: WKWebsiteDataStore,
+        logger: ((String) -> Void)? = nil,
+        timeout: TimeInterval = 20) async -> [OpenAICodeReviewLogEntry]
+    {
+        guard timeout > 0 else { return [] }
+        guard let lease = try? await self.makeWebView(websiteDataStore: websiteDataStore, logger: logger) else {
+            return []
+        }
+        defer { lease.release() }
+        return await self.loadCodeReviewLogs(
+            webView: lease.webView,
+            deadline: Date().addingTimeInterval(timeout),
+            logger: lease.log)
+    }
+
+    private func loadCodeReviewLogs(
+        webView: WKWebView,
+        deadline: Date,
+        logger: (String) -> Void) async -> [OpenAICodeReviewLogEntry]
+    {
+        guard Date() < deadline else { return [] }
+        _ = webView.load(URLRequest(url: self.codeReviewsURL))
+        var bestEntries: [OpenAICodeReviewLogEntry] = []
+        var firstResultAt: Date?
+
+        while Date() < deadline {
+            guard let scrape = try? await self.scrape(webView: webView) else {
+                try? await Task.sleep(for: .milliseconds(350))
+                continue
+            }
+            if scrape.workspacePicker {
+                try? await Task.sleep(for: .milliseconds(350))
+                continue
+            }
+            if scrape.loginRequired || scrape.cloudflareInterstitial {
+                return []
+            }
+            if let href = scrape.href, !href.contains("tab=code_reviews") {
+                _ = webView.load(URLRequest(url: self.codeReviewsURL))
+                try? await Task.sleep(for: .milliseconds(350))
+                continue
+            }
+            if !scrape.codeReviewLogs.isEmpty {
+                if scrape.codeReviewLogs.count > bestEntries.count {
+                    bestEntries = scrape.codeReviewLogs
+                }
+                if firstResultAt == nil {
+                    firstResultAt = Date()
+                } else if let firstResultAt, Date().timeIntervalSince(firstResultAt) >= 1.0 {
+                    break
+                }
+            }
+            try? await Task.sleep(for: .milliseconds(350))
+        }
+
+        if !bestEntries.isEmpty {
+            logger("code review logs rows=\(bestEntries.count)")
+        }
+        return bestEntries
     }
 
     struct CreditsHistoryWaitContext: Sendable {
@@ -349,6 +425,7 @@ public struct OpenAIDashboardFetcher {
         let rows: [[String]]
         let usageBreakdown: [OpenAIDashboardDailyBreakdown]
         let usageBreakdownDebug: String?
+        let codeReviewLogs: [OpenAICodeReviewLogEntry]
         let scrollY: Double
         let scrollHeight: Double
         let viewportHeight: Double
@@ -372,6 +449,7 @@ public struct OpenAIDashboardFetcher {
                 rows: [],
                 usageBreakdown: [],
                 usageBreakdownDebug: nil,
+                codeReviewLogs: [],
                 scrollY: 0,
                 scrollHeight: 0,
                 viewportHeight: 0,
@@ -398,9 +476,20 @@ public struct OpenAIDashboardFetcher {
             }
         }
 
+        var codeReviewLogs: [OpenAICodeReviewLogEntry] = []
+        if let raw = dict["codeReviewLogsJSON"] as? String, !raw.isEmpty {
+            do {
+                let decoder = JSONDecoder()
+                codeReviewLogs = try decoder.decode([OpenAICodeReviewLogEntry].self, from: Data(raw.utf8))
+            } catch {
+                codeReviewLogs = []
+            }
+        }
+
         var signedInEmail = dict["signedInEmail"] as? String
         if let bodyHTML,
-           signedInEmail == nil || signedInEmail?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true
+           signedInEmail == nil ||
+           signedInEmail?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty == true
         {
             signedInEmail = OpenAIDashboardParser.parseSignedInEmailFromClientBootstrap(html: bodyHTML)
         }
@@ -425,6 +514,7 @@ public struct OpenAIDashboardFetcher {
             rows: rows,
             usageBreakdown: usageBreakdown,
             usageBreakdownDebug: usageBreakdownDebug,
+            codeReviewLogs: codeReviewLogs,
             scrollY: (dict["scrollY"] as? NSNumber)?.doubleValue ?? 0,
             scrollHeight: (dict["scrollHeight"] as? NSNumber)?.doubleValue ?? 0,
             viewportHeight: (dict["viewportHeight"] as? NSNumber)?.doubleValue ?? 0,
