@@ -290,20 +290,26 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
     }
 
-    private func tryChrome(
+    /// Generic cookie loader for any non-Safari browser (Chrome, Edge, Firefox, Brave, Arc, etc.).
+    /// SweetCookieKit handles engine-specific decryption internally.
+    private func tryBrowser(
+        _ browser: Browser,
         context: ImportContext,
         log: @escaping (String) -> Void,
         diagnostics: inout ImportDiagnostics) async -> ImportResult?
     {
-        // Chrome fallback: may trigger Keychain prompt. Only do this if Safari didn't match.
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let chromeSources = try Self.cookieClient.codexBarRecords(
+            let sources = try Self.cookieClient.codexBarRecords(
                 matching: query,
-                in: .chrome)
-            for source in chromeSources {
+                in: browser)
+            guard !sources.isEmpty else {
+                log("\(browser.displayName) contained 0 matching records.")
+                return nil
+            }
+            for source in sources {
                 let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                if cookies.isEmpty {
+                guard !cookies.isEmpty else {
                     log("\(source.label) produced 0 HTTPCookies.")
                     continue
                 }
@@ -325,53 +331,10 @@ public struct OpenAIDashboardBrowserCookieImporter {
             if let hint = error.accessDeniedHint {
                 diagnostics.accessDeniedHints.append(hint)
             }
-            log("Chrome cookie load failed: \(error.localizedDescription)")
+            log("\(browser.displayName) cookie load failed: \(error.localizedDescription)")
             return nil
         } catch {
-            log("Chrome cookie load failed: \(error.localizedDescription)")
-            return nil
-        }
-    }
-
-    private func tryFirefox(
-        context: ImportContext,
-        log: @escaping (String) -> Void,
-        diagnostics: inout ImportDiagnostics) async -> ImportResult?
-    {
-        // Firefox fallback: no Keychain, but still only after Safari/Chrome.
-        do {
-            let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let firefoxSources = try Self.cookieClient.codexBarRecords(
-                matching: query,
-                in: .firefox)
-            for source in firefoxSources {
-                let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                if cookies.isEmpty {
-                    log("\(source.label) produced 0 HTTPCookies.")
-                    continue
-                }
-                diagnostics.foundAnyCookies = true
-                log("Loaded \(cookies.count) cookies from \(source.label) (\(self.cookieSummary(cookies)))")
-                let candidate = Candidate(label: source.label, cookies: cookies)
-                if let match = await self.applyCandidate(
-                    candidate,
-                    context: context,
-                    log: log,
-                    diagnostics: &diagnostics)
-                {
-                    return match
-                }
-            }
-            return nil
-        } catch let error as BrowserCookieError {
-            BrowserCookieAccessGate.recordIfNeeded(error)
-            if let hint = error.accessDeniedHint {
-                diagnostics.accessDeniedHints.append(hint)
-            }
-            log("Firefox cookie load failed: \(error.localizedDescription)")
-            return nil
-        } catch {
-            log("Firefox cookie load failed: \(error.localizedDescription)")
+            log("\(browser.displayName) cookie load failed: \(error.localizedDescription)")
             return nil
         }
     }
@@ -388,18 +351,14 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 context: context,
                 log: log,
                 diagnostics: &diagnostics)
-        case .chrome:
-            await self.tryChrome(
-                context: context,
-                log: log,
-                diagnostics: &diagnostics)
-        case .firefox:
-            await self.tryFirefox(
-                context: context,
-                log: log,
-                diagnostics: &diagnostics)
         default:
-            nil
+            // All non-Safari browsers (Chrome, Edge, Firefox, Brave, Arc, etc.)
+            // share the same cookie loading path via SweetCookieKit.
+            await self.tryBrowser(
+                source,
+                context: context,
+                log: log,
+                diagnostics: &diagnostics)
         }
     }
 
