@@ -635,7 +635,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
     }
 
-    private struct Candidate: Sendable {
+    private struct Candidate {
         let label: String
         let cookies: [HTTPCookie]
     }
