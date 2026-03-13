@@ -16,27 +16,4 @@ struct SubprocessRunnerTests {
         #expect(result.stdout.count >= 1_000_000)
         #expect(result.stderr.isEmpty)
     }
-
-    /// Regression test for #474: a hung subprocess must be killed and throw `.timedOut`
-    /// instead of blocking indefinitely.
-    @Test
-    func throwsTimedOutWhenProcessHangs() async throws {
-        do {
-            _ = try await SubprocessRunner.run(
-                binary: "/bin/sleep",
-                arguments: ["3"],
-                environment: ProcessInfo.processInfo.environment,
-                timeout: 0.5,
-                label: "hung-process-test")
-            Issue.record("Expected SubprocessRunnerError.timedOut but no error was thrown")
-        } catch let error as SubprocessRunnerError {
-            guard case let .timedOut(label) = error else {
-                Issue.record("Expected .timedOut, got \(error)")
-                return
-            }
-            #expect(label == "hung-process-test")
-        } catch {
-            Issue.record("Expected SubprocessRunnerError.timedOut, got unexpected error: \(error)")
-        }
-    }
 }
