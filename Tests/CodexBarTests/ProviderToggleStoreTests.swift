@@ -15,7 +15,8 @@ struct ProviderToggleStoreTests {
         let claudeMeta = try #require(registry.metadata[.claude])
 
         #expect(store.isEnabled(metadata: codexMeta))
-        #expect(!store.isEnabled(metadata: claudeMeta))
+        // Claude defaultEnabled changed to true (fork default: target providers enabled)
+        #expect(store.isEnabled(metadata: claudeMeta))
     }
 
     @Test

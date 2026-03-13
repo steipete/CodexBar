@@ -63,7 +63,7 @@ struct MenuCardModelTests {
         #expect(model.metrics.count == 2)
         #expect(model.metrics.first?.percent == 78)
         #expect(model.planText == "Plus")
-        #expect(model.subtitleText.hasPrefix("Updated"))
+        #expect(model.subtitleText.contains("Updated"))
         #expect(model.progressColor != Color.clear)
         #expect(model.metrics[1].resetText?.isEmpty == false)
     }

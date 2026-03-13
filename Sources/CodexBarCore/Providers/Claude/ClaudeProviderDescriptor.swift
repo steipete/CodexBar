@@ -18,7 +18,7 @@ public enum ClaudeProviderDescriptor {
                 creditsHint: "",
                 toggleTitle: "Show Claude Code usage",
                 cliName: "claude",
-                defaultEnabled: false,
+                defaultEnabled: true,
                 isPrimaryProvider: true,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
@@ -82,14 +82,9 @@ public enum ClaudeProviderDescriptor {
             case .api:
                 return []
             case .auto:
-                return [
-                    ClaudeOAuthFetchStrategy(),
-                    ClaudeCLIFetchStrategy(
-                        useWebExtras: webExtrasEnabled,
-                        manualCookieHeader: manualCookieHeader,
-                        browserDetection: context.browserDetection),
-                    ClaudeWebFetchStrategy(browserDetection: context.browserDetection),
-                ]
+                // Fork: OAuth is the sole strategy in auto mode. No CLI PTY or web cookie fallbacks.
+                // If OAuth fails (e.g. token expired), surface the error — never serve stale cached data.
+                return [ClaudeOAuthFetchStrategy()]
             }
         }
     }
@@ -241,10 +236,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "oauth")
     }
 
-    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
-        // In Auto mode, fall back to the next strategy (cli/web) if OAuth fails (e.g. user cancels keychain prompt
-        // or auth breaks).
-        context.runtime == .app && context.sourceMode == .auto
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        // Fork: OAuth is the sole strategy. Never fall back — surface errors instead of serving stale data.
+        false
     }
 
     fileprivate static func snapshot(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {

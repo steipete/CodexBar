@@ -112,9 +112,10 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
     func autoModeFallsBackAfterOAuthFailure() {
         let context = self.makeContext(sourceMode: .auto)
         let strategy = ClaudeOAuthFetchStrategy()
+        // Fork: OAuth is the sole strategy — shouldFallback is always false so errors surface directly.
         #expect(strategy.shouldFallback(
             on: ClaudeUsageError.oauthFailed("oauth failed"),
-            context: context) == true)
+            context: context) == false)
     }
 
     @Test

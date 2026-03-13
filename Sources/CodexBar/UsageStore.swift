@@ -157,6 +157,10 @@ final class UsageStore {
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
     @ObservationIgnored private let startupBehavior: StartupBehavior
+    @ObservationIgnored private let geminiWatcher = GeminiFSEventsWatcher()
+    @ObservationIgnored private let antigravityWatcher = AntigravityFSEventsWatcher()
+    @ObservationIgnored private var watcherObservers: [NSObjectProtocol] = []
+    @ObservationIgnored let adaptiveScheduler = AdaptiveRefreshScheduler()
 
     init(
         fetcher: UsageFetcher,
@@ -206,6 +210,7 @@ final class UsageStore {
         guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
         self.detectVersions()
         self.updateProviderRuntimes()
+        self.startFileWatchers()
         Task { @MainActor [weak self] in
             self?.schedulePathDebugInfoRefresh()
         }
@@ -274,7 +279,8 @@ final class UsageStore {
     }
 
     var isStale: Bool {
-        for provider in self.enabledProviders() where self.errors[provider] != nil {
+        // Menu bar dot fires when any enabled provider is stale (>5 min old or error).
+        for provider in self.enabledProviders() where self.isStale(provider: provider) {
             return true
         }
         return false
@@ -339,8 +345,12 @@ final class UsageStore {
         self.providerSpecs[provider]?.style ?? .codex
     }
 
+    /// Returns `true` when provider data is stale — either an error is present or
+    /// the last successful snapshot is more than 5 minutes old.
     func isStale(provider: UsageProvider) -> Bool {
-        self.errors[provider] != nil
+        if self.errors[provider] != nil { return true }
+        guard let updated = self.snapshots[provider]?.updatedAt else { return false }
+        return Date().timeIntervalSince(updated) > 5 * 60
     }
 
     func isEnabled(_ provider: UsageProvider) -> Bool {
@@ -442,17 +452,64 @@ final class UsageStore {
         self.observeSettingsChanges()
     }
 
-    private func startTimer() {
-        self.timerTask?.cancel()
-        guard let wait = self.settings.refreshFrequency.seconds else { return }
+    // MARK: - File watchers (Gemini + Antigravity)
 
-        // Background poller so the menu stays responsive; canceled when settings change or store deallocates.
-        self.timerTask = Task.detached(priority: .utility) { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(wait))
-                await self?.refresh()
+    private func startFileWatchers() {
+        // Observe Gemini directory changes — triggers an immediate Gemini refresh.
+        let geminiToken = NotificationCenter.default.addObserver(
+            forName: GeminiFSEventsWatcher.didChangeNotification,
+            object: nil,
+            queue: nil) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isEnabled(.gemini) else { return }
+                await self.refreshProvider(.gemini)
             }
         }
+
+        // Observe Antigravity (Codeium) directory changes.
+        let antigravityToken = NotificationCenter.default.addObserver(
+            forName: AntigravityFSEventsWatcher.didChangeNotification,
+            object: nil,
+            queue: nil) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isEnabled(.antigravity) else { return }
+                await self.refreshProvider(.antigravity)
+            }
+        }
+
+        self.watcherObservers = [geminiToken, antigravityToken]
+        self.geminiWatcher.start()
+        self.antigravityWatcher.start()
+    }
+
+    private func startTimer() {
+        self.timerTask?.cancel()
+        // Manual mode: no automatic polling.
+        guard self.settings.refreshFrequency != .manual else { return }
+
+        // Adaptive poller: sleep duration is recomputed after every refresh based on
+        // provider utilisation levels so active sessions get ~15 s cadence while
+        // idle setups poll at most every 10 min (capped by user's configured ceiling).
+        self.timerTask = Task.detached(priority: .utility) { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                let wait = await self.adaptiveWaitInterval()
+                try? await Task.sleep(for: .seconds(wait))
+                await self.refresh()
+            }
+        }
+    }
+
+    /// Returns the next sleep interval by asking the adaptive scheduler, bounded
+    /// by the user's configured refresh-frequency ceiling.
+    private func adaptiveWaitInterval() -> TimeInterval {
+        let ceiling = self.settings.refreshFrequency.seconds
+        let interval = self.adaptiveScheduler.nextInterval(
+            providers: self.enabledProviders(),
+            snapshots: self.snapshots,
+            maxInterval: ceiling)
+        // Fallback: if scheduler returns nil (manual) use ceiling or 300 s.
+        return interval ?? ceiling ?? 300
     }
 
     private func startTokenTimer() {
@@ -1241,7 +1298,7 @@ extension UsageStore {
                 let source = resolution?.source.rawValue ?? "none"
                 text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
             case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi, .kimik2,
-                 .jetbrains:
+                 .jetbrains, .perplexity:
                 text = unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
             }
 

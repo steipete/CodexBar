@@ -56,7 +56,8 @@ public enum CodexProviderDescriptor {
             case .api:
                 return []
             case .auto:
-                return [web, cli]
+                // Fork: drop web dashboard scrape from CLI auto mode; CLI RPC is primary.
+                return [cli]
             }
         case .app:
             switch context.sourceMode {
@@ -69,6 +70,7 @@ public enum CodexProviderDescriptor {
             case .api:
                 return []
             case .auto:
+                // Fork: OAuth → CLI RPC. Web dashboard (cookie-based) removed from auto path.
                 return [oauth, cli]
             }
         }

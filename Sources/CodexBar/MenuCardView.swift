@@ -44,6 +44,7 @@ struct UsageMenuCardView: View {
         enum SubtitleStyle {
             case info
             case loading
+            case stale
             case error
         }
 
@@ -236,6 +237,7 @@ private struct UsageMenuCardHeaderView: View {
         switch self.model.subtitleStyle {
         case .info: MenuHighlightStyle.secondary(self.isHighlighted)
         case .loading: MenuHighlightStyle.secondary(self.isHighlighted)
+        case .stale: MenuHighlightStyle.warning(self.isHighlighted)
         case .error: MenuHighlightStyle.error(self.isHighlighted)
         }
     }
@@ -713,7 +715,8 @@ extension UsageMenuCardView.Model {
         let subtitle = Self.subtitle(
             snapshot: input.snapshot,
             isRefreshing: input.isRefreshing,
-            lastError: input.lastError)
+            lastError: input.lastError,
+            now: input.now)
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
         let placeholder = input.snapshot == nil && !input.isRefreshing && input.lastError == nil ? "No usage yet" : nil
 
@@ -841,10 +844,11 @@ extension UsageMenuCardView.Model {
     private static func subtitle(
         snapshot: UsageSnapshot?,
         isRefreshing: Bool,
-        lastError: String?) -> (text: String, style: SubtitleStyle)
+        lastError: String?,
+        now: Date = Date()) -> (text: String, style: SubtitleStyle)
     {
         if let lastError, !lastError.isEmpty {
-            return (lastError.trimmingCharacters(in: .whitespacesAndNewlines), .error)
+            return ("❌ " + lastError.trimmingCharacters(in: .whitespacesAndNewlines), .error)
         }
 
         if isRefreshing, snapshot == nil {
@@ -852,7 +856,15 @@ extension UsageMenuCardView.Model {
         }
 
         if let updated = snapshot?.updatedAt {
-            return (UsageFormatter.updatedString(from: updated), .info)
+            let age = now.timeIntervalSince(updated)
+            let text = UsageFormatter.updatedString(from: updated)
+            if age < 30 {
+                return ("✅ " + text, .info)
+            } else if age < 5 * 60 {
+                return ("⚠️ " + text, .stale)
+            } else {
+                return ("❌ " + text, .error)
+            }
         }
 
         return ("Not fetched yet", .info)

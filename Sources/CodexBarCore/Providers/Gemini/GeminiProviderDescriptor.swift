@@ -18,7 +18,7 @@ public enum GeminiProviderDescriptor {
                 creditsHint: "",
                 toggleTitle: "Show Gemini usage",
                 cliName: "gemini",
-                defaultEnabled: false,
+                defaultEnabled: true,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 dashboardURL: "https://gemini.google.com",

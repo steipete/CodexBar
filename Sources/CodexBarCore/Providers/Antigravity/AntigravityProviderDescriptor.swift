@@ -18,7 +18,7 @@ public enum AntigravityProviderDescriptor {
                 creditsHint: "",
                 toggleTitle: "Show Antigravity usage (experimental)",
                 cliName: "antigravity",
-                defaultEnabled: false,
+                defaultEnabled: true,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 dashboardURL: nil,
@@ -45,17 +45,36 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
     let id: String = "antigravity.local"
     let kind: ProviderFetchKind = .localProbe
 
+    /// Retry delays: 1s, 2s, 4s (exponential backoff for transient probe failures).
+    private static let retryDelays: [UInt64] = [1_000_000_000, 2_000_000_000, 4_000_000_000]
+
     func isAvailable(_: ProviderFetchContext) async -> Bool {
         true
     }
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = AntigravityStatusProbe()
-        let snap = try await probe.fetch()
-        let usage = try snap.toUsageSnapshot()
-        return self.makeResult(
-            usage: usage,
-            sourceLabel: "local")
+        var lastError: Error = AntigravityStatusProbeError.notRunning
+
+        for (attempt, delay) in Self.retryDelays.enumerated() {
+            do {
+                let snap = try await probe.fetch()
+                let usage = try snap.toUsageSnapshot()
+                return self.makeResult(usage: usage, sourceLabel: "local")
+            } catch AntigravityStatusProbeError.notRunning {
+                // Not running is the expected state when Antigravity isn't active.
+                // Propagate immediately — no retry needed, this isn't an error condition.
+                throw AntigravityStatusProbeError.notRunning
+            } catch {
+                lastError = error
+                let isLastAttempt = attempt == Self.retryDelays.count - 1
+                if !isLastAttempt {
+                    try? await Task.sleep(nanoseconds: delay)
+                }
+            }
+        }
+
+        throw lastError
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

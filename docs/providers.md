@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Perplexity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -18,10 +18,11 @@ until the session is invalid, to avoid repeated Keychain prompts.
 
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
-| Codex | Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`); app uses CLI usage + optional dashboard scrape. |
-| Claude | App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
-| Gemini | OAuth API via Gemini CLI credentials (`api`). |
-| Antigravity | Local LSP/HTTP probe (`local`). |
+| Codex | CLI RPC/PTy (`codex-cli`) — local app-server RPC only. |
+| Claude | OAuth API only (`oauth`) — direct `api.anthropic.com/api/oauth/usage`. No web or CLI fallback. |
+| Gemini | OAuth API via Gemini CLI credentials (`api`) + FSEvents watcher on `~/.gemini/`. |
+| Antigravity | Local LSP/HTTP probe (`local`) + FSEvents watcher on `~/.codeium/`; retries 3× with backoff. |
+| Perplexity | Web API + session cookie from Keychain (`web`). |
 | Cursor | Web API via cookies → stored WebKit session (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
 | Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
@@ -40,19 +41,25 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
 
 ## Codex
-- Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
-- CLI RPC default: `codex ... app-server` JSON-RPC (`account/read`, `account/rateLimits/read`).
-- CLI PTY fallback: `/status` scrape.
+- CLI RPC: `codex ... app-server` JSON-RPC (`account/read`, `account/rateLimits/read`).
+- No web dashboard scrape (removed in CodexBarRT fork).
 - Local cost usage: scans `~/.codex/sessions/**/*.jsonl` (last 30 days).
 - Status: Statuspage.io (OpenAI).
 - Details: `docs/codex.md`.
 
 ## Claude
-- App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
-- CLI Auto: Web API (`web`) → CLI PTY (`claude`).
+- OAuth API only: `GET https://api.anthropic.com/api/oauth/usage` — no CLI or web fallback.
+- Credentials: Keychain `Claude Code-credentials` or `~/.claude/.credentials.json`.
+- Requires `user:profile` scope; `user:inference`-only tokens are not sufficient.
 - Local cost usage: scans `~/.config/claude/projects/**/*.jsonl` (last 30 days).
 - Status: Statuspage.io (Anthropic).
 - Details: `docs/claude.md`.
+
+## Perplexity
+- Session cookie from Keychain (service `com.codexbarrt.perplexity`, account `session-cookie`).
+- `GET https://www.perplexity.ai/rest/user/settings` — parses `remaining_credits`/`total_credits`/`credits_reset_at`.
+- Paste the cookie value in Settings → Providers → Perplexity.
+- Status: none yet.
 
 ## z.ai
 - API token from Keychain or `Z_AI_API_KEY` env var.

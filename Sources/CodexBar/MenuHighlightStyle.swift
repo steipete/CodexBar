@@ -21,6 +21,10 @@ enum MenuHighlightStyle {
         highlighted ? self.selectionText : Color(nsColor: .systemRed)
     }
 
+    static func warning(_ highlighted: Bool) -> Color {
+        highlighted ? self.selectionText : Color(nsColor: .systemOrange)
+    }
+
     static func progressTrack(_ highlighted: Bool) -> Color {
         highlighted ? self.selectionText.opacity(0.22) : Color(nsColor: .tertiaryLabelColor).opacity(0.22)
     }

@@ -43,6 +43,10 @@ struct UsageStoreCoverageTests {
 
         try settings.setProviderEnabled(provider: .factory, metadata: #require(metadata[.factory]), enabled: false)
         try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: false)
+        // gemini and antigravity are now defaultEnabled: true in this fork; disable them so
+        // only codex remains active and the single-provider icon style check is valid.
+        try settings.setProviderEnabled(provider: .gemini, metadata: #require(metadata[.gemini]), enabled: false)
+        try settings.setProviderEnabled(provider: .antigravity, metadata: #require(metadata[.antigravity]), enabled: false)
         #expect(store.iconStyle == store.style(for: .codex))
 
         store._setErrorForTesting("error", provider: .codex)

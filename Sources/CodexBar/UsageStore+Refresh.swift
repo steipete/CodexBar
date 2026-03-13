@@ -84,6 +84,11 @@ extension UsageStore {
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
+                // Inform the adaptive scheduler when utilisation is high so hysteresis
+                // keeps the faster refresh cadence alive between polls.
+                if let primary = scoped.primary, primary.usedPercent > 50 {
+                    self.adaptiveScheduler.recordActivity(for: provider)
+                }
             }
             if let runtime = self.providerRuntimes[provider] {
                 let context = ProviderRuntimeContext(
@@ -104,6 +109,11 @@ extension UsageStore {
                     self.snapshots.removeValue(forKey: provider)
                 } else {
                     self.errors[provider] = nil
+                }
+                // Back off fast polling when the API rate-limits us (HTTP 429).
+                let description = error.localizedDescription.lowercased()
+                if description.contains("429") || description.contains("rate limit") || description.contains("rate_limit") {
+                    self.adaptiveScheduler.recordRateLimit(for: provider)
                 }
             }
             if let runtime = self.providerRuntimes[provider] {
