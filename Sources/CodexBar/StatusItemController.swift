@@ -51,6 +51,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     var creditsPurchaseWindow: OpenAICreditsPurchaseWindowController?
+    var detachedPanel: DetachedPanelController?
 
     var activeLoginProvider: UsageProvider? {
         didSet {

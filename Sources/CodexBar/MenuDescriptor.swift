@@ -17,6 +17,7 @@ struct MenuDescriptor {
         case refresh = "arrow.clockwise"
         case dashboard = "chart.bar"
         case statusPage = "waveform.path.ecg"
+        case popOut = "rectangle.portrait.and.arrow.right"
         case switchAccount = "key"
         case openTerminal = "terminal"
         case loginToProvider = "arrow.right.square"
@@ -38,6 +39,7 @@ struct MenuDescriptor {
         case refreshAugmentSession
         case dashboard
         case statusPage
+        case popOut
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
         case loginToProvider(url: String)
@@ -362,6 +364,7 @@ struct MenuDescriptor {
             entries.append(.action("Update ready, restart now?", .installUpdate))
         }
         entries.append(contentsOf: [
+            .action("Pop Out", .popOut),
             .action("Settings...", .settings),
             .action("About CodexBar", .about),
             .action("Quit", .quit),
@@ -456,6 +459,7 @@ extension MenuDescriptor.MenuAction {
         case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
+        case .popOut: MenuDescriptor.MenuActionSystemImage.popOut.rawValue
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
