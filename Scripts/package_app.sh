@@ -197,6 +197,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>SUEnableAutomaticChecks</key><${AUTO_CHECKS}/>
     <key>CodexBuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>CodexGitCommit</key><string>${GIT_COMMIT}</string>
+    <!-- Usage descriptions for macOS privacy permissions -->
+    <key>NSAppleEventsUsageDescription</key><string>CodexBar needs to interact with other applications to open URLs and manage your AI coding sessions.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>CodexBar needs access to open configuration and log files from your Desktop.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>CodexBar needs access to open configuration and log files from your Documents folder.</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>CodexBar needs access to open configuration and log files from your Downloads folder.</string>
+    <key>NSPhotoLibraryUsageDescription</key><string>CodexBar does not access your photo library. This permission is requested by a system framework but is not used.</string>
+    <key>NSAppleMusicUsageDescription</key><string>CodexBar does not access Apple Music. This permission is requested by a system framework but is not used.</string>
 </dict>
 </plist>
 PLIST
