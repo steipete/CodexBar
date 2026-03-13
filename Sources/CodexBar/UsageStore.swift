@@ -397,7 +397,7 @@ final class UsageStore {
         }
     }
 
-    func refresh(forceTokenUsage: Bool = false) async {
+    func refresh(forceTokenUsage: Bool = false, forceAllProviders: Bool = false) async {
         guard !self.isRefreshing else { return }
         let refreshPhase: ProviderRefreshPhase = self.hasCompletedInitialRefresh ? .regular : .startup
 
@@ -408,9 +408,19 @@ final class UsageStore {
                 self.hasCompletedInitialRefresh = true
             }
 
+            let now = Date()
             await withTaskGroup(of: Void.self) { group in
                 for provider in UsageProvider.allCases {
-                    group.addTask { await self.refreshProvider(provider) }
+                    // Per-provider gate: skip remote API providers when their individual interval
+                    // hasn't elapsed, even if a fast local provider drove a shorter global timer tick.
+                    // forceAllProviders=true bypasses the gate for user-initiated refreshes.
+                    let due = forceAllProviders || self.adaptiveScheduler.shouldRefresh(
+                        for: provider,
+                        snapshot: self.snapshots[provider],
+                        now: now)
+                    if due {
+                        group.addTask { await self.refreshProvider(provider) }
+                    }
                     group.addTask { await self.refreshStatus(provider) }
                 }
                 group.addTask { await self.refreshCreditsIfNeeded() }

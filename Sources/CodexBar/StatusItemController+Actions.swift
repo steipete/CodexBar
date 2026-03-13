@@ -7,7 +7,7 @@ extension StatusItemController {
     func refreshStore(forceTokenUsage: Bool) {
         Task {
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                await self.store.refresh(forceTokenUsage: forceTokenUsage)
+                await self.store.refresh(forceTokenUsage: forceTokenUsage, forceAllProviders: true)
             }
         }
     }
@@ -21,7 +21,7 @@ extension StatusItemController {
             await self.store.forceRefreshAugmentSession()
             // Also trigger a full refresh to update the menu and clear any stale errors
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                await self.store.refresh(forceTokenUsage: false)
+                await self.store.refresh(forceTokenUsage: false, forceAllProviders: true)
             }
         }
     }

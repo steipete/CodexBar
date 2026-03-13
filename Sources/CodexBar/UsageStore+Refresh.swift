@@ -31,6 +31,8 @@ extension UsageStore {
         }
 
         self.refreshingProviders.insert(provider)
+        // Record this attempt so the per-provider gate knows when to allow the next refresh.
+        self.adaptiveScheduler.recordRefresh(for: provider)
         defer { self.refreshingProviders.remove(provider) }
 
         let tokenAccounts = self.tokenAccounts(for: provider)

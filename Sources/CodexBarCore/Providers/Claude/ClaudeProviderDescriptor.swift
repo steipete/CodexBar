@@ -83,8 +83,9 @@ public enum ClaudeProviderDescriptor {
                 return []
             case .auto:
                 // Fork: OAuth is the sole strategy in auto mode. No CLI PTY or web cookie fallbacks.
-                // If OAuth fails (e.g. token expired), surface the error — never serve stale cached data.
-                return [ClaudeOAuthFetchStrategy()]
+                // isAlwaysAvailable=true ensures the pipeline always runs fetch() and surfaces real
+                // errors (e.g. "credentials expired") instead of the opaque "no available strategy."
+                return [ClaudeOAuthFetchStrategy(isAlwaysAvailable: true)]
             }
         }
     }
@@ -126,6 +127,9 @@ public struct ClaudeUsageStrategy: Equatable, Sendable {
 struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     let id: String = "claude.oauth"
     let kind: ProviderFetchKind = .oauth
+    /// When true, `isAvailable` always returns true so `fetch()` runs and surfaces real errors.
+    /// Used when OAuth is the sole strategy — avoids the pipeline returning "no available strategy."
+    var isAlwaysAvailable: Bool = false
 
     #if DEBUG
     @TaskLocal static var nonInteractiveCredentialRecordOverride: ClaudeOAuthCredentialRecord?
@@ -152,6 +156,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        if self.isAlwaysAvailable { return true }
         let nonInteractiveRecord = self.loadNonInteractiveCredentialRecord(context)
         let nonInteractiveCredentials = nonInteractiveRecord?.credentials
         let hasRequiredScopeWithoutPrompt = nonInteractiveCredentials?.scopes.contains("user:profile") == true
