@@ -27,7 +27,7 @@ extension StatusItemController {
         let enabledProviders = self.store.enabledProviders()
         let anyEnabled = !enabledProviders.isEmpty || self.store.debugForceAnimation
         let anyVisible = UsageProvider.allCases.contains { self.isVisible($0) }
-        let mergeIcons = self.settings.mergeIcons && enabledProviders.count > 1
+        let mergeIcons = self.shouldMergeIcons
         let shouldBlink = mergeIcons ? anyEnabled : anyVisible
         if blinkingEnabled, shouldBlink {
             if self.blinkTask == nil {
