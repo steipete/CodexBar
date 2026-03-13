@@ -38,8 +38,9 @@ struct AugmentCLIFetchStrategyFallbackTests {
             browserDetection: BrowserDetection(cacheTTL: 0))
     }
 
-    // SubprocessRunnerError is not an AuggieCLIError, so it hits the
-    // default fallback=true path — the desired behavior for infrastructure errors.
+    // SubprocessRunnerError is not an AuggieCLIError, so it hits the default
+    // fallback=true path — the desired behavior for infrastructure errors.
+
     @Test
     func timeoutErrorFallsBackToWeb() {
         let strategy = AugmentCLIFetchStrategy()

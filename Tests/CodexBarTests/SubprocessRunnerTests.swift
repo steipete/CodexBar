@@ -30,7 +30,7 @@ struct SubprocessRunnerTests {
                 label: "hung-process-test")
             Issue.record("Expected SubprocessRunnerError.timedOut but no error was thrown")
         } catch let error as SubprocessRunnerError {
-            guard case .timedOut(let label) = error else {
+            guard case let .timedOut(label) = error else {
                 Issue.record("Expected .timedOut, got \(error)")
                 return
             }
