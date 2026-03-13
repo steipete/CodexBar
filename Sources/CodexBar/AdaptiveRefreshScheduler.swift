@@ -43,10 +43,13 @@ final class AdaptiveRefreshScheduler {
     private static let rateLimitBackoffDuration: TimeInterval = 1800
 
     /// Providers that call a remote API and must not be polled more often than
-    /// `remoteAPIMinimumInterval` regardless of the computed activity level.
+    /// their respective minimum intervals regardless of the computed activity level.
     private static let remoteAPIProviders: Set<UsageProvider> = [.claude, .gemini, .perplexity]
-    /// Hard floor for remote API providers (5 minutes).
+    /// Hard floor for Gemini and Perplexity (5 minutes).
     private static let remoteAPIMinimumInterval: TimeInterval = 300
+    /// Hard floor for Claude specifically — the /api/oauth/usage endpoint is a private beta
+    /// endpoint designed for on-demand queries, not continuous polling. 15 minutes avoids 429s.
+    private static let claudeMinimumInterval: TimeInterval = 900
 
     // MARK: - State
 
@@ -119,7 +122,10 @@ final class AdaptiveRefreshScheduler {
 
         let base = self.baseInterval(for: provider, snapshot: snapshot, now: now)
 
-        // Remote API providers never poll faster than the hard minimum.
+        // Remote API providers have hard floors to avoid hitting API rate limits.
+        if provider == .claude {
+            return max(base, Self.claudeMinimumInterval)
+        }
         if Self.remoteAPIProviders.contains(provider) {
             return max(base, Self.remoteAPIMinimumInterval)
         }
