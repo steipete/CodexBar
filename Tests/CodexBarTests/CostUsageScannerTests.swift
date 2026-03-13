@@ -889,12 +889,13 @@ struct CostUsageScannerTests {
         #expect(scanned.count == 2)
         #expect(String(data: scanned[0].bytes, encoding: .utf8) == "ok")
         #expect(scanned[0].wasTruncated == false)
-        #expect(scanned[1].bytes.isEmpty)
+        #expect(scanned[1].bytes.count == 64)
+        #expect(String(data: scanned[1].bytes, encoding: .utf8) == String(repeating: "a", count: 64))
         #expect(scanned[1].wasTruncated == true)
     }
 }
 
-private struct CostUsageTestEnvironment {
+struct CostUsageTestEnvironment {
     let root: URL
     let cacheRoot: URL
     let codexHomeRoot: URL
