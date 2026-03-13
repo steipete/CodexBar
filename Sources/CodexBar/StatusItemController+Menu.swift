@@ -751,7 +751,8 @@ extension StatusItemController {
         }
 
         if let provider = self.menuProvider(for: menu)
-            ?? self.resolvedMenuProvider(enabledProviders: enabledProviders)
+            ?? self.resolvedMenuProvider(enabledProviders: enabledProviders),
+            enabledProviders.contains(provider)
         {
             return [provider]
         }
