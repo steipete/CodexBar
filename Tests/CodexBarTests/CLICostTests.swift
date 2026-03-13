@@ -57,7 +57,10 @@ struct CLICostTests {
                     costUSD: 0.01,
                     modelsUsed: ["claude-sonnet-4-20250514"],
                     modelBreakdowns: [
-                        CostModelBreakdownPayload(modelName: "claude-sonnet-4-20250514", costUSD: 0.01),
+                        CostModelBreakdownPayload(
+                            modelName: "claude-sonnet-4-20250514",
+                            costUSD: 0.01,
+                            totalTokens: 15),
                     ]),
             ],
             totals: CostTotalsPayload(
@@ -83,6 +86,9 @@ struct CLICostTests {
         #expect(json.contains("\"totals\""))
         #expect(json.contains("\"cacheReadTokens\":2"))
         #expect(json.contains("\"cacheCreationTokens\":3"))
+        #expect(json
+            .contains(
+                "\"modelBreakdowns\":[{\"modelName\":\"claude-sonnet-4-20250514\",\"cost\":0.01,\"totalTokens\":15}]"))
         #expect(json.contains("\"totalCost\""))
         #expect(json.contains("1700000000"))
     }

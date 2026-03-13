@@ -165,6 +165,30 @@ struct CostUsageDecodingTests {
     }
 
     @Test
+    func decodesModelBreakdownTokenTotals() throws {
+        let json = """
+        {
+          "daily": [
+            {
+              "date": "Dec 20, 2025",
+              "totalTokens": 30,
+              "costUSD": 0.12,
+              "modelBreakdowns": [
+                { "modelName": "gpt-5.2", "cost": 0.10, "totalTokens": 24 },
+                { "modelName": "gpt-5.2-mini", "cost": 0.02, "totalTokens": 6 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
+        let breakdown = try #require(report.data[0].modelBreakdowns)
+        #expect(breakdown.map(\.modelName) == ["gpt-5.2", "gpt-5.2-mini"])
+        #expect(breakdown.map(\.totalTokens) == [24, 6])
+    }
+
+    @Test
     func decodesDailyReportLegacyFormatWithEmptyModelMapAsNil() throws {
         let json = """
         {

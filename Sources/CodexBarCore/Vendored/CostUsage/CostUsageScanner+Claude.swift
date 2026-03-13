@@ -475,6 +475,7 @@ extension CostUsageScanner {
                 let cacheCreate = packed[safe: 2] ?? 0
                 let output = packed[safe: 3] ?? 0
                 let cachedCost = packed[safe: 4] ?? 0
+                let modelTotal = input + cacheRead + cacheCreate + output
 
                 // Cache tokens are tracked separately; totalTokens includes input + cache.
                 dayInput += input
@@ -490,15 +491,25 @@ extension CostUsageScanner {
                         cacheReadInputTokens: cacheRead,
                         cacheCreationInputTokens: cacheCreate,
                         outputTokens: output)
-                breakdown.append(CostUsageDailyReport.ModelBreakdown(modelName: model, costUSD: cost))
+                breakdown.append(CostUsageDailyReport.ModelBreakdown(
+                    modelName: model,
+                    costUSD: cost,
+                    totalTokens: modelTotal))
                 if let cost {
                     dayCost += cost
                     dayCostSeen = true
                 }
             }
 
-            breakdown.sort { lhs, rhs in (rhs.costUSD ?? -1) < (lhs.costUSD ?? -1) }
-            let top = Array(breakdown.prefix(3))
+            breakdown.sort { lhs, rhs in
+                let lCost = lhs.costUSD ?? -1
+                let rCost = rhs.costUSD ?? -1
+                if lCost != rCost { return lCost > rCost }
+                let lTokens = lhs.totalTokens ?? -1
+                let rTokens = rhs.totalTokens ?? -1
+                if lTokens != rTokens { return lTokens > rTokens }
+                return lhs.modelName < rhs.modelName
+            }
 
             let dayTotal = dayInput + dayCacheRead + dayCacheCreate + dayOutput
             let entryCost = dayCostSeen ? dayCost : nil
@@ -511,7 +522,7 @@ extension CostUsageScanner {
                 totalTokens: dayTotal,
                 costUSD: entryCost,
                 modelsUsed: modelNames,
-                modelBreakdowns: top))
+                modelBreakdowns: breakdown))
 
             totalInput += dayInput
             totalOutput += dayOutput

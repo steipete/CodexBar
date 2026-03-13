@@ -20,6 +20,18 @@ struct CostHistoryChartMenuView: View {
         }
     }
 
+    private struct DetailRow: Identifiable {
+        let id: String
+        let title: String
+        let subtitle: String?
+        let accentColor: Color
+    }
+
+    private struct DetailContent {
+        let primary: String
+        let rows: [DetailRow]
+    }
+
     private let provider: UsageProvider
     private let daily: [DailyEntry]
     private let totalCostUSD: Double?
@@ -88,22 +100,48 @@ struct CostHistoryChartMenuView: View {
                     }
                 }
 
-                let detail = self.detailLines(model: model)
-                VStack(alignment: .leading, spacing: 0) {
+                let detail = self.detailContent(model: model)
+                VStack(alignment: .leading, spacing: Self.detailSpacing) {
                     Text(detail.primary)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .frame(height: 16, alignment: .leading)
-                    Text(detail.secondary ?? " ")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(height: 16, alignment: .leading)
-                        .opacity(detail.secondary == nil ? 0 : 1)
+                        .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
+                    ForEach(detail.rows) { row in
+                        HStack(alignment: .top, spacing: 8) {
+                            Rectangle()
+                                .fill(row.accentColor)
+                                .frame(width: 2, height: row.subtitle == nil ? 14 : Self.detailRowHeight)
+                                .padding(.top, 1)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(row.title)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                if let subtitle = row.subtitle {
+                                    Text(subtitle)
+                                        .font(.caption2)
+                                        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                }
+                            }
+                        }
+                        .frame(height: Self.detailRowHeight, alignment: .leading)
+                    }
+                    ForEach(0..<max(model.maxRenderedBreakdownRows - detail.rows.count, 0), id: \.self) { _ in
+                        Text(" ")
+                            .font(.caption)
+                            .frame(height: Self.detailRowHeight, alignment: .leading)
+                            .opacity(0)
+                    }
                 }
+                .frame(
+                    height: Self.detailBlockHeight(maxBreakdownRows: model.maxRenderedBreakdownRows),
+                    alignment: .topLeading)
             }
 
             if let total = self.totalCostUSD {
@@ -126,9 +164,14 @@ struct CostHistoryChartMenuView: View {
         let barColor: Color
         let peakKey: String?
         let maxCostUSD: Double
+        let maxRenderedBreakdownRows: Int
     }
 
     private static let selectionBandColor = Color(nsColor: .labelColor).opacity(0.1)
+    private static let maxVisibleDetailLines = 4
+    private static let detailPrimaryLineHeight: CGFloat = 16
+    private static let detailRowHeight: CGFloat = 24
+    private static let detailSpacing: CGFloat = 6
 
     private static func capHeight(maxValue: Double) -> Double {
         maxValue * 0.05
@@ -150,6 +193,7 @@ struct CostHistoryChartMenuView: View {
 
         var peak: (key: String, costUSD: Double)?
         var maxCostUSD: Double = 0
+        var maxRenderedBreakdownRows = 0
         for entry in sorted {
             guard let costUSD = entry.costUSD, costUSD > 0 else { continue }
             guard let date = self.dateFromDayKey(entry.date) else { continue }
@@ -158,6 +202,7 @@ struct CostHistoryChartMenuView: View {
             pointsByKey[entry.date] = point
             entriesByKey[entry.date] = entry
             dateKeys.append((entry.date, date))
+            maxRenderedBreakdownRows = max(maxRenderedBreakdownRows, Self.renderedBreakdownRowCount(for: entry))
             if let cur = peak {
                 if costUSD > cur.costUSD { peak = (entry.date, costUSD) }
             } else {
@@ -181,7 +226,8 @@ struct CostHistoryChartMenuView: View {
             axisDates: axisDates,
             barColor: barColor,
             peakKey: peak?.key,
-            maxCostUSD: maxCostUSD)
+            maxCostUSD: maxCostUSD,
+            maxRenderedBreakdownRows: maxRenderedBreakdownRows)
     }
 
     private static func barColor(for provider: UsageProvider) -> Color {
@@ -209,6 +255,21 @@ struct CostHistoryChartMenuView: View {
     private static func peakPoint(model: Model) -> Point? {
         guard let key = model.peakKey else { return nil }
         return model.pointsByDateKey[key]
+    }
+
+    private static func renderedBreakdownRowCount(for entry: DailyEntry) -> Int {
+        guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return 0 }
+        if breakdown.count > self.maxVisibleDetailLines {
+            return self.maxVisibleDetailLines
+        }
+        return breakdown.count
+    }
+
+    private static func detailBlockHeight(maxBreakdownRows: Int) -> CGFloat {
+        guard maxBreakdownRows > 0 else { return self.detailPrimaryLineHeight }
+        return self.detailPrimaryLineHeight +
+            (CGFloat(maxBreakdownRows) * self.detailRowHeight) +
+            (CGFloat(maxBreakdownRows) * self.detailSpacing)
     }
 
     private func selectionBandRect(model: Model, proxy: ChartProxy, geo: GeometryProxy) -> CGRect? {
@@ -286,41 +347,84 @@ struct CostHistoryChartMenuView: View {
         return best?.key
     }
 
-    private func detailLines(model: Model) -> (primary: String, secondary: String?) {
+    private func detailContent(model: Model) -> DetailContent {
         guard let key = self.selectedDateKey,
               let point = model.pointsByDateKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return ("Hover a bar for details", nil)
+            return DetailContent(primary: "Hover a bar for details", rows: [])
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
         let cost = UsageFormatter.usdString(point.costUSD)
-        if let tokens = point.totalTokens {
-            let primary = "\(dayLabel): \(cost) · \(UsageFormatter.tokenCountString(tokens)) tokens"
-            let secondary = self.topModelsText(key: key, model: model)
-            return (primary, secondary)
+        let primary = if let tokens = point.totalTokens {
+            "\(dayLabel): \(cost) · \(UsageFormatter.tokenCountString(tokens)) tokens"
+        } else {
+            "\(dayLabel): \(cost)"
         }
-        let primary = "\(dayLabel): \(cost)"
-        let secondary = self.topModelsText(key: key, model: model)
-        return (primary, secondary)
+        return DetailContent(primary: primary, rows: self.breakdownRows(key: key, model: model))
     }
 
-    private func topModelsText(key: String, model: Model) -> String? {
-        guard let entry = model.entriesByDateKey[key] else { return nil }
-        guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return nil }
-        let parts = breakdown
-            .compactMap { item -> (name: String, costUSD: Double)? in
-                guard let costUSD = item.costUSD, costUSD > 0 else { return nil }
-                return (UsageFormatter.modelDisplayName(item.modelName), costUSD)
-            }
+    private func breakdownRows(key: String, model: Model) -> [DetailRow] {
+        guard let entry = model.entriesByDateKey[key] else { return [] }
+        guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return [] }
+
+        let sorted = breakdown
             .sorted { lhs, rhs in
-                if lhs.costUSD == rhs.costUSD { return lhs.name < rhs.name }
-                return lhs.costUSD > rhs.costUSD
+                let lCost = lhs.costUSD ?? -1
+                let rCost = rhs.costUSD ?? -1
+                if lCost != rCost { return lCost > rCost }
+                let lTokens = lhs.totalTokens ?? -1
+                let rTokens = rhs.totalTokens ?? -1
+                if lTokens != rTokens { return lTokens > rTokens }
+                return lhs.modelName < rhs.modelName
             }
-            .prefix(3)
-            .map { "\($0.name) \(UsageFormatter.usdString($0.costUSD))" }
-        guard !parts.isEmpty else { return nil }
-        return "Top: \(parts.joined(separator: " · "))"
+
+        let visibleLimit = sorted.count > Self.maxVisibleDetailLines
+            ? (Self.maxVisibleDetailLines - 1)
+            : sorted.count
+        let visible = Array(sorted.prefix(visibleLimit))
+        var rows = visible.enumerated().map { index, item in
+            DetailRow(
+                id: "\(item.modelName)-\(index)",
+                title: UsageFormatter.modelDisplayName(item.modelName),
+                subtitle: Self.breakdownValueText(costUSD: item.costUSD, totalTokens: item.totalTokens),
+                accentColor: model.barColor.opacity(Self.breakdownAccentOpacity(for: index)))
+        }
+
+        let hidden = Array(sorted.dropFirst(visibleLimit))
+        if !hidden.isEmpty {
+            let hiddenCost = hidden.reduce(0.0) { partial, item in
+                partial + (item.costUSD ?? 0)
+            }
+            let hiddenTokens = hidden.reduce(0) { partial, item in
+                partial + (item.totalTokens ?? 0)
+            }
+            rows.append(DetailRow(
+                id: "overflow",
+                title: hidden.count == 1 ? "1 more model" : "\(hidden.count) more models",
+                subtitle: Self.breakdownValueText(
+                    costUSD: hiddenCost > 0 ? hiddenCost : nil,
+                    totalTokens: hiddenTokens > 0 ? hiddenTokens : nil),
+                accentColor: Color(nsColor: .tertiaryLabelColor).opacity(0.55)))
+        }
+
+        return rows
+    }
+
+    private static func breakdownAccentOpacity(for index: Int) -> Double {
+        let opacity = 0.75 - (Double(index) * 0.12)
+        return max(0.3, opacity)
+    }
+
+    private static func breakdownValueText(costUSD: Double?, totalTokens: Int?) -> String? {
+        var parts: [String] = []
+        if let costUSD, costUSD > 0 {
+            parts.append(UsageFormatter.usdString(costUSD))
+        }
+        if let totalTokens, totalTokens > 0 {
+            parts.append("\(UsageFormatter.tokenCountString(totalTokens)) tokens")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
