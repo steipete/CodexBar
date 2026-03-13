@@ -70,7 +70,7 @@ public struct CostUsageFetcher: Sendable {
     }
 
     static func tokenSnapshot(from daily: CostUsageDailyReport, now: Date) -> CostUsageTokenSnapshot {
-        // Pick the most recent day; break ties by cost/tokens to keep a stable "session" row.
+        // Pick the most recent day; break ties by cost/tokens to keep a stable latest-day row.
         let currentDay = daily.data.max { lhs, rhs in
             let lDate = CostUsageDateParser.parse(lhs.date) ?? .distantPast
             let rDate = CostUsageDateParser.parse(rhs.date) ?? .distantPast

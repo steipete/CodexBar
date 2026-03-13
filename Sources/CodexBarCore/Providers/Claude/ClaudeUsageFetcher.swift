@@ -713,6 +713,58 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         return nil
     }
 
+    private static func reconcileProviderCost(
+        primary: ProviderCostSnapshot?,
+        web: ProviderCostSnapshot?) -> ProviderCostSnapshot?
+    {
+        guard let web else { return primary }
+        guard let primary else { return web }
+
+        if primary.currencyCode != web.currencyCode {
+            Self.log.info(
+                "Claude extra usage mismatch; preferring web cost",
+                metadata: [
+                    "reason": "currency",
+                    "primaryCurrency": primary.currencyCode,
+                    "webCurrency": web.currencyCode,
+                ])
+            return web
+        }
+
+        if Self.providerCostDiffLooksLikeUnitMismatch(primary: primary, web: web) {
+            Self.log.info(
+                "Claude extra usage mismatch; preferring web cost",
+                metadata: [
+                    "reason": "unitMismatch",
+                    "primaryUsed": String(primary.used),
+                    "primaryLimit": String(primary.limit),
+                    "webUsed": String(web.used),
+                    "webLimit": String(web.limit),
+                ])
+            return web
+        }
+
+        return primary
+    }
+
+    private static func providerCostDiffLooksLikeUnitMismatch(
+        primary: ProviderCostSnapshot,
+        web: ProviderCostSnapshot) -> Bool
+    {
+        Self.amountLooksLikeUnitMismatch(primary.used, web.used)
+            || Self.amountLooksLikeUnitMismatch(primary.limit, web.limit)
+    }
+
+    private static func amountLooksLikeUnitMismatch(_ lhs: Double, _ rhs: Double) -> Bool {
+        let left = abs(lhs)
+        let right = abs(rhs)
+        guard left > 0, right > 0 else {
+            return abs(left - right) >= 1
+        }
+        let ratio = max(left, right) / min(left, right)
+        return ratio >= 50 && abs(left - right) >= 1
+    }
+
     // MARK: - Web API path (uses browser cookies)
 
     private func loadViaWebAPI() async throws -> ClaudeUsageSnapshot {
@@ -831,13 +883,13 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         Self.log.debug(msg)
                     }
                 }
-            // Only merge cost extras; keep identity fields from the primary data source.
-            if snapshot.providerCost == nil, let extra = webData.extraUsageCost {
+            let providerCost = Self.reconcileProviderCost(primary: snapshot.providerCost, web: webData.extraUsageCost)
+            if providerCost != snapshot.providerCost {
                 return ClaudeUsageSnapshot(
                     primary: snapshot.primary,
                     secondary: snapshot.secondary,
                     opus: snapshot.opus,
-                    providerCost: extra,
+                    providerCost: providerCost,
                     updatedAt: snapshot.updatedAt,
                     accountEmail: snapshot.accountEmail,
                     accountOrganization: snapshot.accountOrganization,
@@ -1023,6 +1075,13 @@ extension ClaudeUsageFetcher {
             scopes: [],
             rateLimitTier: rateLimitTier)
         return try Self.mapOAuthUsage(usage, credentials: creds)
+    }
+
+    public static func _reconcileProviderCostForTesting(
+        primary: ProviderCostSnapshot?,
+        web: ProviderCostSnapshot?) -> ProviderCostSnapshot?
+    {
+        Self.reconcileProviderCost(primary: primary, web: web)
     }
 }
 #endif

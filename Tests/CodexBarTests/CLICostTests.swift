@@ -32,7 +32,7 @@ struct CLICostTests {
             .replacingOccurrences(of: "$ ", with: "$")
 
         #expect(output.contains("Claude Cost (local)"))
-        #expect(output.contains("Today: $1.25 · 1.2K tokens"))
+        #expect(output.contains("Latest day: $1.25 · 1.2K tokens"))
         #expect(output.contains("Last 30 days: $9.99 · 9K tokens"))
     }
 

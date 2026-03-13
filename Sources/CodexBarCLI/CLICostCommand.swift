@@ -81,15 +81,16 @@ extension CodexBarCLI {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         let header = Self.costHeaderLine("\(name) Cost (local)", useColor: useColor)
 
-        let todayCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-        let todayTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
-        let todayLine = todayTokens.map { "Today: \(todayCost) · \($0) tokens" } ?? "Today: \(todayCost)"
+        let latestDayCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
+        let latestDayTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
+        let latestDayLine = latestDayTokens.map { "Latest day: \(latestDayCost) · \($0) tokens" }
+            ?? "Latest day: \(latestDayCost)"
 
         let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
         let monthTokens = snapshot.last30DaysTokens.map { UsageFormatter.tokenCountString($0) }
         let monthLine = monthTokens.map { "Last 30 days: \(monthCost) · \($0) tokens" } ?? "Last 30 days: \(monthCost)"
 
-        return [header, todayLine, monthLine].joined(separator: "\n")
+        return [header, latestDayLine, monthLine].joined(separator: "\n")
     }
 
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {

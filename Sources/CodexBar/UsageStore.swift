@@ -1623,13 +1623,13 @@ extension UsageStore {
                 return
             }
             let duration = Date().timeIntervalSince(startedAt)
-            let sessionCost = snapshot.sessionCostUSD.map(UsageFormatter.usdString) ?? "—"
+            let latestDayCost = snapshot.sessionCostUSD.map(UsageFormatter.usdString) ?? "—"
             let monthCost = snapshot.last30DaysCostUSD.map(UsageFormatter.usdString) ?? "—"
             let durationText = String(format: "%.2f", duration)
             let message =
                 "cost usage success provider=\(providerText) " +
                 "duration=\(durationText)s " +
-                "today=\(sessionCost) " +
+                "latestDay=\(latestDayCost) " +
                 "30d=\(monthCost)"
             self.tokenCostLogger.info(message)
             self.tokenSnapshots[provider] = snapshot
