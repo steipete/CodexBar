@@ -359,7 +359,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func updateVisibility() {
-        let anyEnabled = !self.store.enabledProviders().isEmpty
+        let anyEnabled = !self.store.enabledProvidersForDisplay().isEmpty
         let force = self.store.debugForceAnimation
         let mergeIcons = self.shouldMergeIcons
         if mergeIcons {
@@ -464,7 +464,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     var shouldMergeIcons: Bool {
-        self.settings.mergeIcons && self.store.enabledProviders().count > 1
+        self.settings.mergeIcons && self.store.enabledProvidersForDisplay().count > 1
     }
 
     func switchAccountSubtitle(for target: UsageProvider) -> String? {

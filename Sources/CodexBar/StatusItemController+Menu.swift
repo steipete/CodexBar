@@ -147,7 +147,7 @@ extension StatusItemController {
     }
 
     private func populateMenu(_ menu: NSMenu, provider: UsageProvider?) {
-        let enabledProviders = self.store.enabledProviders()
+        let enabledProviders = self.store.enabledProvidersForDisplay()
         let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
         let switcherSelection = self.shouldMergeIcons && enabledProviders.count > 1
             ? self.resolvedSwitcherSelection(
@@ -618,7 +618,7 @@ extension StatusItemController {
     }
 
     private func resolvedMenuProvider(enabledProviders: [UsageProvider]? = nil) -> UsageProvider? {
-        let enabled = enabledProviders ?? self.store.enabledProviders()
+        let enabled = enabledProviders ?? self.store.enabledProvidersForDisplay()
         if enabled.isEmpty { return .codex }
         if let selected = self.selectedMenuProvider, enabled.contains(selected) {
             return selected
