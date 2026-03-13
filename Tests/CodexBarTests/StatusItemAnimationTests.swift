@@ -405,7 +405,8 @@ struct StatusItemAnimationTests {
             showUsed: true)
 
         #expect(pace == nil)
-        #expect(both == nil)
+        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(both == "40%")
     }
 
     @Test
@@ -424,7 +425,8 @@ struct StatusItemAnimationTests {
             showUsed: true)
 
         #expect(pace == nil)
-        #expect(both == nil)
+        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(both == "40%")
     }
 
     @Test
