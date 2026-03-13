@@ -208,6 +208,11 @@ extension SettingsStore {
         let claudeOAuthKeychainPromptModeRaw = userDefaults.string(forKey: "claudeOAuthKeychainPromptMode")
         let claudeOAuthKeychainReadStrategyRaw = userDefaults.string(forKey: "claudeOAuthKeychainReadStrategy")
         let claudeWebExtrasEnabledRaw = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
+        let showEstimatedCostDefault = userDefaults.object(forKey: "showEstimatedCostForSubscriptions") as? Bool
+        let showEstimatedCostForSubscriptions = showEstimatedCostDefault ?? true
+        if showEstimatedCostDefault == nil {
+            userDefaults.set(true, forKey: "showEstimatedCostForSubscriptions")
+        }
         let creditsExtrasDefault = userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool
         let showOptionalCreditsAndExtraUsage = creditsExtrasDefault ?? true
         if creditsExtrasDefault == nil { userDefaults.set(true, forKey: "showOptionalCreditsAndExtraUsage") }
@@ -249,6 +254,7 @@ extension SettingsStore {
             claudeOAuthKeychainPromptModeRaw: claudeOAuthKeychainPromptModeRaw,
             claudeOAuthKeychainReadStrategyRaw: claudeOAuthKeychainReadStrategyRaw,
             claudeWebExtrasEnabledRaw: claudeWebExtrasEnabledRaw,
+            showEstimatedCostForSubscriptions: showEstimatedCostForSubscriptions,
             showOptionalCreditsAndExtraUsage: showOptionalCreditsAndExtraUsage,
             openAIWebAccessEnabled: openAIWebAccessEnabled,
             jetbrainsIDEBasePath: jetbrainsIDEBasePath,

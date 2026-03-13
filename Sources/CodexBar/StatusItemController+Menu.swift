@@ -1415,6 +1415,7 @@ extension StatusItemController {
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
+            showEstimatedCostForSubscriptions: self.settings.showEstimatedCostForSubscriptions,
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             sourceLabel: sourceLabel,
             kiloAutoMode: kiloAutoMode,

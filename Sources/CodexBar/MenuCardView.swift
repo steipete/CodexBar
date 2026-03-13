@@ -631,6 +631,7 @@ extension UsageMenuCardView.Model {
         let usageBarsShowUsed: Bool
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
         let tokenCostUsageEnabled: Bool
+        let showEstimatedCostForSubscriptions: Bool
         let showOptionalCreditsAndExtraUsage: Bool
         let sourceLabel: String?
         let kiloAutoMode: Bool
@@ -654,6 +655,7 @@ extension UsageMenuCardView.Model {
             usageBarsShowUsed: Bool,
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             tokenCostUsageEnabled: Bool,
+            showEstimatedCostForSubscriptions: Bool = true,
             showOptionalCreditsAndExtraUsage: Bool,
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
@@ -676,6 +678,7 @@ extension UsageMenuCardView.Model {
             self.usageBarsShowUsed = usageBarsShowUsed
             self.resetTimeDisplayStyle = resetTimeDisplayStyle
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
+            self.showEstimatedCostForSubscriptions = showEstimatedCostForSubscriptions
             self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
@@ -705,11 +708,15 @@ extension UsageMenuCardView.Model {
         } else {
             Self.providerCostSection(provider: input.provider, cost: input.snapshot?.providerCost)
         }
+        let loginMethod = input.snapshot?.loginMethod(for: input.provider)
+        let isSubscription = input.provider == .claude && UsageStore.isSubscriptionPlan(loginMethod)
         let tokenUsage = Self.tokenUsageSection(
             provider: input.provider,
             enabled: input.tokenCostUsageEnabled,
             snapshot: input.tokenSnapshot,
-            error: input.tokenError)
+            error: input.tokenError,
+            isSubscription: isSubscription,
+            showEstimatedCost: input.showEstimatedCostForSubscriptions)
         let subtitle = Self.subtitle(
             snapshot: input.snapshot,
             isRefreshing: input.isRefreshing,
@@ -1098,36 +1105,54 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider,
         enabled: Bool,
         snapshot: CostUsageTokenSnapshot?,
-        error: String?) -> TokenUsageSection?
+        error: String?,
+        isSubscription: Bool = false,
+        showEstimatedCost: Bool = true) -> TokenUsageSection?
     {
         guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
         guard enabled else { return nil }
         guard let snapshot else { return nil }
 
-        let sessionCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
+        // For subscription users, cost display is controlled by a setting.
+        // When shown, a hint line clarifies these are API-equivalent estimates.
+        let showCost = !isSubscription || showEstimatedCost
+
+        let sessionCost = showCost ? (snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—") : nil
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
         let sessionLine: String = {
-            if let sessionTokens {
+            if let sessionTokens, let sessionCost {
                 return "Today: \(sessionCost) · \(sessionTokens) tokens"
+            } else if let sessionTokens {
+                return "Today: \(sessionTokens) tokens"
+            } else if let sessionCost {
+                return "Today: \(sessionCost)"
             }
-            return "Today: \(sessionCost)"
+            return "Today: —"
         }()
 
-        let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
+        let monthCost = showCost ? (snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—") : nil
         let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
         let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
         let monthLine: String = {
-            if let monthTokens {
+            if let monthTokens, let monthCost {
                 return "Last 30 days: \(monthCost) · \(monthTokens) tokens"
+            } else if let monthTokens {
+                return "Last 30 days: \(monthTokens) tokens"
+            } else if let monthCost {
+                return "Last 30 days: \(monthCost)"
             }
-            return "Last 30 days: \(monthCost)"
+            return "Last 30 days: —"
         }()
+
+        let hintLine: String? = (isSubscription && showCost)
+            ? "Estimated at API rates — not your actual spend"
+            : nil
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
             sessionLine: sessionLine,
             monthLine: monthLine,
-            hintLine: nil,
+            hintLine: hintLine,
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
     }
