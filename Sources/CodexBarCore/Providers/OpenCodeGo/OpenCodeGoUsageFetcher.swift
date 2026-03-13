@@ -417,8 +417,12 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             }
         }
 
-        let resolvedReset = max(0, resetInSec ?? 0)
-        return (resolvedPercent, resolvedReset)
+        // If no resetInSec or resetAt was found/parsed, the window is unparseable
+        guard let resolvedReset = resetInSec else {
+            Self.log.warning("OpenCode Go: usage window missing reset time")
+            return nil
+        }
+        return (resolvedPercent, max(0, resolvedReset))
     }
 
     private static func fetchServerText(
@@ -581,9 +585,14 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             if let number = Double(string.trimmingCharacters(in: .whitespacesAndNewlines)) {
                 return self.dateValue(from: number, now: Date())
             }
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let parsed = formatter.date(from: string) {
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let parsed = fractional.date(from: string) {
+                return parsed
+            }
+            let plain = ISO8601DateFormatter()
+            plain.formatOptions = [.withInternetDateTime]
+            if let parsed = plain.date(from: string) {
                 return parsed
             }
         }
