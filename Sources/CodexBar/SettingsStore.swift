@@ -157,9 +157,10 @@ final class SettingsStore {
 
 extension SettingsStore {
     private static func loadDefaultsState(userDefaults: UserDefaults) -> SettingsDefaultsState {
-        let refreshRaw = userDefaults.string(forKey: "refreshFrequency")
-        let refreshFrequency = refreshRaw.flatMap(RefreshFrequency.init(rawValue:)) ?? .fiveMinutes
-        if refreshRaw == nil || refreshRaw.flatMap(RefreshFrequency.init(rawValue:)) == nil {
+        let refreshDefault = userDefaults.string(forKey: "refreshFrequency")
+            .flatMap(RefreshFrequency.init(rawValue:))
+        let refreshFrequency = refreshDefault ?? .fiveMinutes
+        if refreshDefault == nil {
             userDefaults.set(refreshFrequency.rawValue, forKey: "refreshFrequency")
         }
         let launchAtLogin = userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false

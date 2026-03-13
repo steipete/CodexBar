@@ -26,6 +26,24 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func repairsUnrecognizedRefreshFrequencyRawValue() throws {
+        let suite = "SettingsStoreTests-invalid-refresh"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("legacyValue", forKey: "refreshFrequency")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.refreshFrequency == .fiveMinutes)
+        #expect(defaults.string(forKey: "refreshFrequency") == RefreshFrequency.fiveMinutes.rawValue)
+    }
+
+    @Test
     func persistsRefreshFrequencyAcrossInstances() throws {
         let suite = "SettingsStoreTests-persist"
         let defaultsA = try #require(UserDefaults(suiteName: suite))
