@@ -451,11 +451,22 @@ public struct GeminiStatusProbe: Sendable {
             return nil
         }
 
+        guard let content = Self.resolveOAuthFileContent(from: geminiPath) else {
+            return nil
+        }
+        return self.parseOAuthCredentials(from: content)
+    }
+
+    /// Resolve the full symlink chain starting from `binaryPath`, then search each
+    /// intermediate directory for the Gemini CLI oauth2.js file.
+    /// Returns the file content if found, or `nil`.
+    /// Visible to tests via `@testable import`.
+    static func resolveOAuthFileContent(from binaryPath: String) -> String? {
         // Resolve symlinks recursively, collecting all intermediate paths
         // (e.g. /usr/local/bin/gemini → /opt/homebrew/bin/gemini → ../Cellar/.../bin/gemini → ...)
         let fm = FileManager.default
-        var candidates: [String] = [geminiPath]
-        var current = geminiPath
+        var candidates: [String] = [binaryPath]
+        var current = binaryPath
         var visited: Set<String> = []
         while true {
             let canonical = (current as NSString).standardizingPath
@@ -500,7 +511,7 @@ public struct GeminiStatusProbe: Sendable {
 
             for path in possiblePaths {
                 if let content = try? String(contentsOfFile: path, encoding: .utf8) {
-                    return self.parseOAuthCredentials(from: content)
+                    return content
                 }
             }
         }
