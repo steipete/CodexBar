@@ -83,9 +83,9 @@ public enum ClaudeProviderDescriptor {
                 return []
             case .auto:
                 // Fork: OAuth is the sole strategy in auto mode. No CLI PTY or web cookie fallbacks.
-                // isAlwaysAvailable=true ensures the pipeline always runs fetch() and surfaces real
-                // errors (e.g. "credentials expired") instead of the opaque "no available strategy."
-                return [ClaudeOAuthFetchStrategy(isAlwaysAvailable: true)]
+                // Surface actionable OAuth errors when credentials plausibly exist, but still report
+                // "no available strategy" when Claude has never been configured at all.
+                return [ClaudeOAuthFetchStrategy(surfacesCredentialErrorsInAutoMode: true)]
             }
         }
     }
@@ -127,13 +127,15 @@ public struct ClaudeUsageStrategy: Equatable, Sendable {
 struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     let id: String = "claude.oauth"
     let kind: ProviderFetchKind = .oauth
-    /// When true, `isAvailable` always returns true so `fetch()` runs and surfaces real errors.
-    /// Used when OAuth is the sole strategy — avoids the pipeline returning "no available strategy."
-    var isAlwaysAvailable: Bool = false
+    /// When true in auto mode, `isAvailable` returns true once credentials plausibly exist so
+    /// fetch() can surface actionable auth errors. Completely unconfigured installs still return false.
+    var surfacesCredentialErrorsInAutoMode: Bool = false
 
     #if DEBUG
     @TaskLocal static var nonInteractiveCredentialRecordOverride: ClaudeOAuthCredentialRecord?
     @TaskLocal static var claudeCLIAvailableOverride: Bool?
+    @TaskLocal static var hasCachedCredentialsOverride: Bool?
+    @TaskLocal static var hasClaudeKeychainCredentialsWithoutPromptOverride: Bool?
     #endif
 
     private func loadNonInteractiveCredentialRecord(_ context: ProviderFetchContext) -> ClaudeOAuthCredentialRecord? {
@@ -155,8 +157,40 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         return ClaudeOAuthDelegatedRefreshCoordinator.isClaudeCLIAvailable()
     }
 
+    private func hasPlausibleCredentialEvidence(_ context: ProviderFetchContext) -> Bool {
+        if self.loadNonInteractiveCredentialRecord(context) != nil {
+            return true
+        }
+
+        let hasEnvironmentOAuthToken = !(context.env[ClaudeOAuthCredentialsStore.environmentTokenKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true)
+        if hasEnvironmentOAuthToken {
+            return true
+        }
+
+        #if DEBUG
+        if let override = Self.hasCachedCredentialsOverride {
+            if override {
+                return true
+            }
+        } else if ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: context.env) {
+            return true
+        }
+        if let override = Self.hasClaudeKeychainCredentialsWithoutPromptOverride {
+            return override
+        }
+        #else
+        if ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: context.env) {
+            return true
+        }
+        return ClaudeOAuthCredentialsStore.hasClaudeKeychainCredentialsWithoutPrompt()
+        #endif
+
+        return ClaudeOAuthCredentialsStore.hasClaudeKeychainCredentialsWithoutPrompt()
+    }
+
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        if self.isAlwaysAvailable { return true }
         let nonInteractiveRecord = self.loadNonInteractiveCredentialRecord(context)
         let nonInteractiveCredentials = nonInteractiveRecord?.credentials
         let hasRequiredScopeWithoutPrompt = nonInteractiveCredentials?.scopes.contains("user:profile") == true
@@ -215,6 +249,13 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             !ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: context.env)
         if shouldAllowStartupBootstrap {
             return ClaudeOAuthKeychainAccessGate.shouldAllowPrompt()
+        }
+
+        if self.surfacesCredentialErrorsInAutoMode,
+           context.sourceMode == .auto,
+           self.hasPlausibleCredentialEvidence(context)
+        {
+            return true
         }
 
         if promptPolicyApplicable,

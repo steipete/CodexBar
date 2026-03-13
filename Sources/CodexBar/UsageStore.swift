@@ -414,9 +414,9 @@ final class UsageStore {
                     // Per-provider gate: skip remote API providers when their individual interval
                     // hasn't elapsed, even if a fast local provider drove a shorter global timer tick.
                     // forceAllProviders=true bypasses the gate for user-initiated refreshes.
-                    let due = forceAllProviders || self.adaptiveScheduler.shouldRefresh(
-                        for: provider,
-                        snapshot: self.snapshots[provider],
+                    let due = self.shouldRefreshProvider(
+                        provider,
+                        forceAllProviders: forceAllProviders,
                         now: now)
                     if due {
                         group.addTask { await self.refreshProvider(provider) }
@@ -472,7 +472,7 @@ final class UsageStore {
             queue: nil) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.isEnabled(.gemini) else { return }
-                await self.refreshProvider(.gemini)
+                await self.refreshProviderIfDue(.gemini)
             }
         }
 
@@ -520,6 +520,29 @@ final class UsageStore {
             maxInterval: ceiling)
         // Fallback: if scheduler returns nil (manual) use ceiling or 300 s.
         return interval ?? ceiling ?? 300
+    }
+
+    private func refreshProviderIfDue(_ provider: UsageProvider) async {
+        let due = self.shouldRefreshProvider(provider)
+        guard due else { return }
+        await self.refreshProvider(provider)
+    }
+
+    func shouldRefreshProvider(
+        _ provider: UsageProvider,
+        forceAllProviders: Bool = false,
+        now: Date = Date()
+    ) -> Bool {
+        if self.adaptiveScheduler.isRateLimited(for: provider, now: now) {
+            return false
+        }
+        if forceAllProviders {
+            return true
+        }
+        return self.adaptiveScheduler.shouldRefresh(
+            for: provider,
+            snapshot: self.snapshots[provider],
+            now: now)
     }
 
     private func startTokenTimer() {

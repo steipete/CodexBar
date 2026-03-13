@@ -99,7 +99,7 @@ codexbar cost --provider claude --format json --pretty
 COPILOT_API_TOKEN=... codexbar --provider copilot --format json --pretty
 codexbar --status                 # include status page indicator/description
 codexbar --provider codex --source web --format json --pretty
-codexbar --provider claude --account steipete@gmail.com
+codexbar --provider claude --account user@example.com
 codexbar --provider claude --all-accounts --format json --pretty
 codexbar --json-only --format json --pretty
 codexbar --provider gemini --source api --format json --pretty

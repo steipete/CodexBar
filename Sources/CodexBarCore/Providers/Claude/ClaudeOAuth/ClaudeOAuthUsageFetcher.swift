@@ -6,7 +6,7 @@ import FoundationNetworking
 public enum ClaudeOAuthFetchError: LocalizedError, Sendable {
     case unauthorized
     case invalidResponse
-    case serverError(Int, String?)
+    case serverError(Int, String?, retryAfter: TimeInterval?)
     case networkError(Error)
 
     public var errorDescription: String? {
@@ -15,7 +15,7 @@ public enum ClaudeOAuthFetchError: LocalizedError, Sendable {
             return "Claude OAuth request unauthorized. Run `claude` to re-authenticate."
         case .invalidResponse:
             return "Claude OAuth response was invalid."
-        case let .serverError(code, body):
+        case let .serverError(code, body, _):
             if let body, !body.isEmpty {
                 let cleaned = body
                     .replacingOccurrences(of: "\n", with: " ")
@@ -63,10 +63,10 @@ enum ClaudeOAuthUsageFetcher {
                 throw ClaudeOAuthFetchError.unauthorized
             case 403:
                 let body = String(data: data, encoding: .utf8)
-                throw ClaudeOAuthFetchError.serverError(http.statusCode, body)
+                throw ClaudeOAuthFetchError.serverError(http.statusCode, body, retryAfter: Self.retryAfter(from: http))
             default:
                 let body = String(data: data, encoding: .utf8)
-                throw ClaudeOAuthFetchError.serverError(http.statusCode, body)
+                throw ClaudeOAuthFetchError.serverError(http.statusCode, body, retryAfter: Self.retryAfter(from: http))
             }
         } catch let error as ClaudeOAuthFetchError {
             throw error
@@ -105,6 +105,26 @@ enum ClaudeOAuthUsageFetcher {
         let token = raw.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? raw
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func retryAfter(from response: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty
+        else {
+            return nil
+        }
+
+        if let seconds = TimeInterval(raw), seconds >= 0 {
+            return seconds
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+        guard let date = formatter.date(from: raw) else { return nil }
+        return max(0, date.timeIntervalSinceNow)
     }
 }
 

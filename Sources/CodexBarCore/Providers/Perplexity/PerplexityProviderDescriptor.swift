@@ -45,11 +45,11 @@ public enum PerplexityProviderDescriptor {
 
 // MARK: - Keychain helpers
 
-private enum PerplexityKeychain {
+public enum PerplexityKeychainStore {
     static let service = "com.codexbarrt.perplexity"
     static let account = "session-cookie"
 
-    static func readCookie() -> String? {
+    public static func readCookie() -> String? {
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
@@ -67,7 +67,7 @@ private enum PerplexityKeychain {
         return cookie
     }
 
-    static func writeCookie(_ cookie: String) throws {
+    public static func writeCookie(_ cookie: String) throws {
         let data = Data(cookie.utf8)
         let deleteQuery: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
@@ -87,6 +87,15 @@ private enum PerplexityKeychain {
             throw PerplexityError.keychainWriteFailed(status)
         }
     }
+
+    public static func clearCookie() {
+        let deleteQuery: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+    }
 }
 
 // MARK: - Errors
@@ -94,19 +103,22 @@ private enum PerplexityKeychain {
 public enum PerplexityError: LocalizedError, Sendable {
     case notConfigured
     case invalidResponse
-    case httpError(Int)
+    case httpError(Int, retryAfter: TimeInterval?)
     case keychainWriteFailed(OSStatus)
 
     public var errorDescription: String? {
         switch self {
         case .notConfigured:
-            "Perplexity session cookie not configured. Open Settings → Perplexity to add your cookie."
+            return "Perplexity session cookie not configured. Open Settings → Perplexity to add your cookie."
         case .invalidResponse:
-            "Unexpected response from Perplexity — the API format may have changed."
-        case let .httpError(code):
-            "Perplexity API returned HTTP \(code). Your session cookie may be expired."
+            return "Unexpected response from Perplexity — the API format may have changed."
+        case let .httpError(code, retryAfter):
+            if let retryAfter {
+                return "Perplexity API returned HTTP \(code). Retry after \(Int(retryAfter.rounded()))s."
+            }
+            return "Perplexity API returned HTTP \(code). Your session cookie may be expired."
         case let .keychainWriteFailed(status):
-            "Failed to save Perplexity cookie to Keychain (OSStatus \(status))."
+            return "Failed to save Perplexity cookie to Keychain (OSStatus \(status))."
         }
     }
 }
@@ -118,11 +130,11 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_: ProviderFetchContext) async -> Bool {
-        PerplexityKeychain.readCookie() != nil
+        PerplexityKeychainStore.readCookie() != nil
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let cookie = PerplexityKeychain.readCookie() else {
+        guard let cookie = PerplexityKeychainStore.readCookie() else {
             throw PerplexityError.notConfigured
         }
 
@@ -138,7 +150,7 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            throw PerplexityError.httpError(http.statusCode)
+            throw PerplexityError.httpError(http.statusCode, retryAfter: Self.retryAfter(from: http))
         }
 
         let usage = try Self.parse(data: data)
@@ -184,5 +196,25 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
             tertiary: nil,
             updatedAt: Date(),
             identity: nil)
+    }
+
+    private static func retryAfter(from response: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty
+        else {
+            return nil
+        }
+
+        if let seconds = TimeInterval(raw), seconds >= 0 {
+            return seconds
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+        guard let date = formatter.date(from: raw) else { return nil }
+        return max(0, date.timeIntervalSinceNow)
     }
 }

@@ -1,5 +1,7 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
+This fork keeps upstream CodexBar’s menu bar model but adds realtime-focused refresh behavior: provider-specific adaptive polling, persisted rate-limit backoff, staleness indicators, and Claude/Perplexity hardening for more stable day-to-day usage tracking.
+
 Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, JetBrains AI, and OpenRouter limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode with a provider switcher and optional Overview tab); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
@@ -128,7 +130,7 @@ Dev loop:
 - [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar)
 
 ## Credits
-Inspired by [ccusage](https://github.com/ryoppippi/ccusage) (MIT), specifically the cost usage tracking.
+Inspired by [ccusage](https://github.com/ryoppippi/ccusage) (MIT), specifically the cost usage tracking. Forked from [steipete/CodexBar](https://github.com/steipete/CodexBar).
 
 ## License
-MIT • Peter Steinberger ([steipete](https://twitter.com/steipete))
+MIT

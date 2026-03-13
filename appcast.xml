@@ -127,7 +127,7 @@
 <li>Augment: prefer Auggie CLI usage with web fallback, plus session refresh + recovery tools (#142). Thanks @bcharleson!</li>
 <li>Amp: add provider with Amp Free usage tracking (#167). Thanks @duailibe!</li>
 <li>Synthetic: add API-key usage provider with quota snapshots (#171). Thanks @monotykamary!</li>
-<li>JetBrains AI: include IDEs missing quota files, expand custom paths, and add Android Studio base paths (#194). Thanks @steipete!</li>
+<li>JetBrains AI: include IDEs missing quota files, expand custom paths, and add Android Studio base paths (#194).</li>
 <li>Cursor: support legacy request-based plans and show individual on-demand usage (#125) — thanks @vltansky</li>
 <li>Cursor: avoid Intel crash when opening login and harden WebKit teardown. Thanks @meghanto!</li>
 <li>Cursor: load stored session cookies before reads to make relaunches deterministic.</li>

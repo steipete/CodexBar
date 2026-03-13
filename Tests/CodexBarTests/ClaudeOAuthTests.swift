@@ -177,7 +177,8 @@ struct ClaudeOAuthTests {
     func includesBodyInOAuth403Error() {
         let err = ClaudeOAuthFetchError.serverError(
             403,
-            "HTTP 403: OAuth token does not meet scope requirement user:profile")
+            "HTTP 403: OAuth token does not meet scope requirement user:profile",
+            retryAfter: nil)
         #expect(err.localizedDescription.contains("user:profile"))
         #expect(err.localizedDescription.contains("HTTP 403"))
     }

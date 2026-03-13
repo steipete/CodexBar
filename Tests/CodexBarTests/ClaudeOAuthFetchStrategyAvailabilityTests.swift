@@ -95,7 +95,37 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
                 await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(false) {
                     await strategy.isAvailable(context)
                 }
+        }
+        #expect(available == true)
+    }
+
+    @Test
+    func autoModeSurfacingErrorsWithoutCredentialEvidence_returnsUnavailable() async {
+        let context = self.makeContext(sourceMode: .auto)
+        let strategy = ClaudeOAuthFetchStrategy(surfacesCredentialErrorsInAutoMode: true)
+        let available = await ClaudeOAuthFetchStrategy.$hasCachedCredentialsOverride.withValue(false) {
+            await ClaudeOAuthFetchStrategy.$hasClaudeKeychainCredentialsWithoutPromptOverride.withValue(false) {
+                await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride.withValue(nil) {
+                    await strategy.isAvailable(context)
+                }
             }
+        }
+        #expect(available == false)
+    }
+
+    @Test
+    func autoModeSurfacingErrorsWithExpiredCreds_returnsAvailable() async {
+        let context = self.makeContext(sourceMode: .auto)
+        let strategy = ClaudeOAuthFetchStrategy(surfacesCredentialErrorsInAutoMode: true)
+        let available = await ClaudeOAuthFetchStrategy.$hasCachedCredentialsOverride.withValue(false) {
+            await ClaudeOAuthFetchStrategy.$hasClaudeKeychainCredentialsWithoutPromptOverride.withValue(false) {
+                await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride.withValue(self.expiredRecord()) {
+                    await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(false) {
+                        await strategy.isAvailable(context)
+                    }
+                }
+            }
+        }
         #expect(available == true)
     }
 

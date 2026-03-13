@@ -1,7 +1,7 @@
 # CodexBar Issue #139 Performance/Energy Simulation Report
 
 Date: 2026-02-19
-Workspace: /Users/michalkrsik/windsurf_project_folder/CodexBar
+Workspace: <repo>/CodexBar
 Issue: https://github.com/steipete/codexbar/issues/139
 
 ## Purpose

@@ -9,6 +9,7 @@ extension UsageStore {
 
     func refreshProvider(_ provider: UsageProvider, allowDisabled: Bool = false) async {
         guard let spec = self.providerSpecs[provider] else { return }
+        guard !self.refreshingProviders.contains(provider) else { return }
 
         if !spec.isEnabled(), !allowDisabled {
             self.refreshingProviders.remove(provider)
@@ -30,9 +31,14 @@ extension UsageStore {
             return
         }
 
+        let interaction = ProviderInteractionContext.current
+        if interaction == .userInitiated,
+           self.adaptiveScheduler.isRateLimited(for: provider)
+        {
+            return
+        }
+
         self.refreshingProviders.insert(provider)
-        // Record this attempt so the per-provider gate knows when to allow the next refresh.
-        self.adaptiveScheduler.recordRefresh(for: provider)
         defer { self.refreshingProviders.remove(provider) }
 
         let tokenAccounts = self.tokenAccounts(for: provider)
@@ -80,16 +86,18 @@ extension UsageStore {
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
+            let completedAt = Date()
             await MainActor.run {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
                 self.snapshots[provider] = scoped
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
+                self.adaptiveScheduler.recordRefresh(for: provider, now: completedAt)
                 // Inform the adaptive scheduler when utilisation is high so hysteresis
                 // keeps the faster refresh cadence alive between polls.
                 if let primary = scoped.primary, primary.usedPercent > 50 {
-                    self.adaptiveScheduler.recordActivity(for: provider)
+                    self.adaptiveScheduler.recordActivity(for: provider, now: completedAt)
                 }
             }
             if let runtime = self.providerRuntimes[provider] {
@@ -101,21 +109,29 @@ extension UsageStore {
                 self.recordCodexHistoricalSampleIfNeeded(snapshot: scoped)
             }
         case let .failure(error):
+            let completedAt = Date()
+            let rateLimitBackoff = error.rateLimitBackoff
             await MainActor.run {
                 let hadPriorData = self.snapshots[provider] != nil
+                let preserveSnapshotDuringRateLimit =
+                    provider == .claude && hadPriorData && rateLimitBackoff != nil
                 let shouldSurface =
                     self.failureGates[provider]?
                         .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
-                if shouldSurface {
+                if preserveSnapshotDuringRateLimit {
+                    self.errors[provider] = nil
+                } else if shouldSurface {
                     self.errors[provider] = error.localizedDescription
                     self.snapshots.removeValue(forKey: provider)
                 } else {
                     self.errors[provider] = nil
                 }
-                // Back off fast polling when the API rate-limits us (HTTP 429).
-                let description = error.localizedDescription.lowercased()
-                if description.contains("429") || description.contains("rate limit") || description.contains("rate_limit") {
-                    self.adaptiveScheduler.recordRateLimit(for: provider)
+                self.adaptiveScheduler.recordRefresh(for: provider, now: completedAt)
+                if let backoff = rateLimitBackoff {
+                    self.adaptiveScheduler.recordRateLimit(
+                        for: provider,
+                        retryAfter: backoff.retryAfter,
+                        now: completedAt)
                 }
             }
             if let runtime = self.providerRuntimes[provider] {

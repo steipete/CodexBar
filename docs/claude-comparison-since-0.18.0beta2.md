@@ -197,12 +197,12 @@ stateDiagram-v2
 
 ## Related Files
 
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeUsageFetcher.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeProviderDescriptor.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthCredentials.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthKeychainAccessGate.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthRefreshFailureGate.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/KeychainAccessPreflight.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/KeychainNoUIQuery.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/BrowserCookieImportOrder.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/BrowserCookieAccessGate.swift`
+- `<repo>/Sources/CodexBarCore/Providers/Claude/ClaudeUsageFetcher.swift`
+- `<repo>/Sources/CodexBarCore/Providers/Claude/ClaudeProviderDescriptor.swift`
+- `<repo>/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthCredentials.swift`
+- `<repo>/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthKeychainAccessGate.swift`
+- `<repo>/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthRefreshFailureGate.swift`
+- `<repo>/Sources/CodexBarCore/KeychainAccessPreflight.swift`
+- `<repo>/Sources/CodexBarCore/KeychainNoUIQuery.swift`
+- `<repo>/Sources/CodexBarCore/BrowserCookieImportOrder.swift`
+- `<repo>/Sources/CodexBarCore/BrowserCookieAccessGate.swift`

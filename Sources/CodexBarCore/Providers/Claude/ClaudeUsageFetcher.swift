@@ -44,6 +44,7 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
     case claudeNotInstalled
     case parseFailed(String)
     case oauthFailed(String)
+    case oauthRateLimited(String, retryAfter: TimeInterval?)
 
     public var errorDescription: String? {
         switch self {
@@ -52,6 +53,8 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
         case let .parseFailed(details):
             "Could not parse Claude usage: \(details)"
         case let .oauthFailed(details):
+            details
+        case let .oauthRateLimited(details, _):
             details
         }
     }
@@ -396,13 +399,20 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             throw ClaudeUsageError.oauthFailed(error.localizedDescription)
         } catch let error as ClaudeOAuthFetchError {
             ClaudeOAuthCredentialsStore.invalidateCache()
-            if case let .serverError(statusCode, body) = error,
+            if case let .serverError(statusCode, body, _) = error,
                statusCode == 403,
                body?.contains("user:profile") ?? false
             {
                 throw ClaudeUsageError.oauthFailed(
                     "Claude OAuth token does not meet scope requirement 'user:profile'. "
                         + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to Web/CLI.")
+            }
+            if case let .serverError(statusCode, body, retryAfter) = error,
+               statusCode == 429
+            {
+                throw ClaudeUsageError.oauthRateLimited(
+                    Self.rateLimitMessage(retryAfter: retryAfter, body: body),
+                    retryAfter: retryAfter)
             }
             throw ClaudeUsageError.oauthFailed(error.localizedDescription)
         } catch {
@@ -621,10 +631,13 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 metadata["oauthError"] = "unauthorized"
             case .invalidResponse:
                 metadata["oauthError"] = "invalidResponse"
-            case let .serverError(statusCode, body):
+            case let .serverError(statusCode, body, retryAfter):
                 metadata["oauthError"] = "serverError"
                 metadata["httpStatus"] = "\(statusCode)"
                 metadata["bodyLength"] = "\(body?.utf8.count ?? 0)"
+                if let retryAfter {
+                    metadata["retryAfterSeconds"] = String(format: "%.0f", retryAfter)
+                }
             case let .networkError(underlying):
                 metadata["oauthError"] = "networkError"
                 metadata["underlyingType"] = String(describing: type(of: underlying))
@@ -632,6 +645,28 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
 
         return metadata
+    }
+
+    private static func rateLimitMessage(retryAfter: TimeInterval?, body: String?) -> String {
+        let base = "Claude OAuth usage endpoint rate limited (HTTP 429)."
+        let retryText: String
+        if let retryAfter, retryAfter > 0 {
+            retryText = " Retry after \(max(1, Int(retryAfter.rounded(.up))))s."
+        } else {
+            retryText = " Backing off before the next retry."
+        }
+
+        guard let body,
+              !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return base + retryText
+        }
+
+        let cleaned = body
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let shortened = cleaned.count > 240 ? String(cleaned.prefix(240)) + "…" : cleaned
+        return base + retryText + " " + shortened
     }
 
     private static func mapOAuthUsage(

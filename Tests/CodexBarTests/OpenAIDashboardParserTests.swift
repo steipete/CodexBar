@@ -12,12 +12,12 @@ struct OpenAIDashboardParserTests {
         <head></head>
         <body>
         <script type="application/json" id="client-bootstrap">
-        {"authStatus":"logged_in","session":{"user":{"email":"studpete@gmail.com"}}}
+        {"authStatus":"logged_in","session":{"user":{"email":"user@example.com"}}}
         </script>
         </body>
         </html>
         """
-        #expect(OpenAIDashboardParser.parseSignedInEmailFromClientBootstrap(html: html) == "studpete@gmail.com")
+        #expect(OpenAIDashboardParser.parseSignedInEmailFromClientBootstrap(html: html) == "user@example.com")
         #expect(OpenAIDashboardParser.parseAuthStatusFromClientBootstrap(html: html) == "logged_in")
     }
 

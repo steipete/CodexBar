@@ -21,14 +21,10 @@ func showAbout() {
         ])
     }
 
-    let credits = NSMutableAttributedString(string: "Peter Steinberger — MIT License\n")
+    let credits = NSMutableAttributedString(string: "CodexBar contributors — MIT License\n")
     credits.append(makeLink("GitHub", urlString: "https://github.com/steipete/CodexBar"))
     credits.append(separator)
-    credits.append(makeLink("Website", urlString: "https://codexbar.app"))
-    credits.append(separator)
-    credits.append(makeLink("Twitter", urlString: "https://twitter.com/steipete"))
-    credits.append(separator)
-    credits.append(makeLink("Email", urlString: "mailto:peter@steipete.me"))
+    credits.append(makeLink("Docs", urlString: "https://github.com/steipete/CodexBar#readme"))
     if let buildTimestamp, let formatted = formattedBuildTimestamp(buildTimestamp) {
         var builtLine = "Built \(formatted)"
         if let gitCommit, !gitCommit.isEmpty, gitCommit != "unknown" {

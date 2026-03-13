@@ -15,7 +15,7 @@ import Foundation
 /// 120 s after the last activity, preventing rapid bouncing between levels.
 ///
 /// Remote API providers (Claude OAuth, Gemini, Perplexity) have a hard minimum
-/// interval of 300 s regardless of activity level, to avoid hitting API rate limits.
+/// interval regardless of activity level, to avoid hitting API rate limits.
 /// A 429 response extends that floor to 1800 s and is persisted across relaunches.
 @MainActor
 final class AdaptiveRefreshScheduler {
@@ -48,8 +48,9 @@ final class AdaptiveRefreshScheduler {
     /// Hard floor for Gemini and Perplexity (5 minutes).
     private static let remoteAPIMinimumInterval: TimeInterval = 300
     /// Hard floor for Claude specifically — the /api/oauth/usage endpoint is a private beta
-    /// endpoint designed for on-demand queries, not continuous polling. 15 minutes avoids 429s.
-    private static let claudeMinimumInterval: TimeInterval = 900
+    /// endpoint designed for on-demand queries, not continuous polling. Prefer consistency over
+    /// freshness and only re-check once per hour unless the user explicitly clears the backoff.
+    private static let claudeMinimumInterval: TimeInterval = 3600
 
     // MARK: - State
 
@@ -61,6 +62,7 @@ final class AdaptiveRefreshScheduler {
     /// Timestamp of the last completed refresh attempt for each provider.
     /// Used to gate per-provider refresh so fast local providers don't drag remote API providers.
     private var lastRefreshedAt: [UsageProvider: Date] = [:]
+    private let userDefaults: UserDefaults
 
     // MARK: - UserDefaults keys
 
@@ -70,12 +72,12 @@ final class AdaptiveRefreshScheduler {
 
     // MARK: - Init
 
-    init() {
+    init(userDefaults: UserDefaults = .standard, now: Date = Date()) {
+        self.userDefaults = userDefaults
         // Restore any persisted rate-limit timestamps from previous sessions.
-        let now = Date()
         for provider in UsageProvider.allCases {
             let key = Self.rateLimitKey(for: provider)
-            if let stored = UserDefaults.standard.object(forKey: key) as? Date, stored > now {
+            if let stored = userDefaults.object(forKey: key) as? Date, stored > now {
                 self.rateLimitedUntil[provider] = stored
             }
         }
@@ -84,17 +86,18 @@ final class AdaptiveRefreshScheduler {
     // MARK: - API
 
     /// Record that `provider` was active right now.
-    func recordActivity(for provider: UsageProvider) {
-        self.lastActiveAt[provider] = Date()
+    func recordActivity(for provider: UsageProvider, now: Date = Date()) {
+        self.lastActiveAt[provider] = now
     }
 
     /// Record a rate-limit (HTTP 429) for `provider`.  Backs off for
     /// `rateLimitBackoffDuration` seconds and persists the timestamp across relaunches.
-    func recordRateLimit(for provider: UsageProvider, now: Date = Date()) {
-        let until = now.addingTimeInterval(Self.rateLimitBackoffDuration)
+    func recordRateLimit(for provider: UsageProvider, retryAfter: TimeInterval? = nil, now: Date = Date()) {
+        let duration = max(retryAfter ?? Self.rateLimitBackoffDuration, self.minimumInterval(for: provider))
+        let until = now.addingTimeInterval(duration)
         self.rateLimitedUntil[provider] = until
         self.lastActiveAt.removeValue(forKey: provider)
-        UserDefaults.standard.set(until, forKey: Self.rateLimitKey(for: provider))
+        self.userDefaults.set(until, forKey: Self.rateLimitKey(for: provider))
     }
 
     /// Returns true if enough time has elapsed since the last refresh for `provider`.
@@ -102,8 +105,12 @@ final class AdaptiveRefreshScheduler {
     /// Pass `force: true` for user-initiated refreshes to bypass the gate.
     func shouldRefresh(for provider: UsageProvider, snapshot: UsageSnapshot?, force: Bool = false, now: Date = Date()) -> Bool {
         if force { return true }
-        guard let last = self.lastRefreshedAt[provider] else { return true }
-        return now.timeIntervalSince(last) >= self.effectiveInterval(for: provider, snapshot: snapshot, now: now)
+        return self.remainingUntilRefresh(for: provider, snapshot: snapshot, now: now) <= 0
+    }
+
+    /// Returns true when `provider` is still inside an active rate-limit cooldown window.
+    func isRateLimited(for provider: UsageProvider, now: Date = Date()) -> Bool {
+        self.currentRateLimitUntil(for: provider, now: now) != nil
     }
 
     /// Record that a refresh attempt completed for `provider` (success or failure).
@@ -114,22 +121,14 @@ final class AdaptiveRefreshScheduler {
     /// Determine the effective wait interval for a single provider.
     func effectiveInterval(for provider: UsageProvider, snapshot: UsageSnapshot?, now: Date = Date()) -> TimeInterval {
         // Rate-limit backoff takes priority over everything.
-        if let until = self.rateLimitedUntil[provider], now < until {
+        if let until = self.currentRateLimitUntil(for: provider, now: now), now < until {
             // During a rate-limit backoff, use the full backoff duration as the interval
             // so the provider isn't polled at all until the backoff expires.
             return until.timeIntervalSince(now)
         }
 
         let base = self.baseInterval(for: provider, snapshot: snapshot, now: now)
-
-        // Remote API providers have hard floors to avoid hitting API rate limits.
-        if provider == .claude {
-            return max(base, Self.claudeMinimumInterval)
-        }
-        if Self.remoteAPIProviders.contains(provider) {
-            return max(base, Self.remoteAPIMinimumInterval)
-        }
-        return base
+        return max(base, self.minimumInterval(for: provider))
     }
 
     /// Return the next global wait interval across all `providers`, capped by `maxInterval`.
@@ -137,17 +136,15 @@ final class AdaptiveRefreshScheduler {
     func nextInterval(
         providers: [UsageProvider],
         snapshots: [UsageProvider: UsageSnapshot],
-        maxInterval: TimeInterval?
+        maxInterval: TimeInterval?,
+        now: Date = Date()
     ) -> TimeInterval? {
         guard let ceiling = maxInterval else { return nil }
+        guard !providers.isEmpty else { return ceiling }
 
-        var best: TimeInterval = ActivityLevel.idle.interval
-        for provider in providers {
-            let interval = self.effectiveInterval(for: provider, snapshot: snapshots[provider])
-            if interval < best {
-                best = interval
-            }
-        }
+        let best = providers
+            .map { self.remainingUntilRefresh(for: $0, snapshot: snapshots[$0], now: now) }
+            .min() ?? ceiling
         return min(best, ceiling)
     }
 
@@ -175,5 +172,42 @@ final class AdaptiveRefreshScheduler {
         }
 
         return ActivityLevel.idle.interval
+    }
+
+    private func minimumInterval(for provider: UsageProvider) -> TimeInterval {
+        if provider == .claude {
+            return Self.claudeMinimumInterval
+        }
+        if Self.remoteAPIProviders.contains(provider) {
+            return Self.remoteAPIMinimumInterval
+        }
+        return 0
+    }
+
+    private func currentRateLimitUntil(for provider: UsageProvider, now: Date) -> Date? {
+        guard let until = self.rateLimitedUntil[provider] else { return nil }
+        guard now < until else {
+            self.rateLimitedUntil.removeValue(forKey: provider)
+            self.userDefaults.removeObject(forKey: Self.rateLimitKey(for: provider))
+            return nil
+        }
+        return until
+    }
+
+    private func remainingUntilRefresh(for provider: UsageProvider, snapshot: UsageSnapshot?, now: Date) -> TimeInterval {
+        let dueAt = self.nextRefreshDate(for: provider, snapshot: snapshot, now: now)
+        return max(0, dueAt.timeIntervalSince(now))
+    }
+
+    private func nextRefreshDate(for provider: UsageProvider, snapshot: UsageSnapshot?, now: Date) -> Date {
+        let rateLimitUntil = self.currentRateLimitUntil(for: provider, now: now)
+
+        guard let last = self.lastRefreshedAt[provider] else {
+            return rateLimitUntil ?? now
+        }
+
+        let intervalDueAt = last.addingTimeInterval(self.effectiveInterval(for: provider, snapshot: snapshot, now: now))
+        guard let rateLimitUntil else { return intervalDueAt }
+        return max(intervalDueAt, rateLimitUntil)
     }
 }

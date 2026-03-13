@@ -2,7 +2,7 @@
 
 ## Unreleased
 ### Highlights
-- Add a merged-menu Overview tab with configurable providers and row-to-provider navigation (#416). @ratulsarna
+- Add a merged-menu Overview tab with configurable providers and row-to-provider navigation (#416).
 - Add an experimental option to suppress Claude Keychain prompts (#388).
 - Add OpenRouter provider for credit-based usage tracking (#396). Thanks @chountalas!
 - Add Ollama provider, including token-account support in Settings and CLI (#380). Thanks @CryptoSageSnr!
@@ -141,7 +141,7 @@
 - Augment: prefer Auggie CLI usage with web fallback, plus session refresh + recovery tools (#142). Thanks @bcharleson!
 - Amp: add provider with Amp Free usage tracking (#167). Thanks @duailibe!
 - Synthetic: add API-key usage provider with quota snapshots (#171). Thanks @monotykamary!
-- JetBrains AI: include IDEs missing quota files, expand custom paths, and add Android Studio base paths (#194). Thanks @steipete!
+- JetBrains AI: include IDEs missing quota files, expand custom paths, and add Android Studio base paths (#194).
 - JetBrains AI: detect IDE directories case-insensitively (#200). Thanks @zerone0x!
 - Cursor: support legacy request-based plans and show individual on-demand usage (#125) — thanks @vltansky
 - Cursor: avoid Intel crash when opening login and harden WebKit teardown. Thanks @meghanto!
