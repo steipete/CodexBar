@@ -1,7 +1,9 @@
 import Foundation
 
 public struct CostUsageTokenSnapshot: Sendable, Equatable {
+    /// Legacy field name: this is the most recent daily aggregate, not a live session total.
     public let sessionTokens: Int?
+    /// Legacy field name: this is the most recent daily aggregate, not a live session total.
     public let sessionCostUSD: Double?
     public let last30DaysTokens: Int?
     public let last30DaysCostUSD: Double?

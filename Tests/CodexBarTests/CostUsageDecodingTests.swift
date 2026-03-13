@@ -338,6 +338,32 @@ struct CostUsageDecodingTests {
     }
 
     @Test
+    func tokenSnapshotUsesLatestAvailableDayEvenWhenItIsNotToday() throws {
+        let json = """
+        {
+          "type": "daily",
+          "data": [
+            {
+              "date": "2025-12-21",
+              "totalTokens": 10,
+              "costUSD": 4.56
+            }
+          ],
+          "summary": {
+            "totalCostUSD": 4.56
+          }
+        }
+        """
+
+        let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
+        let now = Date(timeIntervalSince1970: 1_766_361_600) // 2025-12-22
+        let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: now)
+        #expect(snapshot.sessionTokens == 10)
+        #expect(snapshot.sessionCostUSD == 4.56)
+        #expect(snapshot.updatedAt == now)
+    }
+
+    @Test
     func tokenSnapshotUsesSummaryTotalCostWhenAvailable() throws {
         let json = """
         {

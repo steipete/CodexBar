@@ -281,6 +281,9 @@ struct MenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
+        #expect(model.tokenUsage?.title == "Local token estimate")
+        #expect(model.tokenUsage?.sessionLine.contains("Latest day:") == true)
+        #expect(model.tokenUsage?.hintLine?.contains("local Codex logs") == true)
         #expect(model.tokenUsage?.monthLine.contains("456") == true)
         #expect(model.tokenUsage?.monthLine.contains("tokens") == true)
     }

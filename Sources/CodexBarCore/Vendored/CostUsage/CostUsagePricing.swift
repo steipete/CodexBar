@@ -33,6 +33,10 @@ enum CostUsagePricing {
             inputCostPerToken: 1.25e-6,
             outputCostPerToken: 1e-5,
             cacheReadInputCostPerToken: 1.25e-7),
+        "gpt-5.1-codex-mini": CodexPricing(
+            inputCostPerToken: 2.5e-7,
+            outputCostPerToken: 2e-6,
+            cacheReadInputCostPerToken: 2.5e-8),
         "gpt-5.2": CodexPricing(
             inputCostPerToken: 1.75e-6,
             outputCostPerToken: 1.4e-5,
@@ -122,6 +126,16 @@ enum CostUsagePricing {
             outputCostPerTokenAboveThreshold: 2.25e-5,
             cacheCreationInputCostPerTokenAboveThreshold: 7.5e-6,
             cacheReadInputCostPerTokenAboveThreshold: 6e-7),
+        "claude-sonnet-4-6": ClaudePricing(
+            inputCostPerToken: 3e-6,
+            outputCostPerToken: 1.5e-5,
+            cacheCreationInputCostPerToken: 3.75e-6,
+            cacheReadInputCostPerToken: 3e-7,
+            thresholdTokens: 200_000,
+            inputCostPerTokenAboveThreshold: 6e-6,
+            outputCostPerTokenAboveThreshold: 2.25e-5,
+            cacheCreationInputCostPerTokenAboveThreshold: 7.5e-6,
+            cacheReadInputCostPerTokenAboveThreshold: 6e-7),
         "claude-sonnet-4-5-20250929": ClaudePricing(
             inputCostPerToken: 3e-6,
             outputCostPerToken: 1.5e-5,
@@ -169,9 +183,18 @@ enum CostUsagePricing {
         if trimmed.hasPrefix("openai/") {
             trimmed = String(trimmed.dropFirst("openai/".count))
         }
-        if let codexRange = trimmed.range(of: "-codex") {
-            let base = String(trimmed[..<codexRange.lowerBound])
-            if self.codex[base] != nil { return base }
+        let aliases: [String: String] = [
+            "gpt-5-codex": "gpt-5",
+            "gpt-5.1-codex": "gpt-5.1",
+            "gpt-5.1-codex-max": "gpt-5.1",
+            "gpt-5.1-codex-mini": "gpt-5.1-codex-mini",
+            "gpt-5.2-codex": "gpt-5.2",
+            "gpt-5.3-codex": "gpt-5.3",
+            "gpt-5.3-codex-max": "gpt-5.3",
+            "codex-mini-latest": "gpt-5.1-codex-mini",
+        ]
+        if let alias = aliases[trimmed] {
+            return alias
         }
         return trimmed
     }
@@ -189,6 +212,10 @@ enum CostUsagePricing {
             if tail.hasPrefix("claude-") {
                 trimmed = tail
             }
+        }
+
+        if trimmed.hasPrefix("claude-"), trimmed.contains("@") {
+            trimmed = trimmed.replacingOccurrences(of: "@", with: "-")
         }
 
         if let vRange = trimmed.range(of: #"-v\d+:\d+$"#, options: .regularExpression) {
