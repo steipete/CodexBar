@@ -281,6 +281,10 @@ public struct OpenAIDashboardBrowserCookieImporter {
             let sources = try Self.cookieClient.records(
                 matching: query,
                 in: browser)
+            guard !sources.isEmpty else {
+                log("\(browser.displayName) contained 0 matching records.")
+                return nil
+            }
             for source in sources {
                 let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
                 if cookies.isEmpty {
@@ -306,10 +310,10 @@ public struct OpenAIDashboardBrowserCookieImporter {
             if let hint = error.accessDeniedHint {
                 diagnostics.accessDeniedHints.append(hint)
             }
-            log("\(browser.rawValue) cookie load failed: \(error.localizedDescription)")
+            log("\(browser.displayName) cookie load failed: \(error.localizedDescription)")
             return nil
         } catch {
-            log("\(browser.rawValue) cookie load failed: \(error.localizedDescription)")
+            log("\(browser.displayName) cookie load failed: \(error.localizedDescription)")
             return nil
         }
     }
