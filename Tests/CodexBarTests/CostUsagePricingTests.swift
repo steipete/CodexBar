@@ -32,6 +32,39 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func normalizesCodexMiniVariantsSeparatelyFromBaseModel() {
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.1-codex-mini") == "gpt-5.1-codex-mini")
+        #expect(CostUsagePricing.normalizeCodexModel("codex-mini-latest") == "gpt-5.1-codex-mini")
+    }
+
+    @Test
+    func codexMiniPricingDoesNotCollapseToBaseModelPricing() {
+        let mini = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.1-codex-mini",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5)
+        let base = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.1",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5)
+        #expect(mini != nil)
+        #expect(base != nil)
+        #expect(mini != base)
+    }
+
+    @Test
+    func codexCostSupportsCodexMiniLatestAlias() {
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "codex-mini-latest",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5)
+        #expect(cost != nil)
+    }
+
+    @Test
     func normalizesClaudeOpus41DatedVariants() {
         #expect(CostUsagePricing.normalizeClaudeModel("claude-opus-4-1-20250805") == "claude-opus-4-1")
     }
@@ -51,6 +84,22 @@ struct CostUsagePricingTests {
     func claudeCostSupportsOpus46DatedVariant() {
         let cost = CostUsagePricing.claudeCostUSD(
             model: "claude-opus-4-6-20260205",
+            inputTokens: 10,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 5)
+        #expect(cost != nil)
+    }
+
+    @Test
+    func normalizesClaudeVertexDatedVariants() {
+        #expect(CostUsagePricing.normalizeClaudeModel("claude-sonnet-4-6@20260219") == "claude-sonnet-4-6")
+    }
+
+    @Test
+    func claudeCostSupportsSonnet46Alias() {
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-sonnet-4-6@20260219",
             inputTokens: 10,
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,

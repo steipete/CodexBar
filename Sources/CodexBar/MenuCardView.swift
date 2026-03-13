@@ -48,6 +48,7 @@ struct UsageMenuCardView: View {
         }
 
         struct TokenUsageSection: Sendable {
+            let title: String
             let sessionLine: String
             let monthLine: String
             let hintLine: String?
@@ -150,7 +151,7 @@ struct UsageMenuCardView: View {
                     }
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Cost")
+                            Text(tokenUsage.title)
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -507,7 +508,7 @@ private struct CreditsBarContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Credits")
+            Text("Credits remaining")
                 .font(.body)
                 .fontWeight(.medium)
             if let percentLeft {
@@ -555,7 +556,7 @@ struct UsageMenuCardCostSectionView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Cost")
+                            Text(tokenUsage.title)
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -1104,13 +1105,13 @@ extension UsageMenuCardView.Model {
         guard enabled else { return nil }
         guard let snapshot else { return nil }
 
-        let sessionCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-        let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
+        let latestDayCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
+        let latestDayTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
         let sessionLine: String = {
-            if let sessionTokens {
-                return "Today: \(sessionCost) · \(sessionTokens) tokens"
+            if let latestDayTokens {
+                return "Latest day: \(latestDayCost) · \(latestDayTokens) tokens"
             }
-            return "Today: \(sessionCost)"
+            return "Latest day: \(latestDayCost)"
         }()
 
         let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
@@ -1124,10 +1125,21 @@ extension UsageMenuCardView.Model {
             return "Last 30 days: \(monthCost)"
         }()
         let err = (error?.isEmpty ?? true) ? nil : error
+        let hintLine: String? = switch provider {
+        case .codex:
+            "Estimated from local Codex logs; separate from OpenAI dashboard credits."
+        case .claude:
+            "Estimated from local Claude logs; separate from Claude extra-usage billing."
+        case .vertexai:
+            "Estimated from local Claude-family logs."
+        default:
+            nil
+        }
         return TokenUsageSection(
+            title: "Local token estimate",
             sessionLine: sessionLine,
             monthLine: monthLine,
-            hintLine: nil,
+            hintLine: hintLine,
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
     }
@@ -1148,7 +1160,7 @@ extension UsageMenuCardView.Model {
             used = String(format: "%.0f", cost.used)
             limit = String(format: "%.0f", cost.limit)
         } else {
-            title = "Extra usage"
+            title = "Extra usage (billing)"
             used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
         }

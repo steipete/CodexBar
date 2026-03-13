@@ -206,6 +206,44 @@ struct ClaudeOAuthTests {
         #expect(snap.providerCost == nil)
     }
 
+    @Test
+    func webExtraUsageOverridesOAuthWhenValuesDifferBy100x() {
+        let oauth = ProviderCostSnapshot(
+            used: 325,
+            limit: 2050,
+            currencyCode: "USD",
+            period: "Monthly",
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let web = ProviderCostSnapshot(
+            used: 3.25,
+            limit: 20.5,
+            currencyCode: "USD",
+            period: "Monthly",
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let reconciled = ClaudeUsageFetcher._reconcileProviderCostForTesting(primary: oauth, web: web)
+        #expect(reconciled == web)
+    }
+
+    @Test
+    func webExtraUsageDoesNotOverrideOAuthWhenValuesAreClose() {
+        let oauth = ProviderCostSnapshot(
+            used: 3.25,
+            limit: 20.5,
+            currencyCode: "USD",
+            period: "Monthly",
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let web = ProviderCostSnapshot(
+            used: 3.26,
+            limit: 20.5,
+            currencyCode: "USD",
+            period: "Monthly",
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let reconciled = ClaudeUsageFetcher._reconcileProviderCostForTesting(primary: oauth, web: web)
+        #expect(reconciled == oauth)
+    }
+
     // MARK: - Scope-based strategy resolution
 
     @Test
