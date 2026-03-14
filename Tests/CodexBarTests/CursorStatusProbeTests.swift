@@ -150,7 +150,7 @@ struct CursorStatusProbeTests {
     }
 
     @Test
-    func usesPercentFieldWhenLimitMissing() {
+    func keepsPlanPercentAtZeroWhenLimitMissing() {
         let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
             .parseUsageSummary(
                 CursorUsageSummary(
@@ -176,7 +176,7 @@ struct CursorStatusProbeTests {
                 userInfo: nil,
                 rawJSON: nil)
 
-        #expect(snapshot.planPercentUsed == 50.0)
+        #expect(snapshot.planPercentUsed == 0)
     }
 
     @Test
@@ -203,6 +203,9 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.secondary != nil)
         // Uses individual on-demand values (what users see in their dashboard)
         #expect(usageSnapshot.secondary?.usedPercent == 5.0)
+        #expect(usageSnapshot.cursorPlanCost?.used == 22.5)
+        #expect(usageSnapshot.cursorPlanCost?.limit == 50.0)
+        #expect(usageSnapshot.cursorPlanCost?.currencyCode == "USD")
         #expect(usageSnapshot.providerCost?.used == 5.0)
         #expect(usageSnapshot.providerCost?.limit == 100.0)
         #expect(usageSnapshot.providerCost?.currencyCode == "USD")
@@ -283,6 +286,8 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.providerCost != nil)
         #expect(usageSnapshot.providerCost?.used == 10.0)
         #expect(usageSnapshot.providerCost?.limit == 0.0)
+        #expect(usageSnapshot.cursorPlanCost?.used == 25.0)
+        #expect(usageSnapshot.cursorPlanCost?.limit == 50.0)
         // Secondary should be nil when no on-demand limit
         #expect(usageSnapshot.secondary == nil)
     }
@@ -318,6 +323,7 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.cursorRequests?.limit == 500)
         #expect(usageSnapshot.cursorRequests?.usedPercent == 100.0)
         #expect(usageSnapshot.cursorRequests?.remainingPercent == 0.0)
+        #expect(usageSnapshot.cursorPlanCost == nil)
 
         // Primary RateWindow should use request-based percentage for legacy plans
         #expect(usageSnapshot.primary?.usedPercent == 100.0)
@@ -404,6 +410,8 @@ struct CursorStatusProbeTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
         #expect(usageSnapshot.cursorRequests == nil)
+        #expect(usageSnapshot.cursorPlanCost?.used == 25.0)
+        #expect(usageSnapshot.cursorPlanCost?.limit == 50.0)
     }
 
     // MARK: - Session Store Serialization
