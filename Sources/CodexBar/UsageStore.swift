@@ -39,6 +39,8 @@ extension UsageStore {
             _ = self.settings.refreshFrequency
             _ = self.settings.statusChecksEnabled
             _ = self.settings.sessionQuotaNotificationsEnabled
+            _ = self.settings.quotaWarningNotificationsEnabled
+            _ = self.settings.quotaWarningThresholds
             _ = self.settings.usageBarsShowUsed
             _ = self.settings.costUsageEnabled
             _ = self.settings.randomBlinkEnabled
@@ -152,6 +154,11 @@ final class UsageStore {
     @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
+    @ObservationIgnored var lastKnownSecondaryRemaining: [UsageProvider: Double] = [:]
+    @ObservationIgnored var quotaWarningFiredThresholds: [UsageProvider: [QuotaWarningWindow: Set<Int>]] = [:]
+    @ObservationIgnored var lastWarningAccountID: [UsageProvider: UUID] = [:]
+    @ObservationIgnored private let quotaWarningNotifier: QuotaWarningNotifier
+    @ObservationIgnored private let quotaWarningLogger = CodexBarLog.logger(LogCategories.quotaWarning)
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
@@ -167,6 +174,7 @@ final class UsageStore {
         registry: ProviderRegistry = .shared,
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
         sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
+        quotaWarningNotifier: QuotaWarningNotifier = QuotaWarningNotifier(),
         startupBehavior: StartupBehavior = .automatic)
     {
         self.codexFetcher = fetcher
@@ -177,6 +185,7 @@ final class UsageStore {
         self.registry = registry
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.sessionQuotaNotifier = sessionQuotaNotifier
+        self.quotaWarningNotifier = quotaWarningNotifier
         self.startupBehavior = startupBehavior.resolved(isRunningTests: Self.isRunningTestsProcess())
         self.providerMetadata = registry.metadata
         self
@@ -587,6 +596,87 @@ final class UsageStore {
         self.sessionQuotaLogger.info(message)
 
         self.sessionQuotaNotifier.post(transition: transition, provider: provider, badge: nil)
+    }
+
+    func handleQuotaWarningTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
+        // Always update tracking state so baselines stay current even when
+        // notifications are disabled. This prevents retroactive alerts when
+        // the user re-enables notifications after quota has dropped.
+        defer {
+            if let secondary = snapshot.secondary {
+                self.lastKnownSecondaryRemaining[provider] = secondary.remainingPercent
+            }
+        }
+
+        guard self.settings.quotaWarningNotificationsEnabled else { return }
+        let thresholds = self.settings.quotaWarningThresholds.sorted(by: >)
+        guard !thresholds.isEmpty else { return }
+
+        if let primary = snapshot.primary {
+            self.processWarningWindow(
+                provider: provider,
+                window: .primary,
+                currentRemaining: primary.remainingPercent,
+                previousRemaining: self.lastKnownSessionRemaining[provider],
+                thresholds: thresholds)
+        }
+
+        if let secondary = snapshot.secondary {
+            self.processWarningWindow(
+                provider: provider,
+                window: .secondary,
+                currentRemaining: secondary.remainingPercent,
+                previousRemaining: self.lastKnownSecondaryRemaining[provider],
+                thresholds: thresholds)
+        }
+    }
+
+    /// Resets quota warning baselines and fired thresholds for a provider.
+    /// Call when the selected token account changes to avoid false alerts
+    /// caused by a different account's remaining quota.
+    func resetQuotaWarningState(for provider: UsageProvider) {
+        self.lastKnownSecondaryRemaining.removeValue(forKey: provider)
+        self.quotaWarningFiredThresholds.removeValue(forKey: provider)
+    }
+
+    private func processWarningWindow(
+        provider: UsageProvider,
+        window: QuotaWarningWindow,
+        currentRemaining: Double,
+        previousRemaining: Double?,
+        thresholds: [Int])
+    {
+        var firedSet = self.quotaWarningFiredThresholds[provider]?[window] ?? []
+
+        let restored = QuotaWarningNotificationLogic.restoredThresholds(
+            currentRemaining: currentRemaining, alreadyFired: firedSet)
+        firedSet.subtract(restored)
+
+        let crossed = QuotaWarningNotificationLogic.crossedThresholds(
+            previousRemaining: previousRemaining,
+            currentRemaining: currentRemaining,
+            thresholds: thresholds,
+            alreadyFired: firedSet)
+
+        for threshold in crossed {
+            let event = QuotaWarningEvent(
+                threshold: threshold, window: window, currentRemaining: currentRemaining)
+            self.quotaWarningLogger.info(
+                "threshold crossed",
+                metadata: [
+                    "provider": provider.rawValue,
+                    "window": window.rawValue,
+                    "threshold": "\(threshold)",
+                    "remaining": "\(currentRemaining)",
+                ])
+            self.quotaWarningNotifier.post(event: event, provider: provider)
+            firedSet.insert(threshold)
+        }
+
+        if self.quotaWarningFiredThresholds[provider] == nil {
+            self.quotaWarningFiredThresholds[provider] = [:]
+        }
+        self.quotaWarningFiredThresholds[provider]?[window] = firedSet
     }
 
     private func refreshStatus(_ provider: UsageProvider) async {
