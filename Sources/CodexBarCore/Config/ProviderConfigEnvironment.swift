@@ -29,6 +29,14 @@ public enum ProviderConfigEnvironment {
             }
         case .openrouter:
             env[OpenRouterSettingsReader.envKey] = apiKey
+        case .qwen:
+            if let key = QwenSettingsReader.apiKeyEnvironmentKeys.first {
+                env[key] = apiKey
+            }
+        case .doubao:
+            if let key = DoubaoSettingsReader.apiKeyEnvironmentKeys.first {
+                env[key] = apiKey
+            }
         default:
             break
         }
