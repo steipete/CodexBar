@@ -115,34 +115,38 @@ struct ClaudeOAuthCredentialsStoreTests {
                             expiresAt: Date(timeIntervalSinceNow: 3600))
 
                         // Simulate Claude Keychain containing creds, without querying the real Keychain.
-                        try ProviderInteractionContext.$current.withValue(.userInitiated) {
-                            try ClaudeOAuthCredentialsStore
-                                .withClaudeKeychainOverridesForTesting(data: keychainData, fingerprint: nil) {
-                                    // When repair is disabled, non-interactive loads should not consult Claude's
-                                    // keychain data.
-                                    do {
-                                        _ = try ClaudeOAuthCredentialsStore.loadRecord(
+                        try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                            .securityFramework)
+                        {
+                            try ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                try ClaudeOAuthCredentialsStore
+                                    .withClaudeKeychainOverridesForTesting(data: keychainData, fingerprint: nil) {
+                                        // When repair is disabled, non-interactive loads should not consult Claude's
+                                        // keychain data.
+                                        do {
+                                            _ = try ClaudeOAuthCredentialsStore.loadRecord(
+                                                environment: [:],
+                                                allowKeychainPrompt: false,
+                                                respectKeychainPromptCooldown: true,
+                                                allowClaudeKeychainRepairWithoutPrompt: false)
+                                            Issue.record("Expected ClaudeOAuthCredentialsError.notFound")
+                                        } catch let error as ClaudeOAuthCredentialsError {
+                                            guard case .notFound = error else {
+                                                Issue.record("Expected .notFound, got \(error)")
+                                                return
+                                            }
+                                        }
+
+                                        // With repair enabled, we should be able to seed from the "Claude keychain"
+                                        // override.
+                                        let record = try ClaudeOAuthCredentialsStore.loadRecord(
                                             environment: [:],
                                             allowKeychainPrompt: false,
                                             respectKeychainPromptCooldown: true,
-                                            allowClaudeKeychainRepairWithoutPrompt: false)
-                                        Issue.record("Expected ClaudeOAuthCredentialsError.notFound")
-                                    } catch let error as ClaudeOAuthCredentialsError {
-                                        guard case .notFound = error else {
-                                            Issue.record("Expected .notFound, got \(error)")
-                                            return
-                                        }
+                                            allowClaudeKeychainRepairWithoutPrompt: true)
+                                        #expect(record.credentials.accessToken == "claude-keychain")
                                     }
-
-                                    // With repair enabled, we should be able to seed from the "Claude keychain"
-                                    // override.
-                                    let record = try ClaudeOAuthCredentialsStore.loadRecord(
-                                        environment: [:],
-                                        allowKeychainPrompt: false,
-                                        respectKeychainPromptCooldown: true,
-                                        allowClaudeKeychainRepairWithoutPrompt: true)
-                                    #expect(record.credentials.accessToken == "claude-keychain")
-                                }
+                            }
                         }
                     }
                 }
@@ -488,16 +492,22 @@ struct ClaudeOAuthCredentialsStoreTests {
                         createdAt: 1,
                         persistentRefHash: "ref1")
 
-                    let first = try ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        try ClaudeOAuthCredentialsStore.withClaudeKeychainFingerprintStoreOverrideForTesting(
-                            fingerprintStore)
-                        {
-                            try ClaudeOAuthKeychainAccessGate.withShouldAllowPromptOverrideForTesting(true) {
-                                try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                    data: cachedData,
-                                    fingerprint: fingerprint1)
-                                {
-                                    try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: false)
+                    let first = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                        .securityFramework)
+                    {
+                        try ProviderInteractionContext.$current.withValue(.userInitiated) {
+                            try ClaudeOAuthCredentialsStore.withClaudeKeychainFingerprintStoreOverrideForTesting(
+                                fingerprintStore)
+                            {
+                                try ClaudeOAuthKeychainAccessGate.withShouldAllowPromptOverrideForTesting(true) {
+                                    try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                        data: cachedData,
+                                        fingerprint: fingerprint1)
+                                    {
+                                        try ClaudeOAuthCredentialsStore.load(
+                                            environment: [:],
+                                            allowKeychainPrompt: false)
+                                    }
                                 }
                             }
                         }
@@ -516,16 +526,22 @@ struct ClaudeOAuthCredentialsStoreTests {
                         accessToken: "keychain-token",
                         expiresAt: Date(timeIntervalSinceNow: 3600))
 
-                    let second = try ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        try ClaudeOAuthCredentialsStore.withClaudeKeychainFingerprintStoreOverrideForTesting(
-                            fingerprintStore)
-                        {
-                            try ClaudeOAuthKeychainAccessGate.withShouldAllowPromptOverrideForTesting(true) {
-                                try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                    data: keychainData,
-                                    fingerprint: fingerprint2)
-                                {
-                                    try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: false)
+                    let second = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                        .securityFramework)
+                    {
+                        try ProviderInteractionContext.$current.withValue(.userInitiated) {
+                            try ClaudeOAuthCredentialsStore.withClaudeKeychainFingerprintStoreOverrideForTesting(
+                                fingerprintStore)
+                            {
+                                try ClaudeOAuthKeychainAccessGate.withShouldAllowPromptOverrideForTesting(true) {
+                                    try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                        data: keychainData,
+                                        fingerprint: fingerprint2)
+                                    {
+                                        try ClaudeOAuthCredentialsStore.load(
+                                            environment: [:],
+                                            allowKeychainPrompt: false)
+                                    }
                                 }
                             }
                         }

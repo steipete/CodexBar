@@ -299,11 +299,13 @@ struct ClaudeUsageTests {
         }
 
         do {
-            _ = try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
-                try await ProviderInteractionContext.$current.withValue(.background) {
-                    try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(delegatedOverride) {
-                        try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(loadCredsOverride) {
-                            try await fetcher.loadLatestUsage(model: "sonnet")
+            _ = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+                try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                    try await ProviderInteractionContext.$current.withValue(.background) {
+                        try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(delegatedOverride) {
+                            try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(loadCredsOverride) {
+                                try await fetcher.loadLatestUsage(model: "sonnet")
+                            }
                         }
                     }
                 }
@@ -350,11 +352,13 @@ struct ClaudeUsageTests {
         }
 
         do {
-            _ = try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
-                try await ProviderInteractionContext.$current.withValue(.background) {
-                    try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(delegatedOverride) {
-                        try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(loadCredsOverride) {
-                            try await fetcher.loadLatestUsage(model: "sonnet")
+            _ = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+                try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                    try await ProviderInteractionContext.$current.withValue(.background) {
+                        try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(delegatedOverride) {
+                            try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(loadCredsOverride) {
+                                try await fetcher.loadLatestUsage(model: "sonnet")
+                            }
                         }
                     }
                 }
@@ -463,12 +467,16 @@ struct ClaudeUsageTests {
                 rateLimitTier: nil)
         }
 
-        let snapshot = try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
-            try await ProviderInteractionContext.$current.withValue(.background) {
-                try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(fetchOverride) {
-                    try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(delegatedOverride) {
-                        try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(loadCredsOverride) {
-                            try await fetcher.loadLatestUsage(model: "sonnet")
+        let snapshot = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+            .securityFramework)
+        {
+            try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                try await ProviderInteractionContext.$current.withValue(.background) {
+                    try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(fetchOverride) {
+                        try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(delegatedOverride) {
+                            try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(loadCredsOverride) {
+                                try await fetcher.loadLatestUsage(model: "sonnet")
+                            }
                         }
                     }
                 }
@@ -894,7 +902,7 @@ extension ClaudeUsageTests {
         }
 
         let snapshot = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental,
+            .securityCLI,
             operation: {
                 try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
                     try await ProviderInteractionContext.$current.withValue(.background) {
@@ -943,7 +951,7 @@ extension ClaudeUsageTests {
 
         await #expect(throws: ClaudeUsageError.self) {
             try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                .securityCLIExperimental,
+                .securityCLI,
                 operation: {
                     try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
                         try await ProviderInteractionContext.$current.withValue(.background) {

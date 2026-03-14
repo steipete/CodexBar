@@ -171,7 +171,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         readStrategy: ClaudeOAuthKeychainReadStrategy,
         keychainAccessDisabled: Bool) -> KeychainChangeObservationBaseline
     {
-        if readStrategy == .securityCLIExperimental {
+        if readStrategy == .securityCLI {
             return .securityCLI(data: self.currentClaudeKeychainDataViaSecurityCLIForObservation(
                 readStrategy: readStrategy,
                 keychainAccessDisabled: keychainAccessDisabled))

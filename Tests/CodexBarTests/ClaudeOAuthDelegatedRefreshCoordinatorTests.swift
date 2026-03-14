@@ -34,33 +34,35 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
         ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
         defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
 
-        final class FingerprintBox: @unchecked Sendable {
-            var fingerprint: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?
-            init(_ fingerprint: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?) {
-                self.fingerprint = fingerprint
+        await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+            final class FingerprintBox: @unchecked Sendable {
+                var fingerprint: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?
+                init(_ fingerprint: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?) {
+                    self.fingerprint = fingerprint
+                }
             }
+            let box = FingerprintBox(ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 1,
+                createdAt: 1,
+                persistentRefHash: "ref1"))
+            ClaudeOAuthDelegatedRefreshCoordinator.setKeychainFingerprintOverrideForTesting { box.fingerprint }
+
+            ClaudeOAuthDelegatedRefreshCoordinator.setCLIAvailableOverrideForTesting(true)
+            ClaudeOAuthDelegatedRefreshCoordinator.setTouchAuthPathOverrideForTesting { _ in
+                box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                    modifiedAt: 2,
+                    createdAt: 2,
+                    persistentRefHash: "ref2")
+            }
+
+            let start = Date(timeIntervalSince1970: 10000)
+            let first = await ClaudeOAuthDelegatedRefreshCoordinator.attempt(now: start, timeout: 0.1)
+            let second = await ClaudeOAuthDelegatedRefreshCoordinator
+                .attempt(now: start.addingTimeInterval(30), timeout: 0.1)
+
+            #expect(first == .attemptedSucceeded)
+            #expect(second == .skippedByCooldown)
         }
-        let box = FingerprintBox(ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
-            modifiedAt: 1,
-            createdAt: 1,
-            persistentRefHash: "ref1"))
-        ClaudeOAuthDelegatedRefreshCoordinator.setKeychainFingerprintOverrideForTesting { box.fingerprint }
-
-        ClaudeOAuthDelegatedRefreshCoordinator.setCLIAvailableOverrideForTesting(true)
-        ClaudeOAuthDelegatedRefreshCoordinator.setTouchAuthPathOverrideForTesting { _ in
-            box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
-                modifiedAt: 2,
-                createdAt: 2,
-                persistentRefHash: "ref2")
-        }
-
-        let start = Date(timeIntervalSince1970: 10000)
-        let first = await ClaudeOAuthDelegatedRefreshCoordinator.attempt(now: start, timeout: 0.1)
-        let second = await ClaudeOAuthDelegatedRefreshCoordinator
-            .attempt(now: start.addingTimeInterval(30), timeout: 0.1)
-
-        #expect(first == .attemptedSucceeded)
-        #expect(second == .skippedByCooldown)
     }
 
     @Test
@@ -82,31 +84,33 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
         ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
         defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
 
-        final class FingerprintBox: @unchecked Sendable {
-            var fingerprint: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?
-            init(_ fingerprint: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?) {
-                self.fingerprint = fingerprint
+        await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+            final class FingerprintBox: @unchecked Sendable {
+                var fingerprint: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?
+                init(_ fingerprint: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?) {
+                    self.fingerprint = fingerprint
+                }
             }
+            let box = FingerprintBox(ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 10,
+                createdAt: 10,
+                persistentRefHash: "refA"))
+            ClaudeOAuthDelegatedRefreshCoordinator.setKeychainFingerprintOverrideForTesting { box.fingerprint }
+
+            ClaudeOAuthDelegatedRefreshCoordinator.setCLIAvailableOverrideForTesting(true)
+            ClaudeOAuthDelegatedRefreshCoordinator.setTouchAuthPathOverrideForTesting { _ in
+                box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                    modifiedAt: 11,
+                    createdAt: 11,
+                    persistentRefHash: "refB")
+            }
+
+            let outcome = await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                now: Date(timeIntervalSince1970: 30000),
+                timeout: 0.1)
+
+            #expect(outcome == .attemptedSucceeded)
         }
-        let box = FingerprintBox(ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
-            modifiedAt: 10,
-            createdAt: 10,
-            persistentRefHash: "refA"))
-        ClaudeOAuthDelegatedRefreshCoordinator.setKeychainFingerprintOverrideForTesting { box.fingerprint }
-
-        ClaudeOAuthDelegatedRefreshCoordinator.setCLIAvailableOverrideForTesting(true)
-        ClaudeOAuthDelegatedRefreshCoordinator.setTouchAuthPathOverrideForTesting { _ in
-            box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
-                modifiedAt: 11,
-                createdAt: 11,
-                persistentRefHash: "refB")
-        }
-
-        let outcome = await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
-            now: Date(timeIntervalSince1970: 30000),
-            timeout: 0.1)
-
-        #expect(outcome == .attemptedSucceeded)
     }
 
     @Test
@@ -213,16 +217,19 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
                 persistentRefHash: "ref2")
         }
 
-        let now = Date(timeIntervalSince1970: 50000)
-        async let first = ClaudeOAuthDelegatedRefreshCoordinator.attempt(now: now, timeout: 2)
-        await gate.waitStarted()
-        async let second = ClaudeOAuthDelegatedRefreshCoordinator.attempt(now: now.addingTimeInterval(30), timeout: 2)
+        await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+            let now = Date(timeIntervalSince1970: 50000)
+            async let first = ClaudeOAuthDelegatedRefreshCoordinator.attempt(now: now, timeout: 2)
+            await gate.waitStarted()
+            async let second = ClaudeOAuthDelegatedRefreshCoordinator
+                .attempt(now: now.addingTimeInterval(30), timeout: 2)
 
-        await gate.release()
-        let outcomes = await [first, second]
+            await gate.release()
+            let outcomes = await [first, second]
 
-        #expect(outcomes.allSatisfy { $0 == .attemptedSucceeded })
-        #expect(counter.count == 1)
+            #expect(outcomes.allSatisfy { $0 == .attemptedSucceeded })
+            #expect(counter.count == 1)
+        }
     }
 
     @Test
@@ -230,7 +237,7 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
         ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
         defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
         await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental)
+            .securityCLI)
         {
             final class CounterBox: @unchecked Sendable {
                 private let lock = NSLock()
@@ -274,7 +281,7 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
         ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
         defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
         await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental)
+            .securityCLI)
         {
             final class DataBox: @unchecked Sendable {
                 private let lock = NSLock()
@@ -342,7 +349,7 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
         ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
         defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
         await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental)
+            .securityCLI)
         {
             final class DataBox: @unchecked Sendable {
                 private let lock = NSLock()
@@ -410,7 +417,7 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
         ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
         defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
         await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental)
+            .securityCLI)
         {
             final class CounterBox: @unchecked Sendable {
                 private let lock = NSLock()

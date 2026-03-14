@@ -202,13 +202,13 @@ struct SettingsStoreCoverageTests {
         let configStore = testConfigStore(suiteName: suite)
 
         let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
-        first.claudeOAuthKeychainReadStrategy = .securityCLIExperimental
+        first.claudeOAuthKeychainReadStrategy = .securityCLI
         #expect(
             defaults.string(forKey: "claudeOAuthKeychainReadStrategy")
-                == ClaudeOAuthKeychainReadStrategy.securityCLIExperimental.rawValue)
+                == ClaudeOAuthKeychainReadStrategy.securityCLI.rawValue)
 
         let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
-        #expect(second.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+        #expect(second.claudeOAuthKeychainReadStrategy == .securityCLI)
     }
 
     @Test
@@ -229,7 +229,7 @@ struct SettingsStoreCoverageTests {
         #expect(settings.claudeOAuthPromptFreeCredentialsEnabled == false)
 
         settings.claudeOAuthPromptFreeCredentialsEnabled = true
-        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLI)
 
         settings.claudeOAuthPromptFreeCredentialsEnabled = false
         #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)

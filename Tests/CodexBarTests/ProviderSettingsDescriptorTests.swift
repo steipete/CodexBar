@@ -184,7 +184,7 @@ struct ProviderSettingsDescriptorTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
         settings.debugDisableKeychainAccess = false
-        settings.claudeOAuthKeychainReadStrategy = .securityCLIExperimental
+        settings.claudeOAuthKeychainReadStrategy = .securityCLI
 
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),

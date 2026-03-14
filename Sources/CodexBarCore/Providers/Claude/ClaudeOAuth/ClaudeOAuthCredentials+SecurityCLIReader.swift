@@ -19,7 +19,7 @@ extension ClaudeOAuthCredentialsStore {
         readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
         -> Bool
     {
-        readStrategy == .securityCLIExperimental
+        readStrategy == .securityCLI
     }
 
     #if os(macOS)

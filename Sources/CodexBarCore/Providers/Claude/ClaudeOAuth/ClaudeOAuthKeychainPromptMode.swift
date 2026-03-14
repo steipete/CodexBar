@@ -51,7 +51,7 @@ public enum ClaudeOAuthKeychainPromptPreference {
         readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
         -> ClaudeOAuthKeychainPromptMode
     {
-        if readStrategy == .securityCLIExperimental {
+        if readStrategy == .securityCLI {
             return self.storedMode(userDefaults: userDefaults)
         }
         return self.effectiveMode(userDefaults: userDefaults, readStrategy: readStrategy)

@@ -263,7 +263,7 @@ extension SettingsStore {
     var claudeOAuthKeychainReadStrategy: ClaudeOAuthKeychainReadStrategy {
         get {
             let raw = self.defaultsState.claudeOAuthKeychainReadStrategyRaw
-            return ClaudeOAuthKeychainReadStrategy(rawValue: raw ?? "") ?? .securityFramework
+            return ClaudeOAuthKeychainReadStrategy(rawValue: raw ?? "") ?? .securityCLI
         }
         set {
             self.defaultsState.claudeOAuthKeychainReadStrategyRaw = newValue.rawValue
@@ -272,10 +272,10 @@ extension SettingsStore {
     }
 
     var claudeOAuthPromptFreeCredentialsEnabled: Bool {
-        get { self.claudeOAuthKeychainReadStrategy == .securityCLIExperimental }
+        get { self.claudeOAuthKeychainReadStrategy == .securityCLI }
         set {
             self.claudeOAuthKeychainReadStrategy = newValue
-                ? .securityCLIExperimental
+                ? .securityCLI
                 : .securityFramework
         }
     }

@@ -126,22 +126,29 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
                                     return .attemptedSucceeded
                                 }
 
-                                let snapshot = try await ClaudeOAuthKeychainPromptPreference
-                                    .withTaskOverrideForTesting(.onlyOnUserAction) {
-                                        try await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                                            try await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                                data: freshData,
-                                                fingerprint: fingerprint)
-                                            {
-                                                try await ClaudeUsageFetcher.$fetchOAuthUsageOverride
-                                                    .withValue(fetchOverride) {
-                                                        try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride
-                                                            .withValue(delegatedOverride) {
-                                                                try await fetcher.loadLatestUsage(model: "sonnet")
+                                let snapshot = try await ClaudeOAuthKeychainReadStrategyPreference
+                                    .withTaskOverrideForTesting(.securityFramework) {
+                                        try await ClaudeOAuthKeychainPromptPreference
+                                            .withTaskOverrideForTesting(.onlyOnUserAction) {
+                                                try await ProviderInteractionContext.$current
+                                                    .withValue(.userInitiated) {
+                                                        try await ClaudeOAuthCredentialsStore
+                                                            .withClaudeKeychainOverridesForTesting(
+                                                                data: freshData,
+                                                                fingerprint: fingerprint)
+                                                            {
+                                                                try await ClaudeUsageFetcher.$fetchOAuthUsageOverride
+                                                                    .withValue(fetchOverride) {
+                                                                        try await ClaudeUsageFetcher
+                                                                            .$delegatedRefreshAttemptOverride
+                                                                            .withValue(delegatedOverride) {
+                                                                                try await fetcher.loadLatestUsage(
+                                                                                    model: "sonnet")
+                                                                            }
+                                                                    }
                                                             }
                                                     }
                                             }
-                                        }
                                     }
 
                                 // If Claude keychain already contains fresh credentials, we should recover without
@@ -237,23 +244,28 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
                                     return .attemptedSucceeded
                                 }
 
-                                let snapshot = try await ClaudeOAuthKeychainPromptPreference
-                                    .withTaskOverrideForTesting(.always) {
-                                        try await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                                            try await ClaudeOAuthCredentialsStore
-                                                .withMutableClaudeKeychainOverrideStoreForTesting(
-                                                    keychainOverrideStore)
-                                                {
-                                                    try await ClaudeUsageFetcher.$fetchOAuthUsageOverride
-                                                        .withValue(fetchOverride) {
-                                                            try await ClaudeUsageFetcher
-                                                                .$delegatedRefreshAttemptOverride
-                                                                .withValue(delegatedOverride) {
-                                                                    try await fetcher.loadLatestUsage(model: "sonnet")
-                                                                }
-                                                        }
-                                                }
-                                        }
+                                let snapshot = try await ClaudeOAuthKeychainReadStrategyPreference
+                                    .withTaskOverrideForTesting(.securityFramework) {
+                                        try await ClaudeOAuthKeychainPromptPreference
+                                            .withTaskOverrideForTesting(.always) {
+                                                try await ProviderInteractionContext.$current
+                                                    .withValue(.userInitiated) {
+                                                        try await ClaudeOAuthCredentialsStore
+                                                            .withMutableClaudeKeychainOverrideStoreForTesting(
+                                                                keychainOverrideStore)
+                                                            {
+                                                                try await ClaudeUsageFetcher.$fetchOAuthUsageOverride
+                                                                    .withValue(fetchOverride) {
+                                                                        try await ClaudeUsageFetcher
+                                                                            .$delegatedRefreshAttemptOverride
+                                                                            .withValue(delegatedOverride) {
+                                                                                try await fetcher.loadLatestUsage(
+                                                                                    model: "sonnet")
+                                                                            }
+                                                                    }
+                                                            }
+                                                    }
+                                            }
                                     }
 
                                 #expect(await delegatedCounter.current() == 1)
@@ -339,17 +351,23 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
                             }
 
                             do {
-                                _ = try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
-                                    .onlyOnUserAction)
+                                _ = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                                    .securityFramework)
                                 {
-                                    try await ProviderInteractionContext.$current.withValue(.background) {
-                                        try await ClaudeOAuthCredentialsStore
-                                            .withMutableClaudeKeychainOverrideStoreForTesting(keychainOverrideStore) {
-                                                try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride
-                                                    .withValue(delegatedOverride) {
-                                                        try await fetcher.loadLatestUsage(model: "sonnet")
-                                                    }
-                                            }
+                                    try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
+                                        .onlyOnUserAction)
+                                    {
+                                        try await ProviderInteractionContext.$current.withValue(.background) {
+                                            try await ClaudeOAuthCredentialsStore
+                                                .withMutableClaudeKeychainOverrideStoreForTesting(
+                                                    keychainOverrideStore)
+                                                {
+                                                    try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride
+                                                        .withValue(delegatedOverride) {
+                                                            try await fetcher.loadLatestUsage(model: "sonnet")
+                                                        }
+                                                }
+                                        }
                                     }
                                 }
                                 Issue.record(
