@@ -474,43 +474,68 @@ public struct GeminiStatusProbe: Sendable {
             return nil
         }
 
-        // Resolve symlinks to find the actual installation
+        guard let content = Self.resolveOAuthFileContent(from: geminiPath) else {
+            return nil
+        }
+        return self.parseOAuthCredentials(from: content)
+    }
+
+    /// Resolve the full symlink chain starting from `binaryPath`, then search each
+    /// intermediate directory for the Gemini CLI oauth2.js file.
+    /// Returns the file content if found, or `nil`.
+    /// Visible to tests via `@testable import`.
+    static func resolveOAuthFileContent(from binaryPath: String) -> String? {
+        // Resolve symlinks recursively, collecting all intermediate paths
+        // (e.g. /usr/local/bin/gemini → /opt/homebrew/bin/gemini → ../Cellar/.../bin/gemini → ...)
         let fm = FileManager.default
-        var realPath = geminiPath
-        if let resolved = try? fm.destinationOfSymbolicLink(atPath: geminiPath) {
+        var candidates: [String] = [binaryPath]
+        var current = binaryPath
+        var visited: Set<String> = []
+        while true {
+            let canonical = (current as NSString).standardizingPath
+            if visited.contains(canonical) { break }
+            visited.insert(canonical)
+            guard let resolved = try? fm.destinationOfSymbolicLink(atPath: current) else { break }
             if resolved.hasPrefix("/") {
-                realPath = resolved
+                current = resolved
             } else {
-                realPath = (geminiPath as NSString).deletingLastPathComponent + "/" + resolved
+                current = ((current as NSString).deletingLastPathComponent as NSString)
+                    .appendingPathComponent(resolved)
             }
+            current = (current as NSString).standardizingPath
+            candidates.append(current)
         }
 
         // Navigate from bin/gemini to the oauth2.js file
-        // Homebrew path: .../libexec/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js
-        // Bun/npm path: .../node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js (sibling package)
-        let binDir = (realPath as NSString).deletingLastPathComponent
-        let baseDir = (binDir as NSString).deletingLastPathComponent
-
+        // Try from each resolved path in the symlink chain (deepest first)
         let oauthSubpath =
             "node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js"
         let nixShareSubpath =
             "share/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js"
         let oauthFile = "dist/src/code_assist/oauth2.js"
-        let possiblePaths = [
-            // Homebrew nested structure
-            "\(baseDir)/libexec/lib/\(oauthSubpath)",
-            "\(baseDir)/lib/\(oauthSubpath)",
-            // Nix package layout
-            "\(baseDir)/\(nixShareSubpath)",
-            // Bun/npm sibling structure: gemini-cli-core is a sibling to gemini-cli
-            "\(baseDir)/../gemini-cli-core/\(oauthFile)",
-            // npm nested inside gemini-cli
-            "\(baseDir)/node_modules/@google/gemini-cli-core/\(oauthFile)",
-        ]
 
-        for path in possiblePaths {
-            if let content = try? String(contentsOfFile: path, encoding: .utf8) {
-                return self.parseOAuthCredentials(from: content)
+        for candidate in candidates.reversed() {
+            let binDir = (candidate as NSString).deletingLastPathComponent
+            let baseDir = (binDir as NSString).deletingLastPathComponent
+
+            let possiblePaths = [
+                // Homebrew nested structure
+                "\(baseDir)/libexec/lib/\(oauthSubpath)",
+                "\(baseDir)/lib/\(oauthSubpath)",
+                // Nix package layout
+                "\(baseDir)/\(nixShareSubpath)",
+                // Bun/npm sibling structure
+                "\(baseDir)/../gemini-cli-core/\(oauthFile)",
+                // npm nested inside gemini-cli
+                "\(baseDir)/node_modules/@google/gemini-cli-core/\(oauthFile)",
+                // Direct node_modules lookup from candidate
+                "\(binDir)/node_modules/@google/gemini-cli-core/\(oauthFile)",
+            ]
+
+            for path in possiblePaths {
+                if let content = try? String(contentsOfFile: path, encoding: .utf8) {
+                    return content
+                }
             }
         }
 
