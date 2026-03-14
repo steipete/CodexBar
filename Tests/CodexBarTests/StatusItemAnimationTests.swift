@@ -393,7 +393,7 @@ struct StatusItemAnimationTests {
     }
 
     @Test
-    func menuBarDisplayTextHidesWhenPaceUnavailable() {
+    func menuBarDisplayTextFallsBackToPercentWhenPaceUnavailable() {
         let now = Date(timeIntervalSince1970: 0)
         let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         let paceWindow = RateWindow(
@@ -412,11 +412,12 @@ struct StatusItemAnimationTests {
             showUsed: true)
 
         #expect(pace == nil)
-        #expect(both == nil)
+        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(both == "40%")
     }
 
     @Test
-    func menuBarDisplayTextRequiresProvidedPaceForCodex() {
+    func menuBarDisplayTextFallsBackToPercentWhenPaceNilForCodex() {
         let now = Date(timeIntervalSince1970: 0)
         let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         let paceWindow = RateWindow(
@@ -437,7 +438,8 @@ struct StatusItemAnimationTests {
             showUsed: true)
 
         #expect(pace == nil)
-        #expect(both == nil)
+        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(both == "40%")
     }
 
     @Test
