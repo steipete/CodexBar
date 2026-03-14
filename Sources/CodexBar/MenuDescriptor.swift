@@ -42,6 +42,7 @@ struct MenuDescriptor {
         case openTerminal(command: String)
         case loginToProvider(url: String)
         case settings
+        case settingsProvider
         case about
         case quit
         case copyError(String)
@@ -450,7 +451,7 @@ private enum AccountFormatter {
 extension MenuDescriptor.MenuAction {
     var systemImageName: String? {
         switch self {
-        case .installUpdate, .settings, .about, .quit:
+        case .installUpdate, .settings, .settingsProvider, .about, .quit:
             nil
         case .refresh: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue

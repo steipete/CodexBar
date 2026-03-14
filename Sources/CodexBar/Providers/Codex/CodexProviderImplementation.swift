@@ -192,6 +192,14 @@ struct CodexProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func loginMenuAction(context: ProviderMenuLoginContext)
+        -> (label: String, action: MenuDescriptor.MenuAction)?
+    {
+        guard TokenAccountSupportCatalog.support(for: .codex) != nil else { return nil }
+        return ("Add Account...", .settingsProvider)
+    }
+
+    @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         await context.controller.runCodexLoginFlow()
         return true

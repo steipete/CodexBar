@@ -267,6 +267,13 @@ struct ProviderSettingsTokenAccountsRowView: View {
             }
 
             HStack(spacing: 10) {
+                if let importFromFile = self.descriptor.importFromFile {
+                    Button("Import from auth.json") {
+                        importFromFile()
+                    }
+                    .buttonStyle(.link)
+                    .controlSize(.small)
+                }
                 Button("Open token file") {
                     self.descriptor.openConfigFile()
                 }

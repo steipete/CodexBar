@@ -134,12 +134,12 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
     let id: String = "codex.oauth"
     let kind: ProviderFetchKind = .oauth
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool {
-        (try? CodexOAuthCredentialsStore.load()) != nil
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        Self.resolveAccessToken(context.env) != nil
     }
 
-    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
-        var credentials = try CodexOAuthCredentialsStore.load()
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        var credentials = try Self.resolveCredentials(context.env)
 
         if credentials.needsRefresh, !credentials.refreshToken.isEmpty {
             credentials = try await CodexTokenRefresher.refresh(credentials)
@@ -154,6 +154,28 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             usage: Self.mapUsage(usage, credentials: credentials),
             credits: Self.mapCredits(usage.credits),
             sourceLabel: "oauth")
+    }
+
+    private static func resolveAccessToken(_ env: [String: String]) -> String? {
+        if let envToken = ProviderTokenResolver.codexOAuthToken(environment: env) {
+            return envToken
+        }
+        return (try? CodexOAuthCredentialsStore.load())?.accessToken
+    }
+
+    private static func resolveCredentials(_ env: [String: String]) throws -> CodexOAuthCredentials {
+        if let envToken = ProviderTokenResolver.codexOAuthToken(environment: env) {
+            // Pass the access token as idToken so resolveAccountEmail can
+            // attempt JWT parsing — OpenAI access tokens are JWTs that
+            // typically carry email claims.
+            return CodexOAuthCredentials(
+                accessToken: envToken,
+                refreshToken: "",
+                idToken: envToken,
+                accountId: nil,
+                lastRefresh: nil)
+        }
+        return try CodexOAuthCredentialsStore.load()
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
