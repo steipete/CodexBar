@@ -30,6 +30,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .opencodego: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple OpenCode Go Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
         .factory: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Factory Cookie headers.",
