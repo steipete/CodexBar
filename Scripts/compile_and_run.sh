@@ -4,6 +4,16 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Source .envrc if it exists to load APP_IDENTITY and other environment variables
+# Note: This executes all commands in .envrc, but direnv requires explicit user approval
+# via 'direnv allow', so this is safe for development use.
+if [[ -f "${ROOT_DIR}/.envrc" ]]; then
+    # shellcheck disable=SC1091
+    source "${ROOT_DIR}/.envrc"
+    export APP_IDENTITY
+fi
+
 APP_BUNDLE="${ROOT_DIR}/CodexBar.app"
 APP_PROCESS_PATTERN="CodexBar.app/Contents/MacOS/CodexBar"
 DEBUG_PROCESS_PATTERN="${ROOT_DIR}/.build/debug/CodexBar"
