@@ -36,8 +36,9 @@
 - Menu: hide contextual provider actions while Overview is selected and rebuild switcher state when overview availability changes (#416).
 
 ### Claude OAuth & Keychain
+- **Default to `/usr/bin/security` CLI for Claude keychain reads**, eliminating recurring macOS keychain password prompts after rebuilds/updates. Security.framework remains available as a user override.
 - Use a `claude-code/<version>` User-Agent for OAuth usage requests instead of a generic identifier.
-- Add an experimental Claude OAuth Security-CLI reader path and option in settings.
+- Rename `.securityCLIExperimental` → `.securityCLI` (now the production default).
 - Apply stored prompt mode and fallback policy to silent/noninteractive keychain probes.
 - Add cooldown for background OAuth keychain retries.
 - Disable experimental toggle when keychain access is disabled.

@@ -45,9 +45,14 @@ Load order for credentials:
 2. In-memory cache.
 3. CodexBar keychain cache (`com.steipete.codexbar.cache`, account `oauth.claude`).
 4. `~/.claude/.credentials.json`.
-5. Claude CLI keychain service: `Claude Code-credentials` (promptable fallback).
+5. Claude CLI keychain service: `Claude Code-credentials` — read via `/usr/bin/security` CLI by default (prompt-free), with Security.framework as fallback.
 
-Prompt mitigation:
+Keychain read strategy:
+- **Default: `/usr/bin/security` CLI** (`ClaudeOAuthKeychainReadStrategy.securityCLI`). The CLI binary is permanently in the keychain item's ACL (added by Claude Code during login), so reads never trigger macOS keychain prompts — even after app rebuilds or updates.
+- **Override: Security.framework** (`ClaudeOAuthKeychainReadStrategy.securityFramework`). Available via user preference. Uses `SecItemCopyMatching`, which requires the calling binary to be in the keychain ACL — invalidated on every rebuild, causing recurring prompts.
+- Strategy is stored in UserDefaults key `claudeOAuthKeychainReadStrategy`.
+
+Prompt mitigation (Security.framework fallback path only):
 - Non-interactive keychain probes use `KeychainNoUIQuery` (`LAContext.interactionNotAllowed` + `kSecUseAuthenticationUIFail`).
 - Pre-alert is shown only when preflight suggests interaction may be required.
 - Denials are cooled down in the background via `claudeOAuthKeychainDeniedUntil`
@@ -56,11 +61,14 @@ Prompt mitigation:
 - Background cache-sync-on-change also performs non-interactive Claude keychain probes (`syncWithClaudeKeychainIfChanged`)
   and can update cached OAuth data when the token changes.
 
-### Why two Claude keychain prompts can still happen on startup
+### Why two Claude keychain prompts could happen on startup (Security.framework path only)
+> **Note:** With the default `/usr/bin/security` CLI reader, keychain prompts do not occur. This section only applies
+> when the user has explicitly switched to the Security.framework reader.
+
 When CodexBar does not have usable OAuth credentials in its own cache (`com.steipete.codexbar.cache` / `oauth.claude`),
 bootstrap falls through to Claude CLI keychain reads.
 
-Current flow can perform up to two interactive reads in one bootstrap call:
+Under the Security.framework path, the flow can perform up to two interactive reads in one bootstrap call:
 1. Interactive read of the newest discovered keychain candidate.
 2. If that does not return usable data, interactive legacy service-level fallback read.
 

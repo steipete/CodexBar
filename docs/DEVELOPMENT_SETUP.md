@@ -8,21 +8,15 @@ read_when:
 
 # Development Setup Guide
 
-## Reducing Keychain Permission Prompts
+## Keychain Permission Prompts
 
-When developing CodexBar, you may see frequent keychain permission prompts like:
+As of v0.18.0-beta.3-jl.2, CodexBar defaults to reading Claude credentials via `/usr/bin/security` CLI, which **does not trigger keychain prompts**. No special setup is needed.
+
+If you've switched to the Security.framework reader (via Preferences), you may see prompts like:
 
 > **CodexBar wants to access key "Claude Code-credentials" in your keychain.**
 
-This happens because each rebuild creates a new code signature, and macOS treats it as a "different" app.
-
-### Quick Fix (Temporary)
-
-When the prompt appears, click **"Always Allow"** instead of just "Allow". This grants access to the current build.
-
-### Permanent Fix (Recommended)
-
-Use a stable development certificate that doesn't change between rebuilds:
+This happens because each rebuild creates a new code signature, and macOS treats it as a "different" app. To reduce these prompts with the Security.framework reader:
 
 #### 1. Create Development Certificate
 
@@ -135,7 +129,7 @@ pkill -x CodexBar || pkill -f CodexBar.app || true
 
 ### "Permission denied" when accessing keychain
 
-Make sure you clicked **"Always Allow"** or set up the development certificate (see above).
+With the default `/usr/bin/security` CLI reader, this should not happen. If using the Security.framework reader, make sure you clicked **"Always Allow"** or set up the development certificate (see above).
 
 ### Multiple app bundles keep appearing
 

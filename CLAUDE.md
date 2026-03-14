@@ -70,7 +70,7 @@ Macro support types live in `Sources/CodexBarMacroSupport/`, implementations use
 ### Authentication Chain
 
 Providers authenticate via a fallback chain configured in their descriptor's `supportedSourceModes`:
-1. **OAuth** — Token from macOS Keychain (Claude, Codex, VertexAI)
+1. **OAuth** — Token from macOS Keychain (Claude, Codex, VertexAI). Claude defaults to `/usr/bin/security` CLI reader (avoids keychain prompts on rebuild); Security.framework available as user override.
 2. **Web/Cookies** — Browser cookie extraction via SweetCookieKit (Cursor, Copilot, Gemini). Default to Chrome-only to avoid other browser prompts.
 3. **CLI** — Parse stdout from CLI tools via PTY (Claude, Codex, Augment)
 4. **API** — Direct API calls with stored token
