@@ -623,7 +623,9 @@ extension StatusItemController {
         if let selected = self.selectedMenuProvider, enabled.contains(selected) {
             return selected
         }
-        return enabled.first
+        // Prefer an available provider so the default menu content matches the status icon.
+        // Falls back to first display provider when all lack credentials.
+        return enabled.first(where: { self.store.isProviderAvailable($0) }) ?? enabled.first
     }
 
     private func includesOverviewTab(enabledProviders: [UsageProvider]) -> Bool {

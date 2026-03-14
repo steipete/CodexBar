@@ -499,7 +499,9 @@ extension StatusItemController {
                 return provider
             }
         }
-        if let enabled = self.store.enabledProvidersForDisplay().first {
+        // Use availability-filtered list: fallback must pick a provider that can
+        // actually animate, otherwise shouldAnimate() fails on credential-less providers.
+        if let enabled = self.store.enabledProviders().first {
             return enabled
         }
         return .codex
