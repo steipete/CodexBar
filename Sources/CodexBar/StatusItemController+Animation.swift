@@ -161,6 +161,7 @@ extension StatusItemController {
         if mergeIcons {
             let phase: Double? = self.needsMenuBarIconAnimation() ? self.animationPhase : nil
             self.applyIcon(phase: phase)
+            self.applySeparateBarsIcon(phase: phase)
         }
     }
 
@@ -313,6 +314,99 @@ extension StatusItemController {
                 primaryRemaining: primary,
                 weeklyRemaining: weekly,
                 creditsRemaining: credits,
+                stale: stale,
+                style: style,
+                blink: blink,
+                wiggle: wiggle,
+                tilt: tilt,
+                statusIndicator: statusIndicator)
+            self.setButtonImage(image, for: button)
+        }
+    }
+    
+    /// Applies an icon showing only dual progress bars (no brand icon, no text) to the separate bars status item.
+    func applySeparateBarsIcon(phase: Double?) {
+        guard self.settings.menuBarShowsSeparateBars,
+              let button = self.separateBarsStatusItem?.button
+        else { return }
+        
+        let primaryProvider = self.primaryProviderForUnifiedIcon()
+        
+        // Force a refresh when the provider changes to avoid rendering artifacts
+        let providerChanged = self.lastSeparateBarsProvider != primaryProvider
+        if providerChanged {
+            // Clear the old image to force a clean render
+            button.image = nil
+            self.lastSeparateBarsProvider = primaryProvider
+        }
+        
+        let showUsed = self.settings.usageBarsShowUsed
+        let snapshot = self.store.snapshot(for: primaryProvider)
+        
+        var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
+        var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        if showUsed,
+           primaryProvider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining <= 0
+        {
+            weekly = 0
+        }
+        if showUsed,
+           primaryProvider == .warp,
+           let remaining = snapshot?.secondary?.remainingPercent,
+           remaining > 0,
+           weekly == 0
+        {
+            weekly = Self.loadingPercentEpsilon
+        }
+        var stale = self.store.isStale(provider: primaryProvider)
+        var morphProgress: Double?
+        
+        let needsAnimation = self.needsMenuBarIconAnimation()
+        if let phase, needsAnimation {
+            var pattern = self.animationPattern
+            if pattern == .unbraid {
+                morphProgress = pattern.value(phase: phase) / 100
+                primary = nil
+                weekly = nil
+                stale = false
+            } else {
+                primary = max(pattern.value(phase: phase), Self.loadingPercentEpsilon)
+                weekly = max(pattern.value(phase: phase + pattern.secondaryOffset), Self.loadingPercentEpsilon)
+                stale = false
+            }
+        }
+        
+        let style: IconStyle = self.store.style(for: primaryProvider)
+        let isLoading = phase != nil && self.shouldAnimate(provider: primaryProvider)
+        let blink: CGFloat = {
+            guard isLoading, style == .warp, let phase else {
+                return self.blinkAmount(for: primaryProvider)
+            }
+            let normalized = (sin(phase * 3) + 1) / 2
+            return CGFloat(max(0, min(normalized, 1)))
+        }()
+        let wiggle = self.wiggleAmount(for: primaryProvider)
+        let tilt = self.tiltAmount(for: primaryProvider) * .pi / 28
+        
+        let statusIndicator: ProviderStatusIndicator = {
+            for provider in self.store.enabledProviders() {
+                let indicator = self.store.statusIndicator(for: provider)
+                if indicator.hasIssue { return indicator }
+            }
+            return .none
+        }()
+        
+        self.setButtonTitle(nil, for: button)
+        if let morphProgress {
+            let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
+            self.setButtonImage(image, for: button)
+        } else {
+            let image = IconRenderer.makeIcon(
+                primaryRemaining: primary,
+                weeklyRemaining: weekly,
+                creditsRemaining: nil,
                 stale: stale,
                 style: style,
                 blink: blink,
@@ -581,6 +675,7 @@ extension StatusItemController {
             self.animationPhase = 0
             if self.shouldMergeIcons {
                 self.applyIcon(phase: nil)
+                self.applySeparateBarsIcon(phase: nil)
             } else {
                 UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: nil) }
             }
@@ -591,6 +686,7 @@ extension StatusItemController {
         self.animationPhase += 0.045 // half-speed animation
         if self.shouldMergeIcons {
             self.applyIcon(phase: self.animationPhase)
+            self.applySeparateBarsIcon(phase: self.animationPhase)
         } else {
             UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: self.animationPhase) }
         }

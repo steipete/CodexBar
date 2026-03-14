@@ -22,6 +22,12 @@ struct DisplayPane: View {
                         subtitle: "Use a single menu bar icon with a provider switcher.",
                         binding: self.$settings.mergeIcons)
                     PreferenceToggleRow(
+                        title: "Show separate progress bars",
+                        subtitle: "Display an additional status item showing only progress bars (no icon or text).",
+                        binding: self.$settings.menuBarShowsSeparateBars)
+                        .disabled(!self.settings.mergeIcons)
+                        .opacity(self.settings.mergeIcons ? 1 : 0.5)
+                    PreferenceToggleRow(
                         title: "Switcher shows icons",
                         subtitle: "Show provider icons in the switcher (otherwise show a weekly progress line).",
                         binding: self.$settings.switcherShowsIcons)

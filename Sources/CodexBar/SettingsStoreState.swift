@@ -14,6 +14,7 @@ struct SettingsDefaultsState: Sendable {
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
     var menuBarShowsBrandIconWithPercent: Bool
+    var menuBarShowsSeparateBars: Bool
     var menuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
     var showAllTokenAccountsInMenu: Bool

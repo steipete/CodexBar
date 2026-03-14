@@ -125,6 +125,14 @@ extension SettingsStore {
         }
     }
 
+    var menuBarShowsSeparateBars: Bool {
+        get { self.defaultsState.menuBarShowsSeparateBars }
+        set {
+            self.defaultsState.menuBarShowsSeparateBars = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarShowsSeparateBars")
+        }
+    }
+
     private var menuBarDisplayModeRaw: String? {
         get { self.defaultsState.menuBarDisplayModeRaw }
         set {

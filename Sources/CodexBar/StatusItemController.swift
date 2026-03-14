@@ -36,6 +36,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private let statusBar: NSStatusBar
     var statusItem: NSStatusItem
     var statusItems: [UsageProvider: NSStatusItem] = [:]
+    var separateBarsStatusItem: NSStatusItem?  // Optional separate status item showing only progress bars
     var lastMenuProvider: UsageProvider?
     var menuProviders: [ObjectIdentifier: UsageProvider] = [:]
     var menuContentVersion: Int = 0
@@ -85,6 +86,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
     /// Used to decide whether we can "smart update" menu content without rebuilding the switcher.
     var lastSwitcherUsageBarsShowUsed: Bool
+    /// Tracks the last provider used for the separate bars status item, to detect when it changes.
+    var lastSeparateBarsProvider: UsageProvider?
     /// Tracks whether the merged-menu switcher was built with the Overview tab visible.
     /// Used to force switcher rebuilds when Overview availability toggles.
     var lastSwitcherIncludesOverview: Bool = false
@@ -338,6 +341,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let phase: Double? = self.needsMenuBarIconAnimation() ? self.animationPhase : nil
         if self.shouldMergeIcons {
             self.applyIcon(phase: phase)
+            self.applySeparateBarsIcon(phase: phase)
             self.attachMenus()
         } else {
             UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: phase) }
@@ -362,6 +366,19 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let anyEnabled = !self.store.enabledProviders().isEmpty
         let force = self.store.debugForceAnimation
         let mergeIcons = self.shouldMergeIcons
+        let showsSeparateBars = self.settings.menuBarShowsSeparateBars && mergeIcons
+        
+        // Update separate bars status item visibility
+        if showsSeparateBars {
+            if self.separateBarsStatusItem == nil {
+                self.separateBarsStatusItem = self.statusBar.statusItem(withLength: NSStatusItem.variableLength)
+                self.separateBarsStatusItem?.button?.imageScaling = .scaleNone
+            }
+            self.separateBarsStatusItem?.isVisible = anyEnabled || force
+        } else {
+            self.separateBarsStatusItem?.isVisible = false
+        }
+        
         if mergeIcons {
             self.statusItem.isVisible = anyEnabled || force
             for item in self.statusItems.values {
