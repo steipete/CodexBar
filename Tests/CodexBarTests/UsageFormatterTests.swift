@@ -99,6 +99,13 @@ struct UsageFormatterTests {
         #expect(UsageFormatter.modelDisplayName("gpt-4o-2024-08-06") == "gpt-4o")
         #expect(UsageFormatter.modelDisplayName("Claude Opus 4.5 2025 1101") == "Claude Opus 4.5")
         #expect(UsageFormatter.modelDisplayName("claude-sonnet-4-5") == "claude-sonnet-4-5")
+        #expect(UsageFormatter.modelDisplayName("gpt-5.3-codex-spark") == "gpt-5.3-codex-spark")
+    }
+
+    @Test
+    func modelCostDetailUsesResearchPreviewLabel() {
+        #expect(UsageFormatter.modelCostDetail("gpt-5.3-codex-spark", costUSD: 0) == "Research Preview")
+        #expect(UsageFormatter.modelCostDetail("gpt-5.2-codex", costUSD: 0.42) == "$0.42")
     }
 
     @Test

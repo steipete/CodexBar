@@ -119,7 +119,7 @@ struct CostUsageDecodingTests {
               "totalTokens": 30,
               "costUSD": 0.12,
               "models": {
-                "gpt-5.2": {
+                "gpt-5.2-codex": {
                   "inputTokens": 10,
                   "outputTokens": 20,
                   "totalTokens": 30,
@@ -138,7 +138,7 @@ struct CostUsageDecodingTests {
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
         #expect(report.data.count == 1)
         #expect(report.data[0].costUSD == 0.12)
-        #expect(report.data[0].modelsUsed == ["gpt-5.2"])
+        #expect(report.data[0].modelsUsed == ["gpt-5.2-codex"])
     }
 
     @Test
@@ -192,7 +192,7 @@ struct CostUsageDecodingTests {
               "date": "Dec 20, 2025",
               "totalTokens": 30,
               "costUSD": 0.12,
-              "modelsUsed": ["gpt-5.2"],
+              "modelsUsed": ["gpt-5.2-codex"],
               "models": {
                 "ignored-model": { "totalTokens": 30 }
               }
@@ -202,7 +202,7 @@ struct CostUsageDecodingTests {
         """
 
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
-        #expect(report.data[0].modelsUsed == ["gpt-5.2"])
+        #expect(report.data[0].modelsUsed == ["gpt-5.2-codex"])
     }
 
     @Test
@@ -214,14 +214,14 @@ struct CostUsageDecodingTests {
               "date": "Dec 20, 2025",
               "totalTokens": 30,
               "costUSD": 0.12,
-              "models": ["gpt-5.2", "gpt-5.2-mini"]
+              "models": ["gpt-5.2-codex", "gpt-5.2-mini"]
             }
           ]
         }
         """
 
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
-        #expect(report.data[0].modelsUsed == ["gpt-5.2", "gpt-5.2-mini"])
+        #expect(report.data[0].modelsUsed == ["gpt-5.2-codex", "gpt-5.2-mini"])
     }
 
     @Test

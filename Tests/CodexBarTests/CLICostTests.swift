@@ -86,4 +86,52 @@ struct CLICostTests {
         #expect(json.contains("\"totalCost\""))
         #expect(json.contains("1700000000"))
     }
+
+    @Test
+    func encodesExactCodexModelIDsAndZeroCostBreakdowns() throws {
+        let payload = CostPayload(
+            provider: "codex",
+            source: "local",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            sessionTokens: 155,
+            sessionCostUSD: 0,
+            last30DaysTokens: 155,
+            last30DaysCostUSD: 0,
+            daily: [
+                CostDailyEntryPayload(
+                    date: "2025-12-21",
+                    inputTokens: 120,
+                    outputTokens: 15,
+                    cacheReadTokens: 20,
+                    cacheCreationTokens: nil,
+                    totalTokens: 155,
+                    costUSD: 0,
+                    modelsUsed: ["gpt-5.3-codex-spark", "gpt-5.2-codex"],
+                    modelBreakdowns: [
+                        CostModelBreakdownPayload(modelName: "gpt-5.3-codex-spark", costUSD: 0),
+                        CostModelBreakdownPayload(modelName: "gpt-5.2-codex", costUSD: 1.23),
+                    ]),
+            ],
+            totals: CostTotalsPayload(
+                totalInputTokens: 120,
+                totalOutputTokens: 15,
+                cacheReadTokens: 20,
+                cacheCreationTokens: nil,
+                totalTokens: 155,
+                totalCostUSD: 0),
+            error: nil)
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        let data = try encoder.encode(payload)
+        guard let json = String(data: data, encoding: .utf8) else {
+            Issue.record("Failed to decode cost payload JSON")
+            return
+        }
+
+        #expect(json.contains("\"gpt-5.3-codex-spark\""))
+        #expect(json.contains("\"gpt-5.2-codex\""))
+        #expect(!json.contains("\"gpt-5.2\""))
+        #expect(json.contains("\"cost\":0"))
+    }
 }

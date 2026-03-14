@@ -206,6 +206,15 @@ public enum UsageFormatter {
         return cleaned.isEmpty ? raw : cleaned
     }
 
+    public static func modelCostDetail(_ model: String, costUSD: Double?) -> String? {
+        if let label = CostUsagePricing.codexDisplayLabel(model: model) {
+            return label
+        }
+
+        guard let costUSD else { return nil }
+        return self.usdString(costUSD)
+    }
+
     /// Cleans a provider plan string: strip ANSI/bracket noise, drop boilerplate words, collapse whitespace, and
     /// ensure a leading capital if the result starts lowercase.
     public static func cleanPlanName(_ text: String) -> String {
