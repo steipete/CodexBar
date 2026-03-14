@@ -91,10 +91,16 @@ public struct CostUsageFetcher: Sendable {
         let totalTokensFromEntries = daily.data.compactMap(\.totalTokens).reduce(0, +)
         let last30DaysTokens = totalTokensFromSummary ?? (totalTokensFromEntries > 0 ? totalTokensFromEntries : nil)
 
+        let processedFromSummary = daily.summary?.processedTokens
+        let processedFromEntries = daily.data.compactMap(\.processedTokens).reduce(0, +)
+        let last30DaysProcessedTokens = processedFromSummary ?? (processedFromEntries > 0 ? processedFromEntries : nil)
+
         return CostUsageTokenSnapshot(
             sessionTokens: currentDay?.totalTokens,
+            sessionProcessedTokens: currentDay?.processedTokens,
             sessionCostUSD: currentDay?.costUSD,
             last30DaysTokens: last30DaysTokens,
+            last30DaysProcessedTokens: last30DaysProcessedTokens,
             last30DaysCostUSD: last30DaysCostUSD,
             daily: daily.data,
             updatedAt: now)

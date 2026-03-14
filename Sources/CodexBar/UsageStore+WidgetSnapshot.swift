@@ -32,7 +32,7 @@ extension UsageStore {
         let dailyUsage = tokenSnapshot?.daily.map { entry in
             WidgetSnapshot.DailyUsagePoint(
                 dayKey: entry.date,
-                totalTokens: entry.totalTokens,
+                totalTokens: entry.processedTokens ?? entry.totalTokens,
                 costUSD: entry.costUSD)
         } ?? []
 
@@ -56,11 +56,13 @@ extension UsageStore {
         from snapshot: CostUsageTokenSnapshot?) -> WidgetSnapshot.TokenUsageSummary?
     {
         guard let snapshot else { return nil }
-        let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
-        let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
+        let fallbackTokens = snapshot.daily.compactMap { $0.processedTokens ?? $0.totalTokens }.reduce(0, +)
+        let monthTokensValue = snapshot.last30DaysProcessedTokens
+            ?? snapshot.last30DaysTokens
+            ?? (fallbackTokens > 0 ? fallbackTokens : nil)
         return WidgetSnapshot.TokenUsageSummary(
             sessionCostUSD: snapshot.sessionCostUSD,
-            sessionTokens: snapshot.sessionTokens,
+            sessionTokens: snapshot.sessionProcessedTokens ?? snapshot.sessionTokens,
             last30DaysCostUSD: snapshot.last30DaysCostUSD,
             last30DaysTokens: monthTokensValue)
     }
