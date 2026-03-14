@@ -334,9 +334,22 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "claude")
     }
 
-    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        // For CLI data load failures, fallback only when alternate strategies are available
+        let errorDesc = error.localizedDescription.lowercased()
+        if errorDesc.contains("could not load usage data")
+            || errorDesc.contains("failed to load usage data")
+        {
+            // Only fallback in app+auto mode where web/oauth strategies exist
+            // In explicit CLI mode, preserve the actionable error message
+            guard context.runtime == .app, context.sourceMode == .auto else { return false }
+            return ClaudeWebFetchStrategy.isAvailableForFallback(
+                context: context,
+                browserDetection: self.browserDetection)
+        }
+
+        // For other errors, only fallback in auto mode when web is available
         guard context.runtime == .app, context.sourceMode == .auto else { return false }
-        // Only fall through when web is actually available; otherwise preserve actionable CLI errors.
         return ClaudeWebFetchStrategy.isAvailableForFallback(
             context: context,
             browserDetection: self.browserDetection)
