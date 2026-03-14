@@ -25,7 +25,7 @@ public enum ClaudeOAuthKeychainReadStrategyPreference {
     }
 
     #if DEBUG
-    static func withTaskOverrideForTesting<T>(
+    public static func withTaskOverrideForTesting<T>(
         _ strategy: ClaudeOAuthKeychainReadStrategy?,
         operation: () throws -> T) rethrows -> T
     {
@@ -34,13 +34,17 @@ public enum ClaudeOAuthKeychainReadStrategyPreference {
         }
     }
 
-    static func withTaskOverrideForTesting<T>(
+    public static func withTaskOverrideForTesting<T>(
         _ strategy: ClaudeOAuthKeychainReadStrategy?,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskOverride.withValue(strategy) {
             try await operation()
         }
+    }
+
+    public static var currentTaskOverrideForTesting: ClaudeOAuthKeychainReadStrategy? {
+        self.taskOverride
     }
     #endif
 }

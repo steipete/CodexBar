@@ -58,7 +58,7 @@ public enum ClaudeOAuthKeychainPromptPreference {
     }
 
     #if DEBUG
-    static func withTaskOverrideForTesting<T>(
+    public static func withTaskOverrideForTesting<T>(
         _ mode: ClaudeOAuthKeychainPromptMode?,
         operation: () throws -> T) rethrows -> T
     {
@@ -67,13 +67,17 @@ public enum ClaudeOAuthKeychainPromptPreference {
         }
     }
 
-    static func withTaskOverrideForTesting<T>(
+    public static func withTaskOverrideForTesting<T>(
         _ mode: ClaudeOAuthKeychainPromptMode?,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskOverride.withValue(mode) {
             try await operation()
         }
+    }
+
+    public static var currentTaskOverrideForTesting: ClaudeOAuthKeychainPromptMode? {
+        self.taskOverride
     }
     #endif
 }

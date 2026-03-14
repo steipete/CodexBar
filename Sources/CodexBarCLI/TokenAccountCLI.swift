@@ -77,70 +77,82 @@ struct TokenAccountCLIContext {
 
     func settingsSnapshot(for provider: UsageProvider, account: ProviderTokenAccount?) -> ProviderSettingsSnapshot? {
         let config = self.providerConfig(for: provider)
-        let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-        let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
 
         switch provider {
         case .codex:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 codex: ProviderSettingsSnapshot.CodexProviderSettings(
                     usageDataSource: .auto,
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .claude:
-            let claudeSource: ClaudeUsageDataSource = if provider == .claude,
-                                                         let account,
-                                                         TokenAccountSupportCatalog.isClaudeOAuthToken(account.token)
-            {
-                .oauth
-            } else {
-                .auto
-            }
-            let effectiveSource = (claudeSource == .oauth) ? ProviderCookieSource.off : cookieSource
+            let routing = self.claudeCredentialRouting(account: account, config: config)
+            let claudeSource: ClaudeUsageDataSource = routing.isOAuth ? .oauth : .auto
+            let cookieSource = routing.isOAuth
+                ? ProviderCookieSource.off
+                : self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 claude: ProviderSettingsSnapshot.ClaudeProviderSettings(
                     usageDataSource: claudeSource,
                     webExtrasEnabled: false,
-                    cookieSource: effectiveSource,
-                    manualCookieHeader: claudeSource == .oauth ? nil : cookieHeader))
+                    cookieSource: cookieSource,
+                    manualCookieHeader: routing.manualCookieHeader))
         case .cursor:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 cursor: ProviderSettingsSnapshot.CursorProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .opencode:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader,
                     workspaceID: config?.workspaceID))
         case .factory:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 factory: ProviderSettingsSnapshot.FactoryProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .minimax:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader,
                     apiRegion: self.resolveMiniMaxRegion(config)))
         case .augment:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 augment: ProviderSettingsSnapshot.AugmentProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .amp:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 amp: ProviderSettingsSnapshot.AmpProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .ollama:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 ollama: ProviderSettingsSnapshot.OllamaProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .kimi:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 kimi: ProviderSettingsSnapshot.KimiProviderSettings(
                     cookieSource: cookieSource,
@@ -238,13 +250,12 @@ struct TokenAccountCLIContext {
         account: ProviderTokenAccount?) -> ProviderSourceMode
     {
         guard base == .auto,
-              provider == .claude,
-              let account,
-              TokenAccountSupportCatalog.isClaudeOAuthToken(account.token)
+              provider == .claude
         else {
             return base
         }
-        return .oauth
+        let config = self.providerConfig(for: provider)
+        return self.claudeCredentialRouting(account: account, config: config).isOAuth ? .oauth : base
     }
 
     func preferredSourceMode(for provider: UsageProvider) -> ProviderSourceMode {
@@ -265,9 +276,6 @@ struct TokenAccountCLIContext {
            let support = TokenAccountSupportCatalog.support(for: provider),
            case .cookieHeader = support.injection
         {
-            if provider == .claude, TokenAccountSupportCatalog.isClaudeOAuthToken(account.token) {
-                return nil
-            }
             let header = TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
             return header.isEmpty ? nil : header
         }
@@ -279,10 +287,7 @@ struct TokenAccountCLIContext {
         account: ProviderTokenAccount?,
         config: ProviderConfig?) -> ProviderCookieSource
     {
-        if let account, TokenAccountSupportCatalog.support(for: provider)?.requiresManualCookieSource == true {
-            if provider == .claude, TokenAccountSupportCatalog.isClaudeOAuthToken(account.token) {
-                return .off
-            }
+        if account != nil, TokenAccountSupportCatalog.support(for: provider)?.requiresManualCookieSource == true {
             return .manual
         }
         if let override = config?.cookieSource { return override }
@@ -325,5 +330,15 @@ struct TokenAccountCLIContext {
     private static func kiloExtrasEnabled(from config: ProviderConfig?) -> Bool {
         guard self.kiloUsageDataSource(from: config?.source) == .auto else { return false }
         return config?.extrasEnabled ?? false
+    }
+
+    private func claudeCredentialRouting(
+        account: ProviderTokenAccount?,
+        config: ProviderConfig?) -> ClaudeCredentialRouting
+    {
+        let manualCookieHeader = account == nil ? config?.sanitizedCookieHeader : nil
+        return ClaudeCredentialRouting.resolve(
+            tokenAccountToken: account?.token,
+            manualCookieHeader: manualCookieHeader)
     }
 }

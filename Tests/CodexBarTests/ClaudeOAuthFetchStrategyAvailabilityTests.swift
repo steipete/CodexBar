@@ -19,9 +19,11 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
         }
     }
 
-    private func makeContext(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
-        let env: [String: String] = [:]
-        return ProviderFetchContext(
+    private func makeContext(
+        sourceMode: ProviderSourceMode,
+        env: [String: String] = [:]) -> ProviderFetchContext
+    {
+        ProviderFetchContext(
             runtime: .app,
             sourceMode: sourceMode,
             includeCredits: false,
@@ -190,6 +192,27 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
                 #expect(available == true)
             }
         }
+    }
+
+    @Test
+    func autoModeExpiredClaudeCLICreds_envProvidedCLIOverride_returnsAvailable() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let cliURL = tempDir.appendingPathComponent("claude")
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: cliURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cliURL.path)
+
+        let context = self.makeContext(
+            sourceMode: .auto,
+            env: ["CLAUDE_CLI_PATH": cliURL.path])
+        let strategy = ClaudeOAuthFetchStrategy()
+        let available = await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
+            .withValue(self.expiredRecord()) {
+                await strategy.isAvailable(context)
+            }
+
+        #expect(available == true)
     }
 
     @Test

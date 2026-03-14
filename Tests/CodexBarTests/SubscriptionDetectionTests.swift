@@ -35,6 +35,12 @@ struct SubscriptionDetectionTests {
         #expect(UsageStore.isSubscriptionPlan("team") == true)
     }
 
+    @Test
+    func enterprisePlanDoesNotCountAsSubscription() {
+        #expect(UsageStore.isSubscriptionPlan("Claude Enterprise") == false)
+        #expect(UsageStore.isSubscriptionPlan("Enterprise") == false)
+    }
+
     // MARK: - Non-subscription plans should return false
 
     @Test

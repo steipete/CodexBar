@@ -1323,22 +1323,21 @@ public enum ClaudeOAuthCredentialsStore {
     }
 
     #if DEBUG
-    static func withCredentialsURLOverrideForTesting<T>(
-        _ url: URL?,
-        operation: () throws -> T) rethrows -> T
-    {
+    public static func withCredentialsURLOverrideForTesting<T>(_ url: URL?, operation: () throws -> T) rethrows -> T {
         try self.$taskCredentialsURLOverride.withValue(url) {
             try operation()
         }
     }
 
-    static func withCredentialsURLOverrideForTesting<T>(
-        _ url: URL?,
-        operation: () async throws -> T) async rethrows -> T
-    {
+    public static func withCredentialsURLOverrideForTesting<T>(_ url: URL?, operation: () async throws -> T)
+    async rethrows -> T {
         try await self.$taskCredentialsURLOverride.withValue(url) {
             try await operation()
         }
+    }
+
+    public static var currentCredentialsURLOverrideForTesting: URL? {
+        self.taskCredentialsURLOverride
     }
     #endif
 

@@ -57,6 +57,7 @@ extension UsageStore {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeSettingsChanges()
+                self.probeLogs = [:]
                 guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
                 self.startTimer()
                 self.updateProviderRuntimes()
@@ -246,11 +247,7 @@ final class UsageStore {
     /// Determines if a login method string indicates a Claude subscription plan.
     /// Known subscription indicators: Max, Pro, Ultra, Team (case-insensitive).
     nonisolated static func isSubscriptionPlan(_ loginMethod: String?) -> Bool {
-        guard let method = loginMethod?.lowercased(), !method.isEmpty else {
-            return false
-        }
-        let subscriptionIndicators = ["max", "pro", "ultra", "team"]
-        return subscriptionIndicators.contains { method.contains($0) }
+        ClaudePlan.isSubscriptionLoginMethod(loginMethod)
     }
 
     func version(for provider: UsageProvider) -> String? {
@@ -1132,10 +1129,6 @@ extension UsageStore {
         }
     }
 
-    func debugClaudeDump() async -> String {
-        await ClaudeStatusProbe.latestDumps()
-    }
-
     func debugAugmentDump() async -> String {
         await AugmentStatusProbe.latestDumps()
     }
@@ -1149,7 +1142,15 @@ extension UsageStore {
         let claudeUsageDataSource = self.settings.claudeUsageDataSource
         let claudeCookieSource = self.settings.claudeCookieSource
         let claudeCookieHeader = self.settings.claudeCookieHeader
-        let keepCLISessionsAlive = self.settings.debugKeepCLISessionsAlive
+        let claudeDebugConfiguration: ClaudeDebugLogConfiguration? = if provider == .claude {
+            await self.makeClaudeDebugConfiguration(
+                fallbackUsageDataSource: claudeUsageDataSource,
+                fallbackWebExtrasEnabled: claudeWebExtrasEnabled,
+                fallbackCookieSource: claudeCookieSource,
+                fallbackCookieHeader: claudeCookieHeader)
+        } else {
+            nil
+        }
         let cursorCookieSource = self.settings.cursorCookieSource
         let cursorCookieHeader = self.settings.cursorCookieHeader
         let ampCookieSource = self.settings.ampCookieSource
@@ -1165,7 +1166,10 @@ extension UsageStore {
             base: processEnvironment,
             provider: .openrouter,
             config: self.settings.providerConfig(for: .openrouter))
-        return await Task.detached(priority: .utility) { () -> String in
+        let codexFetcher = self.codexFetcher
+        let browserDetection = self.browserDetection
+        let claudeDebugExecutionContext = self.currentClaudeDebugExecutionContext()
+        let text = await Task.detached(priority: .utility) { () -> String in
             let unimplementedDebugLogMessages: [UsageProvider: String] = [
                 .gemini: "Gemini debug log not yet implemented",
                 .antigravity: "Antigravity debug log not yet implemented",
@@ -1179,209 +1183,204 @@ extension UsageStore {
                 .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
             ]
-            let text: String
-            switch provider {
-            case .codex:
-                text = await self.codexFetcher.debugRawRateLimits()
-            case .claude:
-                text = await self.debugClaudeLog(
-                    claudeWebExtrasEnabled: claudeWebExtrasEnabled,
-                    claudeUsageDataSource: claudeUsageDataSource,
-                    claudeCookieSource: claudeCookieSource,
-                    claudeCookieHeader: claudeCookieHeader,
-                    keepCLISessionsAlive: keepCLISessionsAlive)
-            case .zai:
-                let resolution = ProviderTokenResolver.zaiResolution()
-                let hasAny = resolution != nil
-                let source = resolution?.source.rawValue ?? "none"
-                text = "Z_AI_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-            case .synthetic:
-                let resolution = ProviderTokenResolver.syntheticResolution()
-                let hasAny = resolution != nil
-                let source = resolution?.source.rawValue ?? "none"
-                text = "SYNTHETIC_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-            case .cursor:
-                text = await self.debugCursorLog(
-                    cursorCookieSource: cursorCookieSource,
-                    cursorCookieHeader: cursorCookieHeader)
-            case .minimax:
-                let tokenResolution = ProviderTokenResolver.minimaxTokenResolution()
-                let cookieResolution = ProviderTokenResolver.minimaxCookieResolution()
-                let tokenSource = tokenResolution?.source.rawValue ?? "none"
-                let cookieSource = cookieResolution?.source.rawValue ?? "none"
-                text = "MINIMAX_API_KEY=\(tokenResolution == nil ? "missing" : "present") " +
-                    "source=\(tokenSource) MINIMAX_COOKIE=\(cookieResolution == nil ? "missing" : "present") " +
-                    "source=\(cookieSource)"
-            case .augment:
-                text = await self.debugAugmentLog()
-            case .amp:
-                text = await self.debugAmpLog(
-                    ampCookieSource: ampCookieSource,
-                    ampCookieHeader: ampCookieHeader)
-            case .ollama:
-                text = await self.debugOllamaLog(
-                    ollamaCookieSource: ollamaCookieSource,
-                    ollamaCookieHeader: ollamaCookieHeader)
-            case .openrouter:
-                let resolution = ProviderTokenResolver.openRouterResolution(environment: openRouterEnvironment)
-                let hasAny = resolution != nil
-                let source: String = if resolution == nil {
-                    "none"
-                } else if openRouterHasConfigToken, openRouterHasEnvToken {
-                    "settings-config (overrides env)"
-                } else if openRouterHasConfigToken {
-                    "settings-config"
-                } else {
-                    resolution?.source.rawValue ?? "environment"
+            let buildText = {
+                switch provider {
+                case .codex:
+                    return await codexFetcher.debugRawRateLimits()
+                case .claude:
+                    guard let claudeDebugConfiguration else {
+                        return "Claude debug log configuration unavailable"
+                    }
+                    return await claudeDebugExecutionContext.apply {
+                        await Self.debugClaudeLog(
+                            browserDetection: browserDetection,
+                            configuration: claudeDebugConfiguration)
+                    }
+                case .zai:
+                    let resolution = ProviderTokenResolver.zaiResolution()
+                    let hasAny = resolution != nil
+                    let source = resolution?.source.rawValue ?? "none"
+                    return "Z_AI_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                case .synthetic:
+                    let resolution = ProviderTokenResolver.syntheticResolution()
+                    let hasAny = resolution != nil
+                    let source = resolution?.source.rawValue ?? "none"
+                    return "SYNTHETIC_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                case .cursor:
+                    return await Self.debugCursorLog(
+                        browserDetection: browserDetection,
+                        cursorCookieSource: cursorCookieSource,
+                        cursorCookieHeader: cursorCookieHeader)
+                case .minimax:
+                    let tokenResolution = ProviderTokenResolver.minimaxTokenResolution()
+                    let cookieResolution = ProviderTokenResolver.minimaxCookieResolution()
+                    let tokenSource = tokenResolution?.source.rawValue ?? "none"
+                    let cookieSource = cookieResolution?.source.rawValue ?? "none"
+                    return "MINIMAX_API_KEY=\(tokenResolution == nil ? "missing" : "present") " +
+                        "source=\(tokenSource) MINIMAX_COOKIE=\(cookieResolution == nil ? "missing" : "present") " +
+                        "source=\(cookieSource)"
+                case .augment:
+                    return await Self.debugAugmentLog()
+                case .amp:
+                    return await Self.debugAmpLog(
+                        browserDetection: browserDetection,
+                        ampCookieSource: ampCookieSource,
+                        ampCookieHeader: ampCookieHeader)
+                case .ollama:
+                    return await Self.debugOllamaLog(
+                        browserDetection: browserDetection,
+                        ollamaCookieSource: ollamaCookieSource,
+                        ollamaCookieHeader: ollamaCookieHeader)
+                case .openrouter:
+                    let resolution = ProviderTokenResolver.openRouterResolution(environment: openRouterEnvironment)
+                    let hasAny = resolution != nil
+                    let source: String = if resolution == nil {
+                        "none"
+                    } else if openRouterHasConfigToken, openRouterHasEnvToken {
+                        "settings-config (overrides env)"
+                    } else if openRouterHasConfigToken {
+                        "settings-config"
+                    } else {
+                        resolution?.source.rawValue ?? "environment"
+                    }
+                    return "OPENROUTER_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                case .warp:
+                    let resolution = ProviderTokenResolver.warpResolution()
+                    let hasAny = resolution != nil
+                    let source = resolution?.source.rawValue ?? "none"
+                    return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
+                     .kimik2, .jetbrains:
+                    return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
-                text = "OPENROUTER_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-            case .warp:
-                let resolution = ProviderTokenResolver.warpResolution()
-                let hasAny = resolution != nil
-                let source = resolution?.source.rawValue ?? "none"
-                text = "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-            case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi, .kimik2,
-                 .jetbrains:
-                text = unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
             }
-
-            await MainActor.run { self.probeLogs[provider] = text }
-            return text
+            return await claudeDebugExecutionContext.apply {
+                await buildText()
+            }
         }.value
+        self.probeLogs[provider] = text
+        return text
     }
 
-    private func debugClaudeLog(
-        claudeWebExtrasEnabled: Bool,
-        claudeUsageDataSource: ClaudeUsageDataSource,
-        claudeCookieSource: ProviderCookieSource,
-        claudeCookieHeader: String,
-        keepCLISessionsAlive: Bool) async -> String
+    private func makeClaudeDebugConfiguration(
+        fallbackUsageDataSource: ClaudeUsageDataSource,
+        fallbackWebExtrasEnabled: Bool,
+        fallbackCookieSource: ProviderCookieSource,
+        fallbackCookieHeader: String) async -> ClaudeDebugLogConfiguration
     {
-        struct OAuthDebugProbe: Sendable {
-            let hasCredentials: Bool
-            let ownerRawValue: String
-            let sourceRawValue: String
-            let isExpired: Bool
+        await MainActor.run {
+            let sourceMode = self.sourceMode(for: .claude)
+            let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: nil)
+            let environment = ProviderRegistry.makeEnvironment(
+                base: ProcessInfo.processInfo.environment,
+                provider: .claude,
+                settings: self.settings,
+                tokenOverride: nil)
+            let claudeSettings = snapshot.claude ?? ProviderSettingsSnapshot.ClaudeProviderSettings(
+                usageDataSource: fallbackUsageDataSource,
+                webExtrasEnabled: fallbackWebExtrasEnabled,
+                cookieSource: fallbackCookieSource,
+                manualCookieHeader: fallbackCookieHeader)
+            return ClaudeDebugLogConfiguration(
+                runtime: CodexBarCore.ProviderRuntime.app,
+                sourceMode: sourceMode,
+                environment: environment,
+                webExtrasEnabled: claudeSettings.webExtrasEnabled,
+                usageDataSource: claudeSettings.usageDataSource,
+                cookieSource: claudeSettings.cookieSource,
+                cookieHeader: claudeSettings.manualCookieHeader ?? "",
+                keepCLISessionsAlive: snapshot.debugKeepCLISessionsAlive)
         }
+    }
 
-        return await self.runWithTimeout(seconds: 15) {
-            var lines: [String] = []
-            let manualHeader = claudeCookieSource == .manual
-                ? CookieHeaderNormalizer.normalize(claudeCookieHeader)
-                : nil
-            let hasKey = if let manualHeader {
-                ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: manualHeader)
-            } else {
-                ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection) { msg in lines.append(msg) }
-            }
-            // Run potentially blocking keychain probes off MainActor so debug dumps don't stall UI rendering.
-            let oauthProbe = await Task.detached(priority: .utility) {
-                // Don't prompt for keychain access during debug dump.
-                let oauthRecord = try? ClaudeOAuthCredentialsStore.loadRecord(
-                    allowKeychainPrompt: false,
-                    respectKeychainPromptCooldown: true,
-                    allowClaudeKeychainRepairWithoutPrompt: false)
-                return OAuthDebugProbe(
-                    hasCredentials: oauthRecord?.credentials.scopes.contains("user:profile") == true,
-                    ownerRawValue: oauthRecord?.owner.rawValue ?? "none",
-                    sourceRawValue: oauthRecord?.source.rawValue ?? "none",
-                    isExpired: oauthRecord?.credentials.isExpired ?? false)
-            }.value
-            let hasOAuthCredentials = oauthProbe.hasCredentials
-            let hasClaudeBinary = ClaudeOAuthDelegatedRefreshCoordinator.isClaudeCLIAvailable()
-            let delegatedCooldownSeconds = ClaudeOAuthDelegatedRefreshCoordinator.cooldownRemainingSeconds()
+    private struct ClaudeDebugExecutionContext {
+        let interaction: ProviderInteraction
+        let refreshPhase: ProviderRefreshPhase
+        #if DEBUG
+        let keychainServiceOverride: String?
+        let credentialsURLOverride: URL?
+        let testingOverrides: ClaudeOAuthCredentialsStore.TestingOverridesSnapshot
+        let keychainDeniedUntilStoreOverride: ClaudeOAuthKeychainAccessGate.DeniedUntilStore?
+        let keychainPromptModeOverride: ClaudeOAuthKeychainPromptMode?
+        let keychainReadStrategyOverride: ClaudeOAuthKeychainReadStrategy?
+        let cliPathOverride: String?
+        let statusFetchOverride: ClaudeStatusProbe.FetchOverride?
+        #endif
 
-            let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
-                selectedDataSource: claudeUsageDataSource,
-                webExtrasEnabled: claudeWebExtrasEnabled,
-                hasWebSession: hasKey,
-                hasCLI: hasClaudeBinary,
-                hasOAuthCredentials: hasOAuthCredentials)
-
-            if claudeUsageDataSource == .auto {
-                lines.append("pipeline_order=oauth→cli→web")
-                lines.append("auto_heuristic=\(strategy.dataSource.rawValue)")
-            } else {
-                lines.append("strategy=\(strategy.dataSource.rawValue)")
-            }
-            lines.append("hasSessionKey=\(hasKey)")
-            lines.append("hasOAuthCredentials=\(hasOAuthCredentials)")
-            lines.append("oauthCredentialOwner=\(oauthProbe.ownerRawValue)")
-            lines.append("oauthCredentialSource=\(oauthProbe.sourceRawValue)")
-            lines.append("oauthCredentialExpired=\(oauthProbe.isExpired)")
-            lines.append("delegatedRefreshCLIAvailable=\(hasClaudeBinary)")
-            lines.append("delegatedRefreshCooldownActive=\(delegatedCooldownSeconds != nil)")
-            if let delegatedCooldownSeconds {
-                lines.append("delegatedRefreshCooldownSeconds=\(delegatedCooldownSeconds)")
-            }
-            lines.append("hasClaudeBinary=\(hasClaudeBinary)")
-            if strategy.useWebExtras {
-                lines.append("web_extras=enabled")
-            }
-            lines.append("")
-
-            switch strategy.dataSource {
-            case .auto:
-                lines.append("Auto source selected.")
-                return lines.joined(separator: "\n")
-            case .web:
-                do {
-                    let web = try await ClaudeWebAPIFetcher
-                        .fetchUsage(browserDetection: self.browserDetection) { msg in lines.append(msg) }
-                    lines.append("")
-                    lines.append("Web API summary:")
-
-                    let sessionReset = web.sessionResetsAt?.description ?? "nil"
-                    lines.append("session_used=\(web.sessionPercentUsed)% resetsAt=\(sessionReset)")
-
-                    if let weekly = web.weeklyPercentUsed {
-                        let weeklyReset = web.weeklyResetsAt?.description ?? "nil"
-                        lines.append("weekly_used=\(weekly)% resetsAt=\(weeklyReset)")
-                    } else {
-                        lines.append("weekly_used=nil")
+        func apply<T>(_ operation: () async -> T) async -> T {
+            await ProviderInteractionContext.$current.withValue(self.interaction) {
+                await ProviderRefreshContext.$current.withValue(self.refreshPhase) {
+                    #if DEBUG
+                    return await KeychainCacheStore.withServiceOverrideForTesting(self.keychainServiceOverride) {
+                        await ClaudeOAuthCredentialsStore
+                            .withCredentialsURLOverrideForTesting(self.credentialsURLOverride) {
+                                await ClaudeOAuthCredentialsStore
+                                    .withTestingOverridesSnapshotForTask(self.testingOverrides) {
+                                        await ClaudeOAuthKeychainAccessGate
+                                            .withDeniedUntilStoreOverrideForTesting(self
+                                                .keychainDeniedUntilStoreOverride)
+                                            {
+                                                await ClaudeOAuthKeychainPromptPreference
+                                                    .withTaskOverrideForTesting(self.keychainPromptModeOverride) {
+                                                        await ClaudeOAuthKeychainReadStrategyPreference
+                                                            .withTaskOverrideForTesting(self
+                                                                .keychainReadStrategyOverride)
+                                                            {
+                                                                await ClaudeCLIResolver
+                                                                    .withResolvedBinaryPathOverrideForTesting(self
+                                                                        .cliPathOverride)
+                                                                    {
+                                                                        await ClaudeStatusProbe
+                                                                            .withFetchOverrideForTesting(self
+                                                                                .statusFetchOverride)
+                                                                            {
+                                                                                await operation()
+                                                                            }
+                                                                    }
+                                                            }
+                                                    }
+                                            }
+                                    }
+                            }
                     }
-
-                    lines.append("opus_used=\(web.opusPercentUsed?.description ?? "nil")")
-
-                    if let extra = web.extraUsageCost {
-                        let resetsAt = extra.resetsAt?.description ?? "nil"
-                        let period = extra.period ?? "nil"
-                        let line =
-                            "extra_usage used=\(extra.used) limit=\(extra.limit) " +
-                            "currency=\(extra.currencyCode) period=\(period) resetsAt=\(resetsAt)"
-                        lines.append(line)
-                    } else {
-                        lines.append("extra_usage=nil")
-                    }
-
-                    return lines.joined(separator: "\n")
-                } catch {
-                    lines.append("Web API failed: \(error.localizedDescription)")
-                    return lines.joined(separator: "\n")
+                    #else
+                    return await operation()
+                    #endif
                 }
-            case .cli:
-                let fetcher = ClaudeUsageFetcher(
-                    browserDetection: self.browserDetection,
-                    keepCLISessionsAlive: keepCLISessionsAlive)
-                let cli = await fetcher.debugRawProbe(model: "sonnet")
-                lines.append(cli)
-                return lines.joined(separator: "\n")
-            case .oauth:
-                lines.append("OAuth source selected.")
-                return lines.joined(separator: "\n")
             }
         }
     }
 
-    private func debugCursorLog(
+    private func currentClaudeDebugExecutionContext() -> ClaudeDebugExecutionContext {
+        #if DEBUG
+        ClaudeDebugExecutionContext(
+            interaction: ProviderInteractionContext.current,
+            refreshPhase: ProviderRefreshContext.current,
+            keychainServiceOverride: KeychainCacheStore.currentServiceOverrideForTesting,
+            credentialsURLOverride: ClaudeOAuthCredentialsStore.currentCredentialsURLOverrideForTesting,
+            testingOverrides: ClaudeOAuthCredentialsStore.currentTestingOverridesSnapshotForTask,
+            keychainDeniedUntilStoreOverride: ClaudeOAuthKeychainAccessGate.currentDeniedUntilStoreOverrideForTesting,
+            keychainPromptModeOverride: ClaudeOAuthKeychainPromptPreference.currentTaskOverrideForTesting,
+            keychainReadStrategyOverride: ClaudeOAuthKeychainReadStrategyPreference.currentTaskOverrideForTesting,
+            cliPathOverride: ClaudeCLIResolver.currentResolvedBinaryPathOverrideForTesting,
+            statusFetchOverride: ClaudeStatusProbe.currentFetchOverrideForTesting)
+        #else
+        ClaudeDebugExecutionContext(
+            interaction: ProviderInteractionContext.current,
+            refreshPhase: ProviderRefreshContext.current)
+        #endif
+    }
+
+    private static func debugCursorLog(
+        browserDetection: BrowserDetection,
         cursorCookieSource: ProviderCookieSource,
         cursorCookieHeader: String) async -> String
     {
-        await self.runWithTimeout(seconds: 15) {
+        await runWithTimeout(seconds: 15) {
             var lines: [String] = []
 
             do {
-                let probe = CursorStatusProbe(browserDetection: self.browserDetection)
+                let probe = CursorStatusProbe(browserDetection: browserDetection)
                 let snapshot: CursorStatusSnapshot = if cursorCookieSource == .manual,
                                                         let normalizedHeader = CookieHeaderNormalizer
                                                             .normalize(cursorCookieHeader)
@@ -1423,19 +1422,20 @@ extension UsageStore {
         }
     }
 
-    private func debugAugmentLog() async -> String {
-        await self.runWithTimeout(seconds: 15) {
+    private static func debugAugmentLog() async -> String {
+        await runWithTimeout(seconds: 15) {
             let probe = AugmentStatusProbe()
             return await probe.debugRawProbe()
         }
     }
 
-    private func debugAmpLog(
+    private static func debugAmpLog(
+        browserDetection: BrowserDetection,
         ampCookieSource: ProviderCookieSource,
         ampCookieHeader: String) async -> String
     {
-        await self.runWithTimeout(seconds: 15) {
-            let fetcher = AmpUsageFetcher(browserDetection: self.browserDetection)
+        await runWithTimeout(seconds: 15) {
+            let fetcher = AmpUsageFetcher(browserDetection: browserDetection)
             let manualHeader = ampCookieSource == .manual
                 ? CookieHeaderNormalizer.normalize(ampCookieHeader)
                 : nil
@@ -1443,31 +1443,19 @@ extension UsageStore {
         }
     }
 
-    private func debugOllamaLog(
+    private static func debugOllamaLog(
+        browserDetection: BrowserDetection,
         ollamaCookieSource: ProviderCookieSource,
         ollamaCookieHeader: String) async -> String
     {
-        await self.runWithTimeout(seconds: 15) {
-            let fetcher = OllamaUsageFetcher(browserDetection: self.browserDetection)
+        await runWithTimeout(seconds: 15) {
+            let fetcher = OllamaUsageFetcher(browserDetection: browserDetection)
             let manualHeader = ollamaCookieSource == .manual
                 ? CookieHeaderNormalizer.normalize(ollamaCookieHeader)
                 : nil
             return await fetcher.debugRawProbe(
                 cookieHeaderOverride: manualHeader,
                 manualCookieMode: ollamaCookieSource == .manual)
-        }
-    }
-
-    private func runWithTimeout(seconds: Double, operation: @escaping @Sendable () async -> String) async -> String {
-        await withTaskGroup(of: String?.self) { group -> String in
-            group.addTask { await operation() }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                return nil
-            }
-            let result = await group.next()?.flatMap(\.self)
-            group.cancelAll()
-            return result ?? "Probe timed out after \(Int(seconds))s"
         }
     }
 
