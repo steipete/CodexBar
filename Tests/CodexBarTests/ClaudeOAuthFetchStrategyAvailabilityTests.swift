@@ -131,22 +131,24 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
             owner: .claudeCLI,
             source: .cacheKeychain)
 
-        await KeychainAccessGate.withTaskOverrideForTesting(false) {
-            ClaudeOAuthKeychainAccessGate.resetForTesting()
-            defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
+        await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+            await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                ClaudeOAuthKeychainAccessGate.resetForTesting()
+                defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
 
-            let now = Date(timeIntervalSince1970: 1000)
-            ClaudeOAuthKeychainAccessGate.recordDenied(now: now)
-            #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(now: now) == false)
+                let now = Date(timeIntervalSince1970: 1000)
+                ClaudeOAuthKeychainAccessGate.recordDenied(now: now)
+                #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(now: now) == false)
 
-            _ = await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
-                .withValue(recordWithoutRequiredScope) {
-                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        await strategy.isAvailable(context)
+                _ = await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
+                    .withValue(recordWithoutRequiredScope) {
+                        await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                            await strategy.isAvailable(context)
+                        }
                     }
-                }
 
-            #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(now: now))
+                #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(now: now))
+            }
         }
     }
 
@@ -219,7 +221,7 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
         let available = await KeychainAccessGate.withTaskOverrideForTesting(false) {
             await ClaudeOAuthKeychainAccessGate.withShouldAllowPromptOverrideForTesting(false) {
                 await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                    .securityCLIExperimental)
+                    .securityCLI)
                 {
                     await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
                         await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride.withValue(
@@ -268,7 +270,7 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
         let available = await KeychainAccessGate.withTaskOverrideForTesting(false) {
             await ClaudeOAuthKeychainAccessGate.withShouldAllowPromptOverrideForTesting(true) {
                 await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                    .securityCLIExperimental)
+                    .securityCLI)
                 {
                     await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
                         await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride.withValue(

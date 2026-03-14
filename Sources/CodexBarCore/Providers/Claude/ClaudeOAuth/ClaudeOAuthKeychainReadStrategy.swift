@@ -2,7 +2,7 @@ import Foundation
 
 public enum ClaudeOAuthKeychainReadStrategy: String, Sendable, Codable, CaseIterable {
     case securityFramework
-    case securityCLIExperimental
+    case securityCLI
 }
 
 public enum ClaudeOAuthKeychainReadStrategyPreference {
@@ -21,7 +21,7 @@ public enum ClaudeOAuthKeychainReadStrategyPreference {
         {
             return strategy
         }
-        return .securityFramework
+        return .securityCLI
     }
 
     #if DEBUG

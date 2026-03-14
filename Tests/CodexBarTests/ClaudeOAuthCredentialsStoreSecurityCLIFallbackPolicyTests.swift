@@ -26,7 +26,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLIFallbackPolicyTests {
 
         let hasCredentials = KeychainAccessGate.withTaskOverrideForTesting(false) {
             ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                .securityCLIExperimental,
+                .securityCLI,
                 operation: {
                     ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                         .onlyOnUserAction,
@@ -78,7 +78,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLIFallbackPolicyTests {
                         preflightOverride,
                         operation: {
                             ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                                .securityCLIExperimental,
+                                .securityCLI,
                                 operation: {
                                     ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                                         .onlyOnUserAction,

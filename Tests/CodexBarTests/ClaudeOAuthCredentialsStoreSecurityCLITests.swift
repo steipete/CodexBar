@@ -51,7 +51,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                         refreshToken: "security-refresh")
 
                     let creds = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                        .securityCLIExperimental,
+                        .securityCLI,
                         operation: {
                             try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                                 .onlyOnUserAction,
@@ -109,7 +109,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                     let securityReadCalls = ReadCounter()
 
                     let creds = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                        .securityCLIExperimental,
+                        .securityCLI,
                         operation: {
                             try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                                 .onlyOnUserAction,
@@ -164,7 +164,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                         refreshToken: "fallback-refresh")
 
                     let creds = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                        .securityCLIExperimental,
+                        .securityCLI,
                         operation: {
                             try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                                 .onlyOnUserAction,
@@ -220,7 +220,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                         expiresAt: Date(timeIntervalSinceNow: 3600))
 
                     let creds = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                        .securityCLIExperimental,
+                        .securityCLI,
                         operation: {
                             try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                                 .onlyOnUserAction,
@@ -261,7 +261,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
             persistentRefHash: "sentinel")
 
         let loaded = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental,
+            .securityCLI,
             operation: {
                 try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                     .always,
@@ -298,7 +298,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
             expiresAt: Date(timeIntervalSinceNow: 3600))
 
         let hasCredentials = ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental,
+            .securityCLI,
             operation: {
                 ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                     .always,
@@ -323,7 +323,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
             expiresAt: Date(timeIntervalSinceNow: 3600))
 
         let hasCredentials = ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental,
+            .securityCLI,
             operation: {
                 ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                     .always,
@@ -355,7 +355,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
         let hasCredentials = KeychainAccessGate.withTaskOverrideForTesting(false) {
             ClaudeOAuthKeychainAccessGate.withShouldAllowPromptOverrideForTesting(false) {
                 ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                    .securityCLIExperimental,
+                    .securityCLI,
                     operation: {
                         ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                             .never,
@@ -381,7 +381,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
         do {
             _ = try KeychainAccessGate.withTaskOverrideForTesting(false) {
                 try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                    .securityCLIExperimental,
+                    .securityCLI,
                     operation: {
                         try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                             .never,
@@ -416,7 +416,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
         let pinnedAccount = AccountBox()
 
         let loaded = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental,
+            .securityCLI,
             operation: {
                 try ClaudeOAuthCredentialsStore.withSecurityCLIReadAccountOverrideForTesting("new-account") {
                     try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
@@ -451,7 +451,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
         let pinnedAccount = AccountBox()
 
         let loaded = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-            .securityCLIExperimental,
+            .securityCLI,
             operation: {
                 try ClaudeOAuthCredentialsStore.withSecurityCLIReadAccountOverrideForTesting("new-account") {
                     try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
@@ -514,7 +514,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                                 preflightOverride,
                                 operation: {
                                     try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                                        .securityCLIExperimental)
+                                        .securityCLI)
                                     {
                                         try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                                             try ProviderInteractionContext.$current.withValue(.background) {
@@ -584,7 +584,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                                 preflightOverride,
                                 operation: {
                                     try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                                        .securityCLIExperimental)
+                                        .securityCLI)
                                     {
                                         try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
                                             .onlyOnUserAction)
@@ -641,7 +641,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                         persistentRefHash: "sentinel")
 
                     let synced = ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                        .securityCLIExperimental,
+                        .securityCLI,
                         operation: {
                             ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                                 ProviderInteractionContext.$current.withValue(.background) {
@@ -701,7 +701,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                         persistentRefHash: "sentinel")
 
                     let record = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                        .securityCLIExperimental,
+                        .securityCLI,
                         operation: {
                             try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                                 try ProviderInteractionContext.$current.withValue(.background) {
@@ -765,7 +765,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                         persistentRefHash: "sentinel")
 
                     let creds = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                        .securityCLIExperimental,
+                        .securityCLI,
                         operation: {
                             try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                                 try ProviderInteractionContext.$current.withValue(.userInitiated) {
@@ -830,7 +830,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
 
                     do {
                         _ = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                            .securityCLIExperimental,
+                            .securityCLI,
                             operation: {
                                 try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                                     try ProviderInteractionContext.$current.withValue(.userInitiated) {
