@@ -31,6 +31,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 id: "copilot-api-token",
                 title: "GitHub Login",
                 subtitle: "Requires authentication via GitHub Device Flow.",
+                footerText: "Device code is copied to your clipboard — paste with ⌘V.",
                 kind: .secure,
                 placeholder: "Sign in via button below",
                 binding: context.stringBinding(\.copilotAPIToken),
