@@ -157,6 +157,7 @@ extension UsageStore {
             }
             await MainActor.run {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: labeled)
+                self.checkUsageAlertThreshold(provider: provider, snapshot: labeled)
                 self.snapshots[provider] = labeled
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil

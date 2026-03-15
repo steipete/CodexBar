@@ -48,16 +48,16 @@ struct OllamaProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.ollamaCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from Ollama settings.",
-                off: "Ollama cookies are disabled.")
+                auto: String(localized: "Automatic imports browser cookies."),
+                manual: String(localized: "Paste a Cookie header or cURL capture from Ollama settings."),
+                off: String(localized: "Ollama cookies are disabled."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "ollama-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
+                title: String(localized: "Cookie source"),
+                subtitle: String(localized: "Automatic imports browser cookies."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -74,12 +74,12 @@ struct OllamaProviderImplementation: ProviderImplementation {
                 title: "",
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Cookie: …",
+                placeholder: String(localized: "Cookie: …"),
                 binding: context.stringBinding(\.ollamaCookieHeader),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "ollama-open-settings",
-                        title: "Open Ollama Settings",
+                        title: String(localized: "Open Ollama Settings"),
                         style: .link,
                         isVisible: nil,
                         perform: {

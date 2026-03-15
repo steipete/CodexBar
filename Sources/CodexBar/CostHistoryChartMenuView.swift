@@ -37,23 +37,23 @@ struct CostHistoryChartMenuView: View {
         let model = Self.makeModel(provider: self.provider, daily: self.daily)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No cost history data.")
+                Text(String(localized: "No cost history data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
                 Chart {
                     ForEach(model.points) { point in
                         BarMark(
-                            x: .value("Day", point.date, unit: .day),
-                            y: .value("Cost", point.costUSD))
+                            x: .value(String(localized: "Day"), point.date, unit: .day),
+                            y: .value(String(localized: "Cost"), point.costUSD))
                             .foregroundStyle(model.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
                         let capStart = max(peak.costUSD - Self.capHeight(maxValue: model.maxCostUSD), 0)
                         BarMark(
-                            x: .value("Day", peak.date, unit: .day),
-                            yStart: .value("Cap start", capStart),
-                            yEnd: .value("Cap end", peak.costUSD))
+                            x: .value(String(localized: "Day"), peak.date, unit: .day),
+                            yStart: .value(String(localized: "Cap start"), capStart),
+                            yEnd: .value(String(localized: "Cap end"), peak.costUSD))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
@@ -107,7 +107,7 @@ struct CostHistoryChartMenuView: View {
             }
 
             if let total = self.totalCostUSD {
-                Text("Total (30d): \(UsageFormatter.usdString(total))")
+                Text(String(localized: "Total (30d): \(UsageFormatter.usdString(total))"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -291,17 +291,18 @@ struct CostHistoryChartMenuView: View {
               let point = model.pointsByDateKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return ("Hover a bar for details", nil)
+            return (String(localized: "Hover a bar for details"), nil)
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
         let cost = UsageFormatter.usdString(point.costUSD)
         if let tokens = point.totalTokens {
-            let primary = "\(dayLabel): \(cost) · \(UsageFormatter.tokenCountString(tokens)) tokens"
+            let tokenStr = UsageFormatter.tokenCountString(tokens)
+            let primary = String(localized: "\(dayLabel): \(cost) · \(tokenStr) tokens")
             let secondary = self.topModelsText(key: key, model: model)
             return (primary, secondary)
         }
-        let primary = "\(dayLabel): \(cost)"
+        let primary = String(localized: "\(dayLabel): \(cost)")
         let secondary = self.topModelsText(key: key, model: model)
         return (primary, secondary)
     }
@@ -323,6 +324,7 @@ struct CostHistoryChartMenuView: View {
             .prefix(3)
             .map { "\($0.name) \($0.detail)" }
         guard !parts.isEmpty else { return nil }
-        return "Top: \(parts.joined(separator: " · "))"
+        let joined = parts.joined(separator: " · ")
+        return String(localized: "Top: \(joined)")
     }
 }

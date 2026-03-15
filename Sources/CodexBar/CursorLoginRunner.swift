@@ -72,7 +72,7 @@ final class CursorLoginRunner: NSObject {
             backing: .buffered,
             defer: false)
         window.isReleasedWhenClosed = false
-        window.title = "Cursor Login"
+        window.title = String(localized: "Cursor Login")
         window.contentView = webView
         window.center()
         window.delegate = self
@@ -110,9 +110,9 @@ final class CursorLoginRunner: NSObject {
         }
 
         guard !cursorCookies.isEmpty else {
-            self.phaseCallback?(.failed("No session cookies found"))
+            self.phaseCallback?(.failed(String(localized: "No session cookies found")))
             self.logger.warning("Cursor login failed: no session cookies found")
-            self.complete(with: Result(outcome: .failed("No session cookies found"), email: nil))
+            self.complete(with: Result(outcome: .failed(String(localized: "No session cookies found")), email: nil))
             return
         }
 

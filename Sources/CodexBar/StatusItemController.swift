@@ -474,8 +474,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let base: String
         switch self.loginPhase {
         case .idle: return nil
-        case .requesting: base = "Requesting login…"
-        case .waitingBrowser: base = "Waiting in browser…"
+        case .requesting: base = String(localized: "Requesting login…")
+        case .waitingBrowser: base = String(localized: "Waiting in browser…")
         }
         let prefix = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         return "\(prefix): \(base)"

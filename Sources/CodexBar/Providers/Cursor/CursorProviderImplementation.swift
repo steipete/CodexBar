@@ -53,16 +53,16 @@ struct CursorProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.cursorCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies or stored sessions.",
-                manual: "Paste a Cookie header from a cursor.com request.",
-                off: "Cursor cookies are disabled.")
+                auto: String(localized: "Automatic imports browser cookies or stored sessions."),
+                manual: String(localized: "Paste a Cookie header from a cursor.com request."),
+                off: String(localized: "Cursor cookies are disabled."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "cursor-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies or stored sessions.",
+                title: String(localized: "Cookie source"),
+                subtitle: String(localized: "Automatic imports browser cookies or stored sessions."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -94,9 +94,9 @@ struct CursorProviderImplementation: ProviderImplementation {
         let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
         if cost.limit > 0 {
             let limitStr = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-            entries.append(.text("On-Demand: \(used) / \(limitStr)", .primary))
+            entries.append(.text(String(localized: "On-Demand: \(used) / \(limitStr)"), .primary))
         } else {
-            entries.append(.text("On-Demand: \(used)", .primary))
+            entries.append(.text(String(localized: "On-Demand: \(used)"), .primary))
         }
     }
 }

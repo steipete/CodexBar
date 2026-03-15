@@ -52,16 +52,16 @@ struct AugmentProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.augmentCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from the Augment dashboard.",
-                off: "Augment cookies are disabled.")
+                auto: String(localized: "Automatic imports browser cookies."),
+                manual: String(localized: "Paste a Cookie header or cURL capture from the Augment dashboard."),
+                off: String(localized: "Augment cookies are disabled."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "augment-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
+                title: String(localized: "Cookie source"),
+                subtitle: String(localized: "Automatic imports browser cookies."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -83,14 +83,14 @@ struct AugmentProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry]) {
-        entries.append(.action("Refresh Session", .refreshAugmentSession))
+        entries.append(.action(String(localized: "Refresh Session"), .refreshAugmentSession))
 
         if let error = context.store.error(for: .augment) {
             if error.contains("session has expired") ||
                 error.contains("No Augment session cookie found")
             {
                 entries.append(.action(
-                    "Open Augment (Log Out & Back In)",
+                    String(localized: "Open Augment (Log Out & Back In)"),
                     .loginToProvider(url: "https://app.augmentcode.com")))
             }
         }

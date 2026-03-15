@@ -197,6 +197,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>SUEnableAutomaticChecks</key><${AUTO_CHECKS}/>
     <key>CodexBuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>CodexGitCommit</key><string>${GIT_COMMIT}</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
 </dict>
 </plist>
 PLIST
@@ -364,6 +365,35 @@ if [[ ! -d "$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle" 
   echo "ERROR: Missing KeyboardShortcuts SwiftPM resource bundle (Settings → Keyboard shortcut will crash)." >&2
   echo "Expected: ${PREFERRED_BUILD_DIR}/KeyboardShortcuts_KeyboardShortcuts.bundle" >&2
   exit 1
+fi
+
+# Compile .xcstrings into .lproj directories so macOS can load localized strings at runtime.
+shopt -s nullglob
+XCSTRINGS_FILES=("$APP/Contents/Resources/"*.xcstrings "$APP/Contents/Resources/"*.bundle/*.xcstrings)
+shopt -u nullglob
+for xcs in "${XCSTRINGS_FILES[@]}"; do
+  PARENT_DIR="$(dirname "$xcs")"
+  if ! xcrun xcstringstool compile "$xcs" --output-directory "$PARENT_DIR"; then
+    echo "ERROR: Failed to compile $xcs" >&2
+    exit 1
+  fi
+  rm -f "$xcs"
+done
+
+# Derive CFBundleLocalizations from the .lproj folders actually present in the bundle.
+shopt -s nullglob
+LPROJ_DIRS=("$APP/Contents/Resources/"*.lproj)
+shopt -u nullglob
+if [[ ${#LPROJ_DIRS[@]} -gt 0 ]]; then
+  LANG_PLIST="<array>"
+  for lp in "${LPROJ_DIRS[@]}"; do
+    LANG_CODE=$(basename "$lp" .lproj)
+    LANG_PLIST+="<string>${LANG_CODE}</string>"
+  done
+  LANG_PLIST+="</array>"
+  /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations array" "$APP/Contents/Info.plist" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Delete :CFBundleLocalizations" "$APP/Contents/Info.plist"
+  plutil -insert CFBundleLocalizations -xml "$LANG_PLIST" "$APP/Contents/Info.plist"
 fi
 
 # Ensure contents are writable before stripping attributes and signing.

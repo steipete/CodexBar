@@ -115,9 +115,9 @@ struct ProvidersPane: View {
             let relative = snapshot.updatedAt.relativeDescription()
             usageText = relative
         } else if self.store.isStale(provider: provider) {
-            usageText = "last fetch failed"
+            usageText = String(localized: "last fetch failed")
         } else {
-            usageText = "usage not fetched yet"
+            usageText = String(localized: "usage not fetched yet")
         }
 
         let presentationContext = ProviderPresentationContext(
@@ -267,34 +267,38 @@ struct ProvidersPane: View {
         let options: [ProviderSettingsPickerOption]
         if provider == .openrouter {
             options = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.automatic.rawValue,
+                    title: String(localized: "Automatic")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
-                    title: "Primary (API key limit)"),
+                    title: String(localized: "Primary (API key limit)")),
             ]
         } else {
             let metadata = self.store.metadata(for: provider)
             let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
             var metricOptions: [ProviderSettingsPickerOption] = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.automatic.rawValue,
+                    title: String(localized: "Automatic")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
-                    title: "Primary (\(metadata.sessionLabel))"),
+                    title: String(localized: "Primary (\(metadata.sessionLabel))")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.secondary.rawValue,
-                    title: "Secondary (\(metadata.weeklyLabel))"),
+                    title: String(localized: "Secondary (\(metadata.weeklyLabel))")),
             ]
             if supportsAverage {
                 metricOptions.append(ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.average.rawValue,
-                    title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
+                    title: String(localized: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))")))
             }
             options = metricOptions
         }
         return ProviderSettingsPickerDescriptor(
             id: "menuBarMetric",
-            title: "Menu bar metric",
-            subtitle: "Choose which window drives the menu bar percent.",
+            title: String(localized: "Menu bar metric"),
+            subtitle: String(localized: "Choose which window drives the menu bar percent."),
             binding: Binding(
                 get: { self.settings.menuBarMetricPreference(for: provider).rawValue },
                 set: { rawValue in

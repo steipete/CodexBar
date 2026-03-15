@@ -18,24 +18,26 @@ struct DisplayPane: View {
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     PreferenceToggleRow(
-                        title: "Merge Icons",
-                        subtitle: "Use a single menu bar icon with a provider switcher.",
+                        title: String(localized: "Merge Icons"),
+                        subtitle: String(localized: "Use a single menu bar icon with a provider switcher."),
                         binding: self.$settings.mergeIcons)
                     PreferenceToggleRow(
-                        title: "Switcher shows icons",
-                        subtitle: "Show provider icons in the switcher (otherwise show a weekly progress line).",
+                        title: String(localized: "Switcher shows icons"),
+                        subtitle: String(
+                            localized: "Show provider icons in the switcher (otherwise show a weekly progress line)."),
                         binding: self.$settings.switcherShowsIcons)
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
-                        title: "Show most-used provider",
-                        subtitle: "Menu bar auto-shows the provider closest to its rate limit.",
+                        title: String(localized: "Show most-used provider"),
+                        subtitle: String(localized: "Menu bar auto-shows the provider closest to its rate limit."),
                         binding: self.$settings.menuBarShowsHighestUsage)
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
-                        title: "Menu bar shows percent",
-                        subtitle: "Replace critter bars with provider branding icons and a percentage.",
+                        title: String(localized: "Menu bar shows percent"),
+                        subtitle: String(
+                            localized: "Replace critter bars with provider branding icons and a percentage."),
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
@@ -67,20 +69,23 @@ struct DisplayPane: View {
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     PreferenceToggleRow(
-                        title: "Show usage as used",
-                        subtitle: "Progress bars fill as you consume quota (instead of showing remaining).",
+                        title: String(localized: "Show usage as used"),
+                        subtitle: String(
+                            localized: "Progress bars fill as you consume quota (instead of showing remaining)."),
                         binding: self.$settings.usageBarsShowUsed)
                     PreferenceToggleRow(
-                        title: "Show reset time as clock",
-                        subtitle: "Display reset times as absolute clock values instead of countdowns.",
+                        title: String(localized: "Show reset time as clock"),
+                        subtitle: String(
+                            localized: "Display reset times as absolute clock values instead of countdowns."),
                         binding: self.$settings.resetTimesShowAbsolute)
                     PreferenceToggleRow(
-                        title: "Show credits + extra usage",
-                        subtitle: "Show Codex Credits and Claude Extra usage sections in the menu.",
+                        title: String(localized: "Show credits + extra usage"),
+                        subtitle: String(localized: "Show Codex Credits and Claude Extra usage sections in the menu."),
                         binding: self.$settings.showOptionalCreditsAndExtraUsage)
                     PreferenceToggleRow(
-                        title: "Show all token accounts",
-                        subtitle: "Stack token accounts in the menu (otherwise show an account switcher bar).",
+                        title: String(localized: "Show all token accounts"),
+                        subtitle: String(
+                            localized: "Stack token accounts in the menu (otherwise show an account switcher bar)."),
                         binding: self.$settings.showAllTokenAccountsInMenu)
                     self.overviewProviderSelector
                 }
@@ -144,9 +149,9 @@ struct DisplayPane: View {
 
     private var overviewProviderPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Choose up to \(Self.maxOverviewProviders) providers")
+            Text(String(localized: "Choose up to \(Self.maxOverviewProviders) providers"))
                 .font(.headline)
-            Text("Overview rows always follow provider order.")
+            Text(String(localized: "Overview rows always follow provider order."))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
 
@@ -191,7 +196,7 @@ struct DisplayPane: View {
 
     private var overviewProviderSelectionSummary: String {
         let selectedNames = self.overviewSelectedProviders.map(self.providerDisplayName)
-        guard !selectedNames.isEmpty else { return "No providers selected" }
+        guard !selectedNames.isEmpty else { return String(localized: "No providers selected") }
         return selectedNames.joined(separator: ", ")
     }
 

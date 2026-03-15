@@ -65,9 +65,9 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
         let subtitle = if context.settings.debugDisableKeychainAccess {
-            "Inactive while \"Disable Keychain access\" is enabled in Advanced."
+            String(localized: "Inactive while \"Disable Keychain access\" is enabled in Advanced.")
         } else {
-            "Use /usr/bin/security to read Claude credentials and avoid CodexBar keychain prompts."
+            String(localized: "Use /usr/bin/security to read Claude credentials and avoid CodexBar keychain prompts.")
         }
 
         let promptFreeBinding = Binding(
@@ -80,7 +80,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         return [
             ProviderSettingsToggleDescriptor(
                 id: "claude-oauth-prompt-free-credentials",
-                title: "Avoid Keychain prompts (experimental)",
+                title: String(localized: "Avoid Keychain prompts (experimental)"),
                 subtitle: subtitle,
                 binding: promptFreeBinding,
                 statusText: nil,
@@ -120,35 +120,34 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         let keychainPromptPolicyOptions: [ProviderSettingsPickerOption] = [
             ProviderSettingsPickerOption(
                 id: ClaudeOAuthKeychainPromptMode.never.rawValue,
-                title: "Never prompt"),
+                title: String(localized: "Never prompt")),
             ProviderSettingsPickerOption(
                 id: ClaudeOAuthKeychainPromptMode.onlyOnUserAction.rawValue,
-                title: "Only on user action"),
+                title: String(localized: "Only on user action")),
             ProviderSettingsPickerOption(
                 id: ClaudeOAuthKeychainPromptMode.always.rawValue,
-                title: "Always allow prompts"),
+                title: String(localized: "Always allow prompts")),
         ]
         let cookieSubtitle: () -> String? = {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.claudeCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies for the web API.",
-                manual: "Paste a Cookie header from a claude.ai request.",
-                off: "Claude cookies are disabled.")
+                auto: String(localized: "Automatic imports browser cookies for the web API."),
+                manual: String(localized: "Paste a Cookie header from a claude.ai request."),
+                off: String(localized: "Claude cookies are disabled."))
         }
         let keychainPromptPolicySubtitle: () -> String? = {
             if context.settings.debugDisableKeychainAccess {
-                return "Global Keychain access is disabled in Advanced, so this setting is currently inactive."
+                return String(localized: "Global Keychain access is disabled in Advanced, so this setting is currently inactive.")
             }
-            return "Controls Claude OAuth Keychain prompts when experimental reader mode is off. Choosing " +
-                "\"Never prompt\" can make OAuth unavailable; use Web/CLI when needed."
+            return String(localized: "Controls Claude OAuth Keychain prompts when experimental reader mode is off. Choosing \"Never prompt\" can make OAuth unavailable; use Web/CLI when needed.")
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "claude-usage-source",
-                title: "Usage source",
-                subtitle: "Auto falls back to the next source if the preferred one fails.",
+                title: String(localized: "Usage source"),
+                subtitle: String(localized: "Auto falls back to the next source if the preferred one fails."),
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -160,8 +159,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "claude-keychain-prompt-policy",
-                title: "Keychain prompt policy",
-                subtitle: "Applies only to the Security.framework OAuth keychain reader.",
+                title: String(localized: "Keychain prompt policy"),
+                subtitle: String(localized: "Applies only to the Security.framework OAuth keychain reader."),
                 dynamicSubtitle: keychainPromptPolicySubtitle,
                 binding: keychainPromptPolicyBinding,
                 options: keychainPromptPolicyOptions,
@@ -170,8 +169,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 onChange: nil),
             ProviderSettingsPickerDescriptor(
                 id: "claude-cookie-source",
-                title: "Claude cookies",
-                subtitle: "Automatic imports browser cookies for the web API.",
+                title: String(localized: "Claude cookies"),
+                subtitle: String(localized: "Automatic imports browser cookies for the web API."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -200,7 +199,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
         if context.snapshot?.secondary == nil {
-            entries.append(.text("Weekly usage unavailable for this account.", .secondary))
+            entries.append(.text(String(localized: "Weekly usage unavailable for this account."), .secondary))
         }
 
         if let cost = context.snapshot?.providerCost,
@@ -209,7 +208,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         {
             let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-            entries.append(.text("Extra usage: \(used) / \(limit)", .primary))
+            entries.append(.text(String(localized: "Extra usage: \(used) / \(limit)"), .primary))
         }
     }
 
@@ -218,7 +217,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         -> (label: String, action: MenuDescriptor.MenuAction)?
     {
         guard self.shouldOpenTerminalForOAuthError(store: context.store) else { return nil }
-        return ("Open Terminal", .openTerminal(command: "claude"))
+        return (String(localized: "Open Terminal"), .openTerminal(command: "claude"))
     }
 
     @MainActor

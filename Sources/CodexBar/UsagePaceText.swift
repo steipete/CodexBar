@@ -2,7 +2,7 @@ import CodexBarCore
 import Foundation
 
 enum UsagePaceText {
-    struct WeeklyDetail: Sendable {
+    struct WeeklyDetail {
         let leftLabel: String
         let rightLabel: String?
         let expectedUsedPercent: Double
@@ -12,9 +12,9 @@ enum UsagePaceText {
     static func weeklySummary(pace: UsagePace, now: Date = .init()) -> String {
         let detail = self.weeklyDetail(pace: pace, now: now)
         if let rightLabel = detail.rightLabel {
-            return "Pace: \(detail.leftLabel) · \(rightLabel)"
+            return String(localized: "Pace: \(detail.leftLabel) · \(rightLabel)")
         }
-        return "Pace: \(detail.leftLabel)"
+        return String(localized: "Pace: \(detail.leftLabel)")
     }
 
     static func weeklyDetail(pace: UsagePace, now: Date = .init()) -> WeeklyDetail {
@@ -29,28 +29,29 @@ enum UsagePaceText {
         let deltaValue = Int(abs(pace.deltaPercent).rounded())
         switch pace.stage {
         case .onTrack:
-            return "On pace"
+            return String(localized: "On pace")
         case .slightlyAhead, .ahead, .farAhead:
-            return "\(deltaValue)% in deficit"
+            return String(localized: "\(deltaValue)% in deficit")
         case .slightlyBehind, .behind, .farBehind:
-            return "\(deltaValue)% in reserve"
+            return String(localized: "\(deltaValue)% in reserve")
         }
     }
 
     private static func detailRightLabel(for pace: UsagePace, now: Date) -> String? {
         let etaLabel: String?
         if pace.willLastToReset {
-            etaLabel = "Lasts until reset"
+            etaLabel = String(localized: "Lasts until reset")
         } else if let etaSeconds = pace.etaSeconds {
             let etaText = Self.durationText(seconds: etaSeconds, now: now)
-            etaLabel = etaText == "now" ? "Runs out now" : "Runs out in \(etaText)"
+            etaLabel = etaText == "now" ? String(localized: "Runs out now") :
+                String(localized: "Runs out in \(etaText)")
         } else {
             etaLabel = nil
         }
 
         guard let runOutProbability = pace.runOutProbability else { return etaLabel }
         let roundedRisk = self.roundedRiskPercent(runOutProbability)
-        let riskLabel = "≈ \(roundedRisk)% run-out risk"
+        let riskLabel = String(localized: "≈ \(roundedRisk)% run-out risk")
         if let etaLabel {
             return "\(etaLabel) · \(riskLabel)"
         }

@@ -38,16 +38,16 @@ struct UsageBreakdownChartMenuView: View {
                 Chart {
                     ForEach(model.points) { point in
                         BarMark(
-                            x: .value("Day", point.date, unit: .day),
-                            y: .value("Credits used", point.creditsUsed))
-                            .foregroundStyle(by: .value("Service", point.service))
+                            x: .value(String(localized: "Day"), point.date, unit: .day),
+                            y: .value(String(localized: "Credits used"), point.creditsUsed))
+                            .foregroundStyle(by: .value(String(localized: "Service"), point.service))
                     }
                     if let peak = model.peakPoint {
                         let capStart = max(peak.creditsUsed - Self.capHeight(maxValue: model.maxCreditsUsed), 0)
                         BarMark(
-                            x: .value("Day", peak.date, unit: .day),
-                            yStart: .value("Cap start", capStart),
-                            yEnd: .value("Cap end", peak.creditsUsed))
+                            x: .value(String(localized: "Day"), peak.date, unit: .day),
+                            yStart: .value(String(localized: "Cap start"), capStart),
+                            yEnd: .value(String(localized: "Cap end"), peak.creditsUsed))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }

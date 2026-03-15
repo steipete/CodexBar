@@ -2,7 +2,7 @@ import CodexBarCore
 
 enum ProviderCookieSourceUI {
     static let keychainDisabledPrefix =
-        "Keychain access is disabled in Advanced, so browser cookie import is unavailable."
+        String(localized: "Keychain access is disabled in Advanced, so browser cookie import is unavailable.")
 
     static func options(allowsOff: Bool, keychainDisabled: Bool) -> [ProviderSettingsPickerOption] {
         var options: [ProviderSettingsPickerOption] = []
