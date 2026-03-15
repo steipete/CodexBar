@@ -1,7 +1,6 @@
 import CodexBarCore
 import Foundation
 
-@main
 enum CodexBarClaudeWebProbe {
     private static let defaultEndpoints: [String] = [
         "https://claude.ai/api/organizations",
@@ -19,7 +18,7 @@ enum CodexBarClaudeWebProbe {
         "https://claude.ai/settings/usage",
     ]
 
-    static func main() async {
+    static func run() async {
         let args = CommandLine.arguments.dropFirst()
         let endpoints = args.isEmpty ? Self.defaultEndpoints : Array(args)
         let includePreview = ProcessInfo.processInfo.environment["CLAUDE_WEB_PROBE_PREVIEW"] == "1"
@@ -61,3 +60,5 @@ enum CodexBarClaudeWebProbe {
         print("")
     }
 }
+await CodexBarClaudeWebProbe.run()
+
