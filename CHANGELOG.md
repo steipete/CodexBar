@@ -39,6 +39,7 @@
 - Merged menu: add an Overview switcher tab that shows up to three provider usage rows in provider order (#416).
 - Settings: add "Overview tab providers" controls to choose/deselect Overview providers, with persisted selection reconciliation as enabled providers change (#416).
 - Menu: hide contextual provider actions while Overview is selected and rebuild switcher state when overview availability changes (#416).
+- Merged menu: keep Merge Icons, the switcher, and Overview tied to user-enabled providers even when some providers are temporarily unavailable, while defaulting menu content and icon state to an available provider when possible (#525). Thanks @Astro-Han!
 
 ### Claude OAuth & Keychain
 - Use a `claude-code/<version>` User-Agent for OAuth usage requests instead of a generic identifier.

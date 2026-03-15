@@ -286,6 +286,11 @@ final class UsageStore {
         return enabled.filter { self.isProviderAvailable($0) }
     }
 
+    /// Enabled providers without availability filtering. Used for display (switcher, merge-icons).
+    func enabledProvidersForDisplay() -> [UsageProvider] {
+        self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata)
+    }
+
     var statusChecksEnabled: Bool {
         self.settings.statusChecksEnabled
     }

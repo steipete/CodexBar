@@ -23,11 +23,11 @@ extension StatusItemController {
         }
 
         let blinkingEnabled = self.isBlinkingAllowed()
-        // Cache enabled providers to avoid repeated enablement lookups.
-        let enabledProviders = self.store.enabledProviders()
-        let anyEnabled = !enabledProviders.isEmpty || self.store.debugForceAnimation
+        // Use display list so merged-mode visibility stays consistent with shouldMergeIcons.
+        let displayProviders = self.store.enabledProvidersForDisplay()
+        let anyEnabled = !displayProviders.isEmpty || self.store.debugForceAnimation
         let anyVisible = UsageProvider.allCases.contains { self.isVisible($0) }
-        let mergeIcons = self.settings.mergeIcons && enabledProviders.count > 1
+        let mergeIcons = self.shouldMergeIcons
         let shouldBlink = mergeIcons ? anyEnabled : anyVisible
         if blinkingEnabled, shouldBlink {
             if self.blinkTask == nil {
@@ -278,7 +278,7 @@ extension StatusItemController {
         let tilt: CGFloat = style == .combined ? 0 : self.tiltAmount(for: primaryProvider) * .pi / 28
 
         let statusIndicator: ProviderStatusIndicator = {
-            for provider in self.store.enabledProviders() {
+            for provider in self.store.enabledProvidersForDisplay() {
                 let indicator = self.store.statusIndicator(for: provider)
                 if indicator.hasIssue { return indicator }
             }
@@ -499,6 +499,8 @@ extension StatusItemController {
                 return provider
             }
         }
+        // Use availability-filtered list: fallback must pick a provider that can
+        // actually animate, otherwise shouldAnimate() fails on credential-less providers.
         if let enabled = self.store.enabledProviders().first {
             return enabled
         }

@@ -272,7 +272,7 @@ struct StatusMenuTests {
         controller.menuWillOpen(menu)
 
         let buttons = self.switcherButtons(in: menu)
-        #expect(buttons.count == store.enabledProviders().count + 1)
+        #expect(buttons.count == store.enabledProvidersForDisplay().count + 1)
         #expect(buttons.contains(where: { $0.tag == 0 }))
         #expect(buttons.first(where: { $0.state == .on })?.tag == 2)
     }
@@ -883,7 +883,7 @@ extension StatusMenuTests {
 
         let ids = self.representedIDs(in: menu)
         let switcherButtons = self.switcherButtons(in: menu)
-        #expect(switcherButtons.count == store.enabledProviders().count)
+        #expect(switcherButtons.count == store.enabledProvidersForDisplay().count)
         #expect(switcherButtons.contains(where: { $0.title == "Overview" }) == false)
         #expect(switcherButtons.contains(where: { $0.state == .on && $0.tag == 0 }))
         #expect(ids.contains("menuCard"))
