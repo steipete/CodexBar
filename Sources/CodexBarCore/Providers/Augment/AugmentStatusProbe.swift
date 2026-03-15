@@ -131,6 +131,11 @@ public struct AugmentCreditsResponse: Codable, Sendable {
     }
 
     public var creditsLimit: Double? {
+        // Prefer the authoritative total from the API when available.
+        if let available = self.usageUnitsAvailable, available > 0 {
+            return available
+        }
+        // Fallback: derive from remaining + consumed.
         guard let remaining = self.usageUnitsRemaining,
               let consumed = self.usageUnitsConsumedThisBillingCycle
         else {
