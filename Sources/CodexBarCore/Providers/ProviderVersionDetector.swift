@@ -45,6 +45,10 @@ public enum ProviderVersionDetector {
         return nil
     }
 
+    static func runForTesting(path: String, args: [String]) -> String? {
+        self.run(path: path, args: args)
+    }
+
     private static func run(path: String, args: [String]) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
@@ -73,6 +77,8 @@ public enum ProviderVersionDetector {
                 kill(proc.processIdentifier, SIGKILL)
             }
         }
+
+        proc.waitUntilExit()
 
         let data = out.fileHandleForReading.readDataToEndOfFile()
         guard proc.terminationStatus == 0,

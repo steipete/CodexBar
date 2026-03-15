@@ -46,6 +46,60 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func tokenAccountEnvironmentOverridesConfigAPIKey_forAdditionalAPIProviders() throws {
+        let cases: [(provider: UsageProvider, envKey: String)] = [
+            (.copilot, "COPILOT_API_TOKEN"),
+            (.kimik2, KimiK2SettingsReader.apiKeyEnvironmentKeys[0]),
+            (.synthetic, SyntheticSettingsReader.apiKeyKey),
+            (.warp, WarpSettingsReader.apiKeyEnvironmentKeys[0]),
+            (.openrouter, OpenRouterSettingsReader.envKey),
+        ]
+
+        for (provider, envKey) in cases {
+            let suite = "TokenAccountEnvironmentPrecedenceTests-\(provider.rawValue)-api"
+            let settings = Self.makeSettingsStore(suite: suite)
+            settings.updateProviderConfig(provider: provider) { entry in
+                entry.apiKey = "config-token"
+            }
+            settings.addTokenAccount(provider: provider, label: "Account 1", token: "account-token")
+
+            let appEnv = ProviderRegistry.makeEnvironment(
+                base: [:],
+                provider: provider,
+                settings: settings,
+                tokenOverride: nil)
+
+            #expect(appEnv[envKey] == "account-token")
+            #expect(appEnv[envKey] != "config-token")
+
+            let config = CodexBarConfig(
+                providers: [
+                    ProviderConfig(
+                        id: provider,
+                        apiKey: "config-token",
+                        tokenAccounts: ProviderTokenAccountData(
+                            version: 1,
+                            accounts: [
+                                ProviderTokenAccount(
+                                    id: UUID(),
+                                    label: "Account 1",
+                                    token: "account-token",
+                                    addedAt: Date().timeIntervalSince1970,
+                                    lastUsed: nil),
+                            ],
+                            activeIndex: 0)),
+                ])
+            let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+            let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+            let account = try #require(tokenContext.resolvedAccounts(for: provider).first)
+
+            let cliEnv = tokenContext.environment(base: [:], provider: provider, account: account)
+            #expect(cliEnv[envKey] == "account-token")
+            #expect(cliEnv[envKey] != "config-token")
+        }
+    }
+
+    @Test
     func ollamaTokenAccountSelectionForcesManualCookieSourceInCLISettingsSnapshot() throws {
         let accounts = ProviderTokenAccountData(
             version: 1,
@@ -73,6 +127,48 @@ struct TokenAccountEnvironmentPrecedenceTests {
 
         #expect(ollamaSettings.cookieSource == .manual)
         #expect(ollamaSettings.manualCookieHeader == "session=account-token")
+    }
+
+    @Test
+    func codexTokenAccountsAreSupportedInCatalog() throws {
+        let support = try #require(TokenAccountSupportCatalog.support(for: .codex))
+        #expect(support.requiresManualCookieSource)
+        switch support.injection {
+        case .cookieHeader:
+            #expect(Bool(true))
+        case .environment:
+            Issue.record("Codex token accounts should inject as cookie headers")
+        }
+    }
+
+    @Test
+    func codexTokenAccountSelectionForcesManualCookieSourceInCLISettingsSnapshot() throws {
+        let accounts = ProviderTokenAccountData(
+            version: 1,
+            accounts: [
+                ProviderTokenAccount(
+                    id: UUID(),
+                    label: "Primary",
+                    token: "session=account-token",
+                    addedAt: 0,
+                    lastUsed: nil),
+            ],
+            activeIndex: 0)
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .codex,
+                    cookieSource: .auto,
+                    tokenAccounts: accounts),
+            ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let account = try #require(tokenContext.resolvedAccounts(for: .codex).first)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .codex, account: account))
+        let codexSettings = try #require(snapshot.codex)
+
+        #expect(codexSettings.cookieSource == .manual)
+        #expect(codexSettings.manualCookieHeader == "session=account-token")
     }
 
     @Test
@@ -113,6 +209,56 @@ struct TokenAccountEnvironmentPrecedenceTests {
         Self.expectSnapshotFieldsPreserved(before: snapshot, after: labeled)
         #expect(labeled.identity?.providerID == .zai)
         #expect(labeled.identity?.accountEmail == "CLI Account")
+    }
+
+    @Test
+    func codexAccountLabelDoesNotOverrideProviderIdentityEmail() {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-label")
+        let store = Self.makeUsageStore(settings: settings)
+        let snapshot = Self.makeSnapshotWithAllFields(provider: .codex)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "personal",
+            token: "session=account-token",
+            addedAt: 0,
+            lastUsed: nil)
+
+        let labeled = store.applyAccountLabel(snapshot, provider: .codex, account: account)
+
+        #expect(labeled.identity?.providerID == .codex)
+        #expect(labeled.identity?.accountEmail == snapshot.identity?.accountEmail)
+    }
+
+    @Test
+    func codexTokenAccountFetchUsesWebSourceWhenManualCookiesEnabled() {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-source-mode")
+        settings.codexCookieSource = .manual
+        let store = Self.makeUsageStore(settings: settings)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Account 1",
+            token: "session=account-token",
+            addedAt: 0,
+            lastUsed: nil)
+        let override = TokenAccountOverride(provider: .codex, account: account)
+
+        let mode = store.sourceMode(for: .codex, override: override)
+
+        #expect(mode == .web)
+    }
+
+    @Test
+    func codexProviderAutoModeUsesWebWhenManualTokenAccountsExist() {
+        let settings = Self
+            .makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-provider-source-mode")
+        settings.codexUsageDataSource = .auto
+        settings.codexCookieSource = .manual
+        settings.addTokenAccount(provider: .codex, label: "Account 1", token: "session=account-token")
+
+        let mode = CodexProviderImplementation().sourceMode(
+            context: ProviderSourceModeContext(provider: .codex, settings: settings))
+
+        #expect(mode == .web)
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {

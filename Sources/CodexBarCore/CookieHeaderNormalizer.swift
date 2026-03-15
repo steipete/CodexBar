@@ -2,14 +2,14 @@ import Foundation
 
 public enum CookieHeaderNormalizer {
     private static let headerPatterns: [String] = [
-        #"(?i)-H\s*'Cookie:\s*([^']+)'"#,
-        #"(?i)-H\s*\"Cookie:\s*([^\"]+)\""#,
+        #"(?i)(?:^|\s)-H\s+'Cookie:\s*([^']+)'"#,
+        #"(?i)(?:^|\s)-H\s+\"Cookie:\s*([^\"]+)\""#,
         #"(?i)\bcookie:\s*'([^']+)'"#,
         #"(?i)\bcookie:\s*\"([^\"]+)\""#,
         #"(?i)\bcookie:\s*([^\r\n]+)"#,
-        #"(?i)(?:--cookie|-b)\s*'([^']+)'"#,
-        #"(?i)(?:--cookie|-b)\s*\"([^\"]+)\""#,
-        #"(?i)(?:--cookie|-b)\s*([^\s]+)"#,
+        #"(?i)(?:^|\s)(?:--cookie|-b)\s+'([^']+)'"#,
+        #"(?i)(?:^|\s)(?:--cookie|-b)\s+\"([^\"]+)\""#,
+        #"(?i)(?:^|\s)(?:--cookie|-b)\s+([^\s]+)"#,
     ]
 
     public static func normalize(_ raw: String?) -> String? {

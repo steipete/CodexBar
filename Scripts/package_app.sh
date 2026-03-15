@@ -317,7 +317,12 @@ elif [[ "$ALLOW_LLDB" == "1" ]]; then
   CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
 else
   CODESIGN_ID="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y5PE65HELJ)}"
-  CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$CODESIGN_ID")
+  if [[ "$CODESIGN_ID" == "CodexBar Development" ]]; then
+    echo "INFO: '${CODESIGN_ID}' has no Team ID; signing without hardened runtime for local dev stability." >&2
+    CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
+  else
+    CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$CODESIGN_ID")
+  fi
 fi
 function resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }
   # Sign innermost binaries first, then the framework root to seal resources
