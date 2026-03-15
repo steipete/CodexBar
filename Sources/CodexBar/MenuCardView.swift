@@ -918,6 +918,12 @@ extension UsageMenuCardView.Model {
             {
                 primaryDetailText = detail
             }
+            if input.provider == .alibaba,
+               let detail = primary.resetDescription,
+               !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                primaryDetailText = detail
+            }
             if input.provider == .warp || input.provider == .kilo, primary.resetsAt == nil {
                 primaryResetText = nil
             }
@@ -958,6 +964,12 @@ extension UsageMenuCardView.Model {
                     weeklyResetText = nil
                 }
             }
+            if input.provider == .alibaba,
+               let detail = weekly.resetDescription,
+               !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                weeklyDetailText = detail
+            }
             metrics.append(Metric(
                 id: "secondary",
                 title: input.metadata.weeklyLabel,
@@ -983,13 +995,20 @@ extension UsageMenuCardView.Model {
             }
         }
         if input.metadata.supportsOpus, let opus = snapshot.tertiary {
+            var tertiaryDetailText: String?
+            if input.provider == .alibaba,
+               let detail = opus.resetDescription,
+               !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                tertiaryDetailText = detail
+            }
             metrics.append(Metric(
                 id: "tertiary",
                 title: input.metadata.opusLabel ?? "Sonnet",
                 percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now),
-                detailText: nil,
+                detailText: tertiaryDetailText,
                 detailLeftText: nil,
                 detailRightText: nil,
                 pacePercent: nil,

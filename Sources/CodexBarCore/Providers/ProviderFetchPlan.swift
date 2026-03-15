@@ -162,6 +162,7 @@ public struct ProviderFetchPipeline: Sendable {
         let strategies = await self.resolveStrategies(context)
         var attempts: [ProviderFetchAttempt] = []
         attempts.reserveCapacity(strategies.count)
+        var lastAvailableError: Error?
 
         for strategy in strategies {
             let available = await strategy.isAvailable(context)
@@ -184,6 +185,7 @@ public struct ProviderFetchPipeline: Sendable {
                     errorDescription: nil))
                 return ProviderFetchOutcome(result: .success(result), attempts: attempts)
             } catch {
+                lastAvailableError = error
                 attempts.append(ProviderFetchAttempt(
                     strategyID: strategy.id,
                     kind: strategy.kind,
@@ -196,7 +198,7 @@ public struct ProviderFetchPipeline: Sendable {
             }
         }
 
-        let error = ProviderFetchError.noAvailableStrategy(provider)
+        let error = lastAvailableError ?? ProviderFetchError.noAvailableStrategy(provider)
         return ProviderFetchOutcome(result: .failure(error), attempts: attempts)
     }
 }

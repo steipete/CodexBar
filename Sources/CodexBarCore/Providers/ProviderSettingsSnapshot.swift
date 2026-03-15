@@ -8,6 +8,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         claude: ClaudeProviderSettings? = nil,
         cursor: CursorProviderSettings? = nil,
         opencode: OpenCodeProviderSettings? = nil,
+        alibaba: AlibabaCodingPlanProviderSettings? = nil,
         factory: FactoryProviderSettings? = nil,
         minimax: MiniMaxProviderSettings? = nil,
         zai: ZaiProviderSettings? = nil,
@@ -26,6 +27,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             claude: claude,
             cursor: cursor,
             opencode: opencode,
+            alibaba: alibaba,
             factory: factory,
             minimax: minimax,
             zai: zai,
@@ -92,6 +94,22 @@ public struct ProviderSettingsSnapshot: Sendable {
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
             self.workspaceID = workspaceID
+        }
+    }
+
+    public struct AlibabaCodingPlanProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+        public let apiRegion: AlibabaCodingPlanAPIRegion
+
+        public init(
+            cookieSource: ProviderCookieSource = .auto,
+            manualCookieHeader: String? = nil,
+            apiRegion: AlibabaCodingPlanAPIRegion = .international)
+        {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+            self.apiRegion = apiRegion
         }
     }
 
@@ -197,6 +215,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let claude: ClaudeProviderSettings?
     public let cursor: CursorProviderSettings?
     public let opencode: OpenCodeProviderSettings?
+    public let alibaba: AlibabaCodingPlanProviderSettings?
     public let factory: FactoryProviderSettings?
     public let minimax: MiniMaxProviderSettings?
     public let zai: ZaiProviderSettings?
@@ -219,6 +238,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         claude: ClaudeProviderSettings?,
         cursor: CursorProviderSettings?,
         opencode: OpenCodeProviderSettings?,
+        alibaba: AlibabaCodingPlanProviderSettings?,
         factory: FactoryProviderSettings?,
         minimax: MiniMaxProviderSettings?,
         zai: ZaiProviderSettings?,
@@ -236,6 +256,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.claude = claude
         self.cursor = cursor
         self.opencode = opencode
+        self.alibaba = alibaba
         self.factory = factory
         self.minimax = minimax
         self.zai = zai
@@ -254,6 +275,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case claude(ProviderSettingsSnapshot.ClaudeProviderSettings)
     case cursor(ProviderSettingsSnapshot.CursorProviderSettings)
     case opencode(ProviderSettingsSnapshot.OpenCodeProviderSettings)
+    case alibaba(ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings)
     case factory(ProviderSettingsSnapshot.FactoryProviderSettings)
     case minimax(ProviderSettingsSnapshot.MiniMaxProviderSettings)
     case zai(ProviderSettingsSnapshot.ZaiProviderSettings)
@@ -273,6 +295,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var claude: ProviderSettingsSnapshot.ClaudeProviderSettings?
     public var cursor: ProviderSettingsSnapshot.CursorProviderSettings?
     public var opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings?
+    public var alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings?
     public var factory: ProviderSettingsSnapshot.FactoryProviderSettings?
     public var minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings?
     public var zai: ProviderSettingsSnapshot.ZaiProviderSettings?
@@ -295,6 +318,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .claude(value): self.claude = value
         case let .cursor(value): self.cursor = value
         case let .opencode(value): self.opencode = value
+        case let .alibaba(value): self.alibaba = value
         case let .factory(value): self.factory = value
         case let .minimax(value): self.minimax = value
         case let .zai(value): self.zai = value
@@ -316,6 +340,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             claude: self.claude,
             cursor: self.cursor,
             opencode: self.opencode,
+            alibaba: self.alibaba,
             factory: self.factory,
             minimax: self.minimax,
             zai: self.zai,

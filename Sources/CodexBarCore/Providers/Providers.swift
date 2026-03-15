@@ -7,6 +7,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case claude
     case cursor
     case opencode
+    case alibaba
     case factory
     case gemini
     case antigravity
@@ -38,6 +39,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case antigravity
     case cursor
     case opencode
+    case alibaba
     case factory
     case copilot
     case kimi
