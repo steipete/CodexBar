@@ -181,8 +181,8 @@ struct UsageMenuCardView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 2)
-        .padding(.bottom, 2)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
         .frame(width: self.width, alignment: .leading)
     }
 
@@ -399,21 +399,14 @@ private struct UsageNotesContent: View {
 
 struct UsageMenuCardHeaderSectionView: View {
     let model: UsageMenuCardView.Model
-    let showDivider: Bool
     let width: CGFloat
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            UsageMenuCardHeaderView(model: self.model)
-
-            if self.showDivider {
-                Divider()
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 2)
-        .padding(.bottom, self.model.subtitleStyle == .error ? 2 : 0)
-        .frame(width: self.width, alignment: .leading)
+        UsageMenuCardHeaderView(model: self.model)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+            .frame(width: self.width, alignment: .leading)
     }
 }
 
@@ -450,7 +443,7 @@ struct UsageMenuCardUsageSectionView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 10)
+        .padding(.top, 8)
         .padding(.bottom, self.bottomPadding)
         .frame(width: self.width, alignment: .leading)
     }
