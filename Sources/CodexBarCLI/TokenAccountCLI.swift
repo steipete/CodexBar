@@ -157,6 +157,11 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(
                 jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
                     ideBasePath: nil))
+        case .abacus:
+            return self.makeSnapshot(
+                abacus: ProviderSettingsSnapshot.AbacusProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp:
             return nil
         }
@@ -175,7 +180,8 @@ struct TokenAccountCLIContext {
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
         amp: ProviderSettingsSnapshot.AmpProviderSettings? = nil,
         ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
-        jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil) -> ProviderSettingsSnapshot
+        jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
+        abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
@@ -190,7 +196,8 @@ struct TokenAccountCLIContext {
             augment: augment,
             amp: amp,
             ollama: ollama,
-            jetbrains: jetbrains)
+            jetbrains: jetbrains,
+            abacus: abacus)
     }
 
     func environment(

@@ -1,4 +1,5 @@
 public enum LogCategories {
+    public static let abacusUsage = "abacus-usage"
     public static let amp = "amp"
     public static let antigravity = "antigravity"
     public static let app = "app"

@@ -279,6 +279,7 @@ private struct ProviderSwitchChip: View {
         case .synthetic: "Synthetic"
         case .openrouter: "OpenRouter"
         case .warp: "Warp"
+        case .abacus: "Abacus"
         }
     }
 }
@@ -618,6 +619,8 @@ enum WidgetColors {
             Color(red: 111 / 255, green: 66 / 255, blue: 193 / 255) // OpenRouter purple
         case .warp:
             Color(red: 147 / 255, green: 139 / 255, blue: 180 / 255)
+        case .abacus:
+            Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
         }
     }
 }

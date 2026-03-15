@@ -272,6 +272,14 @@ struct ProvidersPane: View {
                     id: MenuBarMetricPreference.primary.rawValue,
                     title: "Primary (API key limit)"),
             ]
+        } else if provider == .abacus {
+            let metadata = self.store.metadata(for: provider)
+            options = [
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.primary.rawValue,
+                    title: "Primary (\(metadata.sessionLabel))"),
+            ]
         } else {
             let metadata = self.store.metadata(for: provider)
             let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
@@ -339,7 +347,9 @@ struct ProvidersPane: View {
         }
 
         let now = Date()
-        let weeklyPace = snapshot?.secondary.flatMap { window in
+        // Abacus uses primary for monthly credits (no secondary window)
+        let paceWindow = provider == .abacus ? snapshot?.primary : snapshot?.secondary
+        let weeklyPace = paceWindow.flatMap { window in
             self.store.weeklyPace(provider: provider, window: window, now: now)
         }
         let input = UsageMenuCardView.Model.Input(
