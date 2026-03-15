@@ -2,6 +2,14 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
+extension View {
+    fileprivate func menuCardSectionTitleStyle() -> some View {
+        self
+            .font(.body)
+            .fontWeight(.medium)
+    }
+}
+
 /// SwiftUI card used inside the NSMenu to mirror Apple's rich menu panels.
 struct UsageMenuCardView: View {
     struct Model {
@@ -27,6 +35,8 @@ struct UsageMenuCardView: View {
         struct Metric: Identifiable {
             let id: String
             let title: String
+            let groupID: String?
+            let groupTitle: String?
             let percent: Double
             let percentStyle: PercentStyle
             let resetText: String?
@@ -38,6 +48,27 @@ struct UsageMenuCardView: View {
 
             var percentLabel: String {
                 String(format: "%.0f%% %@", self.percent, self.percentStyle.labelSuffix)
+            }
+        }
+
+        struct MetricGroup: Identifiable {
+            enum Kind {
+                case builtInPrimary
+                case providerBucket
+            }
+
+            let id: String
+            let title: String?
+            let kind: Kind
+            let metrics: [Metric]
+
+            var internalID: String {
+                switch self.kind {
+                case .builtInPrimary:
+                    "builtInPrimary"
+                case .providerBucket:
+                    "providerBucket:\(self.id)"
+                }
             }
         }
 
@@ -82,8 +113,66 @@ struct UsageMenuCardView: View {
     let model: Model
     let width: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
+    private static let builtInPrimaryMetricGroupID = "__builtInPrimary"
 
     static func popupMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
+        if provider == .openrouter, metric.id == "primary" {
+            return "API key limit"
+        }
+        return metric.title
+    }
+
+    static func metricGroups(metrics: [Model.Metric]) -> [Model.MetricGroup] {
+        guard !metrics.isEmpty else { return [] }
+        var groups: [Model.MetricGroup] = []
+        let primaryMetrics = metrics.filter { $0.groupID == nil }
+        if !primaryMetrics.isEmpty {
+            groups.append(.init(
+                id: self.builtInPrimaryMetricGroupID,
+                title: nil,
+                kind: .builtInPrimary,
+                metrics: primaryMetrics))
+        }
+
+        var supplementalGroups: [String: [Model.Metric]] = [:]
+        var supplementalOrder: [String] = []
+        for metric in metrics {
+            guard let groupID = metric.groupID else { continue }
+            if supplementalGroups[groupID] == nil {
+                supplementalOrder.append(groupID)
+            }
+            supplementalGroups[groupID, default: []].append(metric)
+        }
+
+        for groupID in supplementalOrder {
+            guard let metrics = supplementalGroups[groupID], !metrics.isEmpty else { continue }
+            groups.append(.init(
+                id: groupID,
+                title: metrics.first?.groupTitle,
+                kind: .providerBucket,
+                metrics: metrics))
+        }
+
+        return groups
+    }
+
+    static func primaryMetricGroup(metrics: [Model.Metric]) -> Model.MetricGroup? {
+        self.metricGroups(metrics: metrics).first { $0.kind == .builtInPrimary }
+    }
+
+    static func supplementalMetricGroups(metrics: [Model.Metric]) -> [Model.MetricGroup] {
+        self.metricGroups(metrics: metrics).filter { $0.kind == .providerBucket }
+    }
+
+    static func emptyPrimaryMetricGroup() -> Model.MetricGroup {
+        .init(
+            id: self.builtInPrimaryMetricGroupID,
+            title: nil,
+            kind: .builtInPrimary,
+            metrics: [])
+    }
+
+    static func displayMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
         if provider == .openrouter, metric.id == "primary" {
             return "API key limit"
         }
@@ -111,15 +200,29 @@ struct UsageMenuCardView: View {
                 let hasCredits = self.model.creditsText != nil
                 let hasProviderCost = self.model.providerCost != nil
                 let hasCost = self.model.tokenUsage != nil || hasProviderCost
+                let metricGroups = Self.metricGroups(metrics: self.model.metrics)
 
                 VStack(alignment: .leading, spacing: 12) {
                     if hasUsage {
                         VStack(alignment: .leading, spacing: 12) {
-                            ForEach(self.model.metrics, id: \.id) { metric in
-                                MetricRow(
-                                    metric: metric,
-                                    title: Self.popupMetricTitle(provider: self.model.provider, metric: metric),
-                                    progressColor: self.model.progressColor)
+                            ForEach(Array(metricGroups.enumerated()), id: \.element.internalID) { index, group in
+                                if index > 0 {
+                                    Divider()
+                                }
+                                VStack(alignment: .leading, spacing: 12) {
+                                    if let title = group.title {
+                                        Text(title)
+                                            .menuCardSectionTitleStyle()
+                                    }
+                                    ForEach(group.metrics, id: \.id) { metric in
+                                        MetricRow(
+                                            metric: metric,
+                                            title: Self.displayMetricTitle(
+                                                provider: self.model.provider,
+                                                metric: metric),
+                                            progressColor: self.model.progressColor)
+                                    }
+                                }
                             }
                             if !self.model.usageNotes.isEmpty {
                                 UsageNotesContent(notes: self.model.usageNotes)
@@ -301,8 +404,7 @@ private struct ProviderCostContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(self.section.title)
-                .font(.body)
-                .fontWeight(.medium)
+                .menuCardSectionTitleStyle()
             UsageProgressBar(
                 percent: self.section.percentUsed,
                 tint: self.progressColor,
@@ -328,8 +430,7 @@ private struct MetricRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(self.title)
-                .font(.body)
-                .fontWeight(.medium)
+                .menuCardSectionTitleStyle()
             UsageProgressBar(
                 percent: self.metric.percent,
                 tint: self.progressColor,
@@ -425,6 +526,7 @@ struct UsageMenuCardUsageSectionView: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
+        let metricGroups = UsageMenuCardView.metricGroups(metrics: self.model.metrics)
         VStack(alignment: .leading, spacing: 12) {
             if self.model.metrics.isEmpty {
                 if !self.model.usageNotes.isEmpty {
@@ -435,11 +537,24 @@ struct UsageMenuCardUsageSectionView: View {
                         .font(.subheadline)
                 }
             } else {
-                ForEach(self.model.metrics, id: \.id) { metric in
-                    MetricRow(
-                        metric: metric,
-                        title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
-                        progressColor: self.model.progressColor)
+                ForEach(Array(metricGroups.enumerated()), id: \.element.internalID) { index, group in
+                    if index > 0 {
+                        Divider()
+                    }
+                    VStack(alignment: .leading, spacing: 12) {
+                        if let title = group.title {
+                            Text(title)
+                                .menuCardSectionTitleStyle()
+                        }
+                        ForEach(group.metrics, id: \.id) { metric in
+                            MetricRow(
+                                metric: metric,
+                                title: UsageMenuCardView.displayMetricTitle(
+                                    provider: self.model.provider,
+                                    metric: metric),
+                                progressColor: self.model.progressColor)
+                        }
+                    }
                 }
                 if !self.model.usageNotes.isEmpty {
                     UsageNotesContent(notes: self.model.usageNotes)
@@ -451,6 +566,52 @@ struct UsageMenuCardUsageSectionView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
+        .padding(.bottom, self.bottomPadding)
+        .frame(width: self.width, alignment: .leading)
+    }
+}
+
+struct UsageMenuCardMetricGroupSectionView: View {
+    let provider: UsageProvider
+    let group: UsageMenuCardView.Model.MetricGroup
+    let usageNotes: [String]
+    let placeholder: String?
+    let topPadding: CGFloat
+    let bottomPadding: CGFloat
+    let width: CGFloat
+    let progressColor: Color
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let title = self.group.title {
+                Text(title)
+                    .menuCardSectionTitleStyle()
+            }
+            if self.group.metrics.isEmpty {
+                if !self.usageNotes.isEmpty {
+                    UsageNotesContent(notes: self.usageNotes)
+                } else if let placeholder = self.placeholder {
+                    Text(placeholder)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .font(.subheadline)
+                }
+            } else {
+                ForEach(self.group.metrics, id: \.id) { metric in
+                    MetricRow(
+                        metric: metric,
+                        title: UsageMenuCardView.displayMetricTitle(
+                            provider: self.provider,
+                            metric: metric),
+                        progressColor: self.progressColor)
+                }
+                if !self.usageNotes.isEmpty {
+                    UsageNotesContent(notes: self.usageNotes)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, self.topPadding)
         .padding(.bottom, self.bottomPadding)
         .frame(width: self.width, alignment: .leading)
     }
@@ -508,8 +669,7 @@ private struct CreditsBarContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Credits")
-                .font(.body)
-                .fontWeight(.medium)
+                .menuCardSectionTitleStyle()
             if let percentLeft {
                 UsageProgressBar(
                     percent: percentLeft,
@@ -924,6 +1084,8 @@ extension UsageMenuCardView.Model {
             metrics.append(Metric(
                 id: "primary",
                 title: input.metadata.sessionLabel,
+                groupID: nil,
+                groupTitle: nil,
                 percent: Self.clamped(
                     input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
                 percentStyle: percentStyle,
@@ -961,6 +1123,8 @@ extension UsageMenuCardView.Model {
             metrics.append(Metric(
                 id: "secondary",
                 title: input.metadata.weeklyLabel,
+                groupID: nil,
+                groupTitle: nil,
                 percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: weeklyResetText,
@@ -986,6 +1150,8 @@ extension UsageMenuCardView.Model {
             metrics.append(Metric(
                 id: "tertiary",
                 title: input.metadata.opusLabel ?? "Sonnet",
+                groupID: nil,
+                groupTitle: nil,
                 percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now),
@@ -995,12 +1161,32 @@ extension UsageMenuCardView.Model {
                 pacePercent: nil,
                 paceOnTop: true))
         }
+        for bucketGroup in snapshot.usageBucketGroups {
+            for bucket in bucketGroup.buckets {
+                metrics.append(Metric(
+                    id: bucket.id,
+                    title: bucket.title,
+                    groupID: bucketGroup.id,
+                    groupTitle: bucketGroup.title,
+                    percent: Self.clamped(
+                        input.usageBarsShowUsed ? bucket.window.usedPercent : bucket.window.remainingPercent),
+                    percentStyle: percentStyle,
+                    resetText: Self.resetText(for: bucket.window, style: input.resetTimeDisplayStyle, now: input.now),
+                    detailText: nil,
+                    detailLeftText: nil,
+                    detailRightText: nil,
+                    pacePercent: nil,
+                    paceOnTop: true))
+            }
+        }
 
         if input.provider == .codex, let remaining = input.dashboard?.codeReviewRemainingPercent {
             let percent = input.usageBarsShowUsed ? (100 - remaining) : remaining
             metrics.append(Metric(
                 id: "code-review",
                 title: "Code review",
+                groupID: nil,
+                groupTitle: nil,
                 percent: Self.clamped(percent),
                 percentStyle: percentStyle,
                 resetText: nil,

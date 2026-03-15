@@ -3,6 +3,34 @@ import CodexBarCore
 import Testing
 @testable import CodexBar
 
+private func makeCodexSparkUsageBucketGroup() -> UsageBucketGroupSnapshot {
+    UsageBucketGroupSnapshot(
+        id: "codex.spark",
+        title: "GPT-5.3-Codex-Spark",
+        buckets: [
+            UsageBucketSnapshot(
+                id: "codex.spark.session",
+                title: "Session",
+                window: RateWindow(usedPercent: 3, windowMinutes: 300, resetsAt: Date(), resetDescription: nil)),
+            UsageBucketSnapshot(
+                id: "codex.spark.weekly",
+                title: "Weekly",
+                window: RateWindow(usedPercent: 17, windowMinutes: 10080, resetsAt: Date(), resetDescription: nil)),
+        ])
+}
+
+private func makeProviderPrimaryUsageBucketGroup() -> UsageBucketGroupSnapshot {
+    UsageBucketGroupSnapshot(
+        id: "primary",
+        title: "Provider Primary",
+        buckets: [
+            UsageBucketSnapshot(
+                id: "primary.session",
+                title: "Session",
+                window: RateWindow(usedPercent: 3, windowMinutes: 300, resetsAt: Date(), resetDescription: nil)),
+        ])
+}
+
 @MainActor
 @Suite
 struct StatusMenuTests {
@@ -632,6 +660,155 @@ struct StatusMenuTests {
         #expect(creditsIndex != nil)
         #expect(costIndex != nil)
         #expect(try #require(creditsIndex) < costIndex!)
+    }
+
+    @Test
+    func codexMenuCardSeparatesSparkSectionWhenLiveSparkUsageExists() throws {
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.menuRefreshEnabled = false
+        defer { self.disableMenuCardsForTesting() }
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setSnapshotForTesting(UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: Date(), resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: Date(), resetDescription: nil),
+            usageBucketGroups: [makeCodexSparkUsageBucketGroup()],
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "codex@example.com",
+                accountOrganization: nil,
+                loginMethod: nil)), provider: .codex)
+        store.credits = CreditsSnapshot(remaining: 42, events: [], updatedAt: Date())
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let ids = self.representedIDs(in: menu)
+        let usageIndex = try #require(ids.firstIndex(of: "menuCardUsage"))
+        let sparkIndex = try #require(ids.firstIndex(of: "menuCardUsageGroup-codex.spark"))
+        let creditsIndex = try #require(ids.firstIndex(of: "menuCardCredits"))
+
+        #expect(usageIndex < sparkIndex)
+        #expect(sparkIndex < creditsIndex)
+    }
+
+    @Test
+    func codexSparkOnlyMenuCardKeepsSeparatorBeforeActions() throws {
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.menuRefreshEnabled = false
+        defer { self.disableMenuCardsForTesting() }
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setSnapshotForTesting(UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: Date(), resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: Date(), resetDescription: nil),
+            usageBucketGroups: [makeCodexSparkUsageBucketGroup()],
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "codex@example.com",
+                accountOrganization: nil,
+                loginMethod: nil)), provider: .codex)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+
+        let sparkIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "menuCardUsageGroup-codex.spark"
+        })
+        let separatorIndex = sparkIndex + 1
+        #expect(separatorIndex < menu.items.count)
+        #expect(menu.items[separatorIndex].isSeparatorItem)
+    }
+
+    @Test
+    func providerOwnedPrimaryBucketGroupStillRendersAsSupplementalSection() throws {
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.menuRefreshEnabled = false
+        defer { self.disableMenuCardsForTesting() }
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setSnapshotForTesting(UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: Date(), resetDescription: nil),
+            secondary: nil,
+            usageBucketGroups: [makeProviderPrimaryUsageBucketGroup()],
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "codex@example.com",
+                accountOrganization: nil,
+                loginMethod: nil)), provider: .codex)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let ids = self.representedIDs(in: menu)
+        let usageIndex = try #require(ids.firstIndex(of: "menuCardUsage"))
+        let providerPrimaryIndex = try #require(ids.firstIndex(of: "menuCardUsageGroup-primary"))
+
+        #expect(usageIndex < providerPrimaryIndex)
     }
 
     @Test

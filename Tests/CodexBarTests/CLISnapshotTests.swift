@@ -44,6 +44,66 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func rendersSparkSectionForCodexWhenLiveSparkUsageExists() {
+        let now = Date(timeIntervalSince1970: 0)
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 12,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: "today at 3:00 PM"),
+            secondary: .init(
+                usedPercent: 25,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: "Fri at 9:00 AM"),
+            usageBucketGroups: [
+                UsageBucketGroupSnapshot(
+                    id: "codex.spark",
+                    title: "GPT-5.3-Codex-Spark",
+                    buckets: [
+                        UsageBucketSnapshot(
+                            id: "codex.spark.session",
+                            title: "Session",
+                            window: .init(
+                                usedPercent: 3,
+                                windowMinutes: 300,
+                                resetsAt: now.addingTimeInterval(900),
+                                resetDescription: nil)),
+                        UsageBucketSnapshot(
+                            id: "codex.spark.weekly",
+                            title: "Weekly",
+                            window: .init(
+                                usedPercent: 17,
+                                windowMinutes: 10080,
+                                resetsAt: now.addingTimeInterval(1200),
+                                resetDescription: nil)),
+                    ]),
+            ],
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "user@example.com",
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 1.2.3 (oauth)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(output.contains("GPT-5.3-Codex-Spark"))
+        #expect(output.contains("Session: 97% left"))
+        #expect(output.contains("Weekly: 83% left"))
+        #expect(output.contains("Plan:") == false)
+    }
+
+    @Test
     func rendersTextSnapshotForClaudeWithoutWeekly() {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 2, windowMinutes: nil, resetsAt: nil, resetDescription: "3pm (Europe/Vienna)"),
@@ -246,6 +306,47 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func usageSnapshotRoundTripsUsageBucketGroups() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            usageBucketGroups: [
+                UsageBucketGroupSnapshot(
+                    id: "codex.spark",
+                    title: "GPT-5.3-Codex-Spark",
+                    buckets: [
+                        UsageBucketSnapshot(
+                            id: "codex.spark.session",
+                            title: "Session",
+                            window: .init(
+                                usedPercent: 3,
+                                windowMinutes: 300,
+                                resetsAt: now.addingTimeInterval(900),
+                                resetDescription: nil)),
+                    ]),
+                UsageBucketGroupSnapshot(
+                    id: "empty.group",
+                    title: "Empty",
+                    buckets: []),
+            ],
+            updatedAt: now)
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        let data = try encoder.encode(snapshot)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let decoded = try decoder.decode(UsageSnapshot.self, from: data)
+
+        #expect(decoded.usageBucketGroups.count == 1)
+        #expect(decoded.usageBucketGroups.first?.id == "codex.spark")
+        #expect(decoded.usageBucketGroups.first?.buckets.map(\.id) == ["codex.spark.session"])
+    }
+
+    @Test
     func rendersJSONPayload() throws {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
@@ -282,6 +383,7 @@ struct CLISnapshotTests {
         #expect(json.contains("status.example.com"))
         #expect(json.contains("\"primary\""))
         #expect(json.contains("\"windowMinutes\":300"))
+        #expect(json.contains("\"usageBucketGroups\":[]"))
         #expect(json.contains("1700000000"))
     }
 
@@ -302,6 +404,7 @@ struct CLISnapshotTests {
         }
 
         #expect(json.contains("\"secondary\":null"))
+        #expect(json.contains("\"usageBucketGroups\":[]"))
     }
 
     @Test

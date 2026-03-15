@@ -164,6 +164,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
     private static func mapUsage(_ response: CodexUsageResponse, credentials: CodexOAuthCredentials) -> UsageSnapshot {
         let primary = Self.makeWindow(response.rateLimit?.primaryWindow)
         let secondary = Self.makeWindow(response.rateLimit?.secondaryWindow)
+        let usageBucketGroups = Self.makeUsageBucketGroups(response.additionalRateLimits)
 
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -175,6 +176,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             primary: primary ?? RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: secondary,
             tertiary: nil,
+            usageBucketGroups: usageBucketGroups,
             updatedAt: Date(),
             identity: identity)
     }
@@ -193,6 +195,36 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             windowMinutes: window.limitWindowSeconds / 60,
             resetsAt: resetDate,
             resetDescription: resetDescription)
+    }
+
+    private static func makeUsageBucketGroups(
+        _ rateLimits: [CodexUsageResponse.AdditionalRateLimit]?) -> [UsageBucketGroupSnapshot]
+    {
+        guard let sparkRateLimit = rateLimits?.first(where: self.isSparkRateLimit) else { return [] }
+        let session = self.makeWindow(sparkRateLimit.rateLimit?.primaryWindow)
+        let weekly = self.makeWindow(sparkRateLimit.rateLimit?.secondaryWindow)
+        var buckets: [UsageBucketSnapshot] = []
+        if let session {
+            buckets.append(UsageBucketSnapshot(id: "codex.spark.session", title: "Session", window: session))
+        }
+        if let weekly {
+            buckets.append(UsageBucketSnapshot(id: "codex.spark.weekly", title: "Weekly", window: weekly))
+        }
+        guard !buckets.isEmpty else { return [] }
+        return [UsageBucketGroupSnapshot(
+            id: "codex.spark",
+            title: "GPT-5.3-Codex-Spark",
+            buckets: buckets)]
+    }
+
+    private static func isSparkRateLimit(_ rateLimit: CodexUsageResponse.AdditionalRateLimit) -> Bool {
+        let limitName = rateLimit.limitName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if limitName == "gpt-5.3-codex-spark" {
+            return true
+        }
+
+        let meteredFeature = rateLimit.meteredFeature?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return meteredFeature == "codex_bengalfox"
     }
 
     private static func resolveAccountEmail(from credentials: CodexOAuthCredentials) -> String? {

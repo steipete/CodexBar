@@ -6,11 +6,13 @@ import FoundationNetworking
 public struct CodexUsageResponse: Decodable, Sendable {
     public let planType: PlanType?
     public let rateLimit: RateLimitDetails?
+    public let additionalRateLimits: [AdditionalRateLimit]?
     public let credits: CreditDetails?
 
     enum CodingKeys: String, CodingKey {
         case planType = "plan_type"
         case rateLimit = "rate_limit"
+        case additionalRateLimits = "additional_rate_limits"
         case credits
     }
 
@@ -91,6 +93,18 @@ public struct CodexUsageResponse: Decodable, Sendable {
             case usedPercent = "used_percent"
             case resetAt = "reset_at"
             case limitWindowSeconds = "limit_window_seconds"
+        }
+    }
+
+    public struct AdditionalRateLimit: Decodable, Sendable {
+        public let limitName: String?
+        public let meteredFeature: String?
+        public let rateLimit: RateLimitDetails?
+
+        enum CodingKeys: String, CodingKey {
+            case limitName = "limit_name"
+            case meteredFeature = "metered_feature"
+            case rateLimit = "rate_limit"
         }
     }
 
