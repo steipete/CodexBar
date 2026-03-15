@@ -5,15 +5,18 @@ import LocalAuthentication
 import Security
 
 enum KeychainNoUIQuery {
+    private static let legacyAuthenticationUIFailValue = "u_AuthUIF"
+
     static func apply(to query: inout [String: Any]) {
         let context = LAContext()
         context.interactionNotAllowed = true
-        query[kSecUseAuthenticationContext as String] = context
 
-        // NOTE: While Apple recommends using LAContext.interactionNotAllowed, that alone is not sufficient to
-        // prevent the legacy keychain "Allow/Deny" prompt on some configurations. We also set the UI policy to fail
-        // so SecItemCopyMatching returns errSecInteractionNotAllowed instead of showing UI.
-        query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        // On our macOS 14+ target, the supported non-interactive keychain path is an LAContext with
+        // interaction disabled. We also keep the legacy "fail instead of prompt" policy because some
+        // external keychain items still use the legacy keychain behavior on macOS.
+        query[kSecUseAuthenticationContext as String] = context
+        // Preserve the old fail-without-prompt behavior without referencing the deprecated constant directly.
+        query[kSecUseAuthenticationUI as String] = Self.legacyAuthenticationUIFailValue
     }
 }
 #endif

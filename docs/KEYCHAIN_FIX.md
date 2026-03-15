@@ -48,7 +48,9 @@ Load order for credentials:
 5. Claude CLI keychain service: `Claude Code-credentials` (promptable fallback).
 
 Prompt mitigation:
-- Non-interactive keychain probes use `KeychainNoUIQuery` (`LAContext.interactionNotAllowed` + `kSecUseAuthenticationUIFail`).
+- Non-interactive keychain probes use `KeychainNoUIQuery` with `kSecUseAuthenticationContext`, an
+  `LAContext` whose `interactionNotAllowed` property is set, and a legacy fail-without-prompt
+  compatibility value for older keychain items.
 - Pre-alert is shown only when preflight suggests interaction may be required.
 - Denials are cooled down in the background via `claudeOAuthKeychainDeniedUntil`
   (`ClaudeOAuthKeychainAccessGate`). User actions (menu open / manual refresh) clear this cooldown.

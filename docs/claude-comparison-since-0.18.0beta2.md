@@ -14,7 +14,9 @@ Focus areas:
 ## High-level Changes
 
 - OAuth moved from "load token and fail if expired" to "auto-refresh when expired".
-- Claude keychain reads now use stricter non-interactive probes (`kSecUseAuthenticationUIFail`) before any promptable path.
+- Claude keychain reads now use stricter non-interactive probes (`LAContext.interactionNotAllowed` on
+  `kSecUseAuthenticationContext`, plus a legacy fail-without-prompt compatibility value) before any
+  promptable path.
 - New Claude keychain prompt cooldown gate: 6-hour suppression after denial.
 - New OAuth refresh failure gate:
   - `invalid_grant` => terminal block until auth fingerprint changes.
