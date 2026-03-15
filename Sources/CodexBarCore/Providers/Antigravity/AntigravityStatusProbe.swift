@@ -45,42 +45,46 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     private static func rateWindow(for quota: AntigravityModelQuota) -> RateWindow {
-        RateWindow(
+        // Include the model name in the reset description for display in the UI
+        // Only append model label if there's an actual reset description to avoid misleading text
+        let descriptionWithModel: String?
+        if let resetDesc = quota.resetDescription {
+            descriptionWithModel = "\(resetDesc) (\(quota.label))"
+        } else {
+            descriptionWithModel = nil
+        }
+
+        return RateWindow(
             usedPercent: 100 - quota.remainingPercent,
             windowMinutes: nil,
             resetsAt: quota.resetTime,
-            resetDescription: quota.resetDescription)
+            resetDescription: descriptionWithModel)
     }
 
     private static func selectModels(_ models: [AntigravityModelQuota]) -> [AntigravityModelQuota] {
         var ordered: [AntigravityModelQuota] = []
-        if let claude = models.first(where: { Self.isClaudeWithoutThinking($0.label) }) {
-            ordered.append(claude)
-        }
-        if let pro = models.first(where: { Self.isGeminiProLow($0.label) }),
-           !ordered.contains(where: { $0.label == pro.label })
-        {
+        
+        // Priority 1: Gemini Pro models (High/Low) - this is the primary/shared quota
+        // Claude models share this same quota, so we don't display them separately
+        if let pro = models.first(where: { Self.isGeminiPro($0.label) }) {
             ordered.append(pro)
         }
-        if let flash = models.first(where: { Self.isGeminiFlash($0.label) }),
-           !ordered.contains(where: { $0.label == flash.label })
-        {
+        
+        // Priority 2: Gemini Flash models - secondary quota
+        if let flash = models.first(where: { Self.isGeminiFlash($0.label) }) {
             ordered.append(flash)
         }
+        
+        // Fallback: sort by remaining percent (most constrained first)
         if ordered.isEmpty {
             ordered.append(contentsOf: models.sorted(by: { $0.remainingPercent < $1.remainingPercent }))
         }
         return ordered
     }
 
-    private static func isClaudeWithoutThinking(_ label: String) -> Bool {
+    private static func isGeminiPro(_ label: String) -> Bool {
         let lower = label.lowercased()
-        return lower.contains("claude") && !lower.contains("thinking")
-    }
-
-    private static func isGeminiProLow(_ label: String) -> Bool {
-        let lower = label.lowercased()
-        return lower.contains("pro") && lower.contains("low")
+        return lower.contains("gemini") && lower.contains("pro")
     }
 
     private static func isGeminiFlash(_ label: String) -> Bool {
