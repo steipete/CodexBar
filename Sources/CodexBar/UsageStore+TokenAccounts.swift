@@ -162,6 +162,11 @@ extension UsageStore {
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
             }
+            await self.recordPlanUtilizationHistorySample(
+                provider: provider,
+                snapshot: labeled,
+                account: account,
+                credits: result.credits)
         case let .failure(error):
             await MainActor.run {
                 let hadPriorData = self.snapshots[provider] != nil || fallbackSnapshot != nil

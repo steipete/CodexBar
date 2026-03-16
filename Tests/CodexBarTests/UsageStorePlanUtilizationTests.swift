@@ -494,6 +494,39 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func applySelectedOutcomeRecordsPlanHistoryForSelectedTokenAccount() async throws {
+        let store = Self.makeStore()
+        store.settings.addTokenAccount(provider: .claude, label: "Alice", token: "alice-token")
+        store.settings.addTokenAccount(provider: .claude, label: "Bob", token: "bob-token")
+        store.settings.setActiveTokenAccountIndex(1, for: .claude)
+
+        let selectedAccount = try #require(store.settings.selectedTokenAccount(for: .claude))
+        let selectedTokenKey = try #require(
+            UsageStore._planUtilizationTokenAccountKeyForTesting(provider: .claude, account: selectedAccount))
+        let snapshot = Self.makeSnapshot(provider: .claude, email: "alice@example.com")
+        let outcome = ProviderFetchOutcome(
+            result: .success(
+                ProviderFetchResult(
+                    usage: snapshot,
+                    credits: nil,
+                    dashboard: nil,
+                    sourceLabel: "test",
+                    strategyID: "test",
+                    strategyKind: .web)),
+            attempts: [])
+
+        await store.applySelectedOutcome(
+            outcome,
+            provider: .claude,
+            account: selectedAccount,
+            fallbackSnapshot: snapshot)
+
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+        #expect(buckets.accounts[selectedTokenKey]?.count == 1)
+    }
+
+    @MainActor
+    @Test
     func codexPlanHistoryFallsBackToUnscopedBucketWhenIdentityIsUnavailable() {
         let store = Self.makeStore()
         let sample = PlanUtilizationHistorySample(
