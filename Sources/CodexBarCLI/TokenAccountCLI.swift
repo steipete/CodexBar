@@ -114,6 +114,12 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader,
                     workspaceID: config?.workspaceID))
+        case .opencodego:
+            return self.makeSnapshot(
+                opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader,
+                    workspaceID: config?.workspaceID))
         case .factory:
             return self.makeSnapshot(
                 factory: ProviderSettingsSnapshot.FactoryProviderSettings(
@@ -167,6 +173,7 @@ struct TokenAccountCLIContext {
         claude: ProviderSettingsSnapshot.ClaudeProviderSettings? = nil,
         cursor: ProviderSettingsSnapshot.CursorProviderSettings? = nil,
         opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
+        opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
         zai: ProviderSettingsSnapshot.ZaiProviderSettings? = nil,
@@ -182,6 +189,7 @@ struct TokenAccountCLIContext {
             claude: claude,
             cursor: cursor,
             opencode: opencode,
+            opencodego: opencodego,
             factory: factory,
             minimax: minimax,
             zai: zai,
