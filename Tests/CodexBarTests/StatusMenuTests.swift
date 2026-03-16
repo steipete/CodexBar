@@ -416,6 +416,46 @@ struct StatusMenuTests {
     }
 
     @Test
+    func `status blurb uses wrapped view-backed menu item`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = true
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let statusText = "An SSL error has occurred and a secure connection to the server cannot be made."
+        store.statuses[.codex] = ProviderStatus(
+            indicator: .critical,
+            description: statusText,
+            updatedAt: nil)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        let statusItem = menu.items.first(where: { $0.toolTip == statusText })
+        #expect(statusItem != nil)
+        #expect(statusItem?.view != nil)
+        #expect(statusItem?.title.isEmpty == true)
+        #expect(statusItem?.view?.frame.width == 310)
+    }
+
+    @Test
     func `provider toggle updates status item visibility`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
