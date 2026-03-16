@@ -310,18 +310,16 @@ struct CostHistoryChartMenuView: View {
         guard let entry = model.entriesByDateKey[key] else { return nil }
         guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return nil }
         let parts = breakdown
-            .compactMap { item -> (name: String, detail: String, costUSD: Double)? in
-                guard let costUSD = item.costUSD else { return nil }
+            .compactMap { item -> String? in
                 let name = UsageFormatter.modelDisplayName(item.modelName)
-                guard let detail = UsageFormatter.modelCostDetail(item.modelName, costUSD: costUSD) else { return nil }
-                return (name, detail, costUSD)
-            }
-            .sorted { lhs, rhs in
-                if lhs.costUSD == rhs.costUSD { return lhs.name < rhs.name }
-                return lhs.costUSD > rhs.costUSD
+                guard let detail = UsageFormatter.modelCostDetail(
+                    item.modelName,
+                    costUSD: item.costUSD,
+                    totalTokens: item.totalTokens)
+                else { return nil }
+                return "\(name) \(detail)"
             }
             .prefix(3)
-            .map { "\($0.name) \($0.detail)" }
         guard !parts.isEmpty else { return nil }
         return "Top: \(parts.joined(separator: " · "))"
     }

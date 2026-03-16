@@ -56,7 +56,10 @@ struct CLICostTests {
                     costUSD: 0.01,
                     modelsUsed: ["claude-sonnet-4-20250514"],
                     modelBreakdowns: [
-                        CostModelBreakdownPayload(modelName: "claude-sonnet-4-20250514", costUSD: 0.01),
+                        CostModelBreakdownPayload(
+                            modelName: "claude-sonnet-4-20250514",
+                            costUSD: 0.01,
+                            totalTokens: 15),
                     ]),
             ],
             totals: CostTotalsPayload(
@@ -83,6 +86,7 @@ struct CLICostTests {
         #expect(json.contains("\"cacheReadTokens\":2"))
         #expect(json.contains("\"cacheCreationTokens\":3"))
         #expect(json.contains("\"totalCost\""))
+        #expect(json.contains("\"totalTokens\":15"))
         #expect(json.contains("1700000000"))
     }
 
@@ -107,8 +111,8 @@ struct CLICostTests {
                     costUSD: 0,
                     modelsUsed: ["gpt-5.3-codex-spark", "gpt-5.2-codex"],
                     modelBreakdowns: [
-                        CostModelBreakdownPayload(modelName: "gpt-5.3-codex-spark", costUSD: 0),
-                        CostModelBreakdownPayload(modelName: "gpt-5.2-codex", costUSD: 1.23),
+                        CostModelBreakdownPayload(modelName: "gpt-5.3-codex-spark", costUSD: 0, totalTokens: 15),
+                        CostModelBreakdownPayload(modelName: "gpt-5.2-codex", costUSD: 1.23, totalTokens: 140),
                     ]),
             ],
             totals: CostTotalsPayload(
@@ -132,5 +136,6 @@ struct CLICostTests {
         #expect(json.contains("\"gpt-5.2-codex\""))
         #expect(!json.contains("\"gpt-5.2\""))
         #expect(json.contains("\"cost\":0"))
+        #expect(json.contains("\"totalTokens\":140"))
     }
 }

@@ -103,8 +103,18 @@ struct UsageFormatterTests {
 
     @Test
     func `model cost detail uses research preview label`() {
-        #expect(UsageFormatter.modelCostDetail("gpt-5.3-codex-spark", costUSD: 0) == "Research Preview")
-        #expect(UsageFormatter.modelCostDetail("gpt-5.2-codex", costUSD: 0.42) == "$0.42")
+        #expect(
+            UsageFormatter.modelCostDetail("gpt-5.3-codex-spark", costUSD: 0, totalTokens: nil) == "Research Preview")
+        #expect(UsageFormatter.modelCostDetail("gpt-5.2-codex", costUSD: 0.42, totalTokens: nil) == "$0.42")
+    }
+
+    @Test
+    func `model cost detail includes token counts when present`() {
+        #expect(UsageFormatter.modelCostDetail("gpt-5.2-codex", costUSD: 0.42, totalTokens: 1200) == "$0.42 · 1.2K")
+        #expect(
+            UsageFormatter.modelCostDetail("gpt-5.3-codex-spark", costUSD: 0, totalTokens: 1500)
+                == "Research Preview · 1.5K")
+        #expect(UsageFormatter.modelCostDetail("custom-model", costUSD: nil, totalTokens: 987) == "987")
     }
 
     @Test
