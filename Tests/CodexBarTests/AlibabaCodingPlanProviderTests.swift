@@ -268,6 +268,80 @@ struct AlibabaCodingPlanUsageParsingTests {
             try AlibabaCodingPlanUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
         }
     }
+
+    @Test
+    func consoleNeedLoginPayloadMapsToApiErrorForAPIKeyMode() {
+        let json = """
+        {
+          "code": "ConsoleNeedLogin",
+          "message": "You need to log in.",
+          "requestId": "abc",
+          "successResponse": false
+        }
+        """
+
+        do {
+            _ = try AlibabaCodingPlanUsageFetcher.parseUsageSnapshot(
+                from: Data(json.utf8),
+                authMode: .apiKey)
+            Issue.record("Expected API-mode ConsoleNeedLogin payload to throw")
+        } catch let error as AlibabaCodingPlanUsageError {
+            guard case let .apiError(message) = error else {
+                Issue.record("Expected apiError, got \(error)")
+                return
+            }
+            #expect(message.contains("requires a console session"))
+        } catch {
+            Issue.record("Expected AlibabaCodingPlanUsageError, got \(error)")
+        }
+    }
+}
+
+@Suite
+struct AlibabaCodingPlanFallbackTests {
+    private struct StubClaudeFetcher: ClaudeUsageFetching {
+        func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
+            throw ClaudeUsageError.parseFailed("stub")
+        }
+
+        func debugRawProbe(model _: String) async -> String {
+            "stub"
+        }
+
+        func detectVersion() -> String? {
+            nil
+        }
+    }
+
+    private func makeContext(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        return ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: sourceMode,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: nil,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: StubClaudeFetcher(),
+            browserDetection: browserDetection)
+    }
+
+    @Test
+    func fallsBackOnTLSFailureInAutoMode() {
+        let strategy = AlibabaCodingPlanWebFetchStrategy()
+        let context = self.makeContext(sourceMode: .auto)
+        #expect(strategy.shouldFallback(on: URLError(.secureConnectionFailed), context: context))
+    }
+
+    @Test
+    func doesNotFallbackOnTLSFailureWhenSourceForcedToWeb() {
+        let strategy = AlibabaCodingPlanWebFetchStrategy()
+        let context = self.makeContext(sourceMode: .web)
+        #expect(strategy.shouldFallback(on: URLError(.secureConnectionFailed), context: context) == false)
+    }
 }
 
 @Suite

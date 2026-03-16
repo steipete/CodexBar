@@ -12,6 +12,11 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3 Safari/605.1.15"
 
+    enum AuthMode: Sendable {
+        case apiKey
+        case webSession
+    }
+
     public static func fetchUsage(
         apiKey: String,
         region: AlibabaCodingPlanAPIRegion = .international,
@@ -116,7 +121,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
             throw AlibabaCodingPlanUsageError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
-        return try self.parseUsageSnapshot(from: data, now: now)
+        return try self.parseUsageSnapshot(from: data, now: now, authMode: .apiKey)
     }
 
     private static func fetchUsageOnce(
@@ -166,7 +171,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
             throw AlibabaCodingPlanUsageError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
-        return try self.parseUsageSnapshot(from: data, now: now)
+        return try self.parseUsageSnapshot(from: data, now: now, authMode: .webSession)
     }
 
     private static func queryCodingPlanAPIRequestBody(region: AlibabaCodingPlanAPIRegion) -> Data {
@@ -320,9 +325,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         region: AlibabaCodingPlanAPIRegion,
         environment: [String: String]) async throws -> String
     {
-        if let sec = self.extractCookieValue(name: "sec_token", from: cookieHeader), !sec.isEmpty {
-            return sec
-        }
+        let cookieSECToken = self.extractCookieValue(name: "sec_token", from: cookieHeader)
 
         let dashboardURL = self.resolveConsoleDashboardURL(region: region, environment: environment)
 
@@ -332,19 +335,22 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         request.setValue(Self.safariLikeUserAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
-              let html = String(data: data, encoding: .utf8)
-        else {
-            throw AlibabaCodingPlanUsageError.loginRequired
-        }
-
-        if let token = self.extractConsoleSECToken(from: html), !token.isEmpty {
+        if let (data, response) = try? await URLSession.shared.data(for: request),
+           let httpResponse = response as? HTTPURLResponse,
+           httpResponse.statusCode == 200,
+           let html = String(data: data, encoding: .utf8),
+           let token = self.extractConsoleSECToken(from: html),
+           !token.isEmpty
+        {
             return token
         }
 
         if let token = try await self.fetchSECTokenFromUserInfo(cookieHeader: cookieHeader, region: region) {
             return token
+        }
+
+        if let cookieSECToken, !cookieSECToken.isEmpty {
+            return cookieSECToken
         }
 
         throw AlibabaCodingPlanUsageError.loginRequired
@@ -398,7 +404,11 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         return self.findFirstString(forKeys: ["secToken", "sec_token"], in: expanded)
     }
 
-    static func parseUsageSnapshot(from data: Data, now: Date = Date()) throws -> AlibabaCodingPlanUsageSnapshot {
+    static func parseUsageSnapshot(
+        from data: Data,
+        now: Date = Date(),
+        authMode: AuthMode = .webSession) throws -> AlibabaCodingPlanUsageSnapshot
+    {
         guard !data.isEmpty else {
             throw AlibabaCodingPlanUsageError.parseFailed("Empty response body")
         }
@@ -425,12 +435,22 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         if let codeText = self.findFirstString(forKeys: ["code", "status", "statusCode"], in: dictionary) {
             let normalizedCode = codeText.lowercased()
             if normalizedCode.contains("needlogin") || normalizedCode.contains("login") {
+                if authMode == .apiKey {
+                    throw AlibabaCodingPlanUsageError.apiError(
+                        "This Alibaba endpoint requires a console session for this account/region. " +
+                            "API key mode may be unavailable in CN on this endpoint.")
+                }
                 throw AlibabaCodingPlanUsageError.loginRequired
             }
         }
         if let messageText = self.findFirstString(forKeys: ["message", "msg", "statusMessage"], in: dictionary) {
             let normalizedMessage = messageText.lowercased()
             if normalizedMessage.contains("log in") || normalizedMessage.contains("login") {
+                if authMode == .apiKey {
+                    throw AlibabaCodingPlanUsageError.apiError(
+                        "This Alibaba endpoint requires a console session for this account/region. " +
+                            "API key mode may be unavailable in CN on this endpoint.")
+                }
                 throw AlibabaCodingPlanUsageError.loginRequired
             }
         }
@@ -909,7 +929,10 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
             #"SEC_TOKEN\s*:\s*\"([^\"]+)\""#,
             #"SEC_TOKEN\s*:\s*'([^']+)'"#,
             #"secToken\s*:\s*\"([^\"]+)\""#,
+            #"sec_token\s*:\s*\"([^\"]+)\""#,
+            #"sec_token\s*:\s*'([^']+)'"#,
             #"\"SEC_TOKEN\"\s*:\s*\"([^\"]+)\""#,
+            #"\"sec_token\"\s*:\s*\"([^\"]+)\""#,
         ]
 
         for pattern in patterns {

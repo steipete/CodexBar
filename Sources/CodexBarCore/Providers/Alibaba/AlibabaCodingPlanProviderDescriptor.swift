@@ -141,7 +141,36 @@ struct AlibabaCodingPlanWebFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto else { return false }
+
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut,
+                 .cannotFindHost,
+                 .cannotConnectToHost,
+                 .networkConnectionLost,
+                 .dnsLookupFailed,
+                 .secureConnectionFailed,
+                 .serverCertificateHasBadDate,
+                 .serverCertificateUntrusted,
+                 .serverCertificateHasUnknownRoot,
+                 .serverCertificateNotYetValid,
+                 .clientCertificateRejected,
+                 .clientCertificateRequired,
+                 .cannotLoadFromNetwork,
+                 .internationalRoamingOff,
+                 .callIsActive,
+                 .dataNotAllowed,
+                 .requestBodyStreamExhausted,
+                 .resourceUnavailable,
+                 .notConnectedToInternet:
+                return true
+            default:
+                break
+            }
+        }
+
         if let settingsError = error as? AlibabaCodingPlanSettingsError {
             switch settingsError {
             case .missingCookie, .invalidCookie:
@@ -159,7 +188,9 @@ struct AlibabaCodingPlanWebFetchStrategy: ProviderFetchStrategy {
             return true
         case let .apiError(message):
             return message.contains("HTTP 404") || message.contains("HTTP 403")
-        case .networkError, .parseFailed:
+        case .networkError:
+            return true
+        case .parseFailed:
             return false
         }
     }

@@ -36,7 +36,29 @@ public enum AlibabaCodingPlanCookieImporter {
         }
 
         public var cookieHeader: String {
-            self.cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+            var byName: [String: HTTPCookie] = [:]
+            byName.reserveCapacity(self.cookies.count)
+
+            for cookie in self.cookies {
+                if let expiry = cookie.expiresDate, expiry < Date() {
+                    continue
+                }
+                guard !cookie.value.isEmpty else { continue }
+                if let existing = byName[cookie.name] {
+                    let existingExpiry = existing.expiresDate ?? .distantPast
+                    let candidateExpiry = cookie.expiresDate ?? .distantPast
+                    if candidateExpiry >= existingExpiry {
+                        byName[cookie.name] = cookie
+                    }
+                } else {
+                    byName[cookie.name] = cookie
+                }
+            }
+
+            return byName.keys.sorted().compactMap { name in
+                guard let cookie = byName[name] else { return nil }
+                return "\(cookie.name)=\(cookie.value)"
+            }.joined(separator: "; ")
         }
     }
 
