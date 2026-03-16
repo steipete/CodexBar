@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter, CheapestInference)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -171,5 +171,12 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Override base URL with `OPENROUTER_API_URL` env var.
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
 - Details: `docs/openrouter.md`.
+
+## CheapestInference
+- API token from `~/.codexbar/config.json` (`providerConfig.cheapestinference.apiKey`) or `CHEAPESTINFERENCE_API_KEY` env var.
+- Usage endpoint: `https://api.cheapestinference.com/v1/usage` (returns budget utilization, rate limits, plan info, credit balance).
+- Same `sk-` key used for both inference and usage monitoring.
+- Override base URL with `CHEAPESTINFERENCE_API_URL` env var.
+- Dashboard: `https://cheapestinference.com/dashboard`.
 
 See also: `docs/provider.md` for architecture notes.

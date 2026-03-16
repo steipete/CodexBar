@@ -43,6 +43,7 @@ public enum LogCategories {
     public static let ollama = "ollama"
     public static let opencodeUsage = "opencode-usage"
     public static let openRouterUsage = "openrouter-usage"
+    public static let cheapestInferenceUsage = "cheapestinference-usage"
     public static let providerDetection = "provider-detection"
     public static let providers = "providers"
     public static let sessionQuota = "sessionQuota"
