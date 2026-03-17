@@ -8,6 +8,8 @@ struct CostUsagePricingTests {
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.2-codex") == "gpt-5.2-codex")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.1-codex-max") == "gpt-5.1-codex-max")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.4-pro-2026-03-05") == "gpt-5.4-pro")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.4-mini-2026-03-17") == "gpt-5.4-mini")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.4-nano-2026-03-17") == "gpt-5.4-nano")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.3-codex-2026-03-05") == "gpt-5.3-codex")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.3-codex-spark") == "gpt-5.3-codex-spark")
     }
@@ -30,6 +32,23 @@ struct CostUsagePricingTests {
             cachedInputTokens: 10,
             outputTokens: 5)
         #expect(cost != nil)
+    }
+
+    @Test
+    func `codex cost supports gpt54 mini and nano`() {
+        let mini = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.4-mini-2026-03-17",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5)
+        let nano = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.4-nano",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5)
+
+        #expect(mini != nil)
+        #expect(nano != nil)
     }
 
     @Test

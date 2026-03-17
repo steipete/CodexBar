@@ -97,6 +97,16 @@ enum CostUsagePricing {
             outputCostPerToken: 1.5e-5,
             cacheReadInputCostPerToken: 2.5e-7,
             displayLabel: nil),
+        "gpt-5.4-mini": CodexPricing(
+            inputCostPerToken: 7.5e-7,
+            outputCostPerToken: 4.5e-6,
+            cacheReadInputCostPerToken: 7.5e-8,
+            displayLabel: nil),
+        "gpt-5.4-nano": CodexPricing(
+            inputCostPerToken: 2e-7,
+            outputCostPerToken: 1.25e-6,
+            cacheReadInputCostPerToken: 2e-8,
+            displayLabel: nil),
         "gpt-5.4-pro": CodexPricing(
             inputCostPerToken: 3e-5,
             outputCostPerToken: 1.8e-4,
