@@ -67,7 +67,8 @@ struct AlibabaWebFetchStrategy: ProviderFetchStrategy {
         // Load console in WebView and extract usage data
         let usage = try await AlibabaUsageFetcher.fetchUsage(
             cookieImporter: context.cookieImporter,
-            webViewAPI: context.webViewAPI
+            webViewAPI: context.webViewAPI,
+            webTimeout: context.webTimeout
         )
         return self.makeResult(usage: usage, sourceLabel: "web")
     }

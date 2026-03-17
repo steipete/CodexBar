@@ -24,7 +24,8 @@ enum AlibabaUsageFetcher {
     /// Fetch usage data from Alibaba Cloud console via WebView scraping
     static func fetchUsage(
         cookieImporter: any BrowserCookieImporting,
-        webViewAPI: any WebViewAPI
+        webViewAPI: any WebViewAPI,
+        webTimeout: TimeInterval
     ) async throws -> AlibabaUsageSnapshot {
         // Get cookies for authentication
         guard let cookies = await cookieImporter.cookies(for: "alibabacloud.com") else {
@@ -37,11 +38,36 @@ enum AlibabaUsageFetcher {
 
         let consoleURL = "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=globalset#/efm/coding_plan"
 
-        // Navigate to console with cookies
-        try await webView.load(url: consoleURL, cookies: cookies, timeout: 30)
+        // Navigate to console with cookies using configured timeout
+        try await webView.load(url: consoleURL, cookies: cookies, timeout: webTimeout)
 
-        // Wait for page to fully load
-        try await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+        // Wait for usage selectors to appear instead of fixed sleep
+        // Usage cards are in [ref="e168"], [ref="e187"], [ref="e206"]
+        // Poll for up to 10 seconds with 500ms intervals
+        let usageSelectors = ["e168", "e187", "e206"]
+        var allSelectorsReady = false
+        
+        for attempt in 1...20 { // 20 attempts × 500ms = 10 seconds max
+            var readyCount = 0
+            for selector in usageSelectors {
+                let script = "document.querySelector('[ref=\"\(selector)\"]')"
+                if let element = try await webView.evaluateJavaScript(script) as? [String: Any],
+                   element["tagName"] != nil {
+                    readyCount += 1
+                }
+            }
+            if readyCount == usageSelectors.count {
+                allSelectorsReady = true
+                break
+            }
+            if attempt < 20 {
+                try await Task.sleep(nanoseconds: 500_000_000) // 500ms
+            }
+        }
+        
+        guard allSelectorsReady else {
+            throw AlibabaUsageError.pageLoadFailed
+        }
 
         // Extract usage data via JavaScript
         let script = """
