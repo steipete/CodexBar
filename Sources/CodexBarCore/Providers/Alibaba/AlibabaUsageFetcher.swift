@@ -92,11 +92,19 @@ enum AlibabaUsageFetcher {
         return parseUsageResponse(response)
     }
 
-    private static func parseUsageResponse(_ response: AlibabaConsoleResponse) -> AlibabaUsageSnapshot {
+    private static func parseUsageResponse(_ response: AlibabaConsoleResponse) throws -> AlibabaUsageSnapshot {
         // Parse percentage strings like "9%", "46%", "63%"
-        let usage5hPercent = parsePercentage(response.usage5h) ?? 0.0
-        let usage7dPercent = parsePercentage(response.usage7d) ?? 0.0
-        let usage30dPercent = parsePercentage(response.usage30d) ?? 0.0
+        // CRITICAL: Do NOT default to 0.0 - throw error if parsing fails
+        // This prevents silently showing 0% when selectors drift or page format changes
+        guard let usage5hPercent = parsePercentage(response.usage5h) else {
+            throw AlibabaUsageError.parseFailed("Failed to parse 5h usage: '\(response.usage5h ?? "nil")'")
+        }
+        guard let usage7dPercent = parsePercentage(response.usage7d) else {
+            throw AlibabaUsageError.parseFailed("Failed to parse 7d usage: '\(response.usage7d ?? "nil")'")
+        }
+        guard let usage30dPercent = parsePercentage(response.usage30d) else {
+            throw AlibabaUsageError.parseFailed("Failed to parse 30d usage: '\(response.usage30d ?? "nil")'")
+        }
 
         // Calculate reset times
         let reset5h = parseResetTime(response.usage5hReset) ?? Date().addingTimeInterval(5 * 60 * 60)
