@@ -50,9 +50,9 @@ enum AlibabaUsageFetcher {
         for attempt in 1...20 { // 20 attempts × 500ms = 10 seconds max
             var readyCount = 0
             for selector in usageSelectors {
-                let script = "document.querySelector('[ref=\"\(selector)\"]')"
-                if let element = try await webView.evaluateJavaScript(script) as? [String: Any],
-                   element["tagName"] != nil {
+                // Check if element exists by returning a primitive (not bridging DOM object)
+                let script = "document.querySelector('[ref=\"\(selector)\"]') !== null"
+                if let exists = try await webView.evaluateJavaScript(script) as? Bool, exists {
                     readyCount += 1
                 }
             }
