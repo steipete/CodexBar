@@ -73,8 +73,8 @@ struct CodexProviderImplementation: ProviderImplementation {
         return [
             ProviderSettingsToggleDescriptor(
                 id: "codex-historical-tracking",
-                title: "Historical tracking",
-                subtitle: "Stores local Codex usage history (8 weeks) to personalize Pace predictions.",
+                title: AppStrings.tr("Historical tracking"),
+                subtitle: AppStrings.tr("Stores local Codex usage history (8 weeks) to personalize Pace predictions."),
                 binding: context.boolBinding(\.historicalTrackingEnabled),
                 statusText: nil,
                 actions: [],
@@ -84,8 +84,8 @@ struct CodexProviderImplementation: ProviderImplementation {
                 onAppearWhenEnabled: nil),
             ProviderSettingsToggleDescriptor(
                 id: "codex-openai-web-extras",
-                title: "OpenAI web extras",
-                subtitle: "Show usage breakdown, credits history, and code review via chatgpt.com.",
+                title: AppStrings.tr("OpenAI web extras"),
+                subtitle: AppStrings.tr("Show usage breakdown, credits history, and code review via chatgpt.com."),
                 binding: extrasBinding,
                 statusText: nil,
                 actions: [],
@@ -110,7 +110,7 @@ struct CodexProviderImplementation: ProviderImplementation {
             })
 
         let usageOptions = CodexUsageDataSource.allCases.map {
-            ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+            ProviderSettingsPickerOption(id: $0.rawValue, title: AppStrings.codexUsageSource($0))
         }
         let cookieOptions = ProviderCookieSourceUI.options(
             allowsOff: true,
@@ -120,16 +120,16 @@ struct CodexProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.codexCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies for dashboard extras.",
-                manual: "Paste a Cookie header from a chatgpt.com request.",
-                off: "Disable OpenAI dashboard cookie usage.")
+                auto: AppStrings.tr("Automatic imports browser cookies for dashboard extras."),
+                manual: AppStrings.tr("Paste a Cookie header from a chatgpt.com request."),
+                off: AppStrings.tr("Disable OpenAI dashboard cookie usage."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "codex-usage-source",
-                title: "Usage source",
-                subtitle: "Auto falls back to the next source if the preferred one fails.",
+                title: AppStrings.tr("Usage source"),
+                subtitle: AppStrings.tr("Auto falls back to the next source if the preferred one fails."),
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -137,12 +137,12 @@ struct CodexProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.codexUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .codex)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : AppStrings.localizedSourceLabel(label)
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "codex-cookie-source",
-                title: "OpenAI cookies",
-                subtitle: "Automatic imports browser cookies for dashboard extras.",
+                title: AppStrings.tr("OpenAI cookies"),
+                subtitle: AppStrings.tr("Automatic imports browser cookies for dashboard extras."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -151,7 +151,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard let entry = CookieHeaderCache.load(provider: .codex) else { return nil }
                     let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
+                    return AppStrings.fmt("Cached: %@ • %@", entry.sourceLabel, when)
                 }),
         ]
     }
@@ -164,7 +164,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 title: "",
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Cookie: …",
+                placeholder: AppStrings.tr("Cookie: …"),
                 binding: context.stringBinding(\.codexCookieHeader),
                 actions: [],
                 isVisible: {
@@ -181,9 +181,13 @@ struct CodexProviderImplementation: ProviderImplementation {
         else { return }
 
         if let credits = context.store.credits {
-            entries.append(.text("Credits: \(UsageFormatter.creditsString(from: credits.remaining))", .primary))
+            entries.append(.text(
+                AppStrings.fmt("Credits: %@", AppStrings.creditsString(from: credits.remaining)),
+                .primary))
             if let latest = credits.events.first {
-                entries.append(.text("Last spend: \(UsageFormatter.creditEventSummary(latest))", .secondary))
+                entries.append(.text(
+                    AppStrings.fmt("Last spend: %@", AppStrings.creditEventSummary(latest)),
+                    .secondary))
             }
         } else {
             let hint = context.store.lastCreditsError ?? context.metadata.creditsHint

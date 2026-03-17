@@ -208,18 +208,18 @@ extension StatusItemController {
             return
         case .missingBinary:
             self.presentLoginAlert(
-                title: "Codex CLI not found",
-                message: "Install the Codex CLI (npm i -g @openai/codex) and try again.")
+                title: AppStrings.tr("Codex CLI not found"),
+                message: AppStrings.tr("Install the Codex CLI (npm i -g @openai/codex) and try again."))
         case let .launchFailed(message):
-            self.presentLoginAlert(title: "Could not start codex login", message: message)
+            self.presentLoginAlert(title: AppStrings.tr("Could not start codex login"), message: message)
         case .timedOut:
             self.presentLoginAlert(
-                title: "Codex login timed out",
+                title: AppStrings.tr("Codex login timed out"),
                 message: self.trimmedLoginOutput(result.output))
         case let .failed(status):
             let statusLine = "codex login exited with status \(status)."
             let message = self.trimmedLoginOutput(result.output.isEmpty ? statusLine : result.output)
-            self.presentLoginAlert(title: "Codex login failed", message: message)
+            self.presentLoginAlert(title: AppStrings.tr("Codex login failed"), message: message)
         }
     }
 
@@ -229,18 +229,18 @@ extension StatusItemController {
             return
         case .missingBinary:
             self.presentLoginAlert(
-                title: "Claude CLI not found",
-                message: "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again.")
+                title: AppStrings.tr("Claude CLI not found"),
+                message: AppStrings.tr("Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again."))
         case let .launchFailed(message):
-            self.presentLoginAlert(title: "Could not start claude /login", message: message)
+            self.presentLoginAlert(title: AppStrings.tr("Could not start claude /login"), message: message)
         case .timedOut:
             self.presentLoginAlert(
-                title: "Claude login timed out",
+                title: AppStrings.tr("Claude login timed out"),
                 message: self.trimmedLoginOutput(result.output))
         case let .failed(status):
             let statusLine = "claude /login exited with status \(status)."
             let message = self.trimmedLoginOutput(result.output.isEmpty ? statusLine : result.output)
-            self.presentLoginAlert(title: "Claude login failed", message: message)
+            self.presentLoginAlert(title: AppStrings.tr("Claude login failed"), message: message)
         }
     }
 
@@ -288,10 +288,10 @@ extension StatusItemController {
             nil
         case .missingBinary:
             LoginAlertInfo(
-                title: "Gemini CLI not found",
-                message: "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again.")
+                title: AppStrings.tr("Gemini CLI not found"),
+                message: AppStrings.tr("Install the Gemini CLI (npm i -g @google/gemini-cli) and try again."))
         case let .launchFailed(message):
-            LoginAlertInfo(title: "Could not open Terminal for Gemini", message: message)
+            LoginAlertInfo(title: AppStrings.tr("Could not open Terminal for Gemini"), message: message)
         }
     }
 
@@ -306,7 +306,7 @@ extension StatusItemController {
     private func trimmedLoginOutput(_ text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let limit = 600
-        if trimmed.isEmpty { return "No output captured." }
+        if trimmed.isEmpty { return AppStrings.tr("No output captured.") }
         if trimmed.count <= limit { return trimmed }
         let idx = trimmed.index(trimmed.startIndex, offsetBy: limit)
         return "\(trimmed[..<idx])…"
@@ -314,8 +314,8 @@ extension StatusItemController {
 
     func postLoginNotification(for provider: UsageProvider) {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        let title = "\(name) login successful"
-        let body = "You can return to the app; authentication finished."
+        let title = AppStrings.fmt("%@ login successful", name)
+        let body = AppStrings.tr("You can return to the app; authentication finished.")
         AppNotifications.shared.post(idPrefix: "login-\(provider.rawValue)", title: title, body: body)
     }
 
@@ -327,7 +327,7 @@ extension StatusItemController {
             // User closed the window; no alert needed
             return
         case let .failed(message):
-            self.presentLoginAlert(title: "Cursor login failed", message: message)
+            self.presentLoginAlert(title: AppStrings.tr("Cursor login failed"), message: message)
         }
     }
 

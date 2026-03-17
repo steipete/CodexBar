@@ -21,16 +21,16 @@ func showAbout() {
         ])
     }
 
-    let credits = NSMutableAttributedString(string: "Peter Steinberger — MIT License\n")
-    credits.append(makeLink("GitHub", urlString: "https://github.com/steipete/CodexBar"))
+    let credits = NSMutableAttributedString(string: "\(AppStrings.tr("© 2025 Peter Steinberger. MIT License."))\n")
+    credits.append(makeLink(AppStrings.tr("GitHub"), urlString: "https://github.com/steipete/CodexBar"))
     credits.append(separator)
-    credits.append(makeLink("Website", urlString: "https://codexbar.app"))
+    credits.append(makeLink(AppStrings.tr("Website"), urlString: "https://codexbar.app"))
     credits.append(separator)
-    credits.append(makeLink("Twitter", urlString: "https://twitter.com/steipete"))
+    credits.append(makeLink(AppStrings.tr("Twitter"), urlString: "https://twitter.com/steipete"))
     credits.append(separator)
-    credits.append(makeLink("Email", urlString: "mailto:peter@steipete.me"))
+    credits.append(makeLink(AppStrings.tr("Email"), urlString: "mailto:peter@steipete.me"))
     if let buildTimestamp, let formatted = formattedBuildTimestamp(buildTimestamp) {
-        var builtLine = "Built \(formatted)"
+        var builtLine = AppStrings.fmt("Built %@", formatted)
         if let gitCommit, !gitCommit.isEmpty, gitCommit != "unknown" {
             builtLine += " (\(gitCommit)"
             #if DEBUG
@@ -68,7 +68,7 @@ private func formattedBuildTimestamp(_ timestamp: String) -> String? {
     let formatter = DateFormatter()
     formatter.dateStyle = .medium
     formatter.timeStyle = .short
-    formatter.locale = .current
+    formatter.locale = AppStrings.locale
     return formatter.string(from: date)
 }
 

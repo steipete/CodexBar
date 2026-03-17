@@ -60,6 +60,22 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `app language persists across store reload`() throws {
+        let suite = "SettingsStoreCoverageTests-app-language"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        first.appLanguage = .traditionalChinese
+        #expect(defaults.string(forKey: AppLanguage.userDefaultsKey) == AppLanguage.traditionalChinese.rawValue)
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.appLanguage == .traditionalChinese)
+        #expect(second.appLocale.identifier.hasPrefix("zh-Hant"))
+    }
+
+    @Test
     func `token account mutations apply side effects`() {
         let settings = Self.makeSettingsStore()
 

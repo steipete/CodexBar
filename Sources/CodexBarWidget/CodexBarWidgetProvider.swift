@@ -14,7 +14,7 @@ enum ProviderChoice: String, AppEnum {
     case kilo
     case opencode
 
-    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: WidgetStrings.resource("Provider"))
 
     static let caseDisplayRepresentations: [ProviderChoice: DisplayRepresentation] = [
         .codex: DisplayRepresentation(title: "Codex"),
@@ -76,20 +76,20 @@ enum CompactMetric: String, AppEnum {
     case todayCost
     case last30DaysCost
 
-    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Metric")
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: WidgetStrings.resource("Metric"))
 
     static let caseDisplayRepresentations: [CompactMetric: DisplayRepresentation] = [
-        .credits: DisplayRepresentation(title: "Credits left"),
-        .todayCost: DisplayRepresentation(title: "Today cost"),
-        .last30DaysCost: DisplayRepresentation(title: "30d cost"),
+        .credits: DisplayRepresentation(title: WidgetStrings.resource("Credits left")),
+        .todayCost: DisplayRepresentation(title: WidgetStrings.resource("Today cost")),
+        .last30DaysCost: DisplayRepresentation(title: WidgetStrings.resource("30d cost")),
     ]
 }
 
 struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
-    static let title: LocalizedStringResource = "Provider"
-    static let description = IntentDescription("Select the provider to display in the widget.")
+    static let title = WidgetStrings.resource("Provider")
+    static let description = IntentDescription(WidgetStrings.resource("Select the provider to display in the widget."))
 
-    @Parameter(title: "Provider")
+    @Parameter(title: "Provider", description: "Select the provider to display in the widget.")
     var provider: ProviderChoice
 
     init() {
@@ -98,8 +98,8 @@ struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
 }
 
 struct SwitchWidgetProviderIntent: AppIntent {
-    static let title: LocalizedStringResource = "Switch Provider"
-    static let description = IntentDescription("Switch the provider shown in the widget.")
+    static let title = WidgetStrings.resource("Switch Provider")
+    static let description = IntentDescription(WidgetStrings.resource("Switch the provider shown in the widget."))
 
     @Parameter(title: "Provider")
     var provider: ProviderChoice
@@ -118,13 +118,13 @@ struct SwitchWidgetProviderIntent: AppIntent {
 }
 
 struct CompactMetricSelectionIntent: AppIntent, WidgetConfigurationIntent {
-    static let title: LocalizedStringResource = "Provider + Metric"
-    static let description = IntentDescription("Select the provider and metric to display.")
+    static let title = WidgetStrings.resource("Provider + Metric")
+    static let description = IntentDescription(WidgetStrings.resource("Select the provider and metric to display."))
 
-    @Parameter(title: "Provider")
+    @Parameter(title: "Provider", description: "Select the provider to display in the widget.")
     var provider: ProviderChoice
 
-    @Parameter(title: "Metric")
+    @Parameter(title: "Metric", description: "Select the metric to display in the widget.")
     var metric: CompactMetric
 
     init() {
@@ -261,8 +261,16 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
 
 enum WidgetPreviewData {
     static func snapshot() -> WidgetSnapshot {
-        let primary = RateWindow(usedPercent: 35, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 4h")
-        let secondary = RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 3d")
+        let primary = RateWindow(
+            usedPercent: 35,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: WidgetStrings.tr("Resets in 4h"))
+        let secondary = RateWindow(
+            usedPercent: 60,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: WidgetStrings.tr("Resets in 3d"))
         let entry = WidgetSnapshot.ProviderEntry(
             provider: .codex,
             updatedAt: Date(),

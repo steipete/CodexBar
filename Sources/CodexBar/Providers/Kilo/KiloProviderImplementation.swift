@@ -49,13 +49,13 @@ struct KiloProviderImplementation: ProviderImplementation {
                 context.settings.kiloUsageDataSource = KiloUsageDataSource(rawValue: raw) ?? .auto
             })
         let usageOptions = KiloUsageDataSource.allCases.map {
-            ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+            ProviderSettingsPickerOption(id: $0.rawValue, title: AppStrings.kiloUsageSource($0))
         }
         return [
             ProviderSettingsPickerDescriptor(
                 id: "kilo-usage-source",
-                title: "Usage source",
-                subtitle: "Auto uses API first, then falls back to CLI on auth failures.",
+                title: AppStrings.tr("Usage source"),
+                subtitle: AppStrings.tr("Auto uses API first, then falls back to CLI on auth failures."),
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -63,7 +63,7 @@ struct KiloProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.kiloUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .kilo)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : AppStrings.localizedSourceLabel(label)
                 }),
         ]
     }
@@ -73,9 +73,10 @@ struct KiloProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "kilo-api-key",
-                title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or "
-                    + "~/.local/share/kilo/auth.json (kilo.access).",
+                title: AppStrings.tr("API key"),
+                subtitle: AppStrings.tr(
+                    "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " +
+                        "~/.local/share/kilo/auth.json (kilo.access)."),
                 kind: .secure,
                 placeholder: "kilo_...",
                 binding: context.stringBinding(\.kiloAPIToken),

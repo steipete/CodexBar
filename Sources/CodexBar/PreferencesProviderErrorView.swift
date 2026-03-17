@@ -26,7 +26,7 @@ struct ProviderErrorView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("Copy error")
+                .help(AppStrings.tr("Copy error"))
             }
 
             Text(self.display.preview)
@@ -36,9 +36,11 @@ struct ProviderErrorView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if self.display.preview != self.display.full {
-                Button(self.isExpanded ? "Hide details" : "Show details") { self.isExpanded.toggle() }
-                    .buttonStyle(.link)
-                    .font(.footnote)
+                Button(self.isExpanded ? AppStrings.tr("Hide details") : AppStrings.tr("Show details")) {
+                    self.isExpanded.toggle()
+                }
+                .buttonStyle(.link)
+                .font(.footnote)
             }
 
             if self.isExpanded {

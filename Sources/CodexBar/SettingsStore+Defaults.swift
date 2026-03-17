@@ -5,6 +5,20 @@ import ServiceManagement
 extension SettingsStore {
     private static let mergedOverviewSelectionEditedActiveProvidersKey = "mergedOverviewSelectionEditedActiveProviders"
 
+    var appLanguage: AppLanguage {
+        get {
+            AppLanguage(rawValue: self.defaultsState.appLanguageRaw ?? "") ?? .system
+        }
+        set {
+            self.defaultsState.appLanguageRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: AppLanguage.userDefaultsKey)
+        }
+    }
+
+    var appLocale: Locale {
+        self.appLanguage.locale
+    }
+
     var refreshFrequency: RefreshFrequency {
         get { self.defaultsState.refreshFrequency }
         set {

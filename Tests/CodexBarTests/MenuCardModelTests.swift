@@ -62,7 +62,7 @@ struct MenuCardModelTests {
         #expect(model.metrics.count == 2)
         #expect(model.metrics.first?.percent == 78)
         #expect(model.planText == "Plus")
-        #expect(model.subtitleText.hasPrefix("Updated"))
+        #expect(model.subtitleText.hasPrefix(AppStrings.tr("Updated")))
         #expect(model.progressColor != Color.clear)
         #expect(model.metrics[1].resetText?.isEmpty == false)
     }
@@ -119,10 +119,10 @@ struct MenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.first?.title == "Session")
+        #expect(model.metrics.first?.title == AppStrings.tr("Session"))
         #expect(model.metrics.first?.percent == 22)
-        #expect(model.metrics.first?.percentLabel.contains("used") == true)
-        #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 27 })
+        #expect(model.metrics.first?.percentLabel.contains(AppStrings.tr("used")) == true)
+        #expect(model.metrics.contains { $0.title == AppStrings.tr("Code review") && $0.percent == 27 })
     }
 
     @Test
@@ -169,7 +169,7 @@ struct MenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 73 })
+        #expect(model.metrics.contains { $0.title == AppStrings.tr("Code review") && $0.percent == 73 })
     }
 
     @Test
@@ -212,7 +212,7 @@ struct MenuCardModelTests {
             now: now))
 
         #expect(model.metrics.count == 1)
-        #expect(model.metrics.first?.title == "Session")
+        #expect(model.metrics.first?.title == AppStrings.tr("Session"))
         #expect(model.planText == "Max")
     }
 

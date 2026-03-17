@@ -16,14 +16,13 @@ struct CopilotLoginFlow {
             pb.setString(code.userCode, forType: .string)
 
             let alert = NSAlert()
-            alert.messageText = "GitHub Copilot Login"
-            alert.informativeText = """
-            A device code has been copied to your clipboard: \(code.userCode)
-
-            Please verify it at: \(code.verificationUri)
-            """
-            alert.addButton(withTitle: "Open Browser")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = AppStrings.tr("GitHub Copilot Login")
+            alert.informativeText = AppStrings.fmt(
+                "A device code has been copied to your clipboard: %@\n\nPlease verify it at: %@",
+                code.userCode,
+                code.verificationUri)
+            alert.addButton(withTitle: AppStrings.tr("Open Browser"))
+            alert.addButton(withTitle: AppStrings.tr("Cancel"))
 
             let response = alert.runModal()
             if response == .alertSecondButtonReturn {
@@ -43,12 +42,10 @@ struct CopilotLoginFlow {
 
             // Let's show a "Waiting" alert that can be cancelled.
             let waitingAlert = NSAlert()
-            waitingAlert.messageText = "Waiting for Authentication..."
-            waitingAlert.informativeText = """
-            Please complete the login in your browser.
-            This window will close automatically when finished.
-            """
-            waitingAlert.addButton(withTitle: "Cancel")
+            waitingAlert.messageText = AppStrings.tr("Waiting for Authentication...")
+            waitingAlert.informativeText = AppStrings.tr(
+                "Please complete the login in your browser.\nThis window will close automatically when finished.")
+            waitingAlert.addButton(withTitle: AppStrings.tr("Cancel"))
             let parentWindow = Self.resolveWaitingParentWindow()
             let hostWindow = parentWindow ?? Self.makeWaitingHostWindow()
             let shouldCloseHostWindow = parentWindow == nil
@@ -87,19 +84,19 @@ struct CopilotLoginFlow {
                     enabled: true)
 
                 let success = NSAlert()
-                success.messageText = "Login Successful"
+                success.messageText = AppStrings.tr("Login Successful")
                 success.runModal()
             case let .failure(error):
                 guard !(error is CancellationError) else { return }
                 let err = NSAlert()
-                err.messageText = "Login Failed"
+                err.messageText = AppStrings.tr("Login Failed")
                 err.informativeText = error.localizedDescription
                 err.runModal()
             }
 
         } catch {
             let err = NSAlert()
-            err.messageText = "Login Failed"
+            err.messageText = AppStrings.tr("Login Failed")
             err.informativeText = error.localizedDescription
             err.runModal()
         }

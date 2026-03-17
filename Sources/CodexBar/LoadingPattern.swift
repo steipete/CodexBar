@@ -13,14 +13,7 @@ enum LoadingPattern: String, CaseIterable, Identifiable {
     }
 
     var displayName: String {
-        switch self {
-        case .knightRider: "Knight Rider"
-        case .cylon: "Cylon"
-        case .outsideIn: "Outside-In"
-        case .race: "Race"
-        case .pulse: "Pulse"
-        case .unbraid: "Unbraid (logo → bars)"
-        }
+        AppStrings.loadingPattern(self)
     }
 
     /// Secondary offset so the lower bar moves differently.

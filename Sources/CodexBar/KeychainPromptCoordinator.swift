@@ -134,7 +134,7 @@ enum KeychainPromptCoordinator {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: AppStrings.tr("OK"))
         _ = alert.runModal()
     }
 }
