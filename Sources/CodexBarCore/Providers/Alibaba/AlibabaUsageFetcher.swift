@@ -122,28 +122,31 @@ enum AlibabaUsageFetcher {
     }
 
     private static func parsePercentage(_ string: String?) -> Double? {
-        guard let string = string else { return nil }
-        let cleaned = string.replacingOccurrences(of: "%", with: "")
-        return Double(cleaned.trimmingCharacters(in: .whitespaces))
+        guard let string = string, !string.isEmpty else { return nil }
+        let cleaned = string.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
+        guard let percent = Double(cleaned) else {
+            // String exists but is not a valid number - this indicates selector drift or malformed data
+            return nil
+        }
+        return percent
     }
 
     private static func parseResetTime(_ string: String?) -> Date? {
         guard let string = string else { return nil }
-        // Expected format: "2026-03-17 06:57:57 Reset" or "2026-03-22 13:00:00 Reset"
-        // The console displays times in the user's local timezone (whatever region they're using)
-        // Parse without forcing a specific timezone - use the system's current timezone
-        // This ensures correct countdown calculations regardless of user's region
+        // Expected format: "2026-03-17 06:57:57 Reset" or "2026-03-17 06:57:57" (possibly with localized suffix)
+        // Extract just the timestamp portion (first 19 chars: "yyyy-MM-dd HH:mm:ss")
+        // This avoids assuming English "Reset" suffix or any specific localized text
+        let timestampLength = 19 // "yyyy-MM-dd HH:mm:ss"
+        guard string.count >= timestampLength else { return nil }
+        let dateString = String(string.prefix(timestampLength)).trimmingCharacters(in: .whitespaces)
+        
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         // Don't set explicit timezone - use system timezone to match displayed console time
         // Users in Singapore will see SGT times, users in PY will see PYT times, etc.
         dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
 
-        let components = string.components(separatedBy: " Reset")
-        if let dateString = components.first {
-            return dateFormatter.date(from: dateString.trimmingCharacters(in: .whitespaces))
-        }
-        return nil
+        return dateFormatter.date(from: dateString)
     }
 }
 
