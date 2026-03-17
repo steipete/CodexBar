@@ -22,24 +22,27 @@ enum AlibabaUsageError: Error, CustomStringConvertible {
 
 enum AlibabaUsageFetcher {
     /// Fetch usage data from Alibaba Cloud console via WebView scraping
+    @MainActor
     static func fetchUsage(
-        cookieImporter: any BrowserCookieImporting,
-        webViewAPI: any WebViewAPI,
-        webTimeout: TimeInterval
-    ) async throws -> AlibabaUsageSnapshot {
-        // Get cookies for authentication
-        guard let cookies = await cookieImporter.cookies(for: "alibabacloud.com") else {
+        browserDetection: BrowserDetection,
+        timeout: TimeInterval,
+        debugDumpHTML: Bool,
+        verbose: Bool
+    ) async throws -> UsageSnapshot {
+        // Check if user has cookies for alibabacloud.com
+        guard await browserDetection.hasCookies(for: "alibabacloud.com") else {
             throw AlibabaUsageError.missingCookies
         }
 
-        // Create WebView and load console
-        let webView = webViewAPI.makeWebView()
+        // Create WebView using browser detection's profile
+        // This follows the pattern from CodexWebDashboardStrategy
+        let webView = browserDetection.createWebView()
         defer { webView.close() }
 
         let consoleURL = "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=globalset#/efm/coding_plan"
 
         // Navigate to console with cookies using configured timeout
-        try await webView.load(url: consoleURL, cookies: cookies, timeout: webTimeout)
+        try await webView.load(url: consoleURL, timeout: timeout)
 
         // Wait for usage selectors to appear instead of fixed sleep
         // Usage cards are in [ref="e168"], [ref="e187"], [ref="e206"]
