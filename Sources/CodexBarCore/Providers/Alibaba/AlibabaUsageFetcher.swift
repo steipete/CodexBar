@@ -74,10 +74,18 @@ enum AlibabaUsageFetcher {
             throw AlibabaUsageError.parseFailed("Could not extract usage data from DOM")
         }
 
-        // Validate that at least one required field is present
-        // This prevents returning a snapshot full of 0% when selectors drift or page hasn't loaded
-        guard response.usage5h != nil || response.usage7d != nil || response.usage30d != nil else {
-            throw AlibabaUsageError.parseFailed("No usage fields found - selectors may have drifted or page not rendered")
+        // Validate that ALL required usage fields are present
+        // This prevents partial selector drift from producing misleading quota signals
+        // If any window selector breaks, we should fail fast rather than show 0.0%
+        guard response.usage5h != nil && response.usage7d != nil && response.usage30d != nil else {
+            let missingFields: [String] = {
+                var missing: [String] = []
+                if response.usage5h == nil { missing.append("5h") }
+                if response.usage7d == nil { missing.append("7d") }
+                if response.usage30d == nil { missing.append("30d") }
+                return missing
+            }()
+            throw AlibabaUsageError.parseFailed("Missing usage fields: \(missingFields.joined(separator: ", ")). Selectors may have drifted or page not rendered")
         }
 
         // Parse the response into usage snapshot
@@ -99,19 +107,19 @@ enum AlibabaUsageFetcher {
             plan: response.plan ?? "Unknown",
             status: response.status ?? "Unknown",
             remainingDays: response.remainingDays ?? "",
-            sessionUsage: UsageWindow(
+            sessionUsage: RateWindow(
                 usedPercent: usage5hPercent,
                 windowMinutes: 300, // 5 hours
                 resetsAt: reset5h,
                 resetDescription: "Resets in 5 hours"
             ),
-            weeklyUsage: UsageWindow(
+            weeklyUsage: RateWindow(
                 usedPercent: usage7dPercent,
                 windowMinutes: 10080, // 7 days
                 resetsAt: reset7d,
                 resetDescription: "Resets weekly"
             ),
-            monthlyUsage: UsageWindow(
+            monthlyUsage: RateWindow(
                 usedPercent: usage30dPercent,
                 windowMinutes: 43200, // 30 days
                 resetsAt: reset30d,

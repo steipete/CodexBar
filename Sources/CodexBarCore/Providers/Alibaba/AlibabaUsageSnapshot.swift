@@ -12,61 +12,27 @@ struct AlibabaUsageSnapshot {
     let remainingDays: String
 
     /// Usage in the last 5 hours (session window)
-    let sessionUsage: UsageWindow
+    let sessionUsage: RateWindow
 
     /// Usage in the last 7 days (weekly window)
-    let weeklyUsage: UsageWindow
+    let weeklyUsage: RateWindow
 
     /// Usage in the last 30 days (monthly window)
-    let monthlyUsage: UsageWindow
+    let monthlyUsage: RateWindow
 
     /// When this snapshot was taken
     let updatedAt: Date
 
     /// Convert to CodexBar's standard UsageSnapshot format
-    /// Note: UsageSnapshot only supports primary (5h) and secondary (7d) windows.
-    /// monthlyUsage (30d) is collected but cannot be forwarded to the shared model.
+    /// Note: UsageSnapshot supports primary (5h), secondary (7d), and tertiary (30d) windows.
+    /// All three windows are forwarded to ensure downstream UI receives complete quota data.
     func toUsageSnapshot() -> UsageSnapshot {
         UsageSnapshot(
             primary: sessionUsage,
             secondary: weeklyUsage,
+            tertiary: monthlyUsage,
             updatedAt: updatedAt,
             identity: nil
         )
-    }
-}
-
-/// Represents a usage window with percentage and reset time
-struct UsageWindow {
-    /// Percentage of quota used (0.0 to 100.0)
-    let usedPercent: Double
-
-    /// Window duration in minutes
-    let windowMinutes: Int
-
-    /// When the window resets
-    let resetsAt: Date
-
-    /// Human-readable reset description
-    let resetDescription: String
-
-    /// Calculate remaining percentage
-    var remainingPercent: Double {
-        max(0, 100.0 - usedPercent)
-    }
-
-    /// Calculate time until reset
-    var timeUntilReset: TimeInterval {
-        resetsAt.timeIntervalSince(Date())
-    }
-
-    /// Check if usage is critical (>90%)
-    var isCritical: Bool {
-        usedPercent >= 90.0
-    }
-
-    /// Check if usage is warning (>50%)
-    var isWarning: Bool {
-        usedPercent >= 50.0 && usedPercent < 90.0
     }
 }
