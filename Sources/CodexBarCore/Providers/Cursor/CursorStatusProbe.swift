@@ -199,6 +199,23 @@ public struct CursorStatusSnapshot: Sendable {
     /// Raw API response for debugging
     public let rawJSON: String?
 
+    // MARK: - Auto / API Pool Fields
+
+    /// Percentage of Auto model pool used (includes bonus credits, 0-100).
+    /// Shown as primary bar in the menu.
+    public let autoPercentUsed: Double?
+    /// Percentage of API model pool used (named/external models quota, 0-100).
+    /// Shown as secondary bar in the menu.
+    public let apiPercentUsed: Double?
+    /// Total Auto pool size in requests (included + bonus)
+    public let autoPoolTotal: Int?
+    /// Total API pool size in requests
+    public let apiPoolTotal: Int?
+    /// Requests used in Auto pool
+    public let autoPoolUsed: Int?
+    /// Requests used in API pool (derived from percent × total)
+    public let apiPoolUsed: Int?
+
     // MARK: - Legacy Plan (Request-Based) Fields
 
     /// Requests used this billing cycle (legacy plans only)
@@ -224,6 +241,12 @@ public struct CursorStatusSnapshot: Sendable {
         accountEmail: String?,
         accountName: String?,
         rawJSON: String?,
+        autoPercentUsed: Double? = nil,
+        apiPercentUsed: Double? = nil,
+        autoPoolTotal: Int? = nil,
+        apiPoolTotal: Int? = nil,
+        autoPoolUsed: Int? = nil,
+        apiPoolUsed: Int? = nil,
         requestsUsed: Int? = nil,
         requestsLimit: Int? = nil)
     {
@@ -239,19 +262,30 @@ public struct CursorStatusSnapshot: Sendable {
         self.accountEmail = accountEmail
         self.accountName = accountName
         self.rawJSON = rawJSON
+        self.autoPercentUsed = autoPercentUsed
+        self.apiPercentUsed = apiPercentUsed
+        self.autoPoolTotal = autoPoolTotal
+        self.apiPoolTotal = apiPoolTotal
+        self.autoPoolUsed = autoPoolUsed
+        self.apiPoolUsed = apiPoolUsed
         self.requestsUsed = requestsUsed
         self.requestsLimit = requestsLimit
     }
 
     /// Convert to UsageSnapshot for the common provider interface
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary: For legacy request-based plans, use request usage; otherwise use plan percentage
+        let resetDesc = self.billingCycleEnd.map { Self.formatResetDate($0) }
+
+        // Primary: Auto model pool (includes bonus credits).
+        // For legacy request-based plans, fall back to raw request ratio.
         let primaryUsedPercent: Double = if self.isLegacyRequestPlan,
                                             let used = self.requestsUsed,
                                             let limit = self.requestsLimit,
                                             limit > 0
         {
             (Double(used) / Double(limit)) * 100
+        } else if let auto = self.autoPercentUsed {
+            auto
         } else {
             self.planPercentUsed
         }
@@ -260,22 +294,29 @@ public struct CursorStatusSnapshot: Sendable {
             usedPercent: primaryUsedPercent,
             windowMinutes: nil,
             resetsAt: self.billingCycleEnd,
-            resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
+            resetDescription: resetDesc)
 
-        // Always use individual on-demand values (what users see in their Cursor dashboard).
-        // Team values are aggregates across all members, not useful for individual tracking.
+        // Secondary: API model pool (named/external models quota).
+        let secondary: RateWindow? = if let api = self.apiPercentUsed {
+            RateWindow(
+                usedPercent: api,
+                windowMinutes: nil,
+                resetsAt: self.billingCycleEnd,
+                resetDescription: resetDesc)
+        } else {
+            nil
+        }
+
+        // Tertiary: On-demand (pay-as-you-go) usage as percentage of limit.
         let resolvedOnDemandUsed = self.onDemandUsedUSD
         let resolvedOnDemandLimit = self.onDemandLimitUSD
 
-        // Secondary: On-demand usage as percentage of individual limit
-        let secondary: RateWindow? = if let limit = resolvedOnDemandLimit,
-                                        limit > 0
-        {
+        let tertiary: RateWindow? = if let limit = resolvedOnDemandLimit, limit > 0 {
             RateWindow(
                 usedPercent: (resolvedOnDemandUsed / limit) * 100,
                 windowMinutes: nil,
                 resetsAt: self.billingCycleEnd,
-                resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
+                resetDescription: resetDesc)
         } else {
             nil
         }
@@ -302,6 +343,21 @@ public struct CursorStatusSnapshot: Sendable {
             nil
         }
 
+        // Auto/API pool breakdown (only for token-based plans that expose these percentages)
+        let cursorPoolUsage: CursorPoolUsage? = if let auto = self.autoPercentUsed,
+                                                   let api = self.apiPercentUsed
+        {
+            CursorPoolUsage(
+                autoPercentUsed: auto,
+                apiPercentUsed: api,
+                autoPoolTotal: self.autoPoolTotal,
+                apiPoolTotal: self.apiPoolTotal,
+                autoPoolUsed: self.autoPoolUsed,
+                apiPoolUsed: self.apiPoolUsed)
+        } else {
+            nil
+        }
+
         let identity = ProviderIdentitySnapshot(
             providerID: .cursor,
             accountEmail: self.accountEmail,
@@ -310,9 +366,10 @@ public struct CursorStatusSnapshot: Sendable {
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
-            tertiary: nil,
+            tertiary: tertiary,
             providerCost: providerCost,
             cursorRequests: cursorRequests,
+            cursorPoolUsage: cursorPoolUsage,
             updatedAt: Date(),
             identity: identity)
     }
@@ -713,6 +770,19 @@ public struct CursorStatusProbe: Sendable {
         let requestsUsed: Int? = requestUsage?.gpt4?.numRequestsTotal ?? requestUsage?.gpt4?.numRequests
         let requestsLimit: Int? = requestUsage?.gpt4?.maxRequestUsage
 
+        // Auto pool: uses autoPercentUsed from the API (accounts for bonus credits on top of included quota).
+        // API pool: uses apiPercentUsed from the API (named/external model quota).
+        let planData = summary.individualUsage?.plan
+        let autoPercentUsed: Double? = planData?.autoPercentUsed
+        let apiPercentUsed: Double? = planData?.apiPercentUsed
+        let autoPoolTotal: Int? = planData?.breakdown?.total   // included + bonus
+        let apiPoolTotal: Int? = planData?.limit               // base plan limit (API cap)
+        let autoPoolUsed: Int? = planData?.used
+        let apiPoolUsed: Int? = apiPercentUsed.flatMap { pct -> Int? in
+            guard let total = apiPoolTotal, total > 0 else { return nil }
+            return Int((pct / 100.0) * Double(total))
+        }
+
         return CursorStatusSnapshot(
             planPercentUsed: planPercentUsed,
             planUsedUSD: planUsed,
@@ -726,6 +796,12 @@ public struct CursorStatusProbe: Sendable {
             accountEmail: userInfo?.email,
             accountName: userInfo?.name,
             rawJSON: rawJSON,
+            autoPercentUsed: autoPercentUsed,
+            apiPercentUsed: apiPercentUsed,
+            autoPoolTotal: autoPoolTotal,
+            apiPoolTotal: apiPoolTotal,
+            autoPoolUsed: autoPoolUsed,
+            apiPoolUsed: apiPoolUsed,
             requestsUsed: requestsUsed,
             requestsLimit: requestsLimit)
     }

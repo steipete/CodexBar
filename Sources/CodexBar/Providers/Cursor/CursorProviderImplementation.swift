@@ -90,6 +90,25 @@ struct CursorProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
+        // Auto / API pool breakdown (token-based pro plans)
+        if let pool = context.snapshot?.cursorPoolUsage {
+            let autoUsedPct = Int(pool.autoPercentUsed.rounded())
+            let apiUsedPct = Int(pool.apiPercentUsed.rounded())
+
+            if let autoTotal = pool.autoPoolTotal, let autoUsed = pool.autoPoolUsed {
+                entries.append(.text("Auto: \(autoUsed) / \(autoTotal) used (\(autoUsedPct)%)", .primary))
+            } else {
+                entries.append(.text("Auto: \(autoUsedPct)% used", .primary))
+            }
+
+            if let apiTotal = pool.apiPoolTotal, let apiUsed = pool.apiPoolUsed {
+                entries.append(.text("API: \(apiUsed) / \(apiTotal) used (\(apiUsedPct)%)", .primary))
+            } else {
+                entries.append(.text("API: \(apiUsedPct)% used", .primary))
+            }
+        }
+
+        // On-demand (pay-as-you-go) cost
         guard let cost = context.snapshot?.providerCost, cost.currencyCode != "Quota" else { return }
         let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
         if cost.limit > 0 {
