@@ -74,6 +74,12 @@ enum AlibabaUsageFetcher {
             throw AlibabaUsageError.parseFailed("Could not extract usage data from DOM")
         }
 
+        // Validate that at least one required field is present
+        // This prevents returning a snapshot full of 0% when selectors drift or page hasn't loaded
+        guard response.usage5h != nil || response.usage7d != nil || response.usage30d != nil else {
+            throw AlibabaUsageError.parseFailed("No usage fields found - selectors may have drifted or page not rendered")
+        }
+
         // Parse the response into usage snapshot
         return parseUsageResponse(response)
     }
@@ -124,13 +130,13 @@ enum AlibabaUsageFetcher {
     private static func parseResetTime(_ string: String?) -> Date? {
         guard let string = string else { return nil }
         // Expected format: "2026-03-17 06:57:57 Reset" or "2026-03-22 13:00:00 Reset"
-        // The console displays times in local timezone (Singapore for ap-southeast-1)
-        // Parse without forcing UTC to preserve the displayed time
+        // The console displays times in the user's local timezone (whatever region they're using)
+        // Parse without forcing a specific timezone - use the system's current timezone
+        // This ensures correct countdown calculations regardless of user's region
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        // Use Singapore timezone for ap-southeast-1 region
-        // Users in other regions will see their local console times
-        dateFormatter.timeZone = TimeZone(identifier: "Asia/Singapore")
+        // Don't set explicit timezone - use system timezone to match displayed console time
+        // Users in Singapore will see SGT times, users in PY will see PYT times, etc.
         dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
 
         let components = string.components(separatedBy: " Reset")
