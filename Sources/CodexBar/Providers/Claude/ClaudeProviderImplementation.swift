@@ -65,9 +65,9 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
         let subtitle = if context.settings.debugDisableKeychainAccess {
-            "Inactive while \"Disable Keychain access\" is enabled in Advanced."
+            AppStrings.tr("Inactive while \"Disable Keychain access\" is enabled in Advanced.")
         } else {
-            "Use /usr/bin/security to read Claude credentials and avoid CodexBar keychain prompts."
+            AppStrings.tr("Use /usr/bin/security to read Claude credentials and avoid CodexBar keychain prompts.")
         }
 
         let promptFreeBinding = Binding(
@@ -80,7 +80,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         return [
             ProviderSettingsToggleDescriptor(
                 id: "claude-oauth-prompt-free-credentials",
-                title: "Avoid Keychain prompts (experimental)",
+                title: AppStrings.tr("Avoid Keychain prompts (experimental)"),
                 subtitle: subtitle,
                 binding: promptFreeBinding,
                 statusText: nil,
@@ -112,7 +112,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             })
 
         let usageOptions = ClaudeUsageDataSource.allCases.map {
-            ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+            ProviderSettingsPickerOption(id: $0.rawValue, title: AppStrings.claudeUsageSource($0))
         }
         let cookieOptions = ProviderCookieSourceUI.options(
             allowsOff: false,
@@ -120,35 +120,37 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         let keychainPromptPolicyOptions: [ProviderSettingsPickerOption] = [
             ProviderSettingsPickerOption(
                 id: ClaudeOAuthKeychainPromptMode.never.rawValue,
-                title: "Never prompt"),
+                title: AppStrings.tr("Never prompt")),
             ProviderSettingsPickerOption(
                 id: ClaudeOAuthKeychainPromptMode.onlyOnUserAction.rawValue,
-                title: "Only on user action"),
+                title: AppStrings.tr("Only on user action")),
             ProviderSettingsPickerOption(
                 id: ClaudeOAuthKeychainPromptMode.always.rawValue,
-                title: "Always allow prompts"),
+                title: AppStrings.tr("Always allow prompts")),
         ]
         let cookieSubtitle: () -> String? = {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.claudeCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies for the web API.",
-                manual: "Paste a Cookie header from a claude.ai request.",
-                off: "Claude cookies are disabled.")
+                auto: AppStrings.tr("Automatic imports browser cookies for the web API."),
+                manual: AppStrings.tr("Paste a Cookie header from a claude.ai request."),
+                off: AppStrings.tr("Claude cookies are disabled."))
         }
         let keychainPromptPolicySubtitle: () -> String? = {
             if context.settings.debugDisableKeychainAccess {
-                return "Global Keychain access is disabled in Advanced, so this setting is currently inactive."
+                return AppStrings
+                    .tr("Global Keychain access is disabled in Advanced, so this setting is currently inactive.")
             }
-            return "Controls Claude OAuth Keychain prompts when experimental reader mode is off. Choosing " +
-                "\"Never prompt\" can make OAuth unavailable; use Web/CLI when needed."
+            return AppStrings.tr(
+                "Controls Claude OAuth Keychain prompts when experimental reader mode is off. " +
+                    "Choosing \"Never prompt\" can make OAuth unavailable; use Web/CLI when needed.")
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "claude-usage-source",
-                title: "Usage source",
-                subtitle: "Auto falls back to the next source if the preferred one fails.",
+                title: AppStrings.tr("Usage source"),
+                subtitle: AppStrings.tr("Auto falls back to the next source if the preferred one fails."),
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -156,12 +158,12 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.claudeUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .claude)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : AppStrings.localizedSourceLabel(label)
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "claude-keychain-prompt-policy",
-                title: "Keychain prompt policy",
-                subtitle: "Applies only to the Security.framework OAuth keychain reader.",
+                title: AppStrings.tr("Keychain prompt policy"),
+                subtitle: AppStrings.tr("Applies only to the Security.framework OAuth keychain reader."),
                 dynamicSubtitle: keychainPromptPolicySubtitle,
                 binding: keychainPromptPolicyBinding,
                 options: keychainPromptPolicyOptions,
@@ -170,8 +172,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 onChange: nil),
             ProviderSettingsPickerDescriptor(
                 id: "claude-cookie-source",
-                title: "Claude cookies",
-                subtitle: "Automatic imports browser cookies for the web API.",
+                title: AppStrings.tr("Claude cookies"),
+                subtitle: AppStrings.tr("Automatic imports browser cookies for the web API."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -180,7 +182,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard let entry = CookieHeaderCache.load(provider: .claude) else { return nil }
                     let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
+                    return AppStrings.fmt("Cached: %@ • %@", entry.sourceLabel, when)
                 }),
         ]
     }
@@ -200,7 +202,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
         if context.snapshot?.secondary == nil {
-            entries.append(.text("Weekly usage unavailable for this account.", .secondary))
+            entries.append(.text(AppStrings.tr("Weekly usage unavailable for this account."), .secondary))
         }
 
         if let cost = context.snapshot?.providerCost,
@@ -209,7 +211,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         {
             let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-            entries.append(.text("Extra usage: \(used) / \(limit)", .primary))
+            entries.append(.text(AppStrings.fmt("Extra usage: %@ / %@", used, limit), .primary))
         }
     }
 
@@ -218,7 +220,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         -> (label: String, action: MenuDescriptor.MenuAction)?
     {
         guard self.shouldOpenTerminalForOAuthError(store: context.store) else { return nil }
-        return ("Open Terminal", .openTerminal(command: "claude"))
+        return (AppStrings.tr("Open Terminal"), .openTerminal(command: "claude"))
     }
 
     @MainActor

@@ -20,6 +20,23 @@ enum PreferencesTab: String, Hashable {
     var preferredHeight: CGFloat {
         PreferencesTab.windowHeight
     }
+
+    var localizedTitle: String {
+        switch self {
+        case .general:
+            AppStrings.tr("General")
+        case .providers:
+            AppStrings.tr("Providers")
+        case .display:
+            AppStrings.tr("Display")
+        case .advanced:
+            AppStrings.tr("Advanced")
+        case .about:
+            AppStrings.tr("About")
+        case .debug:
+            AppStrings.tr("Debug")
+        }
+    }
 }
 
 @MainActor
@@ -49,36 +66,37 @@ struct PreferencesView: View {
     var body: some View {
         TabView(selection: self.$selection.tab) {
             GeneralPane(settings: self.settings, store: self.store)
-                .tabItem { Label("General", systemImage: "gearshape") }
+                .tabItem { Label(PreferencesTab.general.localizedTitle, systemImage: "gearshape") }
                 .tag(PreferencesTab.general)
 
             ProvidersPane(
                 settings: self.settings,
                 store: self.store,
                 managedCodexAccountCoordinator: self.managedCodexAccountCoordinator)
-                .tabItem { Label("Providers", systemImage: "square.grid.2x2") }
+                .tabItem { Label(PreferencesTab.providers.localizedTitle, systemImage: "square.grid.2x2") }
                 .tag(PreferencesTab.providers)
 
             DisplayPane(settings: self.settings, store: self.store)
-                .tabItem { Label("Display", systemImage: "eye") }
+                .tabItem { Label(PreferencesTab.display.localizedTitle, systemImage: "eye") }
                 .tag(PreferencesTab.display)
 
             AdvancedPane(settings: self.settings)
-                .tabItem { Label("Advanced", systemImage: "slider.horizontal.3") }
+                .tabItem { Label(PreferencesTab.advanced.localizedTitle, systemImage: "slider.horizontal.3") }
                 .tag(PreferencesTab.advanced)
 
             AboutPane(updater: self.updater)
-                .tabItem { Label("About", systemImage: "info.circle") }
+                .tabItem { Label(PreferencesTab.about.localizedTitle, systemImage: "info.circle") }
                 .tag(PreferencesTab.about)
 
             if self.settings.debugMenuEnabled {
                 DebugPane(settings: self.settings, store: self.store)
-                    .tabItem { Label("Debug", systemImage: "ladybug") }
+                    .tabItem { Label(PreferencesTab.debug.localizedTitle, systemImage: "ladybug") }
                     .tag(PreferencesTab.debug)
             }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
+        .environment(\.locale, self.settings.appLocale)
         .frame(width: self.contentWidth, height: self.contentHeight)
         .onAppear {
             self.updateLayout(for: self.selection.tab, animate: false)
@@ -109,5 +127,14 @@ struct PreferencesView: View {
             self.selection.tab = .general
             self.updateLayout(for: .general, animate: true)
         }
+    }
+}
+
+extension PreferencesView {
+    static func _test_visibleTabTitles(debugMenuEnabled: Bool) -> [String] {
+        let tabs: [PreferencesTab] = debugMenuEnabled
+            ? [.general, .providers, .display, .advanced, .about, .debug]
+            : [.general, .providers, .display, .advanced, .about]
+        return tabs.map(\.localizedTitle)
     }
 }

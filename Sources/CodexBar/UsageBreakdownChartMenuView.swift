@@ -31,7 +31,7 @@ struct UsageBreakdownChartMenuView: View {
         let model = Self.makeModel(from: self.breakdown)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No usage breakdown data.")
+                Text(AppStrings.tr("No usage breakdown data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -362,17 +362,17 @@ struct UsageBreakdownChartMenuView: View {
               let day = model.breakdownByDayKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return ("Hover a bar for details", nil)
+            return (AppStrings.tr("Hover a bar for details"), nil)
         }
 
-        let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
+        let dayLabel = AppStrings.monthDayString(from: date)
         let total = day.totalCreditsUsed.formatted(.number.precision(.fractionLength(0...2)))
         if day.services.isEmpty {
-            return ("\(dayLabel): \(total)", nil)
+            return (AppStrings.fmt("%@: %@", dayLabel, total), nil)
         }
         if day.services.count <= 1, let first = day.services.first {
             let used = first.creditsUsed.formatted(.number.precision(.fractionLength(0...2)))
-            return ("\(dayLabel): \(used)", first.service)
+            return (AppStrings.fmt("%@: %@", dayLabel, used), first.service)
         }
 
         let services = day.services
@@ -384,6 +384,6 @@ struct UsageBreakdownChartMenuView: View {
             .map { "\($0.service) \($0.creditsUsed.formatted(.number.precision(.fractionLength(0...2))))" }
             .joined(separator: " · ")
 
-        return ("\(dayLabel): \(total)", services)
+        return (AppStrings.fmt("%@: %@", dayLabel, total), services)
     }
 }

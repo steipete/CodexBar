@@ -4,6 +4,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct StatusMenuTests {
     private func disableMenuCardsForTesting() {
         StatusItemController.menuCardRenderingEnabled = false
@@ -146,6 +147,41 @@ struct StatusMenuTests {
         controller.menuWillOpen(menu)
         #expect(settings.selectedMenuProvider == nil)
         #expect(controller.lastMenuProvider == expectedResolved)
+    }
+
+    @Test
+    func `menu actions follow selected language`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let expectedTitles: [(AppLanguage, String, String, String)] = [
+            (.english, "Settings...", "About CodexBar", "Quit"),
+            (.simplifiedChinese, "设置...", "关于 CodexBar", "退出"),
+            (.traditionalChinese, "設定...", "關於 CodexBar", "結束"),
+        ]
+
+        for (language, settingsTitle, aboutTitle, quitTitle) in expectedTitles {
+            AppStrings.withTestingLanguage(language) {
+                let menu = controller.makeMenu()
+                controller.menuWillOpen(menu)
+                let titles = menu.items.map(\.title)
+                #expect(titles.contains(settingsTitle))
+                #expect(titles.contains(aboutTitle))
+                #expect(titles.contains(quitTitle))
+            }
+        }
     }
 
     @Test
@@ -428,13 +464,13 @@ struct StatusMenuTests {
         controller.menuWillOpen(menu)
 
         let titles = Set(menu.items.map(\.title))
-        #expect(!titles.contains("Add Account..."))
-        #expect(!titles.contains("Switch Account..."))
-        #expect(!titles.contains("Usage Dashboard"))
-        #expect(!titles.contains("Status Page"))
-        #expect(titles.contains("Settings..."))
-        #expect(titles.contains("About CodexBar"))
-        #expect(titles.contains("Quit"))
+        #expect(!titles.contains(AppStrings.tr("Add Account...")))
+        #expect(!titles.contains(AppStrings.tr("Switch Account...")))
+        #expect(!titles.contains(AppStrings.tr("Usage Dashboard")))
+        #expect(!titles.contains(AppStrings.tr("Status Page")))
+        #expect(titles.contains(AppStrings.tr("Settings...")))
+        #expect(titles.contains(AppStrings.tr("About CodexBar")))
+        #expect(titles.contains(AppStrings.tr("Quit")))
     }
 
     @Test
@@ -558,8 +594,8 @@ struct StatusMenuTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
         let titles = Set(menu.items.map(\.title))
-        #expect(!titles.contains("Credits history"))
-        #expect(!titles.contains("Usage breakdown"))
+        #expect(!titles.contains(AppStrings.tr("Credits history")))
+        #expect(!titles.contains(AppStrings.tr("Usage breakdown")))
     }
 
     @Test
@@ -945,12 +981,13 @@ extension StatusMenuTests {
         let ids = self.representedIDs(in: menu)
         let switcherButtons = self.switcherButtons(in: menu)
         #expect(switcherButtons.count == store.enabledProvidersForDisplay().count)
-        #expect(switcherButtons.contains(where: { $0.title == "Overview" }) == false)
+        #expect(switcherButtons.contains(where: { $0.title == AppStrings.tr("Overview") }) == false)
         #expect(switcherButtons.contains(where: { $0.state == .on && $0.tag == 0 }))
         #expect(ids.contains("menuCard"))
         #expect(ids.contains(where: { $0.hasPrefix("overviewRow-") }) == false)
         #expect(ids.contains("overviewEmptyState") == false)
-        #expect(menu.items.contains(where: { $0.title == "No providers selected for Overview." }) == false)
+        #expect(menu.items
+            .contains(where: { $0.title == AppStrings.tr("No providers selected for Overview.") }) == false)
     }
 
     @Test

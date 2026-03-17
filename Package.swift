@@ -13,6 +13,7 @@ let sweetCookieKitDependency: Package.Dependency =
 
 let package = Package(
     name: "CodexBar",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v14),
     ],
@@ -98,6 +99,9 @@ let package = Package(
                 name: "CodexBarWidget",
                 dependencies: ["CodexBarCore"],
                 path: "Sources/CodexBarWidget",
+                resources: [
+                    .process("Resources"),
+                ],
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
                 ]),

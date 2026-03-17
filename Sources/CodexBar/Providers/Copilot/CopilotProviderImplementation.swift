@@ -10,7 +10,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "github api" }
+        ProviderPresentation { _ in AppStrings.tr("github api") }
     }
 
     @MainActor
@@ -29,15 +29,15 @@ struct CopilotProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "copilot-api-token",
-                title: "GitHub Login",
-                subtitle: "Requires authentication via GitHub Device Flow.",
+                title: AppStrings.tr("GitHub Login"),
+                subtitle: AppStrings.tr("Requires authentication via GitHub Device Flow."),
                 kind: .secure,
-                placeholder: "Sign in via button below",
+                placeholder: AppStrings.tr("Sign in via button below"),
                 binding: context.stringBinding(\.copilotAPIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "copilot-login",
-                        title: "Sign in with GitHub",
+                        title: AppStrings.tr("Sign in with GitHub"),
                         style: .bordered,
                         isVisible: { context.settings.copilotAPIToken.isEmpty },
                         perform: {
@@ -45,7 +45,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                         }),
                     ProviderSettingsActionDescriptor(
                         id: "copilot-relogin",
-                        title: "Sign in again",
+                        title: AppStrings.tr("Sign in again"),
                         style: .link,
                         isVisible: { !context.settings.copilotAPIToken.isEmpty },
                         perform: {

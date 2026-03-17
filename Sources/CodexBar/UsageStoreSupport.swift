@@ -17,14 +17,7 @@ enum ProviderStatusIndicator: String {
     }
 
     var label: String {
-        switch self {
-        case .none: "Operational"
-        case .minor: "Partial outage"
-        case .major: "Major outage"
-        case .critical: "Critical issue"
-        case .maintenance: "Maintenance"
-        case .unknown: "Status unknown"
-        }
+        AppStrings.providerStatus(self)
     }
 }
 

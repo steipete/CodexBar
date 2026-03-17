@@ -10,7 +10,7 @@ struct ZaiProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "api" }
+        ProviderPresentation { _ in AppStrings.tr("api") }
     }
 
     @MainActor
@@ -48,8 +48,8 @@ struct ZaiProviderImplementation: ProviderImplementation {
         return [
             ProviderSettingsPickerDescriptor(
                 id: "zai-api-region",
-                title: "API region",
-                subtitle: "Use BigModel for the China mainland endpoints (open.bigmodel.cn).",
+                title: AppStrings.tr("API region"),
+                subtitle: AppStrings.tr("Use BigModel for the China mainland endpoints (open.bigmodel.cn)."),
                 binding: binding,
                 options: options,
                 isVisible: nil,

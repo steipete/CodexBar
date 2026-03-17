@@ -7,6 +7,63 @@ import Testing
 @MainActor
 struct SettingsStoreTests {
     @Test
+    func `default app language is system`() throws {
+        let suite = "SettingsStoreTests-default-language"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.appLanguage == .system)
+    }
+
+    @Test
+    func `persists app language across instances`() throws {
+        let suite = "SettingsStoreTests-app-language-persist"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        storeA.appLanguage = .traditionalChinese
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.appLanguage == .traditionalChinese)
+    }
+
+    @Test
+    func `invalid app language raw value falls back to system`() throws {
+        let suite = "SettingsStoreTests-app-language-invalid"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("fr", forKey: AppLanguage.userDefaultsKey)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.appLanguage == .system)
+    }
+
+    @Test
     func `default refresh frequency is five minutes`() throws {
         let suite = "SettingsStoreTests-default"
         let defaults = try #require(UserDefaults(suiteName: suite))

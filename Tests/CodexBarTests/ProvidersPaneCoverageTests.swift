@@ -5,6 +5,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct ProvidersPaneCoverageTests {
     @Test
     func `exercises providers pane views`() {
@@ -26,8 +27,8 @@ struct ProvidersPaneCoverageTests {
             MenuBarMetricPreference.primary.rawValue,
         ])
         #expect(picker?.options.map(\.title) == [
-            "Automatic",
-            "Primary (API key limit)",
+            AppStrings.tr("Automatic"),
+            AppStrings.tr("Primary (API key limit)"),
         ])
     }
 
@@ -77,7 +78,7 @@ struct ProvidersPaneCoverageTests {
     func `provider detail plan row formats open router as balance`() {
         let row = ProviderDetailView<EmptyView>.planRow(provider: .openrouter, planText: "Balance: $4.61")
 
-        #expect(row?.label == "Balance")
+        #expect(row?.label == AppStrings.tr("Balance"))
         #expect(row?.value == "$4.61")
     }
 
@@ -85,7 +86,7 @@ struct ProvidersPaneCoverageTests {
     func `provider detail plan row keeps plan label for non open router`() {
         let row = ProviderDetailView<EmptyView>.planRow(provider: .codex, planText: "Pro")
 
-        #expect(row?.label == "Plan")
+        #expect(row?.label == AppStrings.tr("Plan"))
         #expect(row?.value == "Pro")
     }
 
@@ -133,6 +134,26 @@ struct ProvidersPaneCoverageTests {
 
         #expect(model.email == "managed@example.com")
         #expect(model.planText == "Enterprise")
+    }
+
+    @Test
+    func `provider subtitle follows selected language`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-language")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        AppStrings.withTestingLanguage(.simplifiedChinese) {
+            #expect(pane.providerSubtitle(.codex).contains(AppStrings.tr("usage not fetched yet")))
+
+            store._setErrorForTesting("boom", provider: .codex)
+            #expect(pane.providerSubtitle(.codex).contains(AppStrings.tr("last fetch failed")))
+
+            store._setErrorForTesting(nil, provider: .codex)
+            store._setSnapshotForTesting(
+                UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date()),
+                provider: .codex)
+            #expect(pane.providerSubtitle(.codex).contains(AppStrings.tr("just now")))
+        }
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {

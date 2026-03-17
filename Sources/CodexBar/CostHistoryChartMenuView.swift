@@ -37,7 +37,7 @@ struct CostHistoryChartMenuView: View {
         let model = Self.makeModel(provider: self.provider, daily: self.daily)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No cost history data.")
+                Text(AppStrings.tr("No cost history data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -107,7 +107,7 @@ struct CostHistoryChartMenuView: View {
             }
 
             if let total = self.totalCostUSD {
-                Text("Total (30d): \(UsageFormatter.usdString(total))")
+                Text(AppStrings.fmt("Total (30d): %@", UsageFormatter.usdString(total)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -291,17 +291,21 @@ struct CostHistoryChartMenuView: View {
               let point = model.pointsByDateKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return ("Hover a bar for details", nil)
+            return (AppStrings.tr("Hover a bar for details"), nil)
         }
 
-        let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
+        let dayLabel = AppStrings.monthDayString(from: date)
         let cost = UsageFormatter.usdString(point.costUSD)
         if let tokens = point.totalTokens {
-            let primary = "\(dayLabel): \(cost) · \(UsageFormatter.tokenCountString(tokens)) tokens"
+            let primary = AppStrings.fmt(
+                "%@: %@ · %@ tokens",
+                dayLabel,
+                cost,
+                UsageFormatter.tokenCountString(tokens))
             let secondary = self.topModelsText(key: key, model: model)
             return (primary, secondary)
         }
-        let primary = "\(dayLabel): \(cost)"
+        let primary = AppStrings.fmt("%@: %@", dayLabel, cost)
         let secondary = self.topModelsText(key: key, model: model)
         return (primary, secondary)
     }
@@ -321,6 +325,6 @@ struct CostHistoryChartMenuView: View {
             }
             .prefix(3)
         guard !parts.isEmpty else { return nil }
-        return "Top: \(parts.joined(separator: " · "))"
+        return AppStrings.fmt("Top: %@", parts.joined(separator: " · "))
     }
 }
