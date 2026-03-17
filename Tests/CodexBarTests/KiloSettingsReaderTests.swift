@@ -22,7 +22,7 @@ struct KiloSettingsReaderTests {
     @Test
     func `descriptor uses app kilo AI dashboard`() {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .kilo)
-        #expect(descriptor.metadata.dashboardURL == "https://app.kilo.ai/account/usage")
+        #expect(descriptor.metadata.dashboardURL == "https://app.kilo.ai/usage")
     }
 
     @Test

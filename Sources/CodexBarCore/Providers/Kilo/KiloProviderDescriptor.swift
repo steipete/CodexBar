@@ -22,7 +22,7 @@ public enum KiloProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
-                dashboardURL: "https://app.kilo.ai/account/usage",
+                dashboardURL: "https://app.kilo.ai/usage",
                 statusPageURL: nil),
             branding: ProviderBranding(
                 iconStyle: .kilo,
