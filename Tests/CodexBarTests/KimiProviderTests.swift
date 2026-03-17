@@ -191,16 +191,16 @@ struct KimiUsageSnapshotConversionTests {
         let usageSnapshot = snapshot.toUsageSnapshot()
 
         #expect(usageSnapshot.primary != nil)
-        let weeklyExpected = 375.0 / 2048.0 * 100.0
-        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
-        #expect(usageSnapshot.primary?.resetDescription == "375/2048 requests")
-        #expect(usageSnapshot.primary?.windowMinutes == nil)
+        let rateExpected = 200.0 / 200.0 * 100.0
+        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - rateExpected) < 0.01)
+        #expect(usageSnapshot.primary?.windowMinutes == 300) // 5 hours
+        #expect(usageSnapshot.primary?.resetDescription == "Rate: 200/200 per 5 hours")
 
         #expect(usageSnapshot.secondary != nil)
-        let rateExpected = 200.0 / 200.0 * 100.0
-        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - rateExpected) < 0.01)
-        #expect(usageSnapshot.secondary?.windowMinutes == 300) // 5 hours
-        #expect(usageSnapshot.secondary?.resetDescription == "Rate: 200/200 per 5 hours")
+        let weeklyExpected = 375.0 / 2048.0 * 100.0
+        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
+        #expect(usageSnapshot.secondary?.resetDescription == "375/2048 requests")
+        #expect(usageSnapshot.secondary?.windowMinutes == nil)
 
         #expect(usageSnapshot.tertiary == nil)
         #expect(usageSnapshot.updatedAt == now)

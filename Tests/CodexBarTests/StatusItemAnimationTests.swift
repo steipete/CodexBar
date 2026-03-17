@@ -308,8 +308,8 @@ struct StatusItemAnimationTests {
             statusBar: self.makeStatusBarForTesting())
 
         let snapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            primary: RateWindow(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             updatedAt: Date())
 
         store._setSnapshotForTesting(snapshot, provider: .kimi)
