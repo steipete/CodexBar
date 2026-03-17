@@ -34,6 +34,31 @@ if [[ ${#ARCH_LIST[@]} -eq 0 ]]; then
   esac
 fi
 
+patch_keyboard_shortcuts_recorder() {
+  local recorder_path="$ROOT/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Recorder.swift"
+  if [[ ! -f "$recorder_path" ]]; then
+    return 0
+  fi
+  if ! grep -q '#Preview' "$recorder_path"; then
+    return 0
+  fi
+
+  chmod +w "$recorder_path" || true
+  python3 - "$recorder_path" <<'PY'
+import sys, re
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+# Remove #Preview { ... } blocks — they use PreviewsMacros which is unavailable
+# when cross-compiling and are not needed for release builds.
+patched = re.sub(r'\n#Preview \{[^}]*\}', '', text, flags=re.DOTALL)
+if patched != text:
+    path.write_text(patched)
+PY
+}
+
 patch_keyboard_shortcuts() {
   local util_path="$ROOT/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift"
   if [[ ! -f "$util_path" ]]; then
@@ -103,6 +128,7 @@ if [[ ! -f "$KEYBOARD_SHORTCUTS_UTIL" ]]; then
   swift build -c "$CONF" --arch "${ARCH_LIST[0]}"
 fi
 patch_keyboard_shortcuts
+patch_keyboard_shortcuts_recorder
 
 for ARCH in "${ARCH_LIST[@]}"; do
   swift build -c "$CONF" --arch "$ARCH"
