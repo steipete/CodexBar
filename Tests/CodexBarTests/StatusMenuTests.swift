@@ -451,7 +451,7 @@ struct StatusMenuTests {
         let statusItem = menu.items.first(where: { $0.toolTip == statusText })
         #expect(statusItem != nil)
         #expect(statusItem?.view != nil)
-        #expect(statusItem?.title.isEmpty == true)
+        #expect(statusItem?.title == statusText)
         #expect(statusItem?.view?.frame.width == 310)
     }
 
