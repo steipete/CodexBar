@@ -93,6 +93,7 @@ public struct CursorUsageSummary: Codable, Sendable {
 
 public struct CursorIndividualUsage: Codable, Sendable {
     public let plan: CursorPlanUsage?
+    public let overall: CursorPlanUsage?
     public let onDemand: CursorOnDemandUsage?
 }
 
@@ -128,6 +129,7 @@ public struct CursorOnDemandUsage: Codable, Sendable {
 
 public struct CursorTeamUsage: Codable, Sendable {
     public let onDemand: CursorOnDemandUsage?
+    public let pooled: CursorPlanUsage?
 }
 
 // MARK: - Cursor Usage API Models (Legacy Request-Based Plans)
@@ -689,15 +691,23 @@ public struct CursorStatusProbe: Sendable {
             return formatter.date(from: dateString) ?? ISO8601DateFormatter().date(from: dateString)
         }
 
+        // Cursor uses different keys across account types:
+        // - individualUsage.plan: classic personal plans
+        // - individualUsage.overall: enterprise/team accounts
+        // - teamUsage.pooled: fallback pooled quota for some org plans
+        let primaryUsage = summary.individualUsage?.plan
+            ?? summary.individualUsage?.overall
+            ?? summary.teamUsage?.pooled
+
         // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
-        // Use plan.limit directly - breakdown.total represents total *used* credits, not the limit.
-        let planUsedRaw = Double(summary.individualUsage?.plan?.used ?? 0)
-        let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
+        // Use limit directly - breakdown.total represents usage, not the plan cap.
+        let planUsedRaw = Double(primaryUsage?.used ?? 0)
+        let planLimitRaw = Double(primaryUsage?.limit ?? 0)
         let planUsed = planUsedRaw / 100.0
         let planLimit = planLimitRaw / 100.0
         let planPercentUsed: Double = if planLimitRaw > 0 {
             (planUsedRaw / planLimitRaw) * 100
-        } else if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
+        } else if let totalPercentUsed = primaryUsage?.totalPercentUsed {
             totalPercentUsed <= 1 ? totalPercentUsed * 100 : totalPercentUsed
         } else {
             0

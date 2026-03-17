@@ -50,6 +50,43 @@ struct CursorStatusProbeTests {
     }
 
     @Test
+    func `parses team overall usage summary`() throws {
+        let json = """
+        {
+            "billingCycleStart": "2026-03-01T00:00:00.000Z",
+            "billingCycleEnd": "2026-04-01T00:00:00.000Z",
+            "membershipType": "enterprise",
+            "limitType": "team",
+            "individualUsage": {
+                "overall": {
+                    "enabled": true,
+                    "used": 10985,
+                    "limit": 15000,
+                    "remaining": 4015
+                }
+            },
+            "teamUsage": {
+                "pooled": {
+                    "enabled": true,
+                    "used": 4749435,
+                    "limit": 10693200,
+                    "remaining": 5943765
+                }
+            }
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: data)
+
+        #expect(summary.membershipType == "enterprise")
+        #expect(summary.individualUsage?.plan == nil)
+        #expect(summary.individualUsage?.overall?.used == 10985)
+        #expect(summary.individualUsage?.overall?.limit == 15000)
+        #expect(summary.teamUsage?.pooled?.used == 4749435)
+        #expect(summary.teamUsage?.pooled?.limit == 10693200)
+    }
+
+    @Test
     func `parses minimal usage summary`() throws {
         let json = """
         {
@@ -140,6 +177,7 @@ struct CursorStatusProbeTests {
                             autoPercentUsed: nil,
                             apiPercentUsed: nil,
                             totalPercentUsed: 0.40625),
+                        overall: nil,
                         onDemand: nil),
                     teamUsage: nil),
                 userInfo: nil,
@@ -170,12 +208,56 @@ struct CursorStatusProbeTests {
                             autoPercentUsed: nil,
                             apiPercentUsed: nil,
                             totalPercentUsed: 0.5),
+                        overall: nil,
                         onDemand: nil),
                     teamUsage: nil),
                 userInfo: nil,
                 rawJSON: nil)
 
         #expect(snapshot.planPercentUsed == 50.0)
+    }
+
+    @Test
+    func `uses overall usage when plan bucket is absent`() {
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: "2026-03-01T00:00:00.000Z",
+                    billingCycleEnd: "2026-04-01T00:00:00.000Z",
+                    membershipType: "enterprise",
+                    limitType: "team",
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: nil,
+                        overall: CursorPlanUsage(
+                            enabled: true,
+                            used: 10985,
+                            limit: 15000,
+                            remaining: 4015,
+                            breakdown: nil,
+                            autoPercentUsed: nil,
+                            apiPercentUsed: nil,
+                            totalPercentUsed: nil),
+                        onDemand: nil),
+                    teamUsage: CursorTeamUsage(
+                        onDemand: nil,
+                        pooled: CursorPlanUsage(
+                            enabled: true,
+                            used: 4749435,
+                            limit: 10693200,
+                            remaining: 5943765,
+                            breakdown: nil,
+                            autoPercentUsed: nil,
+                            apiPercentUsed: nil,
+                            totalPercentUsed: nil))),
+                userInfo: nil,
+                rawJSON: nil)
+
+        #expect(snapshot.planUsedUSD == 109.85)
+        #expect(snapshot.planLimitUSD == 150.0)
+        #expect(abs(snapshot.planPercentUsed - 73.23333333333333) < 0.0001)
     }
 
     @Test
