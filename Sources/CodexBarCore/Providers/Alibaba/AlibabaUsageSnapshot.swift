@@ -24,6 +24,8 @@ struct AlibabaUsageSnapshot {
     let updatedAt: Date
 
     /// Convert to CodexBar's standard UsageSnapshot format
+    /// Note: UsageSnapshot only supports primary (5h) and secondary (7d) windows.
+    /// monthlyUsage (30d) is collected but cannot be forwarded to the shared model.
     func toUsageSnapshot() -> UsageSnapshot {
         UsageSnapshot(
             primary: sessionUsage,

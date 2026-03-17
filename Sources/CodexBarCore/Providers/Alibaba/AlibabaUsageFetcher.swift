@@ -124,9 +124,13 @@ enum AlibabaUsageFetcher {
     private static func parseResetTime(_ string: String?) -> Date? {
         guard let string = string else { return nil }
         // Expected format: "2026-03-17 06:57:57 Reset" or "2026-03-22 13:00:00 Reset"
+        // The console displays times in local timezone (Singapore for ap-southeast-1)
+        // Parse without forcing UTC to preserve the displayed time
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+        // Use Singapore timezone for ap-southeast-1 region
+        // Users in other regions will see their local console times
+        dateFormatter.timeZone = TimeZone(identifier: "Asia/Singapore")
         dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
 
         let components = string.components(separatedBy: " Reset")
