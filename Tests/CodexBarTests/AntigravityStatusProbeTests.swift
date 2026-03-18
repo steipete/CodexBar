@@ -233,14 +233,15 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
-    func `model without remaining fraction is unavailable`() throws {
+    func `model without remaining fraction keeps reset time`() throws {
+        let resetTime = Date(timeIntervalSince1970: 1_735_000_000)
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
                     label: "Gemini 3.1 Pro (Low)",
                     modelId: "MODEL_PLACEHOLDER_M36",
                     remainingFraction: nil,
-                    resetTime: nil,
+                    resetTime: resetTime,
                     resetDescription: nil),
                 AntigravityModelQuota(
                     label: "Gemini 3 Flash",
@@ -253,7 +254,8 @@ struct AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.secondary == nil)
+        #expect(usage.secondary?.remainingPercent.rounded() == 0)
+        #expect(usage.secondary?.resetsAt == resetTime)
         #expect(usage.tertiary?.remainingPercent.rounded() == 100)
     }
 }

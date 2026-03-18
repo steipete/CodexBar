@@ -135,15 +135,18 @@ public struct AntigravityStatusSnapshot: Sendable {
         for family: AntigravityModelFamily,
         in models: [AntigravityNormalizedModel]) -> AntigravityModelQuota?
     {
-        let candidates = models.filter {
-            $0.family == family && $0.selectionPriority != nil && $0.quota.remainingFraction != nil
-        }
+        let candidates = models.filter { $0.family == family && $0.selectionPriority != nil }
         guard !candidates.isEmpty else { return nil }
         return candidates.min { lhs, rhs in
             let lhsPriority = lhs.selectionPriority ?? Int.max
             let rhsPriority = rhs.selectionPriority ?? Int.max
             if lhsPriority != rhsPriority {
                 return lhsPriority < rhsPriority
+            }
+            let lhsHasRemainingFraction = lhs.quota.remainingFraction != nil
+            let rhsHasRemainingFraction = rhs.quota.remainingFraction != nil
+            if lhsHasRemainingFraction != rhsHasRemainingFraction {
+                return lhsHasRemainingFraction && !rhsHasRemainingFraction
             }
             return lhs.quota.remainingPercent < rhs.quota.remainingPercent
         }?.quota
