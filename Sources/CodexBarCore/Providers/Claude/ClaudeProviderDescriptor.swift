@@ -291,25 +291,30 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
 
     /// The OAuth usage endpoint does not return account identity (email/org).
     /// When identity is missing, attempt a best-effort CLI status probe to fill it in.
+    ///
+    /// Skipped when the OAuth token came from an environment variable, since the
+    /// CLI may be logged into a different account than the env-backed token.
     static func enrichIdentityIfNeeded(
         usage: ClaudeUsageSnapshot,
         environment: [String: String]) async -> ClaudeUsageSnapshot
     {
         guard usage.accountEmail == nil else { return usage }
 
+        // When the OAuth token is provided via env var, the local CLI session
+        // may belong to a different account. Merging would show the wrong identity.
+        let hasEnvToken = !(environment[ClaudeOAuthCredentialsStore.environmentTokenKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        guard !hasEnvToken else { return usage }
+
         let identity: ClaudeAccountIdentity?
         #if DEBUG
         if let override = Self.identityProbeOverride {
             identity = override
         } else {
-            identity = try? await ClaudeStatusProbe.fetchIdentity(
-                timeout: 5,
-                environment: environment)
+            identity = await Self.probeIdentityViaCLI(environment: environment)
         }
         #else
-        identity = try? await ClaudeStatusProbe.fetchIdentity(
-            timeout: 5,
-            environment: environment)
+        identity = await Self.probeIdentityViaCLI(environment: environment)
         #endif
 
         guard let identity else { return usage }
@@ -323,6 +328,18 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             accountOrganization: identity.accountOrganization,
             loginMethod: usage.loginMethod ?? identity.loginMethod,
             rawText: usage.rawText)
+    }
+
+    /// Run `claude /status` to scrape account identity, then reset the PTY session
+    /// so we don't leave a background `claude` process resident.
+    private static func probeIdentityViaCLI(
+        environment: [String: String]) async -> ClaudeAccountIdentity?
+    {
+        let identity = try? await ClaudeStatusProbe.fetchIdentity(
+            timeout: 5,
+            environment: environment)
+        await ClaudeCLISession.shared.reset()
+        return identity
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {

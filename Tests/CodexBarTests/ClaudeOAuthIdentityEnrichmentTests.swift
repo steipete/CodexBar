@@ -96,5 +96,25 @@ struct ClaudeOAuthIdentityEnrichmentTests {
         #expect(enriched.accountEmail == "user@example.com")
         #expect(enriched.loginMethod == "Claude Pro")
     }
+
+    @Test
+    func `skips probe when OAuth token came from env var`() async {
+        let usage = self.makeUsage(accountEmail: nil)
+        let identity = ClaudeAccountIdentity(
+            accountEmail: "cli@example.com",
+            accountOrganization: nil,
+            loginMethod: nil)
+
+        let env = [ClaudeOAuthCredentialsStore.environmentTokenKey: "sk-ant-oat-env-token"]
+        let enriched = await ClaudeOAuthFetchStrategy.$identityProbeOverride
+            .withValue(.some(identity)) {
+                await ClaudeOAuthFetchStrategy.enrichIdentityIfNeeded(
+                    usage: usage,
+                    environment: env)
+            }
+
+        // Should NOT merge CLI identity when token is env-backed
+        #expect(enriched.accountEmail == nil)
+    }
 }
 #endif
