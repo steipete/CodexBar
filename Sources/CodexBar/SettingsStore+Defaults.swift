@@ -280,6 +280,14 @@ extension SettingsStore {
         }
     }
 
+    var menuBarShowsActiveProvider: Bool {
+        get { self.defaultsState.menuBarShowsActiveProvider }
+        set {
+            self.defaultsState.menuBarShowsActiveProvider = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarShowsActiveProvider")
+        }
+    }
+
     var switcherShowsIcons: Bool {
         get { self.defaultsState.switcherShowsIcons }
         set {
@@ -472,6 +480,24 @@ extension SettingsStore {
             self.defaultsState.providerDetectionCompleted = newValue
             self.userDefaults.set(newValue, forKey: "providerDetectionCompleted")
         }
+    }
+
+    /// The last provider that was shown in the menu bar when an active AI app was detected.
+    /// Used as fallback when no relevant AI app is active.
+    var lastActiveProviderRaw: String? {
+        get { self.userDefaults.string(forKey: "lastActiveProvider") }
+        set {
+            if let newValue {
+                self.userDefaults.set(newValue, forKey: "lastActiveProvider")
+            } else {
+                self.userDefaults.removeObject(forKey: "lastActiveProvider")
+            }
+        }
+    }
+
+    var lastActiveProvider: UsageProvider? {
+        get { self.lastActiveProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
+        set { self.lastActiveProviderRaw = newValue?.rawValue }
     }
 
     var debugLoadingPattern: LoadingPattern? {

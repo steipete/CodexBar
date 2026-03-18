@@ -481,6 +481,17 @@ extension StatusItemController {
     }
 
     private func primaryProviderForUnifiedIcon() -> UsageProvider {
+        // When "show active provider" is enabled, use the active AI app's provider
+        if self.settings.menuBarShowsActiveProvider,
+           self.shouldMergeIcons,
+           let activeProvider = ActiveAppDetector.activeProvider(),
+           self.store.isEnabled(activeProvider) || self.store.enabledProviders().isEmpty
+        {
+            // Update the last active provider when we detect an active AI app
+            self.settings.lastActiveProvider = activeProvider
+            return activeProvider
+        }
+
         // When "show highest usage" is enabled, auto-select the provider closest to rate limit.
         if self.settings.menuBarShowsHighestUsage,
            self.shouldMergeIcons,
@@ -488,12 +499,24 @@ extension StatusItemController {
         {
             return highest.provider
         }
+
+        // Use manually selected provider
         if self.shouldMergeIcons,
            let selected = self.selectedMenuProvider,
            self.store.isEnabled(selected)
         {
             return selected
         }
+
+        // Fall back to last active provider if available
+        if self.settings.menuBarShowsActiveProvider,
+           self.shouldMergeIcons,
+           let lastProvider = self.settings.lastActiveProvider,
+           self.store.isEnabled(lastProvider)
+        {
+            return lastProvider
+        }
+
         for provider in UsageProvider.allCases {
             if self.store.isEnabled(provider), self.store.snapshot(for: provider) != nil {
                 return provider

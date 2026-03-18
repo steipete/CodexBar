@@ -80,6 +80,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastConfigRevision: Int
     private var lastProviderOrder: [UsageProvider]
     private var lastMergeIcons: Bool
+    private var lastMenuBarShowsActiveProvider: Bool
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
     /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
@@ -97,6 +98,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         get { self.settings.selectedMenuProvider }
         set { self.settings.selectedMenuProvider = newValue }
     }
+
+    private var activeAppObserver: NSObjectProtocol?
 
     struct BlinkState {
         var nextBlink: Date
@@ -167,6 +170,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastConfigRevision = settings.configRevision
         self.lastProviderOrder = settings.providerOrder
         self.lastMergeIcons = settings.mergeIcons
+        self.lastMenuBarShowsActiveProvider = settings.menuBarShowsActiveProvider
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
@@ -195,6 +199,35 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             selector: #selector(self.handleProviderConfigDidChange),
             name: .codexbarProviderConfigDidChange,
             object: nil)
+
+        // Observe active app changes for dynamic menu bar icon
+        self.activeAppObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.handleActiveAppChanged()
+                }
+            }
+    }
+
+    @objc private func handleActiveAppChanged() {
+        guard self.settings.menuBarShowsActiveProvider, self.shouldMergeIcons else { return }
+        self.updateIcons()
+    }
+
+    private func updateActiveProviderTracking() {
+        guard self.settings.menuBarShowsActiveProvider, self.shouldMergeIcons else { return }
+
+        if let activeProvider = ActiveAppDetector.activeProvider() {
+            // Update last active provider when switching to an AI app
+            self.settings.lastActiveProvider = activeProvider
+            // Update the selected menu provider to reflect active app
+            self.selectedMenuProvider = activeProvider
+        } else if self.settings.lastActiveProvider != nil {
+            // When no AI app is active, keep showing the last active provider
+            // (don't change selectedMenuProvider here - let primaryProviderForUnifiedIcon handle fallback)
+        }
     }
 
     private func wireBindings() {
@@ -321,6 +354,17 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let configChanged = self.settings.configRevision != self.lastConfigRevision
         let orderChanged = self.settings.providerOrder != self.lastProviderOrder
         let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForProviderSwitcher()
+
+        // Track setting changes for menuBarShowsActiveProvider
+        let showActiveProviderChanged = self.settings.menuBarShowsActiveProvider != self.lastMenuBarShowsActiveProvider
+        if showActiveProviderChanged {
+            self.lastMenuBarShowsActiveProvider = self.settings.menuBarShowsActiveProvider
+            // When enabled, immediately check for active app
+            if self.settings.menuBarShowsActiveProvider, self.shouldMergeIcons {
+                self.updateActiveProviderTracking()
+            }
+        }
+
         self.invalidateMenus()
         if orderChanged || configChanged {
             self.rebuildProviderStatusItems()
@@ -484,6 +528,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     deinit {
         self.blinkTask?.cancel()
         self.loginTask?.cancel()
+        // Note: activeAppObserver will be cleaned up by the system when the app terminates
         NotificationCenter.default.removeObserver(self)
     }
 }
