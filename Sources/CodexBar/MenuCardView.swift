@@ -1104,10 +1104,11 @@ extension UsageMenuCardView.Model {
         percentStyle: PercentStyle) -> Metric
     {
         guard let window else {
+            let placeholderPercent = input.usageBarsShowUsed ? 100.0 : 0.0
             return Metric(
                 id: id,
                 title: title,
-                percent: 0,
+                percent: placeholderPercent,
                 percentStyle: percentStyle,
                 statusText: nil,
                 resetText: nil,
