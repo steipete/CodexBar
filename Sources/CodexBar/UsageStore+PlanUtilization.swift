@@ -32,6 +32,8 @@ extension UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot,
         account: ProviderTokenAccount? = nil,
+        shouldUpdatePreferredAccountKey: Bool = true,
+        shouldAdoptUnscopedHistory: Bool = true,
         now: Date = Date())
         async
     {
@@ -48,6 +50,8 @@ extension UsageStore {
                 provider: provider,
                 snapshot: snapshot,
                 preferredAccount: preferredAccount,
+                shouldUpdatePreferredAccountKey: shouldUpdatePreferredAccountKey,
+                shouldAdoptUnscopedHistory: shouldAdoptUnscopedHistory,
                 providerBuckets: &providerBuckets)
             let history = providerBuckets.samples(for: accountKey)
             let sample = PlanUtilizationHistorySample(
@@ -337,26 +341,36 @@ extension UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         preferredAccount: ProviderTokenAccount?,
+        shouldUpdatePreferredAccountKey: Bool = true,
+        shouldAdoptUnscopedHistory: Bool = true,
         providerBuckets: inout PlanUtilizationHistoryBuckets) -> String?
     {
         let resolvedAccount = preferredAccount ?? self.settings.selectedTokenAccount(for: provider)
         if let tokenAccountKey = Self.planUtilizationAccountKey(provider: provider, account: resolvedAccount) {
-            providerBuckets.preferredAccountKey = tokenAccountKey
-            self.adoptPlanUtilizationUnscopedHistoryIfNeeded(
-                into: tokenAccountKey,
-                provider: provider,
-                providerBuckets: &providerBuckets)
+            if shouldUpdatePreferredAccountKey {
+                providerBuckets.preferredAccountKey = tokenAccountKey
+            }
+            if shouldAdoptUnscopedHistory {
+                self.adoptPlanUtilizationUnscopedHistoryIfNeeded(
+                    into: tokenAccountKey,
+                    provider: provider,
+                    providerBuckets: &providerBuckets)
+            }
             return tokenAccountKey
         }
 
         if let snapshot,
            let identityAccountKey = Self.planUtilizationIdentityAccountKey(provider: provider, snapshot: snapshot)
         {
-            providerBuckets.preferredAccountKey = identityAccountKey
-            self.adoptPlanUtilizationUnscopedHistoryIfNeeded(
-                into: identityAccountKey,
-                provider: provider,
-                providerBuckets: &providerBuckets)
+            if shouldUpdatePreferredAccountKey {
+                providerBuckets.preferredAccountKey = identityAccountKey
+            }
+            if shouldAdoptUnscopedHistory {
+                self.adoptPlanUtilizationUnscopedHistoryIfNeeded(
+                    into: identityAccountKey,
+                    provider: provider,
+                    providerBuckets: &providerBuckets)
+            }
             return identityAccountKey
         }
 
