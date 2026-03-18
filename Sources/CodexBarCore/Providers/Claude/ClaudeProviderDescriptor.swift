@@ -177,6 +177,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     #if DEBUG
     @TaskLocal static var nonInteractiveCredentialRecordOverride: ClaudeOAuthCredentialRecord?
     @TaskLocal static var claudeCLIAvailableOverride: Bool?
+    @TaskLocal static var identityProbeOverride: ClaudeAccountIdentity??
     #endif
 
     private func loadNonInteractiveCredentialRecord(environment: [String: String]) -> ClaudeOAuthCredentialRecord? {
@@ -282,9 +283,46 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
                 (context.sourceMode == .auto || context.sourceMode == .oauth),
             useWebExtras: false)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
+        let enriched = await Self.enrichIdentityIfNeeded(usage: usage, environment: context.env)
         return self.makeResult(
-            usage: Self.snapshot(from: usage),
+            usage: Self.snapshot(from: enriched),
             sourceLabel: "oauth")
+    }
+
+    /// The OAuth usage endpoint does not return account identity (email/org).
+    /// When identity is missing, attempt a best-effort CLI status probe to fill it in.
+    static func enrichIdentityIfNeeded(
+        usage: ClaudeUsageSnapshot,
+        environment: [String: String]) async -> ClaudeUsageSnapshot
+    {
+        guard usage.accountEmail == nil else { return usage }
+
+        let identity: ClaudeAccountIdentity?
+        #if DEBUG
+        if let override = Self.identityProbeOverride {
+            identity = override
+        } else {
+            identity = try? await ClaudeStatusProbe.fetchIdentity(
+                timeout: 5,
+                environment: environment)
+        }
+        #else
+        identity = try? await ClaudeStatusProbe.fetchIdentity(
+            timeout: 5,
+            environment: environment)
+        #endif
+
+        guard let identity else { return usage }
+        return ClaudeUsageSnapshot(
+            primary: usage.primary,
+            secondary: usage.secondary,
+            opus: usage.opus,
+            providerCost: usage.providerCost,
+            updatedAt: usage.updatedAt,
+            accountEmail: identity.accountEmail,
+            accountOrganization: identity.accountOrganization,
+            loginMethod: usage.loginMethod ?? identity.loginMethod,
+            rawText: usage.rawText)
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
