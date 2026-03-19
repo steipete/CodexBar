@@ -676,6 +676,66 @@ struct AlibabaCodingPlanUsageFetcherRequestTests {
         #expect(snapshot.fiveHourTotalQuota == 1000)
     }
 
+    @Test
+    func hostOverrideAppliesToUserInfoSECTokenFallback() async throws {
+        let registered = URLProtocol.registerClass(AlibabaConsoleSECTokenStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(AlibabaConsoleSECTokenStubURLProtocol.self)
+            }
+            AlibabaConsoleSECTokenStubURLProtocol.handler = nil
+        }
+
+        AlibabaConsoleSECTokenStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            #expect(url.host == "alibaba-proxy.test")
+
+            if request.httpMethod == "GET", url.path == AlibabaCodingPlanAPIRegion.international.dashboardURL.path {
+                return Self.makeResponse(url: url, body: "<html></html>", statusCode: 200)
+            }
+
+            if request.httpMethod == "GET", url.path == "/tool/user/info.json" {
+                return Self.makeResponse(
+                    url: url,
+                    body: #"{"data":{"secToken":"override-sec-token"}}"#,
+                    statusCode: 200)
+            }
+
+            if request.httpMethod == "POST", url.path == "/data/api.json" {
+                let body = Self.requestBodyString(from: request)
+                #expect(body.contains("sec_token=override-sec-token"))
+                let json = """
+                {
+                  "data": {
+                    "codingPlanInstanceInfos": [
+                      { "planName": "Alibaba Coding Plan Pro", "status": "VALID" }
+                    ],
+                    "codingPlanQuotaInfo": {
+                      "per5HourUsedQuota": 21,
+                      "per5HourTotalQuota": 1000,
+                      "per5HourQuotaNextRefreshTime": 1700000300000
+                    }
+                  },
+                  "status_code": 0
+                }
+                """
+                return Self.makeResponse(url: url, body: json, statusCode: 200)
+            }
+
+            throw URLError(.unsupportedURL)
+        }
+
+        let snapshot = try await AlibabaCodingPlanUsageFetcher.fetchUsage(
+            cookieHeader: "sec_token=cookie-sec-token; login_aliyunid_ticket=ticket; login_aliyunid_pk=user",
+            region: .international,
+            environment: [AlibabaCodingPlanSettingsReader.hostKey: "https://alibaba-proxy.test"],
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        #expect(snapshot.planName == "Alibaba Coding Plan Pro")
+        #expect(snapshot.fiveHourUsedQuota == 21)
+        #expect(snapshot.fiveHourTotalQuota == 1000)
+    }
+
     private static func makeResponse(url: URL, body: String, statusCode: Int) -> (HTTPURLResponse, Data) {
         let response = HTTPURLResponse(
             url: url,
@@ -750,6 +810,7 @@ final class AlibabaConsoleSECTokenStubURLProtocol: URLProtocol {
     override static func canInit(with request: URLRequest) -> Bool {
         guard let host = request.url?.host else { return false }
         return [
+            "alibaba-proxy.test",
             "modelstudio.console.alibabacloud.com",
             "bailian-singapore-cs.alibabacloud.com",
         ].contains(host)

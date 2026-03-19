@@ -348,7 +348,11 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
             return token
         }
 
-        if let token = try? await self.fetchSECTokenFromUserInfo(cookieHeader: cookieHeader, region: region) {
+        if let token = try? await self.fetchSECTokenFromUserInfo(
+            cookieHeader: cookieHeader,
+            region: region,
+            environment: environment)
+        {
             return token
         }
 
@@ -386,15 +390,19 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
 
     private static func fetchSECTokenFromUserInfo(
         cookieHeader: String,
-        region: AlibabaCodingPlanAPIRegion) async throws -> String?
+        region: AlibabaCodingPlanAPIRegion,
+        environment: [String: String]) async throws -> String?
     {
-        let userInfoURL = URL(string: "\(region.gatewayBaseURLString)/tool/user/info.json")!
+        let gatewayBaseURL = self.resolveConsoleGatewayBaseURL(region: region, environment: environment)
+        let userInfoURL = gatewayBaseURL.appendingPathComponent("tool/user/info.json")
         var request = URLRequest(url: userInfoURL)
         request.httpMethod = "GET"
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         request.setValue(Self.safariLikeUserAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue(region.gatewayBaseURLString + "/", forHTTPHeaderField: "Referer")
+        let referer = gatewayBaseURL.absoluteString.hasSuffix("/") ? gatewayBaseURL.absoluteString : gatewayBaseURL
+            .absoluteString + "/"
+        request.setValue(referer, forHTTPHeaderField: "Referer")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -404,6 +412,38 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         let object = try JSONSerialization.jsonObject(with: data, options: [])
         let expanded = self.expandedJSON(object)
         return self.findFirstString(forKeys: ["secToken", "sec_token"], in: expanded)
+    }
+
+    private static func resolveConsoleGatewayBaseURL(
+        region: AlibabaCodingPlanAPIRegion,
+        environment: [String: String]) -> URL
+    {
+        if let host = AlibabaCodingPlanSettingsReader.hostOverride(environment: environment),
+           let hostURL = self.baseURL(from: host)
+        {
+            return hostURL
+        }
+        return URL(string: region.gatewayBaseURLString)!
+    }
+
+    private static func baseURL(from rawHost: String) -> URL? {
+        let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
+        guard let cleaned else { return nil }
+
+        let base: URL? = if let url = URL(string: cleaned), url.scheme != nil {
+            url
+        } else {
+            URL(string: "https://\(cleaned)")
+        }
+        guard let base else { return nil }
+
+        guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        components.path = ""
+        components.query = nil
+        components.fragment = nil
+        return components.url
     }
 
     static func parseUsageSnapshot(
