@@ -714,15 +714,15 @@ final class ProviderSwitcherView: NSView {
 
     private static func paddedImage(_ image: NSImage, leading: CGFloat) -> NSImage {
         let size = NSSize(width: image.size.width + leading, height: image.size.height)
-        let newImage = NSImage(size: size)
-        newImage.lockFocus()
-        let y = (size.height - image.size.height) / 2
-        image.draw(
-            at: NSPoint(x: leading, y: y),
-            from: NSRect(origin: .zero, size: image.size),
-            operation: .sourceOver,
-            fraction: 1.0)
-        newImage.unlockFocus()
+        let newImage = NSImage(size: size, flipped: false) { _ in
+            let y = (size.height - image.size.height) / 2
+            image.draw(
+                at: NSPoint(x: leading, y: y),
+                from: NSRect(origin: .zero, size: image.size),
+                operation: .sourceOver,
+                fraction: 1.0)
+            return true
+        }
         newImage.isTemplate = image.isTemplate
         return newImage
     }
@@ -774,7 +774,11 @@ final class ProviderSwitcherView: NSView {
         switch selection {
         case let .provider(provider):
             let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
-            return NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: 1)
+            return NSColor(
+                red: CGFloat(color.red),
+                green: CGFloat(color.green),
+                blue: CGFloat(color.blue),
+                alpha: 1.0)
         case .overview:
             return NSColor.secondaryLabelColor
         }

@@ -294,9 +294,15 @@ extension StatusItemController {
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
             let displayText = self.menuBarDisplayText(for: primaryProvider, snapshot: snapshot)
-            self.setButtonImage(brand, for: button)
+            if #available(macOS 26, *) {
+                let tinted = Self.tintedBrandImage(brand, color: usageColor)
+                self.setButtonImage(tinted, for: button)
+                self.setButtonTintColor(nil, for: button)
+            } else {
+                self.setButtonImage(brand, for: button)
+                self.setButtonTintColor(usageColor, for: button)
+            }
             self.setButtonTitle(displayText, for: button)
-            self.setButtonTintColor(usageColor, for: button)
             return
         }
 
@@ -326,18 +332,34 @@ extension StatusItemController {
             self.setButtonImage(image, for: button)
             self.setButtonTintColor(nil, for: button)
         } else {
-            let image = IconRenderer.makeIcon(
-                primaryRemaining: primary,
-                weeklyRemaining: weekly,
-                creditsRemaining: credits,
-                stale: stale,
-                style: style,
-                blink: blink,
-                wiggle: wiggle,
-                tilt: tilt,
-                statusIndicator: statusIndicator)
-            self.setButtonImage(image, for: button)
-            self.setButtonTintColor(usageColor, for: button)
+            if #available(macOS 26, *) {
+                let image = IconRenderer.makeIcon(
+                    primaryRemaining: primary,
+                    weeklyRemaining: weekly,
+                    creditsRemaining: credits,
+                    stale: stale,
+                    style: style,
+                    blink: blink,
+                    wiggle: wiggle,
+                    tilt: tilt,
+                    statusIndicator: statusIndicator,
+                    tintColor: usageColor)
+                self.setButtonImage(image, for: button)
+                self.setButtonTintColor(nil, for: button)
+            } else {
+                let image = IconRenderer.makeIcon(
+                    primaryRemaining: primary,
+                    weeklyRemaining: weekly,
+                    creditsRemaining: credits,
+                    stale: stale,
+                    style: style,
+                    blink: blink,
+                    wiggle: wiggle,
+                    tilt: tilt,
+                    statusIndicator: statusIndicator)
+                self.setButtonImage(image, for: button)
+                self.setButtonTintColor(usageColor, for: button)
+            }
         }
     }
 
@@ -359,9 +381,15 @@ extension StatusItemController {
            let brand = ProviderBrandIcon.image(for: provider)
         {
             let displayText = self.menuBarDisplayText(for: provider, snapshot: snapshot)
-            self.setButtonImage(brand, for: button)
+            if #available(macOS 26, *) {
+                let tinted = Self.tintedBrandImage(brand, color: usageColor)
+                self.setButtonImage(tinted, for: button)
+                self.setButtonTintColor(nil, for: button)
+            } else {
+                self.setButtonImage(brand, for: button)
+                self.setButtonTintColor(usageColor, for: button)
+            }
             self.setButtonTitle(displayText, for: button)
-            self.setButtonTintColor(usageColor, for: button)
             return
         }
 
@@ -448,18 +476,34 @@ extension StatusItemController {
             self.setButtonTintColor(nil, for: button)
         } else {
             self.setButtonTitle(nil, for: button)
-            let image = IconRenderer.makeIcon(
-                primaryRemaining: primary,
-                weeklyRemaining: weekly,
-                creditsRemaining: credits,
-                stale: stale,
-                style: style,
-                blink: blink,
-                wiggle: wiggle,
-                tilt: tilt,
-                statusIndicator: self.store.statusIndicator(for: provider))
-            self.setButtonImage(image, for: button)
-            self.setButtonTintColor(usageColor, for: button)
+            if #available(macOS 26, *) {
+                let image = IconRenderer.makeIcon(
+                    primaryRemaining: primary,
+                    weeklyRemaining: weekly,
+                    creditsRemaining: credits,
+                    stale: stale,
+                    style: style,
+                    blink: blink,
+                    wiggle: wiggle,
+                    tilt: tilt,
+                    statusIndicator: self.store.statusIndicator(for: provider),
+                    tintColor: usageColor)
+                self.setButtonImage(image, for: button)
+                self.setButtonTintColor(nil, for: button)
+            } else {
+                let image = IconRenderer.makeIcon(
+                    primaryRemaining: primary,
+                    weeklyRemaining: weekly,
+                    creditsRemaining: credits,
+                    stale: stale,
+                    style: style,
+                    blink: blink,
+                    wiggle: wiggle,
+                    tilt: tilt,
+                    statusIndicator: self.store.statusIndicator(for: provider))
+                self.setButtonImage(image, for: button)
+                self.setButtonTintColor(usageColor, for: button)
+            }
         }
     }
 
@@ -670,16 +714,34 @@ extension StatusItemController {
     {
         guard statusIndicator.hasIssue else { return brand }
 
-        let image = NSImage(size: brand.size)
-        image.lockFocus()
-        brand.draw(
-            at: .zero,
-            from: NSRect(origin: .zero, size: brand.size),
-            operation: .sourceOver,
-            fraction: 1.0)
-        Self.drawBrandStatusOverlay(indicator: statusIndicator, size: brand.size)
-        image.unlockFocus()
+        let image = NSImage(size: brand.size, flipped: false) { rect in
+            brand.draw(
+                at: .zero,
+                from: rect,
+                operation: .sourceOver,
+                fraction: 1.0)
+            Self.drawBrandStatusOverlay(indicator: statusIndicator, size: brand.size)
+            return true
+        }
         image.isTemplate = brand.isTemplate
+        return image
+    }
+
+    /// Composites a tint color onto a brand image using sourceIn blending, producing a non-template image
+    /// suitable for macOS 26 Liquid Glass where `contentTintColor` is ignored on template images.
+    nonisolated static func tintedBrandImage(_ brand: NSImage, color: NSColor?) -> NSImage {
+        guard let color else { return brand }
+        let image = NSImage(size: brand.size, flipped: false) { rect in
+            brand.draw(in: rect, from: rect, operation: .sourceOver, fraction: 1.0)
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return true }
+            ctx.saveGState()
+            ctx.setBlendMode(.sourceIn)
+            color.setFill()
+            ctx.fill(rect)
+            ctx.restoreGState()
+            return true
+        }
+        image.isTemplate = false
         return image
     }
 

@@ -658,11 +658,11 @@ struct StatusItemAnimationTests {
     @Test
     func brandImageWithStatusOverlayDrawsIssueMark() throws {
         let size = NSSize(width: 16, height: 16)
-        let brand = NSImage(size: size)
-        brand.lockFocus()
-        NSColor.clear.setFill()
-        NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
-        brand.unlockFocus()
+        let brand = NSImage(size: size, flipped: false) { rect in
+            NSColor.clear.setFill()
+            NSBezierPath(rect: rect).fill()
+            return true
+        }
         brand.isTemplate = true
 
         let baselineData = try #require(brand.tiffRepresentation)

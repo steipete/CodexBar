@@ -35,6 +35,7 @@ enum IconRenderer {
         let stale: Bool
         let style: Int
         let indicator: Int
+        let tintHash: Int
     }
 
     private final class IconCacheStore: @unchecked Sendable {
@@ -118,11 +119,12 @@ enum IconRenderer {
         blink: CGFloat = 0,
         wiggle: CGFloat = 0,
         tilt: CGFloat = 0,
-        statusIndicator: ProviderStatusIndicator = .none) -> NSImage
+        statusIndicator: ProviderStatusIndicator = .none,
+        tintColor: NSColor? = nil) -> NSImage
     {
         let shouldCache = blink <= 0.0001 && wiggle <= 0.0001 && tilt <= 0.0001
         let render = {
-            self.renderImage {
+            self.renderImage(tintColor: tintColor) {
                 // Keep monochrome template icons; Claude uses subtle shape cues only.
                 let baseFill = NSColor.labelColor
                 let trackFillAlpha: CGFloat = stale ? 0.18 : 0.28
@@ -749,7 +751,8 @@ enum IconRenderer {
                 credits: self.quantizedCredits(creditsRemaining),
                 stale: stale,
                 style: self.styleKey(style),
-                indicator: self.indicatorKey(statusIndicator))
+                indicator: self.indicatorKey(statusIndicator),
+                tintHash: self.tintColorHash(tintColor))
             if let cached = self.cachedIcon(for: key) {
                 return cached
             }
@@ -809,6 +812,21 @@ enum IconRenderer {
         case .maintenance: 4
         case .unknown: 5
         }
+    }
+
+    private static func tintColorHash(_ color: NSColor?) -> Int {
+        guard let color else { return 0 }
+        // Quantize to 256 buckets per channel to avoid cache explosion while preserving visual fidelity.
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        (color.usingColorSpace(.sRGB) ?? color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        let ri = Int((r * 255).rounded())
+        let gi = Int((g * 255).rounded())
+        let bi = Int((b * 255).rounded())
+        let ai = Int((a * 255).rounded())
+        return ri << 24 | gi << 16 | bi << 8 | ai
     }
 
     private static func morphCacheKey(progress: Double, style: IconStyle) -> NSNumber {
@@ -988,7 +1006,7 @@ enum IconRenderer {
         CGRect(x: self.snap(x), y: self.snap(y), width: self.snap(width), height: self.snap(height))
     }
 
-    private static func renderImage(_ draw: () -> Void) -> NSImage {
+    private static func renderImage(tintColor: NSColor? = nil, _ draw: () -> Void) -> NSImage {
         let image = NSImage(size: Self.outputSize)
 
         if let rep = NSBitmapImageRep(
@@ -999,7 +1017,7 @@ enum IconRenderer {
             samplesPerPixel: 4,
             hasAlpha: true,
             isPlanar: false,
-            colorSpaceName: .deviceRGB,
+            colorSpaceName: .calibratedRGB,
             bytesPerRow: 0,
             bitsPerPixel: 0)
         {
@@ -1010,16 +1028,29 @@ enum IconRenderer {
             if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
                 NSGraphicsContext.current = ctx
                 Self.withScaledContext(draw)
+
+                // On macOS 26+, bake the tint color into the image pixels using sourceIn compositing
+                // so the color survives Liquid Glass's template-image pipeline.
+                if let tintColor {
+                    let cgCtx = ctx.cgContext
+                    let scaledSize = CGSize(
+                        width: Self.outputSize.width * Self.outputScale,
+                        height: Self.outputSize.height * Self.outputScale)
+                    cgCtx.saveGState()
+                    cgCtx.setBlendMode(.sourceIn)
+                    tintColor.setFill()
+                    cgCtx.fill(CGRect(origin: .zero, size: scaledSize))
+                    cgCtx.restoreGState()
+                }
             }
             NSGraphicsContext.restoreGraphicsState()
-        } else {
-            // Fallback to legacy focus if the bitmap rep fails for any reason.
-            image.lockFocus()
-            Self.withScaledContext(draw)
-            image.unlockFocus()
         }
 
-        image.isTemplate = true
+        if tintColor != nil {
+            image.isTemplate = false
+        } else {
+            image.isTemplate = true
+        }
         return image
     }
 }

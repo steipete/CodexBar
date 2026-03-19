@@ -92,6 +92,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var lastSwitcherProviders: [UsageProvider] = []
     /// Tracks which switcher tab state was used for the current merged-menu switcher instance.
     var lastMergedSwitcherSelection: ProviderSwitcherSelection?
+    private var appearanceObservation: NSKeyValueObservation?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
     var selectedMenuProvider: UsageProvider? {
         get { self.settings.selectedMenuProvider }
@@ -195,6 +196,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             selector: #selector(self.handleProviderConfigDidChange),
             name: .codexbarProviderConfigDidChange,
             object: nil)
+
+        // On macOS 26+, usage colors are baked into non-template images. Re-render when the system
+        // appearance changes so dynamic colors (systemGreen/Orange/Red) resolve to their new values.
+        if #available(macOS 26, *) {
+            self.appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+                Task { @MainActor in self?.updateIcons() }
+            }
+        }
     }
 
     private func wireBindings() {
