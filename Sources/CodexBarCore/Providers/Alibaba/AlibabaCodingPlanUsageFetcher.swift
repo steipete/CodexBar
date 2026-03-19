@@ -500,7 +500,20 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         }
 
         let instanceInfo = self.findActiveInstanceInfo(in: dictionary, now: now)
-        guard let quota = self.findQuotaInfo(in: instanceInfo ?? [:]) ?? self.findQuotaInfo(in: dictionary) else {
+        let instanceCount = self.findFirstArray(
+            forKeys: ["codingPlanInstanceInfos", "coding_plan_instance_infos"],
+            in: dictionary)?
+            .compactMap { $0 as? [String: Any] }
+            .count ?? 0
+        let shouldScopeQuotaToSelectedInstance =
+            instanceCount > 1 &&
+            (instanceInfo.map { self.activeSignalScore(in: $0, now: now) > 0 } ?? false)
+        let quota = if shouldScopeQuotaToSelectedInstance, let instanceInfo {
+            self.findQuotaInfo(in: instanceInfo)
+        } else {
+            self.findQuotaInfo(in: instanceInfo ?? [:]) ?? self.findQuotaInfo(in: dictionary)
+        }
+        guard let quota else {
             if let fallback = self.parsePlanVisibleActiveFallback(
                 payload: dictionary,
                 instanceInfo: instanceInfo,

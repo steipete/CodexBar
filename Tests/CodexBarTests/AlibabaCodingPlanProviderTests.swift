@@ -366,6 +366,41 @@ struct AlibabaCodingPlanUsageParsingTests {
     }
 
     @Test
+    func activeInstanceWithoutQuotaDoesNotBorrowQuotaFromAnotherInstance() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let json = """
+        {
+          "data": {
+            "codingPlanInstanceInfos": [
+              {
+                "planName": "Expired Starter",
+                "status": "EXPIRED",
+                "endTime": "2025-04-01 17:00",
+                "codingPlanQuotaInfo": {
+                  "per5HourUsedQuota": 7,
+                  "per5HourTotalQuota": 100,
+                  "per5HourQuotaNextRefreshTime": 1700000100000
+                }
+              },
+              {
+                "planName": "Active Pro",
+                "status": "VALID"
+              }
+            ]
+          },
+          "status_code": 0
+        }
+        """
+
+        let snapshot = try AlibabaCodingPlanUsageFetcher.parseUsageSnapshot(from: Data(json.utf8), now: now)
+
+        #expect(snapshot.planName == "Active Pro")
+        #expect(snapshot.fiveHourUsedQuota == nil)
+        #expect(snapshot.fiveHourTotalQuota == nil)
+        #expect(snapshot.fiveHourNextRefreshTime == nil)
+    }
+
+    @Test
     func payloadLevelActiveProofDoesNotLabelFirstInstanceWhenNoInstanceIsActive() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let json = """

@@ -9,6 +9,7 @@ public enum CookieHeaderNormalizer {
         #"(?i)\bcookie:\s*([^\r\n]+)"#,
         #"(?i)(?:^|\s)(?:--cookie|-b)\s*'([^']+)'"#,
         #"(?i)(?:^|\s)(?:--cookie|-b)\s*\"([^\"]+)\""#,
+        #"(?i)(?:^|\s)-b([^\s=]+=[^\s]+)"#,
         #"(?i)(?:^|\s)(?:--cookie|-b)\s+([^\s]+)"#,
     ]
 
