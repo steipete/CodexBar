@@ -1254,6 +1254,11 @@ extension UsageStore {
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                case .grok:
+                    let resolution = ProviderTokenResolver.grokResolution()
+                    let hasAny = resolution != nil
+                    let source = resolution?.source.rawValue ?? "none"
+                    return "XAI_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .jetbrains:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"

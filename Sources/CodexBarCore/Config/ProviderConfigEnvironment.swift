@@ -6,8 +6,19 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]
     {
-        guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
+
+        // Grok needs special handling: management key and team ID from config fields
+        if provider == .grok, let config {
+            if let mgmtKey = config.sanitizedCookieHeader, !mgmtKey.isEmpty {
+                env[GrokSettingsReader.managementKeyEnvironmentKey] = mgmtKey
+            }
+            if let teamID = config.workspaceID, !teamID.isEmpty {
+                env[GrokSettingsReader.teamIDEnvironmentKey] = teamID
+            }
+        }
+
+        guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return env }
         switch provider {
         case .zai:
             env[ZaiSettingsReader.apiTokenKey] = apiKey
@@ -29,6 +40,10 @@ public enum ProviderConfigEnvironment {
             }
         case .openrouter:
             env[OpenRouterSettingsReader.envKey] = apiKey
+        case .grok:
+            if let key = GrokSettingsReader.apiKeyEnvironmentKeys.first {
+                env[key] = apiKey
+            }
         default:
             break
         }

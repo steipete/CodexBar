@@ -71,7 +71,7 @@ enum CostUsageScanner {
             }
             return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
         case .zai, .gemini, .antigravity, .cursor, .opencode, .factory, .copilot, .minimax, .kilo, .kiro, .kimi,
-             .kimik2, .augment, .jetbrains, .amp, .ollama, .synthetic, .openrouter, .warp:
+             .kimik2, .augment, .jetbrains, .amp, .ollama, .synthetic, .openrouter, .warp, .grok:
             return emptyReport
         }
     }
