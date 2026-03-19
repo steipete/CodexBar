@@ -174,8 +174,12 @@ public struct CursorUserInfo: Codable, Sendable {
 // MARK: - Cursor Status Snapshot
 
 public struct CursorStatusSnapshot: Sendable {
-    /// Percentage of included plan usage (0-100)
+    /// Percentage of included plan usage (0-100) — the "Total" headline number from Cursor's UI
     public let planPercentUsed: Double
+    /// Auto + Composer usage percent (0-100), nil when not available
+    public let autoPercentUsed: Double?
+    /// API (named model) usage percent (0-100), nil when not available
+    public let apiPercentUsed: Double?
     /// Included plan usage in USD
     public let planUsedUSD: Double
     /// Included plan limit in USD
@@ -213,6 +217,8 @@ public struct CursorStatusSnapshot: Sendable {
 
     public init(
         planPercentUsed: Double,
+        autoPercentUsed: Double? = nil,
+        apiPercentUsed: Double? = nil,
         planUsedUSD: Double,
         planLimitUSD: Double,
         onDemandUsedUSD: Double,
@@ -228,6 +234,8 @@ public struct CursorStatusSnapshot: Sendable {
         requestsLimit: Int? = nil)
     {
         self.planPercentUsed = planPercentUsed
+        self.autoPercentUsed = autoPercentUsed
+        self.apiPercentUsed = apiPercentUsed
         self.planUsedUSD = planUsedUSD
         self.planLimitUSD = planLimitUSD
         self.onDemandUsedUSD = onDemandUsedUSD
@@ -262,23 +270,27 @@ public struct CursorStatusSnapshot: Sendable {
             resetsAt: self.billingCycleEnd,
             resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
 
-        // Always use individual on-demand values (what users see in their Cursor dashboard).
-        // Team values are aggregates across all members, not useful for individual tracking.
-        let resolvedOnDemandUsed = self.onDemandUsedUSD
-        let resolvedOnDemandLimit = self.onDemandLimitUSD
-
-        // Secondary: On-demand usage as percentage of individual limit
-        let secondary: RateWindow? = if let limit = resolvedOnDemandLimit,
-                                        limit > 0
-        {
+        // Secondary: Auto + Composer usage (shown as its own bar below Total)
+        let secondary: RateWindow? = self.autoPercentUsed.map { pct in
             RateWindow(
-                usedPercent: (resolvedOnDemandUsed / limit) * 100,
+                usedPercent: pct,
                 windowMinutes: nil,
                 resetsAt: self.billingCycleEnd,
                 resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
-        } else {
-            nil
         }
+
+        // Tertiary: API (named model) usage
+        let tertiary: RateWindow? = self.apiPercentUsed.map { pct in
+            RateWindow(
+                usedPercent: pct,
+                windowMinutes: nil,
+                resetsAt: self.billingCycleEnd,
+                resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
+        }
+
+        // On-demand: tracked via providerCost only (shown in the credits/cost section)
+        let resolvedOnDemandUsed = self.onDemandUsedUSD
+        let resolvedOnDemandLimit = self.onDemandLimitUSD
 
         // Provider cost snapshot for on-demand usage
         let providerCost: ProviderCostSnapshot? = if resolvedOnDemandUsed > 0 {
@@ -310,7 +322,7 @@ public struct CursorStatusSnapshot: Sendable {
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
-            tertiary: nil,
+            tertiary: tertiary,
             providerCost: providerCost,
             cursorRequests: cursorRequests,
             updatedAt: Date(),
@@ -695,10 +707,13 @@ public struct CursorStatusProbe: Sendable {
         let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
         let planUsed = planUsedRaw / 100.0
         let planLimit = planLimitRaw / 100.0
-        let planPercentUsed: Double = if planLimitRaw > 0 {
-            (planUsedRaw / planLimitRaw) * 100
-        } else if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
+        // Prefer totalPercentUsed when the API provides it — it matches exactly what Cursor's own
+        // "Total" bar shows and correctly handles Pro/subscription plans where plan.limit equals
+        // the flat subscription price (e.g. $20), not a usage ceiling.
+        let planPercentUsed: Double = if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
             totalPercentUsed <= 1 ? totalPercentUsed * 100 : totalPercentUsed
+        } else if planLimitRaw > 0 {
+            (planUsedRaw / planLimitRaw) * 100
         } else {
             0
         }
@@ -713,8 +728,18 @@ public struct CursorStatusProbe: Sendable {
         let requestsUsed: Int? = requestUsage?.gpt4?.numRequestsTotal ?? requestUsage?.gpt4?.numRequests
         let requestsLimit: Int? = requestUsage?.gpt4?.maxRequestUsage
 
+        // Normalise sub-percent fields to 0-100 (the API returns 0-1 fractions).
+        func normPct(_ value: Double?) -> Double? {
+            guard let v = value else { return nil }
+            return (v <= 1.0 ? v * 100 : v)
+        }
+        let autoPercent = normPct(summary.individualUsage?.plan?.autoPercentUsed)
+        let apiPercent = normPct(summary.individualUsage?.plan?.apiPercentUsed)
+
         return CursorStatusSnapshot(
             planPercentUsed: planPercentUsed,
+            autoPercentUsed: autoPercent,
+            apiPercentUsed: apiPercent,
             planUsedUSD: planUsed,
             planLimitUSD: planLimit,
             onDemandUsedUSD: onDemandUsed,

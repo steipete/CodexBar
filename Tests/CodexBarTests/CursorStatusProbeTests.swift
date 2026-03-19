@@ -145,7 +145,8 @@ struct CursorStatusProbeTests {
                 userInfo: nil,
                 rawJSON: nil)
 
-        #expect(snapshot.planPercentUsed == 9.8)
+        // totalPercentUsed (0.40625) wins over dollar ratio (9.8%) when present
+        #expect(snapshot.planPercentUsed == 40.625)
     }
 
     @Test
@@ -182,6 +183,8 @@ struct CursorStatusProbeTests {
     func `converts snapshot to usage snapshot`() {
         let snapshot = CursorStatusSnapshot(
             planPercentUsed: 45.0,
+            autoPercentUsed: 5.0,
+            apiPercentUsed: nil,
             planUsedUSD: 22.50,
             planLimitUSD: 50.0,
             onDemandUsedUSD: 5.0,
@@ -200,7 +203,6 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.accountEmail(for: .cursor) == "user@example.com")
         #expect(usageSnapshot.loginMethod(for: .cursor) == "Cursor Pro")
         #expect(usageSnapshot.secondary != nil)
-        // Uses individual on-demand values (what users see in their dashboard)
         #expect(usageSnapshot.secondary?.usedPercent == 5.0)
         #expect(usageSnapshot.providerCost?.used == 5.0)
         #expect(usageSnapshot.providerCost?.limit == 100.0)
@@ -211,6 +213,8 @@ struct CursorStatusProbeTests {
     func `uses individual on demand when no team usage`() {
         let snapshot = CursorStatusSnapshot(
             planPercentUsed: 10.0,
+            autoPercentUsed: 20.0,
+            apiPercentUsed: nil,
             planUsedUSD: 5.0,
             planLimitUSD: 50.0,
             onDemandUsedUSD: 12.0,
