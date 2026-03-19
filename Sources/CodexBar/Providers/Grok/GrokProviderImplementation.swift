@@ -34,6 +34,7 @@ struct GrokProviderImplementation: ProviderImplementation {
         if GrokSettingsReader.managementKey(environment: context.environment) != nil {
             return true
         }
+        context.settings.ensureGrokAPITokenLoaded()
         let apiToken = context.settings.grokAPIToken.trimmingCharacters(in: .whitespacesAndNewlines)
         let mgmtToken = context.settings.grokManagementToken.trimmingCharacters(in: .whitespacesAndNewlines)
         return !apiToken.isEmpty || !mgmtToken.isEmpty

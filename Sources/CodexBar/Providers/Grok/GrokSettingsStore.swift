@@ -32,4 +32,6 @@ extension SettingsStore {
             }
         }
     }
+
+    func ensureGrokAPITokenLoaded() {}
 }

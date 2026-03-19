@@ -107,19 +107,3 @@ struct GrokAPIFetchStrategy: ProviderFetchStrategy {
     }
 }
 
-// MARK: - Errors
-
-/// Errors related to Grok settings
-public enum GrokSettingsError: LocalizedError, Sendable {
-    case missingToken
-    case missingManagementKey
-
-    public var errorDescription: String? {
-        switch self {
-        case .missingToken:
-            "xAI API key not configured. Set XAI_API_KEY environment variable or configure in Settings."
-        case .missingManagementKey:
-            "xAI Management key not configured. Set XAI_MANAGEMENT_KEY or configure in Settings."
-        }
-    }
-}
