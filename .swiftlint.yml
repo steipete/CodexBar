@@ -1,4 +1,4 @@
-# SwiftLint configuration for Peekaboo - Swift 6 compatible
+# SwiftLint configuration for CodexBar - Swift 6 compatible
 
 # Paths to include
 included:
@@ -14,16 +14,10 @@ excluded:
   - "**/.build"
   - "**/Package.swift"
   - "**/Tests/Resources"
-  - "Apps/CLI/.build"
   - "**/DerivedData"
   - "**/.swiftpm"
-  - Pods
-  - Carthage
-  - fastlane
   - vendor
   - "*.playground"
-  # Exclude specific files that should not be linted/formatted
-  - "Core/PeekabooCore/Sources/PeekabooCore/Extensions/NSArray+Extensions.swift"
 
 # Analyzer rules (require compilation)
 analyzer_rules:
@@ -61,14 +55,14 @@ opt_in_rules:
 disabled_rules:
   # Swift 6 requires explicit self - disable explicit_self rule
   - explicit_self
-  
+
   # SwiftFormat handles these
   - trailing_whitespace
   - trailing_newline
   - trailing_comma
   - vertical_whitespace
   - indentation_width
-  
+
   # Too restrictive or not applicable
   - identifier_name # Single letter names are fine in many contexts
   - file_header
@@ -104,7 +98,7 @@ disabled_rules:
   - untyped_error_in_catch
   - file_name
   - todo
-  
+
 # Rule configurations
 force_cast: warning
 force_try: warning

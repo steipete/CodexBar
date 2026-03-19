@@ -29,6 +29,22 @@ jobs:
           swift --version
           swift package --version
 
+      - name: Cache lint tools
+        uses: actions/cache@v4
+        with:
+          path: .build/lint-tools
+          key: lint-tools-${{ runner.os }}-swiftformat-0.59.1-swiftlint-0.63.2
+
+      - name: Cache SwiftPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build/artifacts
+            .build/repositories
+            .build/workspace-state.json
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
       - name: Install lint tools
         run: ./Scripts/install_lint_tools.sh
 
@@ -36,7 +52,7 @@ jobs:
         run: ./Scripts/lint.sh lint
 
       - name: Swift Test
-        run: swift test --no-parallel
+        run: swift test
 
   build-linux-cli:
     strategy:
@@ -62,6 +78,16 @@ jobs:
         with:
           swift-version: "6.2.1"
           skip-verify-signature: true
+
+      - name: Cache SwiftPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build/artifacts
+            .build/repositories
+            .build/workspace-state.json
+          key: ${{ runner.os }}-${{ runner.arch }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-spm-
 
       - name: Build CodexBarCLI (release, static Swift stdlib)
         run: swift build -c release --product CodexBarCLI --static-swift-stdlib

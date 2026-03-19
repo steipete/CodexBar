@@ -9,8 +9,17 @@ BIN_DIR="${TOOLS_DIR}/bin"
 SWIFTFORMAT_VERSION="0.59.1"
 SWIFTLINT_VERSION="0.63.2"
 
+# macOS (universal)
 SWIFTFORMAT_SHA256_DARWIN="8b6289b608a44e73cd3851c3589dbd7c553f32cc805aa54b3a496ce2b90febe7"
 SWIFTLINT_SHA256_DARWIN="c59a405c85f95b92ced677a500804e081596a4cae4a6a485af76065557d6ed29"
+
+# Linux x86_64
+SWIFTFORMAT_SHA256_LINUX_X64="150d9693570cf234ec91d8a03ba7165bd36a78335c5e40ed91e4c013a492eb54"
+SWIFTLINT_SHA256_LINUX_X64="dd1017cfd20a1457f264590bcb5875a6ee06cd75b9a9d4f77cd43a552499143b"
+
+# Linux aarch64
+SWIFTFORMAT_SHA256_LINUX_ARM64="c55cea3543dd8488863d14132fa677db765c8f0ad5a6e6184cf822ca626bb1db"
+SWIFTLINT_SHA256_LINUX_ARM64="104dedff762157f5cff7752f1cc2a289b60f3ea677e72d651c6f3a3287fdd948"
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -104,21 +113,22 @@ case "$OS" in
       x86_64)
         SWIFTFORMAT_URL="https://github.com/nicklockwood/SwiftFormat/releases/download/${SWIFTFORMAT_VERSION}/swiftformat_linux.zip"
         SWIFTLINT_URL="https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/swiftlint_linux_amd64.zip"
+        SWIFTFORMAT_SHA256="$SWIFTFORMAT_SHA256_LINUX_X64"
+        SWIFTLINT_SHA256="$SWIFTLINT_SHA256_LINUX_X64"
         ;;
       aarch64|arm64)
         SWIFTFORMAT_URL="https://github.com/nicklockwood/SwiftFormat/releases/download/${SWIFTFORMAT_VERSION}/swiftformat_linux_aarch64.zip"
         SWIFTLINT_URL="https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/swiftlint_linux_arm64.zip"
+        SWIFTFORMAT_SHA256="$SWIFTFORMAT_SHA256_LINUX_ARM64"
+        SWIFTLINT_SHA256="$SWIFTLINT_SHA256_LINUX_ARM64"
         ;;
       *)
         fail "Unsupported Linux arch: ${ARCH}"
         ;;
     esac
 
-    # SHA256 is intentionally only enforced for the macOS CI path.
-    # If we later run lint on Linux CI, add pinned SHAs here as well.
-    log "WARN: Linux SHA256 verification not configured for ${ARCH}; installing anyway."
-    install_zip_binary "SwiftFormat ${SWIFTFORMAT_VERSION}" "$SWIFTFORMAT_URL" "" "swiftformat"
-    install_zip_binary "SwiftLint ${SWIFTLINT_VERSION}" "$SWIFTLINT_URL" "" "swiftlint"
+    install_zip_binary "SwiftFormat ${SWIFTFORMAT_VERSION}" "$SWIFTFORMAT_URL" "$SWIFTFORMAT_SHA256" "swiftformat"
+    install_zip_binary "SwiftLint ${SWIFTLINT_VERSION}" "$SWIFTLINT_URL" "$SWIFTLINT_SHA256" "swiftlint"
     ;;
   *)
     fail "Unsupported OS: ${OS}"
