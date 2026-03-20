@@ -998,12 +998,15 @@ extension UsageMenuCardView.Model {
 
         if input.provider == .codex, let remaining = input.dashboard?.codeReviewRemainingPercent {
             let percent = input.usageBarsShowUsed ? (100 - remaining) : remaining
+            let resetText = input.dashboard?.codeReviewLimit.flatMap {
+                Self.resetText(for: $0, style: input.resetTimeDisplayStyle, now: input.now)
+            }
             metrics.append(Metric(
                 id: "code-review",
                 title: "Code review",
                 percent: Self.clamped(percent),
                 percentStyle: percentStyle,
-                resetText: nil,
+                resetText: resetText,
                 detailText: nil,
                 detailLeftText: nil,
                 detailRightText: nil,
