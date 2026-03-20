@@ -16,6 +16,7 @@ struct ActiveAppDetector {
         ("com.augmentcode.augment", .augment),
         ("com.minimax.agent", .minimax),
         ("dev.warp.Warp-Stable", .warp),
+        ("com.electron.ollama", .ollama),
 
         // VS Code (GitHub Copilot - must check before generic JetBrains)
         ("com.microsoft.VSCode", .copilot),
