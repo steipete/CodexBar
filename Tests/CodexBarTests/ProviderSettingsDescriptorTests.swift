@@ -323,4 +323,33 @@ struct ProviderSettingsDescriptorTests {
         #expect(pickers.contains(where: { $0.id == "kilo-usage-source" }))
         #expect(fields.contains(where: { $0.id == "kilo-api-key" }))
     }
+
+    @Test
+    func `alibaba presentation follows store source label`() throws {
+        let suite = "ProviderSettingsDescriptorTests-alibaba-presentation"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let metadata = try #require(ProviderDescriptorRegistry.metadata[.alibaba])
+        let context = ProviderPresentationContext(
+            provider: .alibaba,
+            settings: settings,
+            store: store,
+            metadata: metadata)
+
+        let detailLine = AlibabaCodingPlanProviderImplementation()
+            .presentation(context: context)
+            .detailLine(context)
+
+        #expect(detailLine == store.sourceLabel(for: .alibaba))
+    }
 }

@@ -7,9 +7,10 @@ public enum CookieHeaderNormalizer {
         #"(?i)\bcookie:\s*'([^']+)'"#,
         #"(?i)\bcookie:\s*\"([^\"]+)\""#,
         #"(?i)\bcookie:\s*([^\r\n]+)"#,
-        #"(?i)(?:--cookie|-b)\s*'([^']+)'"#,
-        #"(?i)(?:--cookie|-b)\s*\"([^\"]+)\""#,
-        #"(?i)(?:--cookie|-b)\s*([^\s]+)"#,
+        #"(?i)(?:^|\s)(?:--cookie|-b)\s*'([^']+)'"#,
+        #"(?i)(?:^|\s)(?:--cookie|-b)\s*\"([^\"]+)\""#,
+        #"(?i)(?:^|\s)-b([^\s=]+=[^\s]+)"#,
+        #"(?i)(?:^|\s)(?:--cookie|-b)\s+([^\s]+)"#,
     ]
 
     public static func normalize(_ raw: String?) -> String? {

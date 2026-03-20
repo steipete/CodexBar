@@ -145,6 +145,15 @@ public enum CodexBarConfigValidator {
                         code: "invalid_region",
                         message: "Region \(region) is not a valid z.ai region."))
                 }
+            case .alibaba:
+                if AlibabaCodingPlanAPIRegion(rawValue: region) == nil {
+                    issues.append(CodexBarConfigIssue(
+                        severity: .error,
+                        provider: provider,
+                        field: "region",
+                        code: "invalid_region",
+                        message: "Region \(region) is not a valid Alibaba Coding Plan region."))
+                }
             default:
                 issues.append(CodexBarConfigIssue(
                     severity: .warning,

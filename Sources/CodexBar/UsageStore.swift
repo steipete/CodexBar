@@ -1179,6 +1179,7 @@ extension UsageStore {
                 .gemini: "Gemini debug log not yet implemented",
                 .antigravity: "Antigravity debug log not yet implemented",
                 .opencode: "OpenCode debug log not yet implemented",
+                .alibaba: "Alibaba Coding Plan debug log not yet implemented",
                 .factory: "Droid debug log not yet implemented",
                 .copilot: "Copilot debug log not yet implemented",
                 .vertexai: "Vertex AI debug log not yet implemented",
@@ -1224,6 +1225,11 @@ extension UsageStore {
                     return "MINIMAX_API_KEY=\(tokenResolution == nil ? "missing" : "present") " +
                         "source=\(tokenSource) MINIMAX_COOKIE=\(cookieResolution == nil ? "missing" : "present") " +
                         "source=\(cookieSource)"
+                case .alibaba:
+                    let resolution = ProviderTokenResolver.alibabaTokenResolution()
+                    let hasAny = resolution != nil
+                    let source = resolution?.source.rawValue ?? "none"
+                    return "ALIBABA_CODING_PLAN_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 case .augment:
                     return await Self.debugAugmentLog()
                 case .amp:

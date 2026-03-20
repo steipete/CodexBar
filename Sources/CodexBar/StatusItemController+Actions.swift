@@ -35,17 +35,24 @@ extension StatusItemController {
             ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledProviders().first)
 
         let provider = preferred ?? .codex
-        let meta = self.store.metadata(for: provider)
+        guard let url = self.dashboardURL(for: provider) else { return }
+        NSWorkspace.shared.open(url)
+    }
 
-        // For Claude, route subscription users to claude.ai/settings/usage instead of console billing
+    func dashboardURL(for provider: UsageProvider) -> URL? {
+        if provider == .alibaba {
+            return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
+        }
+
+        let meta = self.store.metadata(for: provider)
         let urlString: String? = if provider == .claude, self.store.isClaudeSubscription() {
             meta.subscriptionDashboardURL ?? meta.dashboardURL
         } else {
             meta.dashboardURL
         }
 
-        guard let urlString, let url = URL(string: urlString) else { return }
-        NSWorkspace.shared.open(url)
+        guard let urlString else { return nil }
+        return URL(string: urlString)
     }
 
     @objc func openCreditsPurchase() {

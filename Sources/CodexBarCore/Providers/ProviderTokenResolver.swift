@@ -34,6 +34,10 @@ public enum ProviderTokenResolver {
         self.minimaxTokenResolution(environment: environment)?.token
     }
 
+    public static func alibabaToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.alibabaTokenResolution(environment: environment)?.token
+    }
+
     public static func minimaxCookie(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.minimaxCookieResolution(environment: environment)?.token
     }
@@ -83,6 +87,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(MiniMaxAPISettingsReader.apiToken(environment: environment))
+    }
+
+    public static func alibabaTokenResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(AlibabaCodingPlanSettingsReader.apiToken(environment: environment))
     }
 
     public static func minimaxCookieResolution(

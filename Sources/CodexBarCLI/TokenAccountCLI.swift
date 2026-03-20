@@ -114,6 +114,14 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader,
                     workspaceID: config?.workspaceID))
+        case .alibaba:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader,
+                    apiRegion: self.resolveAlibabaCodingPlanRegion(config)))
         case .factory:
             let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
             let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
@@ -179,6 +187,7 @@ struct TokenAccountCLIContext {
         claude: ProviderSettingsSnapshot.ClaudeProviderSettings? = nil,
         cursor: ProviderSettingsSnapshot.CursorProviderSettings? = nil,
         opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
+        alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings? = nil,
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
         zai: ProviderSettingsSnapshot.ZaiProviderSettings? = nil,
@@ -194,6 +203,7 @@ struct TokenAccountCLIContext {
             claude: claude,
             cursor: cursor,
             opencode: opencode,
+            alibaba: alibaba,
             factory: factory,
             minimax: minimax,
             zai: zai,
@@ -313,6 +323,15 @@ struct TokenAccountCLIContext {
             return .global
         }
         return MiniMaxAPIRegion(rawValue: raw) ?? .global
+    }
+
+    private func resolveAlibabaCodingPlanRegion(_ config: ProviderConfig?) -> AlibabaCodingPlanAPIRegion {
+        guard let raw = config?.region?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty
+        else {
+            return .international
+        }
+        return AlibabaCodingPlanAPIRegion(rawValue: raw) ?? .international
     }
 
     private static func kiloUsageDataSource(from source: ProviderSourceMode?) -> KiloUsageDataSource {
