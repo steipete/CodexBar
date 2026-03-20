@@ -1,5 +1,21 @@
 import AppKit
 
+/// Gives token-account (and other text-only) toggle buttons comfortable horizontal insets; plain
+/// `NSButton` title drawing sits flush against the pill edges when `fillEqually` makes cells wide.
+final class PaddedTitleButtonCell: NSButtonCell {
+    var horizontalTitlePadding: CGFloat = 8
+
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        let base = super.titleRect(forBounds: rect)
+        let p = self.horizontalTitlePadding
+        return NSRect(
+            x: base.origin.x + p,
+            y: base.origin.y,
+            width: max(1, base.size.width - 2 * p),
+            height: base.size.height)
+    }
+}
+
 final class PaddedToggleButton: NSButton {
     var contentPadding = NSEdgeInsets(top: 4, left: 7, bottom: 4, right: 7) {
         didSet {
@@ -11,6 +27,28 @@ final class PaddedToggleButton: NSButton {
                 self.invalidateIntrinsicContentSize()
             }
         }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    convenience init(title: String, target: AnyObject?, action: Selector?) {
+        self.init(frame: .zero)
+        let cell = PaddedTitleButtonCell(textCell: title)
+        cell.isBordered = false
+        cell.lineBreakMode = .byTruncatingTail
+        cell.usesSingleLineMode = true
+        cell.alignment = .center
+        self.cell = cell
+        self.setButtonType(.toggle)
+        self.target = target
+        self.action = action
     }
 
     override var intrinsicContentSize: NSSize {

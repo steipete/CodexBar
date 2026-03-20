@@ -47,14 +47,22 @@ struct UsageProgressBar: View {
             let stripeInset = 1 / scale
             let tipOffset = paceWidth - tipWidth + (Self.paceStripeSpan(for: scale) / 2) + stripeInset
             let showTip = self.pacePercent != nil && tipWidth > 0.5
-            let needsPunchCompositing = showTip
+            let barHeight = proxy.size.height
             let bar = ZStack(alignment: .leading) {
                 Capsule()
                     .fill(MenuHighlightStyle.progressTrack(self.isHighlighted))
                 self.actualBar(width: fillWidth)
                 if showTip {
-                    self.paceTip(width: tipWidth)
-                        .offset(x: tipOffset)
+                    if self.isHighlighted {
+                        self.paceTip(width: tipWidth)
+                            .frame(height: barHeight)
+                            .offset(x: tipOffset)
+                    } else {
+                        // In preferences and other non-menu surfaces, the punched Canvas + compositingGroup
+                        // was carving holes through the fill and exposing the track (white “gaps”).
+                        self.simplePaceTip(width: tipWidth, height: barHeight)
+                            .offset(x: tipOffset)
+                    }
                 }
             }
             .clipped()
@@ -62,9 +70,6 @@ struct UsageProgressBar: View {
                 bar
                     .compositingGroup()
                     .drawingGroup()
-            } else if needsPunchCompositing {
-                bar
-                    .compositingGroup()
             } else {
                 bar
             }
@@ -79,6 +84,20 @@ struct UsageProgressBar: View {
             .fill(MenuHighlightStyle.progressTint(self.isHighlighted, fallback: self.tint))
             .frame(width: width)
             .contentShape(Rectangle())
+            .allowsHitTesting(false)
+    }
+
+    /// Solid pace marker for non-menu contexts (avoids `destinationOut` punch-through on the fill).
+    private func simplePaceTip(width: CGFloat, height: CGFloat) -> some View {
+        let isDeficit = self.paceOnTop == false
+        let fill: Color = if isDeficit {
+            Color.red.opacity(0.92)
+        } else {
+            Color.green
+        }
+        return Capsule()
+            .fill(fill)
+            .frame(width: width, height: height)
             .allowsHitTesting(false)
     }
 

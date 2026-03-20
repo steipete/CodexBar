@@ -5,6 +5,7 @@ import SwiftUI
 struct ProviderDetailView: View {
     let provider: UsageProvider
     @Bindable var store: UsageStore
+    @Bindable var settings: SettingsStore
     @Binding var isEnabled: Bool
     let subtitle: String
     let model: UsageMenuCardView.Model
@@ -53,13 +54,62 @@ struct ProviderDetailView: View {
                     subtitle: self.subtitle,
                     model: self.model,
                     labelWidth: labelWidth,
+                    hideAccountAndPlan: self.codexHidesHeaderAccountAndPlan,
                     onRefresh: self.onRefresh)
 
-                ProviderMetricsInlineView(
-                    provider: self.provider,
-                    model: self.model,
-                    isEnabled: self.isEnabled,
-                    labelWidth: labelWidth)
+                // Accounts section shown prominently at the top, before usage metrics.
+                if let tokenAccounts = self.settingsTokenAccounts,
+                   tokenAccounts.isVisible?() ?? true
+                {
+                    ProviderSettingsSection(title: "Accounts") {
+                        ProviderSettingsTokenAccountsRowView(descriptor: tokenAccounts)
+                    }
+                }
+
+                Group {
+                    if self.provider == .codex, self.codexShowsUsageAccountSwitcher {
+                        let accounts = self.settings.tokenAccounts(for: .codex)
+                        let defaultLabel = CodexProviderImplementation()
+                            .tokenAccountDefaultLabel(settings: self.settings)
+                        let rawSelection = self.settings.tokenAccountsData(for: .codex)?.activeIndex ?? -1
+                        ProviderMetricsInlineView(
+                            provider: self.provider,
+                            model: self.model,
+                            isEnabled: self.isEnabled,
+                            labelWidth: labelWidth,
+                            accountSwitcher: {
+                                TokenAccountSwitcherRepresentable(
+                                    accounts: accounts,
+                                    defaultAccountLabel: defaultLabel,
+                                    selectedIndex: rawSelection,
+                                    width: ProviderSettingsMetrics.detailMaxWidth,
+                                    onSelect: { index in
+                                        self.settings.setActiveTokenAccountIndex(index, for: .codex)
+                                        Task { @MainActor in
+                                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                                await self.store.refreshProvider(.codex, allowDisabled: true)
+                                            }
+                                        }
+                                    })
+                                    .id(self.codexUsageAccountSwitcherIdentity)
+                                    .frame(height: TokenAccountSwitcherView.preferredHeight(
+                                        accounts: accounts,
+                                        defaultAccountLabel: defaultLabel))
+                            })
+                    } else {
+                        ProviderMetricsInlineView(
+                            provider: self.provider,
+                            model: self.model,
+                            isEnabled: self.isEnabled,
+                            labelWidth: labelWidth)
+                    }
+                }
+
+                if let tokenUsage = self.model.tokenUsage {
+                    ProviderCostSettingsSection(
+                        accountLabel: self.costSectionAccountLabel,
+                        tokenUsage: tokenUsage)
+                }
 
                 if let errorDisplay {
                     ProviderErrorView(
@@ -71,13 +121,8 @@ struct ProviderDetailView: View {
 
                 if self.hasSettings {
                     ProviderSettingsSection(title: "Settings") {
-                        ForEach(self.settingsPickers) { picker in
+                        ForEach(self.settingsSectionPickers) { picker in
                             ProviderSettingsPickerRowView(picker: picker)
-                        }
-                        if let tokenAccounts = self.settingsTokenAccounts,
-                           tokenAccounts.isVisible?() ?? true
-                        {
-                            ProviderSettingsTokenAccountsRowView(descriptor: tokenAccounts)
                         }
                         ForEach(self.settingsFields) { field in
                             ProviderSettingsFieldRowView(field: field)
@@ -85,10 +130,21 @@ struct ProviderDetailView: View {
                     }
                 }
 
-                if !self.settingsToggles.isEmpty {
+                if self.hasOptionsSection {
                     ProviderSettingsSection(title: "Options") {
+                        ForEach(self.optionsSectionPickers) { picker in
+                            ProviderSettingsPickerRowView(picker: picker)
+                        }
                         ForEach(self.settingsToggles) { toggle in
                             ProviderSettingsToggleRowView(toggle: toggle)
+                        }
+                        if self.provider == .codex {
+                            Text(
+                                "The primary account is whichever identity Codex has configured in ~/.codex on this Mac. Other rows in Accounts are separate credentials/folders. “Menu bar account” chooses which one CodexBar shows in the menu bar.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 4)
                         }
                     }
                 }
@@ -100,10 +156,68 @@ struct ProviderDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var settingsSectionPickers: [ProviderSettingsPickerDescriptor] {
+        self.settingsPickers.filter { $0.section == .settings }
+    }
+
+    private var optionsSectionPickers: [ProviderSettingsPickerDescriptor] {
+        self.settingsPickers.filter { $0.section == .options }
+    }
+
     private var hasSettings: Bool {
-        !self.settingsPickers.isEmpty ||
-            !self.settingsFields.isEmpty ||
-            self.settingsTokenAccounts != nil
+        !self.settingsSectionPickers.isEmpty ||
+            !self.settingsFields.isEmpty
+    }
+
+    private var hasOptionsSection: Bool {
+        !self.settingsToggles.isEmpty || !self.optionsSectionPickers.isEmpty
+    }
+
+    /// When Codex has more than one selectable account, summary email/plan reflect only the active fetch — hide to avoid confusion.
+    private var codexHidesHeaderAccountAndPlan: Bool {
+        guard self.provider == .codex else { return false }
+        let hasPrimary = CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings) != nil
+        let addedCount = self.settings.tokenAccounts(for: .codex).count
+        return (hasPrimary ? 1 : 0) + addedCount >= 2
+    }
+
+    /// Same rule as the menu-bar token switcher: default ~/.codex + ≥1 added account, or 2+ added accounts.
+    private var codexShowsUsageAccountSwitcher: Bool {
+        guard self.provider == .codex else { return false }
+        let accounts = self.settings.tokenAccounts(for: .codex)
+        let defaultLabel = CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings)
+        return (accounts.count >= 1 && defaultLabel != nil) || accounts.count > 1
+    }
+
+    private var codexUsageAccountSwitcherIdentity: String {
+        let accounts = self.settings.tokenAccounts(for: .codex)
+        let ids = accounts.map(\.id.uuidString).sorted().joined(separator: ",")
+        let raw = self.settings.tokenAccountsData(for: .codex)?.activeIndex ?? -1
+        return "\(self.settings.configRevision)-\(ids)-\(raw)"
+    }
+
+    /// Display name for the account whose usage/cost is shown (token selection or primary or menu card email).
+    private var costSectionAccountLabel: String? {
+        let provider = self.provider
+        if TokenAccountSupportCatalog.support(for: provider) != nil {
+            let accounts = self.settings.tokenAccounts(for: provider)
+            let raw = self.settings.tokenAccountsData(for: provider)?.activeIndex ?? -1
+            if raw < 0 || accounts.isEmpty {
+                if let custom = self.settings.providerConfig(for: provider)?.defaultAccountLabel?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                    !custom.isEmpty
+                {
+                    return custom
+                }
+                return ProviderCatalog.implementation(for: provider)?
+                    .tokenAccountDefaultLabel(settings: self.settings)
+            }
+            let index = min(max(raw, 0), max(0, accounts.count - 1))
+            guard index < accounts.count else { return nil }
+            return accounts[index].displayName
+        }
+        let email = self.model.email.trimmingCharacters(in: .whitespacesAndNewlines)
+        return email.isEmpty ? nil : email
     }
 
     private var detailLabelWidth: CGFloat {
@@ -111,10 +225,11 @@ struct ProviderDetailView: View {
         if self.store.status(for: self.provider) != nil {
             infoLabels.append("Status")
         }
-        if !self.model.email.isEmpty {
+        let hideAccountPlan = self.codexHidesHeaderAccountAndPlan
+        if !hideAccountPlan, !self.model.email.isEmpty {
             infoLabels.append("Account")
         }
-        if let planRow = Self.planRow(provider: self.provider, planText: self.model.planText) {
+        if !hideAccountPlan, let planRow = Self.planRow(provider: self.provider, planText: self.model.planText) {
             infoLabels.append(planRow.label)
         }
 
@@ -149,6 +264,7 @@ private struct ProviderDetailHeaderView: View {
     let subtitle: String
     let model: UsageMenuCardView.Model
     let labelWidth: CGFloat
+    let hideAccountAndPlan: Bool
     let onRefresh: () -> Void
 
     var body: some View {
@@ -187,7 +303,8 @@ private struct ProviderDetailHeaderView: View {
                 store: self.store,
                 isEnabled: self.isEnabled,
                 model: self.model,
-                labelWidth: self.labelWidth)
+                labelWidth: self.labelWidth,
+                hideAccountAndPlan: self.hideAccountAndPlan)
         }
     }
 
@@ -230,6 +347,7 @@ private struct ProviderDetailInfoGrid: View {
     let isEnabled: Bool
     let model: UsageMenuCardView.Model
     let labelWidth: CGFloat
+    let hideAccountAndPlan: Bool
 
     var body: some View {
         let status = self.store.status(for: self.provider)
@@ -252,11 +370,13 @@ private struct ProviderDetailInfoGrid: View {
                     labelWidth: self.labelWidth)
             }
 
-            if !email.isEmpty {
+            if !self.hideAccountAndPlan, !email.isEmpty {
                 ProviderDetailInfoRow(label: "Account", value: email, labelWidth: self.labelWidth)
             }
 
-            if let planRow = ProviderDetailView.planRow(provider: self.provider, planText: self.model.planText) {
+            if !self.hideAccountAndPlan,
+               let planRow = ProviderDetailView.planRow(provider: self.provider, planText: self.model.planText)
+            {
                 ProviderDetailInfoRow(label: planRow.label, value: planRow.value, labelWidth: self.labelWidth)
             }
         }
@@ -291,11 +411,26 @@ private struct ProviderDetailInfoRow: View {
 }
 
 @MainActor
-struct ProviderMetricsInlineView: View {
+struct ProviderMetricsInlineView<AccountSwitcher: View>: View {
     let provider: UsageProvider
     let model: UsageMenuCardView.Model
     let isEnabled: Bool
     let labelWidth: CGFloat
+    @ViewBuilder private var accountSwitcher: AccountSwitcher
+
+    init(
+        provider: UsageProvider,
+        model: UsageMenuCardView.Model,
+        isEnabled: Bool,
+        labelWidth: CGFloat,
+        @ViewBuilder accountSwitcher: () -> AccountSwitcher)
+    {
+        self.provider = provider
+        self.model = model
+        self.isEnabled = isEnabled
+        self.labelWidth = labelWidth
+        self.accountSwitcher = accountSwitcher()
+    }
 
     var body: some View {
         let hasMetrics = !self.model.metrics.isEmpty
@@ -303,13 +438,18 @@ struct ProviderMetricsInlineView: View {
         let hasCredits = self.model.creditsText != nil
         let hasProviderCost = self.model.providerCost != nil
         let hasTokenUsage = self.model.tokenUsage != nil
+        let hasUsageRows = hasMetrics || hasUsageNotes || hasProviderCost || hasCredits
         ProviderSettingsSection(
             title: "Usage",
+            titleTrailingNote: self.provider == .codex
+                ? "(Cost only available for API configured accounts)"
+                : nil,
             spacing: 8,
             verticalPadding: 6,
             horizontalPadding: 0)
         {
-            if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage {
+            self.accountSwitcher
+            if !hasUsageRows, !hasTokenUsage {
                 Text(self.placeholderText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -342,17 +482,6 @@ struct ProviderMetricsInlineView: View {
                         progressColor: self.model.progressColor,
                         labelWidth: self.labelWidth)
                 }
-
-                if let tokenUsage = self.model.tokenUsage {
-                    ProviderMetricInlineTextRow(
-                        title: "Cost",
-                        value: tokenUsage.sessionLine,
-                        labelWidth: self.labelWidth)
-                    ProviderMetricInlineTextRow(
-                        title: "",
-                        value: tokenUsage.monthLine,
-                        labelWidth: self.labelWidth)
-                }
             }
         }
     }
@@ -362,6 +491,58 @@ struct ProviderMetricsInlineView: View {
             return "Disabled — no recent data"
         }
         return self.model.placeholder ?? "No usage yet"
+    }
+}
+
+extension ProviderMetricsInlineView where AccountSwitcher == EmptyView {
+    init(provider: UsageProvider, model: UsageMenuCardView.Model, isEnabled: Bool, labelWidth: CGFloat) {
+        self.init(
+            provider: provider,
+            model: model,
+            isEnabled: isEnabled,
+            labelWidth: labelWidth,
+            accountSwitcher: { EmptyView() })
+    }
+}
+
+@MainActor
+private struct ProviderCostSettingsSection: View {
+    let accountLabel: String?
+    let tokenUsage: UsageMenuCardView.Model.TokenUsageSection
+
+    var body: some View {
+        ProviderSettingsSection(
+            title: "Cost",
+            spacing: 8,
+            verticalPadding: 6,
+            horizontalPadding: 0)
+        {
+            VStack(alignment: .leading, spacing: 6) {
+                if let accountLabel, !accountLabel.isEmpty {
+                    Text("Account: \(accountLabel)")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Text(self.tokenUsage.sessionLine)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Text(self.tokenUsage.monthLine)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                if let hint = self.tokenUsage.hintLine, !hint.isEmpty {
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                }
+                if let error = self.tokenUsage.errorLine, !error.isEmpty {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 2)
+        }
     }
 }
 

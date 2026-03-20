@@ -26,6 +26,7 @@ extension UsageStore {
                 self.lastKnownSessionRemaining.removeValue(forKey: provider)
                 self.lastKnownSessionWindowSource.removeValue(forKey: provider)
                 self.lastTokenFetchAt.removeValue(forKey: provider)
+                self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
             }
             return
         }
@@ -36,6 +37,7 @@ extension UsageStore {
         let tokenAccounts = self.tokenAccounts(for: provider)
         if self.shouldFetchAllTokenAccounts(provider: provider, accounts: tokenAccounts) {
             await self.refreshTokenAccounts(provider: provider, accounts: tokenAccounts)
+            await self.refreshTokenUsageIfConfigured(provider)
             return
         } else {
             _ = await MainActor.run {
@@ -69,6 +71,7 @@ extension UsageStore {
                 self.failureGates[.claude]?.reset()
                 self.tokenFailureGates[.claude]?.reset()
                 self.lastTokenFetchAt.removeValue(forKey: .claude)
+                self.lastTokenCostSelectionIdentity.removeValue(forKey: .claude)
             }
         }
         await MainActor.run {
@@ -92,6 +95,7 @@ extension UsageStore {
             }
             if provider == .codex {
                 self.recordCodexHistoricalSampleIfNeeded(snapshot: scoped)
+                Task { await self.refreshAllAccountCredits(for: .codex) }
             }
         case let .failure(error):
             await MainActor.run {
@@ -112,5 +116,14 @@ extension UsageStore {
                 runtime.providerDidFail(context: context, provider: provider, error: error)
             }
         }
+
+        await self.refreshTokenUsageIfConfigured(provider)
+    }
+
+    /// Local token/cost scan from session logs — must run after account switches, not only on full `refresh()`.
+    private func refreshTokenUsageIfConfigured(_ provider: UsageProvider) async {
+        guard provider == .codex || provider == .claude || provider == .vertexai else { return }
+        guard self.settings.costUsageEnabled else { return }
+        await self.refreshTokenUsage(provider, force: false)
     }
 }

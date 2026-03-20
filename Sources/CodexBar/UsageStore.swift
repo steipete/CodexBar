@@ -101,6 +101,9 @@ final class UsageStore {
     var lastFetchAttempts: [UsageProvider: [ProviderFetchAttempt]] = [:]
     var accountSnapshots: [UsageProvider: [TokenAccountUsageSnapshot]] = [:]
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
+    /// Per-account credits balance fetched via OAuth, keyed by provider.
+    var allAccountCredits: [UsageProvider: [AccountCostEntry]] = [:]
+    @ObservationIgnored var accountCostRefreshInFlight: Set<UsageProvider> = []
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
     var credits: CreditsSnapshot?
@@ -154,6 +157,7 @@ final class UsageStore {
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
+    @ObservationIgnored var lastTokenCostSelectionIdentity: [UsageProvider: String] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
@@ -1547,17 +1551,19 @@ extension UsageStore {
         self.tokenSnapshots.removeAll()
         self.tokenErrors.removeAll()
         self.lastTokenFetchAt.removeAll()
+        self.lastTokenCostSelectionIdentity.removeAll()
         self.tokenFailureGates[.codex]?.reset()
         self.tokenFailureGates[.claude]?.reset()
         return nil
     }
 
-    private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
+    func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
         guard provider == .codex || provider == .claude || provider == .vertexai else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
+            self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
             return
         }
 
@@ -1566,6 +1572,7 @@ extension UsageStore {
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
+            self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
             return
         }
 
@@ -1574,18 +1581,24 @@ extension UsageStore {
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
+            self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
             return
         }
 
         guard !self.tokenRefreshInFlight.contains(provider) else { return }
 
+        let selectionIdentity = self.tokenCostSelectionIdentity(for: provider)
+        let selectionChanged = self.lastTokenCostSelectionIdentity[provider] != selectionIdentity
+
         let now = Date()
         if !force,
+           !selectionChanged,
            let last = self.lastTokenFetchAt[provider],
            now.timeIntervalSince(last) < self.tokenFetchTTL
         {
             return
         }
+        self.lastTokenCostSelectionIdentity[provider] = selectionIdentity
         self.lastTokenFetchAt[provider] = now
         self.tokenRefreshInFlight.insert(provider)
         defer { self.tokenRefreshInFlight.remove(provider) }
@@ -1598,13 +1611,16 @@ extension UsageStore {
         do {
             let fetcher = self.costUsageFetcher
             let timeoutSeconds = self.tokenFetchTimeout
+            let codexRoot = provider == .codex ? self.codexCostUsageSessionsRootForActiveSelection() : nil
             let snapshot = try await withThrowingTaskGroup(of: CostUsageTokenSnapshot.self) { group in
                 group.addTask(priority: .utility) {
                     try await fetcher.loadTokenSnapshot(
                         provider: provider,
                         now: now,
                         forceRefresh: force,
-                        allowVertexClaudeFallback: !self.isEnabled(.claude))
+                        allowVertexClaudeFallback: !self.isEnabled(.claude),
+                        codexSessionsRoot: codexRoot,
+                        claudeProjectsRoots: nil)
                 }
                 group.addTask {
                     try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))

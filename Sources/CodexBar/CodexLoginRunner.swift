@@ -16,9 +16,13 @@ struct CodexLoginRunner {
         let output: String
     }
 
-    static func run(timeout: TimeInterval = 120) async -> Result {
+    static func run(codexHome: String? = nil, timeout: TimeInterval = 120) async -> Result {
         await Task(priority: .userInitiated) {
             var env = ProcessInfo.processInfo.environment
+            if let codexHome {
+                let expanded = (codexHome as NSString).expandingTildeInPath
+                env["CODEX_HOME"] = expanded
+            }
             env["PATH"] = PathBuilder.effectivePATH(
                 purposes: [.rpc, .tty, .nodeTooling],
                 env: env,

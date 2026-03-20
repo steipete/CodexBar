@@ -2,7 +2,7 @@ import Foundation
 
 public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
     public let id: UUID
-    public let label: String
+    public var label: String
     public let token: String
     public let addedAt: TimeInterval
     public let lastUsed: TimeInterval?
@@ -29,6 +29,12 @@ public struct ProviderTokenAccountData: Codable, Sendable {
         self.version = version
         self.accounts = accounts
         self.activeIndex = activeIndex
+    }
+
+    /// True when the user has explicitly selected the default (non-token-account) account.
+    /// Stored as activeIndex < 0.
+    public var isDefaultActive: Bool {
+        self.activeIndex < 0 || self.accounts.isEmpty
     }
 
     public func clampedActiveIndex() -> Int {

@@ -88,6 +88,8 @@ struct MenuContent: View {
             self.actions.openStatusPage()
         case let .switchAccount(provider):
             self.actions.switchAccount(provider)
+        case let .addTokenAccount(provider):
+            self.actions.addTokenAccount(provider)
         case let .openTerminal(command):
             self.actions.openTerminal(command)
         case let .loginToProvider(url):
@@ -113,6 +115,7 @@ struct MenuActions {
     let openDashboard: () -> Void
     let openStatusPage: () -> Void
     let switchAccount: (UsageProvider) -> Void
+    let addTokenAccount: (UsageProvider) -> Void
     let openTerminal: (String) -> Void
     let openSettings: () -> Void
     let openAbout: () -> Void

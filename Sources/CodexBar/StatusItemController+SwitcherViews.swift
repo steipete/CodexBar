@@ -793,25 +793,54 @@ final class ProviderSwitcherView: NSView {
 }
 
 final class TokenAccountSwitcherView: NSView {
+    /// Height for the switcher given account count (matches internal layout).
+    static func preferredHeight(accounts: [ProviderTokenAccount], defaultAccountLabel: String?) -> CGFloat {
+        let totalCount = accounts.count + (defaultAccountLabel != nil ? 1 : 0)
+        guard totalCount > 0 else { return 0 }
+        let useTwoRows = totalCount > 3
+        let rows = useTwoRows ? 2 : 1
+        let rowSpacing: CGFloat = 4
+        let rowHeight: CGFloat = 26
+        return rowHeight * CGFloat(rows) + (useTwoRows ? rowSpacing : 0)
+    }
+
     private let accounts: [ProviderTokenAccount]
+    private let defaultAccountLabel: String?
     private let onSelect: (Int) -> Void
     private var selectedIndex: Int
+    /// Maps button tag → logical index (-1 for default, 0+ for token accounts)
+    private var buttonTagToIndex: [Int: Int] = [:]
     private var buttons: [NSButton] = []
     private let rowSpacing: CGFloat = 4
     private let rowHeight: CGFloat = 26
+    /// Horizontal inset of the button stack inside this view (menu uses a little breathing room; preferences flush).
+    private let contentMargin: CGFloat
     private let selectedBackground = NSColor.controlAccentColor.cgColor
     private let unselectedBackground = NSColor.clear.cgColor
     private let selectedTextColor = NSColor.white
     private let unselectedTextColor = NSColor.secondaryLabelColor
 
-    init(accounts: [ProviderTokenAccount], selectedIndex: Int, width: CGFloat, onSelect: @escaping (Int) -> Void) {
+    init(
+        accounts: [ProviderTokenAccount],
+        defaultAccountLabel: String? = nil,
+        selectedIndex: Int,
+        width: CGFloat,
+        contentMargin: CGFloat = 6,
+        onSelect: @escaping (Int) -> Void)
+    {
         self.accounts = accounts
+        self.defaultAccountLabel = defaultAccountLabel
+        self.contentMargin = contentMargin
         self.onSelect = onSelect
-        self.selectedIndex = min(max(selectedIndex, 0), max(0, accounts.count - 1))
-        let useTwoRows = accounts.count > 3
-        let rows = useTwoRows ? 2 : 1
-        let height = self.rowHeight * CGFloat(rows) + (useTwoRows ? self.rowSpacing : 0)
+        // selectedIndex == -1 means default account is active
+        let totalCount = accounts.count + (defaultAccountLabel != nil ? 1 : 0)
+        let clampedIndex = defaultAccountLabel != nil && selectedIndex < 0
+            ? -1
+            : min(max(selectedIndex, 0), max(0, accounts.count - 1))
+        self.selectedIndex = clampedIndex
+        let height = Self.preferredHeight(accounts: accounts, defaultAccountLabel: defaultAccountLabel)
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        let useTwoRows = totalCount > 3
         self.wantsLayer = true
         self.buildButtons(useTwoRows: useTwoRows)
         self.updateButtonStyles()
@@ -823,22 +852,30 @@ final class TokenAccountSwitcherView: NSView {
     }
 
     private func buildButtons(useTwoRows: Bool) {
-        let perRow = useTwoRows ? Int(ceil(Double(self.accounts.count) / 2.0)) : self.accounts.count
-        let rows: [[ProviderTokenAccount]] = {
-            if !useTwoRows { return [self.accounts] }
-            let first = Array(self.accounts.prefix(perRow))
-            let second = Array(self.accounts.dropFirst(perRow))
-            return [first, second]
-        }()
+        // Build the flat ordered list: default (index -1) first, then token accounts (0, 1, 2…)
+        struct Entry { let title: String; let logicalIndex: Int }
+        var entries: [Entry] = []
+        if let label = self.defaultAccountLabel {
+            entries.append(Entry(title: label, logicalIndex: -1))
+        }
+        for (i, account) in self.accounts.enumerated() {
+            entries.append(Entry(title: account.displayName, logicalIndex: i))
+        }
+
+        let perRow = useTwoRows ? Int(ceil(Double(entries.count) / 2.0)) : entries.count
+        let chunks: [[Entry]] = useTwoRows
+            ? [Array(entries.prefix(perRow)), Array(entries.dropFirst(perRow))]
+            : [entries]
 
         let stack = NSStackView()
         stack.orientation = .vertical
-        stack.alignment = .centerX
+        // Leading keeps account tabs aligned with section titles; centerX left empty space on the left.
+        stack.alignment = .leading
         stack.spacing = self.rowSpacing
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        var globalIndex = 0
-        for rowAccounts in rows {
+        var buttonTag = 0
+        for rowEntries in chunks {
             let row = NSStackView()
             row.orientation = .horizontal
             row.alignment = .centerY
@@ -846,13 +883,13 @@ final class TokenAccountSwitcherView: NSView {
             row.spacing = self.rowSpacing
             row.translatesAutoresizingMaskIntoConstraints = false
 
-            for account in rowAccounts {
+            for entry in rowEntries {
                 let button = PaddedToggleButton(
-                    title: account.displayName,
+                    title: entry.title,
                     target: self,
                     action: #selector(self.handleSelect))
-                button.tag = globalIndex
-                button.toolTip = account.displayName
+                button.tag = buttonTag
+                button.toolTip = entry.title
                 button.isBordered = false
                 button.setButtonType(.toggle)
                 button.controlSize = .small
@@ -861,26 +898,30 @@ final class TokenAccountSwitcherView: NSView {
                 button.layer?.cornerRadius = 6
                 row.addArrangedSubview(button)
                 self.buttons.append(button)
-                globalIndex += 1
+                self.buttonTagToIndex[buttonTag] = entry.logicalIndex
+                buttonTag += 1
             }
 
             stack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
 
         self.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 6),
-            stack.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -6),
+            stack.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: self.contentMargin),
+            stack.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -self.contentMargin),
             stack.topAnchor.constraint(equalTo: self.topAnchor),
             stack.bottomAnchor.constraint(equalTo: self.bottomAnchor),
-            stack.heightAnchor.constraint(equalToConstant: self.rowHeight * CGFloat(rows.count) +
+            stack.heightAnchor.constraint(equalToConstant: self.rowHeight * CGFloat(chunks.count) +
                 (useTwoRows ? self.rowSpacing : 0)),
         ])
     }
 
     private func updateButtonStyles() {
-        for (index, button) in self.buttons.enumerated() {
-            let selected = index == self.selectedIndex
+        for button in self.buttons {
+            let tag = button.tag
+            let logicalIndex = self.buttonTagToIndex[tag] ?? tag
+            let selected = logicalIndex == self.selectedIndex
             button.state = selected ? .on : .off
             button.layer?.backgroundColor = selected ? self.selectedBackground : self.unselectedBackground
             button.contentTintColor = selected ? self.selectedTextColor : self.unselectedTextColor
@@ -888,10 +929,12 @@ final class TokenAccountSwitcherView: NSView {
     }
 
     @objc private func handleSelect(_ sender: NSButton) {
-        let index = sender.tag
-        guard index >= 0, index < self.accounts.count else { return }
-        self.selectedIndex = index
+        let tag = sender.tag
+        guard let logicalIndex = self.buttonTagToIndex[tag] else { return }
+        // Allow -1 (default account) as a valid selection
+        guard logicalIndex >= -1, logicalIndex < self.accounts.count else { return }
+        self.selectedIndex = logicalIndex
         self.updateButtonStyles()
-        self.onSelect(index)
+        self.onSelect(logicalIndex)
     }
 }

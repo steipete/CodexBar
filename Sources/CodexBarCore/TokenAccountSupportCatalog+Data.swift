@@ -2,6 +2,13 @@ import Foundation
 
 extension TokenAccountSupportCatalog {
     static let supportByProvider: [UsageProvider: TokenAccountSupport] = [
+        .codex: TokenAccountSupport(
+            title: "Codex accounts",
+            subtitle: "OAuth adds a credentials directory (CODEX_HOME). You can also add an API key account from Settings. Manual paths use ~/.codex-account2 style directories.",
+            placeholder: "~/.codex-account2",
+            injection: .codexHome,
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .claude: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store Claude sessionKey cookies or OAuth access tokens.",

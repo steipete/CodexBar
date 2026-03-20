@@ -2,6 +2,16 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    /// When `true` (default), shows "Buy Credits…" in the Codex menu. Persisted per-provider; `nil` in config means enabled.
+    var codexBuyCreditsMenuEnabled: Bool {
+        get { self.configSnapshot.providerConfig(for: .codex)?.buyCreditsMenuEnabled ?? true }
+        set {
+            self.updateProviderConfig(provider: .codex) { entry in
+                entry.buyCreditsMenuEnabled = newValue
+            }
+        }
+    }
+
     var codexUsageDataSource: CodexUsageDataSource {
         get {
             let source = self.configSnapshot.providerConfig(for: .codex)?.source

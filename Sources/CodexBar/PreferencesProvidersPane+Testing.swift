@@ -90,6 +90,7 @@ enum ProvidersPaneTestHarness {
         _ = ProviderDetailView(
             provider: .codex,
             store: store,
+            settings: store.settings,
             isEnabled: enabledBinding,
             subtitle: "Subtitle",
             model: model,
@@ -166,6 +167,7 @@ enum ProvidersPaneTestHarness {
             title: "Accounts",
             subtitle: "Accounts subtitle",
             placeholder: "Token",
+            isSecureToken: true,
             provider: .codex,
             isVisible: { true },
             accounts: { [] },
@@ -173,8 +175,12 @@ enum ProvidersPaneTestHarness {
             setActiveIndex: { _ in },
             addAccount: { _, _ in },
             removeAccount: { _ in },
+            renameAccount: { _, _ in },
             openConfigFile: {},
-            reloadFromDisk: {})
+            reloadFromDisk: {},
+            defaultAccountLabel: nil,
+            renameDefaultAccount: nil,
+            loginAction: nil)
 
         return ProviderListTestDescriptors(
             toggle: toggle,

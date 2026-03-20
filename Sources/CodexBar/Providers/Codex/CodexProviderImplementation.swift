@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import CodexBarMacroSupport
 import Foundation
@@ -70,7 +71,42 @@ struct CodexProviderImplementation: ProviderImplementation {
                 }
             })
 
+        let buyCreditsBinding = Binding(
+            get: { context.settings.codexBuyCreditsMenuEnabled },
+            set: { context.settings.codexBuyCreditsMenuEnabled = $0 })
+
         return [
+            ProviderSettingsToggleDescriptor(
+                id: "codex-buy-credits-menu",
+                title: "Show Buy Credits in menu",
+                subtitle: "Adds a “Buy Credits…” item to the Codex menu for ChatGPT billing.",
+                binding: buyCreditsBinding,
+                statusText: {
+                    guard context.settings.codexBuyCreditsMenuEnabled else { return nil }
+                    let hasKey = !(context.settings.providerConfig(for: .codex)?.sanitizedAPIKey ?? "").isEmpty
+                    if !hasKey {
+                        return "No API key saved — only OAuth / browser-based flows are configured for Codex."
+                    }
+                    return nil
+                },
+                actions: [],
+                isVisible: nil,
+                onChange: { enabled in
+                    guard enabled else { return }
+                    let hasKey = !(context.settings.providerConfig(for: .codex)?.sanitizedAPIKey ?? "").isEmpty
+                    guard !hasKey else { return }
+                    await MainActor.run {
+                        let alert = NSAlert()
+                        alert.messageText = "No API key configured"
+                        alert.informativeText =
+                            "Buy Credits opens the ChatGPT billing page. You don’t have an API key saved for Codex — only OAuth-based usage is configured. You can still continue; add an API key in Codex settings if you use one."
+                        alert.alertStyle = .informational
+                        alert.addButton(withTitle: "OK")
+                        alert.runModal()
+                    }
+                },
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
             ProviderSettingsToggleDescriptor(
                 id: "codex-historical-tracking",
                 title: "Historical tracking",
@@ -109,6 +145,45 @@ struct CodexProviderImplementation: ProviderImplementation {
                 context.settings.codexCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
             })
 
+        let menuBarAccountBinding = Binding(
+            get: {
+                let accounts = context.settings.tokenAccounts(for: .codex)
+                let hasPrimary = self.tokenAccountDefaultLabel(settings: context.settings) != nil
+                let raw = context.settings.tokenAccountsData(for: .codex)?.activeIndex ?? -1
+                if hasPrimary, raw < 0 { return "default" }
+                guard !accounts.isEmpty else { return hasPrimary ? "default" : "0" }
+                let idx = min(max(raw < 0 ? 0 : raw, 0), accounts.count - 1)
+                return String(idx)
+            },
+            set: { newId in
+                if newId == "default" {
+                    context.settings.setActiveTokenAccountIndex(-1, for: .codex)
+                } else if let idx = Int(newId) {
+                    context.settings.setActiveTokenAccountIndex(idx, for: .codex)
+                }
+            })
+
+        var menuBarAccountOptions: [ProviderSettingsPickerOption] = []
+        if self.tokenAccountDefaultLabel(settings: context.settings) != nil {
+            let custom = context.settings.providerConfig(for: .codex)?.defaultAccountLabel?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let title: String
+            if let custom, !custom.isEmpty {
+                title = custom
+            } else if let email = self.tokenAccountDefaultLabel(settings: context.settings) {
+                title = email
+            } else {
+                title = "Primary"
+            }
+            menuBarAccountOptions.append(
+                ProviderSettingsPickerOption(
+                    id: "default",
+                    title: "\(title) (primary ~/.codex)"))
+        }
+        for (i, acc) in context.settings.tokenAccounts(for: .codex).enumerated() {
+            menuBarAccountOptions.append(ProviderSettingsPickerOption(id: String(i), title: acc.displayName))
+        }
+
         let usageOptions = CodexUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
@@ -126,6 +201,23 @@ struct CodexProviderImplementation: ProviderImplementation {
         }
 
         return [
+            ProviderSettingsPickerDescriptor(
+                id: "codex-menu-bar-account",
+                title: "Menu bar account",
+                subtitle: "Which Codex account drives the menu bar and usage on this Mac.",
+                binding: menuBarAccountBinding,
+                options: menuBarAccountOptions,
+                isVisible: {
+                    let accounts = context.settings.tokenAccounts(for: .codex)
+                    let hasPrimary = self.tokenAccountDefaultLabel(settings: context.settings) != nil
+                    return (hasPrimary ? 1 : 0) + accounts.count >= 2
+                },
+                onChange: { _ in
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await context.store.refreshProvider(.codex, allowDisabled: true)
+                    }
+                },
+                section: .options),
             ProviderSettingsPickerDescriptor(
                 id: "codex-usage-source",
                 title: "Usage source",
@@ -192,8 +284,90 @@ struct CodexProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func loginMenuAction(context _: ProviderMenuLoginContext)
+        -> (label: String, action: MenuDescriptor.MenuAction)?
+    {
+        ("Add Account...", .addTokenAccount(.codex))
+    }
+
+    @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         await context.controller.runCodexLoginFlow()
         return true
+    }
+
+    @MainActor
+    func tokenAccountDefaultLabel(settings: SettingsStore?) -> String? {
+        if let custom = settings?.providerConfig(for: .codex)?.defaultAccountLabel,
+           !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            return custom
+        }
+        guard let credentials = try? CodexOAuthCredentialsStore.load() else { return nil }
+
+        if let idToken = credentials.idToken,
+           let payload = UsageFetcher.parseJWT(idToken)
+        {
+            let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
+            let email = (payload["email"] as? String) ?? (profileDict?["email"] as? String)
+            let trimmed = email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let trimmed, !trimmed.isEmpty { return trimmed }
+        }
+
+        // API-key auth (`auth.json` with OPENAI_API_KEY): valid credentials but no id_token/JWT.
+        let access = credentials.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let refresh = credentials.refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !access.isEmpty, refresh.isEmpty {
+            return "API key"
+        }
+
+        // OAuth loaded but no usable email/id_token (unusual); still treat default account as present.
+        if !refresh.isEmpty {
+            return "Codex"
+        }
+
+        return nil
+    }
+
+    @MainActor
+    func tokenAccountLoginAction(context _: ProviderSettingsContext)
+        -> ((
+            _ setProgress: @escaping @MainActor (String) -> Void,
+            _ addAccount: @escaping @MainActor (String, String) -> Void
+        ) async -> Bool)?
+    {
+        return { @MainActor setProgress, addAccount in
+            let accountsDir = (("~/.codex-accounts") as NSString).expandingTildeInPath
+            let uniqueDir = "\(accountsDir)/\(UUID().uuidString.prefix(8))"
+            try? FileManager.default.createDirectory(
+                atPath: uniqueDir,
+                withIntermediateDirectories: true)
+
+            setProgress("Opening browser for login…")
+            let result = await CodexLoginRunner.run(codexHome: uniqueDir, timeout: 180)
+
+            switch result.outcome {
+            case .success:
+                setProgress("Signed in — reading account info…")
+                let env = ["CODEX_HOME": uniqueDir]
+                let label: String
+                if let credentials = try? CodexOAuthCredentialsStore.load(env: env),
+                   let idToken = credentials.idToken,
+                   let payload = UsageFetcher.parseJWT(idToken)
+                {
+                    let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
+                    let email = (payload["email"] as? String) ?? (profileDict?["email"] as? String)
+                    label = email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Account"
+                } else {
+                    label = "Account"
+                }
+                addAccount(label, uniqueDir)
+                return true
+
+            case .missingBinary, .timedOut, .failed, .launchFailed:
+                try? FileManager.default.removeItem(atPath: uniqueDir)
+                return false
+            }
+        }
     }
 }

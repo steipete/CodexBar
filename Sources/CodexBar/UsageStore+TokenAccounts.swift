@@ -30,8 +30,8 @@ extension UsageStore {
 
     func refreshTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) async {
         let selectedAccount = self.settings.selectedTokenAccount(for: provider)
+        let defaultIsActive = self.settings.tokenAccountsData(for: provider)?.isDefaultActive ?? true
         let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
-        let effectiveSelected = selectedAccount ?? limitedAccounts.first
         var snapshots: [TokenAccountUsageSnapshot] = []
         var selectedOutcome: ProviderFetchOutcome?
         var selectedSnapshot: UsageSnapshot?
@@ -41,9 +41,19 @@ extension UsageStore {
             let outcome = await self.fetchOutcome(provider: provider, override: override)
             let resolved = self.resolveAccountOutcome(outcome, provider: provider, account: account)
             snapshots.append(resolved.snapshot)
-            if account.id == effectiveSelected?.id {
+            if !defaultIsActive, account.id == selectedAccount?.id {
                 selectedOutcome = outcome
                 selectedSnapshot = resolved.usage
+            }
+        }
+
+        // When the default account is active, fetch it with no token override
+        // so it uses the standard ~/.codex credentials.
+        if defaultIsActive {
+            let outcome = await self.fetchOutcome(provider: provider, override: nil)
+            selectedOutcome = outcome
+            if case let .success(result) = outcome.result {
+                selectedSnapshot = result.usage.scoped(to: provider)
             }
         }
 
@@ -55,8 +65,11 @@ extension UsageStore {
             await self.applySelectedOutcome(
                 selectedOutcome,
                 provider: provider,
-                account: effectiveSelected,
+                account: defaultIsActive ? nil : selectedAccount,
                 fallbackSnapshot: selectedSnapshot)
+        }
+        if provider == .codex {
+            Task { await self.refreshAllAccountCredits(for: .codex) }
         }
     }
 

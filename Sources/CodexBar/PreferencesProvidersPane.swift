@@ -32,6 +32,7 @@ struct ProvidersPane: View {
                 ProviderDetailView(
                     provider: provider,
                     store: self.store,
+                    settings: self.settings,
                     isEnabled: self.binding(for: provider),
                     subtitle: self.providerSubtitle(provider),
                     model: self.menuCardModel(for: provider),
@@ -168,11 +169,24 @@ struct ProvidersPane: View {
     func tokenAccountDescriptor(for provider: UsageProvider) -> ProviderSettingsTokenAccountsDescriptor? {
         guard let support = TokenAccountSupportCatalog.support(for: provider) else { return nil }
         let context = self.makeSettingsContext(provider: provider)
+        let isSecureToken: Bool = {
+            if case .codexHome = support.injection { return false }
+            return true
+        }()
+        let impl = ProviderCatalog.implementation(for: provider)
+        let loginAction = impl?.tokenAccountLoginAction(context: context)
+        let defaultAccountLabel: (() -> String?)? = impl.map { imp in
+            { imp.tokenAccountDefaultLabel(settings: self.settings) }
+        }
+        let renameDefaultAccount: ((_ newLabel: String) -> Void)? = impl.map { _ in
+            { newLabel in self.settings.setDefaultAccountLabel(provider: provider, label: newLabel) }
+        }
         return ProviderSettingsTokenAccountsDescriptor(
             id: "token-accounts-\(provider.rawValue)",
             title: support.title,
             subtitle: support.subtitle,
             placeholder: support.placeholder,
+            isSecureToken: isSecureToken,
             provider: provider,
             isVisible: {
                 ProviderCatalog.implementation(for: provider)?
@@ -182,8 +196,8 @@ struct ProvidersPane: View {
             },
             accounts: { self.settings.tokenAccounts(for: provider) },
             activeIndex: {
-                let data = self.settings.tokenAccountsData(for: provider)
-                return data?.clampedActiveIndex() ?? 0
+                guard let data = self.settings.tokenAccountsData(for: provider) else { return -1 }
+                return data.activeIndex
             },
             setActiveIndex: { index in
                 self.settings.setActiveTokenAccountIndex(index, for: provider)
@@ -209,6 +223,9 @@ struct ProvidersPane: View {
                     }
                 }
             },
+            renameAccount: { accountID, newLabel in
+                self.settings.renameTokenAccount(provider: provider, accountID: accountID, newLabel: newLabel)
+            },
             openConfigFile: {
                 self.settings.openTokenAccountsFile()
             },
@@ -219,7 +236,10 @@ struct ProvidersPane: View {
                         await self.store.refreshProvider(provider, allowDisabled: true)
                     }
                 }
-            })
+            },
+            defaultAccountLabel: defaultAccountLabel,
+            renameDefaultAccount: renameDefaultAccount,
+            loginAction: loginAction)
     }
 
     private func makeSettingsContext(provider: UsageProvider) -> ProviderSettingsContext {
@@ -359,6 +379,7 @@ struct ProvidersPane: View {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            codexMenuCreditsPrimaryAccountNotice: self.settings.codexMenuCreditsPrimaryAccountOnlyMessage(),
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
             now: now)

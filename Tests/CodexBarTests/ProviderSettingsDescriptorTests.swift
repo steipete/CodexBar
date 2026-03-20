@@ -119,8 +119,10 @@ struct ProviderSettingsDescriptorTests {
 
         let pickers = CodexProviderImplementation().settingsPickers(context: context)
         let toggles = CodexProviderImplementation().settingsToggles(context: context)
+        #expect(pickers.contains(where: { $0.id == "codex-menu-bar-account" }))
         #expect(pickers.contains(where: { $0.id == "codex-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "codex-cookie-source" }))
+        #expect(pickers.first(where: { $0.id == "codex-menu-bar-account" })?.section == .options)
         #expect(toggles.contains(where: { $0.id == "codex-historical-tracking" }))
     }
 

@@ -135,6 +135,69 @@ extension StatusItemController {
         }
     }
 
+    @objc func runAddTokenAccount(_ sender: NSMenuItem) {
+        if self.loginTask != nil {
+            self.loginLogger.info("Add Account tap ignored: login already in-flight")
+            return
+        }
+
+        let rawProvider = sender.representedObject as? String
+        let provider = rawProvider.flatMap(UsageProvider.init(rawValue:)) ?? .codex
+        self.loginLogger.info("Add Account tapped", metadata: ["provider": provider.rawValue])
+
+        self.loginTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.activeLoginProvider = nil
+                self.loginTask = nil
+            }
+            self.activeLoginProvider = provider
+            self.loginPhase = .requesting
+
+            let success = await self.runTokenAccountLogin(provider: provider)
+
+            if success {
+                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await self.store.refresh()
+                }
+                self.loginLogger.info("Triggered refresh after add account", metadata: ["provider": provider.rawValue])
+            }
+        }
+    }
+
+    private func runTokenAccountLogin(provider: UsageProvider) async -> Bool {
+        guard provider == .codex else { return false }
+        let accountsDir = (("~/.codex-accounts") as NSString).expandingTildeInPath
+        let uniqueDir = "\(accountsDir)/\(UUID().uuidString.prefix(8))"
+        try? FileManager.default.createDirectory(
+            atPath: uniqueDir,
+            withIntermediateDirectories: true)
+
+        let result = await CodexLoginRunner.run(codexHome: uniqueDir, timeout: 180)
+
+        switch result.outcome {
+        case .success:
+            let env = ["CODEX_HOME": uniqueDir]
+            let label: String
+            if let credentials = try? CodexOAuthCredentialsStore.load(env: env),
+               let idToken = credentials.idToken,
+               let payload = UsageFetcher.parseJWT(idToken)
+            {
+                let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
+                let email = (payload["email"] as? String) ?? (profileDict?["email"] as? String)
+                label = email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Account"
+            } else {
+                label = "Account"
+            }
+            self.settings.addTokenAccount(provider: provider, label: label, token: uniqueDir)
+            return true
+
+        case .missingBinary, .timedOut, .failed, .launchFailed:
+            try? FileManager.default.removeItem(atPath: uniqueDir)
+            return false
+        }
+    }
+
     @objc func showSettingsGeneral() {
         self.openSettings(tab: .general)
     }

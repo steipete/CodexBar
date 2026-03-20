@@ -619,12 +619,12 @@ struct StatusMenuTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
         let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
-        let creditsItem = menu.items.first { ($0.representedObject as? String) == "menuCardCredits" }
+        let creditsHistoryItem = menu.items.first { $0.title == "Credits history" }
         #expect(
             usageItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "usageBreakdownChart" } == true)
         #expect(
-            creditsItem?.submenu?.items
+            creditsHistoryItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true)
     }
 
@@ -688,11 +688,12 @@ struct StatusMenuTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
         let ids = menu.items.compactMap { $0.representedObject as? String }
-        let creditsIndex = ids.firstIndex(of: "menuCardCredits")
+        #expect(!ids.contains("menuCardCredits"))
         let costIndex = ids.firstIndex(of: "menuCardCost")
-        #expect(creditsIndex != nil)
         #expect(costIndex != nil)
-        #expect(try #require(creditsIndex) < costIndex!)
+        let buyIndex = menu.items.firstIndex { $0.title == "Buy Credits..." }
+        #expect(buyIndex != nil)
+        #expect(try #require(buyIndex) > costIndex!)
     }
 
     @Test

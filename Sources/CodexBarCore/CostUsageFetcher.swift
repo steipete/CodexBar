@@ -24,7 +24,9 @@ public struct CostUsageFetcher: Sendable {
         provider: UsageProvider,
         now: Date = Date(),
         forceRefresh: Bool = false,
-        allowVertexClaudeFallback: Bool = false) async throws -> CostUsageTokenSnapshot
+        allowVertexClaudeFallback: Bool = false,
+        codexSessionsRoot: URL? = nil,
+        claudeProjectsRoots: [URL]? = nil) async throws -> CostUsageTokenSnapshot
     {
         guard provider == .codex || provider == .claude || provider == .vertexai else {
             throw CostUsageError.unsupportedProvider(provider)
@@ -35,6 +37,13 @@ public struct CostUsageFetcher: Sendable {
         let since = Calendar.current.date(byAdding: .day, value: -29, to: now) ?? now
 
         var options = CostUsageScanner.Options()
+        options.codexSessionsRoot = codexSessionsRoot
+        options.claudeProjectsRoots = claudeProjectsRoots
+        // Isolate on-disk cost cache per Codex credentials tree. Otherwise switching accounts within the
+        // refresh TTL reuses the previous account's aggregated cache and shows identical totals.
+        if provider == .codex {
+            options.cacheRoot = Self.codexCostCacheParentURL(forSessionsRoot: codexSessionsRoot)
+        }
         if provider == .vertexai {
             options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
         } else if provider == .claude {
@@ -67,6 +76,29 @@ public struct CostUsageFetcher: Sendable {
         }
 
         return Self.tokenSnapshot(from: daily, now: now)
+    }
+
+    /// Parent directory for `cost-usage/` (see `CostUsageCacheIO`). `nil` = default `~/Library/Caches/CodexBar/`.
+    private static func codexCostCacheParentURL(forSessionsRoot sessionsRoot: URL?) -> URL? {
+        guard let sessionsRoot else { return nil }
+        let tag = Self.stablePathFingerprint(sessionsRoot.path)
+        return Self.defaultCodexBarCachesParent()
+            .appendingPathComponent("codex-sessions-\(tag)", isDirectory: true)
+    }
+
+    private static func defaultCodexBarCachesParent() -> URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("CodexBar", isDirectory: true)
+    }
+
+    /// Stable short id for a filesystem path (FNV-1a 64-bit).
+    private static func stablePathFingerprint(_ path: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_003
+        for byte in path.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return String(format: "%016llx", hash)
     }
 
     static func tokenSnapshot(from daily: CostUsageDailyReport, now: Date) -> CostUsageTokenSnapshot {

@@ -39,6 +39,7 @@ struct MenuDescriptor {
         case dashboard
         case statusPage
         case switchAccount(UsageProvider)
+        case addTokenAccount(UsageProvider)
         case openTerminal(command: String)
         case loginToProvider(url: String)
         case settings
@@ -327,7 +328,13 @@ struct MenuDescriptor {
             } else {
                 let loginAction = self.switchAccountTarget(for: provider, store: store)
                 let hasAccount = self.hasAccount(for: provider, store: store, account: account)
-                let accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
+                // For Codex, switching is done via account tabs — this action is only for adding new accounts.
+                let accountLabel: String
+                if targetProvider == .codex {
+                    accountLabel = "Add Account..."
+                } else {
+                    accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
+                }
                 entries.append(.action(accountLabel, loginAction))
             }
         }
@@ -392,10 +399,23 @@ struct MenuDescriptor {
 
     private static func hasAccount(for provider: UsageProvider?, store: UsageStore, account: AccountInfo) -> Bool {
         let target = provider ?? store.enabledProviders().first ?? .codex
-        if let email = store.snapshot(for: target)?.accountEmail(for: target),
-           !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return true
+        if let snap = store.snapshot(for: target) {
+            let email = snap.accountEmail(for: target)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let email, !email.isEmpty {
+                return true
+            }
+            let login = snap.loginMethod(for: target)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let login, !login.isEmpty {
+                return true
+            }
+            let org = snap.accountOrganization(for: target)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let org, !org.isEmpty {
+                return true
+            }
+            // Usage or cost without profile email still means a connected session (e.g. Claude OAuth without email).
+            if snap.primary != nil || snap.secondary != nil || snap.tertiary != nil || snap.providerCost != nil {
+                return true
+            }
         }
         let metadata = store.metadata(for: target)
         if metadata.usesAccountFallback,
@@ -457,6 +477,7 @@ extension MenuDescriptor.MenuAction {
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
+        case .addTokenAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue

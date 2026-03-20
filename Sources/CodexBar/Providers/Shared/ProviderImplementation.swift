@@ -73,6 +73,22 @@ protocol ProviderImplementation: Sendable {
     /// Optional provider-specific login flow. Returns whether to refresh after completion.
     @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool
+
+    /// Optional label for the default (non-token-account) account shown as the first tab.
+    /// Returns the display label (e.g. email) or nil if no default account is signed in.
+    /// Called from both the Settings tab UI and the menu bar switcher.
+    /// Pass `settings` to allow a custom override label stored in `ProviderConfig.defaultAccountLabel`.
+    @MainActor
+    func tokenAccountDefaultLabel(settings: SettingsStore?) -> String?
+
+    /// Optional guided login action for adding a new token account interactively.
+    /// The closure calls addAccount(label, token) directly and returns true on success.
+    @MainActor
+    func tokenAccountLoginAction(context: ProviderSettingsContext)
+        -> ((
+            _ setProgress: @escaping @MainActor (String) -> Void,
+            _ addAccount: @escaping @MainActor (String, String) -> Void
+        ) async -> Bool)?
 }
 
 extension ProviderImplementation {
@@ -164,6 +180,21 @@ extension ProviderImplementation {
     @MainActor
     func runLoginFlow(context _: ProviderLoginContext) async -> Bool {
         false
+    }
+
+    @MainActor
+    func tokenAccountDefaultLabel(settings _: SettingsStore?) -> String? {
+        nil
+    }
+
+    @MainActor
+    func tokenAccountLoginAction(context _: ProviderSettingsContext)
+        -> ((
+            _ setProgress: @escaping @MainActor (String) -> Void,
+            _ addAccount: @escaping @MainActor (String, String) -> Void
+        ) async -> Bool)?
+    {
+        nil
     }
 }
 

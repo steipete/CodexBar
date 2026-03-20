@@ -632,6 +632,8 @@ extension UsageMenuCardView.Model {
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
         let tokenCostUsageEnabled: Bool
         let showOptionalCreditsAndExtraUsage: Bool
+        /// When set (non-primary Codex account), replaces credits line + suppresses dashboard/credits error hints.
+        let codexMenuCreditsPrimaryAccountNotice: String?
         let sourceLabel: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
@@ -655,6 +657,7 @@ extension UsageMenuCardView.Model {
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             tokenCostUsageEnabled: Bool,
             showOptionalCreditsAndExtraUsage: Bool,
+            codexMenuCreditsPrimaryAccountNotice: String? = nil,
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
@@ -677,6 +680,7 @@ extension UsageMenuCardView.Model {
             self.resetTimeDisplayStyle = resetTimeDisplayStyle
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
             self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
+            self.codexMenuCreditsPrimaryAccountNotice = codexMenuCreditsPrimaryAccountNotice
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
@@ -693,7 +697,11 @@ extension UsageMenuCardView.Model {
             metadata: input.metadata)
         let metrics = Self.metrics(input: input)
         let usageNotes = Self.usageNotes(input: input)
-        let creditsText: String? = if input.provider == .openrouter {
+        let creditsText: String? = if let notice = input.codexMenuCreditsPrimaryAccountNotice,
+            !notice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            notice
+        } else if input.provider == .openrouter {
             nil
         } else if input.provider == .codex, !input.showOptionalCreditsAndExtraUsage {
             nil
@@ -727,7 +735,7 @@ extension UsageMenuCardView.Model {
             metrics: metrics,
             usageNotes: usageNotes,
             creditsText: creditsText,
-            creditsRemaining: input.credits?.remaining,
+            creditsRemaining: input.codexMenuCreditsPrimaryAccountNotice != nil ? nil : input.credits?.remaining,
             creditsHintText: redacted.creditsHintText,
             creditsHintCopyText: redacted.creditsHintCopyText,
             providerCost: providerCost,
@@ -869,6 +877,8 @@ extension UsageMenuCardView.Model {
         input: Input,
         subtitle: (text: String, style: SubtitleStyle)) -> RedactedText
     {
+        let dashboardErrorForHints =
+            input.codexMenuCreditsPrimaryAccountNotice != nil ? nil : input.dashboardError
         let email = PersonalInfoRedactor.redactEmail(
             Self.email(
                 for: input.provider,
@@ -879,10 +889,10 @@ extension UsageMenuCardView.Model {
         let subtitleText = PersonalInfoRedactor.redactEmails(in: subtitle.text, isEnabled: input.hidePersonalInfo)
             ?? subtitle.text
         let creditsHintText = PersonalInfoRedactor.redactEmails(
-            in: Self.dashboardHint(provider: input.provider, error: input.dashboardError),
+            in: Self.dashboardHint(provider: input.provider, error: dashboardErrorForHints),
             isEnabled: input.hidePersonalInfo)
         let creditsHintCopyText = Self.creditsHintCopyText(
-            dashboardError: input.dashboardError,
+            dashboardError: dashboardErrorForHints,
             hidePersonalInfo: input.hidePersonalInfo)
         return RedactedText(
             email: email,

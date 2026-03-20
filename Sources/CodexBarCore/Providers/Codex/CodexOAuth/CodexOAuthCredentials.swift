@@ -46,19 +46,18 @@ public enum CodexOAuthCredentialsError: LocalizedError, Sendable {
 }
 
 public enum CodexOAuthCredentialsStore {
-    private static var authFilePath: URL {
+    private static func authFilePath(env: [String: String]) -> URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        if let codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"]?.trimmingCharacters(
-            in: .whitespacesAndNewlines),
-            !codexHome.isEmpty
+        if let codexHome = env["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !codexHome.isEmpty
         {
             return URL(fileURLWithPath: codexHome).appendingPathComponent("auth.json")
         }
         return home.appendingPathComponent(".codex").appendingPathComponent("auth.json")
     }
 
-    public static func load() throws -> CodexOAuthCredentials {
-        let url = self.authFilePath
+    public static func load(env: [String: String] = ProcessInfo.processInfo.environment) throws -> CodexOAuthCredentials {
+        let url = self.authFilePath(env: env)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CodexOAuthCredentialsError.notFound
         }
@@ -105,8 +104,11 @@ public enum CodexOAuthCredentialsStore {
             lastRefresh: lastRefresh)
     }
 
-    public static func save(_ credentials: CodexOAuthCredentials) throws {
-        let url = self.authFilePath
+    public static func save(
+        _ credentials: CodexOAuthCredentials,
+        env: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        let url = self.authFilePath(env: env)
 
         var json: [String: Any] = [:]
         if let data = try? Data(contentsOf: url),
