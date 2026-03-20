@@ -13,26 +13,33 @@ struct ProviderSidebarListView: View {
     @State private var draggingProvider: UsageProvider?
 
     var body: some View {
-        List(selection: self.$selection) {
-            ForEach(self.providers, id: \.self) { provider in
-                ProviderSidebarRowView(
-                    provider: provider,
-                    store: self.store,
-                    isEnabled: self.isEnabled(provider),
-                    subtitle: self.subtitle(provider),
-                    draggingProvider: self.$draggingProvider)
-                    .tag(provider)
-                    .onDrop(
-                        of: [UTType.plainText],
-                        delegate: ProviderSidebarDropDelegate(
-                            item: provider,
-                            providers: self.providers,
-                            dragging: self.$draggingProvider,
-                            moveProviders: self.moveProviders))
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(self.providers, id: \.self) { provider in
+                    ProviderSidebarRowView(
+                        provider: provider,
+                        store: self.store,
+                        isEnabled: self.isEnabled(provider),
+                        subtitle: self.subtitle(provider),
+                        draggingProvider: self.$draggingProvider)
+                        .padding(.horizontal, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(self.selection == provider ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
+                                .padding(.horizontal, 4))
+                        .contentShape(Rectangle())
+                        .onTapGesture { self.selection = provider }
+                        .onDrop(
+                            of: [UTType.plainText],
+                            delegate: ProviderSidebarDropDelegate(
+                                item: provider,
+                                providers: self.providers,
+                                dragging: self.$draggingProvider,
+                                moveProviders: self.moveProviders))
+                }
             }
+            .padding(.vertical, 4)
         }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
         .background(
             RoundedRectangle(cornerRadius: ProviderSettingsMetrics.sidebarCornerRadius, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8)))
