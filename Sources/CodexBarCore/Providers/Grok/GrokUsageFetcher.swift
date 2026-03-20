@@ -31,33 +31,65 @@ public struct GrokAPIKeyResponse: Decodable, Sendable {
 
 // MARK: - Management API Billing Responses
 
+/// Helper for xAI's `{"val": "12345"}` cent-string wrapper
+struct GrokCentValue: Decodable, Sendable {
+    let val: String
+
+    /// Converts from USD cents string to dollars
+    var dollars: Double {
+        guard let cents = Double(self.val) else { return 0 }
+        return cents / 100.0
+    }
+}
+
 /// Spending limits from GET /v1/billing/teams/{team_id}/postpaid/spending-limits
 public struct GrokSpendingLimitsResponse: Decodable, Sendable {
-    public let hardLimit: Double?
-    public let softLimit: Double?
-    public let monthlyBudget: Double?
-    public let currentSpend: Double?
+    public let spendingLimits: SpendingLimits
 
-    private enum CodingKeys: String, CodingKey {
-        case hardLimit = "hard_limit"
-        case softLimit = "soft_limit"
-        case monthlyBudget = "monthly_budget"
-        case currentSpend = "current_spend"
+    public struct SpendingLimits: Decodable, Sendable {
+        let effectiveHardSl: GrokCentValue?
+        let hardSlAuto: GrokCentValue?
+        let softSl: GrokCentValue?
+        let effectiveSl: GrokCentValue?
+    }
+
+    /// The effective spending limit in dollars
+    var effectiveLimitDollars: Double {
+        self.spendingLimits.effectiveSl?.dollars
+            ?? self.spendingLimits.effectiveHardSl?.dollars
+            ?? self.spendingLimits.softSl?.dollars
+            ?? 0
     }
 }
 
 /// Invoice preview from GET /v1/billing/teams/{team_id}/postpaid/invoice/preview
 public struct GrokInvoicePreviewResponse: Decodable, Sendable {
-    public let totalAmount: Double?
-    public let amountDue: Double?
-    public let periodStart: String?
-    public let periodEnd: String?
+    public let coreInvoice: CoreInvoice
+    public let effectiveSpendingLimit: String?
+    public let defaultCredits: String?
+    public let billingCycle: BillingCycle?
 
-    private enum CodingKeys: String, CodingKey {
-        case totalAmount = "total_amount"
-        case amountDue = "amount_due"
-        case periodStart = "period_start"
-        case periodEnd = "period_end"
+    public struct CoreInvoice: Decodable, Sendable {
+        let amountBeforeVat: String?
+        let amountAfterVat: String?
+        let prepaidCreditsUsed: GrokCentValue?
+    }
+
+    public struct BillingCycle: Decodable, Sendable {
+        let year: Int?
+        let month: Int?
+    }
+
+    /// Current usage in dollars (from cents string)
+    var usageDollars: Double {
+        guard let cents = self.coreInvoice.amountBeforeVat, let val = Double(cents) else { return 0 }
+        return val / 100.0
+    }
+
+    /// Spending limit in dollars (from top-level cents string)
+    var limitDollars: Double {
+        guard let cents = self.effectiveSpendingLimit, let val = Double(cents) else { return 0 }
+        return val / 100.0
     }
 }
 
@@ -148,15 +180,18 @@ public struct GrokKeySnapshot: Sendable {
 
 /// Errors that can occur during Grok usage fetching
 public enum GrokUsageError: LocalizedError, Sendable {
-    case missingCredentials
+    case missingAPIKey
+    case missingManagementKey
     case networkError(String)
     case apiError(String)
     case parseFailed(String)
 
     public var errorDescription: String? {
         switch self {
-        case .missingCredentials:
-            "Missing xAI/Grok API key."
+        case .missingAPIKey:
+            "Missing xAI API key."
+        case .missingManagementKey:
+            "Missing xAI Management API key."
         case let .networkError(message):
             "xAI network error: \(message)"
         case let .apiError(message):
@@ -183,25 +218,28 @@ public struct GrokUsageFetcher: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> GrokBillingSnapshot
     {
         guard !managementKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw GrokUsageError.missingCredentials
+            throw GrokUsageError.missingManagementKey
         }
 
         let baseURL = GrokSettingsReader.managementAPIURL(environment: environment)
 
-        // Fetch spending limits
-        let limitsURL = baseURL
-            .appendingPathComponent("billing/teams/\(teamID)/postpaid/spending-limits")
-        let limitsResponse: GrokSpendingLimitsResponse = try await Self.fetchJSON(
-            url: limitsURL, bearerToken: managementKey)
-
-        // Fetch invoice preview for current usage
+        // Fetch invoice preview (contains both usage amount and spending limit)
         let invoiceURL = baseURL
             .appendingPathComponent("billing/teams/\(teamID)/postpaid/invoice/preview")
         let invoiceResponse: GrokInvoicePreviewResponse = try await Self.fetchJSON(
             url: invoiceURL, bearerToken: managementKey)
 
-        let usageCap = limitsResponse.hardLimit ?? limitsResponse.monthlyBudget ?? 0
-        let totalUsage = invoiceResponse.totalAmount ?? invoiceResponse.amountDue ?? 0
+        // Use spending limit from invoice response; fall back to dedicated endpoint
+        var usageCap = invoiceResponse.limitDollars
+        if usageCap <= 0 {
+            let limitsURL = baseURL
+                .appendingPathComponent("billing/teams/\(teamID)/postpaid/spending-limits")
+            let limitsResponse: GrokSpendingLimitsResponse = try await Self.fetchJSON(
+                url: limitsURL, bearerToken: managementKey)
+            usageCap = limitsResponse.effectiveLimitDollars
+        }
+
+        let totalUsage = invoiceResponse.usageDollars
         let remaining = max(0, usageCap - totalUsage)
         let usedPercent = usageCap > 0 ? min(100, (totalUsage / usageCap) * 100) : 0
 
@@ -221,7 +259,7 @@ public struct GrokUsageFetcher: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> GrokKeySnapshot
     {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw GrokUsageError.missingCredentials
+            throw GrokUsageError.missingAPIKey
         }
 
         let baseURL = GrokSettingsReader.apiURL(environment: environment)

@@ -13,7 +13,9 @@ public enum ProviderConfigEnvironment {
             if let mgmtKey = config.sanitizedCookieHeader, !mgmtKey.isEmpty {
                 env[GrokSettingsReader.managementKeyEnvironmentKey] = mgmtKey
             }
-            if let teamID = config.workspaceID, !teamID.isEmpty {
+            if let teamID = config.workspaceID?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !teamID.isEmpty
+            {
                 env[GrokSettingsReader.teamIDEnvironmentKey] = teamID
             }
         }

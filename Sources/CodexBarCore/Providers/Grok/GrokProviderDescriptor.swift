@@ -21,6 +21,7 @@ public enum GrokProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                browserCookieOrder: nil,
                 dashboardURL: "https://console.x.ai",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.x.ai"),
@@ -67,8 +68,11 @@ struct GrokManagementFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "management-api")
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        true // Fall back to regular API key strategy
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto else { return false }
+        if error is GrokSettingsError { return true }
+        if case GrokUsageError.missingManagementKey = error { return true }
+        return false
     }
 
     private static func resolveManagementKey(environment: [String: String]) -> String? {
@@ -106,4 +110,3 @@ struct GrokAPIFetchStrategy: ProviderFetchStrategy {
         ProviderTokenResolver.grokToken(environment: environment)
     }
 }
-

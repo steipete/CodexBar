@@ -74,7 +74,7 @@ struct GrokProviderImplementation: ProviderImplementation {
                 title: "Management key",
                 subtitle: "For billing/usage tracking. Console > Settings > Management Keys.",
                 kind: .secure,
-                placeholder: "xai-mgmt-...",
+                placeholder: "xai-token-...",
                 binding: context.stringBinding(\.grokManagementToken),
                 actions: [
                     ProviderSettingsActionDescriptor(
@@ -83,7 +83,7 @@ struct GrokProviderImplementation: ProviderImplementation {
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            if let url = URL(string: "https://console.x.ai/team/default/management-keys") {
+                            if let url = URL(string: "https://console.x.ai/settings/management-keys") {
                                 NSWorkspace.shared.open(url)
                             }
                         }),
