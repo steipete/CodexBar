@@ -258,4 +258,38 @@ struct AntigravityStatusProbeTests {
         #expect(usage.secondary?.resetsAt == resetTime)
         #expect(usage.tertiary?.remainingPercent.rounded() == 100)
     }
+
+    @Test
+    func `filtered variants still produce a snapshot`() throws {
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro Lite",
+                    modelId: "gemini-3-pro-lite",
+                    remainingFraction: 0.6,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Flash Lite",
+                    modelId: "gemini-3-flash-lite",
+                    remainingFraction: 0.2,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Tab Autocomplete",
+                    modelId: "tab_autocomplete_model",
+                    remainingFraction: 0.9,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: "test@example.com",
+            accountPlan: "Pro")
+
+        let usage = try snapshot.toUsageSnapshot()
+        #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
+        #expect(usage.tertiary == nil)
+        #expect(usage.accountEmail(for: .antigravity) == "test@example.com")
+        #expect(usage.loginMethod(for: .antigravity) == "Pro")
+    }
 }

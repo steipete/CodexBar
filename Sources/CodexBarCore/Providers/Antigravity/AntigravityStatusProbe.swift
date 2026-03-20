@@ -59,14 +59,14 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() throws -> UsageSnapshot {
+        guard !self.modelQuotas.isEmpty else {
+            throw AntigravityStatusProbeError.parseFailed("No quota models available")
+        }
+
         let normalized = Self.normalizedModels(self.modelQuotas)
         let primaryQuota = Self.representative(for: .claude, in: normalized)
         let secondaryQuota = Self.representative(for: .geminiPro, in: normalized)
         let tertiaryQuota = Self.representative(for: .geminiFlash, in: normalized)
-
-        guard primaryQuota != nil || secondaryQuota != nil || tertiaryQuota != nil else {
-            throw AntigravityStatusProbeError.parseFailed("No quota models available")
-        }
 
         let primary = primaryQuota.map(Self.rateWindow(for:))
         let secondary = secondaryQuota.map(Self.rateWindow(for:))
