@@ -12,13 +12,6 @@ extension SettingsStore {
         self.tokenAccountsData(for: provider)?.accounts ?? []
     }
 
-    /// When a non-primary Codex account is selected, menu credits should not show OAuth/cookie errors for add-on accounts.
-    func codexMenuCreditsPrimaryAccountOnlyMessage() -> String? {
-        guard let data = self.tokenAccountsData(for: .codex), !data.accounts.isEmpty else { return nil }
-        guard !data.isDefaultActive else { return nil }
-        return "Credit information is available only for the primary account."
-    }
-
     func selectedTokenAccount(for provider: UsageProvider) -> ProviderTokenAccount? {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return nil }
         guard !data.isDefaultActive else { return nil }

@@ -77,5 +77,9 @@ extension UsageStore {
         self.codexHistoricalDatasetAccountKey = accountKey
         self.historicalPaceRevision += 1
     }
+
+    func _setAllAccountCreditsForTesting(_ entries: [AccountCostEntry], provider: UsageProvider) {
+        self.allAccountCredits[provider] = entries
+    }
 }
 #endif

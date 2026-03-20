@@ -102,6 +102,15 @@ public enum UsageFormatter {
         return "\(formatted) left"
     }
 
+    /// Credit balance count from the API (not USD). Use in tables that already label the column “Credits”.
+    public static func creditsBalanceString(from value: Double) -> String {
+        let number = NumberFormatter()
+        number.numberStyle = .decimal
+        number.maximumFractionDigits = 2
+        number.locale = Locale(identifier: "en_US")
+        return number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+    }
+
     /// Formats a USD value with proper negative handling and thousand separators.
     /// Uses Swift's modern FormatStyle API (iOS 15+/macOS 12+) for robust, locale-aware formatting.
     public static func usdString(_ value: Double) -> String {

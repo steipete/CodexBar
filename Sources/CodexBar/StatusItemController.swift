@@ -77,7 +77,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var animationDriver: DisplayLinkDriver?
     var animationPhase: Double = 0
     var animationPattern: LoadingPattern = .knightRider
-    private var lastConfigRevision: Int
+    /// Fingerprint of settings that affect merged/per-provider menu **structure** (not usage snapshots).
+    /// Avoids rebuilding an open menu when only `configRevision` bumps (e.g. debounced persist), which caused
+    /// layout jumps ~1s after opening as the menu switched to a freshly measured structure.
+    private var lastOpenMenuStructureFingerprint: String
     private var lastProviderOrder: [UsageProvider]
     private var lastMergeIcons: Bool
     private var lastSwitcherShowsIcons: Bool
@@ -164,7 +167,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.account = account
         self.updater = updater
         self.preferencesSelection = preferencesSelection
-        self.lastConfigRevision = settings.configRevision
+        self.lastOpenMenuStructureFingerprint = ""
         self.lastProviderOrder = settings.providerOrder
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
@@ -195,6 +198,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             selector: #selector(self.handleProviderConfigDidChange),
             name: .codexbarProviderConfigDidChange,
             object: nil)
+        self.lastOpenMenuStructureFingerprint = self.openMenuStructureFingerprint()
     }
 
     private func wireBindings() {
@@ -287,39 +291,47 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
     }
 
-    private func shouldRefreshOpenMenusForProviderSwitcher() -> Bool {
-        var shouldRefresh = false
-        let revision = self.settings.configRevision
-        if revision != self.lastConfigRevision {
-            self.lastConfigRevision = revision
-            shouldRefresh = true
-        }
-        let order = self.settings.providerOrder
-        if order != self.lastProviderOrder {
-            self.lastProviderOrder = order
-            shouldRefresh = true
-        }
-        let mergeIcons = self.settings.mergeIcons
-        if mergeIcons != self.lastMergeIcons {
-            self.lastMergeIcons = mergeIcons
-            shouldRefresh = true
-        }
-        let showsIcons = self.settings.switcherShowsIcons
-        if showsIcons != self.lastSwitcherShowsIcons {
-            self.lastSwitcherShowsIcons = showsIcons
-            shouldRefresh = true
-        }
-        let usageBarsShowUsed = self.settings.usageBarsShowUsed
-        if usageBarsShowUsed != self.lastObservedUsageBarsShowUsed {
-            self.lastObservedUsageBarsShowUsed = usageBarsShowUsed
-            shouldRefresh = true
-        }
-        return shouldRefresh
+    private func openMenuStructureFingerprint() -> String {
+        let s = self.settings
+        let order = s.providerOrder.map(\.rawValue).joined(separator: ",")
+        let overview = s.mergedOverviewSelectedProviders.map(\.rawValue).sorted().joined(separator: ",")
+        let selectedMenu = s.selectedMenuProvider?.rawValue ?? ""
+        let tokenSig = UsageProvider.allCases.map { p -> String in
+            let data = s.tokenAccountsData(for: p)
+            let count = data?.accounts.count ?? 0
+            let active = data?.activeIndex ?? -999
+            return "\(p.rawValue):\(count):\(active)"
+        }.joined(separator: "|")
+        let costSig =
+            "\(s.isCostUsageEffectivelyEnabled(for: .codex))|\(s.isCostUsageEffectivelyEnabled(for: .claude))|\(s.isCostUsageEffectivelyEnabled(for: .vertexai))"
+        return [
+            order,
+            "\(s.mergeIcons)",
+            "\(s.switcherShowsIcons)",
+            "\(s.usageBarsShowUsed)",
+            "\(s.showAllTokenAccountsInMenu)",
+            "\(s.openAIWebAccessEnabled)",
+            "\(s.codexBuyCreditsMenuEnabled)",
+            overview,
+            "\(s.mergedMenuLastSelectedWasOverview)",
+            selectedMenu,
+            "\(s.showOptionalCreditsAndExtraUsage)",
+            "\(s.hidePersonalInfo)",
+            costSig,
+            tokenSig,
+        ].joined(separator: "\u{1e}")
+    }
+
+    private func shouldRefreshOpenMenusForMenuStructureChange() -> Bool {
+        let fingerprint = self.openMenuStructureFingerprint()
+        guard fingerprint != self.lastOpenMenuStructureFingerprint else { return false }
+        self.lastOpenMenuStructureFingerprint = fingerprint
+        return true
     }
 
     private func handleSettingsChange(reason: String) {
         let orderChanged = self.settings.providerOrder != self.lastProviderOrder
-        let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForProviderSwitcher()
+        let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForMenuStructureChange()
         self.invalidateMenus()
         // Rebuilding status items calls `removeStatusItem` for every provider slot, which reflows the
         // system menu bar and can make *other* apps' menu extras disappear briefly. Token-account
@@ -334,6 +346,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         if shouldRefreshOpenMenus {
             self.refreshOpenMenusIfNeeded()
         }
+        self.lastProviderOrder = self.settings.providerOrder
     }
 
     private func updateIcons() {

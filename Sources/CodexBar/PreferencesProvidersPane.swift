@@ -335,9 +335,12 @@ struct ProvidersPane: View {
         let dashboardError: String?
         let tokenSnapshot: CostUsageTokenSnapshot?
         let tokenError: String?
+        var codexCreditsUnlimited = false
         if provider == .codex {
-            credits = self.store.credits
-            creditsError = self.store.lastCreditsError
+            let active = self.store.codexActiveMenuCredits()
+            credits = active.snapshot
+            creditsError = active.error
+            codexCreditsUnlimited = active.unlimited
             dashboard = self.store.openAIDashboardRequiresLogin ? nil : self.store.openAIDashboard
             dashboardError = self.store.lastOpenAIDashboardError
             tokenSnapshot = self.store.tokenSnapshot(for: provider)
@@ -379,7 +382,7 @@ struct ProvidersPane: View {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
-            codexMenuCreditsPrimaryAccountNotice: self.settings.codexMenuCreditsPrimaryAccountOnlyMessage(),
+            codexCreditsUnlimited: codexCreditsUnlimited,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
             now: now)

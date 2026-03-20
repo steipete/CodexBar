@@ -20,24 +20,10 @@ private struct OverviewMenuCardRowView: View {
     let width: CGFloat
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            UsageMenuCardHeaderSectionView(
-                model: self.model,
-                showDivider: self.hasUsageBlock,
-                width: self.width)
-            if self.hasUsageBlock {
-                UsageMenuCardUsageSectionView(
-                    model: self.model,
-                    showBottomDivider: false,
-                    bottomPadding: 6,
-                    width: self.width)
-            }
-        }
-        .frame(width: self.width, alignment: .leading)
-    }
-
-    private var hasUsageBlock: Bool {
-        !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty || self.model.placeholder != nil
+        UsageMenuCardWebPrimarySectionView(
+            model: self.model,
+            bottomPadding: 6,
+            width: self.width)
     }
 }
 
@@ -928,94 +914,87 @@ extension StatusItemController {
         webItems: OpenAIWebMenuItems)
     {
         let hasUsageBlock = !model.metrics.isEmpty || model.placeholder != nil
-        let hasCredits = model.creditsText != nil && provider != .codex
+        // Always honor `creditsText` for Codex too. Omitting it caused OAuth credits to vanish when the menu
+        // switched from the single-card layout to this sectioned layout (after OpenAI web data loads).
+        let hasCredits = model.creditsText != nil
         let hasExtraUsage = model.providerCost != nil
         let hasCost = model.tokenUsage != nil
-        let bottomPadding = CGFloat(hasCredits ? 4 : 6)
-        let sectionSpacing = CGFloat(6)
-        let usageBottomPadding = bottomPadding
-        let creditsBottomPadding = bottomPadding
+        let sectionSpacing = CGFloat(12)
+        let bodyBottomPadding = CGFloat(hasCredits ? 4 : 6)
+        let primaryHasBody = hasUsageBlock || hasCredits || !model.usageNotes.isEmpty || model.placeholder != nil
+        let primaryBottomPadding = primaryHasBody ? bodyBottomPadding : 2
 
-        let headerView = UsageMenuCardHeaderSectionView(
+        let usageSubmenu = self.makeUsageSubmenu(
+            provider: provider,
+            snapshot: self.store.snapshot(for: provider),
+            webItems: webItems)
+        let creditsSubmenu = webItems.hasCreditsHistory ? self.makeCreditsHistorySubmenu() : nil
+
+        let primaryView = UsageMenuCardWebPrimarySectionView(
             model: model,
-            showDivider: hasUsageBlock,
+            bottomPadding: primaryBottomPadding,
             width: width)
-        menu.addItem(self.makeMenuCardItem(headerView, id: "menuCardHeader", width: width))
+        let primarySubmenu: NSMenu? = if hasUsageBlock {
+            usageSubmenu
+        } else if hasCredits {
+            creditsSubmenu
+        } else {
+            nil
+        }
+        let primaryId = if hasUsageBlock {
+            "menuCardUsage"
+        } else if hasCredits {
+            "menuCardCredits"
+        } else {
+            "menuCardHeader"
+        }
+        menu.addItem(self.makeMenuCardItem(
+            primaryView,
+            id: primaryId,
+            width: width,
+            submenu: primarySubmenu))
 
-        if hasUsageBlock {
-            let usageView = UsageMenuCardUsageSectionView(
-                model: model,
-                showBottomDivider: false,
-                bottomPadding: usageBottomPadding,
-                width: width)
-            let usageSubmenu = self.makeUsageSubmenu(
-                provider: provider,
-                snapshot: self.store.snapshot(for: provider),
-                webItems: webItems)
-            menu.addItem(self.makeMenuCardItem(
-                usageView,
-                id: "menuCardUsage",
-                width: width,
-                submenu: usageSubmenu))
+        if hasUsageBlock, hasCredits, webItems.hasCreditsHistory {
+            self.addCreditsHistorySubmenu(to: menu)
         }
 
-        if hasCredits || hasExtraUsage || hasCost {
-            menu.addItem(.separator())
-        }
-
-        if hasCredits {
-            if hasExtraUsage || hasCost {
-                menu.addItem(.separator())
-            }
-            let creditsView = UsageMenuCardCreditsSectionView(
-                model: model,
-                showBottomDivider: false,
-                topPadding: sectionSpacing,
-                bottomPadding: creditsBottomPadding,
-                width: width)
-            let creditsSubmenu = webItems.hasCreditsHistory ? self.makeCreditsHistorySubmenu() : nil
-            menu.addItem(self.makeMenuCardItem(
-                creditsView,
-                id: "menuCardCredits",
-                width: width,
-                submenu: creditsSubmenu))
-        }
         if hasExtraUsage {
-            if hasCredits {
-                menu.addItem(.separator())
-            }
             let extraUsageView = UsageMenuCardExtraUsageSectionView(
                 model: model,
                 topPadding: sectionSpacing,
-                bottomPadding: bottomPadding,
+                bottomPadding: bodyBottomPadding,
                 width: width)
             menu.addItem(self.makeMenuCardItem(
                 extraUsageView,
                 id: "menuCardExtraUsage",
                 width: width))
         }
-        if hasCost {
-            if hasCredits || hasExtraUsage {
+
+        if provider == .codex, self.settings.codexBuyCreditsMenuEnabled {
+            // Avoid an `NSMenuItem.separator()` right under the credits block: the card already ends the panel; a
+            // separator here reads as a duplicate line. Still separate after `menuCardExtraUsage` or when the
+            // primary ends with usage-only (no credits row).
+            let buyCreditsSeparatorBefore = hasExtraUsage || (hasUsageBlock && !hasCredits)
+            if buyCreditsSeparatorBefore {
                 menu.addItem(.separator())
             }
+            menu.addItem(self.makeBuyCreditsItem())
+        }
+
+        if hasCost {
+            let buyCreditsShown = provider == .codex && self.settings.codexBuyCreditsMenuEnabled
             let costView = UsageMenuCardCostSectionView(
                 model: model,
-                topPadding: sectionSpacing,
-                bottomPadding: bottomPadding,
-                width: width)
+                topPadding: buyCreditsShown ? 8 : sectionSpacing,
+                bottomPadding: bodyBottomPadding,
+                width: width,
+                showsLeadingDivider: !buyCreditsShown)
             let costSubmenu = webItems.hasCostHistory ? self.makeCostHistorySubmenu(provider: provider) : nil
             menu.addItem(self.makeMenuCardItem(
                 costView,
                 id: "menuCardCost",
                 width: width,
                 submenu: costSubmenu))
-        }
-
-        if provider == .codex, self.settings.codexBuyCreditsMenuEnabled {
-            if hasUsageBlock || hasCredits || hasExtraUsage || hasCost {
-                menu.addItem(.separator())
-            }
-            menu.addItem(self.makeBuyCreditsItem())
         }
     }
 
@@ -1046,7 +1025,7 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = 0.0001
         }
-        let credits = provider == .codex ? self.store.credits?.remaining : nil
+        let credits = provider == .codex ? self.store.codexActiveCreditsRemaining() : nil
         let stale = self.store.isStale(provider: provider)
         let style = self.store.style(for: provider)
         let indicator = self.store.statusIndicator(for: provider)
@@ -1461,9 +1440,12 @@ extension StatusItemController {
         let dashboardError: String?
         let tokenSnapshot: CostUsageTokenSnapshot?
         let tokenError: String?
+        var codexCreditsUnlimited = false
         if target == .codex, snapshotOverride == nil {
-            credits = self.store.credits
-            creditsError = self.store.lastCreditsError
+            let active = self.store.codexActiveMenuCredits()
+            credits = active.snapshot
+            creditsError = active.error
+            codexCreditsUnlimited = active.unlimited
             dashboard = self.store.openAIDashboardRequiresLogin ? nil : self.store.openAIDashboard
             dashboardError = self.store.lastOpenAIDashboardError
             tokenSnapshot = self.store.tokenSnapshot(for: target)
@@ -1507,7 +1489,7 @@ extension StatusItemController {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
-            codexMenuCreditsPrimaryAccountNotice: self.settings.codexMenuCreditsPrimaryAccountOnlyMessage(),
+            codexCreditsUnlimited: codexCreditsUnlimited,
             sourceLabel: sourceLabel,
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,

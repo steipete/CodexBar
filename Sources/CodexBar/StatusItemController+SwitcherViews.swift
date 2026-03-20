@@ -806,6 +806,8 @@ final class TokenAccountSwitcherView: NSView {
 
     private let accounts: [ProviderTokenAccount]
     private let defaultAccountLabel: String?
+    /// Menu width passed at creation; used for a stable intrinsic size so NSMenu does not stretch this row vertically.
+    private let menuLayoutWidth: CGFloat
     private let onSelect: (Int) -> Void
     private var selectedIndex: Int
     /// Maps button tag → logical index (-1 for default, 0+ for token accounts)
@@ -830,6 +832,7 @@ final class TokenAccountSwitcherView: NSView {
     {
         self.accounts = accounts
         self.defaultAccountLabel = defaultAccountLabel
+        self.menuLayoutWidth = width
         self.contentMargin = contentMargin
         self.onSelect = onSelect
         // selectedIndex == -1 means default account is active
@@ -844,11 +847,19 @@ final class TokenAccountSwitcherView: NSView {
         self.wantsLayer = true
         self.buildButtons(useTwoRows: useTwoRows)
         self.updateButtonStyles()
+        self.setContentHuggingPriority(.required, for: .vertical)
+        self.setContentCompressionResistancePriority(.required, for: .vertical)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         nil
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(
+            width: self.menuLayoutWidth,
+            height: Self.preferredHeight(accounts: self.accounts, defaultAccountLabel: self.defaultAccountLabel))
     }
 
     private func buildButtons(useTwoRows: Bool) {

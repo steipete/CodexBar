@@ -247,7 +247,7 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        var credits: Double? = primaryProvider == .codex ? self.store.credits?.remaining : nil
+        var credits: Double? = primaryProvider == .codex ? self.store.codexActiveCreditsRemaining() : nil
         var stale = self.store.isStale(provider: primaryProvider)
         var morphProgress: Double?
 
@@ -370,7 +370,7 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        var credits: Double? = provider == .codex ? self.store.credits?.remaining : nil
+        var credits: Double? = provider == .codex ? self.store.codexActiveCreditsRemaining() : nil
         var stale = self.store.isStale(provider: provider)
         var morphProgress: Double?
 
@@ -465,7 +465,7 @@ extension StatusItemController {
            mode == .percent,
            !self.settings.usageBarsShowUsed,
            sessionExhausted || weeklyExhausted,
-           let creditsRemaining = self.store.credits?.remaining,
+           let creditsRemaining = self.store.codexActiveCreditsRemaining(),
            creditsRemaining > 0
         {
             return UsageFormatter

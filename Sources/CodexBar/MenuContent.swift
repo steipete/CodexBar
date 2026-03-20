@@ -138,7 +138,7 @@ struct StatusIconView: View {
         IconRenderer.makeIcon(
             primaryRemaining: self.store.snapshot(for: self.provider)?.primary?.remainingPercent,
             weeklyRemaining: self.store.snapshot(for: self.provider)?.secondary?.remainingPercent,
-            creditsRemaining: self.provider == .codex ? self.store.credits?.remaining : nil,
+            creditsRemaining: self.provider == .codex ? self.store.codexActiveCreditsRemaining() : nil,
             stale: self.store.isStale(provider: self.provider),
             style: self.store.style(for: self.provider),
             statusIndicator: self.store.statusIndicator(for: self.provider))

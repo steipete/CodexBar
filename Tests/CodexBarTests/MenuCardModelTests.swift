@@ -312,7 +312,7 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func `hides codex credits when disabled`() throws {
+    func `shows codex credits section when optional extras disabled`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -347,7 +347,64 @@ struct MenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.creditsText == nil)
+        #expect(model.creditsText == UsageFormatter.creditsString(from: 12))
+        #expect(model.creditsRemaining == 12)
+    }
+
+    @Test
+    func `codex credits section shows no credits when balance zero`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: nil,
+            credits: CreditsSnapshot(remaining: 0, events: [], updatedAt: now),
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.creditsText == "No credits available")
+        #expect(model.creditsRemaining == nil)
+    }
+
+    @Test
+    func `codex credits section shows no credits when snapshot missing`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: nil,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.creditsText == "No credits available")
+        #expect(model.creditsRemaining == nil)
     }
 
     @Test

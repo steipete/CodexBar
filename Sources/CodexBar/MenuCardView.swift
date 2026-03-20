@@ -99,13 +99,7 @@ struct UsageMenuCardView: View {
             }
 
             if self.model.metrics.isEmpty {
-                if !self.model.usageNotes.isEmpty {
-                    UsageNotesContent(notes: self.model.usageNotes)
-                } else if let placeholder = self.model.placeholder {
-                    Text(placeholder)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .font(.subheadline)
-                }
+                self.emptyMetricsUsageBlock
             } else {
                 let hasUsage = !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty
                 let hasCredits = self.model.creditsText != nil
@@ -126,7 +120,9 @@ struct UsageMenuCardView: View {
                             }
                         }
                     }
-                    if hasUsage, hasCredits || hasCost {
+                    // No divider before credits: VStack spacing already matches Session↔Weekly; a divider would add
+                    // ~12 + hairline + ~12 and read as a much looser gap than between metrics.
+                    if hasUsage, !hasCredits, hasCost {
                         Divider()
                     }
                     if let credits = self.model.creditsText {
@@ -186,8 +182,75 @@ struct UsageMenuCardView: View {
         .frame(width: self.width, alignment: .leading)
     }
 
+    @ViewBuilder
+    private var emptyMetricsUsageBlock: some View {
+        let hasCreditsEmpty = self.model.creditsText != nil
+        let hasProviderCostEmpty = self.model.providerCost != nil
+        let hasCostEmpty = self.model.tokenUsage != nil || hasProviderCostEmpty
+        let hadUsageBlockEmpty = !self.model.usageNotes.isEmpty || self.model.placeholder != nil
+
+        if !self.model.usageNotes.isEmpty {
+            UsageNotesContent(notes: self.model.usageNotes)
+        } else if let placeholder = self.model.placeholder {
+            Text(placeholder)
+                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                .font(.subheadline)
+        }
+        if hadUsageBlockEmpty, hasCreditsEmpty || hasCostEmpty {
+            Divider()
+        }
+        if let credits = self.model.creditsText {
+            CreditsBarContent(
+                creditsText: credits,
+                creditsRemaining: self.model.creditsRemaining,
+                hintText: self.model.creditsHintText,
+                hintCopyText: self.model.creditsHintCopyText,
+                progressColor: self.model.progressColor)
+        }
+        if hasCreditsEmpty, hasCostEmpty {
+            Divider()
+        }
+        if let providerCost = self.model.providerCost {
+            ProviderCostContent(
+                section: providerCost,
+                progressColor: self.model.progressColor)
+        }
+        if hasProviderCostEmpty, self.model.tokenUsage != nil {
+            Divider()
+        }
+        if let tokenUsage = self.model.tokenUsage {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Cost")
+                    .font(.body)
+                    .fontWeight(.medium)
+                Text(tokenUsage.sessionLine)
+                    .font(.footnote)
+                Text(tokenUsage.monthLine)
+                    .font(.footnote)
+                if let hint = tokenUsage.hintLine, !hint.isEmpty {
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let error = tokenUsage.errorLine, !error.isEmpty {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.error(self.isHighlighted))
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .overlay {
+                            ClickToCopyOverlay(copyText: tokenUsage.errorCopyText ?? error)
+                        }
+                }
+            }
+        }
+    }
+
     private var hasDetails: Bool {
         !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty || self.model.placeholder != nil ||
+            self.model.creditsText != nil ||
             self.model.tokenUsage != nil ||
             self.model.providerCost != nil
     }
@@ -207,6 +270,9 @@ private struct UsageMenuCardHeaderView: View {
                 Text(self.model.email)
                     .font(.subheadline)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .multilineTextAlignment(.trailing)
             }
             let subtitleAlignment: VerticalAlignment = self.model.subtitleStyle == .error ? .top : .firstTextBaseline
             HStack(alignment: subtitleAlignment) {
@@ -397,23 +463,100 @@ private struct UsageNotesContent: View {
     }
 }
 
-struct UsageMenuCardHeaderSectionView: View {
+/// Header + usage + optional credits in one view, matching `UsageMenuCardView` spacing (6pt after divider, no extra
+/// top padding). Used for OpenAI web sectioned menus so Codex→Session matches the single-card layout.
+struct UsageMenuCardWebPrimarySectionView: View {
     let model: UsageMenuCardView.Model
-    let showDivider: Bool
+    let bottomPadding: CGFloat
     let width: CGFloat
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    private var hasUsageBlock: Bool {
+        !self.model.metrics.isEmpty || self.model.placeholder != nil
+    }
+
+    private var hasCredits: Bool {
+        self.model.creditsText != nil
+    }
+
+    private var showDividerBelowHeader: Bool {
+        !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty || self.model.placeholder != nil
+            || self.hasCredits
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             UsageMenuCardHeaderView(model: self.model)
 
-            if self.showDivider {
+            if self.showDividerBelowHeader {
                 Divider()
+            }
+
+            if self.model.metrics.isEmpty {
+                self.emptyMetricsBody
+            } else {
+                self.metricsAndCreditsBody
             }
         }
         .padding(.horizontal, 16)
         .padding(.top, 2)
-        .padding(.bottom, self.model.subtitleStyle == .error ? 2 : 0)
+        .padding(.bottom, self.bottomPadding)
         .frame(width: self.width, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var emptyMetricsBody: some View {
+        let hasCreditsEmpty = self.model.creditsText != nil
+        let hadUsageBlockEmpty = !self.model.usageNotes.isEmpty || self.model.placeholder != nil
+
+        if !self.model.usageNotes.isEmpty {
+            UsageNotesContent(notes: self.model.usageNotes)
+        } else if let placeholder = self.model.placeholder {
+            Text(placeholder)
+                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                .font(.subheadline)
+        }
+        if hadUsageBlockEmpty, hasCreditsEmpty {
+            Divider()
+        }
+        if let credits = self.model.creditsText {
+            CreditsBarContent(
+                creditsText: credits,
+                creditsRemaining: self.model.creditsRemaining,
+                hintText: self.model.creditsHintText,
+                hintCopyText: self.model.creditsHintCopyText,
+                progressColor: self.model.progressColor)
+        }
+    }
+
+    @ViewBuilder
+    private var metricsAndCreditsBody: some View {
+        let hasUsage = !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty
+
+        VStack(alignment: .leading, spacing: 12) {
+            if hasUsage {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(self.model.metrics, id: \.id) { metric in
+                        MetricRow(
+                            metric: metric,
+                            title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
+                            progressColor: self.model.progressColor)
+                    }
+                    if !self.model.usageNotes.isEmpty {
+                        UsageNotesContent(notes: self.model.usageNotes)
+                    }
+                }
+            }
+            if hasUsage, let credits = self.model.creditsText {
+                CreditsBarContent(
+                    creditsText: credits,
+                    creditsRemaining: self.model.creditsRemaining,
+                    hintText: self.model.creditsHintText,
+                    hintCopyText: self.model.creditsHintCopyText,
+                    progressColor: self.model.progressColor)
+            }
+        }
+        .padding(.bottom, self.model.creditsText == nil ? 6 : 0)
     }
 }
 
@@ -466,6 +609,7 @@ struct UsageMenuCardCreditsSectionView: View {
     var body: some View {
         if let credits = self.model.creditsText {
             VStack(alignment: .leading, spacing: 6) {
+                Divider()
                 CreditsBarContent(
                     creditsText: credits,
                     creditsRemaining: self.model.creditsRemaining,
@@ -546,6 +690,8 @@ struct UsageMenuCardCostSectionView: View {
     let topPadding: CGFloat
     let bottomPadding: CGFloat
     let width: CGFloat
+    /// When `false`, omits the top divider (e.g. Cost follows “Buy Credits…” so a second hairline isn’t stacked).
+    var showsLeadingDivider: Bool = true
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
@@ -553,6 +699,9 @@ struct UsageMenuCardCostSectionView: View {
         return Group {
             if hasTokenCost {
                 VStack(alignment: .leading, spacing: 10) {
+                    if self.showsLeadingDivider {
+                        Divider()
+                    }
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Cost")
@@ -600,13 +749,16 @@ struct UsageMenuCardExtraUsageSectionView: View {
     var body: some View {
         Group {
             if let providerCost = self.model.providerCost {
-                ProviderCostContent(
-                    section: providerCost,
-                    progressColor: self.model.progressColor)
-                    .padding(.horizontal, 16)
-                    .padding(.top, self.topPadding)
-                    .padding(.bottom, self.bottomPadding)
-                    .frame(width: self.width, alignment: .leading)
+                VStack(alignment: .leading, spacing: 6) {
+                    Divider()
+                    ProviderCostContent(
+                        section: providerCost,
+                        progressColor: self.model.progressColor)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, self.topPadding)
+                .padding(.bottom, self.bottomPadding)
+                .frame(width: self.width, alignment: .leading)
             }
         }
     }
@@ -632,8 +784,8 @@ extension UsageMenuCardView.Model {
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
         let tokenCostUsageEnabled: Bool
         let showOptionalCreditsAndExtraUsage: Bool
-        /// When set (non-primary Codex account), replaces credits line + suppresses dashboard/credits error hints.
-        let codexMenuCreditsPrimaryAccountNotice: String?
+        /// When true, Codex credits line shows unlimited prepaid (OAuth).
+        let codexCreditsUnlimited: Bool
         let sourceLabel: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
@@ -657,7 +809,7 @@ extension UsageMenuCardView.Model {
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             tokenCostUsageEnabled: Bool,
             showOptionalCreditsAndExtraUsage: Bool,
-            codexMenuCreditsPrimaryAccountNotice: String? = nil,
+            codexCreditsUnlimited: Bool = false,
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
@@ -680,7 +832,7 @@ extension UsageMenuCardView.Model {
             self.resetTimeDisplayStyle = resetTimeDisplayStyle
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
             self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
-            self.codexMenuCreditsPrimaryAccountNotice = codexMenuCreditsPrimaryAccountNotice
+            self.codexCreditsUnlimited = codexCreditsUnlimited
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
@@ -697,17 +849,17 @@ extension UsageMenuCardView.Model {
             metadata: input.metadata)
         let metrics = Self.metrics(input: input)
         let usageNotes = Self.usageNotes(input: input)
-        let creditsText: String? = if let notice = input.codexMenuCreditsPrimaryAccountNotice,
-            !notice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            notice
-        } else if input.provider == .openrouter {
+        let creditsText: String? = if input.provider == .openrouter {
             nil
-        } else if input.provider == .codex, !input.showOptionalCreditsAndExtraUsage {
-            nil
+        } else if input.provider == .codex, input.codexCreditsUnlimited {
+            "Unlimited credits"
         } else {
-            Self.creditsLine(metadata: input.metadata, credits: input.credits, error: input.creditsError)
+            Self.creditsSectionText(metadata: input.metadata, credits: input.credits, error: input.creditsError)
         }
+        let creditsRemaining: Double? = {
+            guard let remaining = input.credits?.remaining, remaining.isFinite, remaining > 0 else { return nil }
+            return remaining
+        }()
         let providerCost: ProviderCostSection? = if input.provider == .claude, !input.showOptionalCreditsAndExtraUsage {
             nil
         } else {
@@ -735,7 +887,7 @@ extension UsageMenuCardView.Model {
             metrics: metrics,
             usageNotes: usageNotes,
             creditsText: creditsText,
-            creditsRemaining: input.codexMenuCreditsPrimaryAccountNotice != nil ? nil : input.credits?.remaining,
+            creditsRemaining: input.codexCreditsUnlimited ? nil : creditsRemaining,
             creditsHintText: redacted.creditsHintText,
             creditsHintCopyText: redacted.creditsHintCopyText,
             providerCost: providerCost,
@@ -877,8 +1029,7 @@ extension UsageMenuCardView.Model {
         input: Input,
         subtitle: (text: String, style: SubtitleStyle)) -> RedactedText
     {
-        let dashboardErrorForHints =
-            input.codexMenuCreditsPrimaryAccountNotice != nil ? nil : input.dashboardError
+        let dashboardErrorForHints = input.dashboardError
         let email = PersonalInfoRedactor.redactEmail(
             Self.email(
                 for: input.provider,
@@ -1102,19 +1253,25 @@ extension UsageMenuCardView.Model {
             paceOnTop: paceOnTop)
     }
 
-    private static func creditsLine(
+    /// Body text for the **Credits** block (header is always "Credits" in `CreditsBarContent`).
+    /// OpenRouter uses API-key quota metrics instead; caller passes `.openrouter` → nil.
+    private static func creditsSectionText(
         metadata: ProviderMetadata,
         credits: CreditsSnapshot?,
         error: String?) -> String?
     {
         guard metadata.supportsCredits else { return nil }
         if let credits {
-            return UsageFormatter.creditsString(from: credits.remaining)
+            let remaining = credits.remaining
+            if remaining.isFinite, remaining > 0 {
+                return UsageFormatter.creditsString(from: remaining)
+            }
+            return "No credits available"
         }
-        if let error, !error.isEmpty {
+        if let error, !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return error.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        return metadata.creditsHint
+        return "No credits available"
     }
 
     private static func dashboardHint(provider: UsageProvider, error: String?) -> String? {

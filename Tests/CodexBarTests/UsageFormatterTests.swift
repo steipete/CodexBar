@@ -222,4 +222,10 @@ struct UsageFormatterTests {
         let result = UsageFormatter.creditsString(from: 42.5)
         #expect(result == "42.5 left")
     }
+
+    @Test
+    func `credits balance string is decimal not currency`() {
+        #expect(UsageFormatter.creditsBalanceString(from: 2500) == "2,500")
+        #expect(UsageFormatter.creditsBalanceString(from: 42.5) == "42.5")
+    }
 }

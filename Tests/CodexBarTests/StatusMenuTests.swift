@@ -194,10 +194,13 @@ struct StatusMenuTests {
 
         func hasOpenAIWebSubmenus(_ menu: NSMenu) -> Bool {
             let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
-            let creditsItem = menu.items.first { ($0.representedObject as? String) == "menuCardCredits" }
             let hasUsageBreakdown = usageItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "usageBreakdownChart" } == true
+            let creditsItem = menu.items.first { ($0.representedObject as? String) == "menuCardCredits" }
+            let creditsHistoryTextItem = menu.items.first { $0.title == "Credits history" }
             let hasCreditsHistory = creditsItem?.submenu?.items
+                .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true
+                || creditsHistoryTextItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true
             return hasUsageBreakdown || hasCreditsHistory
         }
@@ -687,13 +690,16 @@ struct StatusMenuTests {
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
-        let ids = menu.items.compactMap { $0.representedObject as? String }
-        #expect(!ids.contains("menuCardCredits"))
-        let costIndex = ids.firstIndex(of: "menuCardCost")
-        #expect(costIndex != nil)
+        // Credits are in the primary card; order: usage block → Buy Credits… → Cost.
+        let usageMenuIndex = menu.items.firstIndex { ($0.representedObject as? String) == "menuCardUsage" }
+        let costMenuIndex = menu.items.firstIndex { ($0.representedObject as? String) == "menuCardCost" }
+        #expect(usageMenuIndex != nil)
+        #expect(costMenuIndex != nil)
         let buyIndex = menu.items.firstIndex { $0.title == "Buy Credits..." }
         #expect(buyIndex != nil)
-        #expect(try #require(buyIndex) > costIndex!)
+        if let u = usageMenuIndex, let c = costMenuIndex, let b = buyIndex {
+            #expect(u < b && b < c)
+        }
     }
 
     @Test

@@ -19,6 +19,7 @@ extension UsageStore {
         _ = self.tokenRefreshInFlight
         _ = self.credits
         _ = self.lastCreditsError
+        _ = self.allAccountCredits
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin

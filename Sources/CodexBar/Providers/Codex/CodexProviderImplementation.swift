@@ -272,11 +272,16 @@ struct CodexProviderImplementation: ProviderImplementation {
               context.metadata.supportsCredits
         else { return }
 
-        if let credits = context.store.credits {
+        let active = context.store.codexActiveMenuCredits()
+        if let credits = active.snapshot, credits.remaining.isFinite, credits.remaining > 0 {
             entries.append(.text("Credits: \(UsageFormatter.creditsString(from: credits.remaining))", .primary))
             if let latest = credits.events.first {
                 entries.append(.text("Last spend: \(UsageFormatter.creditEventSummary(latest))", .secondary))
             }
+        } else if active.unlimited {
+            entries.append(.text("Credits: Unlimited", .primary))
+        } else if let err = active.error, !err.isEmpty {
+            entries.append(.text(err, .secondary))
         } else {
             let hint = context.store.lastCreditsError ?? context.metadata.creditsHint
             entries.append(.text(hint, .secondary))
