@@ -25,7 +25,10 @@ struct ProviderSidebarListView: View {
                         .padding(.horizontal, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(self.selection == provider ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
+                                .fill(
+                                    self.selection == provider
+                                        ? Color(nsColor: .selectedContentBackgroundColor)
+                                        : Color.clear)
                                 .padding(.horizontal, 4))
                         .contentShape(Rectangle())
                         .onTapGesture { self.selection = provider }
