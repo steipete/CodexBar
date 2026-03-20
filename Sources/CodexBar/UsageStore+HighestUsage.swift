@@ -27,7 +27,7 @@ extension UsageStore {
 
     private func menuBarMetricWindowForHighestUsage(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
         MenuBarMetricWindowResolver.rateWindow(
-            preference: self.settings.menuBarMetricPreference(for: provider),
+            lane: self.settings.menuBarIconTopLane(for: provider),
             provider: provider,
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
@@ -41,7 +41,7 @@ extension UsageStore {
     {
         guard metricPercent >= 100 else { return false }
         if provider == .copilot,
-           self.settings.menuBarMetricPreference(for: provider) == .automatic,
+           self.settings.menuBarIconTopLane(for: provider) == .automatic,
            let primary = snapshot.primary,
            let secondary = snapshot.secondary
         {
@@ -49,7 +49,7 @@ extension UsageStore {
             return primary.usedPercent >= 100 && secondary.usedPercent >= 100
         }
         if provider == .cursor,
-           self.settings.menuBarMetricPreference(for: provider) == .automatic
+           self.settings.menuBarIconTopLane(for: provider) == .automatic
         {
             let percents = [
                 snapshot.primary?.usedPercent,

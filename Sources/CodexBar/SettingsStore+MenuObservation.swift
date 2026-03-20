@@ -19,6 +19,8 @@ extension SettingsStore {
         _ = self.historicalTrackingEnabled
         _ = self.showAllTokenAccountsInMenu
         _ = self.menuBarMetricPreferencesRaw
+        _ = self.menuBarIconTopLanePreferencesRaw
+        _ = self.menuBarIconBottomLanePreferencesRaw
         _ = self.costUsageEnabled
         _ = self.hidePersonalInfo
         _ = self.randomBlinkEnabled

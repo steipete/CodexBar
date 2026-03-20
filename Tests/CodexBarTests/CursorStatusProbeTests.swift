@@ -180,6 +180,106 @@ struct CursorStatusProbeTests {
     }
 
     @Test
+    func `headline total prefers lane percents over subscription dollar totalPercent`() {
+        // Regression: plan.limit is often the Pro monthly price in cents; totalPercentUsed can reflect
+        // that dollar ratio while the dashboard "Total" bar follows Auto/API pool usage.
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: nil,
+                    billingCycleEnd: nil,
+                    membershipType: "pro",
+                    limitType: nil,
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: CursorPlanUsage(
+                            enabled: true,
+                            used: 5_400,
+                            limit: 2_000,
+                            remaining: nil,
+                            breakdown: nil,
+                            autoPercentUsed: 0,
+                            apiPercentUsed: 0.01,
+                            totalPercentUsed: 0.27),
+                        onDemand: nil),
+                    teamUsage: nil),
+                userInfo: nil,
+                rawJSON: nil)
+
+        // Stale totalPercentUsed (dollar-based) disagrees with lanes → blended (0% + 1%) / 2
+        #expect(snapshot.planPercentUsed == 0.5)
+        #expect(snapshot.autoPercentUsed == 0)
+        #expect(snapshot.apiPercentUsed == 1.0)
+    }
+
+    @Test
+    func `sub pool percents accept plain percent scale`() {
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: nil,
+                    billingCycleEnd: nil,
+                    membershipType: "pro",
+                    limitType: nil,
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: CursorPlanUsage(
+                            enabled: true,
+                            used: 0,
+                            limit: 2_000,
+                            remaining: nil,
+                            breakdown: nil,
+                            autoPercentUsed: 12.5,
+                            apiPercentUsed: 3.0,
+                            totalPercentUsed: nil),
+                        onDemand: nil),
+                    teamUsage: nil),
+                userInfo: nil,
+                rawJSON: nil)
+
+        #expect(snapshot.autoPercentUsed == 12.5)
+        #expect(snapshot.apiPercentUsed == 3.0)
+        // Dashboard-style total ≈ average of Auto and API lanes
+        #expect(snapshot.planPercentUsed == 7.75)
+    }
+
+    @Test
+    func `headline total matches dashboard blend when lanes match totalPercentUsed`() {
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: nil,
+                    billingCycleEnd: nil,
+                    membershipType: "pro",
+                    limitType: nil,
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: CursorPlanUsage(
+                            enabled: true,
+                            used: 0,
+                            limit: 2_000,
+                            remaining: nil,
+                            breakdown: nil,
+                            autoPercentUsed: 35,
+                            apiPercentUsed: 97,
+                            totalPercentUsed: 66),
+                        onDemand: nil),
+                    teamUsage: nil),
+                userInfo: nil,
+                rawJSON: nil)
+
+        #expect(snapshot.planPercentUsed == 66)
+        #expect(snapshot.autoPercentUsed == 35)
+        #expect(snapshot.apiPercentUsed == 97)
+    }
+
+    @Test
     func `converts snapshot to usage snapshot`() {
         let snapshot = CursorStatusSnapshot(
             planPercentUsed: 45.0,

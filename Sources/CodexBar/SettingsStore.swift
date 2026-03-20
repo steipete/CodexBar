@@ -60,6 +60,38 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
     }
 }
 
+/// Which usage lane fills one bar of the menu bar icon (top or bottom).
+enum MenuBarIconLane: String, CaseIterable, Identifiable {
+    case automatic
+    case primary
+    case secondary
+    case tertiary
+    case average
+    /// Bottom bar only: show an empty / dimmed track.
+    case none
+
+    var id: String {
+        self.rawValue
+    }
+
+    /// Default bottom lane when migrating from the legacy single **Menu bar metric** control.
+    static func inferredLegacyCompanion(for preference: MenuBarMetricPreference, provider: UsageProvider) -> MenuBarIconLane {
+        if provider == .openrouter {
+            switch preference {
+            case .primary: return .none
+            default: return .primary
+            }
+        }
+        switch preference {
+        case .primary: return .secondary
+        case .secondary: return .primary
+        case .tertiary: return .primary
+        case .average: return .secondary
+        case .automatic: return .automatic
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class SettingsStore {
@@ -231,6 +263,20 @@ extension SettingsStore {
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
 
+        var topLanePrefs = userDefaults.dictionary(forKey: "menuBarIconTopLanePreferences") as? [String: String] ?? [:]
+        var bottomLanePrefs = userDefaults.dictionary(forKey: "menuBarIconBottomLanePreferences") as? [String: String] ?? [:]
+        if topLanePrefs.isEmpty, bottomLanePrefs.isEmpty {
+            for provider in UsageProvider.allCases {
+                let prefRaw = resolvedPreferences[provider.rawValue] ?? MenuBarMetricPreference.automatic.rawValue
+                let pref = MenuBarMetricPreference(rawValue: prefRaw) ?? .automatic
+                topLanePrefs[provider.rawValue] = prefRaw
+                bottomLanePrefs[provider.rawValue] = MenuBarIconLane.inferredLegacyCompanion(for: pref, provider: provider)
+                    .rawValue
+            }
+            userDefaults.set(topLanePrefs, forKey: "menuBarIconTopLanePreferences")
+            userDefaults.set(bottomLanePrefs, forKey: "menuBarIconBottomLanePreferences")
+        }
+
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
             launchAtLogin: launchAtLogin,
@@ -249,6 +295,8 @@ extension SettingsStore {
             historicalTrackingEnabled: historicalTrackingEnabled,
             showAllTokenAccountsInMenu: showAllTokenAccountsInMenu,
             menuBarMetricPreferencesRaw: resolvedPreferences,
+            menuBarIconTopLanePreferencesRaw: topLanePrefs,
+            menuBarIconBottomLanePreferencesRaw: bottomLanePrefs,
             costUsageEnabled: costUsageEnabled,
             hidePersonalInfo: hidePersonalInfo,
             randomBlinkEnabled: randomBlinkEnabled,

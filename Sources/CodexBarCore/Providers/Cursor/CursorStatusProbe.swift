@@ -15,6 +15,20 @@ public enum CursorCookieImporter {
         "WorkosCursorSessionToken",
         "__Secure-next-auth.session-token",
         "next-auth.session-token",
+        // WorkOS AuthKit (common default; configurable server-side)
+        "wos-session",
+        "__Secure-wos-session",
+        // Auth.js v5
+        "authjs.session-token",
+        "__Secure-authjs.session-token",
+    ]
+
+    /// Hosts whose cookies may authenticate Cursor web/API requests.
+    private static let cookieDomains = [
+        "cursor.com",
+        "www.cursor.com",
+        "cursor.sh",
+        "authenticator.cursor.sh",
     ]
 
     public struct SessionInfo: Sendable {
@@ -31,35 +45,94 @@ public enum CursorCookieImporter {
         }
     }
 
+    /// Reads Cursor session cookies from one browser if present (no fallback to other browsers).
+    static func importSessionIfPresent(
+        browser: Browser,
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> SessionInfo?
+    {
+        Self.importCookiesFromBrowser(
+            browser: browser,
+            browserDetection: browserDetection,
+            requireKnownSessionName: true,
+            logger: logger)
+    }
+
+    /// Like ``importSessionIfPresent`` but accepts any non-empty cookie set for Cursor domains so the API can validate
+    /// (used after the strict name pass fails — e.g. new cookie names or host-only cookies).
+    static func importDomainCookiesIfPresent(
+        browser: Browser,
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> SessionInfo?
+    {
+        Self.importCookiesFromBrowser(
+            browser: browser,
+            browserDetection: browserDetection,
+            requireKnownSessionName: false,
+            logger: logger)
+    }
+
+    private static func importCookiesFromBrowser(
+        browser: Browser,
+        browserDetection: BrowserDetection,
+        requireKnownSessionName: Bool,
+        logger: ((String) -> Void)?) -> SessionInfo?
+    {
+        let log: (String) -> Void = { msg in logger?("[cursor-cookie] \(msg)") }
+        guard browserDetection.isCookieSourceAvailable(browser) else { return nil }
+        guard BrowserCookieAccessGate.shouldAttempt(browser) else { return nil }
+
+        do {
+            let query = BrowserCookieQuery(domains: Self.cookieDomains)
+            let sources = try Self.cookieClient.records(
+                matching: query,
+                in: browser,
+                logger: log)
+            for source in sources where !source.records.isEmpty {
+                let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                let hasNamedSession = httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) })
+                if hasNamedSession {
+                    log("Found \(httpCookies.count) Cursor cookies in \(source.label)")
+                    return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
+                }
+                if !requireKnownSessionName, !httpCookies.isEmpty {
+                    log(
+                        "Found \(httpCookies.count) Cursor domain cookies in \(source.label) (no known session name); will validate via API")
+                    return SessionInfo(
+                        cookies: httpCookies,
+                        sourceLabel: "\(source.label) (domain cookies)")
+                }
+                log("\(source.label) cookies found, but no Cursor session cookie present")
+            }
+        } catch {
+            BrowserCookieAccessGate.recordIfNeeded(error)
+            log("\(browser.displayName) cookie import failed: \(error.localizedDescription)")
+        }
+        return nil
+    }
+
     /// Attempts to import Cursor cookies using the standard browser import order.
     public static func importSession(
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
-        let log: (String) -> Void = { msg in logger?("[cursor-cookie] \(msg)") }
-
-        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
         let installedBrowsers = cursorCookieImportOrder.cookieImportCandidates(using: browserDetection)
-        let cookieDomains = ["cursor.com", "cursor.sh"]
         for browserSource in installedBrowsers {
-            do {
-                let query = BrowserCookieQuery(domains: cookieDomains)
-                let sources = try Self.cookieClient.records(
-                    matching: query,
-                    in: browserSource,
-                    logger: log)
-                for source in sources where !source.records.isEmpty {
-                    let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                    if httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
-                        log("Found \(httpCookies.count) Cursor cookies in \(source.label)")
-                        return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
-                    } else {
-                        log("\(source.label) cookies found, but no Cursor session cookie present")
-                    }
-                }
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
+            if let session = Self.importSessionIfPresent(
+                browser: browserSource,
+                browserDetection: browserDetection,
+                logger: logger)
+            {
+                return session
+            }
+        }
+        for browserSource in installedBrowsers {
+            if let session = Self.importDomainCookiesIfPresent(
+                browser: browserSource,
+                browserDetection: browserDetection,
+                logger: logger)
+            {
+                return session
             }
         }
 
@@ -371,7 +444,9 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
         case let .parseFailed(msg):
             "Could not parse Cursor usage: \(msg)"
         case .noSessionCookie:
-            "No Cursor session found. Please log in to cursor.com in \(cursorCookieImportOrder.loginHint)."
+            "No Cursor session found. Please log in to cursor.com in \(cursorCookieImportOrder.loginHint). "
+                + "If you use Safari, grant CodexBar Full Disk Access in System Settings ▸ Privacy & Security. "
+                + "You can also sign in to Cursor from the CodexBar menu (Add / switch account)."
         }
     }
 }
@@ -548,18 +623,33 @@ public struct CursorStatusProbe: Sendable {
             }
         }
 
-        // Try importing cookies from the configured browser order first.
-        do {
-            let session = try CursorCookieImporter.importSession(browserDetection: self.browserDetection, logger: log)
-            log("Using cookies from \(session.sourceLabel)")
-            let snapshot = try await self.fetchWithCookieHeader(session.cookieHeader)
-            CookieHeaderCache.store(
-                provider: .cursor,
-                cookieHeader: session.cookieHeader,
-                sourceLabel: session.sourceLabel)
-            return snapshot
-        } catch {
-            log("Browser cookie import failed: \(error.localizedDescription)")
+        // Try each browser in order. The first browser that *has* session cookie names is not always valid
+        // (e.g. stale Chrome tokens); keep trying until the API accepts a session or we run out of browsers.
+        let browserCandidates = cursorCookieImportOrder.cookieImportCandidates(using: self.browserDetection)
+        for browser in browserCandidates {
+            guard let session = CursorCookieImporter.importSessionIfPresent(
+                browser: browser,
+                browserDetection: self.browserDetection,
+                logger: log)
+            else { continue }
+            switch await self.fetchIfSessionAccepted(session, log: log) {
+            case .succeeded(let snapshot): return snapshot
+            case .tryNextBrowser: continue
+            case .stopBrowserScans: break
+            }
+        }
+
+        for browser in browserCandidates {
+            guard let session = CursorCookieImporter.importDomainCookiesIfPresent(
+                browser: browser,
+                browserDetection: self.browserDetection,
+                logger: log)
+            else { continue }
+            switch await self.fetchIfSessionAccepted(session, log: log) {
+            case .succeeded(let snapshot): return snapshot
+            case .tryNextBrowser: continue
+            case .stopBrowserScans: break
+            }
         }
 
         // Fall back to stored session cookies (from "Add Account" login flow)
@@ -581,6 +671,37 @@ public struct CursorStatusProbe: Sendable {
         }
 
         throw CursorStatusProbeError.noSessionCookie
+    }
+
+    private enum ImportedSessionFetchOutcome: Sendable {
+        case succeeded(CursorStatusSnapshot)
+        case tryNextBrowser
+        case stopBrowserScans
+    }
+
+    private func fetchIfSessionAccepted(
+        _ session: CursorCookieImporter.SessionInfo,
+        log: @escaping (String) -> Void) async -> ImportedSessionFetchOutcome
+    {
+        log("Trying Cursor session from \(session.sourceLabel)")
+        do {
+            let snapshot = try await self.fetchWithCookieHeader(session.cookieHeader)
+            CookieHeaderCache.store(
+                provider: .cursor,
+                cookieHeader: session.cookieHeader,
+                sourceLabel: session.sourceLabel)
+            return .succeeded(snapshot)
+        } catch let error as CursorStatusProbeError {
+            if case .notLoggedIn = error {
+                log("Cursor API rejected cookies from \(session.sourceLabel); trying next browser if any")
+                return .tryNextBrowser
+            }
+            log("Cursor fetch failed using \(session.sourceLabel): \(error.localizedDescription)")
+            return .stopBrowserScans
+        } catch {
+            log("Cursor fetch failed using \(session.sourceLabel): \(error.localizedDescription)")
+            return .stopBrowserScans
+        }
     }
 
     private func fetchWithCookieHeader(_ cookieHeader: String) async throws -> CursorStatusSnapshot {
@@ -709,15 +830,50 @@ public struct CursorStatusProbe: Sendable {
         let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
         let planUsed = planUsedRaw / 100.0
         let planLimit = planLimitRaw / 100.0
-        // Prefer totalPercentUsed when the API provides it — it matches exactly what Cursor's own
-        // "Total" bar shows and correctly handles Pro/subscription plans where plan.limit equals
-        // the flat subscription price (e.g. $20), not a usage ceiling.
-        let planPercentUsed: Double = if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
-            totalPercentUsed <= 1 ? totalPercentUsed * 100 : totalPercentUsed
+
+        // Normalise sub-pool percents to 0-100. The API usually sends 0-1 fractions; it can also send
+        // plain percentages in 1...100. Treat (0, 1] as a fraction; values > 1 are already percents.
+        func normPct(_ value: Double?) -> Double? {
+            guard let v = value else { return nil }
+            if v < 0 { return 0 }
+            if v > 100 { return 100 }
+            if v > 1.0 {
+                return v
+            }
+            return v * 100
+        }
+
+        func normalizeTotalPercent(_ v: Double) -> Double {
+            v <= 1.0 ? v * 100 : v
+        }
+
+        let autoPercent = normPct(summary.individualUsage?.plan?.autoPercentUsed)
+        let apiPercent = normPct(summary.individualUsage?.plan?.apiPercentUsed)
+
+        // Headline "Total" on cursor.com/dashboard is a blend of Auto + API pool usage (not plan.used/plan.limit —
+        // limit is often the monthly price in cents). The site shows ~the average of the two lane percents, not the
+        // max. When the API also sends totalPercentUsed, trust it only if it agrees with that blend (otherwise it
+        // is often a subscription-dollar ratio that diverges from the usage bars).
+        let planPercentUsed: Double
+        if let autoUsed = autoPercent, let apiUsed = apiPercent {
+            let blended = (autoUsed + apiUsed) / 2
+            if let rawTotal = summary.individualUsage?.plan?.totalPercentUsed {
+                let totalNorm = normalizeTotalPercent(rawTotal)
+                let chosen = abs(totalNorm - blended) <= 3 ? totalNorm : blended
+                planPercentUsed = max(0, min(100, chosen))
+            } else {
+                planPercentUsed = max(0, min(100, blended))
+            }
+        } else if let apiUsed = apiPercent {
+            planPercentUsed = max(0, min(100, apiUsed))
+        } else if let autoUsed = autoPercent {
+            planPercentUsed = max(0, min(100, autoUsed))
+        } else if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
+            planPercentUsed = normalizeTotalPercent(totalPercentUsed)
         } else if planLimitRaw > 0 {
-            (planUsedRaw / planLimitRaw) * 100
+            planPercentUsed = (planUsedRaw / planLimitRaw) * 100
         } else {
-            0
+            planPercentUsed = 0
         }
 
         let onDemandUsed = Double(summary.individualUsage?.onDemand?.used ?? 0) / 100.0
@@ -729,14 +885,6 @@ public struct CursorStatusProbe: Sendable {
         // Legacy request-based plan: maxRequestUsage being non-nil indicates a request-based plan
         let requestsUsed: Int? = requestUsage?.gpt4?.numRequestsTotal ?? requestUsage?.gpt4?.numRequests
         let requestsLimit: Int? = requestUsage?.gpt4?.maxRequestUsage
-
-        // Normalise sub-percent fields to 0-100 (the API returns 0-1 fractions).
-        func normPct(_ value: Double?) -> Double? {
-            guard let v = value else { return nil }
-            return (v <= 1.0 ? v * 100 : v)
-        }
-        let autoPercent = normPct(summary.individualUsage?.plan?.autoPercentUsed)
-        let apiPercent = normPct(summary.individualUsage?.plan?.apiPercentUsed)
 
         return CursorStatusSnapshot(
             planPercentUsed: planPercentUsed,

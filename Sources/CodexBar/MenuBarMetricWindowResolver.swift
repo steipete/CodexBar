@@ -9,8 +9,24 @@ enum MenuBarMetricWindowResolver {
         supportsAverage: Bool)
         -> RateWindow?
     {
-        guard let snapshot else { return nil }
-        switch preference {
+        self.rateWindow(
+            lane: MenuBarIconLane(rawValue: preference.rawValue) ?? .automatic,
+            provider: provider,
+            snapshot: snapshot,
+            supportsAverage: supportsAverage)
+    }
+
+    static func rateWindow(
+        lane: MenuBarIconLane,
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        supportsAverage: Bool)
+        -> RateWindow?
+    {
+        guard let snapshot, lane != .none else { return nil }
+        switch lane {
+        case .none:
+            return nil
         case .tertiary:
             guard provider == .cursor else {
                 return snapshot.primary ?? snapshot.secondary
@@ -47,6 +63,26 @@ enum MenuBarMetricWindowResolver {
             }
             return snapshot.primary ?? snapshot.secondary
         }
+    }
+
+    /// Second bar when **Automatic** is chosen for the bottom slot (or legacy paired automatic).
+    static func secondAutomaticWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
+        if provider == .factory || provider == .kimi {
+            return snapshot.primary
+        }
+        if provider == .copilot,
+           let primaryWin = snapshot.primary,
+           let secondaryWin = snapshot.secondary
+        {
+            let ordered = [primaryWin, secondaryWin].sorted { $0.usedPercent > $1.usedPercent }
+            return ordered.count >= 2 ? ordered[1] : nil
+        }
+        if provider == .cursor {
+            let ranked = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
+                .sorted { $0.usedPercent > $1.usedPercent }
+            return ranked.count >= 2 ? ranked[1] : nil
+        }
+        return snapshot.secondary
     }
 
     private static func mostConstrainedWindow(

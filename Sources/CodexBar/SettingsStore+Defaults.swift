@@ -166,6 +166,22 @@ extension SettingsStore {
         }
     }
 
+    var menuBarIconTopLanePreferencesRaw: [String: String] {
+        get { self.defaultsState.menuBarIconTopLanePreferencesRaw }
+        set {
+            self.defaultsState.menuBarIconTopLanePreferencesRaw = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarIconTopLanePreferences")
+        }
+    }
+
+    var menuBarIconBottomLanePreferencesRaw: [String: String] {
+        get { self.defaultsState.menuBarIconBottomLanePreferencesRaw }
+        set {
+            self.defaultsState.menuBarIconBottomLanePreferencesRaw = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarIconBottomLanePreferences")
+        }
+    }
+
     var costUsageEnabled: Bool {
         get { self.defaultsState.costUsageEnabled }
         set {

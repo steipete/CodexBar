@@ -123,10 +123,46 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     func menuBarMetricWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
         MenuBarMetricWindowResolver.rateWindow(
-            preference: self.settings.menuBarMetricPreference(for: provider),
+            lane: self.settings.menuBarIconTopLane(for: provider),
             provider: provider,
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
+    }
+
+    /// Values for the two menu bar icon bars from **Menu bar top / bottom** lane pickers.
+    func menuBarIconBarPercents(for provider: UsageProvider, snapshot: UsageSnapshot?, showUsed: Bool) -> (
+        primary: Double?,
+        weekly: Double?)
+    {
+        guard let snapshot else { return (nil, nil) }
+
+        func laneValue(_ window: RateWindow?) -> Double? {
+            guard let window else { return nil }
+            return showUsed ? window.usedPercent : window.remainingPercent
+        }
+
+        let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
+        let topLane = self.settings.menuBarIconTopLane(for: provider)
+        let bottomLane = self.settings.menuBarIconBottomLane(for: provider)
+
+        let topWin = MenuBarMetricWindowResolver.rateWindow(
+            lane: topLane,
+            provider: provider,
+            snapshot: snapshot,
+            supportsAverage: supportsAverage)
+        let bottomWin: RateWindow? = if bottomLane == .none {
+            nil
+        } else if bottomLane == .automatic {
+            MenuBarMetricWindowResolver.secondAutomaticWindow(provider: provider, snapshot: snapshot)
+        } else {
+            MenuBarMetricWindowResolver.rateWindow(
+                lane: bottomLane,
+                provider: provider,
+                snapshot: snapshot,
+                supportsAverage: supportsAverage)
+        }
+
+        return (laneValue(topWin), laneValue(bottomWin))
     }
 
     init(

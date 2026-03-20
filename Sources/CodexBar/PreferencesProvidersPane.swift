@@ -152,10 +152,11 @@ struct ProvidersPane: View {
         let context = self.makeSettingsContext(provider: provider)
         let providerPickers = impl.settingsPickers(context: context)
             .filter { $0.isVisible?() ?? true }
-        if let menuBarPicker = self.menuBarMetricPicker(for: provider) {
-            return [menuBarPicker] + providerPickers
+        let lanePickers = self.menuBarLanePickers(for: provider)
+        if lanePickers.isEmpty {
+            return providerPickers
         }
-        return providerPickers
+        return lanePickers + providerPickers
     }
 
     private func extraSettingsFields(for provider: UsageProvider) -> [ProviderSettingsFieldDescriptor] {
@@ -262,55 +263,97 @@ struct ProvidersPane: View {
             })
     }
 
-    func menuBarMetricPicker(for provider: UsageProvider) -> ProviderSettingsPickerDescriptor? {
-        if provider == .zai { return nil }
-        let options: [ProviderSettingsPickerOption]
-        if provider == .openrouter {
-            options = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
-                ProviderSettingsPickerOption(
-                    id: MenuBarMetricPreference.primary.rawValue,
-                    title: "Primary (API key limit)"),
-            ]
-        } else {
-            let metadata = self.store.metadata(for: provider)
-            let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
-            let supportsTertiary = self.settings.menuBarMetricSupportsTertiary(for: provider)
-            var metricOptions: [ProviderSettingsPickerOption] = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
-                ProviderSettingsPickerOption(
-                    id: MenuBarMetricPreference.primary.rawValue,
-                    title: "Primary (\(metadata.sessionLabel))"),
-                ProviderSettingsPickerOption(
-                    id: MenuBarMetricPreference.secondary.rawValue,
-                    title: "Secondary (\(metadata.weeklyLabel))"),
-            ]
-            if supportsTertiary {
+    func menuBarLanePickers(for provider: UsageProvider) -> [ProviderSettingsPickerDescriptor] {
+        if provider == .zai { return [] }
+
+        let metadata = self.store.metadata(for: provider)
+        let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
+        let supportsTertiary = self.settings.menuBarMetricSupportsTertiary(for: provider)
+
+        func laneTitle(_ lane: MenuBarIconLane) -> String {
+            switch lane {
+            case .automatic: return "Automatic"
+            case .primary: return "Primary (\(metadata.sessionLabel))"
+            case .secondary: return "Secondary (\(metadata.weeklyLabel))"
+            case .tertiary:
                 let tertiaryTitle = metadata.opusLabel ?? MenuBarMetricPreference.tertiary.label
-                metricOptions.append(ProviderSettingsPickerOption(
-                    id: MenuBarMetricPreference.tertiary.rawValue,
-                    title: "Tertiary (\(tertiaryTitle))"))
+                return "Tertiary (\(tertiaryTitle))"
+            case .average: return "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"
+            case .none: return "Hidden (dimmed track)"
             }
-            if supportsAverage {
-                metricOptions.append(ProviderSettingsPickerOption(
-                    id: MenuBarMetricPreference.average.rawValue,
-                    title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
-            }
-            options = metricOptions
         }
-        return ProviderSettingsPickerDescriptor(
-            id: "menuBarMetric",
-            title: "Menu bar metric",
-            subtitle: "Choose which window drives the menu bar percent.",
-            binding: Binding(
-                get: { self.settings.menuBarMetricPreference(for: provider).rawValue },
-                set: { rawValue in
-                    guard let preference = MenuBarMetricPreference(rawValue: rawValue) else { return }
-                    self.settings.setMenuBarMetricPreference(preference, for: provider)
-                }),
-            options: options,
-            isVisible: { true },
-            onChange: nil)
+
+        if provider == .openrouter {
+            let topOptions: [MenuBarIconLane] = [.automatic, .primary]
+            let bottomOptions: [MenuBarIconLane] = [.none, .automatic, .primary]
+            return [
+                ProviderSettingsPickerDescriptor(
+                    id: "menuBarIconTopLane",
+                    title: "Menu bar top bar",
+                    subtitle: "Top segment; also drives the optional percent label.",
+                    binding: Binding(
+                        get: { self.settings.menuBarIconTopLane(for: provider).rawValue },
+                        set: { rawValue in
+                            guard let lane = MenuBarIconLane(rawValue: rawValue) else { return }
+                            self.settings.setMenuBarIconTopLane(lane, for: provider)
+                        }),
+                    options: topOptions.map { ProviderSettingsPickerOption(id: $0.rawValue, title: laneTitle($0)) },
+                    isVisible: { true },
+                    onChange: nil),
+                ProviderSettingsPickerDescriptor(
+                    id: "menuBarIconBottomLane",
+                    title: "Menu bar bottom bar",
+                    subtitle: "Lower segment of the icon.",
+                    binding: Binding(
+                        get: { self.settings.menuBarIconBottomLane(for: provider).rawValue },
+                        set: { rawValue in
+                            guard let lane = MenuBarIconLane(rawValue: rawValue) else { return }
+                            self.settings.setMenuBarIconBottomLane(lane, for: provider)
+                        }),
+                    options: bottomOptions.map { ProviderSettingsPickerOption(id: $0.rawValue, title: laneTitle($0)) },
+                    isVisible: { true },
+                    onChange: nil),
+            ]
+        }
+
+        var topLanes: [MenuBarIconLane] = [.automatic, .primary, .secondary]
+        if supportsTertiary {
+            topLanes.append(.tertiary)
+        }
+        if supportsAverage {
+            topLanes.append(.average)
+        }
+        var bottomLanes = topLanes
+        bottomLanes.append(.none)
+
+        return [
+            ProviderSettingsPickerDescriptor(
+                id: "menuBarIconTopLane",
+                title: "Menu bar top bar",
+                subtitle: "Top segment; also drives the optional percent label.",
+                binding: Binding(
+                    get: { self.settings.menuBarIconTopLane(for: provider).rawValue },
+                    set: { rawValue in
+                        guard let lane = MenuBarIconLane(rawValue: rawValue) else { return }
+                        self.settings.setMenuBarIconTopLane(lane, for: provider)
+                    }),
+                options: topLanes.map { ProviderSettingsPickerOption(id: $0.rawValue, title: laneTitle($0)) },
+                isVisible: { true },
+                onChange: nil),
+            ProviderSettingsPickerDescriptor(
+                id: "menuBarIconBottomLane",
+                title: "Menu bar bottom bar",
+                subtitle: "Lower segment of the icon. Choose Hidden for a single-bar look.",
+                binding: Binding(
+                    get: { self.settings.menuBarIconBottomLane(for: provider).rawValue },
+                    set: { rawValue in
+                        guard let lane = MenuBarIconLane(rawValue: rawValue) else { return }
+                        self.settings.setMenuBarIconBottomLane(lane, for: provider)
+                    }),
+                options: bottomLanes.map { ProviderSettingsPickerOption(id: $0.rawValue, title: laneTitle($0)) },
+                isVisible: { true },
+                onChange: nil),
+        ]
     }
 
     func menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {

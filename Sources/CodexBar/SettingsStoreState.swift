@@ -18,6 +18,8 @@ struct SettingsDefaultsState {
     var historicalTrackingEnabled: Bool
     var showAllTokenAccountsInMenu: Bool
     var menuBarMetricPreferencesRaw: [String: String]
+    var menuBarIconTopLanePreferencesRaw: [String: String]
+    var menuBarIconBottomLanePreferencesRaw: [String: String]
     var costUsageEnabled: Bool
     var hidePersonalInfo: Bool
     var randomBlinkEnabled: Bool

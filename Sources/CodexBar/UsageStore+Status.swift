@@ -6,7 +6,10 @@ extension UsageStore {
         var request = URLRequest(url: apiURL)
         request.timeoutInterval = 10
 
-        let (data, _) = try await URLSession.shared.data(for: request, delegate: nil)
+        let (data, response) = try await URLSession.shared.data(for: request, delegate: nil)
+        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            throw URLError(.badServerResponse)
+        }
 
         struct Response: Decodable {
             struct Status: Decodable {
@@ -38,12 +41,18 @@ extension UsageStore {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO8601 date")
         }
 
-        let response = try decoder.decode(Response.self, from: data)
-        let indicator = ProviderStatusIndicator(rawValue: response.status.indicator) ?? .unknown
+        let payload = try decoder.decode(Response.self, from: data)
+        let indicator = Self.statusIndicatorFromStatuspage(payload.status.indicator)
         return ProviderStatus(
             indicator: indicator,
-            description: response.status.description,
-            updatedAt: response.page?.updatedAt)
+            description: payload.status.description,
+            updatedAt: payload.page?.updatedAt)
+    }
+
+    /// Maps Statuspage-style `status.indicator` strings (see e.g. `/api/v2/status.json`).
+    private static func statusIndicatorFromStatuspage(_ raw: String) -> ProviderStatusIndicator {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return ProviderStatusIndicator(rawValue: normalized) ?? .unknown
     }
 
     static func fetchWorkspaceStatus(productID: String) async throws -> ProviderStatus {

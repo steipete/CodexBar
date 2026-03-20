@@ -172,7 +172,15 @@ enum IconRenderer {
                         yRadius: Self.grid.pt(max(0, cornerRadiusPx - insetPx)))
                     strokePath.lineWidth = CGFloat(strokeWidthPx) / Self.outputScale
                     baseFill.withAlphaComponent(trackStrokeAlpha * alpha).setStroke()
-                    strokePath.stroke()
+                    if let ctx = NSGraphicsContext.current?.cgContext {
+                        ctx.saveGState()
+                        ctx.setLineJoin(.round)
+                        ctx.setLineCap(.round)
+                        strokePath.stroke()
+                        ctx.restoreGState()
+                    } else {
+                        strokePath.stroke()
+                    }
 
                     // Fill: clip to the capsule and paint a left-to-right rect so the progress edge is straight.
                     if let remaining {
@@ -462,7 +470,7 @@ enum IconRenderer {
                         }
                     }
 
-                    if addAntigravityTwist {
+                    if addAntigravityTwist, style != .cursor {
                         let dotSizePx = 3
                         let dotOffsetXPx = rectPx.x + rectPx.w + 2
                         let dotOffsetYPx = rectPx.y + rectPx.h - 2

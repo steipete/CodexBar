@@ -14,44 +14,47 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
-    func `open router menu bar metric picker shows only automatic and primary`() {
+    func `open router menu bar lane pickers limit lane choices`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-openrouter-picker")
         let store = Self.makeUsageStore(settings: settings)
         let pane = ProvidersPane(settings: settings, store: store)
 
-        let picker = pane._test_menuBarMetricPicker(for: .openrouter)
-        #expect(picker?.options.map(\.id) == [
-            MenuBarMetricPreference.automatic.rawValue,
-            MenuBarMetricPreference.primary.rawValue,
+        let pickers = pane._test_menuBarLanePickers(for: .openrouter)
+        #expect(pickers.count == 2)
+        #expect(pickers[0].options.map(\.id) == [
+            MenuBarIconLane.automatic.rawValue,
+            MenuBarIconLane.primary.rawValue,
         ])
-        #expect(picker?.options.map(\.title) == [
-            "Automatic",
-            "Primary (API key limit)",
+        #expect(pickers[1].options.map(\.id) == [
+            MenuBarIconLane.none.rawValue,
+            MenuBarIconLane.automatic.rawValue,
+            MenuBarIconLane.primary.rawValue,
         ])
     }
 
     @Test
-    func `cursor menu bar metric picker includes tertiary api lane`() {
+    func `cursor menu bar top lane picker includes tertiary api lane`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-cursor-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)
         let pane = ProvidersPane(settings: settings, store: store)
 
-        let picker = pane._test_menuBarMetricPicker(for: .cursor)
-        let ids = picker?.options.map(\.id) ?? []
-        #expect(ids.contains(MenuBarMetricPreference.tertiary.rawValue))
-        let tertiaryOption = picker?.options.first { $0.id == MenuBarMetricPreference.tertiary.rawValue }
+        let pickers = pane._test_menuBarLanePickers(for: .cursor)
+        #expect(pickers.count == 2)
+        let topIds = pickers[0].options.map(\.id)
+        #expect(topIds.contains(MenuBarIconLane.tertiary.rawValue))
+        let tertiaryOption = pickers[0].options.first { $0.id == MenuBarIconLane.tertiary.rawValue }
         #expect(tertiaryOption?.title == "Tertiary (API)")
     }
 
     @Test
-    func `gemini menu bar metric picker omits tertiary lane`() {
+    func `gemini menu bar top lane picker omits tertiary lane`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-gemini-no-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)
         let pane = ProvidersPane(settings: settings, store: store)
 
-        let picker = pane._test_menuBarMetricPicker(for: .gemini)
-        let ids = picker?.options.map(\.id) ?? []
-        #expect(!ids.contains(MenuBarMetricPreference.tertiary.rawValue))
+        let pickers = pane._test_menuBarLanePickers(for: .gemini)
+        let topIds = pickers[0].options.map(\.id)
+        #expect(!topIds.contains(MenuBarIconLane.tertiary.rawValue))
     }
 
     @Test

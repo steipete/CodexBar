@@ -228,8 +228,9 @@ extension StatusItemController {
 
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
-        var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
-        var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        let bars = self.menuBarIconBarPercents(for: primaryProvider, snapshot: snapshot, showUsed: showUsed)
+        var primary = bars.primary
+        var weekly = bars.weekly
         if showUsed,
            primaryProvider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,
@@ -351,8 +352,9 @@ extension StatusItemController {
                 for: button)
             return
         }
-        var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
-        var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        let bars = self.menuBarIconBarPercents(for: provider, snapshot: snapshot, showUsed: showUsed)
+        var primary = bars.primary
+        var weekly = bars.weekly
         if showUsed,
            provider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,

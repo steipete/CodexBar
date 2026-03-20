@@ -480,6 +480,62 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `menu bar icon bars follow metric preference for cursor`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-cursor-icon-bars"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .cursor
+
+        let registry = ProviderRegistry.shared
+        if let cursorMeta = registry.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: cursorMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 72, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        settings.setMenuBarMetricPreference(.primary, for: .cursor)
+        let primaryBars = controller.menuBarIconBarPercents(for: .cursor, snapshot: snapshot, showUsed: true)
+        #expect(primaryBars.primary == 10)
+        #expect(primaryBars.weekly == 20)
+
+        settings.setMenuBarMetricPreference(.tertiary, for: .cursor)
+        let tertiaryBars = controller.menuBarIconBarPercents(for: .cursor, snapshot: snapshot, showUsed: true)
+        #expect(tertiaryBars.primary == 72)
+        #expect(tertiaryBars.weekly == 10)
+
+        settings.setMenuBarMetricPreference(.automatic, for: .cursor)
+        let autoBars = controller.menuBarIconBarPercents(for: .cursor, snapshot: snapshot, showUsed: true)
+        #expect(autoBars.primary == 72)
+        #expect(autoBars.weekly == 20)
+
+        settings.setMenuBarIconTopLane(.primary, for: .cursor)
+        settings.setMenuBarIconBottomLane(.tertiary, for: .cursor)
+        let customBars = controller.menuBarIconBarPercents(for: .cursor, snapshot: snapshot, showUsed: true)
+        #expect(customBars.primary == 10)
+        #expect(customBars.weekly == 72)
+    }
+
+    @Test
     func `menu bar display text formats percent and pace`() {
         let now = Date(timeIntervalSince1970: 0)
         let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
