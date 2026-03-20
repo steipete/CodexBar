@@ -178,6 +178,8 @@ struct TokenAccountCLIContext {
                 jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
                     ideBasePath: nil))
         case .perplexity:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings(
                     cookieSource: cookieSource,

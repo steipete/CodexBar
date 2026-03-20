@@ -204,6 +204,122 @@ struct PerplexityUsageFetcherTests {
         #expect(tertiary.usedPercent == 100.0)
     }
 
+    // MARK: - Purchased credits from credit_grants
+
+    @Test
+    func purchasedCreditsFromCreditGrantsArray() throws {
+        // Purchased credits appear as credit_grant type="purchased" instead of
+        // current_period_purchased_cents. The snapshot should pick them up.
+        let json = """
+        {
+          "balance_cents": 23065,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "credit_grants": [
+            { "type": "recurring",    "amount_cents": 10000, "expires_at_ts": \(Self.futureTs) },
+            { "type": "purchased",    "amount_cents": 40000 },
+            { "type": "promotional",  "amount_cents": 55000, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 81935
+        }
+        """
+        let snapshot = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+
+        #expect(snapshot.recurringTotal == 10000)
+        #expect(snapshot.purchasedTotal == 40000)
+        #expect(snapshot.promoTotal == 55000)
+
+        // Waterfall: recurring eats 10000, purchased eats 40000, promo eats 31935
+        #expect(snapshot.recurringUsed == 10000)
+        #expect(snapshot.purchasedUsed == 40000)
+        #expect(snapshot.promoUsed == 31935)
+    }
+
+    @Test
+    func purchasedCreditsPreferGrantsOverFieldWhenBothPresent() throws {
+        // When both current_period_purchased_cents AND credit_grants type="purchased"
+        // are provided, the larger value wins.
+        let json = """
+        {
+          "balance_cents": 0,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 3000,
+          "credit_grants": [
+            { "type": "recurring",   "amount_cents": 5000, "expires_at_ts": \(Self.futureTs) },
+            { "type": "purchased",   "amount_cents": 8000 },
+            { "type": "promotional", "amount_cents": 4000, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 14000
+        }
+        """
+        let snapshot = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+
+        // Purchased should use max(8000, 3000) = 8000
+        #expect(snapshot.purchasedTotal == 8000)
+        // Waterfall: 5000 recurring + 8000 purchased + 1000 promo = 14000
+        #expect(snapshot.recurringUsed == 5000)
+        #expect(snapshot.purchasedUsed == 8000)
+        #expect(snapshot.promoUsed == 1000)
+    }
+
+    @Test
+    func purchasedCreditsFromFieldWhenNoGrantType() throws {
+        // Legacy path: current_period_purchased_cents is set but no "purchased" grant
+        let json = """
+        {
+          "balance_cents": 0,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 3000,
+          "credit_grants": [
+            { "type": "recurring",    "amount_cents": 5000, "expires_at_ts": \(Self.futureTs) },
+            { "type": "promotional",  "amount_cents": 4000, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 9000
+        }
+        """
+        let snapshot = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+
+        // Still picks up purchased from the top-level field
+        #expect(snapshot.purchasedTotal == 3000)
+        #expect(snapshot.recurringUsed == 5000)
+        #expect(snapshot.purchasedUsed == 3000)
+        #expect(snapshot.promoUsed == 1000)
+    }
+
+    @Test
+    func realWorldMaxPlanWithAllThreePools() throws {
+        // Real-world scenario: Max plan, 10k recurring + 40k purchased + 55k bonus
+        // Total 105,000 available, 23,065 remaining → 81,935 used
+        let json = """
+        {
+          "balance_cents": 23065,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "credit_grants": [
+            { "type": "recurring",    "amount_cents": 10000, "expires_at_ts": \(Self.futureTs) },
+            { "type": "purchased",    "amount_cents": 40000 },
+            { "type": "promotional",  "amount_cents": 55000, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 81935
+        }
+        """
+        let snapshot = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+        let usage = snapshot.toUsageSnapshot()
+
+        // Primary (recurring): fully consumed → 100%
+        let primary = try #require(usage.primary)
+        #expect(primary.usedPercent == 100.0)
+
+        // Tertiary (purchased): fully consumed → 100%
+        let tertiary = try #require(usage.tertiary)
+        #expect(tertiary.usedPercent == 100.0)
+
+        // Secondary (bonus): 31935/55000 ≈ 58.06% used → ~42% remaining
+        let secondary = try #require(usage.secondary)
+        let expectedPromoPercent = 31935.0 / 55000.0 * 100.0
+        #expect(abs(secondary.usedPercent - expectedPromoPercent) < 0.1)
+    }
+
     @Test
     func toUsageSnapshotPrimaryPercentMatchesUsage() throws {
         let json = """

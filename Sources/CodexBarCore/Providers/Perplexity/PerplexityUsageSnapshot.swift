@@ -18,11 +18,17 @@ public struct PerplexityUsageSnapshot: Sendable {
         let promotional = response.creditGrants.filter {
             $0.type == "promotional" && ($0.expiresAtTs ?? .infinity) > now.timeIntervalSince1970
         }
+        let purchased = response.creditGrants.filter { $0.type == "purchased" }
 
         // All timestamps from the Perplexity API are Unix seconds (verified Feb 2026).
         let recurringSum = max(0, recurring.reduce(0.0) { $0 + $1.amountCents })
         let promoSum = max(0, promotional.reduce(0.0) { $0 + $1.amountCents })
-        let purchasedSum = max(0, response.currentPeriodPurchasedCents)
+        // Purchased credits may appear in the top-level field, in the credit_grants
+        // array (type == "purchased"), or both. Take whichever is larger to avoid
+        // double-counting while still catching either source.
+        let purchasedFromGrants = max(0, purchased.reduce(0.0) { $0 + $1.amountCents })
+        let purchasedFromField = max(0, response.currentPeriodPurchasedCents)
+        let purchasedSum = max(purchasedFromGrants, purchasedFromField)
 
         // Waterfall attribution: recurring → purchased → promotional
         var remaining = response.totalUsageCents
