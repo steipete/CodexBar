@@ -253,12 +253,13 @@ struct ProviderSettingsTokenAccountsRowView: View {
             let accounts = self.descriptor.accounts()
             let defaultLabel = self.descriptor.defaultAccountLabel?()
             let hasDefaultTab = defaultLabel != nil
-            // activeIndex < 0 means the default account is selected
             let activeIndex = self.descriptor.activeIndex()
-            let defaultIsActive = activeIndex < 0 || (accounts.isEmpty && hasDefaultTab)
-            let selectedIndex = defaultIsActive ? -1 : min(activeIndex, max(0, accounts.count - 1))
+            let defaultIsActive = (activeIndex < 0 || accounts.isEmpty) && hasDefaultTab
+            let selectedIndex = defaultIsActive
+                ? -1
+                : min(max(activeIndex, 0), max(0, accounts.count - 1))
 
-            if !hasDefaultTab && accounts.isEmpty {
+            if !hasDefaultTab, accounts.isEmpty {
                 Text("No accounts added yet.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -301,7 +302,8 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     if let loginAction = self.descriptor.loginAction {
                         self.signInSection(loginAction: loginAction, addAccount: self.descriptor.addAccount)
                     } else {
-                        Text("Browser OAuth requires the Codex CLI. You can still add an account with an API key (other tab).")
+                        Text(
+                            "Browser OAuth requires the Codex CLI. You can still add an account with an API key (other tab).")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -330,7 +332,6 @@ struct ProviderSettingsTokenAccountsRowView: View {
         }
     }
 
-    @ViewBuilder
     private func accountTabsView(
         defaultLabel: String?,
         accounts: [ProviderTokenAccount],
@@ -348,7 +349,6 @@ struct ProviderSettingsTokenAccountsRowView: View {
         }
     }
 
-    @ViewBuilder
     private func menuBarActiveBadge() -> some View {
         Text("Menu bar")
             .font(.system(size: 10, weight: .semibold))
@@ -440,12 +440,13 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     : Color(NSColor.controlBackgroundColor))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(rowActive
-                            ? Color.accentColor.opacity(0.45)
-                            : Color(NSColor.separatorColor),
+                        .strokeBorder(
+                            rowActive
+                                ? Color.accentColor.opacity(0.45)
+                                : Color(NSColor.separatorColor),
                             lineWidth: rowActive ? 1.5 : 1)))
         .onChange(of: self.renameFieldFocused) { _, focused in
-            if !focused && self.renamingDefault { self.commitRenameDefault() }
+            if !focused, self.renamingDefault { self.commitRenameDefault() }
         }
     }
 
@@ -545,9 +546,10 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     : Color(NSColor.controlBackgroundColor))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(rowActive
-                            ? Color.accentColor.opacity(0.45)
-                            : Color(NSColor.separatorColor),
+                        .strokeBorder(
+                            rowActive
+                                ? Color.accentColor.opacity(0.45)
+                                : Color(NSColor.separatorColor),
                             lineWidth: rowActive ? 1.5 : 1)))
         .onChange(of: self.renameFieldFocused) { _, focused in
             if !focused, self.renamingAccountID == account.id { self.commitRename(account: account) }
@@ -563,7 +565,6 @@ struct ProviderSettingsTokenAccountsRowView: View {
         self.renameText = ""
     }
 
-    @ViewBuilder
     private func codexAPIKeyAddSection() -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Adds an account that sets OPENAI_API_KEY for Codex (stored securely in your config).")
@@ -593,12 +594,10 @@ struct ProviderSettingsTokenAccountsRowView: View {
         }
     }
 
-    @ViewBuilder
     private func signInSection(
         loginAction: @escaping (
             _ setProgress: @escaping @MainActor (String) -> Void,
-            _ addAccount: @escaping @MainActor (String, String) -> Void
-        ) async -> Bool,
+            _ addAccount: @escaping @MainActor (String, String) -> Void) async -> Bool,
         addAccount: @escaping (String, String) -> Void) -> some View
     {
         VStack(alignment: .leading, spacing: 6) {
@@ -641,7 +640,6 @@ struct ProviderSettingsTokenAccountsRowView: View {
         }
     }
 
-    @ViewBuilder
     private func manualAddSection() -> some View {
         HStack(spacing: 8) {
             TextField("Label", text: self.$newLabel)

@@ -30,7 +30,7 @@ extension UsageStore {
 
     func refreshTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) async {
         let selectedAccount = self.settings.selectedTokenAccount(for: provider)
-        let defaultIsActive = self.settings.tokenAccountsData(for: provider)?.isDefaultActive ?? true
+        let defaultIsActive = self.settings.isDefaultTokenAccountActive(for: provider)
         let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
         var snapshots: [TokenAccountUsageSnapshot] = []
         var selectedOutcome: ProviderFetchOutcome?

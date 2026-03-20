@@ -3,7 +3,7 @@ import Foundation
 
 /// A single account's usage snapshot, used in the Costs summary card.
 struct AccountCostEntry: Identifiable, Sendable {
-    let id: String          // "default" or account UUID string
+    let id: String // "default" or account UUID string
     let label: String
     let isDefault: Bool
     /// Prepaid credits balance (nil when on a subscription plan or not available).
@@ -53,7 +53,22 @@ extension UsageStore {
             // Token accounts (index 1…)
             for (offset, account) in tokenAccounts.enumerated() {
                 group.addTask {
-                    let env = ["CODEX_HOME": account.token]
+                    guard let env = TokenAccountSupportCatalog.envOverride(for: .codex, token: account.token) else {
+                        let entry = AccountCostEntry(
+                            id: account.id.uuidString,
+                            label: account.label,
+                            isDefault: false,
+                            creditsRemaining: nil,
+                            isUnlimited: false,
+                            planType: nil,
+                            primaryUsedPercent: nil,
+                            secondaryUsedPercent: nil,
+                            primaryResetDescription: nil,
+                            secondaryResetDescription: nil,
+                            error: "Invalid Codex account token",
+                            updatedAt: Date())
+                        return (offset + 1, entry)
+                    }
                     let entry = await Self.fetchCredits(
                         env: env,
                         id: account.id.uuidString,
@@ -64,14 +79,16 @@ extension UsageStore {
             }
 
             var results: [(Int, AccountCostEntry)] = []
-            for await pair in group { results.append(pair) }
+            for await pair in group {
+                results.append(pair)
+            }
             return results.sorted { $0.0 < $1.0 }.map(\.1)
         }
 
         // Only keep accounts that returned something useful (or an error worth surfacing).
         // Drop the default entry entirely if there's no auth.json (not logged in at all).
         entries = entries.filter { entry in
-            if entry.isDefault && entry.creditsRemaining == nil && entry.error?.contains("not found") == true {
+            if entry.isDefault, entry.creditsRemaining == nil, entry.error?.contains("not found") == true {
                 return false
             }
             return true
@@ -156,20 +173,20 @@ extension UsageStore {
 
     private static func planDisplayName(_ plan: CodexUsageResponse.PlanType) -> String {
         switch plan {
-        case .guest: return "Guest"
-        case .free: return "Free"
-        case .go: return "Go"
-        case .plus: return "Plus"
-        case .pro: return "Pro"
-        case .freeWorkspace: return "Free Workspace"
-        case .team: return "Team"
-        case .business: return "Business"
-        case .education: return "Education"
-        case .quorum: return "Quorum"
-        case .k12: return "K-12"
-        case .enterprise: return "Enterprise"
-        case .edu: return "Edu"
-        case let .unknown(raw): return raw.capitalized
+        case .guest: "Guest"
+        case .free: "Free"
+        case .go: "Go"
+        case .plus: "Plus"
+        case .pro: "Pro"
+        case .freeWorkspace: "Free Workspace"
+        case .team: "Team"
+        case .business: "Business"
+        case .education: "Education"
+        case .quorum: "Quorum"
+        case .k12: "K-12"
+        case .enterprise: "Enterprise"
+        case .edu: "Edu"
+        case let .unknown(raw): raw.capitalized
         }
     }
 }

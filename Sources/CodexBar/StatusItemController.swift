@@ -300,7 +300,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             let data = s.tokenAccountsData(for: p)
             let count = data?.accounts.count ?? 0
             let active = data?.activeIndex ?? -999
-            return "\(p.rawValue):\(count):\(active)"
+            let display = s.displayTokenAccountActiveIndex(for: p)
+            return "\(p.rawValue):\(count):\(active):\(display)"
         }.joined(separator: "|")
         let costSig =
             "\(s.isCostUsageEffectivelyEnabled(for: .codex))|\(s.isCostUsageEffectivelyEnabled(for: .claude))|\(s.isCostUsageEffectivelyEnabled(for: .vertexai))"

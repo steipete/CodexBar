@@ -711,13 +711,12 @@ extension StatusItemController {
     private func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
         let accounts = self.settings.tokenAccounts(for: provider)
-        let defaultLabel = ProviderCatalog.implementation(for: provider)?.tokenAccountDefaultLabel(settings: self.settings)
+        let defaultLabel = ProviderCatalog.implementation(for: provider)?
+            .tokenAccountDefaultLabel(settings: self.settings)
         // Show switcher when there's a default account + at least 1 token account, or 2+ token accounts
         let hasMultiple = accounts.count >= 1 && defaultLabel != nil || accounts.count > 1
         guard hasMultiple else { return nil }
-        // Use raw activeIndex so -1 (default account selected) passes through
-        let rawActiveIndex = self.settings.tokenAccountsData(for: provider)?.activeIndex ?? -1
-        let activeIndex = rawActiveIndex < 0 ? -1 : min(rawActiveIndex, max(0, accounts.count - 1))
+        let activeIndex = self.settings.displayTokenAccountActiveIndex(for: provider)
         let showAll = self.settings.showAllTokenAccountsInMenu
         let snapshots = showAll ? (self.store.accountSnapshots[provider] ?? []) : []
         return TokenAccountMenuDisplay(

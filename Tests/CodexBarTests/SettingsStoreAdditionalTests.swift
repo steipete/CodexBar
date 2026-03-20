@@ -66,6 +66,20 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
+    func `claude default token account active follows stored primary selection`() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-claude-default-active")
+
+        settings.addTokenAccount(provider: .claude, label: "Work", token: "token-1")
+        settings.setActiveTokenAccountIndex(-1, for: .claude)
+        #expect(settings.isDefaultTokenAccountActive(for: .claude))
+        #expect(settings.displayTokenAccountActiveIndex(for: .claude) == -1)
+
+        settings.setActiveTokenAccountIndex(0, for: .claude)
+        #expect(!settings.isDefaultTokenAccountActive(for: .claude))
+        #expect(settings.displayTokenAccountActiveIndex(for: .claude) == 0)
+    }
+
+    @Test
     func `detects token cost usage sources from filesystem`() throws {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -8,7 +8,7 @@ extension UsageStore {
         guard let data = self.settings.tokenAccountsData(for: .codex), !data.accounts.isEmpty else {
             return (self.credits, self.lastCreditsError, false)
         }
-        if data.isDefaultActive {
+        if self.settings.isDefaultTokenAccountActive(for: .codex) {
             return (self.credits, self.lastCreditsError, false)
         }
         let index = data.clampedActiveIndex()

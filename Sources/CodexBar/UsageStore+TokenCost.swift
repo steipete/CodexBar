@@ -2,13 +2,13 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
-    /// Codex `…/sessions` directory for the credentials dir selected in Settings (path-based token accounts), or `nil` to use the process environment / `~/.codex`.
+    /// Codex `…/sessions` directory for the credentials dir selected in Settings (path-based token accounts), or `nil`
+    /// to use the process environment / `~/.codex`.
     func codexCostUsageSessionsRootForActiveSelection() -> URL? {
         guard let support = TokenAccountSupportCatalog.support(for: .codex),
               case .codexHome = support.injection
         else { return nil }
-        let data = self.settings.tokenAccountsData(for: .codex)
-        let defaultActive = data?.isDefaultActive ?? true
+        let defaultActive = self.settings.isDefaultTokenAccountActive(for: .codex)
         if defaultActive { return nil }
         guard let account = self.settings.selectedTokenAccount(for: .codex) else { return nil }
         let token = account.token.trimmingCharacters(in: .whitespacesAndNewlines)

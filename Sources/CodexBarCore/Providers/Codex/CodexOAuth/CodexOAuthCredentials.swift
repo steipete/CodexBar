@@ -56,7 +56,23 @@ public enum CodexOAuthCredentialsStore {
         return home.appendingPathComponent(".codex").appendingPathComponent("auth.json")
     }
 
-    public static func load(env: [String: String] = ProcessInfo.processInfo.environment) throws -> CodexOAuthCredentials {
+    public static func load(env: [String: String] = ProcessInfo.processInfo
+        .environment) throws -> CodexOAuthCredentials
+    {
+        let codexHome = env["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if codexHome.isEmpty,
+           let apiKey = env["OPENAI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !apiKey.isEmpty
+        {
+            // Token-account `apikey:` injection supplies only OPENAI_API_KEY; avoid reading ~/.codex/auth.json.
+            return CodexOAuthCredentials(
+                accessToken: apiKey,
+                refreshToken: "",
+                idToken: nil,
+                accountId: nil,
+                lastRefresh: nil)
+        }
+
         let url = self.authFilePath(env: env)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CodexOAuthCredentialsError.notFound

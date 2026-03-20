@@ -3,6 +3,29 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    /// Whether fetches should use the primary credential path without a token-account override.
+    /// For Codex, if the user had primary selected (`activeIndex < 0`) but `~/.codex` has no usable credentials,
+    /// this returns `false` so usage/credits/costs follow the visible add-on tab.
+    func isDefaultTokenAccountActive(for provider: UsageProvider) -> Bool {
+        guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else {
+            return true
+        }
+        guard data.activeIndex < 0 else { return false }
+        if provider != .codex { return true }
+        return ProviderCatalog.implementation(for: .codex)?.tokenAccountDefaultLabel(settings: self) != nil
+    }
+
+    /// Menu/settings switcher highlight: maps stored primary selection to add-on index `0` when primary is unavailable.
+    func displayTokenAccountActiveIndex(for provider: UsageProvider) -> Int {
+        let accounts = self.tokenAccounts(for: provider)
+        guard !accounts.isEmpty else { return -1 }
+        let raw = self.tokenAccountsData(for: provider)?.activeIndex ?? -1
+        if raw < 0 {
+            return self.isDefaultTokenAccountActive(for: provider) ? -1 : 0
+        }
+        return min(raw, accounts.count - 1)
+    }
+
     func tokenAccountsData(for provider: UsageProvider) -> ProviderTokenAccountData? {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
         return self.configSnapshot.providerConfig(for: provider)?.tokenAccounts
@@ -14,7 +37,7 @@ extension SettingsStore {
 
     func selectedTokenAccount(for provider: UsageProvider) -> ProviderTokenAccount? {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return nil }
-        guard !data.isDefaultActive else { return nil }
+        guard !self.isDefaultTokenAccountActive(for: provider) else { return nil }
         let index = data.clampedActiveIndex()
         return data.accounts[index]
     }

@@ -71,7 +71,7 @@ struct ProviderDetailView: View {
                         let accounts = self.settings.tokenAccounts(for: .codex)
                         let defaultLabel = CodexProviderImplementation()
                             .tokenAccountDefaultLabel(settings: self.settings)
-                        let rawSelection = self.settings.tokenAccountsData(for: .codex)?.activeIndex ?? -1
+                        let displaySelection = self.settings.displayTokenAccountActiveIndex(for: .codex)
                         ProviderMetricsInlineView(
                             provider: self.provider,
                             model: self.model,
@@ -81,7 +81,7 @@ struct ProviderDetailView: View {
                                 TokenAccountSwitcherRepresentable(
                                     accounts: accounts,
                                     defaultAccountLabel: defaultLabel,
-                                    selectedIndex: rawSelection,
+                                    selectedIndex: displaySelection,
                                     width: ProviderSettingsMetrics.detailMaxWidth,
                                     onSelect: { index in
                                         self.settings.setActiveTokenAccountIndex(index, for: .codex)
@@ -173,7 +173,8 @@ struct ProviderDetailView: View {
         !self.settingsToggles.isEmpty || !self.optionsSectionPickers.isEmpty
     }
 
-    /// When Codex has more than one selectable account, summary email/plan reflect only the active fetch — hide to avoid confusion.
+    /// When Codex has more than one selectable account, summary email/plan reflect only the active fetch — hide to
+    /// avoid confusion.
     private var codexHidesHeaderAccountAndPlan: Bool {
         guard self.provider == .codex else { return false }
         let hasPrimary = CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings) != nil
@@ -192,8 +193,8 @@ struct ProviderDetailView: View {
     private var codexUsageAccountSwitcherIdentity: String {
         let accounts = self.settings.tokenAccounts(for: .codex)
         let ids = accounts.map(\.id.uuidString).sorted().joined(separator: ",")
-        let raw = self.settings.tokenAccountsData(for: .codex)?.activeIndex ?? -1
-        return "\(self.settings.configRevision)-\(ids)-\(raw)"
+        let display = self.settings.displayTokenAccountActiveIndex(for: .codex)
+        return "\(self.settings.configRevision)-\(ids)-\(display)"
     }
 
     /// Display name for the account whose usage/cost is shown (token selection or primary or menu card email).
@@ -201,8 +202,7 @@ struct ProviderDetailView: View {
         let provider = self.provider
         if TokenAccountSupportCatalog.support(for: provider) != nil {
             let accounts = self.settings.tokenAccounts(for: provider)
-            let raw = self.settings.tokenAccountsData(for: provider)?.activeIndex ?? -1
-            if raw < 0 || accounts.isEmpty {
+            if self.settings.isDefaultTokenAccountActive(for: provider) || accounts.isEmpty {
                 if let custom = self.settings.providerConfig(for: provider)?.defaultAccountLabel?
                     .trimmingCharacters(in: .whitespacesAndNewlines),
                     !custom.isEmpty
@@ -212,7 +212,8 @@ struct ProviderDetailView: View {
                 return ProviderCatalog.implementation(for: provider)?
                     .tokenAccountDefaultLabel(settings: self.settings)
             }
-            let index = min(max(raw, 0), max(0, accounts.count - 1))
+            let raw = self.settings.tokenAccountsData(for: provider)?.activeIndex ?? -1
+            let index = min(max(raw < 0 ? 0 : raw, 0), max(0, accounts.count - 1))
             guard index < accounts.count else { return nil }
             return accounts[index].displayName
         }

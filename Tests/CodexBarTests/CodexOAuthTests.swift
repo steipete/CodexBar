@@ -26,6 +26,14 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func `loads API key from environment when CODEX HOME unset`() throws {
+        let creds = try CodexOAuthCredentialsStore.load(env: ["OPENAI_API_KEY": "sk-env-only"])
+        #expect(creds.accessToken == "sk-env-only")
+        #expect(creds.refreshToken.isEmpty)
+        #expect(creds.accountId == nil)
+    }
+
+    @Test
     func `parses API key credentials`() throws {
         let json = """
         {
