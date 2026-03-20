@@ -3,7 +3,7 @@ import CodexBarCore
 
 /// Maps active application bundle identifiers to their corresponding UsageProvider.
 /// Only providers with desktop apps can be detected; CLI-only and web-only providers return nil.
-struct ActiveAppDetector {
+enum ActiveAppDetector {
     /// Maps bundle identifier prefixes to their corresponding provider.
     /// Order matters: more specific prefixes should come first.
     private static let bundleIdToProvider: [(prefix: String, provider: UsageProvider)] = [
@@ -37,7 +37,7 @@ struct ActiveAppDetector {
             return nil
         }
 
-        return provider(for: bundleId)
+        return self.provider(for: bundleId)
     }
 
     /// Looks up the provider for a given bundle identifier.
@@ -45,17 +45,13 @@ struct ActiveAppDetector {
     /// - Returns: The corresponding provider, or nil if no match found.
     static func provider(for bundleId: String) -> UsageProvider? {
         // Try exact match first for special cases
-        for (prefix, provider) in Self.bundleIdToProvider {
-            if bundleId == prefix {
-                return provider
-            }
+        for (prefix, provider) in self.bundleIdToProvider where bundleId == prefix {
+            return provider
         }
 
         // Then try prefix match (handles versioned bundle IDs like com.anthropic.claude-2)
-        for (prefix, provider) in Self.bundleIdToProvider {
-            if bundleId.hasPrefix(prefix) {
-                return provider
-            }
+        for (prefix, provider) in self.bundleIdToProvider where bundleId.hasPrefix(prefix) {
+            return provider
         }
 
         return nil

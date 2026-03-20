@@ -204,11 +204,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.activeAppObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
-            queue: .main) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.handleActiveAppChanged()
-                }
+            queue: .main)
+        { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleActiveAppChanged()
             }
+        }
     }
 
     @objc private func handleActiveAppChanged() {
