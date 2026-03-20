@@ -213,6 +213,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     @objc private func handleActiveAppChanged() {
         guard self.settings.menuBarShowsActiveProvider, self.shouldMergeIcons else { return }
+        self.updateActiveProviderTracking()
         self.updateIcons()
     }
 
