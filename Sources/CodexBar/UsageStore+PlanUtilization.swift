@@ -329,6 +329,10 @@ extension UsageStore {
         existingPeak: PlanUtilizationHistoryEntry,
         observation: PlanUtilizationHistoryEntry) -> PlanUtilizationHistoryEntry
     {
+        if existingPeak.resetsAt == nil, observation.resetsAt != nil {
+            return observation
+        }
+
         let hasHigherUsage = observation.usedPercent > existingPeak.usedPercent
         let tiesUsageAndIsMoreRecent = observation.usedPercent == existingPeak.usedPercent
             && observation.capturedAt >= existingPeak.capturedAt

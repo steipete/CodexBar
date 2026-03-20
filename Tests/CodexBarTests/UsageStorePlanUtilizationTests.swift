@@ -63,6 +63,37 @@ struct UsageStorePlanUtilizationTests {
     }
 
     @Test
+    func firstKnownResetBoundaryWithinHourReplacesEarlierProvisionalPeakEvenWhenUsageDrops() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let hourStart = try #require(calendar.date(from: DateComponents(
+            timeZone: TimeZone(secondsFromGMT: 0),
+            year: 2026,
+            month: 3,
+            day: 17,
+            hour: 10)))
+        let first = planEntry(
+            at: hourStart.addingTimeInterval(5 * 60),
+            usedPercent: 82,
+            resetsAt: nil)
+        let second = planEntry(
+            at: hourStart.addingTimeInterval(35 * 60),
+            usedPercent: 4,
+            resetsAt: hourStart.addingTimeInterval(5 * 60 * 60))
+
+        let initial = try #require(
+            UsageStore._updatedPlanUtilizationEntriesForTesting(
+                existingEntries: [],
+                entry: first))
+        let updated = try #require(
+            UsageStore._updatedPlanUtilizationEntriesForTesting(
+                existingEntries: initial,
+                entry: second))
+
+        #expect(updated.count == 1)
+        #expect(updated[0] == second)
+    }
+
+    @Test
     func trimsEntryHistoryToRetentionLimit() throws {
         let maxSamples = UsageStore._planUtilizationMaxSamplesForTesting
         let base = Date(timeIntervalSince1970: 1_700_000_000)

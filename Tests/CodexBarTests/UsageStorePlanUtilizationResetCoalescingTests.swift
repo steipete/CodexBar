@@ -34,6 +34,45 @@ struct UsageStorePlanUtilizationResetCoalescingTests {
     }
 
     @Test
+    func sameHourLaterHigherUsageWithoutResetMetadataKeepsPromotedResetBoundary() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let hourStart = try #require(calendar.date(from: DateComponents(
+            timeZone: TimeZone(secondsFromGMT: 0),
+            year: 2026,
+            month: 3,
+            day: 17,
+            hour: 9)))
+        let first = planEntry(
+            at: hourStart.addingTimeInterval(10 * 60),
+            usedPercent: 40)
+        let second = planEntry(
+            at: hourStart.addingTimeInterval(25 * 60),
+            usedPercent: 8,
+            resetsAt: hourStart.addingTimeInterval(30 * 60))
+        let third = planEntry(
+            at: hourStart.addingTimeInterval(50 * 60),
+            usedPercent: 22)
+
+        let initial = try #require(
+            UsageStore._updatedPlanUtilizationEntriesForTesting(
+                existingEntries: [],
+                entry: first))
+        let promoted = try #require(
+            UsageStore._updatedPlanUtilizationEntriesForTesting(
+                existingEntries: initial,
+                entry: second))
+        let updated = try #require(
+            UsageStore._updatedPlanUtilizationEntriesForTesting(
+                existingEntries: promoted,
+                entry: third))
+
+        #expect(updated.count == 1)
+        #expect(updated[0].capturedAt == third.capturedAt)
+        #expect(updated[0].usedPercent == third.usedPercent)
+        #expect(updated[0].resetsAt == second.resetsAt)
+    }
+
+    @Test
     func sameHourZeroUsageWithDriftingResetCoalescesToLatestEntry() throws {
         let calendar = Calendar(identifier: .gregorian)
         let hourStart = try #require(calendar.date(from: DateComponents(
