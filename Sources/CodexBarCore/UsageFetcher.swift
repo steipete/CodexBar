@@ -56,6 +56,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let minimaxUsage: MiniMaxUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
     public let cursorRequests: CursorRequestUsage?
+    /// Auto + API pool breakdown for token-based Cursor pro plans.
+    public let cursorPoolUsage: CursorPoolUsage?
     public let updatedAt: Date
     public let identity: ProviderIdentitySnapshot?
 
@@ -81,6 +83,7 @@ public struct UsageSnapshot: Codable, Sendable {
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
         openRouterUsage: OpenRouterUsageSnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
+        cursorPoolUsage: CursorPoolUsage? = nil,
         updatedAt: Date,
         identity: ProviderIdentitySnapshot? = nil)
     {
@@ -92,6 +95,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.minimaxUsage = minimaxUsage
         self.openRouterUsage = openRouterUsage
         self.cursorRequests = cursorRequests
+        self.cursorPoolUsage = cursorPoolUsage
         self.updatedAt = updatedAt
         self.identity = identity
     }
@@ -106,6 +110,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.openRouterUsage = try container.decodeIfPresent(OpenRouterUsageSnapshot.self, forKey: .openRouterUsage)
         self.cursorRequests = nil // Not persisted, fetched fresh each time
+        self.cursorPoolUsage = nil // Not persisted, fetched fresh each time
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
             self.identity = identity

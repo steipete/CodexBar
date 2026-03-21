@@ -10,8 +10,8 @@ public enum CursorProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .cursor,
                 displayName: "Cursor",
-                sessionLabel: "Plan",
-                weeklyLabel: "On-Demand",
+                sessionLabel: "Auto",
+                weeklyLabel: "API",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: true,
