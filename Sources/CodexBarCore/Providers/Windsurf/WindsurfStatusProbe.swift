@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 // MARK: - Cached Plan Info (Codable)
 
@@ -27,7 +26,11 @@ public struct WindsurfCachedPlanInfo: Codable, Sendable {
     }
 }
 
-// MARK: - Errors
+// MARK: - Errors & Probe
+
+#if os(macOS)
+
+import SQLite3
 
 public enum WindsurfStatusProbeError: LocalizedError, Sendable, Equatable {
     case dbNotFound(String)
@@ -87,15 +90,18 @@ public struct WindsurfStatusProbe: Sendable {
         }
         defer { sqlite3_finalize(stmt) }
 
-        guard sqlite3_step(stmt) == SQLITE_ROW else {
-            throw WindsurfStatusProbeError.noData
+        let stepResult = sqlite3_step(stmt)
+        guard stepResult == SQLITE_ROW else {
+            if stepResult == SQLITE_DONE {
+                throw WindsurfStatusProbeError.noData
+            }
+            let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
+            throw WindsurfStatusProbeError.sqliteFailed(message)
         }
 
-        guard let cString = sqlite3_column_text(stmt, 0) else {
+        guard let jsonString = Self.decodeSQLiteValue(stmt: stmt, index: 0) else {
             throw WindsurfStatusProbeError.noData
         }
-
-        let jsonString = String(cString: cString)
         guard let jsonData = jsonString.data(using: .utf8) else {
             throw WindsurfStatusProbeError.parseFailed("Invalid UTF-8 encoding")
         }
@@ -106,7 +112,51 @@ public struct WindsurfStatusProbe: Sendable {
             throw WindsurfStatusProbeError.parseFailed(error.localizedDescription)
         }
     }
+
+    private static func decodeSQLiteValue(stmt: OpaquePointer?, index: Int32) -> String? {
+        switch sqlite3_column_type(stmt, index) {
+        case SQLITE_TEXT:
+            guard let c = sqlite3_column_text(stmt, index) else { return nil }
+            return String(cString: c)
+        case SQLITE_BLOB:
+            guard let bytes = sqlite3_column_blob(stmt, index) else { return nil }
+            let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, index)))
+            // VSCode/Windsurf state.vscdb schema declares value as BLOB;
+            // try UTF-16LE first (common for VSCode derivatives), then UTF-8.
+            if let decoded = String(data: data, encoding: .utf16LittleEndian) {
+                return decoded.trimmingCharacters(in: .controlCharacters)
+            }
+            if let decoded = String(data: data, encoding: .utf8) {
+                return decoded.trimmingCharacters(in: .controlCharacters)
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
 }
+
+#else
+
+// MARK: - Windsurf (Unsupported)
+
+public enum WindsurfStatusProbeError: LocalizedError, Sendable, Equatable {
+    case notSupported
+
+    public var errorDescription: String? {
+        "Windsurf is only supported on macOS."
+    }
+}
+
+public struct WindsurfStatusProbe: Sendable {
+    public init(dbPath _: String? = nil) {}
+
+    public func fetch() throws -> WindsurfCachedPlanInfo {
+        throw WindsurfStatusProbeError.notSupported
+    }
+}
+
+#endif
 
 // MARK: - Conversion to UsageSnapshot
 
