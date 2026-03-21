@@ -101,6 +101,8 @@ public struct TTYCommandRunner {
         public var stopOnURL: Bool
         public var stopOnSubstrings: [String]
         public var settleAfterStop: TimeInterval
+        /// When set, used as the base for `enrichedEnvironment` instead of `ProcessInfo.processInfo.environment`.
+        public var baseProcessEnvironment: [String: String]?
 
         public init(
             rows: UInt16 = 50,
@@ -114,7 +116,8 @@ public struct TTYCommandRunner {
             sendOnSubstrings: [String: String] = [:],
             stopOnURL: Bool = false,
             stopOnSubstrings: [String] = [],
-            settleAfterStop: TimeInterval = 0.25)
+            settleAfterStop: TimeInterval = 0.25,
+            baseProcessEnvironment: [String: String]? = nil)
         {
             self.rows = rows
             self.cols = cols
@@ -128,6 +131,7 @@ public struct TTYCommandRunner {
             self.stopOnURL = stopOnURL
             self.stopOnSubstrings = stopOnSubstrings
             self.settleAfterStop = settleAfterStop
+            self.baseProcessEnvironment = baseProcessEnvironment
         }
     }
 
@@ -375,7 +379,8 @@ public struct TTYCommandRunner {
         proc.standardError = secondaryHandle
         // Use login-shell PATH when available, but keep the caller’s environment (HOME, LANG, etc.) so
         // the CLIs can find their auth/config files.
-        var env = Self.enrichedEnvironment()
+        var env = Self.enrichedEnvironment(
+            baseEnv: options.baseProcessEnvironment ?? ProcessInfo.processInfo.environment)
         if let workingDirectory = options.workingDirectory {
             proc.currentDirectoryURL = workingDirectory
             env["PWD"] = workingDirectory.path

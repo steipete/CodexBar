@@ -9,7 +9,11 @@ extension UsageStore {
             return (self.credits, self.lastCreditsError, false)
         }
         if self.settings.isDefaultTokenAccountActive(for: .codex) {
-            return (self.credits, self.lastCreditsError, false)
+            return Self.resolvePrimaryCodexCreditsFromOAuth(
+                entries: self.allAccountCredits[.codex] ?? [],
+                rpcCredits: self.credits,
+                rpcError: self.lastCreditsError,
+                costRefreshInFlight: self.accountCostRefreshInFlight.contains(.codex))
         }
         let index = data.clampedActiveIndex()
         guard index >= 0, index < data.accounts.count else {
@@ -46,6 +50,28 @@ extension UsageStore {
         if unlimited { return nil }
         guard let remaining = snapshot?.remaining, remaining.isFinite, remaining > 0 else { return nil }
         return remaining
+    }
+
+    /// Merge OAuth cost-row data for the primary (`id == "default"`) account with RPC/dashboard credits.
+    static func resolvePrimaryCodexCreditsFromOAuth(
+        entries: [AccountCostEntry],
+        rpcCredits: CreditsSnapshot?,
+        rpcError: String?,
+        costRefreshInFlight: Bool) -> (snapshot: CreditsSnapshot?, error: String?, unlimited: Bool)
+    {
+        let entry = entries.first { $0.id == "default" }
+        if let entry {
+            let trimmedErr = entry.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmedErr.isEmpty {
+                return (nil, Self.shortCodexOAuthErrorMessage(trimmedErr), false)
+            }
+            if entry.isUnlimited {
+                return (nil, nil, true)
+            }
+        } else if costRefreshInFlight {
+            return (nil, "Loading credits…", false)
+        }
+        return (rpcCredits, rpcError, false)
     }
 
     private static func shortCodexOAuthErrorMessage(_ error: String) -> String {

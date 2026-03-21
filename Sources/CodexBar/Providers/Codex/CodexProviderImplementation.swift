@@ -21,6 +21,7 @@ struct CodexProviderImplementation: ProviderImplementation {
         _ = settings.codexUsageDataSource
         _ = settings.codexCookieSource
         _ = settings.codexCookieHeader
+        _ = settings.codexExplicitAccountsOnly
     }
 
     @MainActor
@@ -75,7 +76,31 @@ struct CodexProviderImplementation: ProviderImplementation {
             get: { context.settings.codexBuyCreditsMenuEnabled },
             set: { context.settings.codexBuyCreditsMenuEnabled = $0 })
 
+        let explicitAccountsBinding = Binding(
+            get: { context.settings.codexExplicitAccountsOnly },
+            set: { newValue in
+                context.settings.codexExplicitAccountsOnly = newValue
+                Task { @MainActor in
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await context.store.refreshProvider(.codex, allowDisabled: true)
+                    }
+                }
+            })
+
         return [
+            ProviderSettingsToggleDescriptor(
+                id: "codex-explicit-accounts-only",
+                title: "CodexBar accounts only",
+                subtitle:
+                "Ignore ~/.codex as an implicit account. Use only rows under Accounts " +
+                    "(OAuth, API key, or manual CODEX_HOME path).",
+                binding: explicitAccountsBinding,
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
             ProviderSettingsToggleDescriptor(
                 id: "codex-buy-credits-menu",
                 title: "Show Buy Credits in menu",
@@ -99,7 +124,9 @@ struct CodexProviderImplementation: ProviderImplementation {
                         let alert = NSAlert()
                         alert.messageText = "No API key configured"
                         alert.informativeText =
-                            "Buy Credits opens the ChatGPT billing page. You don’t have an API key saved for Codex — only OAuth-based usage is configured. You can still continue; add an API key in Codex settings if you use one."
+                            "Buy Credits opens the ChatGPT billing page. You don’t have an API key saved for Codex — " +
+                            "only OAuth-based usage is configured. You can still continue; add an API key in Codex " +
+                            "settings if you use one."
                         alert.alertStyle = .informational
                         alert.addButton(withTitle: "OK")
                         alert.runModal()
@@ -167,13 +194,12 @@ struct CodexProviderImplementation: ProviderImplementation {
         if self.tokenAccountDefaultLabel(settings: context.settings) != nil {
             let custom = context.settings.providerConfig(for: .codex)?.defaultAccountLabel?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let title: String
-            if let custom, !custom.isEmpty {
-                title = custom
+            let title: String = if let custom, !custom.isEmpty {
+                custom
             } else if let email = self.tokenAccountDefaultLabel(settings: context.settings) {
-                title = email
+                email
             } else {
-                title = "Primary"
+                "Primary"
             }
             menuBarAccountOptions.append(
                 ProviderSettingsPickerOption(
@@ -210,6 +236,9 @@ struct CodexProviderImplementation: ProviderImplementation {
                 isVisible: {
                     let accounts = context.settings.tokenAccounts(for: .codex)
                     let hasPrimary = self.tokenAccountDefaultLabel(settings: context.settings) != nil
+                    if context.settings.codexExplicitAccountsOnly {
+                        return accounts.count >= 1
+                    }
                     return (hasPrimary ? 1 : 0) + accounts.count >= 2
                 },
                 onChange: { _ in
@@ -303,12 +332,14 @@ struct CodexProviderImplementation: ProviderImplementation {
 
     @MainActor
     func tokenAccountDefaultLabel(settings: SettingsStore?) -> String? {
+        if settings?.codexExplicitAccountsOnly == true { return nil }
+        guard let credentials = try? CodexOAuthCredentialsStore.load() else { return nil }
+
         if let custom = settings?.providerConfig(for: .codex)?.defaultAccountLabel,
            !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             return custom
         }
-        guard let credentials = try? CodexOAuthCredentialsStore.load() else { return nil }
 
         if let idToken = credentials.idToken,
            let payload = UsageFetcher.parseJWT(idToken)
@@ -338,11 +369,10 @@ struct CodexProviderImplementation: ProviderImplementation {
     func tokenAccountLoginAction(context _: ProviderSettingsContext)
         -> ((
             _ setProgress: @escaping @MainActor (String) -> Void,
-            _ addAccount: @escaping @MainActor (String, String) -> Void
-        ) async -> Bool)?
+            _ addAccount: @escaping @MainActor (String, String) -> Void) async -> Bool)?
     {
-        return { @MainActor setProgress, addAccount in
-            let accountsDir = (("~/.codex-accounts") as NSString).expandingTildeInPath
+        { @MainActor setProgress, addAccount in
+            let accountsDir = ("~/.codex-accounts" as NSString).expandingTildeInPath
             let uniqueDir = "\(accountsDir)/\(UUID().uuidString.prefix(8))"
             try? FileManager.default.createDirectory(
                 atPath: uniqueDir,

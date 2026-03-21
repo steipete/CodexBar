@@ -115,9 +115,10 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let keepAlive = context.settings?.debugKeepCLISessionsAlive ?? false
-        let usage = try await context.fetcher.loadLatestUsage(keepCLISessionsAlive: keepAlive)
+        let fetcher = UsageFetcher(environment: context.env)
+        let usage = try await fetcher.loadLatestUsage(keepCLISessionsAlive: keepAlive)
         let credits = await context.includeCredits
-            ? (try? context.fetcher.loadLatestCredits(keepCLISessionsAlive: keepAlive))
+            ? (try? fetcher.loadLatestCredits(keepCLISessionsAlive: keepAlive))
             : nil
         return self.makeResult(
             usage: usage,

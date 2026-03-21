@@ -343,7 +343,8 @@ private final class CodexRPCClient: @unchecked Sendable {
 
     init(
         executable: String = "codex",
-        arguments: [String] = ["-s", "read-only", "-a", "untrusted", "app-server"]) throws
+        arguments: [String] = ["-s", "read-only", "-a", "untrusted", "app-server"],
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
         var stdoutContinuation: AsyncStream<Data>.Continuation!
         self.stdoutLineStream = AsyncStream<Data> { continuation in
@@ -351,7 +352,9 @@ private final class CodexRPCClient: @unchecked Sendable {
         }
         self.stdoutLineContinuation = stdoutContinuation
 
-        let resolvedExec = BinaryLocator.resolveCodexBinary()
+        let resolvedExec = BinaryLocator.resolveCodexBinary(
+            env: environment,
+            loginPATH: LoginShellPathCache.shared.current)
             ?? TTYCommandRunner.which(executable)
 
         guard let resolvedExec else {
@@ -359,7 +362,7 @@ private final class CodexRPCClient: @unchecked Sendable {
             throw RPCWireError.startFailed(
                 "Codex CLI not found. Install with `npm i -g @openai/codex` (or bun) then relaunch CodexBar.")
         }
-        var env = ProcessInfo.processInfo.environment
+        var env = environment
         env["PATH"] = PathBuilder.effectivePATH(
             purposes: [.rpc, .nodeTooling],
             env: env)
@@ -527,7 +530,7 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCUsage() async throws -> UsageSnapshot {
-        let rpc = try CodexRPCClient()
+        let rpc = try CodexRPCClient(environment: self.environment)
         defer { rpc.shutdown() }
 
         try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
@@ -561,7 +564,9 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
-        let status = try await CodexStatusProbe(keepCLISessionsAlive: keepCLISessionsAlive).fetch()
+        let status = try await CodexStatusProbe(
+            keepCLISessionsAlive: keepCLISessionsAlive,
+            processEnvironment: self.environment).fetch()
         guard let fiveLeft = status.fiveHourPercentLeft, let weekLeft = status.weeklyPercentLeft else {
             throw UsageError.noRateLimitsFound
         }
@@ -592,7 +597,7 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCCredits() async throws -> CreditsSnapshot {
-        let rpc = try CodexRPCClient()
+        let rpc = try CodexRPCClient(environment: self.environment)
         defer { rpc.shutdown() }
         try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
         let limits = try await rpc.fetchRateLimits().rateLimits
@@ -602,7 +607,9 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
-        let status = try await CodexStatusProbe(keepCLISessionsAlive: keepCLISessionsAlive).fetch()
+        let status = try await CodexStatusProbe(
+            keepCLISessionsAlive: keepCLISessionsAlive,
+            processEnvironment: self.environment).fetch()
         guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
         return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
     }
@@ -625,7 +632,7 @@ public struct UsageFetcher: Sendable {
 
     public func debugRawRateLimits() async -> String {
         do {
-            let rpc = try CodexRPCClient()
+            let rpc = try CodexRPCClient(environment: self.environment)
             defer { rpc.shutdown() }
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
             let limits = try await rpc.fetchRateLimits()
@@ -638,8 +645,9 @@ public struct UsageFetcher: Sendable {
 
     public func loadAccountInfo() -> AccountInfo {
         // Keep using auth.json for quick startup (non-blocking, no RPC spin-up required).
-        let authURL = URL(fileURLWithPath: self.environment["CODEX_HOME"] ?? "\(NSHomeDirectory())/.codex")
-            .appendingPathComponent("auth.json")
+        let homeRoot = self.environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = (homeRoot?.isEmpty == false) ? homeRoot! : "\(NSHomeDirectory())/.codex"
+        let authURL = URL(fileURLWithPath: base).appendingPathComponent("auth.json")
         guard let data = try? Data(contentsOf: authURL),
               let auth = try? JSONDecoder().decode(AuthFile.self, from: data),
               let idToken = auth.tokens?.idToken

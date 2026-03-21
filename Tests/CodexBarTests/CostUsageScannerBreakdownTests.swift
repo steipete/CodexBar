@@ -340,4 +340,68 @@ struct CostUsageScannerBreakdownTests {
         ])
         #expect(report.data[0].modelBreakdowns?.map(\.totalTokens) == [110, 40, 30, 15])
     }
+
+    @Test
+    func `codex daily report merges codexExtraSessionsRoots`() throws {
+        let addonEnv = try CostUsageTestEnvironment()
+        let primaryEnv = try CostUsageTestEnvironment()
+        defer {
+            addonEnv.cleanup()
+            primaryEnv.cleanup()
+        }
+
+        let day = try addonEnv.makeLocalNoon(year: 2025, month: 12, day: 21)
+        let iso0 = addonEnv.isoString(for: day)
+        let iso1 = addonEnv.isoString(for: day.addingTimeInterval(1))
+        let model = "openai/gpt-5.2-codex"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "payload": [
+                "session_id": "sess-primary-extra",
+            ],
+        ]
+        let turnContext: [String: Any] = [
+            "type": "turn_context",
+            "timestamp": iso0,
+            "payload": [
+                "model": model,
+            ],
+        ]
+        let tokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso1,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "total_token_usage": [
+                        "input_tokens": 50,
+                        "cached_input_tokens": 0,
+                        "output_tokens": 25,
+                    ],
+                    "model": model,
+                ],
+            ],
+        ]
+        _ = try primaryEnv.writeCodexSessionFile(
+            day: day,
+            filename: "primary-only.jsonl",
+            contents: primaryEnv.jsonl([sessionMeta, turnContext, tokenCount]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: addonEnv.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: addonEnv.cacheRoot)
+        options.codexExtraSessionsRoots = [primaryEnv.codexSessionsRoot]
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].totalTokens == 75)
+    }
 }

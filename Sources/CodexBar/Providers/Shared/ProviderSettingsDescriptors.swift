@@ -113,8 +113,9 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     /// true on success or false on failure/cancellation.
     let loginAction: ((
         _ setProgress: @escaping @MainActor (String) -> Void,
-        _ addAccount: @escaping @MainActor (String, String) -> Void
-    ) async -> Bool)?
+        _ addAccount: @escaping @MainActor (String, String) -> Void) async -> Bool)?
+    /// Codex only: mirrors **CodexBar accounts only**; hides ~/.codex primary tab and adjusts copy.
+    let codexExplicitAccountsOnly: Bool
 }
 
 /// Which detail section a provider settings picker appears in.

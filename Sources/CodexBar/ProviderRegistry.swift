@@ -107,6 +107,15 @@ struct ProviderRegistry {
                 env[key] = value
             }
         }
+        if provider == .codex,
+           settings.codexExplicitAccountsOnly,
+           account == nil,
+           tokenOverride == nil
+        {
+            var patched = env
+            patched["CODEX_HOME"] = CodexDefaultHomeIsolation.sentinelCodexHomePath()
+            return patched
+        }
         return env
     }
 }

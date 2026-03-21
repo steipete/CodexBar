@@ -91,7 +91,7 @@ struct UsageProgressBar: View {
     /// Solid pace marker for non-menu contexts (avoids `destinationOut` punch-through on the fill).
     private func simplePaceTip(width: CGFloat, height: CGFloat) -> some View {
         let isDeficit = self.paceOnTop == false
-        let fill: Color = if isDeficit {
+        let fill = if isDeficit {
             Color.red.opacity(0.92)
         } else {
             Color.green

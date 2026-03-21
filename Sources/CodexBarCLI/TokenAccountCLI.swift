@@ -86,7 +86,8 @@ struct TokenAccountCLIContext {
                 codex: ProviderSettingsSnapshot.CodexProviderSettings(
                     usageDataSource: .auto,
                     cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
+                    manualCookieHeader: cookieHeader,
+                    explicitAccountsOnly: config?.codexExplicitAccountsOnly ?? false))
         case .claude:
             let routing = self.claudeCredentialRouting(account: account, config: config)
             let claudeSource: ClaudeUsageDataSource = routing.isOAuth ? .oauth : .auto

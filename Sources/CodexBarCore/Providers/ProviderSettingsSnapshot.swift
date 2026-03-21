@@ -44,15 +44,18 @@ public struct ProviderSettingsSnapshot: Sendable {
         public let usageDataSource: CodexUsageDataSource
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
+        public let explicitAccountsOnly: Bool
 
         public init(
             usageDataSource: CodexUsageDataSource,
             cookieSource: ProviderCookieSource,
-            manualCookieHeader: String?)
+            manualCookieHeader: String?,
+            explicitAccountsOnly: Bool = false)
         {
             self.usageDataSource = usageDataSource
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
+            self.explicitAccountsOnly = explicitAccountsOnly
         }
     }
 

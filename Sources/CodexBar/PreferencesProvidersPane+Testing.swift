@@ -180,7 +180,8 @@ enum ProvidersPaneTestHarness {
             reloadFromDisk: {},
             defaultAccountLabel: nil,
             renameDefaultAccount: nil,
-            loginAction: nil)
+            loginAction: nil,
+            codexExplicitAccountsOnly: false)
 
         return ProviderListTestDescriptors(
             toggle: toggle,

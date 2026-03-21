@@ -18,6 +18,9 @@ struct ProviderDetailView: View {
     let onCopyError: (String) -> Void
     let onRefresh: () -> Void
 
+    /// Width of the scroll view’s content column (drives Codex token switcher — must not use `detailMaxWidth` there).
+    @State private var measuredDetailContentWidth: CGFloat = 0
+
     static func metricTitle(provider: UsageProvider, metric: UsageMenuCardView.Model.Metric) -> String {
         UsageMenuCardView.popupMetricTitle(provider: provider, metric: metric)
     }
@@ -78,11 +81,14 @@ struct ProviderDetailView: View {
                             isEnabled: self.isEnabled,
                             labelWidth: labelWidth,
                             accountSwitcher: {
+                                let identity = self.codexUsageAccountSwitcherIdentity
+                                let widthKey = String(Int(self.codexAccountSwitcherLayoutWidth))
+                                let switcherID = "\(identity)-\(widthKey)"
                                 TokenAccountSwitcherRepresentable(
                                     accounts: accounts,
                                     defaultAccountLabel: defaultLabel,
                                     selectedIndex: displaySelection,
-                                    width: ProviderSettingsMetrics.detailMaxWidth,
+                                    width: self.codexAccountSwitcherLayoutWidth,
                                     onSelect: { index in
                                         self.settings.setActiveTokenAccountIndex(index, for: .codex)
                                         Task { @MainActor in
@@ -91,7 +97,7 @@ struct ProviderDetailView: View {
                                             }
                                         }
                                     })
-                                    .id(self.codexUsageAccountSwitcherIdentity)
+                                    .id(switcherID)
                                     .frame(height: TokenAccountSwitcherView.preferredHeight(
                                         accounts: accounts,
                                         defaultAccountLabel: defaultLabel))
@@ -139,8 +145,7 @@ struct ProviderDetailView: View {
                             ProviderSettingsToggleRowView(toggle: toggle)
                         }
                         if self.provider == .codex {
-                            Text(
-                                "The primary account is whichever identity Codex has configured in ~/.codex on this Mac. Other rows in Accounts are separate credentials/folders. “Menu bar account” chooses which one CodexBar shows in the menu bar.")
+                            Text(self.codexOptionsFooterExplanation)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -149,7 +154,19 @@ struct ProviderDetailView: View {
                     }
                 }
             }
-            .frame(maxWidth: ProviderSettingsMetrics.detailMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: DetailContentWidthPreference.self,
+                        value: proxy.size.width)
+                })
+            .onPreferenceChange(DetailContentWidthPreference.self) { width in
+                guard width > 1 else { return }
+                if abs(width - self.measuredDetailContentWidth) > 0.5 {
+                    self.measuredDetailContentWidth = width
+                }
+            }
             .padding(.vertical, 12)
             .padding(.horizontal, 8)
         }
@@ -173,12 +190,35 @@ struct ProviderDetailView: View {
         !self.settingsToggles.isEmpty || !self.optionsSectionPickers.isEmpty
     }
 
+    private var codexOptionsFooterExplanation: String {
+        if self.settings.codexExplicitAccountsOnly {
+            return """
+            CodexBar accounts only is on: ~/.codex is not used as an implicit account. \
+            Add identities under Accounts (OAuth, API key, or manual CODEX_HOME path). \
+            “Menu bar account” chooses which row drives the menu bar.
+            """
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespaces)
+        }
+        return """
+        The primary account is whichever identity Codex has configured in ~/.codex on this Mac. \
+        Other rows in Accounts are separate credentials/folders. \
+        “Menu bar account” chooses which one CodexBar shows in the menu bar.
+        """
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespaces)
+    }
+
     /// When Codex has more than one selectable account, summary email/plan reflect only the active fetch — hide to
     /// avoid confusion.
     private var codexHidesHeaderAccountAndPlan: Bool {
         guard self.provider == .codex else { return false }
-        let hasPrimary = CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings) != nil
+        let hasPrimary = !self.settings.codexExplicitAccountsOnly &&
+            CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings) != nil
         let addedCount = self.settings.tokenAccounts(for: .codex).count
+        if self.settings.codexExplicitAccountsOnly {
+            return addedCount >= 2
+        }
         return (hasPrimary ? 1 : 0) + addedCount >= 2
     }
 
@@ -186,6 +226,9 @@ struct ProviderDetailView: View {
     private var codexShowsUsageAccountSwitcher: Bool {
         guard self.provider == .codex else { return false }
         let accounts = self.settings.tokenAccounts(for: .codex)
+        if self.settings.codexExplicitAccountsOnly {
+            return accounts.count >= 2
+        }
         let defaultLabel = CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings)
         return (accounts.count >= 1 && defaultLabel != nil) || accounts.count > 1
     }
@@ -195,6 +238,14 @@ struct ProviderDetailView: View {
         let ids = accounts.map(\.id.uuidString).sorted().joined(separator: ",")
         let display = self.settings.displayTokenAccountActiveIndex(for: .codex)
         return "\(self.settings.configRevision)-\(ids)-\(display)"
+    }
+
+    /// `TokenAccountSwitcherView` uses a fixed AppKit width; it must match the providers pane column (~400pt), not
+    /// `detailMaxWidth` (640).
+    private var codexAccountSwitcherLayoutWidth: CGFloat {
+        let measured = self.measuredDetailContentWidth
+        let column = measured > 1 ? measured : 400
+        return max(220, column - 16)
     }
 
     /// Display name for the account whose usage/cost is shown (token selection or primary or menu card email).
@@ -254,6 +305,19 @@ struct ProviderDetailView: View {
             for: metricLabels,
             font: ProviderSettingsMetrics.metricLabelFont())
         return max(infoWidth, metricWidth)
+    }
+}
+
+private enum DetailContentWidthPreference: PreferenceKey {
+    static var defaultValue: CGFloat {
+        0
+    }
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 {
+            value = next
+        }
     }
 }
 

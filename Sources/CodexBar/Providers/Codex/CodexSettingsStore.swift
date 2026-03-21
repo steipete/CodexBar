@@ -2,7 +2,29 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
-    /// When `true` (default), shows "Buy Credits…" in the Codex menu. Persisted per-provider; `nil` in config means enabled.
+    /// When `true`, CodexBar never treats `~/.codex` as an implicit menu-bar account; add accounts under Accounts
+    /// (OAuth, API key, or path).
+    var codexExplicitAccountsOnly: Bool {
+        get { self.configSnapshot.providerConfig(for: .codex)?.codexExplicitAccountsOnly ?? false }
+        set {
+            self.updateProviderConfig(provider: .codex) { entry in
+                entry.codexExplicitAccountsOnly = newValue
+                if newValue,
+                   let token = entry.tokenAccounts,
+                   !token.accounts.isEmpty,
+                   token.activeIndex < 0
+                {
+                    entry.tokenAccounts = ProviderTokenAccountData(
+                        version: token.version,
+                        accounts: token.accounts,
+                        activeIndex: 0)
+                }
+            }
+        }
+    }
+
+    /// When `true` (default), shows "Buy Credits…" in the Codex menu. Persisted per-provider; `nil` in config means
+    /// enabled.
     var codexBuyCreditsMenuEnabled: Bool {
         get { self.configSnapshot.providerConfig(for: .codex)?.buyCreditsMenuEnabled ?? true }
         set {
@@ -62,7 +84,8 @@ extension SettingsStore {
         ProviderSettingsSnapshot.CodexProviderSettings(
             usageDataSource: self.codexUsageDataSource,
             cookieSource: self.codexSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.codexSnapshotCookieHeader(tokenOverride: tokenOverride))
+            manualCookieHeader: self.codexSnapshotCookieHeader(tokenOverride: tokenOverride),
+            explicitAccountsOnly: self.codexExplicitAccountsOnly)
     }
 
     private static func codexUsageDataSource(from source: ProviderSourceMode?) -> CodexUsageDataSource {

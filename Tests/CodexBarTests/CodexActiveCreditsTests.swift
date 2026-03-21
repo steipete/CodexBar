@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct CodexActiveCreditsTests {
     @Test
-    func `primary account uses store credits`() throws {
+    func `primary account uses store credits`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "CodexActiveCreditsTests-primary"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -59,6 +59,58 @@ struct CodexActiveCreditsTests {
         #expect(result.error == nil)
         #expect(result.unlimited == false)
         #expect(store.codexActiveCreditsRemaining() == 55)
+    }
+
+    @Test
+    func `primary oauth default row unlimited merges into menu credits`() {
+        let now = Date()
+        let defaultEntry = AccountCostEntry(
+            id: "default",
+            label: "Primary",
+            isDefault: true,
+            creditsRemaining: nil,
+            isUnlimited: true,
+            planType: "Pro",
+            primaryUsedPercent: nil,
+            secondaryUsedPercent: nil,
+            primaryResetDescription: nil,
+            secondaryResetDescription: nil,
+            error: nil,
+            updatedAt: now)
+        let result = UsageStore.resolvePrimaryCodexCreditsFromOAuth(
+            entries: [defaultEntry],
+            rpcCredits: CreditsSnapshot(remaining: 5, events: [], updatedAt: now),
+            rpcError: nil,
+            costRefreshInFlight: false)
+        #expect(result.snapshot == nil)
+        #expect(result.error == nil)
+        #expect(result.unlimited == true)
+    }
+
+    @Test
+    func `primary oauth default row error wins over rpc credits`() {
+        let now = Date()
+        let defaultEntry = AccountCostEntry(
+            id: "default",
+            label: "Primary",
+            isDefault: true,
+            creditsRemaining: nil,
+            isUnlimited: false,
+            planType: nil,
+            primaryUsedPercent: nil,
+            secondaryUsedPercent: nil,
+            primaryResetDescription: nil,
+            secondaryResetDescription: nil,
+            error: "unauthorized",
+            updatedAt: now)
+        let result = UsageStore.resolvePrimaryCodexCreditsFromOAuth(
+            entries: [defaultEntry],
+            rpcCredits: CreditsSnapshot(remaining: 99, events: [], updatedAt: now),
+            rpcError: nil,
+            costRefreshInFlight: false)
+        #expect(result.snapshot == nil)
+        #expect(result.error == "Token expired")
+        #expect(result.unlimited == false)
     }
 
     @Test

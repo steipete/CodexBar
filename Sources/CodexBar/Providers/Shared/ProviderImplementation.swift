@@ -87,8 +87,7 @@ protocol ProviderImplementation: Sendable {
     func tokenAccountLoginAction(context: ProviderSettingsContext)
         -> ((
             _ setProgress: @escaping @MainActor (String) -> Void,
-            _ addAccount: @escaping @MainActor (String, String) -> Void
-        ) async -> Bool)?
+            _ addAccount: @escaping @MainActor (String, String) -> Void) async -> Bool)?
 }
 
 extension ProviderImplementation {
@@ -191,8 +190,7 @@ extension ProviderImplementation {
     func tokenAccountLoginAction(context _: ProviderSettingsContext)
         -> ((
             _ setProgress: @escaping @MainActor (String) -> Void,
-            _ addAccount: @escaping @MainActor (String, String) -> Void
-        ) async -> Bool)?
+            _ addAccount: @escaping @MainActor (String, String) -> Void) async -> Bool)?
     {
         nil
     }

@@ -9,6 +9,9 @@ enum CostUsageScanner {
 
     struct Options {
         var codexSessionsRoot: URL?
+        /// Extra `…/sessions` directories to scan (e.g. primary `~/.codex/sessions` when it matches the add-on
+        /// account).
+        var codexExtraSessionsRoots: [URL] = []
         var claudeProjectsRoots: [URL]?
         var cacheRoot: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
@@ -18,12 +21,14 @@ enum CostUsageScanner {
 
         init(
             codexSessionsRoot: URL? = nil,
+            codexExtraSessionsRoots: [URL] = [],
             claudeProjectsRoots: [URL]? = nil,
             cacheRoot: URL? = nil,
             claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
             forceRescan: Bool = false)
         {
             self.codexSessionsRoot = codexSessionsRoot
+            self.codexExtraSessionsRoots = codexExtraSessionsRoots
             self.claudeProjectsRoots = claudeProjectsRoots
             self.cacheRoot = cacheRoot
             self.claudeLogProviderFilter = claudeLogProviderFilter
@@ -122,11 +127,27 @@ enum CostUsageScanner {
     }
 
     private static func codexSessionsRoots(options: Options) -> [URL] {
-        let root = self.defaultCodexSessionsRoot(options: options)
-        if let archived = self.codexArchivedSessionsRoot(sessionsRoot: root) {
-            return [root, archived]
+        let baseRoot = self.defaultCodexSessionsRoot(options: options)
+        var ordered: [URL] = [baseRoot]
+        ordered.append(contentsOf: options.codexExtraSessionsRoots)
+
+        var seen = Set<String>()
+        var roots: [URL] = []
+        func appendSessionsAndArchived(_ sessionsURL: URL) {
+            let p = sessionsURL.resolvingSymlinksInPath().standardizedFileURL.path
+            if seen.contains(p) { return }
+            seen.insert(p)
+            roots.append(sessionsURL)
+            guard let archived = self.codexArchivedSessionsRoot(sessionsRoot: sessionsURL) else { return }
+            let ap = archived.resolvingSymlinksInPath().standardizedFileURL.path
+            if seen.contains(ap) { return }
+            seen.insert(ap)
+            roots.append(archived)
         }
-        return [root]
+        for sessionsURL in ordered {
+            appendSessionsAndArchived(sessionsURL)
+        }
+        return roots
     }
 
     private static func codexArchivedSessionsRoot(sessionsRoot: URL) -> URL? {

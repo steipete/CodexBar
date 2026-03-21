@@ -13,9 +13,9 @@ struct FlowLayout: Layout {
 
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            let neededWidth = isFirstInRow ? size.width : spacing + size.width
-            if !isFirstInRow && currentX + neededWidth > maxWidth {
-                totalHeight += currentRowHeight + spacing
+            let neededWidth = isFirstInRow ? size.width : self.spacing + size.width
+            if !isFirstInRow, currentX + neededWidth > maxWidth {
+                totalHeight += currentRowHeight + self.spacing
                 currentX = size.width
                 currentRowHeight = size.height
                 isFirstInRow = false
@@ -38,16 +38,16 @@ struct FlowLayout: Layout {
 
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            let neededWidth = isFirstInRow ? size.width : spacing + size.width
-            if !isFirstInRow && currentX - bounds.minX + neededWidth > maxWidth {
-                currentY += currentRowHeight + spacing
+            let neededWidth = isFirstInRow ? size.width : self.spacing + size.width
+            if !isFirstInRow, currentX - bounds.minX + neededWidth > maxWidth {
+                currentY += currentRowHeight + self.spacing
                 currentX = bounds.minX
                 currentRowHeight = size.height
                 subview.place(at: CGPoint(x: currentX, y: currentY), proposal: .unspecified)
                 currentX += size.width
                 isFirstInRow = false
             } else {
-                if !isFirstInRow { currentX += spacing }
+                if !isFirstInRow { currentX += self.spacing }
                 subview.place(at: CGPoint(x: currentX, y: currentY), proposal: .unspecified)
                 currentX += size.width
                 currentRowHeight = max(currentRowHeight, size.height)

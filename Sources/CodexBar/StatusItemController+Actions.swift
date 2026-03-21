@@ -167,7 +167,7 @@ extension StatusItemController {
 
     private func runTokenAccountLogin(provider: UsageProvider) async -> Bool {
         guard provider == .codex else { return false }
-        let accountsDir = (("~/.codex-accounts") as NSString).expandingTildeInPath
+        let accountsDir = ("~/.codex-accounts" as NSString).expandingTildeInPath
         let uniqueDir = "\(accountsDir)/\(UUID().uuidString.prefix(8))"
         try? FileManager.default.createDirectory(
             atPath: uniqueDir,

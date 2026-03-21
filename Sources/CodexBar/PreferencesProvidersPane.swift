@@ -181,10 +181,18 @@ struct ProvidersPane: View {
         let renameDefaultAccount: ((_ newLabel: String) -> Void)? = impl.map { _ in
             { newLabel in self.settings.setDefaultAccountLabel(provider: provider, label: newLabel) }
         }
+        let codexExplicit = provider == .codex && self.settings.codexExplicitAccountsOnly
+        let accountsSubtitle: String = {
+            if codexExplicit {
+                return "Each row is its own sign-in: OAuth uses a separate credentials folder (CODEX_HOME), " +
+                    "or use an API key. ~/.codex is not listed here while “CodexBar accounts only” is on."
+            }
+            return support.subtitle
+        }()
         return ProviderSettingsTokenAccountsDescriptor(
             id: "token-accounts-\(provider.rawValue)",
             title: support.title,
-            subtitle: support.subtitle,
+            subtitle: accountsSubtitle,
             placeholder: support.placeholder,
             isSecureToken: isSecureToken,
             provider: provider,
@@ -239,7 +247,8 @@ struct ProvidersPane: View {
             },
             defaultAccountLabel: defaultAccountLabel,
             renameDefaultAccount: renameDefaultAccount,
-            loginAction: loginAction)
+            loginAction: loginAction,
+            codexExplicitAccountsOnly: codexExplicit)
     }
 
     private func makeSettingsContext(provider: UsageProvider) -> ProviderSettingsContext {

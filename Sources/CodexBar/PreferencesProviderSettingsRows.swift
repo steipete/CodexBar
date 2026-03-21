@@ -55,6 +55,8 @@ struct ProviderSettingsToggleRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Long subtitles must wrap within the pane width; otherwise the HStack grows past the ScrollView
+            // and the trailing switch is clipped (looks like “labels only, no toggles”).
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(self.toggle.title)
@@ -63,11 +65,14 @@ struct ProviderSettingsToggleRowView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
                 }
-                Spacer(minLength: 8)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+
                 Toggle("", isOn: self.toggle.binding)
                     .labelsHidden()
                     .toggleStyle(.switch)
+                    .fixedSize(horizontal: true, vertical: false)
             }
 
             if self.toggle.binding.wrappedValue {
@@ -147,7 +152,9 @@ struct ProviderSettingsPickerRowView: View {
                 Text(subtitle)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             }
         }
         .disabled(!isEnabled)
@@ -231,12 +238,27 @@ struct ProviderSettingsTokenAccountsRowView: View {
     @State private var signInProgress: String = ""
     @State private var signInError: String = ""
     /// ID of the token account currently being renamed (nil = none).
-    @State private var renamingAccountID: UUID? = nil
+    @State private var renamingAccountID: UUID?
     /// Whether the default account tab is being renamed.
     @State private var renamingDefault: Bool = false
     /// Current text inside the active rename field.
     @State private var renameText: String = ""
     @FocusState private var renameFieldFocused: Bool
+
+    /// Explainer rows for Codex when the implicit ~/.codex primary tab is shown (`show` = discovery UX).
+    private var useCodexDiscoveryHints: Bool {
+        self.descriptor.provider == .codex && !self.descriptor.codexExplicitAccountsOnly
+    }
+
+    private var codexAccountsFooterHint: String {
+        if self.descriptor.codexExplicitAccountsOnly {
+            return "Only one account drives the menu bar at a time. Choose it under Options → “Menu bar account”. " +
+                "Other toggles (Buy Credits, web extras, etc.) are under Options too."
+        }
+        return "Only one account is active at a time. Choose “Menu bar account” under Options below. " +
+            "The house row is your primary ~/.codex sign-in; added rows use a separate OAuth folder or API key. " +
+            "Buy Credits is also under Options."
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -247,7 +269,9 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 Text(self.descriptor.subtitle)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             }
 
             let accounts = self.descriptor.accounts()
@@ -269,11 +293,12 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     accounts: accounts,
                     selectedIndex: selectedIndex)
                 if self.descriptor.provider == .codex {
-                    Text(
-                        "Only one account is active at a time. Choose “Menu bar account” under Options below. The house row is your primary ~/.codex sign-in; added rows use a separate OAuth folder or API key. Buy Credits is also under Options.")
+                    Text(self.codexAccountsFooterHint)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 }
             }
 
@@ -303,7 +328,8 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         self.signInSection(loginAction: loginAction, addAccount: self.descriptor.addAccount)
                     } else {
                         Text(
-                            "Browser OAuth requires the Codex CLI. You can still add an account with an API key (other tab).")
+                            "Browser OAuth requires the Codex CLI. " +
+                                "You can still add an account with an API key (other tab).")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -330,6 +356,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 .controlSize(.small)
             }
         }
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 
     private func accountTabsView(
@@ -361,8 +388,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
     @ViewBuilder
     private func defaultAccountTab(label: String, isActive: Bool) -> some View {
         let isRenaming = self.renamingDefault && self.descriptor.renameDefaultAccount != nil
-        let showCodexHints = self.descriptor.provider == .codex
-        let highlightSelection = !showCodexHints
+        let highlightSelection = !self.useCodexDiscoveryHints
         let rowActive = highlightSelection && isActive
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
@@ -379,21 +405,24 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .onSubmit { self.commitRenameDefault() }
                 } else {
                     Group {
-                        if showCodexHints {
+                        if self.useCodexDiscoveryHints {
                             Text(label)
                                 .font(.footnote.weight(.medium))
-                                .lineLimit(1)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
                                 .foregroundStyle(.primary)
                         } else {
-                            Button(action: { self.descriptor.setActiveIndex(-1) }) {
+                            Button(action: { self.descriptor.setActiveIndex(-1) }, label: {
                                 Text(label)
                                     .font(.footnote.weight(.medium))
-                                    .lineLimit(1)
-                            }
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                            })
                             .buttonStyle(.plain)
                             .foregroundStyle(rowActive ? Color.accentColor : .primary)
                         }
                     }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                     Spacer(minLength: 8)
                     if rowActive {
                         self.menuBarActiveBadge()
@@ -406,15 +435,15 @@ struct ProviderSettingsTokenAccountsRowView: View {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                                 self.renameFieldFocused = true
                             }
-                        }) {
+                        }, label: {
                             Image(systemName: "pencil")
                                 .foregroundStyle(.secondary)
                                 .imageScale(.small)
-                        }
+                        })
                         .buttonStyle(.plain)
                         .help("Rename tab")
                     }
-                    if !showCodexHints, !isActive, !isRenaming {
+                    if !self.useCodexDiscoveryHints, !isActive, !isRenaming {
                         Button("Use") {
                             self.descriptor.setActiveIndex(-1)
                         }
@@ -425,10 +454,12 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     }
                 }
             }
-            if showCodexHints, !isRenaming {
+            if self.useCodexDiscoveryHints, !isRenaming {
                 Text("Primary · ~/.codex on this Mac")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 10)
@@ -462,8 +493,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
     @ViewBuilder
     private func accountTab(account: ProviderTokenAccount, index: Int, isActive: Bool) -> some View {
         let isRenaming = self.renamingAccountID == account.id
-        let showCodexHints = self.descriptor.provider == .codex
-        let highlightSelection = !showCodexHints
+        let highlightSelection = !self.useCodexDiscoveryHints
         let rowActive = highlightSelection && isActive
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
@@ -480,21 +510,24 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .onSubmit { self.commitRename(account: account) }
                 } else {
                     Group {
-                        if showCodexHints {
+                        if self.useCodexDiscoveryHints {
                             Text(account.displayName)
                                 .font(.footnote.weight(.medium))
-                                .lineLimit(1)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
                                 .foregroundStyle(.primary)
                         } else {
-                            Button(action: { self.descriptor.setActiveIndex(index) }) {
+                            Button(action: { self.descriptor.setActiveIndex(index) }, label: {
                                 Text(account.displayName)
                                     .font(.footnote.weight(.medium))
-                                    .lineLimit(1)
-                            }
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                            })
                             .buttonStyle(.plain)
                             .foregroundStyle(rowActive ? Color.accentColor : .primary)
                         }
                     }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                     Spacer(minLength: 8)
                     if rowActive {
                         self.menuBarActiveBadge()
@@ -506,21 +539,21 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                             self.renameFieldFocused = true
                         }
-                    }) {
+                    }, label: {
                         Image(systemName: "pencil")
                             .foregroundStyle(.secondary)
                             .imageScale(.small)
-                    }
+                    })
                     .buttonStyle(.plain)
                     .help("Rename tab")
-                    Button(action: { self.descriptor.removeAccount(account.id) }) {
+                    Button(action: { self.descriptor.removeAccount(account.id) }, label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary.opacity(0.85))
                             .imageScale(.small)
-                    }
+                    })
                     .buttonStyle(.plain)
                     .help("Remove account")
-                    if !showCodexHints, !isActive, !isRenaming {
+                    if !self.useCodexDiscoveryHints, !isActive, !isRenaming {
                         Button("Use") {
                             self.descriptor.setActiveIndex(index)
                         }
@@ -531,10 +564,20 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     }
                 }
             }
-            if showCodexHints, !isRenaming {
-                Text("Added account · OAuth folder or API key")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+            if self.descriptor.provider == .codex, !isRenaming {
+                if self.useCodexDiscoveryHints {
+                    Text("Added account · OAuth folder or API key")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                } else if self.descriptor.codexExplicitAccountsOnly {
+                    Text("OAuth folder or API key")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .padding(.horizontal, 10)

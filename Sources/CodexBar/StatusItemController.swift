@@ -304,7 +304,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             return "\(p.rawValue):\(count):\(active):\(display)"
         }.joined(separator: "|")
         let costSig =
-            "\(s.isCostUsageEffectivelyEnabled(for: .codex))|\(s.isCostUsageEffectivelyEnabled(for: .claude))|\(s.isCostUsageEffectivelyEnabled(for: .vertexai))"
+            "\(s.isCostUsageEffectivelyEnabled(for: .codex))|" +
+            "\(s.isCostUsageEffectivelyEnabled(for: .claude))|" +
+            "\(s.isCostUsageEffectivelyEnabled(for: .vertexai))"
         return [
             order,
             "\(s.mergeIcons)",
@@ -313,6 +315,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             "\(s.showAllTokenAccountsInMenu)",
             "\(s.openAIWebAccessEnabled)",
             "\(s.codexBuyCreditsMenuEnabled)",
+            "\(s.codexExplicitAccountsOnly)",
             overview,
             "\(s.mergedMenuLastSelectedWasOverview)",
             selectedMenu,

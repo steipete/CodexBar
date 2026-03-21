@@ -53,21 +53,37 @@ public struct CodexStatusProbe {
     public var codexBinary: String = "codex"
     public var timeout: TimeInterval = Self.defaultTimeoutSeconds
     public var keepCLISessionsAlive: Bool = false
+    private let processEnvironment: [String: String]
+    private let isolateForEnvironment: Bool
 
-    public init() {}
+    public init() {
+        self.codexBinary = "codex"
+        self.timeout = Self.defaultTimeoutSeconds
+        self.keepCLISessionsAlive = false
+        self.processEnvironment = ProcessInfo.processInfo.environment
+        self.isolateForEnvironment = false
+    }
 
     public init(
         codexBinary: String = "codex",
         timeout: TimeInterval = 8.0,
-        keepCLISessionsAlive: Bool = false)
+        keepCLISessionsAlive: Bool = false,
+        processEnvironment: [String: String]? = nil)
     {
         self.codexBinary = codexBinary
         self.timeout = timeout
         self.keepCLISessionsAlive = keepCLISessionsAlive
+        if let processEnvironment {
+            self.processEnvironment = processEnvironment
+            self.isolateForEnvironment = true
+        } else {
+            self.processEnvironment = ProcessInfo.processInfo.environment
+            self.isolateForEnvironment = false
+        }
     }
 
     public func fetch() async throws -> CodexStatusSnapshot {
-        let env = ProcessInfo.processInfo.environment
+        let env = self.processEnvironment
         let resolved = BinaryLocator.resolveCodexBinary(env: env, loginPATH: LoginShellPathCache.shared.current)
             ?? self.codexBinary
         guard FileManager.default.isExecutableFile(atPath: resolved) || TTYCommandRunner.which(resolved) != nil else {
@@ -129,7 +145,7 @@ public struct CodexStatusProbe {
         timeout: TimeInterval) async throws -> CodexStatusSnapshot
     {
         let text: String
-        if self.keepCLISessionsAlive {
+        if self.keepCLISessionsAlive, !self.isolateForEnvironment {
             do {
                 text = try await CodexCLISession.shared.captureStatus(
                     binary: binary,
@@ -153,7 +169,8 @@ public struct CodexStatusProbe {
                     rows: rows,
                     cols: cols,
                     timeout: timeout,
-                    extraArgs: ["-s", "read-only", "-a", "untrusted"]))
+                    extraArgs: ["-s", "read-only", "-a", "untrusted"],
+                    baseProcessEnvironment: self.isolateForEnvironment ? self.processEnvironment : nil))
             text = result.text
         }
         return try Self.parse(text: text)

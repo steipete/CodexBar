@@ -87,6 +87,9 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var defaultAccountLabel: String?
     /// When `false`, hides the menu-bar "Buy Credits…" action for Codex. `nil` means enabled (default).
     public var buyCreditsMenuEnabled: Bool?
+    /// When `true` (Codex only), CodexBar does not treat `~/.codex` as an implicit account; usage requires Accounts
+    /// added in Settings (OAuth, API key, or manual `CODEX_HOME`).
+    public var codexExplicitAccountsOnly: Bool?
 
     public init(
         id: UsageProvider,
@@ -100,7 +103,8 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         workspaceID: String? = nil,
         tokenAccounts: ProviderTokenAccountData? = nil,
         defaultAccountLabel: String? = nil,
-        buyCreditsMenuEnabled: Bool? = nil)
+        buyCreditsMenuEnabled: Bool? = nil,
+        codexExplicitAccountsOnly: Bool? = nil)
     {
         self.id = id
         self.enabled = enabled
@@ -114,6 +118,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.tokenAccounts = tokenAccounts
         self.defaultAccountLabel = defaultAccountLabel
         self.buyCreditsMenuEnabled = buyCreditsMenuEnabled
+        self.codexExplicitAccountsOnly = codexExplicitAccountsOnly
     }
 
     public var sanitizedAPIKey: String? {

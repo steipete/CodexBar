@@ -30,7 +30,8 @@ Secrets (API keys, cookies, tokens) live here; Keychain is not used.
       "apiKey": null,
       "region": null,
       "workspaceID": null,
-      "tokenAccounts": null
+      "tokenAccounts": null,
+      "codexExplicitAccountsOnly": false
     }
   ]
 }
@@ -52,6 +53,7 @@ All provider fields are optional unless noted.
 - `region`: provider-specific region (e.g. `zai`, `minimax`).
 - `workspaceID`: provider-specific workspace ID (e.g. `opencode`).
 - `tokenAccounts`: multi-account tokens for a provider.
+- `codexExplicitAccountsOnly` (Codex only): when `true`, CodexBar never uses the implicit default `~/.codex` account; usage and CLI probes use only Accounts you add in Settings (OAuth, API key, or a token account with a custom `CODEX_HOME` path). Matches the **CodexBar accounts only** toggle in Codex preferences.
 
 ### tokenAccounts
 ```json

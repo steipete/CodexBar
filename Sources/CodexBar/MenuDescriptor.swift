@@ -329,11 +329,10 @@ struct MenuDescriptor {
                 let loginAction = self.switchAccountTarget(for: provider, store: store)
                 let hasAccount = self.hasAccount(for: provider, store: store, account: account)
                 // For Codex, switching is done via account tabs — this action is only for adding new accounts.
-                let accountLabel: String
-                if targetProvider == .codex {
-                    accountLabel = "Add Account..."
+                let accountLabel: String = if targetProvider == .codex {
+                    "Add Account..."
                 } else {
-                    accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
+                    hasAccount ? "Switch Account..." : "Add Account..."
                 }
                 entries.append(.action(accountLabel, loginAction))
             }

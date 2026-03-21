@@ -66,6 +66,22 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
+    func `removing add-on preserves default account selection index`() throws {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-remove-preserves-default")
+
+        settings.addTokenAccount(provider: .codex, label: "Work", token: "/tmp/codex-work")
+        settings.addTokenAccount(provider: .codex, label: "Home", token: "/tmp/codex-home")
+        settings.setActiveTokenAccountIndex(-1, for: .codex)
+        #expect(settings.tokenAccountsData(for: .codex)?.activeIndex == -1)
+
+        let toRemove = try #require(settings.tokenAccounts(for: .codex).first)
+        settings.removeTokenAccount(provider: .codex, accountID: toRemove.id)
+
+        #expect(settings.tokenAccounts(for: .codex).count == 1)
+        #expect(settings.tokenAccountsData(for: .codex)?.activeIndex == -1)
+    }
+
+    @Test
     func `claude default token account active follows stored primary selection`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-claude-default-active")
 

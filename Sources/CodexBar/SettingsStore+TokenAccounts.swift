@@ -7,6 +7,9 @@ extension SettingsStore {
     /// For Codex, if the user had primary selected (`activeIndex < 0`) but `~/.codex` has no usable credentials,
     /// this returns `false` so usage/credits/costs follow the visible add-on tab.
     func isDefaultTokenAccountActive(for provider: UsageProvider) -> Bool {
+        if provider == .codex, self.codexExplicitAccountsOnly {
+            return false
+        }
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else {
             return true
         }
@@ -122,11 +125,16 @@ extension SettingsStore {
             if filtered.isEmpty {
                 entry.tokenAccounts = nil
             } else {
-                let clamped = min(max(data.activeIndex, 0), filtered.count - 1)
+                let newActiveIndex: Int = if data.activeIndex < 0 {
+                    // Keep "primary / default credentials" selected; do not coerce -1 to first add-on.
+                    -1
+                } else {
+                    min(max(data.activeIndex, 0), filtered.count - 1)
+                }
                 entry.tokenAccounts = ProviderTokenAccountData(
                     version: data.version,
                     accounts: filtered,
-                    activeIndex: clamped)
+                    activeIndex: newActiveIndex)
             }
         }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(

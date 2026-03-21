@@ -632,7 +632,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `shows credits before cost in codex menu card sections`() throws {
+    func `shows credits before cost in codex menu card sections`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false

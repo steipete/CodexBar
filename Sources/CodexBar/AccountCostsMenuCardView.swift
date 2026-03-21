@@ -43,7 +43,7 @@ struct AccountCostsMenuCardView: View {
             Divider()
                 .padding(.horizontal, 16)
 
-            if self.isLoading && self.entries.isEmpty {
+            if self.isLoading, self.entries.isEmpty {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
