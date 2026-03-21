@@ -310,7 +310,7 @@ public enum OpenAIDashboardParser {
 
     private static func isCodeReviewLimitLine(_ line: String) -> Bool {
         let lower = line.lowercased()
-        guard lower.contains("code review") else { return false }
+        guard lower.contains("code review") || lower.contains("core review") else { return false }
         if lower.contains("github code review") { return false }
         return true
     }
