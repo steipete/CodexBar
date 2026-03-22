@@ -39,9 +39,10 @@ extension UsageStore {
         metricPercent: Double)
         -> Bool
     {
+        let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
         guard metricPercent >= 100 else { return false }
         if provider == .copilot,
-           self.settings.menuBarMetricPreference(for: provider) == .automatic,
+           effectivePreference == .automatic,
            let primary = snapshot.primary,
            let secondary = snapshot.secondary
         {
@@ -49,7 +50,7 @@ extension UsageStore {
             return primary.usedPercent >= 100 && secondary.usedPercent >= 100
         }
         if provider == .cursor,
-           self.settings.menuBarMetricPreference(for: provider) == .automatic
+           effectivePreference == .automatic
         {
             let percents = [
                 snapshot.primary?.usedPercent,

@@ -308,4 +308,43 @@ struct UsageStoreHighestUsageTests {
         #expect(highest?.provider == .codex)
         #expect(highest?.usedPercent == 80)
     }
+
+    @Test
+    func `cursor highest usage keeps provider when saved tertiary falls back to automatic`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-cursor-missing-tertiary"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.setMenuBarMetricPreference(.tertiary, for: .cursor)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let cursorMeta = registry.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: cursorMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let codexSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        let cursorSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(codexSnapshot, provider: .codex)
+        store._setSnapshotForTesting(cursorSnapshot, provider: .cursor)
+
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .cursor)
+        #expect(highest?.usedPercent == 100)
+    }
 }
