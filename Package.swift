@@ -22,6 +22,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log", from: "1.9.1"),
         .package(url: "https://github.com/apple/swift-syntax", from: "600.0.1"),
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.4.0"),
+        .package(url: "https://github.com/openid/AppAuth-iOS.git", from: "1.7.6"),
         sweetCookieKitDependency,
     ],
     targets: {
@@ -82,6 +83,7 @@ let package = Package(
                 dependencies: [
                     .product(name: "Sparkle", package: "Sparkle"),
                     .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+                    .product(name: "AppAuth", package: "AppAuth-iOS"),
                     "CodexBarMacroSupport",
                     "CodexBarCore",
                 ],

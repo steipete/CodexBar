@@ -189,6 +189,105 @@ struct CodexBarTests {
         #expect(account.plan == "pro")
     }
 
+    @Test
+    func codexTokenAccountAuthPathPrefersOAuthSourceMode() throws {
+        let suite = "CodexBarTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        let tmp = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: URL(fileURLWithPath: NSTemporaryDirectory()),
+            create: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let authURL = tmp.appendingPathComponent("auth.json")
+        let json = """
+        {
+          "tokens": {
+            "access_token": "account-access",
+            "refresh_token": "account-refresh"
+          }
+        }
+        """
+        try Data(json.utf8).write(to: authURL)
+
+        settings.codexCookieSource = .manual
+        settings.addTokenAccount(provider: .codex, label: "OAuth", token: authURL.path)
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: ["PATH": "/nonexistent"]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        #expect(store.sourceMode(for: .codex) == .oauth)
+    }
+
+    @Test
+    func codexOAuthAccountStoreCreatesProfileDirectory() throws {
+        let tmp = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: URL(fileURLWithPath: NSTemporaryDirectory()),
+            create: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let root = tmp.appendingPathComponent("codex-oauth-accounts", isDirectory: true)
+        let directory = try CodexOAuthAccountStore.createProfileDirectory(
+            label: "Mike Liu",
+            rootDirectory: root,
+            fileManager: .default)
+        #expect(directory.lastPathComponent.contains("mike-liu"))
+        #expect(FileManager.default.fileExists(atPath: directory.path))
+        CodexOAuthAccountStore.removeProfileDirectoryIfPresent(directory)
+        #expect(!FileManager.default.fileExists(atPath: directory.path))
+    }
+
+    @Test
+    func codexTokenAccountDescriptorSupportsBrowserLogin() throws {
+        let settings = self.makeSettingsForProvidersPaneTest()
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: ["PATH": "/nonexistent"]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let descriptor = try #require(pane._test_tokenAccountDescriptor(for: .codex))
+        #expect(descriptor.addAccountViaLogin != nil)
+    }
+
+    @Test
+    func codexLoginAuthorizationRequestMatchesKnownWorkingOAuthShape() {
+        let listenerBaseURL = URL(string: "http://127.0.0.1:1455")!
+        let request = CodexLoginRunner._authorizationRequestForTesting(listenerBaseURL: listenerBaseURL)
+
+        #expect(request.clientID == "app_EMoamEEZ73f0CkXaXp7hrann")
+        #expect(request.redirectURL.absoluteString == "http://localhost:1455/auth/callback")
+        #expect(request.scope == "openid profile email offline_access")
+        #expect(request.nonce == nil)
+        #expect(request.additionalParameters?["id_token_add_organizations"] == "true")
+        #expect(request.additionalParameters?["codex_cli_simplified_flow"] == "true")
+        #expect(request.additionalParameters?["originator"] == "codex_cli_rs")
+    }
+
+    @MainActor
+    private func makeSettingsForProvidersPaneTest() -> SettingsStore {
+        let suite = "CodexBarTests-Providers-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+    }
+
     private static func fakeJWT(email: String, plan: String) -> String {
         let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
         let payload = (try? JSONSerialization.data(withJSONObject: [

@@ -66,6 +66,33 @@ extension SettingsStore {
             ])
     }
 
+    func updateTokenAccount(provider: UsageProvider, accountID: UUID, label: String? = nil, token: String? = nil) {
+        guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
+        let updatedAccounts = data.accounts.map { account in
+            guard account.id == accountID else { return account }
+            let updatedLabel = label?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let updatedToken = token?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return ProviderTokenAccount(
+                id: account.id,
+                label: (updatedLabel?.isEmpty == false ? updatedLabel! : account.label),
+                token: (updatedToken?.isEmpty == false ? updatedToken! : account.token),
+                addedAt: account.addedAt,
+                lastUsed: account.lastUsed)
+        }
+        self.updateProviderConfig(provider: provider) { entry in
+            entry.tokenAccounts = ProviderTokenAccountData(
+                version: data.version,
+                accounts: updatedAccounts,
+                activeIndex: data.activeIndex)
+        }
+        CodexBarLog.logger(LogCategories.tokenAccounts).info(
+            "Token account updated",
+            metadata: [
+                "provider": provider.rawValue,
+                "accountID": accountID.uuidString,
+            ])
+    }
+
     func removeTokenAccount(provider: UsageProvider, accountID: UUID) {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         let filtered = data.accounts.filter { $0.id != accountID }

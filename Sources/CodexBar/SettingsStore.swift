@@ -148,9 +148,10 @@ final class SettingsStore {
         LaunchAtLoginManager.setEnabled(self.launchAtLogin)
         self.runInitialProviderDetectionIfNeeded()
         self.applyTokenCostDefaultIfNeeded()
-        if self.claudeUsageDataSource != .cli { self.claudeWebExtrasEnabled = false }
-        self.openAIWebAccessEnabled = self.codexCookieSource.isEnabled
-        Self.sharedDefaults?.set(self.debugDisableKeychainAccess, forKey: "debugDisableKeychainAccess")
+        if self.claudeUsageDataSource != .cli {
+            self.defaultsState.claudeWebExtrasEnabledRaw = false
+        }
+        self.defaultsState.openAIWebAccessEnabled = self.codexCookieSource.isEnabled
         KeychainAccessGate.isDisabled = self.debugDisableKeychainAccess
     }
 }
@@ -166,24 +167,17 @@ extension SettingsStore {
                 return stored
             }
             if let shared = Self.sharedDefaults?.object(forKey: "debugDisableKeychainAccess") as? Bool {
-                userDefaults.set(shared, forKey: "debugDisableKeychainAccess")
                 return shared
             }
             return false
         }()
         let debugFileLoggingEnabled = userDefaults.object(forKey: "debugFileLoggingEnabled") as? Bool ?? false
         let debugLogLevelRaw = userDefaults.string(forKey: "debugLogLevel") ?? CodexBarLog.Level.verbose.rawValue
-        if userDefaults.string(forKey: "debugLogLevel") == nil {
-            userDefaults.set(debugLogLevelRaw, forKey: "debugLogLevel")
-        }
         let debugLoadingPatternRaw = userDefaults.string(forKey: "debugLoadingPattern")
         let debugKeepCLISessionsAlive = userDefaults.object(forKey: "debugKeepCLISessionsAlive") as? Bool ?? false
         let statusChecksEnabled = userDefaults.object(forKey: "statusChecksEnabled") as? Bool ?? true
         let sessionQuotaDefault = userDefaults.object(forKey: "sessionQuotaNotificationsEnabled") as? Bool
         let sessionQuotaNotificationsEnabled = sessionQuotaDefault ?? true
-        if sessionQuotaDefault == nil {
-            userDefaults.set(true, forKey: "sessionQuotaNotificationsEnabled")
-        }
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
         let menuBarShowsBrandIconWithPercent = userDefaults.object(
@@ -209,10 +203,8 @@ extension SettingsStore {
         let claudeWebExtrasEnabledRaw = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
         let creditsExtrasDefault = userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool
         let showOptionalCreditsAndExtraUsage = creditsExtrasDefault ?? true
-        if creditsExtrasDefault == nil { userDefaults.set(true, forKey: "showOptionalCreditsAndExtraUsage") }
         let openAIWebAccessDefault = userDefaults.object(forKey: "openAIWebAccessEnabled") as? Bool
         let openAIWebAccessEnabled = openAIWebAccessDefault ?? true
-        if openAIWebAccessDefault == nil { userDefaults.set(true, forKey: "openAIWebAccessEnabled") }
         let jetbrainsIDEBasePath = userDefaults.string(forKey: "jetbrainsIDEBasePath") ?? ""
         let mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
         let switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true

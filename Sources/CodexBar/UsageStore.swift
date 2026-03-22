@@ -717,12 +717,13 @@ extension UsageStore {
                 self.failureGates[.codex]?.recordSuccess()
                 self.lastSourceLabels[.codex] = "openai-web"
             }
-            if self.credits == nil, let credits = dash.toCreditsSnapshot() {
+            if let credits = dash.toCreditsSnapshot() {
                 self.credits = credits
                 self.lastCreditsSnapshot = credits
                 self.lastCreditsError = nil
                 self.creditsFailureStreak = 0
             }
+            self.updateSelectedCodexTokenAccountSupplementaryData(dashboard: dash)
         }
 
         if let email = targetEmail, !email.isEmpty {
@@ -753,6 +754,7 @@ extension UsageStore {
         let targetEmail = self.codexAccountEmailForOpenAIDashboard()
         let tokenAccountID = self.settings.selectedTokenAccount(for: .codex)?.id
         self.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: targetEmail, tokenAccountID: tokenAccountID)
+        let preferredStoreEmail = self.codexOpenAIWebStoreEmail()
 
         let now = Date()
         let minInterval = self.openAIWebRefreshIntervalSeconds()
@@ -780,7 +782,7 @@ extension UsageStore {
             let normalized = targetEmail?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
-            var effectiveEmail = targetEmail
+            var effectiveEmail = targetEmail ?? preferredStoreEmail
 
             // Use a per-email persistent `WKWebsiteDataStore` so multiple dashboard sessions can coexist.
             // Strategy:
@@ -898,11 +900,10 @@ extension UsageStore {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
-        let normalizedOrNil: String?
-        if let normalized, !normalized.isEmpty {
-            normalizedOrNil = normalized
+        let normalizedOrNil: String? = if let normalized, !normalized.isEmpty {
+            normalized
         } else {
-            normalizedOrNil = nil
+            nil
         }
         let previous = self.lastOpenAIDashboardTargetEmail
         let previousTokenAccountID = self.lastOpenAIDashboardTargetTokenAccountID
@@ -996,7 +997,8 @@ extension UsageStore {
             switch cookieSource {
             case .manual:
                 self.settings.ensureCodexCookieLoaded()
-                let manualHeader = self.settings.selectedTokenAccount(for: .codex)?.token ?? self.settings.codexCookieHeader
+                let manualHeader = self.settings.selectedTokenAccount(for: .codex)?.token
+                    ?? self.settings.codexCookieHeader
                 guard CookieHeaderNormalizer.normalize(manualHeader) != nil else {
                     throw OpenAIDashboardBrowserCookieImporter.ImportError.manualCookieHeaderInvalid
                 }
@@ -1015,7 +1017,8 @@ extension UsageStore {
                     sourceLabel: "Off",
                     cookieCount: 0,
                     signedInEmail: normalizedTarget,
-                    matchesCodexEmail: true)
+                    matchesCodexEmail: true,
+                    cookieHeader: nil)
             }
             let effectiveEmail = result.signedInEmail?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1143,10 +1146,82 @@ extension UsageStore {
         self.lastOpenAIDashboardCookieImportEmail = nil
     }
 
+    func applyProviderSupplementaryData(
+        provider: UsageProvider,
+        credits: CreditsSnapshot?,
+        dashboard: OpenAIDashboardSnapshot?,
+        preserveExisting: Bool)
+    {
+        guard provider == .codex else { return }
+
+        if let dashboard {
+            self.openAIDashboard = dashboard
+            self.lastOpenAIDashboardSnapshot = dashboard
+            self.lastOpenAIDashboardError = nil
+            self.openAIDashboardRequiresLogin = false
+        } else if !preserveExisting {
+            self.openAIDashboard = nil
+            self.lastOpenAIDashboardSnapshot = nil
+            self.lastOpenAIDashboardError = nil
+            self.openAIDashboardRequiresLogin = false
+        }
+
+        let resolvedCredits = credits ?? dashboard?.toCreditsSnapshot()
+        if let resolvedCredits {
+            self.credits = resolvedCredits
+            self.lastCreditsSnapshot = resolvedCredits
+            self.lastCreditsError = nil
+            self.creditsFailureStreak = 0
+        } else if !preserveExisting {
+            self.credits = nil
+            self.lastCreditsSnapshot = nil
+            self.lastCreditsError = nil
+            self.creditsFailureStreak = 0
+        }
+    }
+
+    private func updateSelectedCodexTokenAccountSupplementaryData(dashboard: OpenAIDashboardSnapshot) {
+        guard let account = self.settings.selectedTokenAccount(for: .codex) else { return }
+        let existingSnapshot = self.tokenAccountUsageSnapshot(provider: .codex, accountID: account.id)
+        self.upsertTokenAccountSnapshot(
+            provider: .codex,
+            account: account,
+            snapshot: existingSnapshot?.snapshot,
+            error: existingSnapshot?.error,
+            sourceLabel: existingSnapshot?.sourceLabel,
+            credits: dashboard.toCreditsSnapshot(),
+            dashboard: dashboard)
+    }
+
     private func dashboardEmailMismatch(expected: String?, actual: String?) -> Bool {
         guard let expected, !expected.isEmpty else { return false }
         guard let raw = actual?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return false }
         return raw.lowercased() != expected.lowercased()
+    }
+
+    private func codexOpenAIWebStoreEmail() -> String? {
+        guard self.settings.codexCookieSource == .manual,
+              let selectedAccount = self.settings.selectedTokenAccount(for: .codex)
+        else {
+            return nil
+        }
+
+        if let cachedEmail = self.tokenAccountUsageSnapshot(provider: .codex, accountID: selectedAccount.id)?
+            .dashboard?
+            .signedInEmail?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !cachedEmail.isEmpty
+        {
+            return cachedEmail
+        }
+
+        let imported = self.lastOpenAIDashboardCookieImportEmail?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let imported, !imported.isEmpty {
+            return imported
+        }
+
+        return nil
     }
 
     func codexAccountEmailForOpenAIDashboard() -> String? {

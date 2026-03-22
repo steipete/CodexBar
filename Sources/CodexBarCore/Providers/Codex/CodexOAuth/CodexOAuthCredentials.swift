@@ -67,6 +67,20 @@ public enum CodexOAuthCredentialsStore {
         return try self.parse(data: data)
     }
 
+    public static func load(rawSource: String) throws -> CodexOAuthCredentials {
+        let trimmed = rawSource.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw CodexOAuthCredentialsError.notFound
+        }
+
+        if let authURL = self.authFileURL(forRawSource: trimmed) {
+            let data = try Data(contentsOf: authURL)
+            return try self.parse(data: data)
+        }
+
+        return try self.parse(data: Data(trimmed.utf8))
+    }
+
     public static func parse(data: Data) throws -> CodexOAuthCredentials {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw CodexOAuthCredentialsError.decodeFailed("Invalid JSON")
@@ -107,6 +121,36 @@ public enum CodexOAuthCredentialsStore {
 
     public static func save(_ credentials: CodexOAuthCredentials) throws {
         let url = self.authFilePath
+        try self.save(credentials, to: url)
+    }
+
+    public static func save(_ credentials: CodexOAuthCredentials, rawSource: String) throws {
+        guard let url = self.authFileURL(forRawSource: rawSource) else {
+            throw CodexOAuthCredentialsError.notFound
+        }
+        try self.save(credentials, to: url)
+    }
+
+    public static func authFileURL(forRawSource rawSource: String) -> URL? {
+        let trimmed = rawSource.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let expanded = NSString(string: trimmed).expandingTildeInPath
+        let candidate = URL(fileURLWithPath: expanded)
+        let path = candidate.path
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            return nil
+        }
+        if isDirectory.boolValue {
+            return candidate.appendingPathComponent("auth.json")
+        }
+        return candidate
+    }
+
+    private static func save(_ credentials: CodexOAuthCredentials, to url: URL) throws {
+        let directory = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         var json: [String: Any] = [:]
         if let data = try? Data(contentsOf: url),
@@ -130,8 +174,6 @@ public enum CodexOAuthCredentialsStore {
         json["last_refresh"] = ISO8601DateFormatter().string(from: Date())
 
         let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
-        let directory = url.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
     }
 

@@ -34,7 +34,7 @@ extension UsageStore {
         defer { self.refreshingProviders.remove(provider) }
 
         let tokenAccounts = self.tokenAccounts(for: provider)
-        if self.shouldFetchAllTokenAccounts(provider: provider, accounts: tokenAccounts) {
+        if !tokenAccounts.isEmpty {
             await self.refreshTokenAccounts(provider: provider, accounts: tokenAccounts)
             return
         } else {
@@ -78,12 +78,18 @@ extension UsageStore {
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
+            let credits = result.credits ?? result.dashboard?.toCreditsSnapshot()
             await MainActor.run {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
                 self.snapshots[provider] = scoped
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
+                self.applyProviderSupplementaryData(
+                    provider: provider,
+                    credits: credits,
+                    dashboard: result.dashboard,
+                    preserveExisting: true)
             }
             if let runtime = self.providerRuntimes[provider] {
                 let context = ProviderRuntimeContext(

@@ -1,8 +1,14 @@
+import AppAuth
+import AppKit
 import CodexBarCore
-import Darwin
 import Foundation
 
 struct CodexLoginRunner {
+    enum Phase {
+        case requesting
+        case waitingBrowser
+    }
+
     struct Result {
         enum Outcome {
             case success
@@ -16,139 +22,187 @@ struct CodexLoginRunner {
         let output: String
     }
 
-    static func run(timeout: TimeInterval = 120) async -> Result {
-        await Task(priority: .userInitiated) {
-            var env = ProcessInfo.processInfo.environment
-            env["PATH"] = PathBuilder.effectivePATH(
-                purposes: [.rpc, .tty, .nodeTooling],
-                env: env,
-                loginPATH: LoginShellPathCache.shared.current)
+    private static let authorizationEndpoint = URL(string: "https://auth.openai.com/oauth/authorize")!
+    private static let tokenEndpoint = URL(string: "https://auth.openai.com/oauth/token")!
+    private static let redirectPort: UInt16 = 1455
+    private static let redirectURL = URL(string: "http://localhost:1455/auth/callback")!
+    private static let successURL = URL(string: "https://chatgpt.com/")!
+    private static let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
+    private static let scopes = ["openid", "profile", "email", "offline_access"]
+    private static let additionalParameters = [
+        "id_token_add_organizations": "true",
+        "codex_cli_simplified_flow": "true",
+        "originator": "codex_cli_rs",
+    ]
 
-            guard let executable = BinaryLocator.resolveCodexBinary(
-                env: env,
-                loginPATH: LoginShellPathCache.shared.current)
-            else {
-                return Result(outcome: .missingBinary, output: "")
-            }
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            process.arguments = [executable, "login"]
-            process.environment = env
-
-            let stdout = Pipe()
-            let stderr = Pipe()
-            process.standardOutput = stdout
-            process.standardError = stderr
-
-            var processGroup: pid_t?
-            do {
-                try process.run()
-                processGroup = self.attachProcessGroup(process)
-            } catch {
-                return Result(outcome: .launchFailed(error.localizedDescription), output: "")
-            }
-
-            let timedOut = await self.wait(for: process, timeout: timeout)
-            if timedOut {
-                self.terminate(process, processGroup: processGroup)
-            }
-
-            let output = await self.combinedOutput(stdout: stdout, stderr: stderr)
-            if timedOut {
-                return Result(outcome: .timedOut, output: output)
-            }
-
-            let status = process.terminationStatus
-            if status == 0 {
-                return Result(outcome: .success, output: output)
-            }
-            return Result(outcome: .failed(status: status), output: output)
-        }.value
-    }
-
-    private static func wait(for process: Process, timeout: TimeInterval) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group -> Bool in
+    @MainActor
+    static func run(
+        timeout: TimeInterval = 120,
+        onPhaseChange: (@Sendable (Phase) -> Void)? = nil,
+        credentialSource: String? = nil) async -> Result
+    {
+        let coordinator = NativeOAuthCoordinator(
+            onPhaseChange: onPhaseChange,
+            credentialSource: credentialSource)
+        return await withTaskGroup(of: Result.self) { group in
             group.addTask {
-                process.waitUntilExit()
-                return false
+                await coordinator.run()
             }
             group.addTask {
                 let nanos = UInt64(max(0, timeout) * 1_000_000_000)
                 try? await Task.sleep(nanoseconds: nanos)
-                return true
+                return await coordinator.cancelForTimeout()
             }
-            let result = await group.next() ?? false
+            let result = await group.next() ?? Result(outcome: .timedOut, output: "Codex login timed out.")
             group.cancelAll()
             return result
         }
     }
 
-    private static func terminate(_ process: Process, processGroup: pid_t?) {
-        if let pgid = processGroup {
-            kill(-pgid, SIGTERM)
-        }
-        if process.isRunning {
-            process.terminate()
+    static func _authorizationRequestForTesting(listenerBaseURL: URL) -> OIDAuthorizationRequest {
+        Self.makeAuthorizationRequest(listenerBaseURL: listenerBaseURL)
+    }
+
+    @MainActor
+    private final class NativeOAuthCoordinator {
+        private let onPhaseChange: (@Sendable (Phase) -> Void)?
+        private let credentialSource: String?
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Result, Never>?
+        private var hasCompleted = false
+        private var redirectHandler: OIDRedirectHTTPHandler?
+
+        init(onPhaseChange: (@Sendable (Phase) -> Void)?, credentialSource: String?) {
+            self.onPhaseChange = onPhaseChange
+            self.credentialSource = credentialSource
         }
 
-        let deadline = Date().addingTimeInterval(2.0)
-        while process.isRunning, Date() < deadline {
-            usleep(100_000)
-        }
-
-        if process.isRunning {
-            if let pgid = processGroup {
-                kill(-pgid, SIGKILL)
+        func run() async -> Result {
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                self.start()
             }
-            kill(process.processIdentifier, SIGKILL)
         }
-    }
 
-    private static func attachProcessGroup(_ process: Process) -> pid_t? {
-        let pid = process.processIdentifier
-        return setpgid(pid, pid) == 0 ? pid : nil
-    }
-
-    private static func combinedOutput(stdout: Pipe, stderr: Pipe) async -> String {
-        async let out = self.readToEnd(stdout)
-        async let err = self.readToEnd(stderr)
-        let stdoutText = await out
-        let stderrText = await err
-
-        let merged: String = if !stdoutText.isEmpty, !stderrText.isEmpty {
-            [stdoutText, stderrText].joined(separator: "\n")
-        } else {
-            stdoutText + stderrText
+        func cancelForTimeout() -> Result {
+            self.redirectHandler?.cancelHTTPListener()
+            let result = Result(outcome: .timedOut, output: "Codex login timed out.")
+            self.finish(result)
+            return result
         }
-        let trimmed = merged.trimmingCharacters(in: .whitespacesAndNewlines)
-        let limited = trimmed.prefix(4000)
-        return limited.isEmpty ? "No output captured." : String(limited)
-    }
 
-    private static func readToEnd(_ pipe: Pipe, timeout: TimeInterval = 3.0) async -> String {
-        await withTaskGroup(of: String?.self) { group -> String in
-            group.addTask {
-                if #available(macOS 13.0, *) {
-                    if let data = try? pipe.fileHandleForReading.readToEnd() { return self.decode(data) }
+        private func start() {
+            self.onPhaseChange?(.requesting)
+
+            let configuration = OIDServiceConfiguration(
+                authorizationEndpoint: CodexLoginRunner.authorizationEndpoint,
+                tokenEndpoint: CodexLoginRunner.tokenEndpoint)
+            let redirectHandler = OIDRedirectHTTPHandler(successURL: CodexLoginRunner.successURL)
+            self.redirectHandler = redirectHandler
+
+            var listenerError: NSError?
+            let listenerBaseURL = redirectHandler.startHTTPListener(
+                &listenerError,
+                withPort: CodexLoginRunner.redirectPort)
+            if let listenerError {
+                let message = listenerError.localizedDescription
+                self.finish(Result(outcome: .launchFailed(message), output: message))
+                return
+            }
+
+            let request = CodexLoginRunner.makeAuthorizationRequest(
+                configuration: configuration,
+                listenerBaseURL: listenerBaseURL)
+
+            self.onPhaseChange?(.waitingBrowser)
+            redirectHandler.currentAuthorizationFlow = OIDAuthState
+                .authState(byPresenting: request) { authState, error in
+                    NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                    redirectHandler.cancelHTTPListener()
+
+                    if let authState {
+                        do {
+                            let credentials = try Self.credentials(from: authState)
+                            if let credentialSource = self.credentialSource {
+                                try CodexOAuthCredentialsStore.save(credentials, rawSource: credentialSource)
+                            } else {
+                                try CodexOAuthCredentialsStore.save(credentials)
+                            }
+                            self.finish(Result(outcome: .success, output: "Codex OAuth login complete."))
+                        } catch {
+                            self.finish(Result(
+                                outcome: .launchFailed(error.localizedDescription),
+                                output: error.localizedDescription))
+                        }
+                        return
+                    }
+
+                    let message = error?.localizedDescription ?? "Unknown OAuth login error."
+                    self.finish(Result(outcome: .failed(status: 1), output: message))
                 }
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                return Self.decode(data)
+        }
+
+        private func finish(_ result: Result) {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            guard !self.hasCompleted, let continuation = self.continuation else { return }
+            self.hasCompleted = true
+            self.continuation = nil
+            continuation.resume(returning: result)
+        }
+
+        private static func credentials(from authState: OIDAuthState) throws -> CodexOAuthCredentials {
+            guard let tokenResponse = authState.lastTokenResponse,
+                  let accessToken = tokenResponse.accessToken,
+                  !accessToken.isEmpty
+            else {
+                throw CodexOAuthCredentialsError.missingTokens
             }
-            group.addTask {
-                let nanos = UInt64(max(0, timeout) * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: nanos)
-                return nil
+
+            let refreshToken = tokenResponse.refreshToken ?? authState.refreshToken ?? ""
+            if refreshToken.isEmpty {
+                throw CodexOAuthCredentialsError.missingTokens
             }
-            let result = await group.next()
-            group.cancelAll()
-            if let result, let text = result { return text }
-            return ""
+
+            let idToken = tokenResponse.idToken
+            let accountId = CodexOAuthClaimResolver.accountID(accessToken: accessToken, idToken: idToken)
+
+            return CodexOAuthCredentials(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                idToken: idToken,
+                accountId: accountId,
+                lastRefresh: Date())
         }
     }
 
-    private static func decode(_ data: Data) -> String {
-        guard let text = String(data: data, encoding: .utf8) else { return "" }
-        return text
+    private static func makeAuthorizationRequest(listenerBaseURL: URL) -> OIDAuthorizationRequest {
+        let configuration = OIDServiceConfiguration(
+            authorizationEndpoint: Self.authorizationEndpoint,
+            tokenEndpoint: Self.tokenEndpoint)
+        return self.makeAuthorizationRequest(configuration: configuration, listenerBaseURL: listenerBaseURL)
+    }
+
+    private static func makeAuthorizationRequest(
+        configuration: OIDServiceConfiguration,
+        listenerBaseURL: URL) -> OIDAuthorizationRequest
+    {
+        _ = listenerBaseURL
+        let state = OIDAuthorizationRequest.generateState()
+        let codeVerifier = OIDAuthorizationRequest.generateCodeVerifier()
+        let codeChallenge = OIDAuthorizationRequest.codeChallengeS256(forVerifier: codeVerifier)
+        return OIDAuthorizationRequest(
+            configuration: configuration,
+            clientId: Self.clientID,
+            clientSecret: nil,
+            scope: Self.scopes.joined(separator: " "),
+            redirectURL: Self.redirectURL,
+            responseType: OIDResponseTypeCode,
+            state: state,
+            nonce: nil,
+            codeVerifier: codeVerifier,
+            codeChallenge: codeChallenge,
+            codeChallengeMethod: OIDOAuthorizationRequestCodeChallengeMethodS256,
+            additionalParameters: Self.additionalParameters)
     }
 }

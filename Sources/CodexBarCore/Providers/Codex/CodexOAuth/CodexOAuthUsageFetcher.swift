@@ -151,17 +151,80 @@ public enum CodexOAuthUsageFetcher {
     private static let codexUsagePath = "/api/codex/usage"
 
     public static func fetchUsage(accessToken: String, accountId: String?) async throws -> CodexUsageResponse {
-        var request = URLRequest(url: Self.resolveUsageURL())
-        request.httpMethod = "GET"
-        request.timeoutInterval = 30
+        var request = Self.makeBaseRequest()
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         if let accountId, !accountId.isEmpty {
             request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
         }
 
+        return try await self.perform(request)
+    }
+
+    public static func fetchUsage(cookieHeader: String) async throws -> CodexUsageResponse {
+        try await self.fetchUsage(manualHeader: cookieHeader)
+    }
+
+    public static func fetchUsage(manualHeader: String) async throws -> CodexUsageResponse {
+        let credentials = Self.manualCredentials(from: manualHeader)
+        guard credentials.cookieHeader != nil || credentials.bearerToken != nil else {
+            throw CodexOAuthFetchError.unauthorized
+        }
+
+        var request = Self.makeBaseRequest()
+        if let cookieHeader = credentials.cookieHeader {
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        }
+        if let bearerToken = credentials.bearerToken {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
+        return try await self.perform(request)
+    }
+
+    public static func manualHeaderAccountEmail(_ raw: String) -> String? {
+        let credentials = Self.manualCredentials(from: raw)
+        guard let bearerToken = credentials.bearerToken,
+              let payload = UsageFetcher.parseJWT(bearerToken)
+        else {
+            return nil
+        }
+
+        if let profile = payload["https://api.openai.com/profile"] as? [String: Any],
+           let email = profile["email"] as? String
+        {
+            let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+
+        if let auth = payload["https://api.openai.com/auth"] as? [String: Any],
+           let email = auth["email"] as? String
+        {
+            let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+
+        if let email = payload["email"] as? String {
+            let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+
+        return nil
+    }
+
+    private static func resolveUsageURL() -> URL {
+        self.resolveUsageURL(env: ProcessInfo.processInfo.environment, configContents: nil)
+    }
+
+    private static func makeBaseRequest() -> URLRequest {
+        var request = URLRequest(url: Self.resolveUsageURL())
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    private static func perform(_ request: URLRequest) async throws -> CodexUsageResponse {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse else {
@@ -188,8 +251,35 @@ public enum CodexOAuthUsageFetcher {
         }
     }
 
-    private static func resolveUsageURL() -> URL {
-        self.resolveUsageURL(env: ProcessInfo.processInfo.environment, configContents: nil)
+    private static func manualCredentials(from raw: String) -> (cookieHeader: String?, bearerToken: String?) {
+        let cookieHeader = CookieHeaderNormalizer.normalize(raw)
+        let bearerToken = self.extractBearerToken(from: raw)
+        return (cookieHeader, bearerToken)
+    }
+
+    private static func extractBearerToken(from raw: String) -> String? {
+        let patterns = [
+            #"(?i)authorization\s*:\s*bearer\s+([A-Za-z0-9._\-+=/]+)"#,
+            #"(?i)\bbearer\s+([A-Za-z0-9._\-+=/]+)"#,
+        ]
+        for pattern in patterns {
+            guard let token = Self.extractFirst(pattern: pattern, text: raw), !token.isEmpty else { continue }
+            return token
+        }
+        return nil
+    }
+
+    private static func extractFirst(pattern: String, text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              match.numberOfRanges >= 2,
+              let captureRange = Range(match.range(at: 1), in: text)
+        else {
+            return nil
+        }
+        let value = text[captureRange].trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : String(value)
     }
 
     private static func resolveUsageURL(env: [String: String], configContents: String?) -> URL {

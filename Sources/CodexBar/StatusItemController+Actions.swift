@@ -208,16 +208,16 @@ extension StatusItemController {
             return
         case .missingBinary:
             self.presentLoginAlert(
-                title: "Codex CLI not found",
-                message: "Install the Codex CLI (npm i -g @openai/codex) and try again.")
+                title: "Codex login helper unavailable",
+                message: "Install the Codex CLI (npm i -g @openai/codex) or update CodexBar and try again.")
         case let .launchFailed(message):
-            self.presentLoginAlert(title: "Could not start codex login", message: message)
+            self.presentLoginAlert(title: "Could not start Codex login", message: message)
         case .timedOut:
             self.presentLoginAlert(
                 title: "Codex login timed out",
                 message: self.trimmedLoginOutput(result.output))
         case let .failed(status):
-            let statusLine = "codex login exited with status \(status)."
+            let statusLine = "Codex login failed with status \(status)."
             let message = self.trimmedLoginOutput(result.output.isEmpty ? statusLine : result.output)
             self.presentLoginAlert(title: "Codex login failed", message: message)
         }

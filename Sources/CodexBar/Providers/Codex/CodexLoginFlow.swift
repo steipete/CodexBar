@@ -3,7 +3,15 @@ import CodexBarCore
 @MainActor
 extension StatusItemController {
     func runCodexLoginFlow() async {
-        let result = await CodexLoginRunner.run(timeout: 120)
+        let phaseHandler: @Sendable (CodexLoginRunner.Phase) -> Void = { [weak self] phase in
+            Task { @MainActor in
+                switch phase {
+                case .requesting: self?.loginPhase = .requesting
+                case .waitingBrowser: self?.loginPhase = .waitingBrowser
+                }
+            }
+        }
+        let result = await CodexLoginRunner.run(timeout: 120, onPhaseChange: phaseHandler)
         guard !Task.isCancelled else { return }
         self.loginPhase = .idle
         self.presentCodexLoginResult(result)

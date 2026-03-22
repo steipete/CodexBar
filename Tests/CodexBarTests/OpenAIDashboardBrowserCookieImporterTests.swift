@@ -20,7 +20,8 @@ struct OpenAIDashboardBrowserCookieImporterTests {
         let pairsA = CookieHeaderNormalizer.pairs(from: "__Secure-next-auth.session-token=abc; oai-sc=def")
         #expect(OpenAIDashboardBrowserCookieImporter.manualHeaderContainsSessionCookie(pairs: pairsA))
 
-        let pairsB = CookieHeaderNormalizer.pairs(from: "__Secure-next-auth.session-token.0=abc; __Secure-next-auth.session-token.1=def")
+        let pairsB = CookieHeaderNormalizer
+            .pairs(from: "__Secure-next-auth.session-token.0=abc; __Secure-next-auth.session-token.1=def")
         #expect(OpenAIDashboardBrowserCookieImporter.manualHeaderContainsSessionCookie(pairs: pairsB))
     }
 

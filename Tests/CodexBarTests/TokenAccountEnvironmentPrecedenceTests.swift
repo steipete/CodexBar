@@ -230,7 +230,7 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
-    func codexTokenAccountFetchUsesWebSourceWhenManualCookiesEnabled() {
+    func codexTokenAccountFetchKeepsAutomaticSourceWhenManualCookiesEnabled() {
         let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-source-mode")
         settings.codexCookieSource = .manual
         let store = Self.makeUsageStore(settings: settings)
@@ -244,11 +244,11 @@ struct TokenAccountEnvironmentPrecedenceTests {
 
         let mode = store.sourceMode(for: .codex, override: override)
 
-        #expect(mode == .web)
+        #expect(mode == .auto)
     }
 
     @Test
-    func codexProviderAutoModeUsesWebWhenManualTokenAccountsExist() {
+    func codexProviderAutoModeStaysAutomaticWhenManualTokenAccountsExist() {
         let settings = Self
             .makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-provider-source-mode")
         settings.codexUsageDataSource = .auto
@@ -258,7 +258,7 @@ struct TokenAccountEnvironmentPrecedenceTests {
         let mode = CodexProviderImplementation().sourceMode(
             context: ProviderSourceModeContext(provider: .codex, settings: settings))
 
-        #expect(mode == .web)
+        #expect(mode == .auto)
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {

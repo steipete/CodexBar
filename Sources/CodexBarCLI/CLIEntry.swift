@@ -39,6 +39,8 @@ enum CodexBarCLI {
                 await self.runUsage(invocation.parsedValues)
             case ["cost"]:
                 await self.runCost(invocation.parsedValues)
+            case ["config", "add-account"]:
+                self.runConfigAddAccount(invocation.parsedValues)
             case ["config", "validate"]:
                 self.runConfigValidate(invocation.parsedValues)
             case ["config", "dump"]:
@@ -61,6 +63,7 @@ enum CodexBarCLI {
         let usageSignature = CommandSignature.describe(UsageOptions())
         let costSignature = CommandSignature.describe(CostOptions())
         let configSignature = CommandSignature.describe(ConfigOptions())
+        let configAddAccountSignature = CommandSignature.describe(ConfigAddAccountOptions())
 
         return [
             CommandDescriptor(
@@ -79,6 +82,11 @@ enum CodexBarCLI {
                 discussion: nil,
                 signature: CommandSignature(),
                 subcommands: [
+                    CommandDescriptor(
+                        name: "add-account",
+                        abstract: "Add a token account to config",
+                        discussion: nil,
+                        signature: configAddAccountSignature),
                     CommandDescriptor(
                         name: "validate",
                         abstract: "Validate config file",

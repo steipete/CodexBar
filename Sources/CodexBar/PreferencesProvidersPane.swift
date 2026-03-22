@@ -201,6 +201,9 @@ struct ProvidersPane: View {
                     }
                 }
             },
+            addAccountViaLogin: provider == .codex ? { label in
+                await self.addCodexOAuthAccount(label: label)
+            } : nil,
             removeAccount: { accountID in
                 self.settings.removeTokenAccount(provider: provider, accountID: accountID)
                 Task { @MainActor in
@@ -260,6 +263,57 @@ struct ProvidersPane: View {
             requestConfirmation: { confirmation in
                 self.activeConfirmation = ProviderSettingsConfirmationState(confirmation: confirmation)
             })
+    }
+
+    @MainActor
+    private func addCodexOAuthAccount(label: String) async {
+        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedLabel.isEmpty else { return }
+
+        let profileDirectory: URL
+        do {
+            profileDirectory = try CodexOAuthAccountStore.createProfileDirectory(label: trimmedLabel)
+        } catch {
+            self.presentCodexOAuthAccountAlert(title: "Could not prepare account", message: error.localizedDescription)
+            return
+        }
+
+        let result = await CodexLoginRunner.run(
+            timeout: 120,
+            onPhaseChange: nil,
+            credentialSource: profileDirectory.path)
+
+        switch result.outcome {
+        case .success:
+            self.settings.addTokenAccount(provider: .codex, label: trimmedLabel, token: profileDirectory.path)
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await self.store.refreshProvider(.codex, allowDisabled: true)
+            }
+        case .timedOut:
+            CodexOAuthAccountStore.removeProfileDirectoryIfPresent(profileDirectory)
+            self.presentCodexOAuthAccountAlert(title: "Codex login timed out", message: result.output)
+        case .failed:
+            CodexOAuthAccountStore.removeProfileDirectoryIfPresent(profileDirectory)
+            self.presentCodexOAuthAccountAlert(title: "Codex login failed", message: result.output)
+        case .launchFailed:
+            CodexOAuthAccountStore.removeProfileDirectoryIfPresent(profileDirectory)
+            self.presentCodexOAuthAccountAlert(title: "Could not start Codex login", message: result.output)
+        case .missingBinary:
+            CodexOAuthAccountStore.removeProfileDirectoryIfPresent(profileDirectory)
+            self.presentCodexOAuthAccountAlert(
+                title: "Codex login unavailable",
+                message: "The native OAuth flow could not start.\n\n\(result.output)")
+        }
+    }
+
+    @MainActor
+    private func presentCodexOAuthAccountAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     func menuBarMetricPicker(for provider: UsageProvider) -> ProviderSettingsPickerDescriptor? {

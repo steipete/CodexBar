@@ -11,8 +11,8 @@ extension TokenAccountSupportCatalog {
             cookieName: "sessionKey"),
         .codex: TokenAccountSupport(
             title: "Session tokens",
-            subtitle: "Store multiple Codex/OpenAI Cookie headers.",
-            placeholder: "Cookie: …",
+            subtitle: "Store Codex/OpenAI Cookie headers, DevTools request dumps, or auth.json paths.",
+            placeholder: "Cookie, auth.json path, or request dump…",
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),

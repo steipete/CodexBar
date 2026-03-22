@@ -76,6 +76,38 @@ struct UsageOptions: CommanderParsable {
     var augmentDebug: Bool = false
 }
 
+struct ConfigAddAccountOptions: CommanderParsable {
+    @Flag(names: [.short("v"), .long("verbose")], help: "Enable verbose logging")
+    var verbose: Bool = false
+
+    @Flag(name: .long("json-output"), help: "Emit machine-readable logs")
+    var jsonOutput: Bool = false
+
+    @Option(name: .long("log-level"), help: "Set log level (trace|verbose|debug|info|warning|error|critical)")
+    var logLevel: String?
+
+    @Option(name: .long("format"), help: "Output format: text | json")
+    var format: OutputFormat?
+
+    @Flag(name: .long("json"), help: "")
+    var jsonShortcut: Bool = false
+
+    @Flag(name: .long("json-only"), help: "Emit JSON only (suppress non-JSON output)")
+    var jsonOnly: Bool = false
+
+    @Flag(name: .long("pretty"), help: "Pretty-print JSON output")
+    var pretty: Bool = false
+
+    @Option(name: .long("provider"), help: ProviderHelp.optionHelp)
+    var provider: String?
+
+    @Option(name: .long("label"), help: "Account label to save")
+    var label: String?
+
+    @Option(name: .long("token"), help: "Token or cookie header to save")
+    var token: String?
+}
+
 enum ProviderSelection: Sendable, ExpressibleFromArgument {
     case single(UsageProvider)
     case both

@@ -38,6 +38,17 @@ struct StatusMenuTests {
             .sorted { $0.tag < $1.tag }
     }
 
+    private func tokenAccountButtons(in menu: NSMenu) -> [NSButton] {
+        guard let switcherView = menu.items.first(where: { $0.view is TokenAccountSwitcherView })?
+            .view as? TokenAccountSwitcherView
+        else {
+            return []
+        }
+        return switcherView.subviews
+            .compactMap { $0 as? NSButton }
+            .sorted { $0.frame.minX < $1.frame.minX }
+    }
+
     private func representedIDs(in menu: NSMenu) -> [String] {
         menu.items.compactMap { $0.representedObject as? String }
     }
@@ -761,6 +772,197 @@ struct StatusMenuTests {
         controller.menuWillOpen(menu)
         let ids = menu.items.compactMap { $0.representedObject as? String }
         #expect(ids.contains("menuCardCost"))
+    }
+
+    @Test
+    func tokenAccountSwitchRefreshesProviderEvenDuringInFlightRefresh() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.codexUsageDataSource = .cli
+        settings.codexCookieSource = .manual
+        settings.addTokenAccount(provider: .codex, label: "Account 1", token: "session=first")
+        settings.addTokenAccount(provider: .codex, label: "Isak", token: "session=second")
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+        if let geminiMeta = registry.metadata[.gemini] {
+            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
+        }
+
+        let fetcher = UsageFetcher(environment: ["PATH": "/nonexistent"])
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store.isRefreshing = true
+        let staleDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "old@example.com",
+            codeReviewRemainingPercent: 10,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 5,
+            updatedAt: Date())
+        store._setSnapshotForTesting(UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "old@example.com",
+                accountOrganization: nil,
+                loginMethod: "plus")), provider: .codex)
+        store.credits = CreditsSnapshot(remaining: 5, events: [], updatedAt: Date())
+        store.openAIDashboard = staleDashboard
+
+        let accounts = settings.tokenAccounts(for: .codex)
+        let replacementSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 64, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "second@example.com",
+                accountOrganization: nil,
+                loginMethod: "pro"))
+        let replacementDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "second@example.com",
+            codeReviewRemainingPercent: 82,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 42,
+            updatedAt: Date())
+        store.accountSnapshots[.codex] = [
+            TokenAccountUsageSnapshot(
+                account: accounts[0],
+                snapshot: store.snapshot(for: .codex),
+                error: nil,
+                sourceLabel: "codex-cli"),
+            TokenAccountUsageSnapshot(
+                account: accounts[1],
+                snapshot: replacementSnapshot,
+                error: nil,
+                sourceLabel: "openai-web",
+                credits: CreditsSnapshot(remaining: 42, events: [], updatedAt: Date()),
+                dashboard: replacementDashboard),
+        ]
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let buttons = self.tokenAccountButtons(in: menu)
+        #expect(buttons.count == 2)
+
+        buttons[1].performClick(nil)
+        #expect(store.snapshot(for: .codex)?.primary?.usedPercent == 64)
+        #expect(store.credits?.remaining == 42)
+        #expect(store.openAIDashboard?.signedInEmail == "second@example.com")
+        await Task.yield()
+
+        #expect(settings.tokenAccountsData(for: .codex)?.activeIndex == 1)
+    }
+
+    @Test
+    func tokenAccountRefreshPrioritizesSelectedAccount() {
+        let settings = self.makeSettings()
+        settings.codexCookieSource = .manual
+        settings.addTokenAccount(provider: .codex, label: "Account 1", token: "session=first")
+        settings.addTokenAccount(provider: .codex, label: "Second", token: "session=second")
+        settings.addTokenAccount(provider: .codex, label: "Third", token: "session=third")
+        settings.setActiveTokenAccountIndex(2, for: .codex)
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: ["PATH": "/nonexistent"]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let accounts = settings.tokenAccounts(for: .codex)
+        let prioritized = store.prioritizedTokenAccounts(accounts, selected: settings.selectedTokenAccount(for: .codex))
+
+        #expect(prioritized.map(\.label) == ["Third", "Account 1", "Second"])
+    }
+
+    @Test
+    func codexMenuPrefersSelectedTokenAccountSnapshotOverStaleLiveSnapshot() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.codexUsageDataSource = .cli
+        settings.codexCookieSource = .manual
+        settings.addTokenAccount(provider: .codex, label: "Account 1", token: "session=first")
+        settings.addTokenAccount(provider: .codex, label: "Isak", token: "session=second")
+        settings.setActiveTokenAccountIndex(0, for: .codex)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher(environment: ["PATH": "/nonexistent"])
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let staleSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "isakliljehall@gmail.com",
+                accountOrganization: nil,
+                loginMethod: "Plus"))
+        let selectedSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 61, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "miliu1973@gmail.com",
+                accountOrganization: nil,
+                loginMethod: "plus"))
+
+        store._setSnapshotForTesting(staleSnapshot, provider: .codex)
+        let account1 = try #require(settings.selectedTokenAccount(for: .codex))
+        store.accountSnapshots[.codex] = [
+            TokenAccountUsageSnapshot(
+                account: account1,
+                snapshot: selectedSnapshot,
+                error: nil,
+                sourceLabel: "codex-cli"),
+        ]
+
+        let preferred = controller.preferredMenuSnapshot(for: .codex)
+
+        #expect(preferred?.accountEmail(for: .codex) == "miliu1973@gmail.com")
+        #expect(preferred?.primary?.usedPercent == 61)
     }
 }
 

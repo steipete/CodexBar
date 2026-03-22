@@ -51,17 +51,20 @@ public struct OpenAIDashboardBrowserCookieImporter {
         public let cookieCount: Int
         public let signedInEmail: String?
         public let matchesCodexEmail: Bool
+        public let cookieHeader: String?
 
         public init(
             sourceLabel: String,
             cookieCount: Int,
             signedInEmail: String?,
-            matchesCodexEmail: Bool)
+            matchesCodexEmail: Bool,
+            cookieHeader: String? = nil)
         {
             self.sourceLabel = sourceLabel
             self.cookieCount = cookieCount
             self.signedInEmail = signedInEmail
             self.matchesCodexEmail = matchesCodexEmail
+            self.cookieHeader = cookieHeader
         }
     }
 
@@ -136,8 +139,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
         }
 
-        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
-        let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: self.browserDetection)
+        let installedBrowsers = self.importCandidates()
         for browserSource in installedBrowsers {
             if let match = await self.trySource(
                 browserSource,
@@ -171,6 +173,16 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
 
         throw ImportError.noCookiesFound
+    }
+
+    private func importCandidates() -> [Browser] {
+        if ProviderInteractionContext.current == .userInitiated {
+            if KeychainAccessGate.isDisabled {
+                return Self.cookieImportOrder.filter { self.browserDetection.isCookieSourceAvailable($0) }
+            }
+            return Self.cookieImportOrder.browsersWithProfileData(using: self.browserDetection)
+        }
+        return Self.cookieImportOrder.cookieImportCandidates(using: self.browserDetection)
     }
 
     public func importManualCookies(
@@ -281,7 +293,9 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
     }
 
-    private func tryChrome(
+    private func tryChromium(
+        browser: Browser,
+        label: String,
         targetEmail: String?,
         allowAnyAccount: Bool,
         log: @escaping (String) -> Void,
@@ -292,7 +306,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
             let chromeSources = try Self.cookieClient.records(
                 matching: query,
-                in: .chrome)
+                in: browser)
             for source in chromeSources {
                 let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
                 if cookies.isEmpty {
@@ -318,10 +332,10 @@ public struct OpenAIDashboardBrowserCookieImporter {
             if let hint = error.accessDeniedHint {
                 diagnostics.accessDeniedHints.append(hint)
             }
-            log("Chrome cookie load failed: \(error.localizedDescription)")
+            log("\(label) cookie load failed: \(error.localizedDescription)")
             return nil
         } catch {
-            log("Chrome cookie load failed: \(error.localizedDescription)")
+            log("\(label) cookie load failed: \(error.localizedDescription)")
             return nil
         }
     }
@@ -386,7 +400,17 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 log: log,
                 diagnostics: &diagnostics)
         case .chrome:
-            await self.tryChrome(
+            await self.tryChromium(
+                browser: .chrome,
+                label: "Chrome",
+                targetEmail: targetEmail,
+                allowAnyAccount: allowAnyAccount,
+                log: log,
+                diagnostics: &diagnostics)
+        case .dia:
+            await self.tryChromium(
+                browser: .dia,
+                label: "Dia",
                 targetEmail: targetEmail,
                 allowAnyAccount: allowAnyAccount,
                 log: log,
@@ -629,7 +653,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 sourceLabel: candidate.label,
                 cookieCount: candidate.cookies.count,
                 signedInEmail: signed,
-                matchesCodexEmail: matches)
+                matchesCodexEmail: matches,
+                cookieHeader: self.cookieHeader(from: candidate.cookies))
         } catch OpenAIDashboardFetcher.FetchError.loginRequired {
             logger("Selected \(candidate.label) but dashboard still requires login.")
             throw ImportError.dashboardStillRequiresLogin
@@ -655,7 +680,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 sourceLabel: candidate.label,
                 cookieCount: candidate.cookies.count,
                 signedInEmail: signed,
-                matchesCodexEmail: false)
+                matchesCodexEmail: false,
+                cookieHeader: self.cookieHeader(from: candidate.cookies))
         } catch OpenAIDashboardFetcher.FetchError.loginRequired {
             logger("Selected \(candidate.label) but dashboard still requires login.")
             throw ImportError.dashboardStillRequiresLogin

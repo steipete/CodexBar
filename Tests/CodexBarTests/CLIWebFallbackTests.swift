@@ -33,6 +33,17 @@ struct CLIWebFallbackTests {
                 manualCookieHeader: cookieHeader))
     }
 
+    private func makeCodexSettingsSnapshot(
+        cookieSource: ProviderCookieSource,
+        cookieHeader: String?) -> ProviderSettingsSnapshot
+    {
+        ProviderSettingsSnapshot.make(
+            codex: .init(
+                usageDataSource: .auto,
+                cookieSource: cookieSource,
+                manualCookieHeader: cookieHeader))
+    }
+
     @Test
     func codexFallsBackWhenCookiesMissing() {
         let context = self.makeContext()
@@ -138,5 +149,31 @@ struct CLIWebFallbackTests {
         case .browser:
             #expect(input.accountEmail == "old@example.com")
         }
+    }
+
+    @Test
+    func codexAppAutoPrefersWebWhenManualCookiesConfigured() async {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .codex)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(self.makeContext(
+            runtime: .app,
+            sourceMode: .auto,
+            settings: self.makeCodexSettingsSnapshot(
+                cookieSource: .manual,
+                cookieHeader: "__Secure-next-auth.session-token=abc")))
+
+        #expect(strategies.map(\.id) == ["codex.web.dashboard", "codex.cli"])
+    }
+
+    @Test
+    func codexAppAutoUsesOAuthThenCLIWithoutManualCookies() async {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .codex)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(self.makeContext(
+            runtime: .app,
+            sourceMode: .auto,
+            settings: self.makeCodexSettingsSnapshot(
+                cookieSource: .auto,
+                cookieHeader: nil)))
+
+        #expect(strategies.map(\.id) == ["codex.oauth", "codex.cli"])
     }
 }

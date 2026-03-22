@@ -97,6 +97,7 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let activeIndex: () -> Int
     let setActiveIndex: (Int) -> Void
     let addAccount: (_ label: String, _ token: String) -> Void
+    let addAccountViaLogin: ((_ label: String) async -> Void)?
     let removeAccount: (_ accountID: UUID) -> Void
     let openConfigFile: () -> Void
     let reloadFromDisk: () -> Void

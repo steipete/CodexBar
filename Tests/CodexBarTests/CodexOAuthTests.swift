@@ -27,6 +27,52 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func loadsOAuthCredentialsFromRawJSONString() throws {
+        let json = """
+        {
+          "tokens": {
+            "access_token": "override-access",
+            "refresh_token": "override-refresh",
+            "id_token": "override-id-token",
+            "account_id": "override-account"
+          },
+          "last_refresh": "2026-03-01T10:00:00Z"
+        }
+        """
+
+        let creds = try CodexOAuthCredentialsStore.load(rawSource: json)
+        #expect(creds.accessToken == "override-access")
+        #expect(creds.refreshToken == "override-refresh")
+        #expect(creds.idToken == "override-id-token")
+        #expect(creds.accountId == "override-account")
+    }
+
+    @Test
+    func loadsOAuthCredentialsFromAuthFilePath() throws {
+        let tmp = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: URL(fileURLWithPath: NSTemporaryDirectory()),
+            create: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let json = """
+        {
+          "tokens": {
+            "access_token": "file-access",
+            "refresh_token": "file-refresh"
+          }
+        }
+        """
+        let authURL = tmp.appendingPathComponent("auth.json")
+        try Data(json.utf8).write(to: authURL)
+
+        let creds = try CodexOAuthCredentialsStore.load(rawSource: authURL.path)
+        #expect(creds.accessToken == "file-access")
+        #expect(creds.refreshToken == "file-refresh")
+    }
+
+    @Test
     func parsesAPIKeyCredentials() throws {
         let json = """
         {
@@ -100,6 +146,25 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func resolvesOAuthClaimsFromJWTs() {
+        let access = Self.fakeJWT([
+            "https://api.openai.com/auth": [
+                "chatgpt_account_id": "account-xyz",
+                "chatgpt_plan_type": "plus",
+            ],
+        ])
+        let id = Self.fakeJWT([
+            "https://api.openai.com/profile": [
+                "email": "oauth@example.com",
+            ],
+        ])
+
+        #expect(CodexOAuthClaimResolver.accountID(accessToken: access, idToken: id) == "account-xyz")
+        #expect(CodexOAuthClaimResolver.email(accessToken: access, idToken: id) == "oauth@example.com")
+        #expect(CodexOAuthClaimResolver.plan(accessToken: access, idToken: id) == "plus")
+    }
+
+    @Test
     func resolvesChatGPTUsageURLFromConfig() {
         let config = "chatgpt_base_url = \"https://chatgpt.com/backend-api/\"\n"
         let url = CodexOAuthUsageFetcher._resolveUsageURLForTesting(configContents: config)
@@ -118,5 +183,17 @@ struct CodexOAuthTests {
         let config = "chatgpt_base_url = \"https://chat.openai.com\"\n"
         let url = CodexOAuthUsageFetcher._resolveUsageURLForTesting(configContents: config)
         #expect(url.absoluteString == "https://chat.openai.com/backend-api/wham/usage")
+    }
+
+    private static func fakeJWT(_ payloadObject: [String: Any]) -> String {
+        let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        let payload = (try? JSONSerialization.data(withJSONObject: payloadObject)) ?? Data()
+        func b64(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "=", with: "")
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+        }
+        return "\(b64(header)).\(b64(payload))."
     }
 }

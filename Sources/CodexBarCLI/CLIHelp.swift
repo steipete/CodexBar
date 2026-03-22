@@ -74,10 +74,18 @@ extension CodexBarCLI {
         CodexBar \(version)
 
         Usage:
+          codexbar config add-account --provider <provider> --token <token>
+                                    [--label <label>]
+                                    [--format text|json]
+                                    [--json]
+                                    [--json-only]
+                                    [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
+                                    [-v|--verbose]
+                                    [--pretty]
           codexbar config validate [--format text|json]
-                                 [--json]
-                                 [--json-only]
-                                 [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
+                                  [--json]
+                                  [--json-only]
+                                  [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                                  [-v|--verbose]
                                  [--pretty]
           codexbar config dump [--format text|json]
@@ -88,9 +96,10 @@ extension CodexBarCLI {
                              [--pretty]
 
         Description:
-          Validate or print the CodexBar config file (default: validate).
+          Add token accounts, validate config, or print the CodexBar config file (default: validate).
 
         Examples:
+          codexbar config add-account --provider codex --label mike --token 'session=...'
           codexbar config validate --format json --pretty
           codexbar config dump --pretty
         """
@@ -114,12 +123,7 @@ extension CodexBarCLI {
                        [--json-only]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh]
-          codexbar config <validate|dump> [--format text|json]
-                                        [--json]
-                                        [--json-only]
-                                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
-                                        [-v|--verbose]
-                                        [--pretty]
+          codexbar config <add-account|validate|dump> ...
 
         Global flags:
           -h, --help      Show help
@@ -135,6 +139,7 @@ extension CodexBarCLI {
           codexbar --provider all --json
           codexbar --provider gemini
           codexbar cost --provider claude --format json --pretty
+          codexbar config add-account --provider codex --label mike --token 'session=...'
           codexbar config validate --format json --pretty
         """
     }

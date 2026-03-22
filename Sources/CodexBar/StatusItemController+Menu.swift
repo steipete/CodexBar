@@ -163,6 +163,12 @@ extension StatusItemController {
         let menuWidth = self.menuCardWidth(for: enabledProviders, menu: menu)
         let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
         let tokenAccountDisplay = isOverviewSelected ? nil : self.tokenAccountMenuDisplay(for: currentProvider)
+        if let tokenAccountDisplay, tokenAccountDisplay.showSwitcher {
+            self.primeTokenAccountSnapshotsIfNeeded(
+                provider: currentProvider,
+                accounts: tokenAccountDisplay.accounts,
+                menu: menu)
+        }
         let showAllTokenAccounts = tokenAccountDisplay?.showAll ?? false
         let openAIContext = self.openAIWebContext(
             currentProvider: currentProvider,
@@ -601,19 +607,12 @@ extension StatusItemController {
             width: self.menuCardWidth(for: self.store.enabledProviders(), menu: menu),
             onSelect: { [weak self, weak menu] index in
                 guard let self, let menu else { return }
+                let selectedAccount = display.accounts[index]
                 self.settings.setActiveTokenAccountIndex(index, for: display.provider)
-                // Clear stale provider data immediately so the open menu never
-                // keeps rendering a previous account's identity/usage while
-                // the new selection refresh is in flight.
-                self.store.snapshots.removeValue(forKey: display.provider)
-                self.store.errors.removeValue(forKey: display.provider)
-                if display.provider == .codex {
-                    self.store.openAIDashboard = nil
-                    self.store.lastOpenAIDashboardError = nil
-                }
+                self.store.applyCachedTokenAccountState(provider: display.provider, accountID: selectedAccount.id)
                 Task { @MainActor in
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        await self.store.refresh()
+                        await self.store.refreshTokenAccounts(provider: display.provider, accounts: display.accounts)
                     }
                     self.populateMenu(menu, provider: display.provider)
                     self.markMenuFresh(menu)
@@ -1375,7 +1374,7 @@ extension StatusItemController {
         let target = provider ?? self.store.enabledProviders().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
-        let snapshot = snapshotOverride ?? self.store.snapshot(for: target)
+        let snapshot = snapshotOverride ?? self.preferredMenuSnapshot(for: target)
         let credits: CreditsSnapshot?
         let creditsError: String?
         let dashboard: OpenAIDashboardSnapshot?
@@ -1425,6 +1424,55 @@ extension StatusItemController {
             hidePersonalInfo: self.settings.hidePersonalInfo,
             now: Date())
         return UsageMenuCardView.Model.make(input)
+    }
+
+    func preferredMenuSnapshot(for provider: UsageProvider) -> UsageSnapshot? {
+        let liveSnapshot = self.store.snapshot(for: provider)
+        guard let selectedSnapshot = self.selectedTokenAccountCachedSnapshot(for: provider) else {
+            return liveSnapshot
+        }
+        guard let liveSnapshot else { return selectedSnapshot }
+        guard let selectedAccount = self.settings.selectedTokenAccount(for: provider) else {
+            return liveSnapshot
+        }
+        let liveEmail = liveSnapshot.accountEmail(for: provider)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let selectedEmail = selectedSnapshot.accountEmail(for: provider)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let selectedLabel = selectedAccount.label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let liveEmail, let selectedEmail, liveEmail == selectedEmail {
+            return liveSnapshot
+        }
+        if let liveEmail, !selectedLabel.isEmpty, liveEmail == selectedLabel {
+            return liveSnapshot
+        }
+        return selectedSnapshot
+    }
+
+    private func selectedTokenAccountCachedSnapshot(for provider: UsageProvider) -> UsageSnapshot? {
+        guard let selected = self.settings.selectedTokenAccount(for: provider) else { return nil }
+        return self.store.accountSnapshots[provider]?
+            .first(where: { $0.account.id == selected.id })?
+            .snapshot
+    }
+
+    private func primeTokenAccountSnapshotsIfNeeded(
+        provider: UsageProvider,
+        accounts: [ProviderTokenAccount],
+        menu: NSMenu)
+    {
+        let cachedCount = self.store.accountSnapshots[provider]?.count ?? 0
+        guard cachedCount < accounts.count else { return }
+        Task { @MainActor [weak self, weak menu] in
+            guard let self, let menu else { return }
+            await self.store.refreshTokenAccounts(provider: provider, accounts: accounts)
+            guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
+            self.populateMenu(menu, provider: provider)
+            self.markMenuFresh(menu)
+            self.applyIcon(phase: nil)
+        }
     }
 
     @objc private func menuCardNoOp(_ sender: NSMenuItem) {

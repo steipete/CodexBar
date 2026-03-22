@@ -82,11 +82,20 @@ struct TokenAccountCLIContext {
 
         switch provider {
         case .codex:
+            let oauthCredentialSource: String? = if let account,
+                                                    (try? CodexOAuthCredentialsStore.load(rawSource: account.token)) !=
+                                                    nil
+            {
+                account.token
+            } else {
+                nil
+            }
             return self.makeSnapshot(
                 codex: ProviderSettingsSnapshot.CodexProviderSettings(
                     usageDataSource: .auto,
                     cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
+                    manualCookieHeader: oauthCredentialSource == nil ? cookieHeader : nil,
+                    oauthCredentialSource: oauthCredentialSource))
         case .claude:
             let claudeSource: ClaudeUsageDataSource = if provider == .claude,
                                                          let account,
@@ -231,9 +240,9 @@ struct TokenAccountCLIContext {
         account: ProviderTokenAccount?) -> ProviderSourceMode
     {
         guard base == .auto,
-              provider == .claude,
               let account,
-              TokenAccountSupportCatalog.isClaudeOAuthToken(account.token)
+              (provider == .claude && TokenAccountSupportCatalog.isClaudeOAuthToken(account.token)) ||
+              (provider == .codex && (try? CodexOAuthCredentialsStore.load(rawSource: account.token)) != nil)
         else {
             return base
         }
@@ -258,6 +267,9 @@ struct TokenAccountCLIContext {
            let support = TokenAccountSupportCatalog.support(for: provider),
            case .cookieHeader = support.injection
         {
+            if provider == .codex, (try? CodexOAuthCredentialsStore.load(rawSource: account.token)) != nil {
+                return nil
+            }
             if provider == .claude, TokenAccountSupportCatalog.isClaudeOAuthToken(account.token) {
                 return nil
             }
@@ -273,6 +285,9 @@ struct TokenAccountCLIContext {
         config: ProviderConfig?) -> ProviderCookieSource
     {
         if let account, TokenAccountSupportCatalog.support(for: provider)?.requiresManualCookieSource == true {
+            if provider == .codex, (try? CodexOAuthCredentialsStore.load(rawSource: account.token)) != nil {
+                return .off
+            }
             if provider == .claude, TokenAccountSupportCatalog.isClaudeOAuthToken(account.token) {
                 return .off
             }

@@ -49,7 +49,7 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
 private struct OpenAIWebCodexResult: Sendable {
     let usage: UsageSnapshot
     let credits: CreditsSnapshot?
-    let dashboard: OpenAIDashboardSnapshot
+    let dashboard: OpenAIDashboardSnapshot?
 }
 
 enum CodexCookieImportMode: Sendable {
@@ -128,6 +128,14 @@ extension CodexWebDashboardStrategy {
         options: OpenAIWebOptions,
         browserDetection: BrowserDetection) async throws -> OpenAIWebCodexResult
     {
+        if case let .manual(cookieHeader) = importInput.mode,
+           let direct = try? await fetchCodexCookieUsage(
+               manualHeader: cookieHeader,
+               options: options)
+        {
+            return direct
+        }
+
         let logger = WebLogBuffer(verbose: options.verbose)
         let log: @MainActor (String) -> Void = { line in
             logger.append(line)
@@ -143,6 +151,23 @@ extension CodexWebDashboardStrategy {
         }
         let credits = dashboard.toCreditsSnapshot()
         return OpenAIWebCodexResult(usage: usage, credits: credits, dashboard: dashboard)
+    }
+
+    fileprivate static func fetchCodexCookieUsage(
+        manualHeader: String,
+        options _: OpenAIWebOptions) async throws -> OpenAIWebCodexResult
+    {
+        let response = try await CodexOAuthUsageFetcher.fetchUsage(manualHeader: manualHeader)
+        let accountEmail = CodexOAuthUsageFetcher.manualHeaderAccountEmail(manualHeader)
+        let plan = response.planType.map { rawPlan in
+            rawPlan.rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let usage = CodexUsageResponseMapper.makeUsageSnapshot(
+            response,
+            accountEmail: accountEmail,
+            plan: plan?.isEmpty == false ? plan : nil)
+        let credits = CodexUsageResponseMapper.makeCreditsSnapshot(response.credits)
+        return OpenAIWebCodexResult(usage: usage, credits: credits, dashboard: nil)
     }
 
     @MainActor

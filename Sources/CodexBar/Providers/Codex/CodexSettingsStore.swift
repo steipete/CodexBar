@@ -49,10 +49,13 @@ extension SettingsStore {
 
 extension SettingsStore {
     func codexSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.CodexProviderSettings {
-        ProviderSettingsSnapshot.CodexProviderSettings(
+        let oauthCredentialSource = self.codexSnapshotOAuthCredentialSource(tokenOverride: tokenOverride)
+        return ProviderSettingsSnapshot.CodexProviderSettings(
             usageDataSource: self.codexUsageDataSource,
             cookieSource: self.codexSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.codexSnapshotCookieHeader(tokenOverride: tokenOverride))
+            manualCookieHeader: oauthCredentialSource == nil ? self
+                .codexSnapshotCookieHeader(tokenOverride: tokenOverride) : nil,
+            oauthCredentialSource: oauthCredentialSource)
     }
 
     private static func codexUsageDataSource(from source: ProviderSourceMode?) -> CodexUsageDataSource {
@@ -93,5 +96,19 @@ extension SettingsStore {
         }
         if self.tokenAccounts(for: .codex).isEmpty { return fallback }
         return .manual
+    }
+
+    private func codexSnapshotOAuthCredentialSource(tokenOverride: TokenAccountOverride?) -> String? {
+        guard let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: .codex,
+            settings: self,
+            override: tokenOverride)
+        else {
+            return nil
+        }
+
+        let raw = account.token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return nil }
+        return (try? CodexOAuthCredentialsStore.load(rawSource: raw)) != nil ? raw : nil
     }
 }

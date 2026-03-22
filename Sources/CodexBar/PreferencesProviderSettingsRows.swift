@@ -205,6 +205,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
     let descriptor: ProviderSettingsTokenAccountsDescriptor
     @State private var newLabel: String = ""
     @State private var newToken: String = ""
+    @State private var isBrowserLoginInFlight = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -264,6 +265,23 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 .controlSize(.small)
                 .disabled(self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                     self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                if let addAccountViaLogin = self.descriptor.addAccountViaLogin {
+                    Button(self.isBrowserLoginInFlight ? "Opening..." : "Add with browser") {
+                        let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !label.isEmpty else { return }
+                        self.isBrowserLoginInFlight = true
+                        Task { @MainActor in
+                            await addAccountViaLogin(label)
+                            self.isBrowserLoginInFlight = false
+                            self.newLabel = ""
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(self.isBrowserLoginInFlight ||
+                        self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
             }
 
             HStack(spacing: 10) {
