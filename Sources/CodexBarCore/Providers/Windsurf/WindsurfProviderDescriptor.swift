@@ -31,11 +31,49 @@ public enum WindsurfProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Windsurf cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .cli],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [WindsurfLocalFetchStrategy()] })),
+                sourceModes: [.auto, .web, .cli],
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                    [WindsurfWebFetchStrategy(), WindsurfLocalFetchStrategy()]
+                })),
             cli: ProviderCLIConfig(
                 name: "windsurf",
                 versionDetector: nil))
+    }
+}
+
+struct WindsurfWebFetchStrategy: ProviderFetchStrategy {
+    let id: String = "windsurf.web"
+    let kind: ProviderFetchKind = .web
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        guard context.sourceMode.usesWeb else { return false }
+        guard context.settings?.windsurf?.cookieSource != .off else { return false }
+        return true
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        #if os(macOS)
+        let cookieSource = context.settings?.windsurf?.cookieSource ?? .auto
+        let manualToken = Self.manualToken(from: context)
+        let usage = try await WindsurfWebFetcher.fetchUsage(
+            browserDetection: context.browserDetection,
+            cookieSource: cookieSource,
+            manualAccessToken: manualToken,
+            logger: context.verbose ? { print($0) } : nil)
+        return self.makeResult(usage: usage, sourceLabel: "windsurf-web")
+        #else
+        throw WindsurfStatusProbeError.notSupported
+        #endif
+    }
+
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto
+    }
+
+    private static func manualToken(from context: ProviderFetchContext) -> String? {
+        guard context.settings?.windsurf?.cookieSource == .manual else { return nil }
+        let header = context.settings?.windsurf?.manualCookieHeader ?? ""
+        return header.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : header
     }
 }
 
