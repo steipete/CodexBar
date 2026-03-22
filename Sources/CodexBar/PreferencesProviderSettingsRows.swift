@@ -255,10 +255,10 @@ struct ProviderSettingsTokenAccountsRowView: View {
 
     private var codexAccountsFooterHint: String {
         if self.descriptor.codexExplicitAccountsOnly {
-            return "Only one account drives the menu bar at a time. Choose it with “Menu Bar Icon” above. " +
+            return "Only one account drives the menu bar at a time. Choose it with “Default” above. " +
                 "Other toggles (Buy Credits, web extras, etc.) are under Options too."
         }
-        return "Only one account is active at a time. Choose “Menu Bar Icon” on the row you want. " +
+        return "Only one account is active at a time. Choose “Default” on the row you want. " +
             "The house row is your primary ~/.codex sign-in; added rows use a separate OAuth folder or API key. " +
             "Buy Credits is also under Options."
     }
@@ -391,7 +391,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
     }
 
     private func menuBarActiveBadge() -> some View {
-        Text("Menu bar")
+        Text("Default")
             .font(.system(size: 10, weight: .semibold))
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
@@ -442,13 +442,13 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         self.menuBarActiveBadge()
                     }
                     if !self.useCodexDiscoveryHints, !isActive, !isRenaming {
-                        Button("Menu Bar Icon") {
+                        Button("Make Default") {
                             self.descriptor.setActiveIndex(-1)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                         .font(.caption2.weight(.medium))
-                        .help("Use this ~/.codex account for the menu bar")
+                        .help("Make this the default account")
                     }
                     if self.descriptor.renameDefaultAccount != nil {
                         Button(action: {
@@ -549,13 +549,13 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         self.menuBarActiveBadge()
                     }
                     if !self.useCodexDiscoveryHints, !isActive, !isRenaming {
-                        Button("Menu Bar Icon") {
+                        Button("Make Default") {
                             self.descriptor.setActiveIndex(index)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                         .font(.caption2.weight(.medium))
-                        .help("Use this account for the menu bar")
+                        .help("Make this the default account")
                     }
                     Button(action: {
                         self.renameText = account.displayName

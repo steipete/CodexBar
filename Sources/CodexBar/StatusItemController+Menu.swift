@@ -710,6 +710,8 @@ extension StatusItemController {
 
     private func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
+        // Hide account switcher when Multiple Accounts is disabled for Codex.
+        if provider == .codex, !self.settings.codexMultipleAccountsEnabled { return nil }
         let accounts = self.settings.tokenAccounts(for: provider)
         let defaultLabel = ProviderCatalog.implementation(for: provider)?
             .tokenAccountDefaultLabel(settings: self.settings)

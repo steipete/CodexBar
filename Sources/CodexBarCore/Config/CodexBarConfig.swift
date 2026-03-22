@@ -90,6 +90,9 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     /// When `true` (Codex only), CodexBar does not treat `~/.codex` as an implicit account; usage requires Accounts
     /// added in Settings (OAuth, API key, or manual `CODEX_HOME`).
     public var codexExplicitAccountsOnly: Bool?
+    /// When `true` (Codex only), enables multiple account support (account switcher, drag reorder, per-account tabs).
+    /// `nil` or `false` means single-account mode (upstream default).
+    public var codexMultipleAccountsEnabled: Bool?
 
     public init(
         id: UsageProvider,
@@ -104,7 +107,8 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         tokenAccounts: ProviderTokenAccountData? = nil,
         defaultAccountLabel: String? = nil,
         buyCreditsMenuEnabled: Bool? = nil,
-        codexExplicitAccountsOnly: Bool? = nil)
+        codexExplicitAccountsOnly: Bool? = nil,
+        codexMultipleAccountsEnabled: Bool? = nil)
     {
         self.id = id
         self.enabled = enabled
@@ -119,6 +123,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.defaultAccountLabel = defaultAccountLabel
         self.buyCreditsMenuEnabled = buyCreditsMenuEnabled
         self.codexExplicitAccountsOnly = codexExplicitAccountsOnly
+        self.codexMultipleAccountsEnabled = codexMultipleAccountsEnabled
     }
 
     public var sanitizedAPIKey: String? {

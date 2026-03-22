@@ -28,6 +28,8 @@ extension UsageStore {
     /// concurrently via the OAuth API and stores results in `allAccountCredits[provider]`.
     func refreshAllAccountCredits(for provider: UsageProvider) async {
         guard provider == .codex else { return }
+        // Skip multi-account credits refresh when Multiple Accounts is disabled.
+        guard self.settings.codexMultipleAccountsEnabled else { return }
         guard !self.accountCostRefreshInFlight.contains(provider) else { return }
         self.accountCostRefreshInFlight.insert(provider)
         defer { self.accountCostRefreshInFlight.remove(provider) }

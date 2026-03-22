@@ -22,6 +22,7 @@ struct CodexProviderImplementation: ProviderImplementation {
         _ = settings.codexCookieSource
         _ = settings.codexCookieHeader
         _ = settings.codexExplicitAccountsOnly
+        _ = settings.codexMultipleAccountsEnabled
     }
 
     @MainActor
@@ -76,6 +77,14 @@ struct CodexProviderImplementation: ProviderImplementation {
             get: { context.settings.codexBuyCreditsMenuEnabled },
             set: { context.settings.codexBuyCreditsMenuEnabled = $0 })
 
+        let multipleAccountsBinding = Binding(
+            get: { context.settings.codexMultipleAccountsEnabled },
+            set: { newValue in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    context.settings.codexMultipleAccountsEnabled = newValue
+                }
+            })
+
         let explicitAccountsBinding = Binding(
             get: { context.settings.codexExplicitAccountsOnly },
             set: { newValue in
@@ -89,6 +98,18 @@ struct CodexProviderImplementation: ProviderImplementation {
 
         return [
             ProviderSettingsToggleDescriptor(
+                id: "codex-multiple-accounts",
+                title: "Multiple Accounts",
+                subtitle:
+                "Enable multi-account support: add, reorder, and switch between multiple Codex accounts.",
+                binding: multipleAccountsBinding,
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
                 id: "codex-explicit-accounts-only",
                 title: "CodexBar accounts only",
                 subtitle:
@@ -97,7 +118,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 binding: explicitAccountsBinding,
                 statusText: nil,
                 actions: [],
-                isVisible: nil,
+                isVisible: { context.settings.codexMultipleAccountsEnabled },
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),

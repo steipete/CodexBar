@@ -145,7 +145,6 @@ struct ProvidersPane: View {
         guard let impl = ProviderCatalog.implementation(for: provider) else { return [] }
         let context = self.makeSettingsContext(provider: provider)
         return impl.settingsToggles(context: context)
-            .filter { $0.isVisible?() ?? true }
     }
 
     private func extraSettingsPickers(for provider: UsageProvider) -> [ProviderSettingsPickerDescriptor] {
@@ -197,7 +196,11 @@ struct ProvidersPane: View {
             isSecureToken: isSecureToken,
             provider: provider,
             isVisible: {
-                ProviderCatalog.implementation(for: provider)?
+                // For Codex, hide accounts section unless Multiple Accounts is enabled.
+                if provider == .codex, !self.settings.codexMultipleAccountsEnabled {
+                    return false
+                }
+                return ProviderCatalog.implementation(for: provider)?
                     .tokenAccountsVisibility(context: context, support: support)
                     ?? (!support.requiresManualCookieSource ||
                         !context.settings.tokenAccounts(for: provider).isEmpty)

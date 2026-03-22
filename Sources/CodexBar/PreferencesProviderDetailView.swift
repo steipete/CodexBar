@@ -60,13 +60,31 @@ struct ProviderDetailView: View {
                     hideAccountAndPlan: self.codexHidesHeaderAccountAndPlan,
                     onRefresh: self.onRefresh)
 
-                // Accounts section shown prominently at the top, before usage metrics.
-                if let tokenAccounts = self.settingsTokenAccounts,
-                   tokenAccounts.isVisible?() ?? true
-                {
+                // Multi-account toggles rendered ABOVE the Accounts section so that
+                // expanding/collapsing accounts never shifts the toggle's scroll position.
+                if !self.codexEarlyToggles.isEmpty {
+                    ProviderSettingsSection(title: "Multi-Account") {
+                        ForEach(self.codexEarlyToggles) { toggle in
+                            if toggle.isVisible?() ?? true {
+                                ProviderSettingsToggleRowView(toggle: toggle)
+                                    .id(toggle.id)
+                            }
+                        }
+                    }
+                }
+
+                // Accounts section: always in the view tree to prevent ScrollView
+                // from resetting scroll position when the section appears/disappears.
+                if let tokenAccounts = self.settingsTokenAccounts {
+                    let accountsVisible = tokenAccounts.isVisible?() ?? true
                     ProviderSettingsSection(title: "Accounts") {
                         ProviderSettingsTokenAccountsRowView(descriptor: tokenAccounts)
                     }
+                    .frame(maxHeight: accountsVisible ? nil : 0)
+                    .opacity(accountsVisible ? 1 : 0)
+                    .clipped()
+                    .allowsHitTesting(accountsVisible)
+                    .accessibilityHidden(!accountsVisible)
                 }
 
                 Group {
@@ -141,8 +159,11 @@ struct ProviderDetailView: View {
                         ForEach(self.optionsSectionPickers) { picker in
                             ProviderSettingsPickerRowView(picker: picker)
                         }
-                        ForEach(self.settingsToggles) { toggle in
-                            ProviderSettingsToggleRowView(toggle: toggle)
+                        ForEach(self.optionsSectionToggles) { toggle in
+                            if toggle.isVisible?() ?? true {
+                                ProviderSettingsToggleRowView(toggle: toggle)
+                                    .id(toggle.id)
+                            }
                         }
                         if self.provider == .codex {
                             Text(self.codexOptionsFooterExplanation)
@@ -187,7 +208,24 @@ struct ProviderDetailView: View {
     }
 
     private var hasOptionsSection: Bool {
-        !self.settingsToggles.isEmpty || !self.optionsSectionPickers.isEmpty
+        !self.optionsSectionToggles.isEmpty || !self.optionsSectionPickers.isEmpty
+    }
+
+    private static let earlyToggleIDs: Set<String> = [
+        "codex-multiple-accounts",
+        "codex-explicit-accounts-only",
+    ]
+
+    private var codexEarlyToggles: [ProviderSettingsToggleDescriptor] {
+        guard self.provider == .codex else { return [] }
+        return self.settingsToggles.filter { Self.earlyToggleIDs.contains($0.id) }
+    }
+
+    private var optionsSectionToggles: [ProviderSettingsToggleDescriptor] {
+        if self.provider == .codex {
+            return self.settingsToggles.filter { !Self.earlyToggleIDs.contains($0.id) }
+        }
+        return self.settingsToggles
     }
 
     private var codexOptionsFooterExplanation: String {
@@ -195,7 +233,7 @@ struct ProviderDetailView: View {
             return """
             CodexBar accounts only is on: ~/.codex is not used as an implicit account. \
             Add identities under Accounts (OAuth, API key, or manual CODEX_HOME path). \
-            Use "Menu Bar Icon" on each row to choose which one drives the menu bar.
+            Use "Default" on each row to choose which one drives the menu bar.
             """
                 .replacingOccurrences(of: "\n", with: " ")
                 .trimmingCharacters(in: .whitespaces)
@@ -203,7 +241,7 @@ struct ProviderDetailView: View {
         return """
         The primary account is whichever identity Codex has configured in ~/.codex on this Mac. \
         Other rows in Accounts are separate credentials/folders. \
-        Use "Menu Bar Icon" on each row to choose which one CodexBar shows in the menu bar.
+        Use "Default" on each row to choose which one CodexBar shows in the menu bar.
         """
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespaces)
@@ -213,6 +251,7 @@ struct ProviderDetailView: View {
     /// avoid confusion.
     private var codexHidesHeaderAccountAndPlan: Bool {
         guard self.provider == .codex else { return false }
+        guard self.settings.codexMultipleAccountsEnabled else { return false }
         let hasPrimary = !self.settings.codexExplicitAccountsOnly &&
             CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings) != nil
         let addedCount = self.settings.tokenAccounts(for: .codex).count
@@ -225,6 +264,7 @@ struct ProviderDetailView: View {
     /// Same rule as the menu-bar token switcher: default ~/.codex + ≥1 added account, or 2+ added accounts.
     private var codexShowsUsageAccountSwitcher: Bool {
         guard self.provider == .codex else { return false }
+        guard self.settings.codexMultipleAccountsEnabled else { return false }
         let accounts = self.settings.tokenAccounts(for: .codex)
         if self.settings.codexExplicitAccountsOnly {
             return accounts.count >= 2

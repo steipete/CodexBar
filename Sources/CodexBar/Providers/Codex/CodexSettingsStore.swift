@@ -23,6 +23,17 @@ extension SettingsStore {
         }
     }
 
+    /// When `true`, enables multi-account support for Codex (account switcher, drag reorder, per-account tabs).
+    /// Defaults to `false` (single-account / upstream behavior).
+    var codexMultipleAccountsEnabled: Bool {
+        get { self.configSnapshot.providerConfig(for: .codex)?.codexMultipleAccountsEnabled ?? false }
+        set {
+            self.updateProviderConfig(provider: .codex) { entry in
+                entry.codexMultipleAccountsEnabled = newValue
+            }
+        }
+    }
+
     /// When `true` (default), shows "Buy Credits…" in the Codex menu. Persisted per-provider; `nil` in config means
     /// enabled.
     var codexBuyCreditsMenuEnabled: Bool {
