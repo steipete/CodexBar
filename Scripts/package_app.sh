@@ -138,6 +138,9 @@ APP_GROUP_ID="group.com.steipete.codexbar"
 if [[ "$BUNDLE_ID" == *".debug"* ]]; then
   APP_GROUP_ID="group.com.steipete.codexbar.debug"
 fi
+# Keychain access group for the Data Protection keychain.
+# Must match DataProtectionKeychain.accessGroup in Swift code.
+KEYCHAIN_GROUP="Y5PE65HELJ.com.steipete.codexbar"
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"
 WIDGET_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBarWidget.entitlements"
@@ -155,6 +158,14 @@ cat > "$APP_ENTITLEMENTS" <<PLIST
     <array>
         <string>${APP_GROUP_ID}</string>
     </array>
+    $(if [[ "$SIGNING_MODE" != "adhoc" && "$ALLOW_LLDB" != "1" ]]; then
+    cat <<INNER
+    <key>keychain-access-groups</key>
+    <array>
+        <string>${KEYCHAIN_GROUP}</string>
+    </array>
+INNER
+    fi)
     $(if [[ "$ALLOW_LLDB" == "1" ]]; then echo "    <key>com.apple.security.get-task-allow</key><true/>"; fi)
 </dict>
 </plist>

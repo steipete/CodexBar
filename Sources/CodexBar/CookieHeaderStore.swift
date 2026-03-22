@@ -61,13 +61,14 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
         }
         Self.cacheLock.unlock()
         var result: CFTypeRef?
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,
             kSecAttrAccount as String: self.account,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true,
         ]
+        DataProtectionKeychain.apply(to: &query)
 
         if case .interactionRequired = KeychainAccessPreflight
             .checkGenericPassword(service: self.service, account: self.account)
@@ -130,11 +131,12 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
         }
 
         let data = raw.data(using: .utf8)!
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,
             kSecAttrAccount as String: self.account,
         ]
+        DataProtectionKeychain.apply(to: &query)
         let attributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
@@ -171,11 +173,12 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
 
     private func deleteIfPresent() throws {
         guard !KeychainAccessGate.isDisabled else { return }
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,
             kSecAttrAccount as String: self.account,
         ]
+        DataProtectionKeychain.apply(to: &query)
         let status = SecItemDelete(query as CFDictionary)
         if status == errSecSuccess || status == errSecItemNotFound {
             // Invalidate cache
