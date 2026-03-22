@@ -118,7 +118,7 @@
 "Enable file logging" = "啟用檔案日誌";
 "Error simulation" = "錯誤模擬";
 "Extra usage" = "額外用量";
-"Extra usage spent" = "額外用量已花費";
+"Extra usage spent" = "額外用量花費";
 "Extra usage: %@ / %@" = "額外用量：%@ / %@";
 "Fetch log" = "取得日誌";
 "Fetch strategy attempts" = "抓取策略嘗試";
@@ -236,8 +236,8 @@
  "Auto-detect" = "自動偵測";
  "Auto-refresh is off; use the menu's Refresh command." = "自動重新整理已關閉；請使用選單的重新整理。";
  "Auto-refresh: hourly · Timeout: 10m" = "自動重新整理：每小時 · 逾時 10 分鐘";
- "Automatic imports browser cookies and WorkOS tokens." = "自動匯入瀏覽器 Cookie 與 WorkOS Tokens。";
- "Automatic imports browser cookies and local storage tokens." = "自動匯入瀏覽器 Cookie 與本機儲存 Tokens。";
+ "Automatic imports browser cookies and WorkOS tokens." = "自動匯入瀏覽器 Cookies 和 WorkOS Tokens。";
+ "Automatic imports browser cookies and local storage tokens." = "自動匯入瀏覽器 Cookies 和本機儲存 Tokens。";
  "Automatic imports browser cookies for dashboard extras." = "自動匯入瀏覽器 Cookie，提供儀表板額外資訊。";
  "Automatic imports browser cookies for the web API." = "自動匯入瀏覽器 Cookie，以使用 Web API。";
  "Automatic imports browser cookies from opencode.ai." = "自動從 opencode.ai 匯入瀏覽器 Cookie。";
@@ -308,7 +308,7 @@
  "Kimi cookies are disabled." = "Kimi Cookies 已停用。";
  "Label" = "標籤";
  "Language" = "語言";
- "May your tokens never run out—keep agent limits in view." = "願你的 Token 永不耗盡，始終看清代理額度。";
+ "May your tokens never run out—keep agent limits in view." = "願你的 Token 額度永不耗盡，始終看清代理限額。";
  "Menu bar" = "選單列";
  "Menu bar auto-shows the provider closest to its rate limit." = "選單列會自動顯示最接近速率限制的提供商。";
  "Menu bar shows percent" = "選單列顯示百分比";
@@ -506,7 +506,7 @@
 "Kimi cookies are disabled." = "Kimi Cookies 已停用。";
 "Label" = "標籤";
 "Language" = "語言";
-"May your tokens never run out—keep agent limits in view." = "願你的 Token 永不耗盡，始終看清代理額度。";
+"May your tokens never run out—keep agent limits in view." = "願你的 Token 額度永不耗盡，始終看清代理限額。";
 "Menu bar" = "選單列";
 "Menu bar auto-shows the provider closest to its rate limit." = "選單列會自動顯示最接近限額的供應商。";
 "Menu bar shows percent" = "選單列顯示百分比";

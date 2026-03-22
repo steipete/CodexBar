@@ -307,7 +307,7 @@
 "Kimi cookies are disabled." = "Kimi Cookies 已禁用。";
 "Label" = "标签";
 "Language" = "语言";
-"May your tokens never run out—keep agent limits in view." = "愿你的 Token 永不耗尽，始终看清代理额度。";
+"May your tokens never run out—keep agent limits in view." = "愿你的 tokens 永不耗尽，始终看清代理额度。";
 "Menu bar" = "菜单栏";
 "Menu bar auto-shows the provider closest to its rate limit." = "菜单栏会自动显示最接近限额的提供商。";
 "Menu bar shows percent" = "菜单栏显示百分比";
