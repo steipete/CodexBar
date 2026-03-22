@@ -97,7 +97,8 @@ public enum CursorCookieImporter {
                 }
                 if !requireKnownSessionName, !httpCookies.isEmpty {
                     log(
-                        "Found \(httpCookies.count) Cursor domain cookies in \(source.label) (no known session name); will validate via API")
+                        "Found \(httpCookies.count) Cursor domain cookies in \(source.label) "
+                            + "(no known session name); will validate via API")
                     return SessionInfo(
                         cookies: httpCookies,
                         sourceLabel: "\(source.label) (domain cookies)")
@@ -110,6 +111,7 @@ public enum CursorCookieImporter {
         }
         return nil
     }
+
     /// Attempts to import Cursor cookies using the standard browser import order.
     public static func importSession(
         browserDetection: BrowserDetection,
@@ -599,6 +601,7 @@ public struct CursorStatusProbe: Sendable {
         async throws -> CursorStatusSnapshot
     {
         let log: (String) -> Void = { msg in logger?("[cursor] \(msg)") }
+        var firstRecoverableError: CursorStatusProbeError?
 
         if let override = CookieHeaderNormalizer.normalize(cookieHeaderOverride) {
             log("Using manual cookie header")
@@ -625,30 +628,34 @@ public struct CursorStatusProbe: Sendable {
         // Try each browser in order. The first browser that *has* session cookie names is not always valid
         // (e.g. stale Chrome tokens); keep trying until the API accepts a session or we run out of browsers.
         let browserCandidates = cursorCookieImportOrder.cookieImportCandidates(using: self.browserDetection)
-        for browser in browserCandidates {
-            guard let session = CursorCookieImporter.importSessionIfPresent(
+        let importedSessions = browserCandidates.compactMap { browser in
+            CursorCookieImporter.importSessionIfPresent(
                 browser: browser,
                 browserDetection: self.browserDetection,
                 logger: log)
-            else { continue }
-            switch await self.fetchIfSessionAccepted(session, log: log) {
-            case let .succeeded(snapshot): return snapshot
-            case .tryNextBrowser: continue
-            case let .failed(error): throw error
-            }
+        }
+        switch await self.scanImportedSessions(importedSessions, attemptFetch: { session in
+            await self.fetchIfSessionAccepted(session, log: log)
+        }) {
+        case let .succeeded(snapshot):
+            return snapshot
+        case let .exhausted(error):
+            firstRecoverableError = error ?? firstRecoverableError
         }
 
-        for browser in browserCandidates {
-            guard let session = CursorCookieImporter.importDomainCookiesIfPresent(
+        let domainSessions = browserCandidates.compactMap { browser in
+            CursorCookieImporter.importDomainCookiesIfPresent(
                 browser: browser,
                 browserDetection: self.browserDetection,
                 logger: log)
-            else { continue }
-            switch await self.fetchIfSessionAccepted(session, log: log) {
-            case let .succeeded(snapshot): return snapshot
-            case .tryNextBrowser: continue
-            case let .failed(error): throw error
-            }
+        }
+        switch await self.scanImportedSessions(domainSessions, attemptFetch: { session in
+            await self.fetchIfSessionAccepted(session, log: log)
+        }) {
+        case let .succeeded(snapshot):
+            return snapshot
+        case let .exhausted(error):
+            firstRecoverableError = error ?? firstRecoverableError
         }
 
         // Fall back to stored session cookies (from "Add Account" login flow)
@@ -658,24 +665,58 @@ public struct CursorStatusProbe: Sendable {
             let cookieHeader = storedCookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
             do {
                 return try await self.fetchWithCookieHeader(cookieHeader)
-            } catch {
-                if case CursorStatusProbeError.notLoggedIn = error {
+            } catch let error as CursorStatusProbeError {
+                if case .notLoggedIn = error {
                     // Clear only when auth is invalid; keep for transient failures.
                     await CursorSessionStore.shared.clearCookies()
                     log("Stored session invalid, cleared")
                 } else {
                     log("Stored session failed: \(error.localizedDescription)")
+                    firstRecoverableError = firstRecoverableError ?? error
                 }
+            } catch {
+                log("Stored session failed: \(error.localizedDescription)")
+                firstRecoverableError = firstRecoverableError ?? .networkError(error.localizedDescription)
             }
+        }
+
+        if let firstRecoverableError {
+            throw firstRecoverableError
         }
 
         throw CursorStatusProbeError.noSessionCookie
     }
 
-    private enum ImportedSessionFetchOutcome: Sendable {
+    enum ImportedSessionFetchOutcome: Sendable {
         case succeeded(CursorStatusSnapshot)
         case tryNextBrowser
         case failed(CursorStatusProbeError)
+    }
+
+    enum ImportedSessionScanResult: Sendable {
+        case succeeded(CursorStatusSnapshot)
+        case exhausted(CursorStatusProbeError?)
+    }
+
+    func scanImportedSessions(
+        _ sessions: [CursorCookieImporter.SessionInfo],
+        attemptFetch: (CursorCookieImporter.SessionInfo) async -> ImportedSessionFetchOutcome) async
+        -> ImportedSessionScanResult
+    {
+        var firstFailure: CursorStatusProbeError?
+
+        for session in sessions {
+            switch await attemptFetch(session) {
+            case let .succeeded(snapshot):
+                return .succeeded(snapshot)
+            case .tryNextBrowser:
+                continue
+            case let .failed(error):
+                firstFailure = firstFailure ?? error
+            }
+        }
+
+        return .exhausted(firstFailure)
     }
 
     private func fetchIfSessionAccepted(

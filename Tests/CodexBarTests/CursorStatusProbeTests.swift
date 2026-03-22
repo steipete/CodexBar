@@ -547,6 +547,88 @@ struct CursorStatusProbeTests {
         #expect(snapshot.requestsLimit == 500)
     }
 
+    // MARK: - Imported Session Scanning
+
+    @Test
+    func `imported session scan continues after non auth failure until later success`() async {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let expected = CursorStatusSnapshot(
+            planPercentUsed: 0.441025641025641,
+            autoPercentUsed: 0.36,
+            apiPercentUsed: 0.7111111111111111,
+            planUsedUSD: 0.86,
+            planLimitUSD: 20.0,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+
+        let result = await probe.scanImportedSessions([
+            Self.makeSessionInfo(sourceLabel: "Chrome"),
+            Self.makeSessionInfo(sourceLabel: "Safari"),
+        ]) { session in
+            switch session.sourceLabel {
+            case "Chrome":
+                .failed(.networkError("HTTP 500"))
+            case "Safari":
+                .succeeded(expected)
+            default:
+                .tryNextBrowser
+            }
+        }
+
+        switch result {
+        case let .succeeded(snapshot):
+            #expect(snapshot.planPercentUsed == expected.planPercentUsed)
+            #expect(snapshot.autoPercentUsed == expected.autoPercentUsed)
+            #expect(snapshot.apiPercentUsed == expected.apiPercentUsed)
+        case .exhausted:
+            Issue.record("Expected scan to continue to the later successful browser session")
+        }
+    }
+
+    @Test
+    func `imported session scan preserves first non auth failure after exhausting sessions`() async {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+
+        let result = await probe.scanImportedSessions([
+            Self.makeSessionInfo(sourceLabel: "Chrome"),
+            Self.makeSessionInfo(sourceLabel: "Safari"),
+            Self.makeSessionInfo(sourceLabel: "Arc"),
+        ]) { session in
+            switch session.sourceLabel {
+            case "Chrome":
+                .failed(.networkError("HTTP 500"))
+            case "Safari":
+                .tryNextBrowser
+            case "Arc":
+                .failed(.parseFailed("bad payload"))
+            default:
+                .tryNextBrowser
+            }
+        }
+
+        switch result {
+        case .succeeded:
+            Issue.record("Expected scan to report the first recoverable error after exhausting sessions")
+        case let .exhausted(error):
+            guard let error else {
+                Issue.record("Expected first recoverable error to be preserved")
+                return
+            }
+            guard case let .networkError(message) = error else {
+                Issue.record("Expected first recoverable error to be the Chrome network failure")
+                return
+            }
+            #expect(message == "HTTP 500")
+        }
+    }
+
     @Test
     func `detects non legacy plan`() {
         let snapshot = CursorStatusSnapshot(
@@ -664,5 +746,18 @@ struct CursorStatusProbeTests {
         #expect(hasSession)
 
         await store.clearCookies()
+    }
+
+    private static func makeSessionInfo(sourceLabel: String) -> CursorCookieImporter.SessionInfo {
+        let cookieProps: [HTTPCookiePropertyKey: Any] = [
+            .name: "WorkosCursorSessionToken",
+            .value: sourceLabel.lowercased(),
+            .domain: "cursor.com",
+            .path: "/",
+            .secure: true,
+        ]
+
+        let cookie = HTTPCookie(properties: cookieProps)!
+        return CursorCookieImporter.SessionInfo(cookies: [cookie], sourceLabel: sourceLabel)
     }
 }
