@@ -1,5 +1,6 @@
 import CodexBarCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ProviderSettingsSection<Content: View>: View {
     let title: String
@@ -244,6 +245,8 @@ struct ProviderSettingsTokenAccountsRowView: View {
     /// Current text inside the active rename field.
     @State private var renameText: String = ""
     @FocusState private var renameFieldFocused: Bool
+    /// ID of the token account currently being dragged for reordering (nil = none).
+    @State private var draggingAccountID: UUID?
 
     /// Explainer rows for Codex when the implicit ~/.codex primary tab is shown (`show` = discovery UX).
     private var useCodexDiscoveryHints: Bool {
@@ -252,10 +255,10 @@ struct ProviderSettingsTokenAccountsRowView: View {
 
     private var codexAccountsFooterHint: String {
         if self.descriptor.codexExplicitAccountsOnly {
-            return "Only one account drives the menu bar at a time. Choose it under Options → “Menu bar account”. " +
+            return "Only one account drives the menu bar at a time. Choose it with “Menu Bar Icon” above. " +
                 "Other toggles (Buy Credits, web extras, etc.) are under Options too."
         }
-        return "Only one account is active at a time. Choose “Menu bar account” under Options below. " +
+        return "Only one account is active at a time. Choose “Menu Bar Icon” on the row you want. " +
             "The house row is your primary ~/.codex sign-in; added rows use a separate OAuth folder or API key. " +
             "Buy Credits is also under Options."
     }
@@ -372,6 +375,17 @@ struct ProviderSettingsTokenAccountsRowView: View {
             ForEach(Array(accounts.enumerated()), id: \.1.id) { index, account in
                 self.accountTab(account: account, index: index, isActive: index == selectedIndex)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .onDrag {
+                        self.draggingAccountID = account.id
+                        return NSItemProvider(object: account.id.uuidString as NSString)
+                    }
+                    .onDrop(
+                        of: [UTType.plainText],
+                        delegate: TokenAccountDropDelegate(
+                            item: account,
+                            accounts: accounts,
+                            dragging: self.$draggingAccountID,
+                            moveAccounts: self.descriptor.moveAccount))
             }
         }
     }
@@ -427,6 +441,15 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     if rowActive {
                         self.menuBarActiveBadge()
                     }
+                    if !self.useCodexDiscoveryHints, !isActive, !isRenaming {
+                        Button("Menu Bar Icon") {
+                            self.descriptor.setActiveIndex(-1)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .font(.caption2.weight(.medium))
+                        .help("Use this ~/.codex account for the menu bar")
+                    }
                     if self.descriptor.renameDefaultAccount != nil {
                         Button(action: {
                             self.renameText = label
@@ -442,15 +465,6 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         })
                         .buttonStyle(.plain)
                         .help("Rename tab")
-                    }
-                    if !self.useCodexDiscoveryHints, !isActive, !isRenaming {
-                        Button("Use") {
-                            self.descriptor.setActiveIndex(-1)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                        .font(.caption2.weight(.medium))
-                        .help("Use this ~/.codex account for the menu bar")
                     }
                 }
             }
@@ -497,6 +511,8 @@ struct ProviderSettingsTokenAccountsRowView: View {
         let rowActive = highlightSelection && isActive
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
+                AccountReorderHandle()
+                    .help("Drag to reorder")
                 Image(systemName: "rectangle.stack.fill")
                     .foregroundStyle(rowActive ? Color.accentColor : .secondary)
                     .imageScale(.small)
@@ -532,6 +548,15 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     if rowActive {
                         self.menuBarActiveBadge()
                     }
+                    if !self.useCodexDiscoveryHints, !isActive, !isRenaming {
+                        Button("Menu Bar Icon") {
+                            self.descriptor.setActiveIndex(index)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .font(.caption2.weight(.medium))
+                        .help("Use this account for the menu bar")
+                    }
                     Button(action: {
                         self.renameText = account.displayName
                         self.renamingAccountID = account.id
@@ -553,15 +578,6 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     })
                     .buttonStyle(.plain)
                     .help("Remove account")
-                    if !self.useCodexDiscoveryHints, !isActive, !isRenaming {
-                        Button("Use") {
-                            self.descriptor.setActiveIndex(index)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                        .font(.caption2.weight(.medium))
-                        .help("Use this account for the menu bar")
-                    }
                 }
             }
             if self.descriptor.provider == .codex, !isRenaming {
@@ -710,6 +726,50 @@ struct ProviderSettingsTokenAccountsRowView: View {
             .disabled(self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                 self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+    }
+}
+
+private struct AccountReorderHandle: View {
+    var body: some View {
+        VStack(spacing: 2) {
+            ForEach(0..<3, id: \.self) { _ in
+                HStack(spacing: 2) {
+                    Circle()
+                        .frame(width: 2.5, height: 2.5)
+                    Circle()
+                        .frame(width: 2.5, height: 2.5)
+                }
+            }
+        }
+        .frame(width: 12, height: 16)
+        .foregroundStyle(.tertiary)
+        .accessibilityLabel("Reorder")
+    }
+}
+
+private struct TokenAccountDropDelegate: DropDelegate {
+    let item: ProviderTokenAccount
+    let accounts: [ProviderTokenAccount]
+    @Binding var dragging: UUID?
+    let moveAccounts: (IndexSet, Int) -> Void
+
+    func dropEntered(info _: DropInfo) {
+        guard let dragging, dragging != self.item.id else { return }
+        guard let fromIndex = self.accounts.firstIndex(where: { $0.id == dragging }),
+              let toIndex = self.accounts.firstIndex(where: { $0.id == self.item.id })
+        else { return }
+        guard fromIndex != toIndex else { return }
+        let adjustedIndex = toIndex > fromIndex ? toIndex + 1 : toIndex
+        self.moveAccounts(IndexSet(integer: fromIndex), adjustedIndex)
+    }
+
+    func dropUpdated(info _: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info _: DropInfo) -> Bool {
+        self.dragging = nil
+        return true
     }
 }
 

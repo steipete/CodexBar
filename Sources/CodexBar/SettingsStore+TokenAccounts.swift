@@ -118,6 +118,36 @@ extension SettingsStore {
         }
     }
 
+    func moveTokenAccount(provider: UsageProvider, fromOffsets: IndexSet, toOffset: Int) {
+        guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
+        var accounts = data.accounts
+        let previousActiveAccount: ProviderTokenAccount? = data.activeIndex >= 0 && data.activeIndex < accounts.count
+            ? accounts[data.activeIndex]
+            : nil
+        accounts.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        let newActiveIndex: Int
+        if let activeAccount = previousActiveAccount,
+           let newIndex = accounts.firstIndex(where: { $0.id == activeAccount.id })
+        {
+            newActiveIndex = newIndex
+        } else {
+            newActiveIndex = data.activeIndex
+        }
+        let updated = ProviderTokenAccountData(
+            version: data.version,
+            accounts: accounts,
+            activeIndex: newActiveIndex)
+        self.updateProviderConfig(provider: provider) { entry in
+            entry.tokenAccounts = updated
+        }
+        CodexBarLog.logger(LogCategories.tokenAccounts).info(
+            "Token account reordered",
+            metadata: [
+                "provider": provider.rawValue,
+                "count": "\(accounts.count)",
+            ])
+    }
+
     func removeTokenAccount(provider: UsageProvider, accountID: UUID) {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         let filtered = data.accounts.filter { $0.id != accountID }

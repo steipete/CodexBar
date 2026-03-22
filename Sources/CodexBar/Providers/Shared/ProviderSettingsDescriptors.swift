@@ -100,6 +100,7 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let setActiveIndex: (Int) -> Void
     let addAccount: (_ label: String, _ token: String) -> Void
     let removeAccount: (_ accountID: UUID) -> Void
+    let moveAccount: (_ fromOffsets: IndexSet, _ toOffset: Int) -> Void
     let renameAccount: (_ accountID: UUID, _ newLabel: String) -> Void
     let openConfigFile: () -> Void
     let reloadFromDisk: () -> Void

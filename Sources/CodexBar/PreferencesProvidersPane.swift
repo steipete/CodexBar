@@ -231,6 +231,14 @@ struct ProvidersPane: View {
                     }
                 }
             },
+            moveAccount: { fromOffsets, toOffset in
+                self.settings.moveTokenAccount(provider: provider, fromOffsets: fromOffsets, toOffset: toOffset)
+                Task { @MainActor in
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
+                }
+            },
             renameAccount: { accountID, newLabel in
                 self.settings.renameTokenAccount(provider: provider, accountID: accountID, newLabel: newLabel)
             },

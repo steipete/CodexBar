@@ -195,7 +195,7 @@ struct ProviderDetailView: View {
             return """
             CodexBar accounts only is on: ~/.codex is not used as an implicit account. \
             Add identities under Accounts (OAuth, API key, or manual CODEX_HOME path). \
-            “Menu bar account” chooses which row drives the menu bar.
+            Use "Menu Bar Icon" on each row to choose which one drives the menu bar.
             """
                 .replacingOccurrences(of: "\n", with: " ")
                 .trimmingCharacters(in: .whitespaces)
@@ -203,7 +203,7 @@ struct ProviderDetailView: View {
         return """
         The primary account is whichever identity Codex has configured in ~/.codex on this Mac. \
         Other rows in Accounts are separate credentials/folders. \
-        “Menu bar account” chooses which one CodexBar shows in the menu bar.
+        Use "Menu Bar Icon" on each row to choose which one CodexBar shows in the menu bar.
         """
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespaces)

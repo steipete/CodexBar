@@ -172,44 +172,6 @@ struct CodexProviderImplementation: ProviderImplementation {
                 context.settings.codexCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
             })
 
-        let menuBarAccountBinding = Binding(
-            get: {
-                let accounts = context.settings.tokenAccounts(for: .codex)
-                let hasPrimary = self.tokenAccountDefaultLabel(settings: context.settings) != nil
-                let raw = context.settings.tokenAccountsData(for: .codex)?.activeIndex ?? -1
-                if hasPrimary, raw < 0 { return "default" }
-                guard !accounts.isEmpty else { return hasPrimary ? "default" : "0" }
-                let idx = min(max(raw < 0 ? 0 : raw, 0), accounts.count - 1)
-                return String(idx)
-            },
-            set: { newId in
-                if newId == "default" {
-                    context.settings.setActiveTokenAccountIndex(-1, for: .codex)
-                } else if let idx = Int(newId) {
-                    context.settings.setActiveTokenAccountIndex(idx, for: .codex)
-                }
-            })
-
-        var menuBarAccountOptions: [ProviderSettingsPickerOption] = []
-        if self.tokenAccountDefaultLabel(settings: context.settings) != nil {
-            let custom = context.settings.providerConfig(for: .codex)?.defaultAccountLabel?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let title: String = if let custom, !custom.isEmpty {
-                custom
-            } else if let email = self.tokenAccountDefaultLabel(settings: context.settings) {
-                email
-            } else {
-                "Primary"
-            }
-            menuBarAccountOptions.append(
-                ProviderSettingsPickerOption(
-                    id: "default",
-                    title: "\(title) (primary ~/.codex)"))
-        }
-        for (i, acc) in context.settings.tokenAccounts(for: .codex).enumerated() {
-            menuBarAccountOptions.append(ProviderSettingsPickerOption(id: String(i), title: acc.displayName))
-        }
-
         let usageOptions = CodexUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
@@ -227,26 +189,6 @@ struct CodexProviderImplementation: ProviderImplementation {
         }
 
         return [
-            ProviderSettingsPickerDescriptor(
-                id: "codex-menu-bar-account",
-                title: "Menu bar account",
-                subtitle: "Which Codex account drives the menu bar and usage on this Mac.",
-                binding: menuBarAccountBinding,
-                options: menuBarAccountOptions,
-                isVisible: {
-                    let accounts = context.settings.tokenAccounts(for: .codex)
-                    let hasPrimary = self.tokenAccountDefaultLabel(settings: context.settings) != nil
-                    if context.settings.codexExplicitAccountsOnly {
-                        return accounts.count >= 1
-                    }
-                    return (hasPrimary ? 1 : 0) + accounts.count >= 2
-                },
-                onChange: { _ in
-                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        await context.store.refreshProvider(.codex, allowDisabled: true)
-                    }
-                },
-                section: .options),
             ProviderSettingsPickerDescriptor(
                 id: "codex-usage-source",
                 title: "Usage source",

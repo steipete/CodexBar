@@ -175,6 +175,7 @@ enum ProvidersPaneTestHarness {
             setActiveIndex: { _ in },
             addAccount: { _, _ in },
             removeAccount: { _ in },
+            moveAccount: { _, _ in },
             renameAccount: { _, _ in },
             openConfigFile: {},
             reloadFromDisk: {},

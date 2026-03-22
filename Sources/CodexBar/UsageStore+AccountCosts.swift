@@ -35,22 +35,29 @@ extension UsageStore {
         let tokenAccounts = self.settings.tokenAccounts(for: provider)
         let defaultLabel = ProviderCatalog.implementation(for: provider)?
             .tokenAccountDefaultLabel(settings: self.settings) ?? "Default"
+        let includeDefault = !self.settings.codexExplicitAccountsOnly
 
         // Fetch all accounts in parallel.
         var entries: [AccountCostEntry] = await withTaskGroup(
             of: (index: Int, entry: AccountCostEntry).self,
             returning: [AccountCostEntry].self)
         { group in
-            // Default account (index 0)
-            group.addTask {
-                let entry = await Self.fetchCredits(
-                    env: [:],
-                    id: "default",
-                    label: defaultLabel,
-                    isDefault: true)
-                return (0, entry)
+            // Default account (index 0) — skip when "CodexBar accounts only" is on.
+            let baseOffset: Int
+            if includeDefault {
+                group.addTask {
+                    let entry = await Self.fetchCredits(
+                        env: [:],
+                        id: "default",
+                        label: defaultLabel,
+                        isDefault: true)
+                    return (0, entry)
+                }
+                baseOffset = 1
+            } else {
+                baseOffset = 0
             }
-            // Token accounts (index 1…)
+            // Token accounts
             for (offset, account) in tokenAccounts.enumerated() {
                 group.addTask {
                     guard let env = TokenAccountSupportCatalog.envOverride(for: .codex, token: account.token) else {
@@ -67,14 +74,14 @@ extension UsageStore {
                             secondaryResetDescription: nil,
                             error: "Invalid Codex account token",
                             updatedAt: Date())
-                        return (offset + 1, entry)
+                        return (offset + baseOffset, entry)
                     }
                     let entry = await Self.fetchCredits(
                         env: env,
                         id: account.id.uuidString,
                         label: account.label,
                         isDefault: false)
-                    return (offset + 1, entry)
+                    return (offset + baseOffset, entry)
                 }
             }
 
