@@ -31,9 +31,27 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
-    func `cursor menu bar metric picker includes tertiary api lane`() {
+    func `cursor menu bar metric picker omits tertiary api lane when snapshot has no api metric`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-cursor-no-tertiary-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .cursor)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(!ids.contains(MenuBarMetricPreference.tertiary.rawValue))
+    }
+
+    @Test
+    func `cursor menu bar metric picker includes tertiary api lane when snapshot has api metric`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-cursor-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 34, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                tertiary: RateWindow(usedPercent: 56, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                updatedAt: Date()),
+            provider: .cursor)
         let pane = ProvidersPane(settings: settings, store: store)
 
         let picker = pane._test_menuBarMetricPicker(for: .cursor)

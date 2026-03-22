@@ -630,6 +630,61 @@ struct CursorStatusProbeTests {
     }
 
     @Test
+    func `browser scan stops importing after later browser succeeds`() async {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let expected = CursorStatusSnapshot(
+            planPercentUsed: 42,
+            autoPercentUsed: 12,
+            apiPercentUsed: 85,
+            planUsedUSD: 8.4,
+            planLimitUSD: 20,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+        var importedLabels: [String] = []
+
+        let result = await probe.scanBrowsers(
+            [.chrome, .safari, .chromeBeta],
+            importSession: { browser in
+                importedLabels.append(browser.displayName)
+                switch browser {
+                case .chrome:
+                    return Self.makeSessionInfo(sourceLabel: "Chrome")
+                case .safari:
+                    return Self.makeSessionInfo(sourceLabel: "Safari")
+                case .chromeBeta:
+                    return Self.makeSessionInfo(sourceLabel: "Chrome Beta")
+                default:
+                    return nil
+                }
+            },
+            attemptFetch: { session in
+                switch session.sourceLabel {
+                case "Chrome":
+                    .failed(.networkError("HTTP 500"))
+                case "Safari":
+                    .succeeded(expected)
+                default:
+                    .tryNextBrowser
+                }
+            })
+
+        switch result {
+        case let .succeeded(snapshot):
+            #expect(snapshot.planPercentUsed == expected.planPercentUsed)
+            #expect(importedLabels == ["Chrome", "Safari"])
+        case .exhausted:
+            Issue.record("Expected browser scan to stop after the later successful browser")
+        }
+    }
+
+    @Test
     func `detects non legacy plan`() {
         let snapshot = CursorStatusSnapshot(
             planPercentUsed: 50.0,

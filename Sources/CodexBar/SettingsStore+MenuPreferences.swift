@@ -54,6 +54,21 @@ extension SettingsStore {
         provider == .cursor
     }
 
+    func menuBarMetricSupportsTertiary(for provider: UsageProvider, snapshot: UsageSnapshot?) -> Bool {
+        guard provider == .cursor else { return self.menuBarMetricSupportsTertiary(for: provider) }
+        return snapshot?.tertiary != nil
+    }
+
+    func menuBarMetricPreference(for provider: UsageProvider, snapshot: UsageSnapshot?) -> MenuBarMetricPreference {
+        let preference = self.menuBarMetricPreference(for: provider)
+        if preference == .tertiary,
+           !self.menuBarMetricSupportsTertiary(for: provider, snapshot: snapshot)
+        {
+            return .automatic
+        }
+        return preference
+    }
+
     func isCostUsageEffectivelyEnabled(for provider: UsageProvider) -> Bool {
         self.costUsageEnabled
             && ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost

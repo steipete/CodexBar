@@ -27,7 +27,7 @@ extension UsageStore {
 
     private func menuBarMetricWindowForHighestUsage(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
         MenuBarMetricWindowResolver.rateWindow(
-            preference: self.settings.menuBarMetricPreference(for: provider),
+            preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot),
             provider: provider,
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))

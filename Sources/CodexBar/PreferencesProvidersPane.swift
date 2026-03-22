@@ -274,8 +274,9 @@ struct ProvidersPane: View {
             ]
         } else {
             let metadata = self.store.metadata(for: provider)
+            let snapshot = self.store.snapshot(for: provider)
             let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
-            let supportsTertiary = self.settings.menuBarMetricSupportsTertiary(for: provider)
+            let supportsTertiary = self.settings.menuBarMetricSupportsTertiary(for: provider, snapshot: snapshot)
             var metricOptions: [ProviderSettingsPickerOption] = [
                 ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
                 ProviderSettingsPickerOption(
@@ -303,7 +304,11 @@ struct ProvidersPane: View {
             title: "Menu bar metric",
             subtitle: "Choose which window drives the menu bar percent.",
             binding: Binding(
-                get: { self.settings.menuBarMetricPreference(for: provider).rawValue },
+                get: {
+                    self.settings
+                        .menuBarMetricPreference(for: provider, snapshot: self.store.snapshot(for: provider))
+                        .rawValue
+                },
                 set: { rawValue in
                     guard let preference = MenuBarMetricPreference(rawValue: rawValue) else { return }
                     self.settings.setMenuBarMetricPreference(preference, for: provider)

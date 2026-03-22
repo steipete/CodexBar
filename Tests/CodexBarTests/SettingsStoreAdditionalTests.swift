@@ -23,6 +23,8 @@ struct SettingsStoreAdditionalTests {
 
         settings.setMenuBarMetricPreference(.tertiary, for: .cursor)
         #expect(settings.menuBarMetricPreference(for: .cursor) == .tertiary)
+        #expect(settings.menuBarMetricPreference(for: .cursor, snapshot: nil) == .automatic)
+        #expect(settings.menuBarMetricSupportsTertiary(for: .cursor, snapshot: nil) == false)
 
         settings.setMenuBarMetricPreference(.tertiary, for: .gemini)
         #expect(settings.menuBarMetricPreference(for: .gemini) == .automatic)

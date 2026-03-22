@@ -628,30 +628,36 @@ public struct CursorStatusProbe: Sendable {
         // Try each browser in order. The first browser that *has* session cookie names is not always valid
         // (e.g. stale Chrome tokens); keep trying until the API accepts a session or we run out of browsers.
         let browserCandidates = cursorCookieImportOrder.cookieImportCandidates(using: self.browserDetection)
-        let importedSessions = browserCandidates.compactMap { browser in
-            CursorCookieImporter.importSessionIfPresent(
-                browser: browser,
-                browserDetection: self.browserDetection,
-                logger: log)
-        }
-        switch await self.scanImportedSessions(importedSessions, attemptFetch: { session in
-            await self.fetchIfSessionAccepted(session, log: log)
-        }) {
+        switch await self.scanBrowsers(
+            browserCandidates,
+            importSession: { browser in
+                CursorCookieImporter.importSessionIfPresent(
+                    browser: browser,
+                    browserDetection: self.browserDetection,
+                    logger: log)
+            },
+            attemptFetch: { session in
+                await self.fetchIfSessionAccepted(session, log: log)
+            })
+        {
         case let .succeeded(snapshot):
             return snapshot
         case let .exhausted(error):
             firstRecoverableError = error ?? firstRecoverableError
         }
 
-        let domainSessions = browserCandidates.compactMap { browser in
-            CursorCookieImporter.importDomainCookiesIfPresent(
-                browser: browser,
-                browserDetection: self.browserDetection,
-                logger: log)
-        }
-        switch await self.scanImportedSessions(domainSessions, attemptFetch: { session in
-            await self.fetchIfSessionAccepted(session, log: log)
-        }) {
+        switch await self.scanBrowsers(
+            browserCandidates,
+            importSession: { browser in
+                CursorCookieImporter.importDomainCookiesIfPresent(
+                    browser: browser,
+                    browserDetection: self.browserDetection,
+                    logger: log)
+            },
+            attemptFetch: { session in
+                await self.fetchIfSessionAccepted(session, log: log)
+            })
+        {
         case let .succeeded(snapshot):
             return snapshot
         case let .exhausted(error):
@@ -696,6 +702,29 @@ public struct CursorStatusProbe: Sendable {
     enum ImportedSessionScanResult: Sendable {
         case succeeded(CursorStatusSnapshot)
         case exhausted(CursorStatusProbeError?)
+    }
+
+    func scanBrowsers(
+        _ browsers: [Browser],
+        importSession: (Browser) -> CursorCookieImporter.SessionInfo?,
+        attemptFetch: (CursorCookieImporter.SessionInfo) async -> ImportedSessionFetchOutcome) async
+        -> ImportedSessionScanResult
+    {
+        var firstFailure: CursorStatusProbeError?
+
+        for browser in browsers {
+            guard let session = importSession(browser) else { continue }
+            switch await attemptFetch(session) {
+            case let .succeeded(snapshot):
+                return .succeeded(snapshot)
+            case .tryNextBrowser:
+                continue
+            case let .failed(error):
+                firstFailure = firstFailure ?? error
+            }
+        }
+
+        return .exhausted(firstFailure)
     }
 
     func scanImportedSessions(
