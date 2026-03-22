@@ -651,17 +651,17 @@ struct CursorStatusProbeTests {
 
         let result = await probe.scanBrowsers(
             [.chrome, .safari, .chromeBeta],
-            importSession: { browser in
+            importSessions: { browser in
                 importedLabels.append(browser.displayName)
                 switch browser {
                 case .chrome:
-                    return Self.makeSessionInfo(sourceLabel: "Chrome")
+                    return [Self.makeSessionInfo(sourceLabel: "Chrome")]
                 case .safari:
-                    return Self.makeSessionInfo(sourceLabel: "Safari")
+                    return [Self.makeSessionInfo(sourceLabel: "Safari")]
                 case .chromeBeta:
-                    return Self.makeSessionInfo(sourceLabel: "Chrome Beta")
+                    return [Self.makeSessionInfo(sourceLabel: "Chrome Beta")]
                 default:
-                    return nil
+                    return []
                 }
             },
             attemptFetch: { session in
@@ -681,6 +681,62 @@ struct CursorStatusProbeTests {
             #expect(importedLabels == ["Chrome", "Safari"])
         case .exhausted:
             Issue.record("Expected browser scan to stop after the later successful browser")
+        }
+    }
+
+    @Test
+    func `browser scan keeps trying later sources within the same browser`() async {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let expected = CursorStatusSnapshot(
+            planPercentUsed: 12,
+            autoPercentUsed: 3,
+            apiPercentUsed: 45,
+            planUsedUSD: 2.4,
+            planLimitUSD: 20,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+        var attemptedSources: [String] = []
+
+        let result = await probe.scanBrowsers(
+            [.chrome, .safari],
+            importSessions: { browser in
+                switch browser {
+                case .chrome:
+                    [
+                        Self.makeSessionInfo(sourceLabel: "Chrome Profile 1"),
+                        Self.makeSessionInfo(sourceLabel: "Chrome Profile 2 (domain cookies)"),
+                    ]
+                case .safari:
+                    [Self.makeSessionInfo(sourceLabel: "Safari")]
+                default:
+                    []
+                }
+            },
+            attemptFetch: { session in
+                attemptedSources.append(session.sourceLabel)
+                switch session.sourceLabel {
+                case "Chrome Profile 1":
+                    return CursorStatusProbe.ImportedSessionFetchOutcome.failed(.networkError("HTTP 500"))
+                case "Chrome Profile 2 (domain cookies)":
+                    return CursorStatusProbe.ImportedSessionFetchOutcome.succeeded(expected)
+                default:
+                    return CursorStatusProbe.ImportedSessionFetchOutcome.tryNextBrowser
+                }
+            })
+
+        switch result {
+        case let .succeeded(snapshot):
+            #expect(snapshot.planPercentUsed == expected.planPercentUsed)
+            #expect(attemptedSources == ["Chrome Profile 1", "Chrome Profile 2 (domain cookies)"])
+        case .exhausted:
+            Issue.record("Expected browser scan to continue to later sources within the same browser")
         }
     }
 

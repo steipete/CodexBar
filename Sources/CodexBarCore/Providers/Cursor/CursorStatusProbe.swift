@@ -51,6 +51,18 @@ public enum CursorCookieImporter {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> SessionInfo?
     {
+        self.importSessionsIfPresent(
+            browser: browser,
+            browserDetection: browserDetection,
+            logger: logger).first
+    }
+
+    /// Reads all Cursor session-cookie candidates from one browser source order.
+    static func importSessionsIfPresent(
+        browser: Browser,
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> [SessionInfo]
+    {
         self.importCookiesFromBrowser(
             browser: browser,
             browserDetection: browserDetection,
@@ -65,6 +77,18 @@ public enum CursorCookieImporter {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> SessionInfo?
     {
+        self.importDomainCookieSessionsIfPresent(
+            browser: browser,
+            browserDetection: browserDetection,
+            logger: logger).first
+    }
+
+    /// Reads fallback cookie candidates whose names are not already covered by the strict session-cookie pass.
+    static func importDomainCookieSessionsIfPresent(
+        browser: Browser,
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> [SessionInfo]
+    {
         self.importCookiesFromBrowser(
             browser: browser,
             browserDetection: browserDetection,
@@ -76,11 +100,11 @@ public enum CursorCookieImporter {
         browser: Browser,
         browserDetection: BrowserDetection,
         requireKnownSessionName: Bool,
-        logger: ((String) -> Void)?) -> SessionInfo?
+        logger: ((String) -> Void)?) -> [SessionInfo]
     {
         let log: (String) -> Void = { msg in logger?("[cursor-cookie] \(msg)") }
-        guard browserDetection.isCookieSourceAvailable(browser) else { return nil }
-        guard BrowserCookieAccessGate.shouldAttempt(browser) else { return nil }
+        guard browserDetection.isCookieSourceAvailable(browser) else { return [] }
+        guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
 
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
@@ -88,28 +112,34 @@ public enum CursorCookieImporter {
                 matching: query,
                 in: browser,
                 logger: log)
+            var sessions: [SessionInfo] = []
             for source in sources where !source.records.isEmpty {
                 let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
                 let hasNamedSession = httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) })
                 if hasNamedSession {
                     log("Found \(httpCookies.count) Cursor cookies in \(source.label)")
-                    return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
+                    if requireKnownSessionName {
+                        sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
+                    }
+                    continue
                 }
                 if !requireKnownSessionName, !httpCookies.isEmpty {
                     log(
                         "Found \(httpCookies.count) Cursor domain cookies in \(source.label) "
                             + "(no known session name); will validate via API")
-                    return SessionInfo(
+                    sessions.append(SessionInfo(
                         cookies: httpCookies,
-                        sourceLabel: "\(source.label) (domain cookies)")
+                        sourceLabel: "\(source.label) (domain cookies)"))
+                    continue
                 }
                 log("\(source.label) cookies found, but no Cursor session cookie present")
             }
+            return sessions
         } catch {
             BrowserCookieAccessGate.recordIfNeeded(error)
             log("\(browser.displayName) cookie import failed: \(error.localizedDescription)")
         }
-        return nil
+        return []
     }
 
     /// Attempts to import Cursor cookies using the standard browser import order.
@@ -119,19 +149,19 @@ public enum CursorCookieImporter {
     {
         let installedBrowsers = cursorCookieImportOrder.cookieImportCandidates(using: browserDetection)
         for browserSource in installedBrowsers {
-            if let session = Self.importSessionIfPresent(
+            if let session = Self.importSessionsIfPresent(
                 browser: browserSource,
                 browserDetection: browserDetection,
-                logger: logger)
+                logger: logger).first
             {
                 return session
             }
         }
         for browserSource in installedBrowsers {
-            if let session = Self.importDomainCookiesIfPresent(
+            if let session = Self.importDomainCookieSessionsIfPresent(
                 browser: browserSource,
                 browserDetection: browserDetection,
-                logger: logger)
+                logger: logger).first
             {
                 return session
             }
@@ -630,8 +660,8 @@ public struct CursorStatusProbe: Sendable {
         let browserCandidates = cursorCookieImportOrder.cookieImportCandidates(using: self.browserDetection)
         switch await self.scanBrowsers(
             browserCandidates,
-            importSession: { browser in
-                CursorCookieImporter.importSessionIfPresent(
+            importSessions: { browser in
+                CursorCookieImporter.importSessionsIfPresent(
                     browser: browser,
                     browserDetection: self.browserDetection,
                     logger: log)
@@ -648,8 +678,8 @@ public struct CursorStatusProbe: Sendable {
 
         switch await self.scanBrowsers(
             browserCandidates,
-            importSession: { browser in
-                CursorCookieImporter.importDomainCookiesIfPresent(
+            importSessions: { browser in
+                CursorCookieImporter.importDomainCookieSessionsIfPresent(
                     browser: browser,
                     browserDetection: self.browserDetection,
                     logger: log)
@@ -706,21 +736,24 @@ public struct CursorStatusProbe: Sendable {
 
     func scanBrowsers(
         _ browsers: [Browser],
-        importSession: (Browser) -> CursorCookieImporter.SessionInfo?,
+        importSessions: (Browser) -> [CursorCookieImporter.SessionInfo],
         attemptFetch: (CursorCookieImporter.SessionInfo) async -> ImportedSessionFetchOutcome) async
         -> ImportedSessionScanResult
     {
         var firstFailure: CursorStatusProbeError?
 
         for browser in browsers {
-            guard let session = importSession(browser) else { continue }
-            switch await attemptFetch(session) {
-            case let .succeeded(snapshot):
-                return .succeeded(snapshot)
-            case .tryNextBrowser:
-                continue
-            case let .failed(error):
-                firstFailure = firstFailure ?? error
+            let sessions = importSessions(browser)
+            guard !sessions.isEmpty else { continue }
+            for session in sessions {
+                switch await attemptFetch(session) {
+                case let .succeeded(snapshot):
+                    return .succeeded(snapshot)
+                case .tryNextBrowser:
+                    continue
+                case let .failed(error):
+                    firstFailure = firstFailure ?? error
+                }
             }
         }
 
