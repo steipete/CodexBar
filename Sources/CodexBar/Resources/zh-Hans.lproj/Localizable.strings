@@ -82,7 +82,7 @@
 "API key" = "API 密钥";
 "API key limit unavailable right now" = "当前无法获取 API 密钥限额";
 "API region" = "API 区域";
-"API token" = "API 令牌";
+"API token" = "API Token";
 "About CodexBar" = "关于 CodexBar";
 "Add Account..." = "添加账号...";
 "Advanced" = "高级";
@@ -106,7 +106,7 @@
 "Copied" = "已复制";
 "Copy" = "复制";
 "Copy error" = "复制错误";
-"Cost" = "成本";
+"Cost" = "花费";
 "Credits" = "积分";
 "Credits history" = "积分历史";
 "Credits remaining" = "剩余积分";
@@ -118,7 +118,7 @@
 "Enable file logging" = "启用文件日志";
 "Error simulation" = "错误模拟";
 "Extra usage" = "额外用量";
-"Extra usage spent" = "额外用量已花费";
+"Extra usage spent" = "额外用量花费";
 "Extra usage: %@ / %@" = "额外用量：%@ / %@";
 "Fetch log" = "获取日志";
 "Fetch strategy attempts" = "抓取策略尝试";
@@ -138,7 +138,7 @@
 "Login shell PATH (startup capture)" = "登录 shell PATH（启动捕获）";
 "MCP details" = "MCP 详情";
 "Menu bar metric" = "菜单栏指标";
-"No cost history data." = "没有成本历史数据。";
+"No cost history data." = "没有花费历史数据。";
 "No credits history data." = "没有积分历史数据。";
 "No fetch attempts yet." = "还没有抓取尝试。";
 "No providers selected for Overview." = "总览中尚未选择提供商。";
@@ -167,7 +167,7 @@
 "Optional override if workspace lookup fails." = "如果工作区查找失败，可选填覆盖值。";
 "Overview" = "总览";
 "Paste API key…" = "粘贴 API 密钥…";
-"Paste API token…" = "粘贴 API 令牌…";
+"Paste API token…" = "粘贴 API Token…";
 "Pick a pattern and replay it in the menu bar. \"Random\" keeps the existing behavior." = "选择一种样式并在菜单栏中重放；“随机”会保持现有行为。";
 "Plan" = "套餐";
 "Plan: %@" = "套餐：%@";
@@ -190,7 +190,7 @@
 "Secondary (%@)" = "次窗口（%@）";
 "Average (%@ + %@)" = "平均（%@ + %@）";
 "Session" = "会话";
-"Set cost error" = "设置成本错误";
+"Set cost error" = "设置花费错误";
 "Set menu error" = "设置菜单错误";
 "Settings..." = "设置...";
 "Status Page" = "状态页";
@@ -200,7 +200,7 @@
 "Today: %@ · %@ tokens" = "今天：%@ · %@ tokens";
 "Total (30d): %@" = "总计（30 天）：%@";
 "Total (30d): %@ credits" = "总计（30 天）：%@ 积分";
-"Usage Dashboard" = "用量面板";
+"Usage Dashboard" = "用量仪表盘";
 "Usage breakdown" = "用量拆分";
 "Usage history (30 days)" = "用量历史（30 天）";
 "Usage remaining" = "剩余用量";
@@ -236,8 +236,8 @@
 "Auto-detect" = "自动检测";
 "Auto-refresh is off; use the menu's Refresh command." = "自动刷新已关闭；请使用菜单中的“刷新”。";
 "Auto-refresh: hourly · Timeout: 10m" = "自动刷新：每小时 · 超时：10 分钟";
-"Automatic imports browser cookies and WorkOS tokens." = "自动导入浏览器 Cookies 和 WorkOS 令牌。";
-"Automatic imports browser cookies and local storage tokens." = "自动导入浏览器 Cookies 和本地存储令牌。";
+"Automatic imports browser cookies and WorkOS tokens." = "自动导入浏览器 Cookies 和 WorkOS Tokens。";
+"Automatic imports browser cookies and local storage tokens." = "自动导入浏览器 Cookies 和本地存储 Tokens。";
 "Automatic imports browser cookies for dashboard extras." = "自动导入浏览器 Cookies 以获取控制台附加数据。";
 "Automatic imports browser cookies for the web API." = "自动导入浏览器 Cookies 以访问 Web API。";
 "Automatic imports browser cookies from opencode.ai." = "自动从 opencode.ai 导入浏览器 Cookies。";
@@ -265,7 +265,7 @@
 "CodexBar" = "CodexBar";
 "CodexBarCLI not found in app bundle." = "在应用包中未找到 CodexBarCLI。";
 "Configure…" = "配置…";
-"Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\n或粘贴 kimi-auth 令牌值";
+"Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\n或粘贴 kimi-auth Token 值";
 "Could not open Terminal for Gemini" = "无法为 Gemini 打开终端";
 "Could not start claude /login" = "无法启动 claude /login";
 "Could not start codex login" = "无法启动 codex 登录";
@@ -307,7 +307,7 @@
 "Kimi cookies are disabled." = "Kimi Cookies 已禁用。";
 "Label" = "标签";
 "Language" = "语言";
-"May your tokens never run out—keep agent limits in view." = "愿你的 tokens 永不耗尽，始终看清代理额度。";
+"May your tokens never run out—keep agent limits in view." = "愿你的 Token 永不耗尽，始终看清代理额度。";
 "Menu bar" = "菜单栏";
 "Menu bar auto-shows the provider closest to its rate limit." = "菜单栏会自动显示最接近限额的提供商。";
 "Menu bar shows percent" = "菜单栏显示百分比";
@@ -319,7 +319,7 @@
 "No enabled providers available for Overview." = "总览中没有可用的已启用提供商。";
 "No output captured." = "未捕获到输出。";
 "No providers selected" = "未选择提供商";
-"No token accounts yet." = "还没有令牌账号。";
+"No token accounts yet." = "还没有 Token 账号。";
 "No writable bin dirs found." = "未找到可写的 bin 目录。";
 "No write access: %@" = "无写入权限：%@";
 "Obscure email addresses in the menu bar and menu UI." = "在菜单栏和菜单界面中模糊显示邮箱地址。";
@@ -327,7 +327,7 @@
 "Only on user action" = "仅在用户操作时";
 "Open Antigravity to sign in, then refresh CodexBar." = "打开 Antigravity 登录，然后刷新 CodexBar。";
 "Open menu" = "打开菜单";
-"Open token file" = "打开令牌文件";
+"Open token file" = "打开 Token 文件";
 "OpenCode cookies are disabled." = "OpenCode Cookies 已禁用。";
 "Options" = "选项";
 "Override auto-detection with a custom IDE base path" = "使用自定义 IDE 基础路径覆盖自动检测";
@@ -342,12 +342,12 @@
 "Paste a Cookie header or cURL capture from Ollama settings." = "粘贴从 Ollama 设置中获取的 Cookie Header 或 cURL 抓包。";
 "Paste a Cookie header or cURL capture from the Augment dashboard." = "粘贴从 Augment 控制台获取的 Cookie Header 或 cURL 抓包。";
 "Paste a Cookie header or cURL capture from the Coding Plan page." = "粘贴从 Coding Plan 页面获取的 Cookie Header 或 cURL 抓包。";
-"Paste a cookie header or the kimi-auth token value." = "粘贴 Cookie Header 或 kimi-auth 令牌值。";
+"Paste a cookie header or the kimi-auth token value." = "粘贴 Cookie Header 或 kimi-auth Token 值。";
 "Paste key…" = "粘贴密钥…";
 "Prevents any Keychain access while enabled." = "启用后会阻止任何钥匙串访问。";
 "Quit" = "退出";
 "Quit CodexBar" = "退出 CodexBar";
-"Reads local usage logs. Shows today + last 30 days cost in the menu." = "读取本地用量日志，并在菜单中显示今日和最近 30 天成本。";
+"Reads local usage logs. Shows today + last 30 days cost in the menu." = "读取本地用量日志，并在菜单中显示今日和最近 30 天花费。";
 "Refresh" = "刷新";
 "Refresh cadence" = "刷新频率";
 "Refreshing" = "刷新中";
@@ -361,10 +361,10 @@
 "Session quota notifications" = "会话配额通知";
 "Settings" = "设置";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "在菜单中显示 Codex 积分和 Claude 额外用量区块。";
-"Stack token accounts in the menu (otherwise show an account switcher bar)." = "在菜单中堆叠显示所有令牌账号（否则显示账号切换条）。";
+"Stack token accounts in the menu (otherwise show an account switcher bar)." = "在菜单中堆叠显示所有 Token 账号（否则显示账号切换条）。";
 "Show Debug Settings" = "显示调试设置";
-"Show all token accounts" = "显示所有令牌账号";
-"Show cost summary" = "显示成本摘要";
+"Show all token accounts" = "显示所有 Token 账号";
+"Show cost summary" = "显示花费摘要";
 "Show credits + extra usage" = "显示积分和额外用量";
 "Show most-used provider" = "显示最常用的提供商";
 "Show reset time as clock" = "以时钟时间显示重置时间";
@@ -385,7 +385,7 @@
 "Status" = "状态";
 "Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "存储于 ~/.codexbar/config.json，可在 kimi-k2.ai 生成。";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "存储于 ~/.codexbar/config.json，请粘贴你的 MiniMax API 密钥。";
-"Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "存储本地 Codex 用量历史（8 周），用于个性化 Pace 预测。";
+"Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "存储本地 Codex 用量历史（8 周），用于个性化节奏预测。";
 "Surprise me" = "给我点惊喜";
 "Switch Account..." = "切换账号...";
 "Switcher shows icons" = "切换器显示图标";

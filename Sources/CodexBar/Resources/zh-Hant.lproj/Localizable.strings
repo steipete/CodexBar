@@ -82,7 +82,7 @@
 "API key" = "API 金鑰";
 "API key limit unavailable right now" = "目前無法取得 API 金鑰額度";
 "API region" = "API 區域";
-"API token" = "API 權杖";
+"API token" = "API Token";
 "About CodexBar" = "關於 CodexBar";
 "Add Account..." = "新增帳號...";
 "Advanced" = "進階";
@@ -106,7 +106,7 @@
 "Copied" = "已複製";
 "Copy" = "複製";
 "Copy error" = "複製錯誤";
-"Cost" = "成本";
+"Cost" = "花費";
 "Credits" = "點數";
 "Credits history" = "點數歷史";
 "Credits remaining" = "剩餘點數";
@@ -138,7 +138,7 @@
 "Login shell PATH (startup capture)" = "登入 shell PATH（啟動擷取）";
 "MCP details" = "MCP 詳情";
 "Menu bar metric" = "選單列指標";
-"No cost history data." = "沒有成本歷史資料。";
+"No cost history data." = "沒有花費歷史資料。";
 "No credits history data." = "沒有點數歷史資料。";
 "No fetch attempts yet." = "尚未有抓取嘗試。";
 "No providers selected for Overview." = "總覽中尚未選擇供應商。";
@@ -166,7 +166,7 @@
 "Optional override if workspace lookup fails." = "若工作區查找失敗，可選填覆寫值。";
 "Overview" = "總覽";
 "Paste API key…" = "貼上 API 金鑰…";
-"Paste API token…" = "貼上 API 權杖…";
+"Paste API token…" = "貼上 API Token…";
 "Pick a pattern and replay it in the menu bar. \"Random\" keeps the existing behavior." = "選擇一種樣式並在選單列中重播；「隨機」會保留現有行為。";
 "Plan" = "方案";
 "Plan: %@" = "方案：%@";
@@ -189,7 +189,7 @@
 "Secondary (%@)" = "次視窗（%@）";
 "Average (%@ + %@)" = "平均（%@ + %@）";
 "Session" = "工作階段";
-"Set cost error" = "設定成本錯誤";
+"Set cost error" = "設定花費錯誤";
 "Set menu error" = "設定選單錯誤";
 "Settings..." = "設定...";
 "Status Page" = "狀態頁";
@@ -236,8 +236,8 @@
  "Auto-detect" = "自動偵測";
  "Auto-refresh is off; use the menu's Refresh command." = "自動重新整理已關閉；請使用選單的重新整理。";
  "Auto-refresh: hourly · Timeout: 10m" = "自動重新整理：每小時 · 逾時 10 分鐘";
- "Automatic imports browser cookies and WorkOS tokens." = "自動匯入瀏覽器 Cookie 與 WorkOS 令牌。";
- "Automatic imports browser cookies and local storage tokens." = "自動匯入瀏覽器 Cookie 與本機儲存的令牌。";
+ "Automatic imports browser cookies and WorkOS tokens." = "自動匯入瀏覽器 Cookie 與 WorkOS Tokens。";
+ "Automatic imports browser cookies and local storage tokens." = "自動匯入瀏覽器 Cookie 與本機儲存 Tokens。";
  "Automatic imports browser cookies for dashboard extras." = "自動匯入瀏覽器 Cookie，提供儀表板額外資訊。";
  "Automatic imports browser cookies for the web API." = "自動匯入瀏覽器 Cookie，以使用 Web API。";
  "Automatic imports browser cookies from opencode.ai." = "自動從 opencode.ai 匯入瀏覽器 Cookie。";
@@ -253,7 +253,7 @@
  "Check provider status" = "檢查提供商狀態";
  "Choose the MiniMax host (global .io or China mainland .com)." = "選擇 MiniMax 主機（全球 .io 或中國大陸 .com）。";
  "Choose up to %d providers" = "最多選擇 %d 個提供商";
- "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "選擇選單列要顯示什麼（Pace 顯示實際用量對預期）。";
+ "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "選擇選單列要顯示什麼（節奏顯示實際用量對預期）。";
  "Choose which window drives the menu bar percent." = "選擇哪個視窗驅動選單列百分比。";
  "Claude CLI not found" = "找不到 Claude CLI";
  "Claude cookies are disabled." = "Claude Cookies 已停用。";
@@ -265,7 +265,7 @@
  "CodexBar" = "CodexBar";
  "CodexBarCLI not found in app bundle." = "在 app 包內找不到 CodexBarCLI。";
  "Configure…" = "設定…";
- "Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\n或貼上 kimi-auth 令牌值";
+ "Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\n或貼上 kimi-auth Token 值";
  "Could not open Terminal for Gemini" = "無法為 Gemini 開啟終端機";
  "Could not start claude /login" = "無法啟動 claude /login";
  "Could not start codex login" = "無法啟動 codex 登入";
@@ -308,7 +308,7 @@
  "Kimi cookies are disabled." = "Kimi Cookies 已停用。";
  "Label" = "標籤";
  "Language" = "語言";
- "May your tokens never run out—keep agent limits in view." = "願你的額度永不耗盡—保持代理限額在眼前。";
+ "May your tokens never run out—keep agent limits in view." = "願你的 Token 永不耗盡，始終看清代理額度。";
  "Menu bar" = "選單列";
  "Menu bar auto-shows the provider closest to its rate limit." = "選單列會自動顯示最接近速率限制的提供商。";
  "Menu bar shows percent" = "選單列顯示百分比";
@@ -321,7 +321,7 @@
  "No limit set for the API key" = "API 金鑰尚未設定額度";
  "No output captured." = "未擷取到輸出。";
  "No providers selected" = "未選擇提供商";
- "No token accounts yet." = "尚未有代幣帳號。";
+ "No token accounts yet." = "還沒有 Token 帳號。";
  "No writable bin dirs found." = "找不到可寫入的 bin 目錄。";
  "No write access: %@" = "沒有寫入權限：%@";
  "Obscure email addresses in the menu bar and menu UI." = "在選單列和選單 UI 隱藏電子郵件地址。";
@@ -330,7 +330,7 @@
  "Open Antigravity to sign in, then refresh CodexBar." = "打開 Antigravity 登入後再重新整理 CodexBar。";
  "Open log file" = "打開日誌檔案";
  "Open menu" = "打開選單";
- "Open token file" = "打開令牌檔案";
+ "Open token file" = "打開 Token 檔案";
  "OpenCode cookies are disabled." = "OpenCode Cookies 已停用。";
  "Options" = "選項";
  "Override auto-detection with a custom IDE base path" = "使用自訂 IDE 基底路徑覆寫自動偵測";
@@ -345,12 +345,12 @@
  "Paste a Cookie header or cURL capture from Ollama settings." = "貼上 Ollama 設定中的 Cookie 標頭或 cURL 擷取。";
  "Paste a Cookie header or cURL capture from the Augment dashboard." = "貼上 Augment 儀表板的 Cookie 標頭或 cURL 擷取。";
  "Paste a Cookie header or cURL capture from the Coding Plan page." = "貼上 Coding Plan 頁面中的 Cookie 標頭或 cURL 擷取。";
- "Paste a cookie header or the kimi-auth token value." = "貼上 Cookie 標頭或 kimi-auth 令牌值。";
+ "Paste a cookie header or the kimi-auth token value." = "貼上 Cookie 標頭或 kimi-auth Token 值。";
  "Paste key…" = "貼上金鑰…";
  "Prevents any Keychain access while enabled." = "啟用時會阻止所有金鑰圈存取。";
  "Quit" = "離開";
  "Quit CodexBar" = "離開 CodexBar";
- "Reads local usage logs. Shows today + last 30 days cost in the menu." = "讀取本機使用紀錄；在選單顯示今天與過去 30 天成本。";
+ "Reads local usage logs. Shows today + last 30 days cost in the menu." = "讀取本機使用紀錄；在選單顯示今天與過去 30 天花費。";
  "Refresh" = "重新整理";
  "Refresh cadence" = "重新整理頻率";
  "Refreshing" = "重新整理中";
@@ -365,10 +365,10 @@
  "Session quota notifications" = "會話額度通知";
  "Settings" = "設定";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "在選單中顯示 Codex 積分與 Claude 額外用量區塊。";
-"Stack token accounts in the menu (otherwise show an account switcher bar)." = "在選單中堆疊顯示所有權杖帳號（否則顯示帳號切換列）。";
+"Stack token accounts in the menu (otherwise show an account switcher bar)." = "在選單中堆疊顯示所有 Token 帳號（否則顯示帳號切換列）。";
  "Show Debug Settings" = "顯示偵錯設定";
- "Show all token accounts" = "顯示所有代幣帳號";
- "Show cost summary" = "顯示成本摘要";
+ "Show all token accounts" = "顯示所有 Token 帳號";
+ "Show cost summary" = "顯示花費摘要";
  "Show credits + extra usage" = "顯示積分與額外使用";
  "Show details" = "顯示詳細資料";
  "Show most-used provider" = "顯示最常使用的提供商";
@@ -384,7 +384,7 @@
  "Status" = "狀態";
  "Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "儲存在 ~/.codexbar/config.json。可在 kimi-k2.ai 生成。";
  "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "儲存在 ~/.codexbar/config.json。貼上你的 MiniMax API 金鑰。";
- "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "儲存本機 Codex 使用歷史（8 週），以個人化 Pace 預測。";
+ "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "儲存本機 Codex 使用歷史（8 週），以個人化節奏預測。";
  "Surprise me" = "驚喜一下";
  "Switch Account..." = "切換帳號...";
  "Switcher shows icons" = "切換器顯示圖示";
@@ -435,8 +435,8 @@
 "Auto-detect" = "自動偵測";
 "Auto-refresh is off; use the menu's Refresh command." = "自動重新整理已關閉；請使用選單中的「重新整理」。";
 "Auto-refresh: hourly · Timeout: 10m" = "自動重新整理：每小時 · 逾時：10 分鐘";
-"Automatic imports browser cookies and WorkOS tokens." = "自動匯入瀏覽器 Cookies 和 WorkOS 權杖。";
-"Automatic imports browser cookies and local storage tokens." = "自動匯入瀏覽器 Cookies 和本機儲存權杖。";
+"Automatic imports browser cookies and WorkOS tokens." = "自動匯入瀏覽器 Cookies 和 WorkOS Tokens。";
+"Automatic imports browser cookies and local storage tokens." = "自動匯入瀏覽器 Cookies 和本機儲存 Tokens。";
 "Automatic imports browser cookies for dashboard extras." = "自動匯入瀏覽器 Cookies 以取得控制台附加資料。";
 "Automatic imports browser cookies for the web API." = "自動匯入瀏覽器 Cookies 以存取 Web API。";
 "Automatic imports browser cookies from opencode.ai." = "自動從 opencode.ai 匯入瀏覽器 Cookies。";
@@ -464,7 +464,7 @@
 "CodexBar" = "CodexBar";
 "CodexBarCLI not found in app bundle." = "在應用程式包中未找到 CodexBarCLI。";
 "Configure…" = "設定…";
-"Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\n或貼上 kimi-auth 權杖值";
+"Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\n或貼上 kimi-auth Token 值";
 "Could not open Terminal for Gemini" = "無法為 Gemini 打開終端機";
 "Could not start claude /login" = "無法啟動 claude /login";
 "Could not start codex login" = "無法啟動 codex 登入";
@@ -506,7 +506,7 @@
 "Kimi cookies are disabled." = "Kimi Cookies 已停用。";
 "Label" = "標籤";
 "Language" = "語言";
-"May your tokens never run out—keep agent limits in view." = "願你的 tokens 永不耗盡，始終看清代理額度。";
+"May your tokens never run out—keep agent limits in view." = "願你的 Token 永不耗盡，始終看清代理額度。";
 "Menu bar" = "選單列";
 "Menu bar auto-shows the provider closest to its rate limit." = "選單列會自動顯示最接近限額的供應商。";
 "Menu bar shows percent" = "選單列顯示百分比";
@@ -518,7 +518,7 @@
 "No enabled providers available for Overview." = "總覽中沒有可用的已啟用供應商。";
 "No output captured." = "未擷取到輸出。";
 "No providers selected" = "未選擇供應商";
-"No token accounts yet." = "還沒有權杖帳號。";
+"No token accounts yet." = "還沒有 Token 帳號。";
 "No writable bin dirs found." = "未找到可寫入的 bin 目錄。";
 "No write access: %@" = "無寫入權限：%@";
 "Obscure email addresses in the menu bar and menu UI." = "在選單列和選單介面中模糊顯示電子郵件地址。";
@@ -526,7 +526,7 @@
 "Only on user action" = "僅在使用者操作時";
 "Open Antigravity to sign in, then refresh CodexBar." = "打開 Antigravity 登入，然後重新整理 CodexBar。";
 "Open menu" = "打開選單";
-"Open token file" = "打開權杖檔案";
+"Open token file" = "打開 Token 檔案";
 "OpenCode cookies are disabled." = "OpenCode Cookies 已停用。";
 "Options" = "選項";
 "Override auto-detection with a custom IDE base path" = "使用自訂 IDE 基礎路徑覆寫自動偵測";
@@ -541,12 +541,12 @@
 "Paste a Cookie header or cURL capture from Ollama settings." = "貼上從 Ollama 設定中取得的 Cookie Header 或 cURL 擷取。";
 "Paste a Cookie header or cURL capture from the Augment dashboard." = "貼上從 Augment 控制台取得的 Cookie Header 或 cURL 擷取。";
 "Paste a Cookie header or cURL capture from the Coding Plan page." = "貼上從 Coding Plan 頁面取得的 Cookie Header 或 cURL 擷取。";
-"Paste a cookie header or the kimi-auth token value." = "貼上 Cookie Header 或 kimi-auth 權杖值。";
+"Paste a cookie header or the kimi-auth token value." = "貼上 Cookie Header 或 kimi-auth Token 值。";
 "Paste key…" = "貼上金鑰…";
 "Prevents any Keychain access while enabled." = "啟用後會阻止任何鑰匙圈存取。";
 "Quit" = "結束";
 "Quit CodexBar" = "結束 CodexBar";
-"Reads local usage logs. Shows today + last 30 days cost in the menu." = "讀取本機用量日誌，並在選單中顯示今日與最近 30 天成本。";
+"Reads local usage logs. Shows today + last 30 days cost in the menu." = "讀取本機用量日誌，並在選單中顯示今日與最近 30 天花費。";
 "Refresh" = "重新整理";
 "Refresh cadence" = "重新整理頻率";
 "Refreshing" = "重新整理中";
@@ -561,8 +561,8 @@
 "Settings" = "設定";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "在選單中顯示 Codex 積分與 Claude 額外用量區塊。";
 "Show Debug Settings" = "顯示偵錯設定";
-"Show all token accounts" = "顯示所有權杖帳號";
-"Show cost summary" = "顯示成本摘要";
+"Show all token accounts" = "顯示所有 Token 帳號";
+"Show cost summary" = "顯示花費摘要";
 "Show credits + extra usage" = "顯示點數與額外用量";
 "Show most-used provider" = "顯示最常用的供應商";
 "Show reset time as clock" = "以時鐘時間顯示重設時間";
@@ -583,7 +583,7 @@
 "Status" = "狀態";
 "Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "儲存於 ~/.codexbar/config.json，可在 kimi-k2.ai 產生。";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "儲存於 ~/.codexbar/config.json，請貼上你的 MiniMax API 金鑰。";
-"Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "儲存本機 Codex 用量歷史（8 週），用於個人化 Pace 預測。";
+"Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "儲存本機 Codex 用量歷史（8 週），用於個人化節奏預測。";
 "Surprise me" = "給我點驚喜";
 "Switch Account..." = "切換帳號...";
 "Switcher shows icons" = "切換器顯示圖示";

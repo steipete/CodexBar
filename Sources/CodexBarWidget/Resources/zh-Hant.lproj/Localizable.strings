@@ -1,5 +1,5 @@
 "30d" = "30 天";
-"30d cost" = "30 天成本";
+"30d cost" = "30 天花費";
 "Code review" = "程式碼審查";
 "Credits" = "點數";
 "Credits left" = "剩餘點數";
@@ -12,16 +12,16 @@
 "Session" = "工作階段";
 "Select the provider and metric to display." = "選擇要在小工具中顯示的供應商和指標。";
 "Select the provider to display in the widget." = "選擇要在小工具中顯示的供應商。";
-"Session and weekly usage with credits and costs." = "顯示工作階段與每週使用情況，以及點數和成本。";
+"Session and weekly usage with credits and costs." = "顯示工作階段與每週使用情況，以及點數和花費。";
 "Switch Provider" = "切換供應商";
 "Switch the provider shown in the widget." = "切換小工具中顯示的供應商。";
 "Today" = "今天";
-"Today cost" = "今日成本";
+"Today cost" = "今日花費";
 "CodexBar History" = "CodexBar 歷史";
 "CodexBar Metric" = "CodexBar 指標";
 "CodexBar Switcher" = "CodexBar 切換器";
 "CodexBar Usage" = "CodexBar 使用情況";
-"Compact widget for credits or cost." = "用於顯示點數或成本的精簡小工具。";
+"Compact widget for credits or cost." = "用於顯示點數或花費的精簡小工具。";
 "Usage data appears after a refresh." = "重新整理後會顯示使用資料。";
 "Usage data will appear once the app refreshes." = "應用程式重新整理後會顯示使用資料。";
 "Usage history chart with recent totals." = "顯示近期彙總資料的使用歷史圖表。";
