@@ -115,6 +115,9 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let loginAction: ((
         _ setProgress: @escaping @MainActor (String) -> Void,
         _ addAccount: @escaping @MainActor (String, String) -> Void) async -> Bool)?
+    /// Opens a per-account dashboard login window (chatgpt.com) for web extras.
+    /// The closure receives the account email (or nil for default).
+    let dashboardLogin: ((_ accountEmail: String?) -> Void)?
     /// Codex only: mirrors **CodexBar accounts only**; hides ~/.codex primary tab and adjusts copy.
     let codexExplicitAccountsOnly: Bool
 }

@@ -450,6 +450,15 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .font(.caption2.weight(.medium))
                         .help("Make this the default account")
                     }
+                    if let dashboardLogin = self.descriptor.dashboardLogin {
+                        Button("Dashboard") {
+                            dashboardLogin(label)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .font(.caption2.weight(.medium))
+                        .help("Sign in to ChatGPT dashboard for this account")
+                    }
                     if self.descriptor.renameDefaultAccount != nil {
                         Button(action: {
                             self.renameText = label
@@ -556,6 +565,15 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .controlSize(.mini)
                         .font(.caption2.weight(.medium))
                         .help("Make this the default account")
+                    }
+                    if let dashboardLogin = self.descriptor.dashboardLogin {
+                        Button(action: { dashboardLogin(account.displayName) }, label: {
+                            Image(systemName: "globe")
+                                .foregroundStyle(.secondary)
+                                .imageScale(.small)
+                        })
+                        .buttonStyle(.plain)
+                        .help("Sign in to ChatGPT dashboard for this account")
                     }
                     Button(action: {
                         self.renameText = account.displayName

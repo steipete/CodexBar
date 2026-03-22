@@ -259,6 +259,19 @@ struct ProvidersPane: View {
             defaultAccountLabel: defaultAccountLabel,
             renameDefaultAccount: renameDefaultAccount,
             loginAction: loginAction,
+            dashboardLogin: provider == .codex && self.settings.openAIWebAccessEnabled
+                ? { [store] accountEmail in
+                    let controller = OpenAIDashboardLoginWindowController(
+                        accountEmail: accountEmail,
+                        onComplete: { success in
+                            guard success else { return }
+                            Task { @MainActor in
+                                await store.refreshOpenAIDashboardAfterLogin()
+                            }
+                        })
+                    controller.show()
+                }
+                : nil,
             codexExplicitAccountsOnly: codexExplicit)
     }
 

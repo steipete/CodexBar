@@ -841,6 +841,15 @@ extension UsageStore {
         }
     }
 
+    /// Called after the user signs in to chatgpt.com via the dashboard login window.
+    /// Skips cookie import (the WKWebView already has session cookies) and refreshes directly.
+    func refreshOpenAIDashboardAfterLogin() async {
+        self.openAIDashboardRequiresLogin = false
+        self.openAIDashboardCookieImportStatus = "Signed in via dashboard login window."
+        self.resetOpenAIWebDebugLog(context: "dashboard login")
+        await self.refreshOpenAIDashboardIfNeeded(force: true)
+    }
+
     func importOpenAIDashboardBrowserCookiesNow() async {
         self.resetOpenAIWebDebugLog(context: "manual import")
         let targetEmail = self.codexAccountEmailForOpenAIDashboard()

@@ -169,7 +169,7 @@ struct CodexProviderImplementation: ProviderImplementation {
             ProviderSettingsToggleDescriptor(
                 id: "codex-openai-web-extras",
                 title: "OpenAI web extras",
-                subtitle: "Show usage breakdown, credits history, and code review via chatgpt.com.",
+                subtitle: "Show usage breakdown, credits history, and code review via chatgpt.com. Use the globe icon on each account to sign in.",
                 binding: extrasBinding,
                 statusText: nil,
                 actions: [],
@@ -329,7 +329,7 @@ struct CodexProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func tokenAccountLoginAction(context _: ProviderSettingsContext)
+    func tokenAccountLoginAction(context: ProviderSettingsContext)
         -> ((
             _ setProgress: @escaping @MainActor (String) -> Void,
             _ addAccount: @escaping @MainActor (String, String) -> Void) async -> Bool)?
@@ -360,6 +360,20 @@ struct CodexProviderImplementation: ProviderImplementation {
                     label = "Account"
                 }
                 addAccount(label, uniqueDir)
+
+                // Auto-open dashboard login if web extras is enabled.
+                if context.settings.openAIWebAccessEnabled {
+                    setProgress("Signing in to dashboard…")
+                    let controller = OpenAIDashboardLoginWindowController(
+                        accountEmail: label,
+                        onComplete: { success in
+                            guard success else { return }
+                            Task { @MainActor in
+                                await context.store.refreshOpenAIDashboardAfterLogin()
+                            }
+                        })
+                    controller.show()
+                }
                 return true
 
             case .missingBinary, .timedOut, .failed, .launchFailed:
