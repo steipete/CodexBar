@@ -17,6 +17,15 @@ struct SettingsStoreAdditionalTests {
 
         settings.setMenuBarMetricPreference(.average, for: .gemini)
         #expect(settings.menuBarMetricPreference(for: .gemini) == .average)
+
+        settings.setMenuBarMetricPreference(.tertiary, for: .codex)
+        #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)
+
+        settings.setMenuBarMetricPreference(.tertiary, for: .cursor)
+        #expect(settings.menuBarMetricPreference(for: .cursor) == .tertiary)
+
+        settings.setMenuBarMetricPreference(.tertiary, for: .gemini)
+        #expect(settings.menuBarMetricPreference(for: .gemini) == .automatic)
     }
 
     @Test
@@ -31,6 +40,9 @@ struct SettingsStoreAdditionalTests {
 
         settings.setMenuBarMetricPreference(.primary, for: .openrouter)
         #expect(settings.menuBarMetricPreference(for: .openrouter) == .primary)
+
+        settings.setMenuBarMetricPreference(.tertiary, for: .openrouter)
+        #expect(settings.menuBarMetricPreference(for: .openrouter) == .automatic)
     }
 
     @Test

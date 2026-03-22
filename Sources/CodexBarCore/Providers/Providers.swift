@@ -138,4 +138,13 @@ public enum ProviderBrowserCookieDefaults {
         nil
         #endif
     }
+
+    /// Safari first for Cursor: active sessions often live only there, and Chromium profiles may carry stale tokens.
+    public static var cursorCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.safari] + Browser.defaultImportOrder.filter { $0 != .safari }
+        #else
+        nil
+        #endif
+    }
 }

@@ -31,6 +31,30 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `cursor menu bar metric picker includes tertiary api lane`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-cursor-tertiary-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .cursor)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(ids.contains(MenuBarMetricPreference.tertiary.rawValue))
+        let tertiaryOption = picker?.options.first { $0.id == MenuBarMetricPreference.tertiary.rawValue }
+        #expect(tertiaryOption?.title == "Tertiary (API)")
+    }
+
+    @Test
+    func `gemini menu bar metric picker omits tertiary lane`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-gemini-no-tertiary-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .gemini)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(!ids.contains(MenuBarMetricPreference.tertiary.rawValue))
+    }
+
+    @Test
     func `provider detail plan row formats open router as balance`() {
         let row = ProviderDetailView.planRow(provider: .openrouter, planText: "Balance: $4.61")
 

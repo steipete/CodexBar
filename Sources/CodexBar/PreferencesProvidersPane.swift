@@ -275,6 +275,7 @@ struct ProvidersPane: View {
         } else {
             let metadata = self.store.metadata(for: provider)
             let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
+            let supportsTertiary = self.settings.menuBarMetricSupportsTertiary(for: provider)
             var metricOptions: [ProviderSettingsPickerOption] = [
                 ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
                 ProviderSettingsPickerOption(
@@ -284,6 +285,12 @@ struct ProvidersPane: View {
                     id: MenuBarMetricPreference.secondary.rawValue,
                     title: "Secondary (\(metadata.weeklyLabel))"),
             ]
+            if supportsTertiary {
+                let tertiaryTitle = metadata.opusLabel ?? MenuBarMetricPreference.tertiary.label
+                metricOptions.append(ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.tertiary.rawValue,
+                    title: "Tertiary (\(tertiaryTitle))"))
+            }
             if supportsAverage {
                 metricOptions.append(ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.average.rawValue,
