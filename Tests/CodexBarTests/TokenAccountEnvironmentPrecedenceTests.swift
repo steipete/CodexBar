@@ -75,6 +75,29 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func `codex supports token accounts`() {
+        let support = TokenAccountSupportCatalog.support(for: .codex)
+        #expect(support != nil)
+        #expect(support?.requiresManualCookieSource == true)
+        #expect(support?.cookieName == nil)
+    }
+
+    @Test
+    func `codex token account selection forces manual cookie source in app settings snapshot`() throws {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-app")
+        settings.codexCookieSource = .auto
+        settings.addTokenAccount(provider: .codex, label: "Account 1", token: "Cookie: a=b")
+
+        let account = try #require(settings.selectedTokenAccount(for: .codex))
+        let snapshot = settings.codexSettingsSnapshot(tokenOverride: TokenAccountOverride(
+            provider: .codex,
+            account: account))
+
+        #expect(snapshot.cookieSource == .manual)
+        #expect(snapshot.manualCookieHeader == "Cookie: a=b")
+    }
+
+    @Test
     func `claude OAuth token account overrides environment in app environment builder`() {
         let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-claude-app")
         settings.addTokenAccount(provider: .claude, label: "OAuth", token: "Bearer sk-ant-oat-account-token")

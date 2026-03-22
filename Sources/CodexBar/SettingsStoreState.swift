@@ -17,6 +17,7 @@ struct SettingsDefaultsState {
     var menuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
     var showAllTokenAccountsInMenu: Bool
+    var codexMenuAccountSortModeRaw: String?
     var menuBarMetricPreferencesRaw: [String: String]
     var costUsageEnabled: Bool
     var hidePersonalInfo: Bool

@@ -72,6 +72,13 @@
 - ⚠️ Augment cookie disconnection (Phase 2 will address)
 - ⚠️ Debug print statements in AugmentStatusProbe.swift (needs proper logging)
 
+### Known Local Test Harness Limitation (2026-03-22)
+- ⚠️ Local `swift test` runs for AppKit status-bar suites can crash under `swiftpm-testing-helper` when tests instantiate a standalone `NSStatusBar()`.
+- Reproduced with `StatusItemAnimationTests` and `StatusMenuTests` on local runs; crash reports point into AppKit drawing (`NSStatusBarButtonCell drawWithFrame:inView:`) with `EXC_BAD_ACCESS` / `SIGSEGV` or `SIGBUS`.
+- The same suites pass with `CI=true`, which makes the test helper use `NSStatusBar.system` instead of `NSStatusBar()`.
+- Current assessment: this looks like a local AppKit test-harness issue, not a product regression in the running app.
+- Temporary workaround for local verification: run affected suites with `CI=true` until the test harness is adjusted.
+
 ### Uncommitted Changes
 - `Sources/CodexBarCore/Providers/Augment/AugmentStatusProbe.swift` has debug print statements
   - These should be replaced with proper `CodexBarLog` logging in Phase 2

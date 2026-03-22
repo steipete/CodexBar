@@ -41,18 +41,27 @@ public struct ProviderSettingsSnapshot: Sendable {
     }
 
     public struct CodexProviderSettings: Sendable {
+        // Codex multi-account fetches thread account identity through the settings snapshot
+        // so downstream web fetches and menu rendering can associate each usage result with
+        // the correct email/workspace context.
         public let usageDataSource: CodexUsageDataSource
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
+        public let accountEmail: String?
+        public let workspaceLabel: String?
 
         public init(
             usageDataSource: CodexUsageDataSource,
             cookieSource: ProviderCookieSource,
-            manualCookieHeader: String?)
+            manualCookieHeader: String?,
+            accountEmail: String?,
+            workspaceLabel: String?)
         {
             self.usageDataSource = usageDataSource
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
+            self.accountEmail = accountEmail
+            self.workspaceLabel = workspaceLabel
         }
     }
 

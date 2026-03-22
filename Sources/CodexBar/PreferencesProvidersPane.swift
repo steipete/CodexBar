@@ -187,7 +187,9 @@ struct ProvidersPane: View {
             },
             setActiveIndex: { index in
                 self.settings.setActiveTokenAccountIndex(index, for: provider)
+                let selectedAccountID = self.settings.selectedTokenAccount(for: provider)?.id
                 Task { @MainActor in
+                    self.store.applyCachedTokenAccountSnapshot(provider: provider, accountID: selectedAccountID)
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
                         await self.store.refreshProvider(provider, allowDisabled: true)
                     }
@@ -209,6 +211,36 @@ struct ProvidersPane: View {
                     }
                 }
             },
+            loginActionTitle: provider == .codex ? "Add via login…" : nil,
+            runLoginAction: provider == .codex ? {
+                let runner = ChatGPTAccountLoginRunner(browserDetection: self.store.browserDetection)
+                let result = await runner.run { _ in }
+                switch result.outcome {
+                case let .success(cookieHeader, email, workspaceLabel):
+                    let accounts = self.settings.tokenAccounts(for: .codex)
+                    let baseLabel = CodexAccountLabel.makeBaseLabel(
+                        email: email,
+                        workspace: workspaceLabel,
+                        fallbackIndex: accounts.count + 1)
+                    let label = CodexAccountLabel.uniqueLabel(baseLabel: baseLabel, existingAccounts: accounts)
+                    self.settings.addTokenAccount(provider: .codex, label: label, token: cookieHeader)
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(.codex, allowDisabled: true)
+                    }
+                case .cancelled:
+                    break
+                case let .failed(message):
+                    let alert = NSAlert()
+                    alert.messageText = "ChatGPT account login failed"
+                    alert.informativeText = [
+                        "The sign-in completed, but CodexBar could not validate the captured " +
+                            "ChatGPT session for Codex usage fetching.",
+                        message,
+                    ].joined(separator: "\n\n")
+                    alert.alertStyle = .warning
+                    alert.runModal()
+                }
+            } : nil,
             openConfigFile: {
                 self.settings.openTokenAccountsFile()
             },
@@ -342,6 +374,7 @@ struct ProvidersPane: View {
         let weeklyPace = snapshot?.secondary.flatMap { window in
             self.store.weeklyPace(provider: provider, window: window, now: now)
         }
+        let accountLabel = provider == .codex ? self.settings.selectedTokenAccount(for: .codex)?.label : nil
         let input = UsageMenuCardView.Model.Input(
             provider: provider,
             metadata: metadata,
@@ -353,6 +386,7 @@ struct ProvidersPane: View {
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
             account: self.store.accountInfo(),
+            accountLabel: accountLabel,
             isRefreshing: self.store.refreshingProviders.contains(provider),
             lastError: self.store.error(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,

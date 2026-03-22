@@ -18,17 +18,32 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
             _ = NSApplication.shared
         }
 
-        let accountEmail = context.fetcher.loadAccountInfo().email?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let manualCookieHeader = context.settings?.codex?.manualCookieHeader
+        let selectedAccountEmail = context.settings?.codex?.accountEmail?
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        let workspaceLabel = context.settings?.codex?.workspaceLabel?
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        let accountEmail: String? = if let selectedAccountEmail, !selectedAccountEmail.isEmpty {
+            selectedAccountEmail
+        } else if manualCookieHeader == nil {
+            context.fetcher.loadAccountInfo().email?
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        } else {
+            nil
+        }
         let options = OpenAIWebOptions(
             timeout: context.webTimeout,
             debugDumpHTML: context.webDebugDumpHTML,
             verbose: context.verbose)
         let result = try await Self.fetchOpenAIWebCodex(
-            accountEmail: accountEmail,
-            fetcher: context.fetcher,
-            options: options,
-            browserDetection: context.browserDetection)
+            OpenAIWebFetchRequest(
+                accountEmail: accountEmail,
+                workspaceLabel: workspaceLabel,
+                manualCookieHeader: context.settings?.codex?.manualCookieHeader,
+                manualMode: context.settings?.codex?.cookieSource == .manual,
+                fetcher: context.fetcher,
+                options: options,
+                browserDetection: context.browserDetection))
         return self.makeResult(
             usage: result.usage,
             credits: result.credits,
@@ -66,6 +81,16 @@ private struct OpenAIWebOptions {
     let verbose: Bool
 }
 
+private struct OpenAIWebFetchRequest {
+    let accountEmail: String?
+    let workspaceLabel: String?
+    let manualCookieHeader: String?
+    let manualMode: Bool
+    let fetcher: UsageFetcher
+    let options: OpenAIWebOptions
+    let browserDetection: BrowserDetection
+}
+
 @MainActor
 private final class WebLogBuffer {
     private var lines: [String] = []
@@ -96,22 +121,14 @@ private final class WebLogBuffer {
 extension CodexWebDashboardStrategy {
     @MainActor
     fileprivate static func fetchOpenAIWebCodex(
-        accountEmail: String?,
-        fetcher: UsageFetcher,
-        options: OpenAIWebOptions,
-        browserDetection: BrowserDetection) async throws -> OpenAIWebCodexResult
+        _ request: OpenAIWebFetchRequest) async throws -> OpenAIWebCodexResult
     {
-        let logger = WebLogBuffer(verbose: options.verbose)
+        let logger = WebLogBuffer(verbose: request.options.verbose)
         let log: @MainActor (String) -> Void = { line in
             logger.append(line)
         }
-        let dashboard = try await Self.fetchOpenAIWebDashboard(
-            accountEmail: accountEmail,
-            fetcher: fetcher,
-            options: options,
-            browserDetection: browserDetection,
-            logger: log)
-        guard let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: accountEmail) else {
+        let dashboard = try await Self.fetchOpenAIWebDashboard(request, logger: log)
+        guard let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: request.accountEmail) else {
             throw OpenAIWebCodexError.missingUsage
         }
         let credits = dashboard.toCreditsSnapshot()
@@ -120,28 +137,66 @@ extension CodexWebDashboardStrategy {
 
     @MainActor
     fileprivate static func fetchOpenAIWebDashboard(
-        accountEmail: String?,
-        fetcher: UsageFetcher,
-        options: OpenAIWebOptions,
-        browserDetection: BrowserDetection,
+        _ request: OpenAIWebFetchRequest,
         logger: @MainActor @escaping (String) -> Void) async throws -> OpenAIDashboardSnapshot
     {
-        let trimmed = accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let fallback = fetcher.loadAccountInfo().email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = request.accountEmail?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        let fallback: String? = if request.manualCookieHeader == nil {
+            request.fetcher.loadAccountInfo().email?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        } else {
+            nil
+        }
         let codexEmail = trimmed?.isEmpty == false ? trimmed : (fallback?.isEmpty == false ? fallback : nil)
         let allowAnyAccount = codexEmail == nil
 
-        let importResult = try await OpenAIDashboardBrowserCookieImporter(browserDetection: browserDetection)
-            .importBestCookies(intoAccountEmail: codexEmail, allowAnyAccount: allowAnyAccount, logger: logger)
+        if let codexEmail, !codexEmail.isEmpty {
+            do {
+                let dash = try await OpenAIDashboardFetcher().loadLatestDashboard(
+                    accountEmail: codexEmail,
+                    workspaceLabel: request.workspaceLabel,
+                    logger: logger,
+                    debugDumpHTML: request.options.debugDumpHTML,
+                    timeout: request.options.timeout)
+                OpenAIDashboardCacheStore.save(OpenAIDashboardCache(accountEmail: codexEmail, snapshot: dash))
+                return dash
+            } catch OpenAIDashboardFetcher.FetchError.loginRequired {
+                logger("stored dashboard session for \(codexEmail) requires login; falling back to cookie import")
+            } catch {
+                logger("stored dashboard session for \(codexEmail) failed: \(error.localizedDescription)")
+            }
+        }
+
+        let importer = OpenAIDashboardBrowserCookieImporter(browserDetection: request.browserDetection)
+        let importResult: OpenAIDashboardBrowserCookieImporter.ImportResult
+        if let manualCookieHeader = request.manualCookieHeader,
+           CookieHeaderNormalizer.normalize(manualCookieHeader) != nil
+        {
+            importResult = try await importer.importManualCookies(
+                cookieHeader: manualCookieHeader,
+                intoAccountEmail: codexEmail,
+                intoWorkspaceLabel: request.workspaceLabel,
+                allowAnyAccount: allowAnyAccount,
+                logger: logger)
+        } else if request.manualMode {
+            throw OpenAIDashboardBrowserCookieImporter.ImportError.manualCookieHeaderInvalid
+        } else {
+            importResult = try await importer.importBestCookies(
+                intoAccountEmail: codexEmail,
+                intoWorkspaceLabel: request.workspaceLabel,
+                allowAnyAccount: allowAnyAccount,
+                logger: logger)
+        }
         let effectiveEmail = codexEmail ?? importResult.signedInEmail?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
 
         let dash = try await OpenAIDashboardFetcher().loadLatestDashboard(
             accountEmail: effectiveEmail,
+            workspaceLabel: request.workspaceLabel,
             logger: logger,
-            debugDumpHTML: options.debugDumpHTML,
-            timeout: options.timeout)
-        let cacheEmail = effectiveEmail ?? dash.signedInEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+            debugDumpHTML: request.options.debugDumpHTML,
+            timeout: request.options.timeout)
+        let cacheEmail = effectiveEmail ?? dash.signedInEmail?
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
         if let cacheEmail, !cacheEmail.isEmpty {
             OpenAIDashboardCacheStore.save(OpenAIDashboardCache(accountEmail: cacheEmail, snapshot: dash))
         }

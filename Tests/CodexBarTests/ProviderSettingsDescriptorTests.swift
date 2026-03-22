@@ -125,6 +125,128 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `codex token accounts visible when manual cookie mode enabled`() throws {
+        let suite = "ProviderSettingsDescriptorTests-codex-token-visibility"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.codexCookieSource = .manual
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        let context = ProviderSettingsContext(
+            provider: .codex,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+
+        let support = try #require(TokenAccountSupportCatalog.support(for: .codex))
+        #expect(CodexProviderImplementation().tokenAccountsVisibility(context: context, support: support))
+    }
+
+    @Test
+    func `codex apply token accounts forces manual cookie mode`() throws {
+        let suite = "ProviderSettingsDescriptorTests-codex-token-force-manual"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.codexCookieSource = .auto
+
+        CodexProviderImplementation().applyTokenAccountCookieSource(settings: settings)
+
+        #expect(settings.codexCookieSource == .manual)
+    }
+
+    @Test
+    func `codex manual cookies preserve auto source mode`() throws {
+        let suite = "ProviderSettingsDescriptorTests-codex-manual-web"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.codexUsageDataSource = .auto
+        settings.codexCookieSource = .manual
+
+        let mode = CodexProviderImplementation().sourceMode(
+            context: ProviderSourceModeContext(provider: .codex, settings: settings))
+
+        #expect(mode == .auto)
+    }
+
+    @Test
+    func `codex cookie picker remains visible when off`() throws {
+        let suite = "ProviderSettingsDescriptorTests-codex-cookie-picker-visible-when-off"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        settings.codexCookieSource = .off
+
+        let context = ProviderSettingsContext(
+            provider: .codex,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+
+        let pickers = CodexProviderImplementation().settingsPickers(context: context)
+        let cookiePicker = try #require(pickers.first(where: { $0.id == "codex-cookie-source" }))
+        #expect(cookiePicker.isVisible?() == true)
+    }
+
+    @Test
     func `claude exposes usage and cookie pickers`() throws {
         let suite = "ProviderSettingsDescriptorTests-claude"
         let defaults = try #require(UserDefaults(suiteName: suite))

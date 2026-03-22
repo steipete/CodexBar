@@ -45,11 +45,31 @@ struct CodexProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
+        guard support.requiresManualCookieSource else { return true }
+        if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
+        return context.settings.codexCookieSource == .manual
+    }
+
+    @MainActor
     func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        if !context.settings.tokenAccounts(for: .codex).isEmpty {
+            return ProviderSourceMode.web
+        }
         switch context.settings.codexUsageDataSource {
-        case .auto: .auto
-        case .oauth: .oauth
-        case .cli: .cli
+        case .auto:
+            return ProviderSourceMode.auto
+        case .oauth:
+            return ProviderSourceMode.oauth
+        case .cli:
+            return ProviderSourceMode.cli
+        }
+    }
+
+    @MainActor
+    func applyTokenAccountCookieSource(settings: SettingsStore) {
+        if settings.codexCookieSource != .manual {
+            settings.codexCookieSource = .manual
         }
     }
 
@@ -146,7 +166,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
-                isVisible: { context.settings.openAIWebAccessEnabled },
+                isVisible: { true },
                 onChange: nil,
                 trailingText: {
                     guard let entry = CookieHeaderCache.load(provider: .codex) else { return nil }

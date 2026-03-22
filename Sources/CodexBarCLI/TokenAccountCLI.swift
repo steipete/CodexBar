@@ -80,13 +80,18 @@ struct TokenAccountCLIContext {
 
         switch provider {
         case .codex:
+            let parsedAccount = account.map { CodexAccountLabel.parse($0.label) }
+            let accountEmail = parsedAccount?.email
+            let workspaceLabel = parsedAccount?.workspace
             let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
             let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 codex: ProviderSettingsSnapshot.CodexProviderSettings(
                     usageDataSource: .auto,
                     cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
+                    manualCookieHeader: cookieHeader,
+                    accountEmail: accountEmail,
+                    workspaceLabel: workspaceLabel))
         case .claude:
             let routing = self.claudeCredentialRouting(account: account, config: config)
             let claudeSource: ClaudeUsageDataSource = routing.isOAuth ? .oauth : .auto

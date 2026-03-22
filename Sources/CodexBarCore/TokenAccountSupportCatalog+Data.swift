@@ -2,6 +2,13 @@ import Foundation
 
 extension TokenAccountSupportCatalog {
     static let supportByProvider: [UsageProvider: TokenAccountSupport] = [
+        .codex: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store ChatGPT/OpenAI Cookie headers for multiple Codex accounts.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
         .claude: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store Claude sessionKey cookies or OAuth access tokens.",

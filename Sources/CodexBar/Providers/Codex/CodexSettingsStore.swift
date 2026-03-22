@@ -52,7 +52,9 @@ extension SettingsStore {
         ProviderSettingsSnapshot.CodexProviderSettings(
             usageDataSource: self.codexUsageDataSource,
             cookieSource: self.codexSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.codexSnapshotCookieHeader(tokenOverride: tokenOverride))
+            manualCookieHeader: self.codexSnapshotCookieHeader(tokenOverride: tokenOverride),
+            accountEmail: self.codexSnapshotAccountEmail(tokenOverride: tokenOverride),
+            workspaceLabel: self.codexSnapshotWorkspaceLabel(tokenOverride: tokenOverride))
     }
 
     private static func codexUsageDataSource(from source: ProviderSourceMode?) -> CodexUsageDataSource {
@@ -93,5 +95,27 @@ extension SettingsStore {
         }
         if self.tokenAccounts(for: .codex).isEmpty { return fallback }
         return .manual
+    }
+
+    private func codexSnapshotAccountEmail(tokenOverride: TokenAccountOverride?) -> String? {
+        guard let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: .codex,
+            settings: self,
+            override: tokenOverride)
+        else {
+            return nil
+        }
+        return CodexAccountLabel.parse(account.label).email
+    }
+
+    private func codexSnapshotWorkspaceLabel(tokenOverride: TokenAccountOverride?) -> String? {
+        guard let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: .codex,
+            settings: self,
+            override: tokenOverride)
+        else {
+            return nil
+        }
+        return CodexAccountLabel.parse(account.label).workspace
     }
 }

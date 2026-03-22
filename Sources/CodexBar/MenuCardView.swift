@@ -64,6 +64,7 @@ struct UsageMenuCardView: View {
         let provider: UsageProvider
         let providerName: String
         let email: String
+        let accountLabel: String?
         let subtitleText: String
         let subtitleStyle: SubtitleStyle
         let planText: String?
@@ -119,7 +120,8 @@ struct UsageMenuCardView: View {
                                 MetricRow(
                                     metric: metric,
                                     title: Self.popupMetricTitle(provider: self.model.provider, metric: metric),
-                                    progressColor: self.model.progressColor)
+                                    progressColor: self.model.progressColor,
+                                    compactPercentInHeader: self.model.provider == .codex && metric.id == "primary")
                             }
                             if !self.model.usageNotes.isEmpty {
                                 UsageNotesContent(notes: self.model.usageNotes)
@@ -204,7 +206,7 @@ private struct UsageMenuCardHeaderView: View {
                     .font(.headline)
                     .fontWeight(.semibold)
                 Spacer()
-                Text(self.model.email)
+                Text(self.headerTrailingText)
                     .font(.subheadline)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
             }
@@ -238,6 +240,14 @@ private struct UsageMenuCardHeaderView: View {
         case .loading: MenuHighlightStyle.secondary(self.isHighlighted)
         case .error: MenuHighlightStyle.error(self.isHighlighted)
         }
+    }
+
+    private var headerTrailingText: String {
+        let label = self.model.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !label.isEmpty {
+            return label
+        }
+        return self.model.email
     }
 }
 
@@ -323,13 +333,29 @@ private struct MetricRow: View {
     let metric: UsageMenuCardView.Model.Metric
     let title: String
     let progressColor: Color
+    let compactPercentInHeader: Bool
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(self.title)
-                .font(.body)
-                .fontWeight(.medium)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(self.title)
+                    .font(.body)
+                    .fontWeight(.medium)
+                if self.compactPercentInHeader {
+                    Text(self.metric.percentLabel)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
+                }
+                Spacer()
+                if self.compactPercentInHeader, let rightLabel = self.metric.resetText {
+                    Text(rightLabel)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
+                }
+            }
             UsageProgressBar(
                 percent: self.metric.percent,
                 tint: self.progressColor,
@@ -338,11 +364,13 @@ private struct MetricRow: View {
                 paceOnTop: self.metric.paceOnTop)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(self.metric.percentLabel)
-                        .font(.footnote)
-                        .lineLimit(1)
+                    if !self.compactPercentInHeader {
+                        Text(self.metric.percentLabel)
+                            .font(.footnote)
+                            .lineLimit(1)
+                    }
                     Spacer()
-                    if let rightLabel = self.metric.resetText {
+                    if !self.compactPercentInHeader, let rightLabel = self.metric.resetText {
                         Text(rightLabel)
                             .font(.footnote)
                             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
@@ -439,7 +467,8 @@ struct UsageMenuCardUsageSectionView: View {
                     MetricRow(
                         metric: metric,
                         title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
-                        progressColor: self.model.progressColor)
+                        progressColor: self.model.progressColor,
+                        compactPercentInHeader: self.model.provider == .codex && metric.id == "primary")
                 }
                 if !self.model.usageNotes.isEmpty {
                     UsageNotesContent(notes: self.model.usageNotes)
@@ -626,6 +655,7 @@ extension UsageMenuCardView.Model {
         let tokenSnapshot: CostUsageTokenSnapshot?
         let tokenError: String?
         let account: AccountInfo
+        let accountLabel: String?
         let isRefreshing: Bool
         let lastError: String?
         let usageBarsShowUsed: Bool
@@ -649,6 +679,7 @@ extension UsageMenuCardView.Model {
             tokenSnapshot: CostUsageTokenSnapshot?,
             tokenError: String?,
             account: AccountInfo,
+            accountLabel: String? = nil,
             isRefreshing: Bool,
             lastError: String?,
             usageBarsShowUsed: Bool,
@@ -671,6 +702,7 @@ extension UsageMenuCardView.Model {
             self.tokenSnapshot = tokenSnapshot
             self.tokenError = tokenError
             self.account = account
+            self.accountLabel = accountLabel
             self.isRefreshing = isRefreshing
             self.lastError = lastError
             self.usageBarsShowUsed = usageBarsShowUsed
@@ -693,9 +725,9 @@ extension UsageMenuCardView.Model {
             metadata: input.metadata)
         let metrics = Self.metrics(input: input)
         let usageNotes = Self.usageNotes(input: input)
-        let creditsText: String? = if input.provider == .openrouter {
+        let creditsText: String? = if input.provider == .openrouter || input.provider == .codex {
             nil
-        } else if input.provider == .codex, !input.showOptionalCreditsAndExtraUsage {
+        } else if !input.showOptionalCreditsAndExtraUsage {
             nil
         } else {
             Self.creditsLine(metadata: input.metadata, credits: input.credits, error: input.creditsError)
@@ -721,6 +753,7 @@ extension UsageMenuCardView.Model {
             provider: input.provider,
             providerName: input.metadata.displayName,
             email: redacted.email,
+            accountLabel: input.accountLabel,
             subtitleText: redacted.subtitleText,
             subtitleStyle: subtitle.style,
             planText: planText,
@@ -770,11 +803,26 @@ extension UsageMenuCardView.Model {
         account: AccountInfo,
         metadata: ProviderMetadata) -> String
     {
-        if let email = snapshot?.accountEmail(for: provider), !email.isEmpty { return email }
-        if metadata.usesAccountFallback,
-           let email = account.email, !email.isEmpty
+        let baseEmail: String? = if let email = snapshot?.accountEmail(for: provider), !email.isEmpty {
+            email
+        } else if metadata.usesAccountFallback,
+                  let email = account.email, !email.isEmpty
         {
-            return email
+            email
+        } else {
+            nil
+        }
+
+        let organization = snapshot?.accountOrganization(for: provider)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let baseEmail, !baseEmail.isEmpty {
+            if let organization, !organization.isEmpty {
+                return "\(baseEmail) — \(organization)"
+            }
+            return baseEmail
+        }
+        if let organization, !organization.isEmpty {
+            return organization
         }
         return ""
     }

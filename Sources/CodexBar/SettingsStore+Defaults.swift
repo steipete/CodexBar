@@ -150,6 +150,44 @@ extension SettingsStore {
         }
     }
 
+    private var codexMenuAccountSortModeRaw: String? {
+        get { self.defaultsState.codexMenuAccountSortModeRaw }
+        set {
+            self.defaultsState.codexMenuAccountSortModeRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "codexMenuAccountSortMode")
+            } else {
+                self.userDefaults.removeObject(forKey: "codexMenuAccountSortMode")
+            }
+        }
+    }
+
+    var codexMenuAccountSortMode: CodexMenuAccountSortMode {
+        get {
+            switch self.codexMenuAccountSortModeRaw {
+            case CodexMenuAccountSortMode.accountNameAscending.rawValue:
+                .accountNameAscending
+            case CodexMenuAccountSortMode.accountNameDescending.rawValue:
+                .accountNameDescending
+            case CodexMenuAccountSortMode.sessionLeftHighToLow.rawValue,
+                 "session-left-low-to-high":
+                .sessionLeftHighToLow
+            case CodexMenuAccountSortMode.sessionResetSoonestFirst.rawValue,
+                 "session-reset-latest-first":
+                .sessionResetSoonestFirst
+            case CodexMenuAccountSortMode.weeklyLeftHighToLow.rawValue,
+                 "weekly-left-low-to-high":
+                .weeklyLeftHighToLow
+            case CodexMenuAccountSortMode.weeklyResetSoonestFirst.rawValue,
+                 "weekly-reset-latest-first":
+                .weeklyResetSoonestFirst
+            default:
+                .default
+            }
+        }
+        set { self.codexMenuAccountSortModeRaw = newValue.rawValue }
+    }
+
     var historicalTrackingEnabled: Bool {
         get { self.defaultsState.historicalTrackingEnabled }
         set {

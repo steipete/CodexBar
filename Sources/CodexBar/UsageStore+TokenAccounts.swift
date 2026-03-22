@@ -18,6 +18,12 @@ struct TokenAccountUsageSnapshot: Identifiable {
 }
 
 extension UsageStore {
+    /// Codex multi-account support is built by reusing the shared token-account pipeline:
+    /// fetch once per stored account, keep the resulting snapshots separate, and let the
+    /// menu render multiple account cards at the same time instead of collapsing Codex
+    /// into a single usage view.
+    private static let tokenAccountFetchConcurrencyLimit = 5
+
     func tokenAccounts(for provider: UsageProvider) -> [ProviderTokenAccount] {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return [] }
         return self.settings.tokenAccounts(for: provider)
@@ -32,46 +38,36 @@ extension UsageStore {
         let selectedAccount = self.settings.selectedTokenAccount(for: provider)
         let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
         let effectiveSelected = selectedAccount ?? limitedAccounts.first
-        var snapshots: [TokenAccountUsageSnapshot] = []
-        var selectedOutcome: ProviderFetchOutcome?
-        var selectedSnapshot: UsageSnapshot?
 
-        for account in limitedAccounts {
-            let override = TokenAccountOverride(provider: provider, account: account)
+        var snapshotsByID: [UUID: TokenAccountUsageSnapshot] = [:]
+
+        if let effectiveSelected {
+            let override = TokenAccountOverride(provider: provider, account: effectiveSelected)
             let outcome = await self.fetchOutcome(provider: provider, override: override)
-            let resolved = self.resolveAccountOutcome(outcome, provider: provider, account: account)
-            snapshots.append(resolved.snapshot)
-            if account.id == effectiveSelected?.id {
-                selectedOutcome = outcome
-                selectedSnapshot = resolved.usage
+            let resolved = self.resolveAccountOutcome(outcome, provider: provider, account: effectiveSelected)
+            snapshotsByID[effectiveSelected.id] = resolved.snapshot
+            await self.applySelectedOutcome(
+                outcome,
+                provider: provider,
+                account: effectiveSelected,
+                fallbackSnapshot: resolved.usage)
+        }
+
+        let remainingAccounts = limitedAccounts.filter { $0.id != effectiveSelected?.id }
+        if !remainingAccounts.isEmpty {
+            let additionalSnapshots = await self.fetchTokenAccountSnapshotsInBatches(
+                provider: provider,
+                accounts: remainingAccounts,
+                maxConcurrent: Self.tokenAccountFetchConcurrencyLimit)
+            for (accountID, snapshot) in additionalSnapshots {
+                snapshotsByID[accountID] = snapshot
             }
         }
 
+        let orderedSnapshots = limitedAccounts.compactMap { snapshotsByID[$0.id] }
         await MainActor.run {
-            self.accountSnapshots[provider] = snapshots
+            self.accountSnapshots[provider] = orderedSnapshots
         }
-
-        if let selectedOutcome {
-            await self.applySelectedOutcome(
-                selectedOutcome,
-                provider: provider,
-                account: effectiveSelected,
-                fallbackSnapshot: selectedSnapshot)
-        }
-    }
-
-    func limitedTokenAccounts(
-        _ accounts: [ProviderTokenAccount],
-        selected: ProviderTokenAccount?) -> [ProviderTokenAccount]
-    {
-        let limit = 6
-        if accounts.count <= limit { return accounts }
-        var limited = Array(accounts.prefix(limit))
-        if let selected, !limited.contains(where: { $0.id == selected.id }) {
-            limited.removeLast()
-            limited.append(selected)
-        }
-        return limited
     }
 
     func fetchOutcome(
@@ -79,7 +75,11 @@ extension UsageStore {
         override: TokenAccountOverride?) async -> ProviderFetchOutcome
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-        let sourceMode = self.sourceMode(for: provider)
+        let sourceMode: ProviderSourceMode = if provider == .codex, override != nil {
+            .web
+        } else {
+            self.sourceMode(for: provider)
+        }
         let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: override)
         let env = ProviderRegistry.makeEnvironment(
             base: ProcessInfo.processInfo.environment,
@@ -108,33 +108,22 @@ extension UsageStore {
             ?? .auto
     }
 
-    private struct ResolvedAccountOutcome {
-        let snapshot: TokenAccountUsageSnapshot
-        let usage: UsageSnapshot?
-    }
+    @MainActor
+    func applyCachedTokenAccountSnapshot(provider: UsageProvider, accountID: UUID?) {
+        guard let accountID,
+              let cached = self.accountSnapshots[provider]?.first(where: { $0.account.id == accountID })
+        else {
+            return
+        }
 
-    private func resolveAccountOutcome(
-        _ outcome: ProviderFetchOutcome,
-        provider: UsageProvider,
-        account: ProviderTokenAccount) -> ResolvedAccountOutcome
-    {
-        switch outcome.result {
-        case let .success(result):
-            let scoped = result.usage.scoped(to: provider)
-            let labeled = self.applyAccountLabel(scoped, provider: provider, account: account)
-            let snapshot = TokenAccountUsageSnapshot(
-                account: account,
-                snapshot: labeled,
-                error: nil,
-                sourceLabel: result.sourceLabel)
-            return ResolvedAccountOutcome(snapshot: snapshot, usage: labeled)
-        case let .failure(error):
-            let snapshot = TokenAccountUsageSnapshot(
-                account: account,
-                snapshot: nil,
-                error: error.localizedDescription,
-                sourceLabel: nil)
-            return ResolvedAccountOutcome(snapshot: snapshot, usage: nil)
+        if let snapshot = cached.snapshot {
+            self.handleSessionQuotaTransition(provider: provider, snapshot: snapshot)
+            self.snapshots[provider] = snapshot
+            self.lastSourceLabels[provider] = cached.sourceLabel
+            self.errors[provider] = nil
+            self.failureGates[provider]?.recordSuccess()
+        } else if let error = cached.error, !error.isEmpty {
+            self.errors[provider] = error
         }
     }
 
@@ -185,12 +174,17 @@ extension UsageStore {
         let label = account.label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !label.isEmpty else { return snapshot }
         let existing = snapshot.identity(for: provider)
+
+        let parsed = CodexAccountLabel.parse(label)
+
         let email = existing?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedEmail = (email?.isEmpty ?? true) ? label : email
+        let organization = existing?.accountOrganization?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedEmail = (email?.isEmpty ?? true) ? (parsed.email ?? label) : email
+        let resolvedOrganization = (organization?.isEmpty ?? true) ? parsed.workspace : organization
         let identity = ProviderIdentitySnapshot(
             providerID: provider,
             accountEmail: resolvedEmail,
-            accountOrganization: existing?.accountOrganization,
+            accountOrganization: resolvedOrganization,
             loginMethod: existing?.loginMethod)
         return snapshot.withIdentity(identity)
     }

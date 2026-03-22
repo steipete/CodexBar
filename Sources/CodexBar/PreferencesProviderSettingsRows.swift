@@ -266,6 +266,22 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
 
+            if let loginTitle = self.descriptor.loginActionTitle,
+               let runLoginAction = self.descriptor.runLoginAction
+            {
+                HStack(spacing: 8) {
+                    Button(loginTitle) {
+                        Task { await runLoginAction() }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    Text("Opens a dedicated sign-in window and saves the resulting ChatGPT session automatically.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             HStack(spacing: 10) {
                 Button("Open token file") {
                     self.descriptor.openConfigFile()

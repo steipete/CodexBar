@@ -252,8 +252,16 @@ private struct ProviderDetailInfoGrid: View {
                     labelWidth: self.labelWidth)
             }
 
-            if !email.isEmpty {
-                ProviderDetailInfoRow(label: "Account", value: email, labelWidth: self.labelWidth)
+            let organization = self.store.snapshot(for: self.provider)?.accountOrganization(for: self.provider) ?? ""
+            let accountDisplay = if !email.isEmpty, !organization.isEmpty {
+                "\(email) — \(organization)"
+            } else if !email.isEmpty {
+                email
+            } else {
+                organization
+            }
+            if !accountDisplay.isEmpty {
+                ProviderDetailInfoRow(label: "Account", value: accountDisplay, labelWidth: self.labelWidth)
             }
 
             if let planRow = ProviderDetailView.planRow(provider: self.provider, planText: self.model.planText) {

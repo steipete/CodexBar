@@ -197,6 +197,7 @@ extension SettingsStore {
             ?? MenuBarDisplayMode.percent.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
         let showAllTokenAccountsInMenu = userDefaults.object(forKey: "showAllTokenAccountsInMenu") as? Bool ?? false
+        let codexMenuAccountSortModeRaw = userDefaults.string(forKey: "codexMenuAccountSortMode")
         let storedPreferences = userDefaults.dictionary(forKey: "menuBarMetricPreferences") as? [String: String] ?? [:]
         var resolvedPreferences = storedPreferences
         if resolvedPreferences.isEmpty,
@@ -246,6 +247,7 @@ extension SettingsStore {
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
             showAllTokenAccountsInMenu: showAllTokenAccountsInMenu,
+            codexMenuAccountSortModeRaw: codexMenuAccountSortModeRaw,
             menuBarMetricPreferencesRaw: resolvedPreferences,
             costUsageEnabled: costUsageEnabled,
             hidePersonalInfo: hidePersonalInfo,
