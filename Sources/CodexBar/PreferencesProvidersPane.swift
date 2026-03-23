@@ -227,6 +227,15 @@ struct ProvidersPane: View {
                 }
             },
             removeAccount: { accountID in
+                // Clean up dashboard login state for the deleted account before removing it,
+                // so the token doesn't linger in dashboardLoggedInEmails or UserDefaults.
+                if let data = self.settings.tokenAccountsData(for: provider),
+                   let account = data.accounts.first(where: { $0.id == accountID })
+                {
+                    let key = account.token.lowercased()
+                    self.store.dashboardLoggedInEmails.remove(key)
+                    OpenAIDashboardWebsiteDataStore.markDashboardLoggedOut(forAccountEmail: account.token)
+                }
                 self.settings.removeTokenAccount(provider: provider, accountID: accountID)
                 Task { @MainActor in
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
