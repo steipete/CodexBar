@@ -46,7 +46,7 @@ extension UsageStore {
         }
 
         // When "CodexBar accounts only" is on, do not fall back to ~/.codex implicit credentials.
-        // If there are no explicit accounts, clear usage and stop.
+        // If there are no explicit accounts, clear all cached Codex data and stop.
         if provider == .codex,
            self.settings.codexExplicitAccountsOnly,
            tokenAccounts.isEmpty
@@ -55,7 +55,22 @@ extension UsageStore {
                 self.snapshots.removeValue(forKey: .codex)
                 self.errors[.codex] = nil
                 self.lastSourceLabels.removeValue(forKey: .codex)
+                self.lastFetchAttempts.removeValue(forKey: .codex)
+                self.accountSnapshots.removeValue(forKey: .codex)
+                self.tokenSnapshots.removeValue(forKey: .codex)
+                self.tokenErrors[.codex] = nil
+                self.allAccountCredits.removeValue(forKey: .codex)
+                self.credits = nil
+                self.lastCreditsError = nil
+                self.statuses.removeValue(forKey: .codex)
+                self.lastKnownSessionRemaining.removeValue(forKey: .codex)
+                self.lastKnownSessionWindowSource.removeValue(forKey: .codex)
+                self.lastTokenFetchAt.removeValue(forKey: .codex)
+                self.lastTokenCostSelectionIdentity.removeValue(forKey: .codex)
+                self.failureGates[.codex]?.reset()
+                self.tokenFailureGates[.codex]?.reset()
             }
+            self.resetOpenAIWebState()
             return
         }
 

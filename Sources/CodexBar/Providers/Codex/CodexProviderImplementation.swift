@@ -83,6 +83,16 @@ struct CodexProviderImplementation: ProviderImplementation {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     context.settings.codexMultipleAccountsEnabled = newValue
                 }
+                if !newValue {
+                    // Revert to primary account so Codex stops using a hidden token override.
+                    context.settings.setActiveTokenAccountIndex(-1, for: .codex)
+                    context.settings.codexExplicitAccountsOnly = false
+                    Task { @MainActor in
+                        await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                            await context.store.refreshProvider(.codex)
+                        }
+                    }
+                }
             })
 
         let explicitAccountsBinding = Binding(

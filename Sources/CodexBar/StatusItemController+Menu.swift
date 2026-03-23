@@ -1226,12 +1226,12 @@ extension StatusItemController {
     }
 
     private func makeCodexDashboardItem() -> NSMenuItem? {
-        let impl = CodexProviderImplementation()
         let accountIdentifier: String?
         if let selected = self.settings.selectedTokenAccount(for: .codex) {
             accountIdentifier = selected.token
         } else {
-            accountIdentifier = impl.tokenAccountDefaultLabel(settings: self.settings)
+            // Use the stable ~/.codex path as key for the default account dashboard session.
+            accountIdentifier = ("~/.codex" as NSString).expandingTildeInPath
         }
 
         guard let key = accountIdentifier, !key.isEmpty else { return nil }

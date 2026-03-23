@@ -401,6 +401,11 @@ struct ProviderSettingsTokenAccountsRowView: View {
             .foregroundStyle(Color.accentColor)
     }
 
+    /// Stable key for the default account's dashboard session (not the editable display label).
+    private var defaultAccountDashboardKey: String {
+        ("~/.codex" as NSString).expandingTildeInPath
+    }
+
     @ViewBuilder
     private func defaultAccountTab(label: String, isActive: Bool) -> some View {
         let isRenaming = self.renamingDefault && self.descriptor.renameDefaultAccount != nil
@@ -453,9 +458,9 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .help("Make this the default account")
                     }
                     if let dashboardLogin = self.descriptor.dashboardLogin {
-                        let loggedIn = self.descriptor.isDashboardLoggedIn?(label) ?? false
+                        let loggedIn = self.descriptor.isDashboardLoggedIn?(self.defaultAccountDashboardKey) ?? false
                         Button(loggedIn ? "Dashboard" : "Login to Dashboard") {
-                            dashboardLogin(label)
+                            dashboardLogin(self.defaultAccountDashboardKey)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
