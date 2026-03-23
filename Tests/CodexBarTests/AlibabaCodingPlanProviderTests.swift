@@ -587,6 +587,14 @@ struct AlibabaCodingPlanFallbackTests {
             settings: settings,
             env: [AlibabaCodingPlanSettingsReader.apiTokenKey: "token-abc"])
 
+        CookieHeaderCache.clear(provider: .alibaba)
+        AlibabaCodingPlanCookieImporter.importSessionOverrideForTesting = { _, _ in
+            throw AlibabaCodingPlanSettingsError.missingCookie()
+        }
+        defer {
+            AlibabaCodingPlanCookieImporter.importSessionOverrideForTesting = nil
+        }
+
         #expect(await strategy.isAvailable(context) == false)
     }
 }

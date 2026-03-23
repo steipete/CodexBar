@@ -581,12 +581,12 @@ public struct UsageFetcher: Sendable {
         let primary = RateWindow(
             usedPercent: max(0, 100 - Double(fiveLeft)),
             windowMinutes: 300,
-            resetsAt: nil,
+            resetsAt: status.fiveHourResetsAt,
             resetDescription: status.fiveHourResetDescription)
         let secondary = RateWindow(
             usedPercent: max(0, 100 - Double(weekLeft)),
             windowMinutes: 10080,
-            resetsAt: nil,
+            resetsAt: status.weeklyResetsAt,
             resetDescription: status.weeklyResetDescription)
 
         return UsageSnapshot(

@@ -29,12 +29,39 @@ struct UsageMenuCardView: View {
             let title: String
             let percent: Double
             let percentStyle: PercentStyle
+            let statusText: String?
             let resetText: String?
             let detailText: String?
             let detailLeftText: String?
             let detailRightText: String?
             let pacePercent: Double?
             let paceOnTop: Bool
+
+            init(
+                id: String,
+                title: String,
+                percent: Double,
+                percentStyle: PercentStyle,
+                statusText: String? = nil,
+                resetText: String?,
+                detailText: String?,
+                detailLeftText: String?,
+                detailRightText: String?,
+                pacePercent: Double?,
+                paceOnTop: Bool)
+            {
+                self.id = id
+                self.title = title
+                self.percent = percent
+                self.percentStyle = percentStyle
+                self.statusText = statusText
+                self.resetText = resetText
+                self.detailText = detailText
+                self.detailLeftText = detailLeftText
+                self.detailRightText = detailRightText
+                self.pacePercent = pacePercent
+                self.paceOnTop = paceOnTop
+            }
 
             var percentLabel: String {
                 String(format: "%.0f%% %@", self.percent, self.percentStyle.labelSuffix)
@@ -396,49 +423,56 @@ private struct MetricRow: View {
             Text(self.title)
                 .font(.body)
                 .fontWeight(.medium)
-            UsageProgressBar(
-                percent: self.metric.percent,
-                tint: self.progressColor,
-                accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
-                pacePercent: self.metric.pacePercent,
-                paceOnTop: self.metric.paceOnTop)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(self.metric.percentLabel)
-                        .font(.footnote)
-                        .lineLimit(1)
-                    Spacer()
-                    if let rightLabel = self.metric.resetText {
-                        Text(rightLabel)
-                            .font(.footnote)
-                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                            .lineLimit(1)
-                    }
-                }
-                if self.metric.detailLeftText != nil || self.metric.detailRightText != nil {
+            if let statusText = self.metric.statusText {
+                Text(statusText)
+                    .font(.footnote)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
+            } else {
+                UsageProgressBar(
+                    percent: self.metric.percent,
+                    tint: self.progressColor,
+                    accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
+                    pacePercent: self.metric.pacePercent,
+                    paceOnTop: self.metric.paceOnTop)
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline) {
-                        if let detailLeft = self.metric.detailLeftText {
-                            Text(detailLeft)
-                                .font(.footnote)
-                                .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-                                .lineLimit(1)
-                        }
+                        Text(self.metric.percentLabel)
+                            .font(.footnote)
+                            .lineLimit(1)
                         Spacer()
-                        if let detailRight = self.metric.detailRightText {
-                            Text(detailRight)
+                        if let rightLabel = self.metric.resetText {
+                            Text(rightLabel)
                                 .font(.footnote)
                                 .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                                 .lineLimit(1)
                         }
                     }
+                    if self.metric.detailLeftText != nil || self.metric.detailRightText != nil {
+                        HStack(alignment: .firstTextBaseline) {
+                            if let detailLeft = self.metric.detailLeftText {
+                                Text(detailLeft)
+                                    .font(.footnote)
+                                    .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            if let detailRight = self.metric.detailRightText {
+                                Text(detailRight)
+                                    .font(.footnote)
+                                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let detail = self.metric.detailText {
-                Text(detail)
-                    .font(.footnote)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                    .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if let detail = self.metric.detailText {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1059,6 +1093,9 @@ extension UsageMenuCardView.Model {
 
     private static func metrics(input: Input) -> [Metric] {
         guard let snapshot = input.snapshot else { return [] }
+        if input.provider == .antigravity {
+            return Self.antigravityMetrics(input: input, snapshot: snapshot)
+        }
         var metrics: [Metric] = []
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
         let zaiUsage = input.provider == .zai ? snapshot.zaiUsage : nil
@@ -1194,6 +1231,66 @@ extension UsageMenuCardView.Model {
                 paceOnTop: true))
         }
         return metrics
+    }
+
+    private static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {
+        let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
+        return [
+            Self.antigravityMetric(
+                id: "primary",
+                title: input.metadata.sessionLabel,
+                window: snapshot.primary,
+                input: input,
+                percentStyle: percentStyle),
+            Self.antigravityMetric(
+                id: "secondary",
+                title: input.metadata.weeklyLabel,
+                window: snapshot.secondary,
+                input: input,
+                percentStyle: percentStyle),
+            Self.antigravityMetric(
+                id: "tertiary",
+                title: input.metadata.opusLabel ?? "Gemini Flash",
+                window: snapshot.tertiary,
+                input: input,
+                percentStyle: percentStyle),
+        ]
+    }
+
+    private static func antigravityMetric(
+        id: String,
+        title: String,
+        window: RateWindow?,
+        input: Input,
+        percentStyle: PercentStyle) -> Metric
+    {
+        guard let window else {
+            let placeholderPercent = input.usageBarsShowUsed ? 100.0 : 0.0
+            return Metric(
+                id: id,
+                title: title,
+                percent: placeholderPercent,
+                percentStyle: percentStyle,
+                statusText: nil,
+                resetText: nil,
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true)
+        }
+        let percent = input.usageBarsShowUsed ? window.usedPercent : window.remainingPercent
+        return Metric(
+            id: id,
+            title: title,
+            percent: Self.clamped(percent),
+            percentStyle: percentStyle,
+            resetText: Self.resetText(for: window, style: input.resetTimeDisplayStyle, now: input.now),
+            detailText: nil,
+            detailLeftText: nil,
+            detailRightText: nil,
+            pacePercent: nil,
+            paceOnTop: true)
     }
 
     private static func zaiLimitDetailText(limit: ZaiLimitEntry?) -> String? {

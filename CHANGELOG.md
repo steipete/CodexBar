@@ -4,6 +4,7 @@
 ### Highlights
 - Add Alibaba Coding Plan provider with region-aware quota fetching, widget integration, and browser-cookie import defaults (#574).
 - Align Cursor usage with the dashboard's Total/Auto/API lanes. (#587). Thanks @Rag30!
+- Add reset time display for Codex code review limits (#581). Thanks @Q1CHENL!
 - Add GPT-5.4 mini and nano pricing (#561). Thanks @iam-brain!
 - Add per-model token counts to cost history (#546). Thanks @iam-brain!
 - Refactor the Claude provider end to end into clearer, better-tested components while preserving behavior (#494).
@@ -12,10 +13,12 @@
 - Alibaba: add Coding Plan provider support with region-aware web/API quota fetching, widget integration, and browser-cookie import defaults (#574).
 - Cursor: trust dashboard percent fields for Total/Auto/API usage, preserve on-demand remaining fallback views, and keep scanning imported browser-cookie candidates until a working Cursor session is found (#587, supersedes #579). Thanks @Rag30!
 - Claude: refactor the provider end to end into clearer components, with baseline docs and expanded tests to lock down behavior (#494).
+- Codex: show reset times for code review limits, including Core review reset parsing support (#581). Thanks @Q1CHENL!
 - Codex: add GPT-5.4 mini and nano pricing (#561). Thanks @iam-brain!
 - Cost history: add per-model token counts so token usage is broken out by model (#546). Thanks @iam-brain!
 
 ### Menu & Settings
+- Menu bar: in Both display mode, fall back to percent when pace data is unavailable so text stays visible for providers without pace metrics (#527). Thanks @Astro-Han!
 - Settings: persist the resolved refresh cadence default to `UserDefaults` on first launch and repair invalid stored values so the setting stays normalized across relaunches (#519). Thanks @Astro-Han!
 - Menu: wrap long status blurbs and preserve wrapped titles for multiline entries (#543). Thanks @zkforge!
 

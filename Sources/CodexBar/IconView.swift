@@ -1,6 +1,21 @@
 import CodexBarCore
 import SwiftUI
 
+enum IconRemainingResolver {
+    static func resolvedRemaining(snapshot: UsageSnapshot, style: IconStyle) -> (primary: Double?, secondary: Double?) {
+        guard style == .antigravity else {
+            return (
+                primary: snapshot.primary?.remainingPercent,
+                secondary: snapshot.secondary?.remainingPercent)
+        }
+
+        let windows = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
+        return (
+            primary: windows.first?.remainingPercent,
+            secondary: windows.dropFirst().first?.remainingPercent)
+    }
+}
+
 @MainActor
 struct IconView: View {
     let snapshot: UsageSnapshot?
@@ -26,9 +41,10 @@ struct IconView: View {
     var body: some View {
         Group {
             if let snapshot {
+                let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: self.style)
                 Image(nsImage: IconRenderer.makeIcon(
-                    primaryRemaining: snapshot.primary?.remainingPercent,
-                    weeklyRemaining: snapshot.secondary?.remainingPercent,
+                    primaryRemaining: remaining.primary,
+                    weeklyRemaining: remaining.secondary,
                     creditsRemaining: self.creditsRemaining,
                     stale: self.isStale,
                     style: self.style))
