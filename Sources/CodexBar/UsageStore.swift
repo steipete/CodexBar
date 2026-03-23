@@ -615,7 +615,11 @@ extension UsageStore {
     }
 
     func requestOpenAIDashboardRefreshIfStale(reason: String) {
-        guard self.isEnabled(.codex), self.settings.codexCookieSource.isEnabled else { return }
+        let multiAccountDash = self.settings.codexMultipleAccountsEnabled
+            && self.settings.openAIWebAccessEnabled
+        guard self.isEnabled(.codex),
+              self.settings.codexCookieSource.isEnabled || multiAccountDash
+        else { return }
         let now = Date()
         let refreshInterval = self.openAIWebRefreshIntervalSeconds()
         let lastUpdatedAt = self.openAIDashboard?.updatedAt ?? self.lastOpenAIDashboardSnapshot?.updatedAt
@@ -669,7 +673,11 @@ extension UsageStore {
     }
 
     private func refreshOpenAIDashboardIfNeeded(force: Bool = false) async {
-        guard self.isEnabled(.codex), self.settings.codexCookieSource.isEnabled else {
+        let multiAccountDashboard = self.settings.codexMultipleAccountsEnabled
+            && self.settings.openAIWebAccessEnabled
+        guard self.isEnabled(.codex),
+              self.settings.codexCookieSource.isEnabled || multiAccountDashboard
+        else {
             self.resetOpenAIWebState()
             return
         }
@@ -839,7 +847,11 @@ extension UsageStore {
             self.lastOpenAIDashboardSnapshot = nil
             self.lastOpenAIDashboardError = nil
             self.openAIDashboardRequiresLogin = true
-            self.openAIDashboardCookieImportStatus = "Codex account changed; importing browser cookies…"
+            if self.settings.codexMultipleAccountsEnabled, self.settings.openAIWebAccessEnabled {
+                self.openAIDashboardCookieImportStatus = nil
+            } else {
+                self.openAIDashboardCookieImportStatus = "Codex account changed; importing browser cookies…"
+            }
             self.lastOpenAIDashboardCookieImportAttemptAt = nil
             self.lastOpenAIDashboardCookieImportEmail = nil
         }
@@ -862,6 +874,12 @@ extension UsageStore {
     }
 
     private func importOpenAIDashboardCookiesIfNeeded(targetEmail: String?, force: Bool) async -> String? {
+        // In multi-account mode with per-account dashboard login, skip browser cookie import entirely.
+        // Each account uses its own WKWebView cookie store managed via the dashboard login window.
+        if self.settings.codexMultipleAccountsEnabled, self.settings.openAIWebAccessEnabled {
+            return targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
         let normalizedTarget = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let allowAnyAccount = normalizedTarget == nil || normalizedTarget?.isEmpty == true
         let cookieSource = self.settings.codexCookieSource
