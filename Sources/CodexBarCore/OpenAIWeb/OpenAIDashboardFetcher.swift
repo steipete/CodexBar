@@ -156,6 +156,7 @@ public struct OpenAIDashboardFetcher {
             let breakdown = OpenAIDashboardSnapshot.makeDailyBreakdown(from: events, maxDays: 30)
             let usageBreakdown = scrape.usageBreakdown
             let rateLimits = OpenAIDashboardParser.parseRateLimits(bodyText: bodyText)
+            let codeReviewLimit = OpenAIDashboardParser.parseCodeReviewLimit(bodyText: bodyText)
             let creditsRemaining = OpenAIDashboardParser.parseCreditsRemaining(bodyText: bodyText)
             let accountPlan = scrape.bodyHTML.flatMap(OpenAIDashboardParser.parsePlanFromHTML)
             let hasUsageLimits = rateLimits.primary != nil || rateLimits.secondary != nil
@@ -224,6 +225,7 @@ public struct OpenAIDashboardFetcher {
                 return OpenAIDashboardSnapshot(
                     signedInEmail: scrape.signedInEmail,
                     codeReviewRemainingPercent: codeReview,
+                    codeReviewLimit: codeReviewLimit,
                     creditEvents: events,
                     dailyBreakdown: breakdown,
                     usageBreakdown: usageBreakdown,

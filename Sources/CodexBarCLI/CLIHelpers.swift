@@ -206,6 +206,7 @@ extension CodexBarCLI {
             return OpenAIDashboardSnapshot(
                 signedInEmail: cache.snapshot.signedInEmail,
                 codeReviewRemainingPercent: cache.snapshot.codeReviewRemainingPercent,
+                codeReviewLimit: cache.snapshot.codeReviewLimit,
                 creditEvents: cache.snapshot.creditEvents,
                 dailyBreakdown: OpenAIDashboardSnapshot.makeDailyBreakdown(
                     from: cache.snapshot.creditEvents,
@@ -239,7 +240,13 @@ extension CodexBarCLI {
         }
         if let remaining = dash.codeReviewRemainingPercent {
             let percent = Int(remaining.rounded())
-            lines.append("Code review: \(percent)% remaining")
+            if let limit = dash.codeReviewLimit,
+               let reset = UsageFormatter.resetLine(for: limit, style: .countdown)
+            {
+                lines.append("Code review: \(percent)% remaining (\(reset))")
+            } else {
+                lines.append("Code review: \(percent)% remaining")
+            }
         }
         if let first = dash.creditEvents.first {
             let day = first.date.formatted(date: .abbreviated, time: .omitted)

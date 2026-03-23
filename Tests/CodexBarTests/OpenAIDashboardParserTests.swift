@@ -33,6 +33,32 @@ struct OpenAIDashboardParserTests {
     }
 
     @Test
+    func `parses code review limit with reset`() {
+        let body = """
+        Balance
+        Code review
+        42% remaining
+        Resets tomorrow at 2:15 PM
+        """
+        let limit = OpenAIDashboardParser.parseCodeReviewLimit(bodyText: body)
+        #expect(abs((limit?.usedPercent ?? 0) - 58) < 0.001)
+        #expect(limit?.resetDescription?.lowercased().contains("resets") == true)
+    }
+
+    @Test
+    func `parses core review limit with reset`() {
+        let body = """
+        Balance
+        Core review
+        42% remaining
+        Resets tomorrow at 2:15 PM
+        """
+        let limit = OpenAIDashboardParser.parseCodeReviewLimit(bodyText: body)
+        #expect(abs((limit?.usedPercent ?? 0) - 58) < 0.001)
+        #expect(limit?.resetDescription?.lowercased().contains("resets") == true)
+    }
+
+    @Test
     func `parses credits remaining`() {
         let body = "Balance\nCredits remaining 1,234.56\nUsage"
         let value = OpenAIDashboardParser.parseCreditsRemaining(bodyText: body)

@@ -151,14 +151,21 @@ public struct UsageSnapshot: Codable, Sendable {
             // Factory prefers secondary window
             return self.secondary ?? self.primary
         case .cursor:
-            // Cursor: fall back to On-Demand when Plan is exhausted (only in "show remaining" mode).
-            // In "show used" mode, keep showing primary so 100% used Plan is visible.
+            // Cursor: fall back to on-demand budget when the included plan is exhausted (only in
+            // "show remaining" mode). The secondary/tertiary lanes are Total/Auto/API breakdowns,
+            // not extra capacity, so they should not replace the remaining paid quota indicator.
             if !showUsed,
                let primary = self.primary,
                primary.remainingPercent <= 0,
-               let secondary = self.secondary
+               let providerCost = self.providerCost,
+               providerCost.limit > 0
             {
-                return secondary
+                let usedPercent = max(0, min(100, (providerCost.used / providerCost.limit) * 100))
+                return RateWindow(
+                    usedPercent: usedPercent,
+                    windowMinutes: nil,
+                    resetsAt: providerCost.resetsAt,
+                    resetDescription: nil)
             }
             return self.primary ?? self.secondary
         default:

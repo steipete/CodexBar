@@ -93,6 +93,11 @@ struct MenuCardModelTests {
         let dashboard = OpenAIDashboardSnapshot(
             signedInEmail: "codex@example.com",
             codeReviewRemainingPercent: 73,
+            codeReviewLimit: RateWindow(
+                usedPercent: 27,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
             creditEvents: [],
             dailyBreakdown: [],
             usageBreakdown: [],
@@ -144,6 +149,11 @@ struct MenuCardModelTests {
         let dashboard = OpenAIDashboardSnapshot(
             signedInEmail: "codex@example.com",
             codeReviewRemainingPercent: 73,
+            codeReviewLimit: RateWindow(
+                usedPercent: 27,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
             creditEvents: [],
             dailyBreakdown: [],
             usageBreakdown: [],
@@ -170,6 +180,8 @@ struct MenuCardModelTests {
             now: now))
 
         #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 73 })
+        let codeReviewMetric = model.metrics.first { $0.id == "code-review" }
+        #expect(codeReviewMetric?.resetText?.contains("Resets") == true)
     }
 
     @Test

@@ -109,6 +109,20 @@ public enum OpenAIDashboardParser {
         return (primary, secondary)
     }
 
+    public static func parseCodeReviewLimit(bodyText: String, now: Date = .init()) -> RateWindow? {
+        let cleaned = bodyText.replacingOccurrences(of: "\r", with: "\n")
+        let lines = cleaned
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        return self.parseRateWindow(
+            lines: lines,
+            match: self.isCodeReviewLimitLine,
+            windowMinutes: nil,
+            now: now)
+    }
+
     public static func parsePlanFromHTML(html: String) -> String? {
         if let data = self.clientBootstrapJSONData(fromHTML: html),
            let plan = self.findPlan(in: data)
@@ -233,36 +247,38 @@ public enum OpenAIDashboardParser {
     private static func parseRateWindow(
         lines: [String],
         match: (String) -> Bool,
-        windowMinutes: Int,
+        windowMinutes: Int?,
         now: Date) -> RateWindow?
     {
-        guard let idx = lines.firstIndex(where: match) else { return nil }
-        let end = min(lines.count - 1, idx + 5)
-        let windowLines = Array(lines[idx...end])
+        for idx in lines.indices where match(lines[idx]) {
+            let end = min(lines.count - 1, idx + 5)
+            let windowLines = Array(lines[idx...end])
 
-        var percentValue: Double?
-        var isRemaining = true
-        for line in windowLines {
-            if let percent = self.parsePercent(from: line) {
-                percentValue = percent.value
-                isRemaining = percent.isRemaining
-                break
+            var percentValue: Double?
+            var isRemaining = true
+            for line in windowLines {
+                if let percent = self.parsePercent(from: line) {
+                    percentValue = percent.value
+                    isRemaining = percent.isRemaining
+                    break
+                }
             }
+
+            guard let percentValue else { continue }
+            let usedPercent = isRemaining ? max(0, min(100, 100 - percentValue)) : max(0, min(100, percentValue))
+
+            let resetLine = windowLines.first { $0.localizedCaseInsensitiveContains("reset") }
+            let resetDescription = resetLine?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resetsAt = resetLine.flatMap { self.parseResetDate(from: $0, now: now) }
+            let fallbackDescription = resetsAt.map { UsageFormatter.resetDescription(from: $0) }
+
+            return RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: windowMinutes,
+                resetsAt: resetsAt,
+                resetDescription: resetDescription ?? fallbackDescription)
         }
-
-        guard let percentValue else { return nil }
-        let usedPercent = isRemaining ? max(0, min(100, 100 - percentValue)) : max(0, min(100, percentValue))
-
-        let resetLine = windowLines.first { $0.localizedCaseInsensitiveContains("reset") }
-        let resetDescription = resetLine?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resetsAt = resetLine.flatMap { self.parseResetDate(from: $0, now: now) }
-        let fallbackDescription = resetsAt.map { UsageFormatter.resetDescription(from: $0) }
-
-        return RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: windowMinutes,
-            resetsAt: resetsAt,
-            resetDescription: resetDescription ?? fallbackDescription)
+        return nil
     }
 
     private static func parsePercent(from line: String) -> (value: Double, isRemaining: Bool)? {
@@ -290,6 +306,13 @@ public enum OpenAIDashboardParser {
         if lower.contains("7 day") { return true }
         if lower.contains("7d") { return true }
         return false
+    }
+
+    private static func isCodeReviewLimitLine(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        guard lower.contains("code review") || lower.contains("core review") else { return false }
+        if lower.contains("github code review") { return false }
+        return true
     }
 
     private static func parseResetDate(from line: String, now: Date) -> Date? {

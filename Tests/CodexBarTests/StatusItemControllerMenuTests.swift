@@ -4,22 +4,36 @@ import Testing
 @testable import CodexBar
 
 struct StatusItemControllerMenuTests {
-    private func makeSnapshot(primary: RateWindow?, secondary: RateWindow?) -> UsageSnapshot {
-        UsageSnapshot(primary: primary, secondary: secondary, updatedAt: Date())
+    private func makeSnapshot(
+        primary: RateWindow?,
+        secondary: RateWindow?,
+        providerCost: ProviderCostSnapshot? = nil)
+        -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            providerCost: providerCost,
+            updatedAt: Date())
     }
 
     @Test
-    func `cursor switcher falls back to secondary when plan exhausted and showing remaining`() {
+    func `cursor switcher falls back to on demand budget when plan exhausted and showing remaining`() {
         let primary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         let secondary = RateWindow(usedPercent: 36, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
-        let snapshot = self.makeSnapshot(primary: primary, secondary: secondary)
+        let providerCost = ProviderCostSnapshot(
+            used: 12,
+            limit: 200,
+            currencyCode: "USD",
+            updatedAt: Date())
+        let snapshot = self.makeSnapshot(primary: primary, secondary: secondary, providerCost: providerCost)
 
         let percent = StatusItemController.switcherWeeklyMetricPercent(
             for: .cursor,
             snapshot: snapshot,
             showUsed: false)
 
-        #expect(percent == 64)
+        #expect(percent == 94)
     }
 
     @Test
@@ -48,6 +62,20 @@ struct StatusItemControllerMenuTests {
             showUsed: false)
 
         #expect(percent == 80)
+    }
+
+    @Test
+    func `cursor switcher does not treat auto lane as extra remaining quota`() {
+        let primary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let secondary = RateWindow(usedPercent: 36, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let snapshot = self.makeSnapshot(primary: primary, secondary: secondary)
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .cursor,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 0)
     }
 
     @Test

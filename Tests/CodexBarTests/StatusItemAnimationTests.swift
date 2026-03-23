@@ -360,6 +360,166 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `menu bar percent automatic keeps gemini primary over higher tertiary`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-gemini-automatic-primary"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .gemini
+        settings.setMenuBarMetricPreference(.automatic, for: .gemini)
+
+        let registry = ProviderRegistry.shared
+        if let geminiMeta = registry.metadata[.gemini] {
+            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 95, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .gemini)
+        store._setErrorForTesting(nil, provider: .gemini)
+
+        let window = controller.menuBarMetricWindow(for: .gemini, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 20)
+    }
+
+    @Test
+    func `menu bar percent automatic picks highest cursor lane including api`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-cursor-automatic-tertiary"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .cursor
+        settings.setMenuBarMetricPreference(.automatic, for: .cursor)
+
+        let registry = ProviderRegistry.shared
+        if let cursorMeta = registry.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: cursorMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 90, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let window = controller.menuBarMetricWindow(for: .cursor, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 90)
+    }
+
+    @Test
+    func `menu bar percent tertiary preference uses api lane for cursor`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-cursor-tertiary-pref"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .cursor
+        settings.setMenuBarMetricPreference(.tertiary, for: .cursor)
+
+        let registry = ProviderRegistry.shared
+        if let cursorMeta = registry.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: cursorMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 72, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let window = controller.menuBarMetricWindow(for: .cursor, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 72)
+    }
+
+    @Test
+    func `menu bar tertiary preference falls back to automatic when cursor api lane is missing`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-cursor-tertiary-missing-api"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .cursor
+        settings.setMenuBarMetricPreference(.tertiary, for: .cursor)
+
+        let registry = ProviderRegistry.shared
+        if let cursorMeta = registry.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: cursorMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 72, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let window = controller.menuBarMetricWindow(for: .cursor, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 72)
+    }
+
+    @Test
     func `menu bar display text formats percent and pace`() {
         let now = Date(timeIntervalSince1970: 0)
         let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
@@ -392,7 +552,7 @@ struct StatusItemAnimationTests {
     }
 
     @Test
-    func `menu bar display text hides when pace unavailable`() {
+    func `menu bar display text falls back to percent when pace unavailable`() {
         let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
 
         let pace = MenuBarDisplayText.displayText(
@@ -405,11 +565,12 @@ struct StatusItemAnimationTests {
             showUsed: true)
 
         #expect(pace == nil)
-        #expect(both == nil)
+        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(both == "40%")
     }
 
     @Test
-    func `menu bar display text requires provided pace for codex`() {
+    func `menu bar display text falls back to percent when pace nil for codex`() {
         let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
 
         let pace = MenuBarDisplayText.displayText(
@@ -424,7 +585,8 @@ struct StatusItemAnimationTests {
             showUsed: true)
 
         #expect(pace == nil)
-        #expect(both == nil)
+        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(both == "40%")
     }
 
     @Test

@@ -26,30 +26,11 @@ extension UsageStore {
     }
 
     private func menuBarMetricWindowForHighestUsage(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
-        switch self.settings.menuBarMetricPreference(for: provider) {
-        case .primary:
-            return snapshot.primary ?? snapshot.secondary
-        case .secondary:
-            return snapshot.secondary ?? snapshot.primary
-        case .average:
-            guard let primary = snapshot.primary, let secondary = snapshot.secondary else {
-                return snapshot.primary ?? snapshot.secondary
-            }
-            let usedPercent = (primary.usedPercent + secondary.usedPercent) / 2
-            return RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
-        case .automatic:
-            if provider == .factory || provider == .kimi {
-                return snapshot.secondary ?? snapshot.primary
-            }
-            if provider == .copilot,
-               let primary = snapshot.primary,
-               let secondary = snapshot.secondary
-            {
-                // Copilot can expose chat + completions quotas; rank by the more constrained one.
-                return primary.usedPercent >= secondary.usedPercent ? primary : secondary
-            }
-            return snapshot.primary ?? snapshot.secondary
-        }
+        MenuBarMetricWindowResolver.rateWindow(
+            preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot),
+            provider: provider,
+            snapshot: snapshot,
+            supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
     }
 
     private func shouldExcludeFromHighestUsage(
@@ -58,14 +39,26 @@ extension UsageStore {
         metricPercent: Double)
         -> Bool
     {
+        let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
         guard metricPercent >= 100 else { return false }
         if provider == .copilot,
-           self.settings.menuBarMetricPreference(for: provider) == .automatic,
+           effectivePreference == .automatic,
            let primary = snapshot.primary,
            let secondary = snapshot.secondary
         {
             // In automatic mode Copilot can have one depleted lane while another still has quota.
             return primary.usedPercent >= 100 && secondary.usedPercent >= 100
+        }
+        if provider == .cursor,
+           effectivePreference == .automatic
+        {
+            let percents = [
+                snapshot.primary?.usedPercent,
+                snapshot.secondary?.usedPercent,
+                snapshot.tertiary?.usedPercent,
+            ].compactMap(\.self)
+            guard !percents.isEmpty else { return true }
+            return percents.allSatisfy { $0 >= 100 }
         }
         return true
     }
