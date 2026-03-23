@@ -260,7 +260,7 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
-    func `filtered variants still produce a snapshot`() throws {
+    func `filtered variants fall back to a visible primary snapshot`() throws {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -286,7 +286,7 @@ struct AntigravityStatusProbeTests {
             accountPlan: "Pro")
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.primary == nil)
+        #expect(usage.primary?.remainingPercent.rounded() == 20)
         #expect(usage.secondary == nil)
         #expect(usage.tertiary == nil)
         #expect(usage.accountEmail(for: .antigravity) == "test@example.com")

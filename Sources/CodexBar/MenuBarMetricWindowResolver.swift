@@ -13,23 +13,38 @@ enum MenuBarMetricWindowResolver {
         switch preference {
         case .tertiary:
             guard provider == .cursor else {
+                if provider == .antigravity {
+                    return snapshot.tertiary ?? snapshot.secondary ?? snapshot.primary
+                }
                 return snapshot.primary ?? snapshot.secondary
             }
             return snapshot.tertiary ?? snapshot.secondary ?? snapshot.primary
         case .primary:
+            if provider == .antigravity {
+                return snapshot.primary ?? snapshot.secondary ?? snapshot.tertiary
+            }
             return snapshot.primary ?? snapshot.secondary
         case .secondary:
+            if provider == .antigravity {
+                return snapshot.secondary ?? snapshot.primary ?? snapshot.tertiary
+            }
             return snapshot.secondary ?? snapshot.primary
         case .average:
             guard supportsAverage,
                   let primary = snapshot.primary,
                   let secondary = snapshot.secondary
             else {
+                if provider == .antigravity {
+                    return snapshot.primary ?? snapshot.secondary ?? snapshot.tertiary
+                }
                 return snapshot.primary ?? snapshot.secondary
             }
             let usedPercent = (primary.usedPercent + secondary.usedPercent) / 2
             return RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         case .automatic:
+            if provider == .antigravity {
+                return snapshot.primary ?? snapshot.secondary ?? snapshot.tertiary
+            }
             if provider == .factory || provider == .kimi {
                 return snapshot.secondary ?? snapshot.primary
             }

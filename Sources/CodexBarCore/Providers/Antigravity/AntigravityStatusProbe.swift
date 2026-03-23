@@ -67,8 +67,15 @@ public struct AntigravityStatusSnapshot: Sendable {
         let primaryQuota = Self.representative(for: .claude, in: normalized)
         let secondaryQuota = Self.representative(for: .geminiPro, in: normalized)
         let tertiaryQuota = Self.representative(for: .geminiFlash, in: normalized)
+        let fallbackQuota: AntigravityModelQuota? = if primaryQuota == nil, secondaryQuota == nil,
+                                                       tertiaryQuota == nil
+        {
+            Self.fallbackRepresentative(in: normalized)
+        } else {
+            nil
+        }
 
-        let primary = primaryQuota.map(Self.rateWindow(for:))
+        let primary = (primaryQuota ?? fallbackQuota).map(Self.rateWindow(for:))
         let secondary = secondaryQuota.map(Self.rateWindow(for:))
         let tertiary = tertiaryQuota.map(Self.rateWindow(for:))
 
@@ -149,6 +156,21 @@ public struct AntigravityStatusSnapshot: Sendable {
                 return lhsHasRemainingFraction && !rhsHasRemainingFraction
             }
             return lhs.quota.remainingPercent < rhs.quota.remainingPercent
+        }?.quota
+    }
+
+    private static func fallbackRepresentative(in models: [AntigravityNormalizedModel]) -> AntigravityModelQuota? {
+        guard !models.isEmpty else { return nil }
+        return models.min { lhs, rhs in
+            let lhsHasRemainingFraction = lhs.quota.remainingFraction != nil
+            let rhsHasRemainingFraction = rhs.quota.remainingFraction != nil
+            if lhsHasRemainingFraction != rhsHasRemainingFraction {
+                return lhsHasRemainingFraction && !rhsHasRemainingFraction
+            }
+            if lhs.quota.remainingPercent != rhs.quota.remainingPercent {
+                return lhs.quota.remainingPercent < rhs.quota.remainingPercent
+            }
+            return lhs.quota.label.localizedCaseInsensitiveCompare(rhs.quota.label) == .orderedAscending
         }?.quota
     }
 
