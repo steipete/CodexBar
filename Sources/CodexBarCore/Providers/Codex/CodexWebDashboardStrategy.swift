@@ -128,7 +128,11 @@ extension CodexWebDashboardStrategy {
             logger.append(line)
         }
         let dashboard = try await Self.fetchOpenAIWebDashboard(request, logger: log)
-        guard let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: request.accountEmail) else {
+        guard let usage = dashboard.toUsageSnapshot(
+            provider: .codex,
+            accountEmail: request.accountEmail,
+            accountOrganization: request.workspaceLabel)
+        else {
             throw OpenAIWebCodexError.missingUsage
         }
         let credits = dashboard.toCreditsSnapshot()

@@ -156,4 +156,29 @@ struct OpenAIDashboardParserTests {
         let snapshot = try decoder.decode(OpenAIDashboardSnapshot.self, from: Data(json.utf8))
         #expect(snapshot.usageBreakdown.isEmpty)
     }
+
+    @Test
+    func `to usage snapshot preserves account organization override`() {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondaryLimit: nil,
+            creditsRemaining: nil,
+            accountPlan: "Plus",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let usage = snapshot.toUsageSnapshot(
+            provider: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: "Team Workspace")
+
+        #expect(usage?.accountEmail(for: .codex) == "user@example.com")
+        #expect(usage?.accountOrganization(for: .codex) == "Team Workspace")
+        #expect(usage?.loginMethod(for: .codex) == "Plus")
+    }
 }

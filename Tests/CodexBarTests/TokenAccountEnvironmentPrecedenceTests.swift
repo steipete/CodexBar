@@ -98,6 +98,23 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func `codex token account selection preserves workspace label in app settings snapshot`() throws {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-workspace")
+        settings.addTokenAccount(
+            provider: .codex,
+            label: "user@example.com — Team Workspace",
+            token: "Cookie: a=b")
+
+        let account = try #require(settings.selectedTokenAccount(for: .codex))
+        let snapshot = settings.codexSettingsSnapshot(tokenOverride: TokenAccountOverride(
+            provider: .codex,
+            account: account))
+
+        #expect(snapshot.accountEmail == "user@example.com")
+        #expect(snapshot.workspaceLabel == "Team Workspace")
+    }
+
+    @Test
     func `claude OAuth token account overrides environment in app environment builder`() {
         let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-claude-app")
         settings.addTokenAccount(provider: .claude, label: "OAuth", token: "Bearer sk-ant-oat-account-token")

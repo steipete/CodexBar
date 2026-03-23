@@ -9,6 +9,7 @@ final class CodexProviderRuntime: ProviderRuntime {
         let cookieSource: ProviderCookieSource
         let hasManualCookieHeader: Bool
         let hasTokenAccounts: Bool
+        let selectedTokenAccountID: UUID?
 
         var hasManualCredentials: Bool {
             self.hasManualCookieHeader || self.hasTokenAccounts
@@ -20,7 +21,8 @@ final class CodexProviderRuntime: ProviderRuntime {
             return Self(
                 cookieSource: settings.codexCookieSource,
                 hasManualCookieHeader: !manualHeader.isEmpty,
-                hasTokenAccounts: !settings.tokenAccounts(for: .codex).isEmpty)
+                hasTokenAccounts: !settings.tokenAccounts(for: .codex).isEmpty,
+                selectedTokenAccountID: settings.selectedTokenAccount(for: .codex)?.id)
         }
     }
 
