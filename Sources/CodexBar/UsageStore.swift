@@ -1562,6 +1562,16 @@ extension UsageStore {
             return
         }
 
+        // API-key accounts have no local session logs. Return nil from
+        // codexCostUsageSessionsRootForActiveSelection, which causes loadTokenSnapshot
+        // to fall back to ~/.codex and surface the primary account's cost data instead.
+        // Suppress cost entirely to preserve multi-account isolation.
+        if provider == .codex, self.isActiveCodexAccountApiKey {
+            self.tokenSnapshots.removeValue(forKey: provider)
+            self.tokenErrors[provider] = nil
+            return
+        }
+
         let startedAt = Date()
         let providerText = provider.rawValue
         self.tokenCostLogger

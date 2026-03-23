@@ -155,11 +155,19 @@ extension SettingsStore {
             if filtered.isEmpty {
                 entry.tokenAccounts = nil
             } else {
-                let newActiveIndex: Int = if data.activeIndex < 0 {
+                let newActiveIndex: Int
+                if data.activeIndex < 0 {
                     // Keep "primary / default credentials" selected; do not coerce -1 to first add-on.
-                    -1
+                    newActiveIndex = -1
                 } else {
-                    min(max(data.activeIndex, 0), filtered.count - 1)
+                    // Preserve the active account by identity: if it still exists after the delete,
+                    // find its new position; if it was the deleted row, clamp to nearest valid index.
+                    let activeID = data.accounts[data.activeIndex].id
+                    if let newIndex = filtered.firstIndex(where: { $0.id == activeID }) {
+                        newActiveIndex = newIndex
+                    } else {
+                        newActiveIndex = min(data.activeIndex, filtered.count - 1)
+                    }
                 }
                 entry.tokenAccounts = ProviderTokenAccountData(
                     version: data.version,

@@ -96,6 +96,56 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
+    func `removing earlier account preserves active account by identity`() throws {
+        // [A, B, C] active=B (index 1). Delete A → [B, C], active must stay on B (index 0).
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-remove-preserves-identity")
+
+        settings.addTokenAccount(provider: .codex, label: "A", token: "/tmp/codex-a")
+        settings.addTokenAccount(provider: .codex, label: "B", token: "/tmp/codex-b")
+        settings.addTokenAccount(provider: .codex, label: "C", token: "/tmp/codex-c")
+
+        let accounts = settings.tokenAccounts(for: .codex)
+        let accountA = try #require(accounts.first { $0.label == "A" })
+        let accountB = try #require(accounts.first { $0.label == "B" })
+
+        // Activate B (index 1).
+        settings.setActiveTokenAccountIndex(1, for: .codex)
+        #expect(settings.tokenAccountsData(for: .codex)?.activeIndex == 1)
+
+        // Delete A (index 0, which is before the active account).
+        settings.removeTokenAccount(provider: .codex, accountID: accountA.id)
+
+        let remaining = settings.tokenAccounts(for: .codex)
+        #expect(remaining.count == 2)
+        // Active account must still be B, now at index 0.
+        let newIndex = try #require(settings.tokenAccountsData(for: .codex)?.activeIndex)
+        #expect(newIndex == 0)
+        #expect(remaining[newIndex].id == accountB.id)
+    }
+
+    @Test
+    func `removing active account clamps to nearest remaining account`() throws {
+        // [A, B, C] active=B (index 1). Delete B → [A, C], active clamps to index 1 (C).
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-remove-active-clamps")
+
+        settings.addTokenAccount(provider: .codex, label: "A", token: "/tmp/codex-a")
+        settings.addTokenAccount(provider: .codex, label: "B", token: "/tmp/codex-b")
+        settings.addTokenAccount(provider: .codex, label: "C", token: "/tmp/codex-c")
+
+        let accountB = try #require(settings.tokenAccounts(for: .codex).first { $0.label == "B" })
+
+        settings.setActiveTokenAccountIndex(1, for: .codex)
+        settings.removeTokenAccount(provider: .codex, accountID: accountB.id)
+
+        let remaining = settings.tokenAccounts(for: .codex)
+        #expect(remaining.count == 2)
+        // B was deleted; activeIndex should clamp (1 is still valid → points to C).
+        let newIndex = try #require(settings.tokenAccountsData(for: .codex)?.activeIndex)
+        #expect(newIndex == 1)
+        #expect(remaining[newIndex].label == "C")
+    }
+
+    @Test
     func `claude default token account active follows stored primary selection`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-claude-default-active")
 

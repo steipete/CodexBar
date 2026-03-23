@@ -13,6 +13,15 @@ extension UsageStore {
         return self.settings.selectedTokenAccount(for: .codex) == nil
     }
 
+    /// True when the currently selected Codex account uses an API key ("apikey:" prefix).
+    /// API-key accounts have no local session logs, so session-based cost data does not apply
+    /// and falling back to ~/.codex would leak the primary account's cost totals.
+    var isActiveCodexAccountApiKey: Bool {
+        guard let account = self.settings.selectedTokenAccount(for: .codex) else { return false }
+        let token = account.token.trimmingCharacters(in: .whitespacesAndNewlines)
+        return token.lowercased().hasPrefix("apikey:")
+    }
+
     func codexCostUsageSessionsRootForActiveSelection() -> URL? {
         guard let support = TokenAccountSupportCatalog.support(for: .codex),
               case .codexHome = support.injection
