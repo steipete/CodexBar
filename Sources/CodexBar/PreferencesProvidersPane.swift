@@ -303,7 +303,7 @@ struct ProvidersPane: View {
                         store.openAIDashboard = nil
                         store.lastOpenAIDashboardError = nil
                         store.openAIDashboardRequiresLogin = true
-                        Task { await store.refreshOpenAIDashboardAfterLogin() }
+                        Task { await store.forceRefreshOpenAIDashboard() }
                     }
                 }
                 : nil,

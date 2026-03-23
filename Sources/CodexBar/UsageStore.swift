@@ -735,7 +735,7 @@ extension UsageStore {
                         "OpenAI dashboard signed in as \(signedIn), but Codex uses \(normalized ?? "unknown").",
                         "Switch accounts in your browser and update OpenAI cookies in Providers → Codex.",
                     ].joined(separator: " ")
-                    self.markDashboardLoginRequired()
+                    self.markDashboardLoginRequired(for: targetEmail)
                 }
                 return
             }
@@ -788,7 +788,7 @@ extension UsageStore {
                             "then update OpenAI cookies in Providers → Codex.",
                     ].joined(separator: " ")
                     self.openAIDashboard = self.lastOpenAIDashboardSnapshot
-                    self.markDashboardLoginRequired()
+                    self.markDashboardLoginRequired(for: targetEmail)
                 }
             } catch {
                 await self.applyOpenAIDashboardFailure(message: error.localizedDescription)
@@ -824,7 +824,7 @@ extension UsageStore {
             self.openAIDashboard = nil
             self.lastOpenAIDashboardSnapshot = nil
             self.lastOpenAIDashboardError = nil
-            self.markDashboardLoginRequired()
+            self.markDashboardLoginRequired(for: targetEmail)
             if self.settings.codexMultipleAccountsEnabled, self.settings.openAIWebAccessEnabled {
                 self.openAIDashboardCookieImportStatus = nil
             } else {
@@ -841,6 +841,12 @@ extension UsageStore {
         self.openAIDashboardRequiresLogin = false
         self.openAIDashboardCookieImportStatus = "Signed in via dashboard login window."
         self.resetOpenAIWebDebugLog(context: "dashboard login")
+        await self.refreshOpenAIDashboardIfNeeded(force: true)
+    }
+
+    /// Force-refresh the dashboard snapshot without resetting the login-required flag.
+    /// Use this after a logout to reload state without accidentally marking the account as signed in.
+    func forceRefreshOpenAIDashboard() async {
         await self.refreshOpenAIDashboardIfNeeded(force: true)
     }
 
@@ -979,7 +985,7 @@ extension UsageStore {
                             "Found \(foundText).",
                         ].joined(separator: " ")
                     // Treat mismatch like "not logged in" for the current Codex account.
-                    self.markDashboardLoginRequired()
+                    self.markDashboardLoginRequired(for: normalizedTarget)
                     self.openAIDashboard = nil
                 }
             case .noCookiesFound,
@@ -990,7 +996,7 @@ extension UsageStore {
                 await MainActor.run {
                     self.openAIDashboardCookieImportStatus =
                         "OpenAI cookie import failed: \(err.localizedDescription)"
-                    self.markDashboardLoginRequired()
+                    self.markDashboardLoginRequired(for: normalizedTarget)
                 }
             }
         } catch {
@@ -1035,9 +1041,9 @@ extension UsageStore {
     /// Sets `openAIDashboardRequiresLogin` and simultaneously drops the logged-in flag for the
     /// current account so the menu/settings render "Login to OpenAI Dashboard" (not "Usage Dashboard"),
     /// and `OpenAIDashboardLoginWindowController` re-enables its login detection flow.
-    func markDashboardLoginRequired() {
+    func markDashboardLoginRequired(for precomputedKey: String? = nil) {
         self.openAIDashboardRequiresLogin = true
-        let key = self.codexDashboardAccountIdentifier()
+        let key = precomputedKey ?? self.codexDashboardAccountIdentifier()
         if let key, !key.isEmpty {
             self.dashboardLoggedInEmails.remove(key.lowercased())
             OpenAIDashboardWebsiteDataStore.markDashboardLoggedOut(forAccountEmail: key)
@@ -1069,6 +1075,8 @@ extension UsageStore {
     func codexDashboardAccountIdentifier() -> String? {
         if self.settings.codexMultipleAccountsEnabled, self.settings.openAIWebAccessEnabled {
             if let selected = self.settings.selectedTokenAccount(for: .codex) {
+                let token = selected.token.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !token.lowercased().hasPrefix("apikey:") else { return nil }
                 return selected.token
             }
             // Default account uses ~/.codex path
