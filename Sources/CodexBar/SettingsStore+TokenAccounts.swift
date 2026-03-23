@@ -56,6 +56,18 @@ extension SettingsStore {
         self.updateProviderConfig(provider: provider) { entry in
             entry.tokenAccounts = updated
         }
+        // Keep active-codex-home in sync so the shell hook reflects the new selection.
+        if provider == .codex {
+            let path: String?
+            if clamped >= 0, clamped < updated.accounts.count {
+                let token = updated.accounts[clamped].token.trimmingCharacters(in: .whitespacesAndNewlines)
+                path = token.lowercased().hasPrefix("apikey:") ? nil : token
+            } else {
+                // Reverted to default ~/.codex — clear override so shell falls back to its own default
+                path = nil
+            }
+            CodexBarShellIntegration.setActiveCodexHome(path)
+        }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Active token account updated",
             metadata: [
@@ -86,6 +98,12 @@ extension SettingsStore {
             entry.tokenAccounts = updated
         }
         self.applyTokenAccountCookieSourceIfNeeded(provider: provider)
+        // For OAuth Codex accounts (path-based token), update the active-codex-home file and
+        // ensure the zsh precmd hook is installed so new terminal sessions inherit CODEX_HOME.
+        if provider == .codex, !trimmedToken.lowercased().hasPrefix("apikey:") {
+            CodexBarShellIntegration.setActiveCodexHome(trimmedToken)
+            CodexBarShellIntegration.installZshHookIfNeeded()
+        }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Token account added",
             metadata: [
@@ -151,32 +169,42 @@ extension SettingsStore {
     func removeTokenAccount(provider: UsageProvider, accountID: UUID) {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         let filtered = data.accounts.filter { $0.id != accountID }
+        // Compute the new active index outside the closure so it's available for shell integration.
+        let computedActiveIndex: Int
+        if filtered.isEmpty {
+            computedActiveIndex = -1
+        } else if data.activeIndex < 0 {
+            computedActiveIndex = -1
+        } else {
+            let activeID = data.activeIndex < data.accounts.count
+                ? data.accounts[data.activeIndex].id
+                : nil
+            if let activeID, let newIndex = filtered.firstIndex(where: { $0.id == activeID }) {
+                computedActiveIndex = newIndex
+            } else {
+                computedActiveIndex = min(max(data.activeIndex, 0), filtered.count - 1)
+            }
+        }
         self.updateProviderConfig(provider: provider) { entry in
             if filtered.isEmpty {
                 entry.tokenAccounts = nil
             } else {
-                let newActiveIndex: Int
-                if data.activeIndex < 0 {
-                    // Keep "primary / default credentials" selected; do not coerce -1 to first add-on.
-                    newActiveIndex = -1
-                } else {
-                    // Preserve the active account by identity: if it still exists after the delete,
-                    // find its new position; if it was the deleted row, clamp to nearest valid index.
-                    // Guard against corrupted/out-of-range activeIndex (data migration edge case).
-                    let activeID = data.activeIndex < data.accounts.count
-                        ? data.accounts[data.activeIndex].id
-                        : nil
-                    if let activeID, let newIndex = filtered.firstIndex(where: { $0.id == activeID }) {
-                        newActiveIndex = newIndex
-                    } else {
-                        newActiveIndex = min(max(data.activeIndex, 0), filtered.count - 1)
-                    }
-                }
                 entry.tokenAccounts = ProviderTokenAccountData(
                     version: data.version,
                     accounts: filtered,
-                    activeIndex: newActiveIndex)
+                    activeIndex: computedActiveIndex)
             }
+        }
+        // Update active-codex-home to reflect the new active account after deletion.
+        if provider == .codex {
+            let newActive: String?
+            if !filtered.isEmpty, computedActiveIndex >= 0, computedActiveIndex < filtered.count {
+                let token = filtered[computedActiveIndex].token.trimmingCharacters(in: .whitespacesAndNewlines)
+                newActive = token.lowercased().hasPrefix("apikey:") ? nil : token
+            } else {
+                newActive = nil
+            }
+            CodexBarShellIntegration.setActiveCodexHome(newActive)
         }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Token account removed",
