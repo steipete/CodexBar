@@ -1377,6 +1377,8 @@ extension UsageMenuCardView.Model {
     private static func dashboardHint(provider: UsageProvider, error: String?) -> String? {
         guard provider == .codex else { return nil }
         guard let error, !error.isEmpty else { return nil }
+        // "Not signed in" is already communicated by the Login/Dashboard button label — suppress here.
+        if error.localizedCaseInsensitiveContains("not signed in") { return nil }
         return error
     }
 
