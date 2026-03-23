@@ -296,6 +296,15 @@ struct ProvidersPane: View {
                     guard let key = accountIdentifier, !key.isEmpty else { return }
                     await OpenAIDashboardWebsiteDataStore.clearStore(forAccountEmail: key)
                     store.dashboardLoggedInEmails.remove(key.lowercased())
+                    // If the logged-out account is the currently selected one, immediately
+                    // clear the cached snapshot so stale data isn't shown until the next refresh.
+                    let currentKey = store.codexDashboardAccountIdentifier()
+                    if currentKey?.lowercased() == key.lowercased() {
+                        store.openAIDashboard = nil
+                        store.lastOpenAIDashboardError = nil
+                        store.openAIDashboardRequiresLogin = true
+                        Task { await store.refreshOpenAIDashboardAfterLogin() }
+                    }
                 }
                 : nil,
             codexExplicitAccountsOnly: codexExplicit)

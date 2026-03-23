@@ -43,6 +43,15 @@ extension UsageStore {
             if let root = self.codexCostUsageSessionsRootForActiveSelection() {
                 return root.path
             }
+            // API-key accounts have no session logs and cost data is suppressed, but they must
+            // still get a unique identity so switching default→apikey invalidates the TTL cache
+            // before the suppression guard is reached.
+            if let account = self.settings.selectedTokenAccount(for: .codex) {
+                let token = account.token.trimmingCharacters(in: .whitespacesAndNewlines)
+                if token.lowercased().hasPrefix("apikey:") {
+                    return "codex:apikey:\(account.id.uuidString)"
+                }
+            }
             return "codex:default"
         }
         return "\(provider.rawValue):default"

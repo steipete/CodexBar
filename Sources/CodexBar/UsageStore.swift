@@ -735,7 +735,7 @@ extension UsageStore {
                         "OpenAI dashboard signed in as \(signedIn), but Codex uses \(normalized ?? "unknown").",
                         "Switch accounts in your browser and update OpenAI cookies in Providers → Codex.",
                     ].joined(separator: " ")
-                    self.openAIDashboardRequiresLogin = true
+                    self.markDashboardLoginRequired()
                 }
                 return
             }
@@ -788,7 +788,7 @@ extension UsageStore {
                             "then update OpenAI cookies in Providers → Codex.",
                     ].joined(separator: " ")
                     self.openAIDashboard = self.lastOpenAIDashboardSnapshot
-                    self.openAIDashboardRequiresLogin = true
+                    self.markDashboardLoginRequired()
                 }
             } catch {
                 await self.applyOpenAIDashboardFailure(message: error.localizedDescription)
@@ -824,7 +824,7 @@ extension UsageStore {
             self.openAIDashboard = nil
             self.lastOpenAIDashboardSnapshot = nil
             self.lastOpenAIDashboardError = nil
-            self.openAIDashboardRequiresLogin = true
+            self.markDashboardLoginRequired()
             if self.settings.codexMultipleAccountsEnabled, self.settings.openAIWebAccessEnabled {
                 self.openAIDashboardCookieImportStatus = nil
             } else {
@@ -979,7 +979,7 @@ extension UsageStore {
                             "Found \(foundText).",
                         ].joined(separator: " ")
                     // Treat mismatch like "not logged in" for the current Codex account.
-                    self.openAIDashboardRequiresLogin = true
+                    self.markDashboardLoginRequired()
                     self.openAIDashboard = nil
                 }
             case .noCookiesFound,
@@ -990,7 +990,7 @@ extension UsageStore {
                 await MainActor.run {
                     self.openAIDashboardCookieImportStatus =
                         "OpenAI cookie import failed: \(err.localizedDescription)"
-                    self.openAIDashboardRequiresLogin = true
+                    self.markDashboardLoginRequired()
                 }
             }
         } catch {
@@ -1030,6 +1030,18 @@ extension UsageStore {
         self.openAIDashboardCookieImportDebugLog = nil
         self.lastOpenAIDashboardCookieImportAttemptAt = nil
         self.lastOpenAIDashboardCookieImportEmail = nil
+    }
+
+    /// Sets `openAIDashboardRequiresLogin` and simultaneously drops the logged-in flag for the
+    /// current account so the menu/settings render "Login to OpenAI Dashboard" (not "Usage Dashboard"),
+    /// and `OpenAIDashboardLoginWindowController` re-enables its login detection flow.
+    func markDashboardLoginRequired() {
+        self.openAIDashboardRequiresLogin = true
+        let key = self.codexDashboardAccountIdentifier()
+        if let key, !key.isEmpty {
+            self.dashboardLoggedInEmails.remove(key.lowercased())
+            OpenAIDashboardWebsiteDataStore.markDashboardLoggedOut(forAccountEmail: key)
+        }
     }
 
     private func dashboardEmailMismatch(expected: String?, actual: String?) -> Bool {
