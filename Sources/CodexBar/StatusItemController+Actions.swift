@@ -94,7 +94,10 @@ extension StatusItemController {
               let url = URL(string: urlString) else { return }
 
         let autoStart = true
-        let accountEmail = self.store.codexAccountEmailForOpenAIDashboard()
+        // Use the same account identifier as the dashboard refresh so the purchase window
+        // opens against the correct WKWebsiteDataStore (CODEX_HOME path in multi-account mode,
+        // email-based lookup in single-account mode).
+        let accountEmail = self.store.codexDashboardAccountIdentifier()
         let controller = self.creditsPurchaseWindow ?? OpenAICreditsPurchaseWindowController()
         controller.show(purchaseURL: url, accountEmail: accountEmail, autoStartPurchase: autoStart)
         self.creditsPurchaseWindow = controller

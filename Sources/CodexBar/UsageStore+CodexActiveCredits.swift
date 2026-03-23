@@ -6,6 +6,16 @@ extension UsageStore {
     /// Primary (`~/.codex`) uses RPC/dashboard `credits`; add-on accounts use OAuth rows in `allAccountCredits`.
     func codexActiveMenuCredits() -> (snapshot: CreditsSnapshot?, error: String?, unlimited: Bool) {
         guard let data = self.settings.tokenAccountsData(for: .codex), !data.accounts.isEmpty else {
+            // No add-on accounts configured yet. In multi-account mode, still consult the OAuth
+            // "default" row so Plus/Pro users see "Unlimited credits" immediately rather than
+            // having to add a second account first.
+            if self.settings.codexMultipleAccountsEnabled {
+                return Self.resolvePrimaryCodexCreditsFromOAuth(
+                    entries: self.allAccountCredits[.codex] ?? [],
+                    rpcCredits: self.credits,
+                    rpcError: self.lastCreditsError,
+                    costRefreshInFlight: self.accountCostRefreshInFlight.contains(.codex))
+            }
             return (self.credits, self.lastCreditsError, false)
         }
         if self.settings.isDefaultTokenAccountActive(for: .codex) {

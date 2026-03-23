@@ -652,6 +652,14 @@ extension UsageStore {
             return
         }
 
+        // API-key accounts have no ChatGPT sessions. Skip web scraping to avoid
+        // creating an isolated WKWebsiteDataStore that can never hold a real session
+        // and permanently shows the account as "not signed in".
+        if multiAccountDashboard, self.isActiveCodexAccountApiKey {
+            self.resetOpenAIWebState()
+            return
+        }
+
         let targetEmail = self.codexDashboardAccountIdentifier()
         self.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: targetEmail)
 
