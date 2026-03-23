@@ -101,6 +101,7 @@ extension SettingsStore {
         // For OAuth Codex accounts (path-based token), update the active-codex-home file and
         // ensure the zsh precmd hook is installed so new terminal sessions inherit CODEX_HOME.
         if provider == .codex, !trimmedToken.lowercased().hasPrefix("apikey:") {
+            CodexBarShellIntegration.symlinkDefaultSessionsIfNeeded(into: trimmedToken)
             CodexBarShellIntegration.setActiveCodexHome(trimmedToken)
             CodexBarShellIntegration.installZshHookIfNeeded()
         }

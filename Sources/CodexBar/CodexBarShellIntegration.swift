@@ -73,4 +73,18 @@ autoload -Uz add-zsh-hook && add-zsh-hook precmd precmd_codexbar
         guard let content = try? String(contentsOf: zshrcFile, encoding: .utf8) else { return false }
         return content.contains(hookMarker)
     }
+
+    /// If `~/.codex/sessions` exists and `<codexHomePath>/sessions` does not yet exist,
+    /// create a symlink so the new account immediately shows historical cost data.
+    /// Safe to call multiple times — does nothing if the target already exists.
+    static func symlinkDefaultSessionsIfNeeded(into codexHomePath: String) {
+        let fm = FileManager.default
+        let defaultSessions = fm.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex/sessions", isDirectory: true)
+        guard fm.fileExists(atPath: defaultSessions.path) else { return }
+        let accountSessions = URL(fileURLWithPath: (codexHomePath as NSString).expandingTildeInPath)
+            .appendingPathComponent("sessions")
+        guard !fm.fileExists(atPath: accountSessions.path) else { return }
+        try? fm.createSymbolicLink(at: accountSessions, withDestinationURL: defaultSessions)
+    }
 }
