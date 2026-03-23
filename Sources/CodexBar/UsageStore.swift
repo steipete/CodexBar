@@ -824,7 +824,10 @@ extension UsageStore {
             self.openAIDashboard = nil
             self.lastOpenAIDashboardSnapshot = nil
             self.lastOpenAIDashboardError = nil
-            self.markDashboardLoginRequired(for: targetEmail)
+            // Only set the flag; do NOT call markDashboardLoginRequired here because targetEmail is
+            // already the NEW account's key. Removing it from dashboardLoggedInEmails would destroy
+            // the new account's login state before its dashboard refresh even starts.
+            self.openAIDashboardRequiresLogin = true
             if self.settings.codexMultipleAccountsEnabled, self.settings.openAIWebAccessEnabled {
                 self.openAIDashboardCookieImportStatus = nil
             } else {

@@ -162,11 +162,14 @@ extension SettingsStore {
                 } else {
                     // Preserve the active account by identity: if it still exists after the delete,
                     // find its new position; if it was the deleted row, clamp to nearest valid index.
-                    let activeID = data.accounts[data.activeIndex].id
-                    if let newIndex = filtered.firstIndex(where: { $0.id == activeID }) {
+                    // Guard against corrupted/out-of-range activeIndex (data migration edge case).
+                    let activeID = data.activeIndex < data.accounts.count
+                        ? data.accounts[data.activeIndex].id
+                        : nil
+                    if let activeID, let newIndex = filtered.firstIndex(where: { $0.id == activeID }) {
                         newActiveIndex = newIndex
                     } else {
-                        newActiveIndex = min(data.activeIndex, filtered.count - 1)
+                        newActiveIndex = min(max(data.activeIndex, 0), filtered.count - 1)
                     }
                 }
                 entry.tokenAccounts = ProviderTokenAccountData(
