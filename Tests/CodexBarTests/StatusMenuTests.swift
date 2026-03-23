@@ -566,7 +566,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `shows open AI web submenus when history exists`() throws {
+    func `shows upstream codex web actions when history exists in single account mode`() throws {
         self.disableMenuCardsForTesting()
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusMenuTests-history"),
@@ -621,14 +621,150 @@ struct StatusMenuTests {
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
-        let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
+        let usageItem = menu.items.first { $0.title == "Usage breakdown" }
         let creditsHistoryItem = menu.items.first { $0.title == "Credits history" }
+        let titles = Set(menu.items.map(\.title))
+        #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardUsage" } == false)
+        #expect(titles.contains("Usage Dashboard"))
         #expect(
             usageItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "usageBreakdownChart" } == true)
         #expect(
             creditsHistoryItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true)
+    }
+
+    @Test
+    func `uses sectioned codex web card and action section dashboard when multiple accounts enabled`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusMenuTests-history-multi-account"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.codexMultipleAccountsEnabled = true
+        settings.costUsageEnabled = true
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+        if let geminiMeta = registry.metadata[.gemini] {
+            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let calendar = Calendar(identifier: .gregorian)
+        var components = DateComponents()
+        components.calendar = calendar
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2025
+        components.month = 12
+        components.day = 18
+        let date = try #require(components.date)
+
+        let events = [CreditEvent(date: date, service: "CLI", creditsUsed: 1)]
+        let breakdown = OpenAIDashboardSnapshot.makeDailyBreakdown(from: events, maxDays: 30)
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: 100,
+            creditEvents: events,
+            dailyBreakdown: breakdown,
+            usageBreakdown: breakdown,
+            creditsPurchaseURL: nil,
+            updatedAt: Date())
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: 123,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 123,
+            last30DaysCostUSD: 1.23,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-12-23",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 123,
+                    costUSD: 1.23,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date()), provider: .codex)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
+        let planHistoryIndex = menu.items.firstIndex { ($0.representedObject as? String) == "usageHistorySubmenu" }
+        let dashboardIndex = menu.items.firstIndex { $0.title == "Login to OpenAI Dashboard" }
+        #expect(
+            usageItem?.submenu?.items
+                .contains { ($0.representedObject as? String) == "usageBreakdownChart" } == true)
+        #expect(dashboardIndex != nil)
+        #expect(planHistoryIndex != nil)
+        if let planHistoryIndex, let dashboardIndex {
+            #expect(planHistoryIndex < dashboardIndex)
+        }
+    }
+
+    @Test
+    func `shows login to dashboard in multi account fallback action section when not logged in`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.codexMultipleAccountsEnabled = true
+        settings.costUsageEnabled = true
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+        if let geminiMeta = registry.metadata[.gemini] {
+            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let planHistoryIndex = menu.items.firstIndex { ($0.representedObject as? String) == "usageHistorySubmenu" }
+        let dashboardIndex = menu.items.firstIndex { $0.title == "Login to OpenAI Dashboard" }
+        let titles = Set(menu.items.map(\.title))
+        #expect(!titles.contains("Usage Dashboard"))
+        #expect(!titles.contains("Usage history (30 days)"))
+        #expect(dashboardIndex != nil)
+        #expect(planHistoryIndex != nil)
+        if let planHistoryIndex, let dashboardIndex {
+            #expect(planHistoryIndex < dashboardIndex)
+        }
     }
 
     @Test
@@ -639,6 +775,7 @@ struct StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
+        settings.codexMultipleAccountsEnabled = true
         settings.costUsageEnabled = true
 
         let registry = ProviderRegistry.shared

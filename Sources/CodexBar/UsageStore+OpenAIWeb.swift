@@ -28,6 +28,13 @@ extension UsageStore {
             || lower.contains("continue with microsoft")
 
         guard looksLikePublicLanding || looksLoggedOut else { return nil }
+
+        // In multi-account mode, dashboard access uses per-account login (not browser cookies).
+        // Direct the user to the "Login to OpenAI Dashboard" menu action instead.
+        if self.settings.codexMultipleAccountsEnabled, self.settings.openAIWebAccessEnabled {
+            return "OpenAI web dashboard: not signed in. Use \"Login to OpenAI Dashboard\" to authenticate this account."
+        }
+
         let emailLabel = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let targetLabel = (emailLabel?.isEmpty == false) ? emailLabel! : "your OpenAI account"
         if let status, !status.isEmpty {

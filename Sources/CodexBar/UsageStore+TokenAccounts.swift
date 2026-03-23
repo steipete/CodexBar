@@ -2,15 +2,32 @@ import CodexBarCore
 import Foundation
 
 struct TokenAccountUsageSnapshot: Identifiable {
-    let id: UUID
-    let account: ProviderTokenAccount
+    let id: String
+    let account: ProviderTokenAccount?
+    let displayName: String
     let snapshot: UsageSnapshot?
     let error: String?
     let sourceLabel: String?
 
     init(account: ProviderTokenAccount, snapshot: UsageSnapshot?, error: String?, sourceLabel: String?) {
-        self.id = account.id
+        self.id = account.id.uuidString
         self.account = account
+        self.displayName = account.displayName
+        self.snapshot = snapshot
+        self.error = error
+        self.sourceLabel = sourceLabel
+    }
+
+    init(
+        provider: UsageProvider,
+        defaultDisplayName: String,
+        snapshot: UsageSnapshot?,
+        error: String?,
+        sourceLabel: String?)
+    {
+        self.id = "default-\(provider.rawValue)"
+        self.account = nil
+        self.displayName = defaultDisplayName
         self.snapshot = snapshot
         self.error = error
         self.sourceLabel = sourceLabel
@@ -23,14 +40,21 @@ extension UsageStore {
         return self.settings.tokenAccounts(for: provider)
     }
 
-    func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
+    func shouldFetchAllTokenAccounts(
+        provider: UsageProvider,
+        accounts: [ProviderTokenAccount],
+        defaultAccountLabel: String? = nil) -> Bool
+    {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
-        return self.settings.showAllTokenAccountsInMenu && accounts.count > 1
+        guard self.settings.showAllTokenAccountsInMenu else { return false }
+        let defaultLabel = self.defaultTokenAccountLabel(for: provider, override: defaultAccountLabel)
+        return accounts.count + (defaultLabel != nil ? 1 : 0) > 1
     }
 
     func refreshTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) async {
         let selectedAccount = self.settings.selectedTokenAccount(for: provider)
         let defaultIsActive = self.settings.isDefaultTokenAccountActive(for: provider)
+        let defaultAccountLabel = self.defaultTokenAccountLabel(for: provider)
         let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
         var snapshots: [TokenAccountUsageSnapshot] = []
         var historySamples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)] = []
@@ -51,13 +75,17 @@ extension UsageStore {
             }
         }
 
-        // When the default account is active, fetch it with no token override
-        // so it uses the standard ~/.codex credentials.
-        if defaultIsActive {
+        // Fetch the default account separately so show-all menus can render it alongside explicit rows.
+        if let defaultAccountLabel {
             let outcome = await self.fetchOutcome(provider: provider, override: nil)
-            selectedOutcome = outcome
-            if case let .success(result) = outcome.result {
-                selectedSnapshot = result.usage.scoped(to: provider)
+            let resolved = self.resolveDefaultAccountOutcome(
+                outcome,
+                provider: provider,
+                displayName: defaultAccountLabel)
+            snapshots.insert(resolved.snapshot, at: 0)
+            if defaultIsActive {
+                selectedOutcome = outcome
+                selectedSnapshot = resolved.usage
             }
         }
 
@@ -175,6 +203,33 @@ extension UsageStore {
         }
     }
 
+    private func resolveDefaultAccountOutcome(
+        _ outcome: ProviderFetchOutcome,
+        provider: UsageProvider,
+        displayName: String) -> ResolvedAccountOutcome
+    {
+        switch outcome.result {
+        case let .success(result):
+            let scoped = result.usage.scoped(to: provider)
+            let labeled = self.applyDisplayLabel(scoped, provider: provider, label: displayName)
+            let snapshot = TokenAccountUsageSnapshot(
+                provider: provider,
+                defaultDisplayName: displayName,
+                snapshot: labeled,
+                error: nil,
+                sourceLabel: result.sourceLabel)
+            return ResolvedAccountOutcome(snapshot: snapshot, usage: labeled)
+        case let .failure(error):
+            let snapshot = TokenAccountUsageSnapshot(
+                provider: provider,
+                defaultDisplayName: displayName,
+                snapshot: nil,
+                error: error.localizedDescription,
+                sourceLabel: nil)
+            return ResolvedAccountOutcome(snapshot: snapshot, usage: nil)
+        }
+    }
+
     func applySelectedOutcome(
         _ outcome: ProviderFetchOutcome,
         provider: UsageProvider,
@@ -223,7 +278,24 @@ extension UsageStore {
         provider: UsageProvider,
         account: ProviderTokenAccount) -> UsageSnapshot
     {
-        let label = account.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.applyDisplayLabel(snapshot, provider: provider, label: account.label)
+    }
+
+    private func defaultTokenAccountLabel(for provider: UsageProvider, override: String? = nil) -> String? {
+        if provider == .codex, self.settings.codexExplicitAccountsOnly { return nil }
+        let label = override ?? ProviderCatalog.implementation(for: provider)?
+            .tokenAccountDefaultLabel(settings: self.settings)
+        let trimmed = label?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    private func applyDisplayLabel(
+        _ snapshot: UsageSnapshot,
+        provider: UsageProvider,
+        label: String) -> UsageSnapshot
+    {
+        let label = label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !label.isEmpty else { return snapshot }
         let existing = snapshot.identity(for: provider)
         let email = existing?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)

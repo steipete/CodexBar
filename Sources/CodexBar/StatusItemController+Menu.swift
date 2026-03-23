@@ -235,7 +235,8 @@ extension StatusItemController {
                 currentProvider: currentProvider,
                 context: openAIContext,
                 addedOpenAIWebItems: addedOpenAIWebItems)
-            if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
+            let addedUsageHistory = self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider)
+            if addedUsageHistory {
                 menu.addItem(.separator())
             }
         }
@@ -287,7 +288,8 @@ extension StatusItemController {
             currentProvider: currentProvider,
             context: openAIContext,
             addedOpenAIWebItems: addedOpenAIWebItems)
-        if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
+        let addedUsageHistory = self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider)
+        if addedUsageHistory {
             menu.addItem(.separator())
         }
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
@@ -298,6 +300,7 @@ extension StatusItemController {
         let hasCreditsHistory: Bool
         let hasCostHistory: Bool
         let hasOpenAIWebMenuItems: Bool
+        let usesSectionedMenuCard: Bool
     }
 
     private struct MenuCardContext {
@@ -322,11 +325,14 @@ extension StatusItemController {
             (self.store.tokenSnapshot(for: currentProvider)?.daily.isEmpty == false)
         let hasOpenAIWebMenuItems = !showAllTokenAccounts &&
             (hasCreditsHistory || hasUsageBreakdown || hasCostHistory)
+        let usesSectionedMenuCard = hasOpenAIWebMenuItems &&
+            (currentProvider != .codex || self.settings.codexMultipleAccountsEnabled)
         return OpenAIWebContext(
             hasUsageBreakdown: hasUsageBreakdown,
             hasCreditsHistory: hasCreditsHistory,
             hasCostHistory: hasCostHistory,
-            hasOpenAIWebMenuItems: hasOpenAIWebMenuItems)
+            hasOpenAIWebMenuItems: hasOpenAIWebMenuItems,
+            usesSectionedMenuCard: usesSectionedMenuCard)
     }
 
     private func addProviderSwitcherIfNeeded(
@@ -412,7 +418,9 @@ extension StatusItemController {
                     self.menuCardModel(
                         for: context.currentProvider,
                         snapshotOverride: accountSnapshot.snapshot,
-                        errorOverride: accountSnapshot.error)
+                        errorOverride: accountSnapshot.error,
+                        sourceLabelOverride: accountSnapshot.sourceLabel,
+                        usesSnapshotOverride: true)
                 }
             if cards.isEmpty, let model = self.menuCardModel(for: context.selectedProvider) {
                 menu.addItem(self.makeMenuCardItem(
@@ -441,7 +449,7 @@ extension StatusItemController {
         }
 
         guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
-        if context.openAIContext.hasOpenAIWebMenuItems {
+        if context.openAIContext.usesSectionedMenuCard {
             let webItems = OpenAIWebMenuItems(
                 hasUsageBreakdown: context.openAIContext.hasUsageBreakdown,
                 hasCreditsHistory: context.openAIContext.hasCreditsHistory,
@@ -497,9 +505,14 @@ extension StatusItemController {
             if context.hasCostHistory {
                 _ = self.addCostHistorySubmenu(to: menu, provider: currentProvider)
             }
-        } else if currentProvider == .codex, context.hasCreditsHistory {
-            // Codex hides the credits card row; still expose credits history as a top-level submenu.
-            _ = self.addCreditsHistorySubmenu(to: menu)
+        } else if currentProvider == .codex, context.hasCreditsHistory || context.hasCostHistory {
+            // Codex uses a sectioned card; still expose web history items as top-level menu items.
+            if context.hasCreditsHistory {
+                _ = self.addCreditsHistorySubmenu(to: menu)
+            }
+            if context.hasCostHistory {
+                _ = self.addCostHistorySubmenu(to: menu, provider: currentProvider)
+            }
         }
         menu.addItem(.separator())
     }
@@ -989,15 +1002,6 @@ extension StatusItemController {
             menu.addItem(self.makeBuyCreditsItem())
         }
 
-        // Codex dashboard item (below Buy Credits).
-        if provider == .codex, self.settings.openAIWebAccessEnabled,
-           self.settings.codexMultipleAccountsEnabled
-        {
-            if let dashboardItem = self.makeCodexDashboardItem() {
-                menu.addItem(dashboardItem)
-            }
-        }
-
         if hasCost {
             let buyCreditsShown = provider == .codex && self.settings.codexBuyCreditsMenuEnabled
             let costView = UsageMenuCardCostSectionView(
@@ -1225,38 +1229,6 @@ extension StatusItemController {
         }
     }
 
-    private func makeCodexDashboardItem() -> NSMenuItem? {
-        let accountIdentifier: String?
-        if let selected = self.settings.selectedTokenAccount(for: .codex) {
-            accountIdentifier = selected.token
-        } else {
-            // Use the stable ~/.codex path as key for the default account dashboard session.
-            accountIdentifier = ("~/.codex" as NSString).expandingTildeInPath
-        }
-
-        guard let key = accountIdentifier, !key.isEmpty, !key.hasPrefix("apikey:") else { return nil }
-
-        let loggedIn = self.store.dashboardLoggedInEmails.contains(key.lowercased())
-
-        let title = loggedIn ? "Usage Dashboard" : "Login to OpenAI Dashboard"
-        let payload: [String: Any] = [
-            "accountIdentifier": key,
-            "viewOnly": loggedIn,
-        ]
-        let item = NSMenuItem(title: title, action: #selector(self.openCodexDashboard(_:)), keyEquivalent: "")
-        item.target = self
-        item.representedObject = payload
-        if let image = NSImage(
-            systemSymbolName: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue,
-            accessibilityDescription: nil)
-        {
-            image.isTemplate = true
-            image.size = NSSize(width: 16, height: 16)
-            item.image = image
-        }
-        return item
-    }
-
     private func makeBuyCreditsItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Buy Credits...", action: #selector(self.openCreditsPurchase), keyEquivalent: "")
         item.target = self
@@ -1271,31 +1243,50 @@ extension StatusItemController {
     @discardableResult
     private func addCreditsHistorySubmenu(to menu: NSMenu) -> Bool {
         guard let submenu = self.makeCreditsHistorySubmenu() else { return false }
-        let item = NSMenuItem(title: "Credits history", action: nil, keyEquivalent: "")
-        item.isEnabled = true
-        item.submenu = submenu
-        menu.addItem(item)
+        menu.addItem(self.makeWebHistoryMenuItem(
+            title: "Credits history",
+            id: "creditsHistorySubmenu",
+            submenu: submenu))
         return true
     }
 
     @discardableResult
     private func addUsageBreakdownSubmenu(to menu: NSMenu) -> Bool {
         guard let submenu = self.makeUsageBreakdownSubmenu() else { return false }
-        let item = NSMenuItem(title: "Usage breakdown", action: nil, keyEquivalent: "")
-        item.isEnabled = true
-        item.submenu = submenu
-        menu.addItem(item)
+        menu.addItem(self.makeWebHistoryMenuItem(
+            title: "Usage breakdown",
+            id: "usageBreakdownSubmenu",
+            submenu: submenu))
         return true
     }
 
     @discardableResult
     private func addCostHistorySubmenu(to menu: NSMenu, provider: UsageProvider) -> Bool {
         guard let submenu = self.makeCostHistorySubmenu(provider: provider) else { return false }
-        let item = NSMenuItem(title: "Usage history (30 days)", action: nil, keyEquivalent: "")
-        item.isEnabled = true
-        item.submenu = submenu
-        menu.addItem(item)
+        menu.addItem(self.makeWebHistoryMenuItem(
+            title: "Usage history (30 days)",
+            id: "costHistorySubmenu",
+            submenu: submenu))
         return true
+    }
+
+    private func makeWebHistoryMenuItem(title: String, id: String, submenu: NSMenu) -> NSMenuItem {
+        let width: CGFloat = 310
+        return self.makeMenuCardItem(
+            HStack(spacing: 0) {
+                Text(title)
+                    .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 14)
+                    .padding(.trailing, 28)
+                    .padding(.vertical, 8)
+            },
+            id: id,
+            width: width,
+            submenu: submenu,
+            submenuIndicatorAlignment: .trailing,
+            submenuIndicatorTopPadding: 0)
     }
 
     private func makeUsageSubmenu(
@@ -1489,12 +1480,14 @@ extension StatusItemController {
     private func menuCardModel(
         for provider: UsageProvider?,
         snapshotOverride: UsageSnapshot? = nil,
-        errorOverride: String? = nil) -> UsageMenuCardView.Model?
+        errorOverride: String? = nil,
+        sourceLabelOverride: String? = nil,
+        usesSnapshotOverride: Bool = false) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
-        let snapshot = snapshotOverride ?? self.store.snapshot(for: target)
+        let snapshot = usesSnapshotOverride ? snapshotOverride : self.store.snapshot(for: target)
         let credits: CreditsSnapshot?
         let creditsError: String?
         let dashboard: OpenAIDashboardSnapshot?
@@ -1502,7 +1495,7 @@ extension StatusItemController {
         let tokenSnapshot: CostUsageTokenSnapshot?
         let tokenError: String?
         var codexCreditsUnlimited = false
-        if target == .codex, snapshotOverride == nil {
+        if target == .codex, !usesSnapshotOverride {
             let active = self.store.codexActiveMenuCredits()
             credits = active.snapshot
             creditsError = active.error
@@ -1511,7 +1504,7 @@ extension StatusItemController {
             dashboardError = self.store.lastOpenAIDashboardError
             tokenSnapshot = self.store.tokenSnapshot(for: target)
             tokenError = self.store.tokenError(for: target)
-        } else if target == .claude || target == .vertexai, snapshotOverride == nil {
+        } else if target == .claude || target == .vertexai, !usesSnapshotOverride {
             credits = nil
             creditsError = nil
             dashboard = nil
@@ -1527,7 +1520,7 @@ extension StatusItemController {
             tokenError = nil
         }
 
-        let sourceLabel = snapshotOverride == nil ? self.store.sourceLabel(for: target) : nil
+        let sourceLabel = usesSnapshotOverride ? sourceLabelOverride : self.store.sourceLabel(for: target)
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
         let now = Date()
         let weeklyPace = snapshot?.secondary.flatMap { window in
