@@ -329,12 +329,7 @@ struct MenuDescriptor {
             } else {
                 let loginAction = self.switchAccountTarget(for: provider, store: store)
                 let hasAccount = self.hasAccount(for: provider, store: store, account: account)
-                // For Codex, switching is done via account tabs — this action is only for adding new accounts.
-                let accountLabel: String = if targetProvider == .codex {
-                    "Add Account..."
-                } else {
-                    hasAccount ? "Switch Account..." : "Add Account..."
-                }
+                let accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
                 entries.append(.action(accountLabel, loginAction))
             }
         }
@@ -349,13 +344,15 @@ struct MenuDescriptor {
                 .appendActionMenuEntries(context: actionContext, entries: &entries)
         }
 
-        // For Codex with multi-account + dashboard enabled, the dashboard item is added
-        // directly to the NSMenu (above Buy Credits), so skip the generic entry here.
-        let codexHandlesDashboard = targetProvider == .codex
-            && store.settings.codexMultipleAccountsEnabled
-            && store.settings.openAIWebAccessEnabled
-        if metadata?.dashboardURL != nil, !codexHandlesDashboard {
-            entries.append(.action("Usage Dashboard", .dashboard))
+        if metadata?.dashboardURL != nil {
+            if let codexDashboardEntry = self.codexDashboardActionEntry(
+                for: targetProvider,
+                store: store)
+            {
+                entries.append(codexDashboardEntry)
+            } else {
+                entries.append(.action("Usage Dashboard", .dashboard))
+            }
         }
         if metadata?.statusPageURL != nil || metadata?.statusLinkURL != nil {
             entries.append(.action("Status Page", .statusPage))
@@ -366,6 +363,28 @@ struct MenuDescriptor {
         }
 
         return Section(entries: entries)
+    }
+
+    private static func codexDashboardActionEntry(
+        for provider: UsageProvider?,
+        store: UsageStore) -> Entry?
+    {
+        guard provider == .codex else { return nil }
+        guard store.settings.codexMultipleAccountsEnabled else { return nil }
+        guard store.settings.openAIWebAccessEnabled else { return nil }
+
+        let accountIdentifier: String?
+        if let selected = store.settings.selectedTokenAccount(for: .codex) {
+            accountIdentifier = selected.token
+        } else {
+            accountIdentifier = ("~/.codex" as NSString).expandingTildeInPath
+        }
+
+        guard let key = accountIdentifier, !key.isEmpty, !key.hasPrefix("apikey:") else { return nil }
+
+        let loggedIn = store.dashboardLoggedInEmails.contains(key.lowercased())
+        let title = loggedIn ? "Usage Dashboard" : "Login to OpenAI Dashboard"
+        return .action(title, .codexDashboard(accountIdentifier: key, viewOnly: loggedIn))
     }
 
     private static func metaSection(updateReady: Bool) -> Section {

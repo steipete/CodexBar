@@ -83,10 +83,22 @@ struct CodexProviderImplementation: ProviderImplementation {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     context.settings.codexMultipleAccountsEnabled = newValue
                 }
-                if !newValue {
+                if newValue {
+                    // Clear any stale single-account cookie import errors when entering multi-account mode.
+                    context.store.openAIDashboardCookieImportStatus = nil
+                    // Persist current snapshot immediately so the widget reflects the change without
+                    // waiting for the full provider refresh to complete (~15s).
+                    context.store.persistWidgetSnapshot(reason: "multi-account-enabled")
+                    Task { @MainActor in
+                        await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                            await context.store.refreshProvider(.codex)
+                        }
+                    }
+                } else {
                     // Revert to primary account so Codex stops using a hidden token override.
                     context.settings.setActiveTokenAccountIndex(-1, for: .codex)
                     context.settings.codexExplicitAccountsOnly = false
+                    context.store.persistWidgetSnapshot(reason: "multi-account-disabled")
                     Task { @MainActor in
                         await ProviderInteractionContext.$current.withValue(.userInitiated) {
                             await context.store.refreshProvider(.codex)

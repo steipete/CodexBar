@@ -134,6 +134,34 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `show all token accounts counts the default codex account unless explicit only is on`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-show-all-default")
+        settings.showAllTokenAccountsInMenu = true
+        let store = Self.makeUsageStore(settings: settings)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Work",
+            token: "/tmp/codex-work",
+            addedAt: Date().timeIntervalSince1970,
+            lastUsed: nil)
+
+        #expect(!store.shouldFetchAllTokenAccounts(provider: .codex, accounts: [account]))
+        #expect(
+            store.shouldFetchAllTokenAccounts(
+                provider: .codex,
+                accounts: [account],
+                defaultAccountLabel: "Primary"))
+
+        settings.codexExplicitAccountsOnly = true
+
+        #expect(
+            !store.shouldFetchAllTokenAccounts(
+                provider: .codex,
+                accounts: [account],
+                defaultAccountLabel: "Primary"))
+    }
+
+    @Test
     func `status indicators and failure gate`() {
         #expect(!ProviderStatusIndicator.none.hasIssue)
         #expect(ProviderStatusIndicator.maintenance.hasIssue)

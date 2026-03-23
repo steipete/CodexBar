@@ -297,6 +297,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             "\(s.openAIWebAccessEnabled)",
             "\(s.codexBuyCreditsMenuEnabled)",
             "\(s.codexExplicitAccountsOnly)",
+            "\(s.codexMultipleAccountsEnabled)",
             overview,
             "\(s.mergedMenuLastSelectedWasOverview)",
             selectedMenu,
