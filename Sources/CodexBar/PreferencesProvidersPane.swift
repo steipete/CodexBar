@@ -260,16 +260,42 @@ struct ProvidersPane: View {
             renameDefaultAccount: renameDefaultAccount,
             loginAction: loginAction,
             dashboardLogin: provider == .codex && self.settings.openAIWebAccessEnabled
-                ? { [store] accountEmail in
+                ? { [store] accountIdentifier in
+                    // Use accountIdentifier (CODEX_HOME path) as the unique key for cookie
+                    // isolation and login tracking. This ensures accounts with the same email
+                    // but different workspaces get separate dashboard sessions.
+                    guard let key = accountIdentifier, !key.isEmpty else { return }
+                    let normalizedKey = key.lowercased()
+                    let alreadyLoggedIn = store.dashboardLoggedInEmails.contains(normalizedKey)
+                    // Resolve email only for window title display.
+                    let displayEmail = Self.resolveEmail(fromIdentifier: accountIdentifier)
                     let controller = OpenAIDashboardLoginWindowController(
-                        accountEmail: accountEmail,
+                        accountEmail: key,
+                        displayName: displayEmail,
+                        viewOnly: alreadyLoggedIn,
                         onComplete: { success in
                             guard success else { return }
                             Task { @MainActor in
+                                OpenAIDashboardWebsiteDataStore.markDashboardLoggedIn(
+                                    forAccountEmail: key)
+                                store.dashboardLoggedInEmails.insert(normalizedKey)
                                 await store.refreshOpenAIDashboardAfterLogin()
                             }
                         })
                     controller.show()
+                }
+                : nil,
+            isDashboardLoggedIn: provider == .codex
+                ? { [store] accountIdentifier in
+                    guard let key = accountIdentifier, !key.isEmpty else { return false }
+                    return store.dashboardLoggedInEmails.contains(key.lowercased())
+                }
+                : nil,
+            dashboardLogout: provider == .codex
+                ? { [store] accountIdentifier in
+                    guard let key = accountIdentifier, !key.isEmpty else { return }
+                    await OpenAIDashboardWebsiteDataStore.clearStore(forAccountEmail: key)
+                    store.dashboardLoggedInEmails.remove(key.lowercased())
                 }
                 : nil,
             codexExplicitAccountsOnly: codexExplicit)
@@ -431,6 +457,28 @@ struct ProvidersPane: View {
                 }
             }
         }
+    }
+
+    /// Resolves an account identifier to an email address.
+    ///
+    /// For the default account tab the identifier is already an email. For token accounts
+    /// it's a CODEX_HOME path — we extract the email from the stored OAuth credentials.
+    static func resolveEmail(fromIdentifier identifier: String?) -> String? {
+        guard let id = identifier, !id.isEmpty else { return nil }
+        // If it looks like an email already (contains @), return as-is.
+        if id.contains("@") { return id }
+        // Otherwise treat it as a CODEX_HOME path and try to read the email from credentials.
+        let env = ["CODEX_HOME": id]
+        if let credentials = try? CodexOAuthCredentialsStore.load(env: env),
+           let idToken = credentials.idToken,
+           let payload = UsageFetcher.parseJWT(idToken)
+        {
+            let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
+            let email = (payload["email"] as? String) ?? (profileDict?["email"] as? String)
+            let trimmed = email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let trimmed, !trimmed.isEmpty { return trimmed }
+        }
+        return nil
     }
 
     private func truncated(_ text: String, prefix: String, maxLength: Int = 160) -> String {

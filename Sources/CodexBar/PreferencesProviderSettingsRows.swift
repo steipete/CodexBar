@@ -347,11 +347,13 @@ struct ProviderSettingsTokenAccountsRowView: View {
             }
 
             HStack(spacing: 10) {
-                Button("Open config file") {
-                    self.descriptor.openConfigFile()
+                if !self.descriptor.codexExplicitAccountsOnly {
+                    Button("Open config file") {
+                        self.descriptor.openConfigFile()
+                    }
+                    .buttonStyle(.link)
+                    .controlSize(.small)
                 }
-                .buttonStyle(.link)
-                .controlSize(.small)
                 Button("Reload") {
                     self.descriptor.reloadFromDisk()
                 }
@@ -413,7 +415,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 if isRenaming {
                     TextField("Name", text: self.$renameText)
                         .font(.footnote)
-                        .textFieldStyle(.plain)
+                        .textFieldStyle(.roundedBorder)
                         .frame(minWidth: 100, maxWidth: 180)
                         .focused(self.$renameFieldFocused)
                         .onSubmit { self.commitRenameDefault() }
@@ -451,19 +453,22 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .help("Make this the default account")
                     }
                     if let dashboardLogin = self.descriptor.dashboardLogin {
-                        Button("Dashboard") {
+                        let loggedIn = self.descriptor.isDashboardLoggedIn?(label) ?? false
+                        Button(loggedIn ? "Dashboard" : "Login to Dashboard") {
                             dashboardLogin(label)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                         .font(.caption2.weight(.medium))
-                        .help("Sign in to ChatGPT dashboard for this account")
+                        .help(loggedIn ? "Open ChatGPT dashboard" : "Sign in to ChatGPT dashboard for this account")
                     }
                     if self.descriptor.renameDefaultAccount != nil {
                         Button(action: {
                             self.renameText = label
                             self.renamingDefault = true
                             self.renamingAccountID = nil
+                            NSApp.setActivationPolicy(.regular)
+                            NSApp.activate(ignoringOtherApps: true)
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                                 self.renameFieldFocused = true
                             }
@@ -511,6 +516,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
         }
         self.renamingDefault = false
         self.renameText = ""
+        self.restoreAccessoryPolicyIfNeeded()
     }
 
     @ViewBuilder
@@ -529,10 +535,35 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 if isRenaming {
                     TextField("Name", text: self.$renameText)
                         .font(.footnote)
-                        .textFieldStyle(.plain)
+                        .textFieldStyle(.roundedBorder)
                         .frame(minWidth: 100, maxWidth: 180)
                         .focused(self.$renameFieldFocused)
                         .onSubmit { self.commitRename(account: account) }
+                    Spacer(minLength: 8)
+                    if let dashboardLogout = self.descriptor.dashboardLogout,
+                       self.descriptor.isDashboardLoggedIn?(account.token) ?? false
+                    {
+                        Button("Logout Dashboard") {
+                            Task {
+                                await dashboardLogout(account.token)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .font(.caption2.weight(.medium))
+                        .help("Sign out of ChatGPT dashboard for this account")
+                    }
+                    Button("Delete") {
+                        self.renamingAccountID = nil
+                        self.renameText = ""
+                        self.descriptor.removeAccount(account.id)
+                        self.restoreAccessoryPolicyIfNeeded()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.red)
+                    .help("Remove account")
                 } else {
                     Group {
                         if self.useCodexDiscoveryHints {
@@ -557,7 +588,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     if rowActive {
                         self.menuBarActiveBadge()
                     }
-                    if !self.useCodexDiscoveryHints, !isActive, !isRenaming {
+                    if !self.useCodexDiscoveryHints, !isActive {
                         Button("Make Default") {
                             self.descriptor.setActiveIndex(index)
                         }
@@ -567,18 +598,23 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .help("Make this the default account")
                     }
                     if let dashboardLogin = self.descriptor.dashboardLogin {
-                        Button(action: { dashboardLogin(account.displayName) }, label: {
-                            Image(systemName: "globe")
-                                .foregroundStyle(.secondary)
-                                .imageScale(.small)
-                        })
-                        .buttonStyle(.plain)
-                        .help("Sign in to ChatGPT dashboard for this account")
+                        let loggedIn = self.descriptor.isDashboardLoggedIn?(account.token) ?? false
+                        Button(loggedIn ? "Dashboard" : "Login to Dashboard") {
+                            dashboardLogin(account.token)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .font(.caption2.weight(.medium))
+                        .help(loggedIn ? "Open ChatGPT dashboard" : "Sign in to ChatGPT dashboard for this account")
                     }
                     Button(action: {
                         self.renameText = account.displayName
                         self.renamingAccountID = account.id
                         self.renamingDefault = false
+                        // Menu bar apps (.accessory) can't receive keyboard input in TextFields.
+                        // Temporarily switch to .regular so the rename field works.
+                        NSApp.setActivationPolicy(.regular)
+                        NSApp.activate(ignoringOtherApps: true)
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                             self.renameFieldFocused = true
                         }
@@ -589,13 +625,6 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     })
                     .buttonStyle(.plain)
                     .help("Rename tab")
-                    Button(action: { self.descriptor.removeAccount(account.id) }, label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary.opacity(0.85))
-                            .imageScale(.small)
-                    })
-                    .buttonStyle(.plain)
-                    .help("Remove account")
                 }
             }
             if self.descriptor.provider == .codex, !isRenaming {
@@ -640,6 +669,19 @@ struct ProviderSettingsTokenAccountsRowView: View {
         }
         self.renamingAccountID = nil
         self.renameText = ""
+        self.restoreAccessoryPolicyIfNeeded()
+    }
+
+    /// Restores `.accessory` activation policy after rename mode ends,
+    /// but only if no other windows (like dashboard login) are still open.
+    private func restoreAccessoryPolicyIfNeeded() {
+        let hasOtherWindows = NSApp.windows.contains { win in
+            win.isVisible && !win.className.contains("StatusBar")
+                && !win.className.contains("Settings") && !win.className.contains("Preferences")
+        }
+        if !hasOtherWindows {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 
     private func codexAPIKeyAddSection() -> some View {

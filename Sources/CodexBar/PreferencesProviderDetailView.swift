@@ -214,6 +214,7 @@ struct ProviderDetailView: View {
     private static let earlyToggleIDs: Set<String> = [
         "codex-multiple-accounts",
         "codex-explicit-accounts-only",
+        "codex-openai-web-dashboard",
     ]
 
     private var codexEarlyToggles: [ProviderSettingsToggleDescriptor] {

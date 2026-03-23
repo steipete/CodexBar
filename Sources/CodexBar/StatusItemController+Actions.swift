@@ -30,6 +30,32 @@ extension StatusItemController {
         self.updater.checkForUpdates(nil)
     }
 
+    @objc func openCodexDashboard(_ sender: Any?) {
+        let menuItem = sender as? NSMenuItem
+        let payload = menuItem?.representedObject as? [String: Any]
+        let accountIdentifier = payload?["accountIdentifier"] as? String
+        let viewOnly = (payload?["viewOnly"] as? Bool) ?? false
+
+        guard let key = accountIdentifier, !key.isEmpty else { return }
+
+        // Resolve email only for window title display.
+        let displayEmail = ProvidersPane.resolveEmail(fromIdentifier: accountIdentifier)
+
+        let controller = OpenAIDashboardLoginWindowController(
+            accountEmail: key,
+            displayName: displayEmail,
+            viewOnly: viewOnly,
+            onComplete: { [weak self] success in
+                guard success else { return }
+                Task { @MainActor in
+                    OpenAIDashboardWebsiteDataStore.markDashboardLoggedIn(forAccountEmail: key)
+                    self?.store.dashboardLoggedInEmails.insert(key.lowercased())
+                    await self?.store.refreshOpenAIDashboardAfterLogin()
+                }
+            })
+        controller.show()
+    }
+
     @objc func openDashboard() {
         let preferred = self.lastMenuProvider
             ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledProviders().first)

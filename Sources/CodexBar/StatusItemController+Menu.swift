@@ -972,14 +972,20 @@ extension StatusItemController {
         }
 
         if provider == .codex, self.settings.codexBuyCreditsMenuEnabled {
-            // Avoid an `NSMenuItem.separator()` right under the credits block: the card already ends the panel; a
-            // separator here reads as a duplicate line. Still separate after `menuCardExtraUsage` or when the
-            // primary ends with usage-only (no credits row).
             let buyCreditsSeparatorBefore = hasExtraUsage || (hasUsageBlock && !hasCredits)
             if buyCreditsSeparatorBefore {
                 menu.addItem(.separator())
             }
             menu.addItem(self.makeBuyCreditsItem())
+        }
+
+        // Codex dashboard item (below Buy Credits).
+        if provider == .codex, self.settings.openAIWebAccessEnabled,
+           self.settings.codexMultipleAccountsEnabled
+        {
+            if let dashboardItem = self.makeCodexDashboardItem() {
+                menu.addItem(dashboardItem)
+            }
         }
 
         if hasCost {
@@ -1076,6 +1082,11 @@ extension StatusItemController {
         case .about: (#selector(self.showSettingsAbout), nil)
         case .quit: (#selector(self.quit), nil)
         case let .copyError(message): (#selector(self.copyError(_:)), message)
+        case let .codexDashboard(accountIdentifier, viewOnly):
+            (#selector(self.openCodexDashboard(_:)), [
+                "accountIdentifier": accountIdentifier as Any,
+                "viewOnly": viewOnly,
+            ] as [String: Any])
         }
     }
 
@@ -1196,6 +1207,38 @@ extension StatusItemController {
                     }
                 }
         }
+    }
+
+    private func makeCodexDashboardItem() -> NSMenuItem? {
+        let impl = CodexProviderImplementation()
+        let accountIdentifier: String?
+        if let selected = self.settings.selectedTokenAccount(for: .codex) {
+            accountIdentifier = selected.token
+        } else {
+            accountIdentifier = impl.tokenAccountDefaultLabel(settings: self.settings)
+        }
+
+        guard let key = accountIdentifier, !key.isEmpty else { return nil }
+
+        let loggedIn = self.store.dashboardLoggedInEmails.contains(key.lowercased())
+
+        let title = loggedIn ? "Usage Dashboard" : "Login to OpenAI Dashboard"
+        let payload: [String: Any] = [
+            "accountIdentifier": key,
+            "viewOnly": loggedIn,
+        ]
+        let item = NSMenuItem(title: title, action: #selector(self.openCodexDashboard(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = payload
+        if let image = NSImage(
+            systemSymbolName: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue,
+            accessibilityDescription: nil)
+        {
+            image.isTemplate = true
+            image.size = NSSize(width: 16, height: 16)
+            item.image = image
+        }
+        return item
     }
 
     private func makeBuyCreditsItem() -> NSMenuItem {

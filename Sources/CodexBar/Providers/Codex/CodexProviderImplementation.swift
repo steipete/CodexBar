@@ -101,7 +101,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 id: "codex-multiple-accounts",
                 title: "Multiple Accounts",
                 subtitle:
-                "Enable multi-account support: add, reorder, and switch between multiple Codex accounts.",
+                "Enable multi-account support: add, reorder, and switch between multiple Codex accounts. Costs are disabled for accounts configured without the default machine codex home path (~/.codex).",
                 binding: multipleAccountsBinding,
                 statusText: nil,
                 actions: [],
@@ -113,8 +113,8 @@ struct CodexProviderImplementation: ProviderImplementation {
                 id: "codex-explicit-accounts-only",
                 title: "CodexBar accounts only",
                 subtitle:
-                "Ignore ~/.codex as an implicit account. Use only rows under Accounts " +
-                    "(OAuth, API key, or manual CODEX_HOME path).",
+                "Ignore the default machine codex home path (~/.codex). Use only rows under Accounts " +
+                    "(OAuth, API key). Cost will only work for the default machine codex home path account.",
                 binding: explicitAccountsBinding,
                 statusText: nil,
                 actions: [],
@@ -167,13 +167,13 @@ struct CodexProviderImplementation: ProviderImplementation {
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
             ProviderSettingsToggleDescriptor(
-                id: "codex-openai-web-extras",
-                title: "OpenAI web extras",
-                subtitle: "Show usage breakdown, credits history, and code review via chatgpt.com. Use the globe icon on each account to sign in.",
+                id: "codex-openai-web-dashboard",
+                title: "OpenAI Web Dashboard",
+                subtitle: "Login to view OpenAI native dashboard after adding account via OAuth/API.",
                 binding: extrasBinding,
                 statusText: nil,
                 actions: [],
-                isVisible: nil,
+                isVisible: { context.settings.codexMultipleAccountsEnabled },
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
@@ -329,7 +329,7 @@ struct CodexProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func tokenAccountLoginAction(context: ProviderSettingsContext)
+    func tokenAccountLoginAction(context _: ProviderSettingsContext)
         -> ((
             _ setProgress: @escaping @MainActor (String) -> Void,
             _ addAccount: @escaping @MainActor (String, String) -> Void) async -> Bool)?
@@ -360,20 +360,6 @@ struct CodexProviderImplementation: ProviderImplementation {
                     label = "Account"
                 }
                 addAccount(label, uniqueDir)
-
-                // Auto-open dashboard login if web extras is enabled.
-                if context.settings.openAIWebAccessEnabled {
-                    setProgress("Signing in to dashboard…")
-                    let controller = OpenAIDashboardLoginWindowController(
-                        accountEmail: label,
-                        onComplete: { success in
-                            guard success else { return }
-                            Task { @MainActor in
-                                await context.store.refreshOpenAIDashboardAfterLogin()
-                            }
-                        })
-                    controller.show()
-                }
                 return true
 
             case .missingBinary, .timedOut, .failed, .launchFailed:

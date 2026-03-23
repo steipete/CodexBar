@@ -183,6 +183,8 @@ enum ProvidersPaneTestHarness {
             renameDefaultAccount: nil,
             loginAction: nil,
             dashboardLogin: nil,
+            isDashboardLoggedIn: nil,
+            dashboardLogout: nil,
             codexExplicitAccountsOnly: false)
 
         return ProviderListTestDescriptors(

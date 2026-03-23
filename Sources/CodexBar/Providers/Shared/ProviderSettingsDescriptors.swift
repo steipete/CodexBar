@@ -118,6 +118,10 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     /// Opens a per-account dashboard login window (chatgpt.com) for web extras.
     /// The closure receives the account email (or nil for default).
     let dashboardLogin: ((_ accountEmail: String?) -> Void)?
+    /// Returns true if the given account email has dashboard cookies (is logged in).
+    let isDashboardLoggedIn: ((_ accountEmail: String?) -> Bool)?
+    /// Logs out of the dashboard for the given account identifier (clears cookies and tracked state).
+    let dashboardLogout: ((_ accountIdentifier: String?) async -> Void)?
     /// Codex only: mirrors **CodexBar accounts only**; hides ~/.codex primary tab and adjusts copy.
     let codexExplicitAccountsOnly: Bool
 }

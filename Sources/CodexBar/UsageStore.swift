@@ -47,6 +47,10 @@ final class UsageStore {
     var openAIDashboard: OpenAIDashboardSnapshot?
     var lastOpenAIDashboardError: String?
     var openAIDashboardRequiresLogin: Bool = false
+    /// Observable set of account emails that have completed dashboard login.
+    /// Mirrors `OpenAIDashboardWebsiteDataStore` UserDefaults so SwiftUI can react to changes.
+    var dashboardLoggedInEmails: Set<String> = Set(
+        UserDefaults.standard.stringArray(forKey: "OpenAIDashboardLoggedInEmails") ?? [])
     var openAIDashboardCookieImportStatus: String?
     var openAIDashboardCookieImportDebugLog: String?
     var versions: [UsageProvider: String] = [:]
@@ -1547,6 +1551,14 @@ extension UsageStore {
         self.lastTokenFetchAt[provider] = now
         self.tokenRefreshInFlight.insert(provider)
         defer { self.tokenRefreshInFlight.remove(provider) }
+
+        // When "CodexBar accounts only" is on and no explicit account is active,
+        // suppress cost data instead of falling back to ~/.codex.
+        if provider == .codex, self.shouldSuppressDefaultCostData {
+            self.tokenSnapshots.removeValue(forKey: provider)
+            self.tokenErrors[provider] = nil
+            return
+        }
 
         let startedAt = Date()
         let providerText = provider.rawValue

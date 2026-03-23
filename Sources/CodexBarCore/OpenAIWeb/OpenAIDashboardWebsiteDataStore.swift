@@ -34,6 +34,33 @@ public enum OpenAIDashboardWebsiteDataStore {
         return store
     }
 
+    // MARK: - Dashboard login tracking
+
+    private static let loggedInKey = "OpenAIDashboardLoggedInEmails"
+
+    /// Returns true if the given account email has completed a dashboard login.
+    public static func isDashboardLoggedIn(forAccountEmail email: String?) -> Bool {
+        guard let normalized = normalizeEmail(email) else { return false }
+        let set = UserDefaults.standard.stringArray(forKey: loggedInKey) ?? []
+        return set.contains(normalized)
+    }
+
+    /// Marks an account as having completed dashboard login.
+    public static func markDashboardLoggedIn(forAccountEmail email: String?) {
+        guard let normalized = normalizeEmail(email) else { return }
+        var set = Set(UserDefaults.standard.stringArray(forKey: loggedInKey) ?? [])
+        set.insert(normalized)
+        UserDefaults.standard.set(Array(set), forKey: loggedInKey)
+    }
+
+    /// Marks an account as logged out from dashboard.
+    public static func markDashboardLoggedOut(forAccountEmail email: String?) {
+        guard let normalized = normalizeEmail(email) else { return }
+        var set = Set(UserDefaults.standard.stringArray(forKey: loggedInKey) ?? [])
+        set.remove(normalized)
+        UserDefaults.standard.set(Array(set), forKey: loggedInKey)
+    }
+
     /// Clears the persistent cookie store for a single account email.
     ///
     /// Note: this does *not* impact other accounts, and is safe to use when the stored session is "stuck"
@@ -54,7 +81,8 @@ public enum OpenAIDashboardWebsiteDataStore {
             }
         }
 
-        // Remove from cache so a fresh instance is created on next access
+        // Mark as logged out and remove from cache so a fresh instance is created on next access
+        self.markDashboardLoggedOut(forAccountEmail: email)
         if let normalized = normalizeEmail(email) {
             self.cachedStores.removeValue(forKey: normalized)
         }

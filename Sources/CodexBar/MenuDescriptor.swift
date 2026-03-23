@@ -46,6 +46,7 @@ struct MenuDescriptor {
         case about
         case quit
         case copyError(String)
+        case codexDashboard(accountIdentifier: String?, viewOnly: Bool)
     }
 
     var sections: [Section]
@@ -348,7 +349,12 @@ struct MenuDescriptor {
                 .appendActionMenuEntries(context: actionContext, entries: &entries)
         }
 
-        if metadata?.dashboardURL != nil {
+        // For Codex with multi-account + dashboard enabled, the dashboard item is added
+        // directly to the NSMenu (above Buy Credits), so skip the generic entry here.
+        let codexHandlesDashboard = targetProvider == .codex
+            && store.settings.codexMultipleAccountsEnabled
+            && store.settings.openAIWebAccessEnabled
+        if metadata?.dashboardURL != nil, !codexHandlesDashboard {
             entries.append(.action("Usage Dashboard", .dashboard))
         }
         if metadata?.statusPageURL != nil || metadata?.statusLinkURL != nil {
@@ -480,6 +486,7 @@ extension MenuDescriptor.MenuAction {
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue
+        case .codexDashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         }
     }
 }

@@ -4,6 +4,15 @@ import Foundation
 extension UsageStore {
     /// Codex `…/sessions` directory for the credentials dir selected in Settings (path-based token accounts), or `nil`
     /// to use the process environment / `~/.codex`.
+    /// Whether cost data should be suppressed because "CodexBar accounts only" is on
+    /// and no explicit account is selected (would otherwise fall back to ~/.codex).
+    var shouldSuppressDefaultCostData: Bool {
+        guard self.settings.codexExplicitAccountsOnly else { return false }
+        let defaultActive = self.settings.isDefaultTokenAccountActive(for: .codex)
+        if defaultActive { return true }
+        return self.settings.selectedTokenAccount(for: .codex) == nil
+    }
+
     func codexCostUsageSessionsRootForActiveSelection() -> URL? {
         guard let support = TokenAccountSupportCatalog.support(for: .codex),
               case .codexHome = support.injection

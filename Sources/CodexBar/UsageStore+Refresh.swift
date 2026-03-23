@@ -45,6 +45,20 @@ extension UsageStore {
             }
         }
 
+        // When "CodexBar accounts only" is on, do not fall back to ~/.codex implicit credentials.
+        // If there are no explicit accounts, clear usage and stop.
+        if provider == .codex,
+           self.settings.codexExplicitAccountsOnly,
+           tokenAccounts.isEmpty
+        {
+            await MainActor.run {
+                self.snapshots.removeValue(forKey: .codex)
+                self.errors[.codex] = nil
+                self.lastSourceLabels.removeValue(forKey: .codex)
+            }
+            return
+        }
+
         let fetchContext = spec.makeFetchContext()
         let descriptor = spec.descriptor
         // Keep provider fetch work off MainActor so slow keychain/process reads don't stall menu/UI responsiveness.

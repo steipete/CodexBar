@@ -104,6 +104,8 @@ struct MenuContent: View {
             self.actions.quit()
         case let .copyError(message):
             self.actions.copyError(message)
+        case let .codexDashboard(accountIdentifier, viewOnly):
+            self.actions.openCodexDashboard(accountIdentifier, viewOnly)
         }
     }
 }
@@ -121,6 +123,7 @@ struct MenuActions {
     let openAbout: () -> Void
     let quit: () -> Void
     let copyError: (String) -> Void
+    let openCodexDashboard: (_ accountIdentifier: String?, _ viewOnly: Bool) -> Void
 }
 
 @MainActor
