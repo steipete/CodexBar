@@ -546,6 +546,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .onSubmit { self.commitRename(account: account) }
                     Spacer(minLength: 8)
                     if let dashboardLogout = self.descriptor.dashboardLogout,
+                       !account.token.hasPrefix("apikey:"),
                        self.descriptor.isDashboardLoggedIn?(account.token) ?? false
                     {
                         Button("Logout Dashboard") {
@@ -602,7 +603,9 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .font(.caption2.weight(.medium))
                         .help("Make this the default account")
                     }
-                    if let dashboardLogin = self.descriptor.dashboardLogin {
+                    if let dashboardLogin = self.descriptor.dashboardLogin,
+                       !account.token.hasPrefix("apikey:")
+                    {
                         let loggedIn = self.descriptor.isDashboardLoggedIn?(account.token) ?? false
                         Button(loggedIn ? "Dashboard" : "Login to Dashboard") {
                             dashboardLogin(account.token)

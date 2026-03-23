@@ -652,7 +652,7 @@ extension UsageStore {
             return
         }
 
-        let targetEmail = self.codexAccountEmailForOpenAIDashboard()
+        let targetEmail = self.codexDashboardAccountIdentifier()
         self.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: targetEmail)
 
         let now = Date()
@@ -736,7 +736,7 @@ extension UsageStore {
         } catch let OpenAIDashboardFetcher.FetchError.noDashboardData(body) {
             // Often indicates a missing/stale session without an obvious login prompt. Retry once after
             // importing cookies from the user's browser.
-            let targetEmail = self.codexAccountEmailForOpenAIDashboard()
+            let targetEmail = self.codexDashboardAccountIdentifier()
             var effectiveEmail = targetEmail
             if let imported = await self.importOpenAIDashboardCookiesIfNeeded(targetEmail: targetEmail, force: true) {
                 effectiveEmail = imported
@@ -760,7 +760,7 @@ extension UsageStore {
                 await self.applyOpenAIDashboardFailure(message: error.localizedDescription)
             }
         } catch OpenAIDashboardFetcher.FetchError.loginRequired {
-            let targetEmail = self.codexAccountEmailForOpenAIDashboard()
+            let targetEmail = self.codexDashboardAccountIdentifier()
             var effectiveEmail = targetEmail
             if let imported = await self.importOpenAIDashboardCookiesIfNeeded(targetEmail: targetEmail, force: true) {
                 effectiveEmail = imported
@@ -838,7 +838,7 @@ extension UsageStore {
 
     func importOpenAIDashboardBrowserCookiesNow() async {
         self.resetOpenAIWebDebugLog(context: "manual import")
-        let targetEmail = self.codexAccountEmailForOpenAIDashboard()
+        let targetEmail = self.codexDashboardAccountIdentifier()
         _ = await self.importOpenAIDashboardCookiesIfNeeded(targetEmail: targetEmail, force: true)
         await self.refreshOpenAIDashboardIfNeeded(force: true)
     }
@@ -1041,6 +1041,20 @@ extension UsageStore {
         let imported = self.lastOpenAIDashboardCookieImportEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let imported, !imported.isEmpty { return imported }
         return nil
+    }
+
+    /// In multi-account dashboard mode, returns the same identifier used by the dashboard login
+    /// window (CODEX_HOME path or `~/.codex` for default) so the refresh reads the correct
+    /// WKWebsiteDataStore. Falls back to email-based lookup for non-multi-account mode.
+    func codexDashboardAccountIdentifier() -> String? {
+        if self.settings.codexMultipleAccountsEnabled, self.settings.openAIWebAccessEnabled {
+            if let selected = self.settings.selectedTokenAccount(for: .codex) {
+                return selected.token
+            }
+            // Default account uses ~/.codex path
+            return ("~/.codex" as NSString).expandingTildeInPath
+        }
+        return self.codexAccountEmailForOpenAIDashboard()
     }
 }
 

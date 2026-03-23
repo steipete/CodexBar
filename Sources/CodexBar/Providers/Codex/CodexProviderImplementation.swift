@@ -291,10 +291,11 @@ struct CodexProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func loginMenuAction(context _: ProviderMenuLoginContext)
+    func loginMenuAction(context: ProviderMenuLoginContext)
         -> (label: String, action: MenuDescriptor.MenuAction)?
     {
-        ("Add Account...", .addTokenAccount(.codex))
+        guard context.settings.codexMultipleAccountsEnabled else { return nil }
+        return ("Add Account...", .addTokenAccount(.codex))
     }
 
     @MainActor

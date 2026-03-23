@@ -1234,7 +1234,7 @@ extension StatusItemController {
             accountIdentifier = ("~/.codex" as NSString).expandingTildeInPath
         }
 
-        guard let key = accountIdentifier, !key.isEmpty else { return nil }
+        guard let key = accountIdentifier, !key.isEmpty, !key.hasPrefix("apikey:") else { return nil }
 
         let loggedIn = self.store.dashboardLoggedInEmails.contains(key.lowercased())
 
