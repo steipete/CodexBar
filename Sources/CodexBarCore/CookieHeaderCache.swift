@@ -81,16 +81,24 @@ public enum CookieHeaderCache {
         self.log.debug("Cookie cache cleared", metadata: ["provider": provider.rawValue])
     }
 
-    /// Clears cookie caches for all providers that have a cached entry.
+    /// Clears cookie caches for all providers, including corrupt/invalid entries.
     /// Returns the number of providers whose caches were cleared.
     @discardableResult
     public static func clearAll() -> Int {
         var cleared = 0
         for provider in UsageProvider.allCases {
             let key = KeychainCacheStore.Key.cookie(provider: provider)
-            if case .found = KeychainCacheStore.load(key: key, as: Entry.self) {
+            let result = KeychainCacheStore.load(key: key, as: Entry.self)
+            let hasLegacy = self.loadLegacyEntry(for: provider) != nil
+            switch result {
+            case .found, .invalid:
                 self.clear(provider: provider)
                 cleared += 1
+            case .missing where hasLegacy:
+                self.removeLegacyEntry(for: provider)
+                cleared += 1
+            case .missing:
+                break
             }
         }
         self.log.debug("Cookie cache clearAll completed", metadata: ["cleared": "\(cleared)"])
