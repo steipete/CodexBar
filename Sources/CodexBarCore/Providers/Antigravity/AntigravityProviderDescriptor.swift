@@ -33,8 +33,22 @@ public enum AntigravityProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Antigravity cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .cli],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [AntigravityStatusFetchStrategy()] })),
+                sourceModes: [.auto, .cli, .oauth],
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                    if AntigravitySessionState.preferRemote {
+                        // User explicitly switched account this session — prefer remote API.
+                        return [
+                            AntigravityAPIFetchStrategy(),
+                            AntigravityStatusFetchStrategy(),
+                        ]
+                    } else {
+                        // Default — try local probe first, fall back to API.
+                        return [
+                            AntigravityStatusFetchStrategy(),
+                            AntigravityAPIFetchStrategy(),
+                        ]
+                    }
+                })),
             cli: ProviderCLIConfig(
                 name: "antigravity",
                 versionDetector: nil))
@@ -59,6 +73,30 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+        // Allow fallback to whichever strategy is next in the pipeline.
+        true
+    }
+}
+
+struct AntigravityAPIFetchStrategy: ProviderFetchStrategy {
+    let id: String = "antigravity.api"
+    let kind: ProviderFetchKind = .oauth
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        AntigravityOAuthStorage().hasTokens()
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let client = AntigravityCloudCodeClient()
+        let snap = try await client.fetchQuota()
+        let usage = try snap.toUsageSnapshot()
+        return self.makeResult(
+            usage: usage,
+            sourceLabel: "api")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        // Allow fallback to local probe if API fails.
+        true
     }
 }

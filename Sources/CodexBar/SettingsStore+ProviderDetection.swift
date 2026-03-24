@@ -17,14 +17,16 @@ extension SettingsStore {
         let claudeInstalled = BinaryLocator.resolveClaudeBinary() != nil
         let geminiInstalled = BinaryLocator.resolveGeminiBinary() != nil
         let antigravityRunning = await AntigravityStatusProbe.isRunning()
+        let antigravityHasTokens = AntigravityOAuthStorage().hasTokens()
         let logger = CodexBarLog.logger(LogCategories.providerDetection)
 
         // If none installed, keep Codex enabled to match previous behavior.
         let noneInstalled = !codexInstalled && !claudeInstalled && !geminiInstalled && !antigravityRunning
+            && !antigravityHasTokens
         let enableCodex = codexInstalled || noneInstalled
         let enableClaude = claudeInstalled
         let enableGemini = geminiInstalled
-        let enableAntigravity = antigravityRunning
+        let enableAntigravity = antigravityRunning || antigravityHasTokens
 
         logger.info(
             "Provider detection results",
@@ -33,6 +35,7 @@ extension SettingsStore {
                 "claudeInstalled": claudeInstalled ? "1" : "0",
                 "geminiInstalled": geminiInstalled ? "1" : "0",
                 "antigravityRunning": antigravityRunning ? "1" : "0",
+                "antigravityHasTokens": antigravityHasTokens ? "1" : "0",
             ])
         logger.info(
             "Provider detection enablement",
