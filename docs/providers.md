@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter, Xiaomi MiMo)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -39,6 +39,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | Ollama | Web settings page via browser cookies (`web`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
+| Xiaomi MiMo | Balance endpoint via browser cookies or manual cookie header (`web`). |
 
 ## Codex
 - Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -181,5 +182,14 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Override base URL with `OPENROUTER_API_URL` env var.
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
 - Details: `docs/openrouter.md`.
+
+## Xiaomi MiMo
+- Browser-cookie based provider for the Xiaomi MiMo balance console.
+- Endpoint: `GET https://platform.xiaomimimo.com/api/v1/balance`.
+- Required cookies: `api-platform_serviceToken` and `userId`; optional cookies like `api-platform_ph` and `api-platform_slh` are passed through when available.
+- Cookie source can be `auto` (Chrome-family import) or `manual` (paste a `Cookie:` header from `platform.xiaomimimo.com`).
+- Displays the current account balance as provider identity text (`Balance: ...`) rather than quota windows.
+- Override the base API URL with `MIMO_API_URL` for testing.
+- Status: none yet.
 
 See also: `docs/provider.md` for architecture notes.
