@@ -3,11 +3,10 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite
 struct UsageStorePlanUtilizationClaudeIdentityTests {
     @MainActor
     @Test
-    func selectedTokenAccountChoosesMatchingBucket() throws {
+    func `selected token account chooses matching bucket`() throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         store.settings.addTokenAccount(provider: .claude, label: "Alice", token: "alice-token")
         store.settings.addTokenAccount(provider: .claude, label: "Bob", token: "bob-token")
@@ -45,7 +44,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
 
     @MainActor
     @Test
-    func fetchedNonSelectedAccountsPersistIntoSeparateClaudeBuckets() async throws {
+    func `fetched non selected accounts persist into separate claude buckets`() async throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         store.settings.addTokenAccount(provider: .claude, label: "Alice", token: "alice-token")
         store.settings.addTokenAccount(provider: .claude, label: "Bob", token: "bob-token")
@@ -80,7 +79,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
 
     @MainActor
     @Test
-    func firstResolvedClaudeTokenAccountAdoptsUnscopedHistory() throws {
+    func `first resolved claude token account adopts unscoped history`() throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         store.settings.addTokenAccount(provider: .claude, label: "Alice", token: "alice-token")
         let alice = try #require(store.settings.tokenAccounts(for: .claude).first)
@@ -102,7 +101,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
 
     @MainActor
     @Test
-    func claudeHistoryWithoutIdentityFallsBackToLastResolvedAccount() async {
+    func `claude history without identity falls back to last resolved account`() async {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),

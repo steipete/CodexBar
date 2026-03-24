@@ -1,7 +1,7 @@
 import CodexBarCore
 import Foundation
 
-struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, Sendable, ExpressibleByStringLiteral {
+struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, ExpressibleByStringLiteral {
     let rawValue: String
 
     init(rawValue: String) {
@@ -17,13 +17,13 @@ struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, Sendable,
     static let opus: Self = "opus"
 }
 
-struct PlanUtilizationHistoryEntry: Codable, Sendable, Equatable {
+struct PlanUtilizationHistoryEntry: Codable, Equatable {
     let capturedAt: Date
     let usedPercent: Double
     let resetsAt: Date?
 }
 
-struct PlanUtilizationSeriesHistory: Codable, Sendable, Equatable {
+struct PlanUtilizationSeriesHistory: Codable, Equatable {
     let name: PlanUtilizationSeriesName
     let windowMinutes: Int
     let entries: [PlanUtilizationHistoryEntry]
@@ -49,7 +49,7 @@ struct PlanUtilizationSeriesHistory: Codable, Sendable, Equatable {
     }
 }
 
-struct PlanUtilizationHistoryBuckets: Sendable, Equatable {
+struct PlanUtilizationHistoryBuckets: Equatable {
     var preferredAccountKey: String?
     var unscoped: [PlanUtilizationSeriesHistory] = []
     var accounts: [String: [PlanUtilizationSeriesHistory]] = [:]
@@ -86,20 +86,20 @@ struct PlanUtilizationHistoryBuckets: Sendable, Equatable {
     }
 }
 
-private struct ProviderHistoryFile: Codable, Sendable {
+private struct ProviderHistoryFile: Codable {
     let preferredAccountKey: String?
     let unscoped: [PlanUtilizationSeriesHistory]
     let accounts: [String: [PlanUtilizationSeriesHistory]]
 }
 
-private struct ProviderHistoryDocument: Codable, Sendable {
+private struct ProviderHistoryDocument: Codable {
     let version: Int
     let preferredAccountKey: String?
     let unscoped: [PlanUtilizationSeriesHistory]
     let accounts: [String: [PlanUtilizationSeriesHistory]]
 }
 
-struct PlanUtilizationHistoryStore: Sendable {
+struct PlanUtilizationHistoryStore {
     fileprivate static let providerSchemaVersion = 1
 
     let directoryURL: URL?

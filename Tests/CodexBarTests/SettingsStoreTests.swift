@@ -784,7 +784,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func settingAlibabaAPIKeyEnablesProvider() throws {
+    func `setting alibaba API key enables provider`() throws {
         let suite = "SettingsStoreTests-alibaba-enable-on-token"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -805,7 +805,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func alibabaProviderAutoEnablesOnStartupWhenTokenExists() throws {
+    func `alibaba provider auto enables on startup when token exists`() throws {
         let suite = "SettingsStoreTests-alibaba-auto-enable-startup"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)

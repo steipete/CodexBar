@@ -3,11 +3,10 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite
 struct UsageStorePlanUtilizationDerivedChartTests {
     @MainActor
     @Test
-    func chartUsesRequestedNativeSeriesWithoutCrossSeriesSelection() {
+    func `chart uses requested native series without cross series selection`() {
         let firstBoundary = Date(timeIntervalSince1970: 1_710_000_000)
         let secondBoundary = firstBoundary.addingTimeInterval(7 * 24 * 60 * 60)
         let histories = [
@@ -32,7 +31,7 @@ struct UsageStorePlanUtilizationDerivedChartTests {
 
     @MainActor
     @Test
-    func chartExposesClaudeOpusAsSeparateNativeTab() {
+    func `chart exposes claude opus as separate native tab`() {
         let boundary = Date(timeIntervalSince1970: 1_710_000_000)
         let histories = [
             planSeries(name: .session, windowMinutes: 300, entries: [

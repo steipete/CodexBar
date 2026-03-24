@@ -60,7 +60,7 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
 public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     private static let sessionWindowMinutes = 5 * 60
     private static let weeklyWindowMinutes = 7 * 24 * 60
-    private struct Configuration: Sendable {
+    private struct Configuration {
         let environment: [String: String]
         let runtime: ProviderRuntime
         let dataSource: ClaudeUsageDataSource
@@ -119,7 +119,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         self.configuration.browserDetection
     }
 
-    private struct ClaudeOAuthKeychainPromptPolicy: Sendable {
+    private struct ClaudeOAuthKeychainPromptPolicy {
         let mode: ClaudeOAuthKeychainPromptMode
         let isApplicable: Bool
         let interaction: ProviderInteraction
@@ -223,7 +223,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             browserDetection: browserDetection)
     }
 
-    private struct OAuthExecutor: Sendable {
+    private struct OAuthExecutor {
         let fetcher: ClaudeUsageFetcher
 
         func load(allowDelegatedRetry: Bool) async throws -> ClaudeUsageSnapshot {
@@ -417,7 +417,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
     }
 
-    private struct StepExecutor: Sendable {
+    private struct StepExecutor {
         let fetcher: ClaudeUsageFetcher
 
         func loadLatestUsage(model: String) async throws -> ClaudeUsageSnapshot {

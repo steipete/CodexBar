@@ -7,7 +7,7 @@ import SweetCookieKit
 
 struct AlibabaCodingPlanCookieImporterTests {
     @Test
-    func domainMatchingRequiresExactOrLabelBoundedSuffix() {
+    func `domain matching requires exact or label bounded suffix`() {
         #expect(AlibabaCodingPlanCookieImporter.matchesCookieDomain("console.aliyun.com"))
         #expect(AlibabaCodingPlanCookieImporter.matchesCookieDomain(".modelstudio.console.alibabacloud.com"))
         #expect(AlibabaCodingPlanCookieImporter.matchesCookieDomain("foo.aliyun.com"))
@@ -16,7 +16,7 @@ struct AlibabaCodingPlanCookieImporterTests {
     }
 
     @Test
-    func cookieImportCandidatesHonorProvidedBrowserOrder() throws {
+    func `cookie import candidates honor provided browser order`() throws {
         BrowserCookieAccessGate.resetForTesting()
 
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -46,7 +46,7 @@ struct AlibabaCodingPlanCookieImporterTests {
     }
 
     @Test
-    func defaultCookieImportCandidatesPreferChromeBeforeSafari() throws {
+    func `default cookie import candidates prefer chrome before safari`() throws {
         BrowserCookieAccessGate.resetForTesting()
 
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -77,7 +77,7 @@ struct AlibabaCodingPlanCookieImporterTests {
 
 struct AlibabaCodingPlanCookieImporterTests {
     @Test
-    func nonMacOSPlaceholder() {
+    func `non mac OS placeholder`() {
         #expect(true)
     }
 }

@@ -30,14 +30,14 @@ public struct AntigravityModelQuota: Sendable {
     }
 }
 
-private enum AntigravityModelFamily: Sendable {
+private enum AntigravityModelFamily {
     case claude
     case geminiPro
     case geminiFlash
     case unknown
 }
 
-private struct AntigravityNormalizedModel: Sendable {
+private struct AntigravityNormalizedModel {
     let quota: AntigravityModelQuota
     let family: AntigravityModelFamily
     let selectionPriority: Int?

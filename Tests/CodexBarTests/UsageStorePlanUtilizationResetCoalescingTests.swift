@@ -3,10 +3,9 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite
 struct UsageStorePlanUtilizationResetCoalescingTests {
     @Test
-    func sameHourEntryBackfillsMissingResetMetadata() throws {
+    func `same hour entry backfills missing reset metadata`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let hourStart = try #require(calendar.date(from: DateComponents(
             timeZone: TimeZone(secondsFromGMT: 0),
@@ -34,7 +33,7 @@ struct UsageStorePlanUtilizationResetCoalescingTests {
     }
 
     @Test
-    func sameHourLaterHigherUsageWithoutResetMetadataKeepsPromotedResetBoundary() throws {
+    func `same hour later higher usage without reset metadata keeps promoted reset boundary`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let hourStart = try #require(calendar.date(from: DateComponents(
             timeZone: TimeZone(secondsFromGMT: 0),
@@ -73,7 +72,7 @@ struct UsageStorePlanUtilizationResetCoalescingTests {
     }
 
     @Test
-    func sameHourZeroUsageWithDriftingResetCoalescesToLatestEntry() throws {
+    func `same hour zero usage with drifting reset coalesces to latest entry`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let hourStart = try #require(calendar.date(from: DateComponents(
             timeZone: TimeZone(secondsFromGMT: 0),
@@ -100,7 +99,7 @@ struct UsageStorePlanUtilizationResetCoalescingTests {
     }
 
     @Test
-    func sameHourResetTimesWithinTwoMinutesStillKeepSingleHourlyPeak() throws {
+    func `same hour reset times within two minutes still keep single hourly peak`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let hourStart = try #require(calendar.date(from: DateComponents(
             timeZone: TimeZone(secondsFromGMT: 0),
@@ -129,7 +128,7 @@ struct UsageStorePlanUtilizationResetCoalescingTests {
     }
 
     @Test
-    func sameHourUsageDropWithoutMeaningfulResetStillKeepsSingleHourlyPeak() throws {
+    func `same hour usage drop without meaningful reset still keeps single hourly peak`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let hourStart = try #require(calendar.date(from: DateComponents(
             timeZone: TimeZone(secondsFromGMT: 0),
@@ -158,7 +157,7 @@ struct UsageStorePlanUtilizationResetCoalescingTests {
     }
 
     @Test
-    func sameHourResetKeepsPeakBeforeResetAndLatestPeakAfterReset() throws {
+    func `same hour reset keeps peak before reset and latest peak after reset`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let hourStart = try #require(calendar.date(from: DateComponents(
             timeZone: TimeZone(secondsFromGMT: 0),
@@ -193,7 +192,7 @@ struct UsageStorePlanUtilizationResetCoalescingTests {
     }
 
     @Test
-    func newerResetWithinHourReplacesEarlierPostResetRecord() throws {
+    func `newer reset within hour replaces earlier post reset record`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let hourStart = try #require(calendar.date(from: DateComponents(
             timeZone: TimeZone(secondsFromGMT: 0),
@@ -227,7 +226,7 @@ struct UsageStorePlanUtilizationResetCoalescingTests {
     }
 
     @Test
-    func mergedHistoriesKeepSeriesSeparatedByStableName() throws {
+    func `merged histories keep series separated by stable name`() throws {
         let existing = [
             planSeries(name: .session, windowMinutes: 300, entries: [
                 planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 20),

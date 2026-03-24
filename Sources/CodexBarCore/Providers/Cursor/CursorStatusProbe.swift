@@ -723,13 +723,13 @@ public struct CursorStatusProbe: Sendable {
         throw CursorStatusProbeError.noSessionCookie
     }
 
-    enum ImportedSessionFetchOutcome: Sendable {
+    enum ImportedSessionFetchOutcome {
         case succeeded(CursorStatusSnapshot)
         case tryNextBrowser
         case failed(CursorStatusProbeError)
     }
 
-    enum ImportedSessionScanResult: Sendable {
+    enum ImportedSessionScanResult {
         case succeeded(CursorStatusSnapshot)
         case exhausted(CursorStatusProbeError?)
     }

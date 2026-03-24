@@ -13,7 +13,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3 Safari/605.1.15"
 
-    enum AuthMode: Sendable {
+    enum AuthMode {
         case apiKey
         case webSession
     }
