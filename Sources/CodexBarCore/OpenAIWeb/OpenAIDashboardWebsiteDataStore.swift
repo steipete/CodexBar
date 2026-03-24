@@ -41,24 +41,24 @@ public enum OpenAIDashboardWebsiteDataStore {
     /// Returns true if the given account email has completed a dashboard login.
     public static func isDashboardLoggedIn(forAccountEmail email: String?) -> Bool {
         guard let normalized = normalizeEmail(email) else { return false }
-        let set = UserDefaults.standard.stringArray(forKey: loggedInKey) ?? []
+        let set = UserDefaults.standard.stringArray(forKey: self.loggedInKey) ?? []
         return set.contains(normalized)
     }
 
     /// Marks an account as having completed dashboard login.
     public static func markDashboardLoggedIn(forAccountEmail email: String?) {
         guard let normalized = normalizeEmail(email) else { return }
-        var set = Set(UserDefaults.standard.stringArray(forKey: loggedInKey) ?? [])
+        var set = Set(UserDefaults.standard.stringArray(forKey: self.loggedInKey) ?? [])
         set.insert(normalized)
-        UserDefaults.standard.set(Array(set), forKey: loggedInKey)
+        UserDefaults.standard.set(Array(set), forKey: self.loggedInKey)
     }
 
     /// Marks an account as logged out from dashboard.
     public static func markDashboardLoggedOut(forAccountEmail email: String?) {
         guard let normalized = normalizeEmail(email) else { return }
-        var set = Set(UserDefaults.standard.stringArray(forKey: loggedInKey) ?? [])
+        var set = Set(UserDefaults.standard.stringArray(forKey: self.loggedInKey) ?? [])
         set.remove(normalized)
-        UserDefaults.standard.set(Array(set), forKey: loggedInKey)
+        UserDefaults.standard.set(Array(set), forKey: self.loggedInKey)
     }
 
     /// Clears the persistent cookie store for a single account email.

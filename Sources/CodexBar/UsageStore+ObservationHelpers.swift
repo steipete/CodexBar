@@ -54,6 +54,7 @@ extension UsageStore {
             _ = self.settings.debugKeepCLISessionsAlive
             _ = self.settings.historicalTrackingEnabled
             _ = self.settings.codexExplicitAccountsOnly
+            _ = self.settings.codexMultipleAccountsEnabled
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }

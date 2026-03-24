@@ -49,7 +49,11 @@ struct ProviderDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                let labelWidth = self.detailLabelWidth
+                // Compute once here — tokenAccountDefaultLabel reads auth.json from disk.
+                let codexDefaultLabel: String? = self.provider == .codex
+                    ? CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings)
+                    : nil
+                let labelWidth = self.detailLabelWidth(defaultLabel: codexDefaultLabel)
                 ProviderDetailHeaderView(
                     provider: self.provider,
                     store: self.store,
@@ -57,7 +61,7 @@ struct ProviderDetailView: View {
                     subtitle: self.subtitle,
                     model: self.model,
                     labelWidth: labelWidth,
-                    hideAccountAndPlan: self.codexHidesHeaderAccountAndPlan,
+                    hideAccountAndPlan: self.codexHidesHeaderAccountAndPlan(defaultLabel: codexDefaultLabel),
                     onRefresh: self.onRefresh)
 
                 // Multi-account toggles rendered ABOVE the Accounts section so that
@@ -88,10 +92,9 @@ struct ProviderDetailView: View {
                 }
 
                 Group {
-                    if self.provider == .codex, self.codexShowsUsageAccountSwitcher {
+                    if self.provider == .codex, self.codexShowsUsageAccountSwitcher(defaultLabel: codexDefaultLabel) {
                         let accounts = self.settings.tokenAccounts(for: .codex)
-                        let defaultLabel = CodexProviderImplementation()
-                            .tokenAccountDefaultLabel(settings: self.settings)
+                        let defaultLabel = codexDefaultLabel
                         let displaySelection = self.settings.displayTokenAccountActiveIndex(for: .codex)
                         ProviderMetricsInlineView(
                             provider: self.provider,
@@ -236,7 +239,7 @@ struct ProviderDetailView: View {
             return """
             CodexBar accounts only is on: ~/.codex is not used as an implicit account. \
             Add identities under Accounts (OAuth, API key, or manual CODEX_HOME path). \
-            Use "Default" on each row to choose which one drives the menu bar.
+            Use "Make Default" on each row to choose which one drives the menu bar.
             """
                 .replacingOccurrences(of: "\n", with: " ")
                 .trimmingCharacters(in: .whitespaces)
@@ -244,35 +247,34 @@ struct ProviderDetailView: View {
         return """
         The primary account is whichever identity Codex has configured in ~/.codex on this Mac. \
         Other rows in Accounts are separate credentials/folders. \
-        Use "Default" on each row to choose which one CodexBar shows in the menu bar.
+        Use "Make Default" on each row to choose which one CodexBar shows in the menu bar.
         """
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespaces)
     }
 
     /// When Codex has more than one selectable account, summary email/plan reflect only the active fetch — hide to
-    /// avoid confusion.
-    private var codexHidesHeaderAccountAndPlan: Bool {
+    /// avoid confusion. Accepts the pre-computed default label to avoid redundant disk reads.
+    private func codexHidesHeaderAccountAndPlan(defaultLabel: String?) -> Bool {
         guard self.provider == .codex else { return false }
         guard self.settings.codexMultipleAccountsEnabled else { return false }
-        let hasPrimary = !self.settings.codexExplicitAccountsOnly &&
-            CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings) != nil
         let addedCount = self.settings.tokenAccounts(for: .codex).count
         if self.settings.codexExplicitAccountsOnly {
             return addedCount >= 2
         }
+        let hasPrimary = defaultLabel != nil
         return (hasPrimary ? 1 : 0) + addedCount >= 2
     }
 
     /// Same rule as the menu-bar token switcher: default ~/.codex + ≥1 added account, or 2+ added accounts.
-    private var codexShowsUsageAccountSwitcher: Bool {
+    /// Accepts the pre-computed default label to avoid redundant disk reads.
+    private func codexShowsUsageAccountSwitcher(defaultLabel: String?) -> Bool {
         guard self.provider == .codex else { return false }
         guard self.settings.codexMultipleAccountsEnabled else { return false }
         let accounts = self.settings.tokenAccounts(for: .codex)
         if self.settings.codexExplicitAccountsOnly {
             return accounts.count >= 2
         }
-        let defaultLabel = CodexProviderImplementation().tokenAccountDefaultLabel(settings: self.settings)
         return (accounts.count >= 1 && defaultLabel != nil) || accounts.count > 1
     }
 
@@ -320,12 +322,12 @@ struct ProviderDetailView: View {
         return email.isEmpty ? nil : email
     }
 
-    private var detailLabelWidth: CGFloat {
+    private func detailLabelWidth(defaultLabel: String?) -> CGFloat {
         var infoLabels = ["State", "Source", "Version", "Updated"]
         if self.store.status(for: self.provider) != nil {
             infoLabels.append("Status")
         }
-        let hideAccountPlan = self.codexHidesHeaderAccountAndPlan
+        let hideAccountPlan = self.codexHidesHeaderAccountAndPlan(defaultLabel: defaultLabel)
         if !hideAccountPlan, !self.model.email.isEmpty {
             infoLabels.append("Account")
         }

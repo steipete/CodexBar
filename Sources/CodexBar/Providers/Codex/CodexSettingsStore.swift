@@ -5,7 +5,12 @@ extension SettingsStore {
     /// When `true`, CodexBar never treats `~/.codex` as an implicit menu-bar account; add accounts under Accounts
     /// (OAuth, API key, or path).
     var codexExplicitAccountsOnly: Bool {
-        get { self.configSnapshot.providerConfig(for: .codex)?.codexExplicitAccountsOnly ?? false }
+        get {
+            // Explicit-only only applies when multi-account is active; silently coerce stale
+            // config (e.g. hand-edited JSON) so the two flags are never contradictory.
+            guard self.codexMultipleAccountsEnabled else { return false }
+            return self.configSnapshot.providerConfig(for: .codex)?.codexExplicitAccountsOnly ?? false
+        }
         set {
             self.updateProviderConfig(provider: .codex) { entry in
                 entry.codexExplicitAccountsOnly = newValue
@@ -32,6 +37,7 @@ extension SettingsStore {
             self.updateProviderConfig(provider: .codex) { entry in
                 entry.codexMultipleAccountsEnabled = newValue
             }
+            self.repairCodexShellIntegrationIfNeeded()
         }
     }
 

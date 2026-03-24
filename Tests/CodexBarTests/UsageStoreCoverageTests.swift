@@ -156,6 +156,7 @@ struct UsageStoreCoverageTests {
                 accounts: [account],
                 defaultAccountLabel: "Primary"))
 
+        settings.codexMultipleAccountsEnabled = true
         settings.codexExplicitAccountsOnly = true
 
         #expect(
@@ -168,6 +169,7 @@ struct UsageStoreCoverageTests {
     @Test
     func `codex no data message uses active account sessions path`() {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-codex-no-data-path")
+        settings.codexMultipleAccountsEnabled = true
         settings.codexExplicitAccountsOnly = true
         settings.addTokenAccount(provider: .codex, label: "Work", token: "/tmp/codex-work")
 

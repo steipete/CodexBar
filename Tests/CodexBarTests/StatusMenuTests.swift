@@ -766,7 +766,9 @@ struct StatusMenuTests {
             #expect(planHistoryIndex < dashboardIndex)
         }
     }
+}
 
+extension StatusMenuTests {
     @Test
     func `shows credits before cost in codex menu card sections`() {
         self.disableMenuCardsForTesting()

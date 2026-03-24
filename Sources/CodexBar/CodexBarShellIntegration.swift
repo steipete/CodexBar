@@ -28,10 +28,10 @@ enum CodexBarShellIntegration {
 
     private static let hookSnippet = """
 
-# CodexBar shell integration — auto-switches CODEX_HOME when you change accounts in CodexBar
-precmd_codexbar() { export CODEX_HOME="$(cat ~/.codexbar/active-codex-home 2>/dev/null)"; }
-autoload -Uz add-zsh-hook && add-zsh-hook precmd precmd_codexbar
-"""
+    # CodexBar shell integration — auto-switches CODEX_HOME when you change accounts in CodexBar
+    precmd_codexbar() { export CODEX_HOME="$(cat ~/.codexbar/active-codex-home 2>/dev/null)"; }
+    autoload -Uz add-zsh-hook && add-zsh-hook precmd precmd_codexbar
+    """
 
     // MARK: - Public API
 
@@ -64,8 +64,8 @@ autoload -Uz add-zsh-hook && add-zsh-hook precmd precmd_codexbar
             fm.createFile(atPath: zshrc, contents: nil)
         }
         guard let existing = try? String(contentsOfFile: zshrc, encoding: .utf8) else { return }
-        guard !existing.contains(hookMarker) else { return }
-        try? (existing + hookSnippet).write(toFile: zshrc, atomically: true, encoding: .utf8)
+        guard !existing.contains(self.hookMarker) else { return }
+        try? (existing + self.hookSnippet).write(toFile: zshrc, atomically: true, encoding: .utf8)
     }
 
     /// Returns true if the zsh hook is already installed.
@@ -89,9 +89,10 @@ autoload -Uz add-zsh-hook && add-zsh-hook precmd precmd_codexbar
         let accountSessions = URL(fileURLWithPath: (codexHomePath as NSString).expandingTildeInPath)
             .appendingPathComponent("sessions", isDirectory: true)
 
-        if let destination = try? fm.destinationOfSymbolicLink(atPath: accountSessions.path)
-        {
-            let destinationURL = URL(fileURLWithPath: destination, relativeTo: accountSessions.deletingLastPathComponent())
+        if let destination = try? fm.destinationOfSymbolicLink(atPath: accountSessions.path) {
+            let destinationURL = URL(
+                fileURLWithPath: destination,
+                relativeTo: accountSessions.deletingLastPathComponent())
                 .resolvingSymlinksInPath()
                 .standardizedFileURL
             if destinationURL.path == defaultSessions.path {

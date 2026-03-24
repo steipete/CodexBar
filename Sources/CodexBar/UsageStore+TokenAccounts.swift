@@ -101,7 +101,7 @@ extension UsageStore {
                 fallbackSnapshot: selectedSnapshot)
         }
         if provider == .codex {
-            Task { await self.refreshAllAccountCredits(for: .codex) }
+            await self.refreshAllAccountCredits(for: .codex)
         }
 
         await self.recordFetchedTokenAccountPlanUtilizationHistory(

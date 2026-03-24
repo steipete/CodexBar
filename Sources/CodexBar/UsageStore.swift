@@ -1539,40 +1539,32 @@ extension UsageStore {
         return nil
     }
 
+    private func clearTokenUsageState(for provider: UsageProvider) {
+        self.tokenSnapshots.removeValue(forKey: provider)
+        self.tokenErrors[provider] = nil
+        self.tokenFailureGates[provider]?.reset()
+        self.lastTokenFetchAt.removeValue(forKey: provider)
+        self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
+    }
+
     func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
         guard provider == .codex || provider == .claude || provider == .vertexai else {
-            self.tokenSnapshots.removeValue(forKey: provider)
-            self.tokenErrors[provider] = nil
-            self.tokenFailureGates[provider]?.reset()
-            self.lastTokenFetchAt.removeValue(forKey: provider)
-            self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
+            self.clearTokenUsageState(for: provider)
             return
         }
 
         guard self.settings.costUsageEnabled else {
-            self.tokenSnapshots.removeValue(forKey: provider)
-            self.tokenErrors[provider] = nil
-            self.tokenFailureGates[provider]?.reset()
-            self.lastTokenFetchAt.removeValue(forKey: provider)
-            self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
+            self.clearTokenUsageState(for: provider)
             return
         }
 
         guard self.isEnabled(provider) else {
-            self.tokenSnapshots.removeValue(forKey: provider)
-            self.tokenErrors[provider] = nil
-            self.tokenFailureGates[provider]?.reset()
-            self.lastTokenFetchAt.removeValue(forKey: provider)
-            self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
+            self.clearTokenUsageState(for: provider)
             return
         }
 
         if provider == .codex, !self.settings.isCostUsageEffectivelyEnabled(for: .codex) {
-            self.tokenSnapshots.removeValue(forKey: provider)
-            self.tokenErrors[provider] = nil
-            self.tokenFailureGates[provider]?.reset()
-            self.lastTokenFetchAt.removeValue(forKey: provider)
-            self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
+            self.clearTokenUsageState(for: provider)
             return
         }
 

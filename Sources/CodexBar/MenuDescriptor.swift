@@ -373,11 +373,10 @@ struct MenuDescriptor {
         guard store.settings.codexMultipleAccountsEnabled else { return nil }
         guard store.settings.openAIWebAccessEnabled else { return nil }
 
-        let accountIdentifier: String?
-        if let selected = store.settings.selectedTokenAccount(for: .codex) {
-            accountIdentifier = selected.token
+        let accountIdentifier: String? = if let selected = store.settings.selectedTokenAccount(for: .codex) {
+            selected.token
         } else {
-            accountIdentifier = ("~/.codex" as NSString).expandingTildeInPath
+            ("~/.codex" as NSString).expandingTildeInPath
         }
 
         guard let key = accountIdentifier, !key.isEmpty, !key.hasPrefix("apikey:") else { return nil }

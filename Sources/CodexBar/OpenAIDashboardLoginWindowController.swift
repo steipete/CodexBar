@@ -4,8 +4,13 @@ import WebKit
 
 /// NSWindow subclass that always accepts key status so the WKWebView inside can receive keyboard input.
 private class WebViewWindow: NSWindow {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    override var canBecomeKey: Bool {
+        true
+    }
+
+    override var canBecomeMain: Bool {
+        true
+    }
 }
 
 /// Shows a WKWebView window where the user can sign in to chatgpt.com.
@@ -29,7 +34,7 @@ final class OpenAIDashboardLoginWindowController: NSWindowController, WKNavigati
     private var displayName: String?
     private var loginDetected = false
 
-    // Dashboard-only mode callback.
+    /// Dashboard-only mode callback.
     private var onComplete: ((Bool) -> Void)?
 
     /// When true, the window auto-closes after login is detected. When false (view-only mode),
@@ -39,7 +44,9 @@ final class OpenAIDashboardLoginWindowController: NSWindowController, WKNavigati
     // Unified add-account mode callbacks.
     private var onAccountCreated: ((_ email: String, _ codexHome: String) -> Void)?
     private var onDismissedWithoutLogin: (() -> Void)?
-    private var isUnifiedMode: Bool { self.onAccountCreated != nil }
+    private var isUnifiedMode: Bool {
+        self.onAccountCreated != nil
+    }
 
     /// JS that fetches the session endpoint to extract accessToken + user info.
     private static let sessionExtractScript = """
@@ -80,7 +87,12 @@ final class OpenAIDashboardLoginWindowController: NSWindowController, WKNavigati
     /// - Parameter accountEmail: Unique key for cookie store isolation (CODEX_HOME path or email).
     /// - Parameter displayName: Human-readable label for the window title. Falls back to accountEmail.
     /// - Parameter viewOnly: When true, skips login detection polling and keeps the window open for browsing.
-    init(accountEmail: String?, displayName: String? = nil, viewOnly: Bool = false, onComplete: ((Bool) -> Void)? = nil) {
+    init(
+        accountEmail: String?,
+        displayName: String? = nil,
+        viewOnly: Bool = false,
+        onComplete: ((Bool) -> Void)? = nil)
+    {
         self.accountEmail = Self.normalizeEmail(accountEmail)
         self.displayName = displayName
         self.autoCloseOnLogin = !viewOnly
@@ -225,7 +237,9 @@ final class OpenAIDashboardLoginWindowController: NSWindowController, WKNavigati
             guard let dict = result as? [String: Any],
                   let accessToken = dict["accessToken"] as? String, !accessToken.isEmpty
             else {
-                let errorMsg = (result as? [String: Any])?["error"] as? String ?? error?.localizedDescription ?? "unknown"
+                let errorMsg = (result as? [
+                    String: Any
+                ])?["error"] as? String ?? error?.localizedDescription ?? "unknown"
                 self.logger.error("Failed to extract session token: \(errorMsg)")
                 self.onComplete?(false)
                 self.close()
@@ -325,8 +339,8 @@ extension OpenAIDashboardLoginWindowController: WKUIDelegate {
         _ webView: WKWebView,
         createWebViewWith configuration: WKWebViewConfiguration,
         for navigationAction: WKNavigationAction,
-        windowFeatures: WKWindowFeatures
-    ) -> WKWebView? {
+        windowFeatures: WKWindowFeatures) -> WKWebView?
+    {
         if navigationAction.targetFrame == nil || !(navigationAction.targetFrame?.isMainFrame ?? false) {
             webView.load(navigationAction.request)
         }

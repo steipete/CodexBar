@@ -48,11 +48,15 @@ extension SettingsStore {
     func activeCodexAPIKey(
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
+        // Respect the currently selected add-on account so that an API-key row doesn't get
+        // confused with ~/.codex credentials (and vice-versa) when codexExplicitAccountsOnly is on.
+        let selected = self.selectedTokenAccount(for: .codex)
+        let tokenOverride = selected.map { TokenAccountOverride(provider: .codex, account: $0) }
         let env = ProviderRegistry.makeEnvironment(
             base: baseEnvironment,
             provider: .codex,
             settings: self,
-            tokenOverride: nil)
+            tokenOverride: tokenOverride)
         guard let credentials = try? CodexOAuthCredentialsStore.load(env: env) else { return nil }
         let accessToken = credentials.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
         let refreshToken = credentials.refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -152,13 +156,14 @@ extension SettingsStore {
             ? accounts[data.activeIndex]
             : nil
         accounts.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        let newActiveIndex: Int
-        if let activeAccount = previousActiveAccount,
-           let newIndex = accounts.firstIndex(where: { $0.id == activeAccount.id })
+        let newActiveIndex: Int = if let activeAccount = previousActiveAccount,
+                                     let newIndex = accounts.firstIndex(where: { $0.id == activeAccount.id })
         {
-            newActiveIndex = newIndex
+            newIndex
         } else {
-            newActiveIndex = data.activeIndex
+            // Preserve the primary-account sentinel (-1) or clamp an out-of-range index so we
+            // never persist an index that points past the end of the reordered array.
+            max(-1, min(data.activeIndex, accounts.count - 1))
         }
         let updated = ProviderTokenAccountData(
             version: data.version,
@@ -257,6 +262,13 @@ extension SettingsStore {
     func repairCodexShellIntegrationIfNeeded() {
         guard !Self.isRunningTests else { return }
 
+        // When multiple-accounts mode is disabled, accounts may still linger in config but must
+        // not influence the shell environment – treat the primary ~/.codex as the only account.
+        guard self.codexMultipleAccountsEnabled else {
+            CodexBarShellIntegration.setActiveCodexHome(nil)
+            return
+        }
+
         let pathAccounts = self.tokenAccounts(for: .codex)
             .map(\.token)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -277,14 +289,13 @@ extension SettingsStore {
         let activeToken = self.selectedTokenAccount(for: .codex)?
             .token
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let activePath: String?
-        if let activeToken,
-           !activeToken.isEmpty,
-           !activeToken.lowercased().hasPrefix("apikey:")
+        let activePath: String? = if let activeToken,
+                                     !activeToken.isEmpty,
+                                     !activeToken.lowercased().hasPrefix("apikey:")
         {
-            activePath = activeToken
+            activeToken
         } else {
-            activePath = nil
+            nil
         }
         CodexBarShellIntegration.setActiveCodexHome(activePath)
     }
