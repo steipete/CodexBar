@@ -165,6 +165,13 @@ struct TokenAccountCLIContext {
                 kimi: ProviderSettingsSnapshot.KimiProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
+        case .mimo:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                mimo: ProviderSettingsSnapshot.MiMoProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .zai:
             return self.makeSnapshot(
                 zai: ProviderSettingsSnapshot.ZaiProviderSettings(apiRegion: self.resolveZaiRegion(config)))
@@ -196,7 +203,8 @@ struct TokenAccountCLIContext {
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
         amp: ProviderSettingsSnapshot.AmpProviderSettings? = nil,
         ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
-        jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil) -> ProviderSettingsSnapshot
+        jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
+        mimo: ProviderSettingsSnapshot.MiMoProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
@@ -212,7 +220,8 @@ struct TokenAccountCLIContext {
             augment: augment,
             amp: amp,
             ollama: ollama,
-            jetbrains: jetbrains)
+            jetbrains: jetbrains,
+            mimo: mimo)
     }
 
     func environment(

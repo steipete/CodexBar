@@ -27,7 +27,7 @@ struct ProviderDetailView: View {
         else {
             return nil
         }
-        guard provider == .openrouter else {
+        guard provider == .openrouter || provider == .mimo else {
             return (label: "Plan", value: rawPlan)
         }
 

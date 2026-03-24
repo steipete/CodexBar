@@ -1158,6 +1158,7 @@ extension UsageStore {
                 .kimi: "Kimi debug log not yet implemented",
                 .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
+                .mimo: "Xiaomi MiMo debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {
@@ -1231,7 +1232,7 @@ extension UsageStore {
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .jetbrains:
+                     .kimik2, .jetbrains, .mimo:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

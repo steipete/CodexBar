@@ -247,7 +247,18 @@ struct MenuDescriptor {
                 entries.append(.text("Activity: \(detail)", .secondary))
             }
         } else if let loginMethodText, !loginMethodText.isEmpty {
-            entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText))", .secondary))
+            if provider == .openrouter || provider == .mimo {
+                let balanceValue = loginMethodText
+                    .replacingOccurrences(
+                        of: #"(?i)^\s*balance:\s*"#,
+                        with: "",
+                        options: [.regularExpression])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let value = balanceValue.isEmpty ? loginMethodText : balanceValue
+                entries.append(.text("Balance: \(AccountFormatter.plan(value))", .secondary))
+            } else {
+                entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText))", .secondary))
+            }
         }
 
         if metadata.usesAccountFallback {

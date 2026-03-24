@@ -71,6 +71,7 @@ enum ProviderChoice: String, AppEnum {
         case .synthetic: return nil // Synthetic not yet supported in widgets
         case .openrouter: return nil // OpenRouter not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets
+        case .mimo: return nil // Xiaomi MiMo not yet supported in widgets
         }
     }
 }
