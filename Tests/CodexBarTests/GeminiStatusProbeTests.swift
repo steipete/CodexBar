@@ -202,7 +202,7 @@ struct GeminiStatusProbeTests {
     }
 
     @Test
-    func `to usage snapshot does not let flash lite contaminate flash bucket`() throws {
+    func toUsageSnapshotDoesNotLetFlashLiteContaminateFlashBucket() throws {
         let output = """
         │  gemini-2.5-flash                           10       91.0% (Resets in 12h)  │
         │  gemini-2.5-flash-lite                       5       33.0% (Resets in 6h)   │

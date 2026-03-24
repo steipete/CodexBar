@@ -37,13 +37,13 @@ public enum AntigravityProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
                     if AntigravitySessionState.preferRemote {
                         // User explicitly switched account this session — prefer remote API.
-                        return [
+                        [
                             AntigravityAPIFetchStrategy(),
                             AntigravityStatusFetchStrategy(),
                         ]
                     } else {
                         // Default — try local probe first, fall back to API.
-                        return [
+                        [
                             AntigravityStatusFetchStrategy(),
                             AntigravityAPIFetchStrategy(),
                         ]

@@ -46,7 +46,7 @@ struct AlibabaCodingPlanCookieImporterTests {
     }
 
     @Test
-    func `default cookie import candidates prefer chrome before safari`() throws {
+    func defaultCookieImportCandidatesPreferChromeBeforeSafari() throws {
         BrowserCookieAccessGate.resetForTesting()
 
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

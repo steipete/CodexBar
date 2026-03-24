@@ -6,5 +6,5 @@ public enum AntigravitySessionState: Sendable {
     /// When `true`, the API fetch strategy takes priority over local probe.
     /// Set to `true` after user explicitly clicks "Switch Account" and logs in.
     /// Resets to `false` on app restart (in-memory only, not persisted).
-    nonisolated(unsafe) public static var preferRemote: Bool = false
+    public nonisolated(unsafe) static var preferRemote: Bool = false
 }

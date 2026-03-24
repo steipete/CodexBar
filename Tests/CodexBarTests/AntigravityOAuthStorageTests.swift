@@ -1,6 +1,6 @@
-@testable import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 @Suite("AntigravityOAuthStorage Tests")
 struct AntigravityOAuthStorageTests {
@@ -32,8 +32,11 @@ struct AntigravityOAuthStorageTests {
     func deleteTokens() throws {
         let storage = AntigravityOAuthStorage(serviceName: self.testServiceName)
         let tokens = AntigravityOAuthTokens(
-            accessToken: "x", refreshToken: "y",
-            expiresAt: Date(), email: nil, projectId: nil)
+            accessToken: "x",
+            refreshToken: "y",
+            expiresAt: Date(),
+            email: nil,
+            projectId: nil)
         try storage.saveTokens(tokens)
         storage.deleteTokens()
 
@@ -48,8 +51,11 @@ struct AntigravityOAuthStorageTests {
         #expect(storage.hasTokens() == false)
 
         let tokens = AntigravityOAuthTokens(
-            accessToken: "a", refreshToken: "b",
-            expiresAt: Date(), email: nil, projectId: nil)
+            accessToken: "a",
+            refreshToken: "b",
+            expiresAt: Date(),
+            email: nil,
+            projectId: nil)
         try storage.saveTokens(tokens)
 
         #expect(storage.hasTokens() == true)
@@ -67,27 +73,33 @@ struct AntigravityOAuthTokensTests {
     @Test("isExpired returns true for past expiry")
     func expiredToken() {
         let token = AntigravityOAuthTokens(
-            accessToken: "x", refreshToken: "y",
+            accessToken: "x",
+            refreshToken: "y",
             expiresAt: Date().addingTimeInterval(-60),
-            email: nil, projectId: nil)
+            email: nil,
+            projectId: nil)
         #expect(token.isExpired == true)
     }
 
     @Test("isExpired returns true within 5-minute buffer")
     func almostExpiredToken() {
         let token = AntigravityOAuthTokens(
-            accessToken: "x", refreshToken: "y",
+            accessToken: "x",
+            refreshToken: "y",
             expiresAt: Date().addingTimeInterval(4 * 60), // 4 minutes left
-            email: nil, projectId: nil)
+            email: nil,
+            projectId: nil)
         #expect(token.isExpired == true)
     }
 
     @Test("isExpired returns false for valid token")
     func validToken() {
         let token = AntigravityOAuthTokens(
-            accessToken: "x", refreshToken: "y",
+            accessToken: "x",
+            refreshToken: "y",
             expiresAt: Date().addingTimeInterval(3600),
-            email: nil, projectId: nil)
+            email: nil,
+            projectId: nil)
         #expect(token.isExpired == false)
     }
 }

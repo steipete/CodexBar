@@ -150,14 +150,13 @@ enum AntigravityOAuthCallbackServer {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-        let params = [
-            "code=\(code)",
-            "client_id=\(AntigravityOAuthConfig.clientId)",
-            "client_secret=\(AntigravityOAuthConfig.clientSecret)",
-            "redirect_uri=\(redirectURI)",
-            "grant_type=authorization_code",
-        ].joined(separator: "&")
-        request.httpBody = params.data(using: .utf8)
+        request.httpBody = AntigravityOAuthFormEncoding.bodyData([
+            URLQueryItem(name: "code", value: code),
+            URLQueryItem(name: "client_id", value: AntigravityOAuthConfig.clientId),
+            URLQueryItem(name: "client_secret", value: AntigravityOAuthConfig.clientSecret),
+            URLQueryItem(name: "redirect_uri", value: redirectURI),
+            URLQueryItem(name: "grant_type", value: "authorization_code"),
+        ])
 
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 15

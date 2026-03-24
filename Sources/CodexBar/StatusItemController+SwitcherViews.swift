@@ -479,20 +479,24 @@ final class ProviderSwitcherView: NSView {
         return rows
     }
 
-    private static func switcherOuterPadding(for width: CGFloat, count: Int, minimumGap: CGFloat) -> CGFloat {
+    private static func switcherOuterPadding(
+        for width: CGFloat,
+        count buttonCount: Int,
+        minimumGap: CGFloat) -> CGFloat
+    {
         // Align with the card's left/right content grid when possible.
         let preferred: CGFloat = 16
         let reduced: CGFloat = 10
         let minimal: CGFloat = 6
 
         func averageButtonWidth(outerPadding: CGFloat) -> CGFloat {
-            let available = width - outerPadding * 2 - minimumGap * CGFloat(max(0, count - 1))
-            guard count > 0 else { return 0 }
-            return available / CGFloat(count)
+            let available = width - outerPadding * 2 - minimumGap * CGFloat(max(0, buttonCount - 1))
+            guard buttonCount > 0 else { return 0 }
+            return available / CGFloat(buttonCount)
         }
 
         // Only sacrifice padding when we'd otherwise squeeze buttons into unreadable widths.
-        let minimumComfortableAverage: CGFloat = count >= 5 ? 50 : 54
+        let minimumComfortableAverage: CGFloat = buttonCount >= 5 ? 50 : 54
 
         if averageButtonWidth(outerPadding: preferred) >= minimumComfortableAverage { return preferred }
         if averageButtonWidth(outerPadding: reduced) >= minimumComfortableAverage { return reduced }
@@ -700,16 +704,16 @@ final class ProviderSwitcherView: NSView {
 
     private static func maxAllowedUniformSegmentWidth(
         for totalWidth: CGFloat,
-        count: Int,
+        count buttonCount: Int,
         outerPadding: CGFloat,
         minimumGap: CGFloat) -> CGFloat
     {
-        guard count > 0 else { return 0 }
+        guard buttonCount > 0 else { return 0 }
         let available = totalWidth -
             outerPadding * 2 -
-            minimumGap * CGFloat(max(0, count - 1))
+            minimumGap * CGFloat(max(0, buttonCount - 1))
         guard available > 0 else { return 0 }
-        return floor(available / CGFloat(count))
+        return floor(available / CGFloat(buttonCount))
     }
 
     private static func paddedImage(_ image: NSImage, leading: CGFloat) -> NSImage {

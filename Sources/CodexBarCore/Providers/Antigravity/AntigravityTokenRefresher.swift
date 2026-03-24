@@ -15,13 +15,12 @@ public struct AntigravityTokenRefresher: Sendable {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-        let params = [
-            "refresh_token=\(refreshToken)",
-            "client_id=\(AntigravityOAuthConfig.clientId)",
-            "client_secret=\(AntigravityOAuthConfig.clientSecret)",
-            "grant_type=refresh_token",
-        ].joined(separator: "&")
-        request.httpBody = params.data(using: .utf8)
+        request.httpBody = AntigravityOAuthFormEncoding.bodyData([
+            URLQueryItem(name: "refresh_token", value: refreshToken),
+            URLQueryItem(name: "client_id", value: AntigravityOAuthConfig.clientId),
+            URLQueryItem(name: "client_secret", value: AntigravityOAuthConfig.clientSecret),
+            URLQueryItem(name: "grant_type", value: "refresh_token"),
+        ])
         return request
     }
 
