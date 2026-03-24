@@ -10,6 +10,11 @@ struct MiMoProviderImplementation: ProviderImplementation {
     let supportsLoginFlow: Bool = true
 
     @MainActor
+    func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
+        ProviderPresentation { _ in "cookies" }
+    }
+
+    @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.miMoCookieSource
         _ = settings.miMoCookieHeader

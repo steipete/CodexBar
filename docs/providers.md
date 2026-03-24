@@ -186,10 +186,8 @@ until the session is invalid, to avoid repeated Keychain prompts.
 ## Xiaomi MiMo
 - Browser-cookie based provider for the Xiaomi MiMo balance console.
 - Endpoint: `GET https://platform.xiaomimimo.com/api/v1/balance`.
-- Required cookies: `api-platform_serviceToken` and `userId`; optional cookies like `api-platform_ph` and `api-platform_slh` are passed through when available.
 - Cookie source can be `auto` (Chrome-family import) or `manual` (paste a `Cookie:` header from `platform.xiaomimimo.com`).
-- Displays the current account balance as provider identity text (`Balance: ...`) rather than quota windows.
-- Override the base API URL with `MIMO_API_URL` for testing.
 - Status: none yet.
+- Details: `docs/mimo.md`.
 
 See also: `docs/provider.md` for architecture notes.
