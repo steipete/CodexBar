@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.19.0 — 2026-03-23
 ### Highlights
 - Add Alibaba Coding Plan provider with region-aware quota fetching, widget integration, and browser-cookie import defaults (#574).
