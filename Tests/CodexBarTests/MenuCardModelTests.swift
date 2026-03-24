@@ -297,6 +297,41 @@ struct MenuCardModelTests {
     }
 
     @Test
+    func `cost section still renders when only api key error is available`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date())
+        let error = "OpenAI blocked spend data for this key: missing `api.usage.read`. " +
+            "Grant that scope or use an organization/admin key with usage access."
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: error,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: Date()))
+
+        #expect(model.tokenUsage?.sessionLine == "Today: —")
+        #expect(model.tokenUsage?.monthLine == "Last 30 days: —")
+        #expect(model.tokenUsage?.errorLine == error)
+    }
+
+    @Test
     func `claude model does not leak codex plan`() throws {
         let metadata = try #require(ProviderDefaults.metadata[.claude])
         let model = UsageMenuCardView.Model.make(.init(

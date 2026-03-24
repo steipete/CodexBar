@@ -126,6 +126,37 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `codex token account descriptor surfaces active api key usage warning`() throws {
+        let suite = "ProviderSettingsDescriptorTests-codex-apikey-warning"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.codexMultipleAccountsEnabled = true
+        settings.codexExplicitAccountsOnly = true
+        settings.addTokenAccount(provider: .codex, label: "Attune API Test", token: "apikey:sk-test")
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        store.tokenErrors[.codex] =
+            "OpenAI blocked spend data for this key: missing `api.usage.read`. " +
+            "Grant that scope or use an organization/admin key with usage access."
+
+        let pane = ProvidersPane(settings: settings, store: store)
+        let descriptor = try #require(pane._test_tokenAccountDescriptor(for: .codex))
+        let warning = try #require(descriptor.activeAccountStatusText?())
+        #expect(warning.contains("Attune API Test"))
+        #expect(warning.contains("blocked spend data"))
+        #expect(warning.contains("api.usage.read"))
+    }
+
+    @Test
     func `claude exposes usage and cookie pickers`() throws {
         let suite = "ProviderSettingsDescriptorTests-claude"
         let defaults = try #require(UserDefaults(suiteName: suite))

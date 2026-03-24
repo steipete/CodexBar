@@ -62,6 +62,23 @@ extension UsageStore {
             // Token accounts
             for (offset, account) in tokenAccounts.enumerated() {
                 group.addTask {
+                    let trimmedToken = account.token.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedToken.lowercased().hasPrefix("apikey:") {
+                        let entry = AccountCostEntry(
+                            id: account.id.uuidString,
+                            label: account.label,
+                            isDefault: false,
+                            creditsRemaining: nil,
+                            isUnlimited: false,
+                            planType: nil,
+                            primaryUsedPercent: nil,
+                            secondaryUsedPercent: nil,
+                            primaryResetDescription: nil,
+                            secondaryResetDescription: nil,
+                            error: nil,
+                            updatedAt: Date())
+                        return (offset + baseOffset, entry)
+                    }
                     guard let env = TokenAccountSupportCatalog.envOverride(for: .codex, token: account.token) else {
                         let entry = AccountCostEntry(
                             id: account.id.uuidString,

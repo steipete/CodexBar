@@ -155,6 +155,7 @@ final class SettingsStore {
         self.openAIWebAccessEnabled = self.codexCookieSource.isEnabled
         Self.sharedDefaults?.set(self.debugDisableKeychainAccess, forKey: "debugDisableKeychainAccess")
         KeychainAccessGate.isDisabled = self.debugDisableKeychainAccess
+        self.repairCodexShellIntegrationIfNeeded()
     }
 }
 

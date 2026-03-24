@@ -1390,7 +1390,16 @@ extension UsageMenuCardView.Model {
     {
         guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
         guard enabled else { return nil }
-        guard let snapshot else { return nil }
+        let err = error?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let snapshot else {
+            guard let err, !err.isEmpty else { return nil }
+            return TokenUsageSection(
+                sessionLine: "Today: —",
+                monthLine: "Last 30 days: —",
+                hintLine: nil,
+                errorLine: err,
+                errorCopyText: err)
+        }
 
         let sessionCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
@@ -1411,13 +1420,12 @@ extension UsageMenuCardView.Model {
             }
             return "Last 30 days: \(monthCost)"
         }()
-        let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
             sessionLine: sessionLine,
             monthLine: monthLine,
             hintLine: nil,
             errorLine: err,
-            errorCopyText: (error?.isEmpty ?? true) ? nil : error)
+            errorCopyText: err)
     }
 
     private static func providerCostSection(

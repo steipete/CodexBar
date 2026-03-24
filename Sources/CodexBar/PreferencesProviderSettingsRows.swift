@@ -260,7 +260,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
         }
         return "Only one account is active at a time. Choose “Default” on the row you want. " +
             "The house row is your primary ~/.codex sign-in; added rows use a separate OAuth folder or API key. " +
-            "Buy Credits is also under Options."
+            "Cost appears only for API key rows. Buy Credits is also under Options."
     }
 
     var body: some View {
@@ -302,6 +302,11 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                }
+                let status = self.descriptor.activeAccountStatusText?()?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if !status.isEmpty {
+                    self.inlineAccountStatusNotice(status)
                 }
             }
 
@@ -692,9 +697,34 @@ struct ProviderSettingsTokenAccountsRowView: View {
         }
     }
 
+    private func inlineAccountStatusNotice(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .imageScale(.small)
+                .padding(.top, 1)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.orange.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.orange.opacity(0.22), lineWidth: 1)))
+    }
+
     private func codexAPIKeyAddSection() -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Adds an account that sets OPENAI_API_KEY for Codex (stored securely in your config).")
+            Text(
+                "Adds an account that sets OPENAI_API_KEY for Codex (stored securely in your config). " +
+                    "Cost and 30-day history require an OpenAI key with usage access.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

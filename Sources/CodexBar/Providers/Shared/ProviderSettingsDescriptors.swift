@@ -122,6 +122,8 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let isDashboardLoggedIn: ((_ accountEmail: String?) -> Bool)?
     /// Logs out of the dashboard for the given account identifier (clears cookies and tracked state).
     let dashboardLogout: ((_ accountIdentifier: String?) async -> Void)?
+    /// Optional inline status shown below the account rows (for example: account-specific warnings).
+    let activeAccountStatusText: (() -> String?)?
     /// Codex only: mirrors **CodexBar accounts only**; hides ~/.codex primary tab and adjusts copy.
     let codexExplicitAccountsOnly: Bool
 }

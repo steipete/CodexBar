@@ -69,9 +69,17 @@ extension SettingsStore {
         return preference
     }
 
-    func isCostUsageEffectivelyEnabled(for provider: UsageProvider) -> Bool {
-        self.costUsageEnabled
+    func isCostUsageEffectivelyEnabled(
+        for provider: UsageProvider,
+        baseEnvironment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        let enabled = self.costUsageEnabled
             && ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost
+        guard enabled else { return false }
+        if provider == .codex {
+            return self.isActiveCodexAPIAccount(baseEnvironment: baseEnvironment)
+        }
+        return true
     }
 
     var resetTimeDisplayStyle: ResetTimeDisplayStyle {

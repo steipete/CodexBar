@@ -316,6 +316,11 @@ struct ProvidersPane: View {
                     }
                 }
                 : nil,
+            activeAccountStatusText: provider == .codex
+                ? { [store] in
+                    store.activeCodexAPIKeySettingsNotice()
+                }
+                : nil,
             codexExplicitAccountsOnly: codexExplicit)
     }
 

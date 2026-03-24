@@ -98,6 +98,7 @@ struct ProviderDetailView: View {
                             model: self.model,
                             isEnabled: self.isEnabled,
                             labelWidth: labelWidth,
+                            titleTrailingNote: self.codexUsageTitleTrailingNote,
                             accountSwitcher: {
                                 let identity = self.codexUsageAccountSwitcherIdentity
                                 let widthKey = String(Int(self.codexAccountSwitcherLayoutWidth))
@@ -125,7 +126,8 @@ struct ProviderDetailView: View {
                             provider: self.provider,
                             model: self.model,
                             isEnabled: self.isEnabled,
-                            labelWidth: labelWidth)
+                            labelWidth: labelWidth,
+                            titleTrailingNote: self.codexUsageTitleTrailingNote)
                     }
                 }
 
@@ -287,6 +289,11 @@ struct ProviderDetailView: View {
         let measured = self.measuredDetailContentWidth
         let column = measured > 1 ? measured : 400
         return max(220, column - 16)
+    }
+
+    private var codexUsageTitleTrailingNote: String? {
+        guard self.provider == .codex, self.settings.codexMultipleAccountsEnabled else { return nil }
+        return "(Cost only available for API configured accounts)"
     }
 
     /// Display name for the account whose usage/cost is shown (token selection or primary or menu card email).
@@ -522,6 +529,7 @@ struct ProviderMetricsInlineView<AccountSwitcher: View>: View {
     let model: UsageMenuCardView.Model
     let isEnabled: Bool
     let labelWidth: CGFloat
+    let titleTrailingNote: String?
     @ViewBuilder private var accountSwitcher: AccountSwitcher
 
     init(
@@ -529,12 +537,14 @@ struct ProviderMetricsInlineView<AccountSwitcher: View>: View {
         model: UsageMenuCardView.Model,
         isEnabled: Bool,
         labelWidth: CGFloat,
+        titleTrailingNote: String? = nil,
         @ViewBuilder accountSwitcher: () -> AccountSwitcher)
     {
         self.provider = provider
         self.model = model
         self.isEnabled = isEnabled
         self.labelWidth = labelWidth
+        self.titleTrailingNote = titleTrailingNote
         self.accountSwitcher = accountSwitcher()
     }
 
@@ -547,9 +557,7 @@ struct ProviderMetricsInlineView<AccountSwitcher: View>: View {
         let hasUsageRows = hasMetrics || hasUsageNotes || hasProviderCost || hasCredits
         ProviderSettingsSection(
             title: "Usage",
-            titleTrailingNote: self.provider == .codex
-                ? "(Cost only available for API configured accounts)"
-                : nil,
+            titleTrailingNote: self.titleTrailingNote,
             spacing: 8,
             verticalPadding: 6,
             horizontalPadding: 0)
@@ -601,12 +609,19 @@ struct ProviderMetricsInlineView<AccountSwitcher: View>: View {
 }
 
 extension ProviderMetricsInlineView where AccountSwitcher == EmptyView {
-    init(provider: UsageProvider, model: UsageMenuCardView.Model, isEnabled: Bool, labelWidth: CGFloat) {
+    init(
+        provider: UsageProvider,
+        model: UsageMenuCardView.Model,
+        isEnabled: Bool,
+        labelWidth: CGFloat,
+        titleTrailingNote: String? = nil)
+    {
         self.init(
             provider: provider,
             model: model,
             isEnabled: isEnabled,
             labelWidth: labelWidth,
+            titleTrailingNote: titleTrailingNote,
             accountSwitcher: { EmptyView() })
     }
 }

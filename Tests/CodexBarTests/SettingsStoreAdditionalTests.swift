@@ -174,6 +174,44 @@ struct SettingsStoreAdditionalTests {
         #expect(SettingsStore.hasAnyTokenCostUsageSources(env: env, fileManager: fm))
     }
 
+    @Test
+    func `codex cost usage is only enabled for active API key accounts`() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-codex-api-cost")
+        settings.costUsageEnabled = true
+
+        settings.addTokenAccount(provider: .codex, label: "OAuth", token: "/tmp/codex-oauth")
+        #expect(!settings.isCostUsageEffectivelyEnabled(for: .codex))
+
+        settings.addTokenAccount(provider: .codex, label: "API", token: "apikey:sk-test")
+        settings.setActiveTokenAccountIndex(1, for: .codex)
+        #expect(settings.isCostUsageEffectivelyEnabled(for: .codex))
+
+        settings.setActiveTokenAccountIndex(0, for: .codex)
+        #expect(!settings.isCostUsageEffectivelyEnabled(for: .codex))
+    }
+
+    @Test
+    func `codex cost usage is enabled for default API auth json`() throws {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-codex-default-api-cost")
+        settings.costUsageEnabled = true
+
+        let fileManager = FileManager.default
+        let codexHome = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: codexHome, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: codexHome) }
+
+        let authURL = codexHome.appendingPathComponent("auth.json", isDirectory: false)
+        try """
+        {
+          "OPENAI_API_KEY": "sk-default-api"
+        }
+        """.write(to: authURL, atomically: true, encoding: .utf8)
+
+        #expect(settings.isCostUsageEffectivelyEnabled(
+            for: .codex,
+            baseEnvironment: ["CODEX_HOME": codexHome.path]))
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

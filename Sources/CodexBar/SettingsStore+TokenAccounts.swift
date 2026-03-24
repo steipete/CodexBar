@@ -45,6 +45,27 @@ extension SettingsStore {
         return data.accounts[index]
     }
 
+    func activeCodexAPIKey(
+        baseEnvironment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        let env = ProviderRegistry.makeEnvironment(
+            base: baseEnvironment,
+            provider: .codex,
+            settings: self,
+            tokenOverride: nil)
+        guard let credentials = try? CodexOAuthCredentialsStore.load(env: env) else { return nil }
+        let accessToken = credentials.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let refreshToken = credentials.refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !accessToken.isEmpty, refreshToken.isEmpty else { return nil }
+        return accessToken
+    }
+
+    func isActiveCodexAPIAccount(
+        baseEnvironment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        self.activeCodexAPIKey(baseEnvironment: baseEnvironment) != nil
+    }
+
     func setActiveTokenAccountIndex(_ index: Int, for provider: UsageProvider) {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         // index == -1 means "use default account" (no CODEX_HOME override)
@@ -56,17 +77,8 @@ extension SettingsStore {
         self.updateProviderConfig(provider: provider) { entry in
             entry.tokenAccounts = updated
         }
-        // Keep active-codex-home in sync so the shell hook reflects the new selection.
         if provider == .codex {
-            let path: String?
-            if clamped >= 0, clamped < updated.accounts.count {
-                let token = updated.accounts[clamped].token.trimmingCharacters(in: .whitespacesAndNewlines)
-                path = token.lowercased().hasPrefix("apikey:") ? nil : token
-            } else {
-                // Reverted to default ~/.codex — clear override so shell falls back to its own default
-                path = nil
-            }
-            CodexBarShellIntegration.setActiveCodexHome(path)
+            self.repairCodexShellIntegrationIfNeeded()
         }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Active token account updated",
@@ -98,12 +110,8 @@ extension SettingsStore {
             entry.tokenAccounts = updated
         }
         self.applyTokenAccountCookieSourceIfNeeded(provider: provider)
-        // For OAuth Codex accounts (path-based token), update the active-codex-home file and
-        // ensure the zsh precmd hook is installed so new terminal sessions inherit CODEX_HOME.
-        if provider == .codex, !trimmedToken.lowercased().hasPrefix("apikey:") {
-            CodexBarShellIntegration.symlinkDefaultSessionsIfNeeded(into: trimmedToken)
-            CodexBarShellIntegration.setActiveCodexHome(trimmedToken)
-            CodexBarShellIntegration.installZshHookIfNeeded()
+        if provider == .codex {
+            self.repairCodexShellIntegrationIfNeeded()
         }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Token account added",
@@ -196,16 +204,8 @@ extension SettingsStore {
                     activeIndex: computedActiveIndex)
             }
         }
-        // Update active-codex-home to reflect the new active account after deletion.
         if provider == .codex {
-            let newActive: String?
-            if !filtered.isEmpty, computedActiveIndex >= 0, computedActiveIndex < filtered.count {
-                let token = filtered[computedActiveIndex].token.trimmingCharacters(in: .whitespacesAndNewlines)
-                newActive = token.lowercased().hasPrefix("apikey:") ? nil : token
-            } else {
-                newActive = nil
-            }
-            CodexBarShellIntegration.setActiveCodexHome(newActive)
+            self.repairCodexShellIntegrationIfNeeded()
         }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Token account removed",
@@ -252,5 +252,40 @@ extension SettingsStore {
               support.requiresManualCookieSource
         else { return }
         ProviderCatalog.implementation(for: provider)?.applyTokenAccountCookieSource(settings: self)
+    }
+
+    func repairCodexShellIntegrationIfNeeded() {
+        guard !Self.isRunningTests else { return }
+
+        let pathAccounts = self.tokenAccounts(for: .codex)
+            .map(\.token)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { token in
+                !token.isEmpty && !token.lowercased().hasPrefix("apikey:")
+            }
+
+        guard !pathAccounts.isEmpty else {
+            CodexBarShellIntegration.setActiveCodexHome(nil)
+            return
+        }
+
+        CodexBarShellIntegration.installZshHookIfNeeded()
+        for path in pathAccounts {
+            CodexBarShellIntegration.ensureDedicatedSessionsDirectoryIfNeeded(into: path)
+        }
+
+        let activeToken = self.selectedTokenAccount(for: .codex)?
+            .token
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let activePath: String?
+        if let activeToken,
+           !activeToken.isEmpty,
+           !activeToken.lowercased().hasPrefix("apikey:")
+        {
+            activePath = activeToken
+        } else {
+            activePath = nil
+        }
+        CodexBarShellIntegration.setActiveCodexHome(activePath)
     }
 }

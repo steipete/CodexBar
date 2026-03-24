@@ -145,7 +145,11 @@ struct UsageStoreCoverageTests {
             addedAt: Date().timeIntervalSince1970,
             lastUsed: nil)
 
-        #expect(!store.shouldFetchAllTokenAccounts(provider: .codex, accounts: [account]))
+        #expect(
+            !store.shouldFetchAllTokenAccounts(
+                provider: .codex,
+                accounts: [account],
+                defaultAccountLabel: ""))
         #expect(
             store.shouldFetchAllTokenAccounts(
                 provider: .codex,
@@ -159,6 +163,20 @@ struct UsageStoreCoverageTests {
                 provider: .codex,
                 accounts: [account],
                 defaultAccountLabel: "Primary"))
+    }
+
+    @Test
+    func `codex no data message uses active account sessions path`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-codex-no-data-path")
+        settings.codexExplicitAccountsOnly = true
+        settings.addTokenAccount(provider: .codex, label: "Work", token: "/tmp/codex-work")
+
+        let store = Self.makeUsageStore(settings: settings)
+        let message = store.resolvedTokenCostNoDataMessage(for: .codex)
+
+        #expect(message.contains("/tmp/codex-work/sessions"))
+        #expect(message.contains("/tmp/codex-work/archived_sessions"))
+        #expect(message.contains("Run `codex` once while this account is active"))
     }
 
     @Test

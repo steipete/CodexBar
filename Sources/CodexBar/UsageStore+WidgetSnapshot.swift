@@ -37,7 +37,15 @@ extension UsageStore {
         } ?? []
 
         let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot)
-        let creditsRemaining = provider == .codex ? self.codexActiveCreditsRemaining() : nil
+        let creditsRemaining: Double? = if provider == .codex {
+            if self.settings.codexMultipleAccountsEnabled {
+                self.codexActiveCreditsRemaining()
+            } else {
+                self.credits?.remaining
+            }
+        } else {
+            nil
+        }
         let codeReviewRemaining = provider == .codex ? self.openAIDashboard?.codeReviewRemainingPercent : nil
 
         return WidgetSnapshot.ProviderEntry(

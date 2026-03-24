@@ -123,7 +123,9 @@ struct CodexProviderImplementation: ProviderImplementation {
                 id: "codex-multiple-accounts",
                 title: "Multiple Accounts",
                 subtitle:
-                "Enable multi-account support: add, reorder, and switch between multiple Codex accounts. Costs are disabled for accounts configured without the default machine codex home path (~/.codex).",
+                "Enable multi-account support: add, reorder, and switch between multiple Codex accounts. " +
+                    "OAuth accounts keep separate local history; API key accounts use OpenAI usage APIs " +
+                    "when the key has the required scopes, and only API key accounts show Cost.",
                 binding: multipleAccountsBinding,
                 statusText: nil,
                 actions: [],
@@ -136,7 +138,8 @@ struct CodexProviderImplementation: ProviderImplementation {
                 title: "CodexBar accounts only",
                 subtitle:
                 "Ignore the default machine codex home path (~/.codex). Use only rows under Accounts " +
-                    "(OAuth, API key). Cost will only work for the default machine codex home path account.",
+                    "(OAuth, API key). OAuth rows keep their own CODEX_HOME history, but only API key rows " +
+                    "show Cost, and they need OpenAI usage access.",
                 binding: explicitAccountsBinding,
                 statusText: nil,
                 actions: [],

@@ -80,6 +80,7 @@ extension SettingsStore {
                 config.providers.append(ProviderConfig(id: provider, tokenAccounts: data))
             }
         }
+        self.repairCodexShellIntegrationIfNeeded()
     }
 
     func setProviderOrder(_ order: [UsageProvider]) {

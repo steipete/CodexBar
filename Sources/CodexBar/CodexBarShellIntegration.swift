@@ -17,10 +17,6 @@ enum CodexBarShellIntegration {
         URL(fileURLWithPath: ("~/.codexbar" as NSString).expandingTildeInPath)
     }
 
-    private static var activeCodexHomeFile: URL {
-        codexbarDir.appendingPathComponent("active-codex-home")
-    }
-
     private static var zshrcFile: URL {
         URL(fileURLWithPath: ("~/.zshrc" as NSString).expandingTildeInPath)
     }
@@ -41,24 +37,28 @@ autoload -Uz add-zsh-hook && add-zsh-hook precmd precmd_codexbar
 
     /// Write the given CODEX_HOME path as the active account.
     /// Pass `nil` to clear (e.g. when reverting to the default ~/.codex account).
-    static func setActiveCodexHome(_ path: String?) {
-        let fm = FileManager.default
-        let dir = codexbarDir.path
+    static func setActiveCodexHome(
+        _ path: String?,
+        fileManager fm: FileManager = .default,
+        codexbarDirectory: URL? = nil)
+    {
+        let directory = codexbarDirectory ?? self.codexbarDir
+        let activeFile = directory.appendingPathComponent("active-codex-home")
+        let dir = directory.path
         if !fm.fileExists(atPath: dir) {
             try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
         }
         if let path, !path.isEmpty {
-            try? path.write(to: activeCodexHomeFile, atomically: true, encoding: .utf8)
+            try? path.write(to: activeFile, atomically: true, encoding: .utf8)
         } else {
-            try? fm.removeItem(at: activeCodexHomeFile)
+            try? fm.removeItem(at: activeFile)
         }
     }
 
     /// Append the precmd hook to ~/.zshrc if it isn't already there.
     /// Called once on first OAuth account creation — silently does nothing if already set up.
-    static func installZshHookIfNeeded() {
-        let zshrc = zshrcFile.path
-        let fm = FileManager.default
+    static func installZshHookIfNeeded(fileManager fm: FileManager = .default, zshrcURL: URL? = nil) {
+        let zshrc = (zshrcURL ?? self.zshrcFile).path
         // If .zshrc doesn't exist yet, create it.
         if !fm.fileExists(atPath: zshrc) {
             fm.createFile(atPath: zshrc, contents: nil)
@@ -74,17 +74,34 @@ autoload -Uz add-zsh-hook && add-zsh-hook precmd precmd_codexbar
         return content.contains(hookMarker)
     }
 
-    /// If `~/.codex/sessions` exists and `<codexHomePath>/sessions` does not yet exist,
-    /// create a symlink so the new account immediately shows historical cost data.
-    /// Safe to call multiple times — does nothing if the target already exists.
-    static func symlinkDefaultSessionsIfNeeded(into codexHomePath: String) {
-        let fm = FileManager.default
-        let defaultSessions = fm.homeDirectoryForCurrentUser
+    /// Ensure each Codex account has its own dedicated `sessions/` directory.
+    /// If a legacy symlink points back to the shared `~/.codex/sessions`, replace it with a real
+    /// per-account directory so future cost data stays isolated by account.
+    static func ensureDedicatedSessionsDirectoryIfNeeded(
+        into codexHomePath: String,
+        fileManager fm: FileManager = .default,
+        defaultSessionsRoot: URL? = nil)
+    {
+        let defaultSessions = (defaultSessionsRoot ?? fm.homeDirectoryForCurrentUser
             .appendingPathComponent(".codex/sessions", isDirectory: true)
-        guard fm.fileExists(atPath: defaultSessions.path) else { return }
+            .resolvingSymlinksInPath()
+            .standardizedFileURL)
         let accountSessions = URL(fileURLWithPath: (codexHomePath as NSString).expandingTildeInPath)
-            .appendingPathComponent("sessions")
+            .appendingPathComponent("sessions", isDirectory: true)
+
+        if let destination = try? fm.destinationOfSymbolicLink(atPath: accountSessions.path)
+        {
+            let destinationURL = URL(fileURLWithPath: destination, relativeTo: accountSessions.deletingLastPathComponent())
+                .resolvingSymlinksInPath()
+                .standardizedFileURL
+            if destinationURL.path == defaultSessions.path {
+                try? fm.removeItem(at: accountSessions)
+            } else {
+                return
+            }
+        }
+
         guard !fm.fileExists(atPath: accountSessions.path) else { return }
-        try? fm.createSymbolicLink(at: accountSessions, withDestinationURL: defaultSessions)
+        try? fm.createDirectory(at: accountSessions, withIntermediateDirectories: true)
     }
 }

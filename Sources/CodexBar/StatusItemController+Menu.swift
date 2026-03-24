@@ -1271,6 +1271,14 @@ extension StatusItemController {
     }
 
     private func makeWebHistoryMenuItem(title: String, id: String, submenu: NSMenu) -> NSMenuItem {
+        if !Self.menuCardRenderingEnabled {
+            let item = NSMenuItem(title: title, action: #selector(self.menuCardNoOp(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = id
+            item.submenu = submenu
+            return item
+        }
+
         let width: CGFloat = 310
         return self.makeMenuCardItem(
             HStack(spacing: 0) {

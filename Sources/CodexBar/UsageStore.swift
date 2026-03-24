@@ -1567,6 +1567,15 @@ extension UsageStore {
             return
         }
 
+        if provider == .codex, !self.settings.isCostUsageEffectivelyEnabled(for: .codex) {
+            self.tokenSnapshots.removeValue(forKey: provider)
+            self.tokenErrors[provider] = nil
+            self.tokenFailureGates[provider]?.reset()
+            self.lastTokenFetchAt.removeValue(forKey: provider)
+            self.lastTokenCostSelectionIdentity.removeValue(forKey: provider)
+            return
+        }
+
         guard !self.tokenRefreshInFlight.contains(provider) else { return }
 
         let selectionIdentity = self.tokenCostSelectionIdentity(for: provider)
@@ -1593,16 +1602,6 @@ extension UsageStore {
             return
         }
 
-        // API-key accounts have no local session logs. Return nil from
-        // codexCostUsageSessionsRootForActiveSelection, which causes loadTokenSnapshot
-        // to fall back to ~/.codex and surface the primary account's cost data instead.
-        // Suppress cost entirely to preserve multi-account isolation.
-        if provider == .codex, self.isActiveCodexAccountApiKey {
-            self.tokenSnapshots.removeValue(forKey: provider)
-            self.tokenErrors[provider] = nil
-            return
-        }
-
         let startedAt = Date()
         let providerText = provider.rawValue
         self.tokenCostLogger
@@ -1611,29 +1610,49 @@ extension UsageStore {
         do {
             let fetcher = self.costUsageFetcher
             let timeoutSeconds = self.tokenFetchTimeout
-            let codexRoot = provider == .codex ? self.codexCostUsageSessionsRootForActiveSelection() : nil
-            let snapshot = try await withThrowingTaskGroup(of: CostUsageTokenSnapshot.self) { group in
+            // API-key accounts: fetch cost via the OpenAI REST API (no local session logs).
+            // OAuth/path accounts: scan the local CODEX_HOME/sessions directory.
+            let codexApiKey = provider == .codex ? self.activeCodexApiKey : nil
+            let codexRoot = provider == .codex && codexApiKey == nil
+                ? self.codexCostUsageSessionsRootForActiveSelection()
+                : nil
+            struct TokenCostFetchResult: Sendable {
+                let snapshot: CostUsageTokenSnapshot
+                let errorMessage: String?
+            }
+
+            let result = try await withThrowingTaskGroup(of: TokenCostFetchResult.self) { group in
                 group.addTask(priority: .utility) {
-                    try await fetcher.loadTokenSnapshot(
-                        provider: provider,
-                        now: now,
-                        forceRefresh: force,
-                        allowVertexClaudeFallback: !self.isEnabled(.claude),
-                        codexSessionsRoot: codexRoot,
-                        claudeProjectsRoots: nil)
+                    if let apiKey = codexApiKey {
+                        let apiResult = await OpenAIAPIUsageFetcher.loadSnapshot(apiKey: apiKey, now: now)
+                        return TokenCostFetchResult(
+                            snapshot: apiResult.snapshot,
+                            errorMessage: apiResult.errorMessage)
+                    }
+                    return try await TokenCostFetchResult(
+                        snapshot: fetcher.loadTokenSnapshot(
+                            provider: provider,
+                            now: now,
+                            forceRefresh: force,
+                            allowVertexClaudeFallback: !self.isEnabled(.claude),
+                            codexSessionsRoot: codexRoot,
+                            claudeProjectsRoots: nil),
+                        errorMessage: nil)
                 }
                 group.addTask {
                     try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
                     throw CostUsageError.timedOut(seconds: Int(timeoutSeconds))
                 }
                 defer { group.cancelAll() }
-                guard let snapshot = try await group.next() else { throw CancellationError() }
-                return snapshot
+                guard let result = try await group.next() else { throw CancellationError() }
+                return result
             }
+
+            let snapshot = result.snapshot
 
             guard !snapshot.daily.isEmpty else {
                 self.tokenSnapshots.removeValue(forKey: provider)
-                self.tokenErrors[provider] = Self.tokenCostNoDataMessage(for: provider)
+                self.tokenErrors[provider] = result.errorMessage ?? self.resolvedTokenCostNoDataMessage(for: provider)
                 self.tokenFailureGates[provider]?.recordSuccess()
                 return
             }
@@ -1647,8 +1666,12 @@ extension UsageStore {
                 "today=\(sessionCost) " +
                 "30d=\(monthCost)"
             self.tokenCostLogger.info(message)
+            if let errorMessage = result.errorMessage, !errorMessage.isEmpty {
+                self.tokenCostLogger.warning(
+                    "cost usage partial provider=\(providerText) warning=\(errorMessage)")
+            }
             self.tokenSnapshots[provider] = snapshot
-            self.tokenErrors[provider] = nil
+            self.tokenErrors[provider] = result.errorMessage
             self.tokenFailureGates[provider]?.recordSuccess()
             self.persistWidgetSnapshot(reason: "token-usage")
         } catch {

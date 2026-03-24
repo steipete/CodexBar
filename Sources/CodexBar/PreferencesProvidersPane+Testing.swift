@@ -185,6 +185,7 @@ enum ProvidersPaneTestHarness {
             dashboardLogin: nil,
             isDashboardLoggedIn: nil,
             dashboardLogout: nil,
+            activeAccountStatusText: nil,
             codexExplicitAccountsOnly: false)
 
         return ProviderListTestDescriptors(

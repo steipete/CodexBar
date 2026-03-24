@@ -13,13 +13,40 @@ extension UsageStore {
         return self.settings.selectedTokenAccount(for: .codex) == nil
     }
 
-    /// True when the currently selected Codex account uses an API key ("apikey:" prefix).
-    /// API-key accounts have no local session logs, so session-based cost data does not apply
-    /// and falling back to ~/.codex would leak the primary account's cost totals.
+    /// True when the active Codex credentials resolve to API-key auth.
+    /// API-authenticated accounts have no local session logs; cost is fetched via the OpenAI REST API instead.
     var isActiveCodexAccountApiKey: Bool {
-        guard let account = self.settings.selectedTokenAccount(for: .codex) else { return false }
+        self.activeCodexApiKey != nil
+    }
+
+    /// The raw API key for the active Codex credentials, whether it comes from a selected API-key row or the
+    /// resolved `auth.json`.
+    var activeCodexApiKey: String? {
+        self.settings.activeCodexAPIKey()
+    }
+
+    var activeCodexAPIKeyAccount: ProviderTokenAccount? {
+        guard let account = self.settings.selectedTokenAccount(for: .codex) else { return nil }
         let token = account.token.trimmingCharacters(in: .whitespacesAndNewlines)
-        return token.lowercased().hasPrefix("apikey:")
+        return token.lowercased().hasPrefix("apikey:") ? account : nil
+    }
+
+    func activeCodexAPIKeySettingsNotice() -> String? {
+        guard let account = self.activeCodexAPIKeyAccount else { return nil }
+        let error = self.tokenError(for: .codex)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !error.isEmpty else { return nil }
+        return "\(account.displayName): \(error)"
+    }
+
+    func activeCodexAPIKeyCreditsMessage() -> String? {
+        if let account = self.activeCodexAPIKeyAccount {
+            return "\(account.displayName) is an API key account. " +
+                "ChatGPT credits are not available here; use Subscription Utilization for API spend."
+        }
+        guard self.activeCodexApiKey != nil else { return nil }
+        return "This Codex account uses API key auth. " +
+            "ChatGPT credits are not available here; use Subscription Utilization for API spend."
     }
 
     func codexCostUsageSessionsRootForActiveSelection() -> URL? {
@@ -43,9 +70,13 @@ extension UsageStore {
             if let root = self.codexCostUsageSessionsRootForActiveSelection() {
                 return root.path
             }
-            // API-key accounts have no session logs and cost data is suppressed, but they must
-            // still get a unique identity so switching default→apikey invalidates the TTL cache
-            // before the suppression guard is reached.
+            if self.activeCodexApiKey != nil {
+                if let account = self.settings.selectedTokenAccount(for: .codex) {
+                    return "codex:apikey:\(account.id.uuidString)"
+                }
+                return "codex:default:apikey"
+            }
+            // When no API auth is active, keep a stable identity for the default auth path.
             if let account = self.settings.selectedTokenAccount(for: .codex) {
                 let token = account.token.trimmingCharacters(in: .whitespacesAndNewlines)
                 if token.lowercased().hasPrefix("apikey:") {
@@ -73,6 +104,13 @@ extension UsageStore {
         self.tokenRefreshInFlight.contains(provider)
     }
 
+    func resolvedTokenCostNoDataMessage(for provider: UsageProvider) -> String {
+        if provider == .codex, let sessionsRoot = self.codexCostUsageSessionsRootForActiveSelection() {
+            return Self.codexTokenCostNoDataMessage(sessionsRoot: sessionsRoot)
+        }
+        return Self.tokenCostNoDataMessage(for: provider)
+    }
+
     nonisolated static func costUsageCacheDirectory(
         fileManager: FileManager = .default) -> URL
     {
@@ -84,5 +122,16 @@ extension UsageStore {
 
     nonisolated static func tokenCostNoDataMessage(for provider: UsageProvider) -> String {
         ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.noDataMessage()
+    }
+
+    nonisolated static func codexTokenCostNoDataMessage(sessionsRoot: URL) -> String {
+        let sessionsPath = sessionsRoot.standardizedFileURL.path
+        let archivedPath = sessionsRoot
+            .deletingLastPathComponent()
+            .appendingPathComponent("archived_sessions", isDirectory: true)
+            .standardizedFileURL
+            .path
+        return "No Codex sessions found in \(sessionsPath) or \(archivedPath). " +
+            "Run `codex` once while this account is active to start tracking cost."
     }
 }

@@ -145,4 +145,23 @@ struct CodexActiveCreditsTests {
         #expect(result.unlimited == true)
         #expect(store.codexActiveCreditsRemaining() == nil)
     }
+
+    @Test
+    func `api key account shows api credits message instead of oauth error`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "CodexActiveCreditsTests-apikey"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.addTokenAccount(provider: .codex, label: "Attune API Test", token: "apikey:sk-test")
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let result = store.codexActiveMenuCredits()
+        #expect(result.snapshot == nil)
+        #expect(result.unlimited == false)
+        #expect(result.error?.contains("Attune API Test") == true)
+        #expect(result.error?.contains("Subscription Utilization") == true)
+        #expect(result.error?.localizedCaseInsensitiveContains("oauth token expired") == false)
+    }
 }
