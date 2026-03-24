@@ -189,6 +189,74 @@ struct MiniMaxCookieFetchTests {
         try? await Task.sleep(nanoseconds: 1_100_000_000)
     }
 
+    @Test
+    func `awaits remains fallback without timeout when html parse fails`() async throws {
+        let registered = URLProtocol.registerClass(MiniMaxCookieFetchStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(MiniMaxCookieFetchStubURLProtocol.self)
+            }
+            MiniMaxCookieFetchStubURLProtocol.handler = nil
+            MiniMaxCookieFetchStubURLProtocol.requests = []
+        }
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let start = 1_700_000_000_000
+        let end = start + 5 * 60 * 60 * 1000
+
+        MiniMaxCookieFetchStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+
+            switch url.path {
+            case let path where path.contains("user-center/payment/coding-plan"):
+                let html = """
+                <div>unexpected html that no longer matches parser</div>
+                """
+                return Self.makeHTMLResponse(url: url, body: html)
+
+            case let path where path.contains("v1/api/openplatform/coding_plan/remains"):
+                // Simulate a slow remains response that exceeds the enrichment timeout.
+                DispatchQueue.global().sync { Thread.sleep(forTimeInterval: 1.0) }
+                let json = """
+                {
+                  "base_resp": { "status_code": 0 },
+                  "current_subscribe_title": "Max",
+                  "model_remains": [
+                    {
+                      "current_interval_total_count": 1500,
+                      "current_interval_usage_count": 1450,
+                      "model_name": "MiniMax-M*",
+                      "current_weekly_total_count": 0,
+                      "current_weekly_usage_count": 0,
+                      "start_time": \(start),
+                      "end_time": \(end),
+                      "remains_time": 240000
+                    }
+                  ]
+                }
+                """
+                return Self.makeJSONResponse(url: url, body: json)
+
+            default:
+                return Self.makeJSONResponse(url: url, body: "{}", statusCode: 404)
+            }
+        }
+
+        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
+            cookieHeader: "session=test-cookie",
+            region: .global,
+            environment: [:],
+            now: now)
+
+        #expect(snapshot.planName == "Max")
+        #expect(snapshot.availablePrompts == 1500)
+        #expect(snapshot.currentPrompts == 50)
+        #expect(snapshot.remainingPrompts == 1450)
+        #expect(snapshot.windowMinutes == 300)
+        #expect(snapshot.usedPercent == (Double(50) / Double(1500) * 100))
+        #expect(snapshot.modelEntries.map(\.modelName) == ["MiniMax-M*"])
+    }
+
     private static func makeHTMLResponse(
         url: URL,
         body: String,

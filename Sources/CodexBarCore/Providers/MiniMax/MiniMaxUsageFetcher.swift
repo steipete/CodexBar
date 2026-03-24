@@ -70,10 +70,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         } catch let error as MiniMaxUsageError {
             if case .parseFailed = error {
                 Self.log.debug("MiniMax coding plan HTML parse failed, trying remains API")
-                if let snapshot = await self.awaitRemainsWithTimeout(
-                    remainsTask: remainsTask,
-                    timeoutNanoseconds: Self.remainsEnrichmentTimeoutNanoseconds)
-                {
+                if let snapshot = await self.awaitRemains(remainsTask: remainsTask) {
                     return snapshot
                 }
             }
@@ -149,16 +146,24 @@ public struct MiniMaxUsageFetcher: Sendable {
     /// NOTE: When the timeout wins, the underlying URLSession request in remainsTask may still be in-flight.
     /// remainsTask.cancel() sets the cancellation flag but cannot abort an already-started network request;
     /// the response will simply be discarded.
+    private static func awaitRemains(
+        remainsTask: Task<Result<MiniMaxUsageSnapshot, Error>, Never>) async -> MiniMaxUsageSnapshot?
+    {
+        switch await remainsTask.value {
+        case let .success(snapshot):
+            snapshot
+        case .failure:
+            nil
+        }
+    }
+
     private static func awaitRemainsWithTimeout(
         remainsTask: Task<Result<MiniMaxUsageSnapshot, Error>, Never>,
         timeoutNanoseconds: UInt64) async -> MiniMaxUsageSnapshot?
     {
         await withTaskGroup(of: MiniMaxUsageSnapshot?.self) { group in
             group.addTask {
-                switch await remainsTask.value {
-                case let .success(snapshot): snapshot
-                case .failure: nil
-                }
+                await self.awaitRemains(remainsTask: remainsTask)
             }
             group.addTask {
                 try? await Task.sleep(nanoseconds: timeoutNanoseconds)
