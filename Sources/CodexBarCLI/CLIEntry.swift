@@ -43,6 +43,8 @@ enum CodexBarCLI {
                 self.runConfigValidate(invocation.parsedValues)
             case ["config", "dump"]:
                 self.runConfigDump(invocation.parsedValues)
+            case ["cache", "clear"]:
+                self.runCacheClear(invocation.parsedValues)
             default:
                 Self.exit(
                     code: .failure,
@@ -61,6 +63,7 @@ enum CodexBarCLI {
         let usageSignature = CommandSignature.describe(UsageOptions())
         let costSignature = CommandSignature.describe(CostOptions())
         let configSignature = CommandSignature.describe(ConfigOptions())
+        let cacheSignature = CommandSignature.describe(CacheOptions())
 
         return [
             CommandDescriptor(
@@ -91,6 +94,19 @@ enum CodexBarCLI {
                         signature: configSignature),
                 ],
                 defaultSubcommandName: "validate"),
+            CommandDescriptor(
+                name: "cache",
+                abstract: "Cache management",
+                discussion: nil,
+                signature: CommandSignature(),
+                subcommands: [
+                    CommandDescriptor(
+                        name: "clear",
+                        abstract: "Clear cached data (cookies, cost, or all)",
+                        discussion: nil,
+                        signature: cacheSignature),
+                ],
+                defaultSubcommandName: "clear"),
         ]
     }
 
