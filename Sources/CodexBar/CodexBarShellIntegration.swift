@@ -5,7 +5,7 @@ import Foundation
 /// The file contains the absolute path of the currently selected Codex account's CODEX_HOME directory.
 /// A shell `precmd` hook installed in `.zshrc` re-exports `CODEX_HOME` on every prompt:
 ///
-///     precmd_codexbar() { export CODEX_HOME=$(cat ~/.codexbar/active-codex-home 2>/dev/null); }
+///     precmd_codexbar() { export CODEX_HOME="$(cat ~/.codexbar/active-codex-home 2>/dev/null)"; }
 ///     autoload -Uz add-zsh-hook && add-zsh-hook precmd precmd_codexbar
 ///
 /// This means switching accounts in CodexBar immediately takes effect at the next shell prompt,
@@ -29,7 +29,7 @@ enum CodexBarShellIntegration {
     private static let hookSnippet = """
 
 # CodexBar shell integration — auto-switches CODEX_HOME when you change accounts in CodexBar
-precmd_codexbar() { export CODEX_HOME=$(cat ~/.codexbar/active-codex-home 2>/dev/null); }
+precmd_codexbar() { export CODEX_HOME="$(cat ~/.codexbar/active-codex-home 2>/dev/null)"; }
 autoload -Uz add-zsh-hook && add-zsh-hook precmd precmd_codexbar
 """
 

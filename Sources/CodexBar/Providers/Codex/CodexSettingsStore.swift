@@ -20,6 +20,7 @@ extension SettingsStore {
                         activeIndex: 0)
                 }
             }
+            self.repairCodexShellIntegrationIfNeeded()
         }
     }
 
