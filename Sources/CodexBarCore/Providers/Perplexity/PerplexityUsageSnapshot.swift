@@ -69,15 +69,27 @@ public struct PerplexityUsageSnapshot: Sendable {
 extension PerplexityUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
         // Primary: recurring (monthly) credits
-        // usedPercent=100 when recurringTotal==0 so the bar renders empty rather than full.
-        let primaryPercent = self.recurringTotal > 0
-            ? min(100, max(0, self.recurringUsed / self.recurringTotal * 100))
-            : 100.0
-        let primaryWindow = RateWindow(
-            usedPercent: primaryPercent,
-            windowMinutes: nil,
-            resetsAt: renewalDate,
-            resetDescription: "\(Int(recurringUsed.rounded()))/\(Int(self.recurringTotal)) credits")
+        let hasFallbackCredits = self.promoTotal > 0 || self.purchasedTotal > 0
+        let primaryWindow: RateWindow? = {
+            if self.recurringTotal > 0 {
+                let primaryPercent = min(100, max(0, self.recurringUsed / self.recurringTotal * 100))
+                return RateWindow(
+                    usedPercent: primaryPercent,
+                    windowMinutes: nil,
+                    resetsAt: self.renewalDate,
+                    resetDescription: "\(Int(self.recurringUsed.rounded()))/\(Int(self.recurringTotal)) credits")
+            }
+            if hasFallbackCredits {
+                // When recurring is absent but bonus/purchased credits remain, omit the fake 0/0 primary lane
+                // so automatic menu-bar rendering can fall through to the usable pool.
+                return nil
+            }
+            return RateWindow(
+                usedPercent: 100,
+                windowMinutes: nil,
+                resetsAt: self.renewalDate,
+                resetDescription: "0/0 credits")
+        }()
 
         // Secondary: promotional bonus credits — always shown.
         // usedPercent=100 when promoTotal==0 so the bar renders empty rather than full.

@@ -8,7 +8,8 @@ public struct PerplexityUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.perplexityAPI)
     private static let creditsURL =
         URL(string: "https://www.perplexity.ai/rest/billing/credits?version=2.18&source=default")!
-    // version=2.18&source=default was current as of Feb 2026; update if the endpoint shape changes.
+    @TaskLocal static var fetchCreditsOverride:
+        (@Sendable (String, String, Date) async throws -> PerplexityUsageSnapshot)?
 
     /// Testing hook: parse a raw JSON response without making network calls.
     public static func _parseResponseForTesting(_ data: Data, now: Date = Date()) throws -> PerplexityUsageSnapshot {
@@ -25,6 +26,10 @@ public struct PerplexityUsageFetcher: Sendable {
         cookieName: String = PerplexityCookieHeader.defaultSessionCookieName,
         now: Date = Date()) async throws -> PerplexityUsageSnapshot
     {
+        if let override = self.fetchCreditsOverride {
+            return try await override(sessionToken, cookieName, now)
+        }
+
         var request = URLRequest(url: self.creditsURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 15

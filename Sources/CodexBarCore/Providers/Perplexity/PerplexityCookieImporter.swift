@@ -9,6 +9,8 @@ public enum PerplexityCookieImporter {
     private static let cookieDomains = ["www.perplexity.ai", "perplexity.ai"]
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.perplexity]?.browserCookieOrder ?? Browser.defaultImportOrder
+    nonisolated(unsafe) static var importSessionOverrideForTesting:
+        ((BrowserDetection, ((String) -> Void)?) throws -> SessionInfo)?
 
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
@@ -91,6 +93,9 @@ public enum PerplexityCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
+        if let override = self.importSessionOverrideForTesting {
+            return try override(browserDetection, logger)
+        }
         let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
         guard let first = sessions.first else {
             throw PerplexityCookieImportError.noCookies

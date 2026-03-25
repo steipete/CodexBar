@@ -182,6 +182,27 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
+    func toUsageSnapshotOmitsPrimaryWhenOnlyFallbackCreditsRemain() throws {
+        let json = """
+        {
+          "balance_cents": 6000,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 2000,
+          "credit_grants": [
+            { "type": "promotional", "amount_cents": 4000, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 0
+        }
+        """
+        let snapshot = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+            .toUsageSnapshot()
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary?.usedPercent == 0.0)
+        #expect(snapshot.tertiary?.usedPercent == 0.0)
+    }
+
+    @Test
     func toUsageSnapshotEmptyPoolsBarsAreFullyDepleted() throws {
         let json = """
         {

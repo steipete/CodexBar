@@ -43,11 +43,28 @@ public enum PerplexityProviderDescriptor {
 }
 
 struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
+    private enum SessionCookieSource {
+        case manual
+        case cache
+        case browser
+        case environment
+
+        var shouldCacheAfterFetch: Bool {
+            self == .browser
+        }
+    }
+
+    private struct ResolvedSessionCookie {
+        let value: PerplexityCookieOverride
+        let source: SessionCookieSource
+    }
+
     let id: String = "perplexity.web"
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.perplexity?.cookieSource != .off else { return false }
+        if context.settings?.perplexity?.cookieSource == .manual { return true }
 
         // Priority order mirrors resolveSessionCookie: manual override → cache → browser import → env var
         if PerplexityCookieHeader.resolveCookieOverride(context: context) != nil {
@@ -72,30 +89,31 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let cookie = self.resolveSessionCookie(context: context) else {
+        guard let resolvedCookie = try self.resolveSessionCookie(context: context) else {
             throw PerplexityAPIError.missingToken
         }
+        let cookie = resolvedCookie.value
 
         do {
             let snapshot = try await PerplexityUsageFetcher.fetchCredits(
                 sessionToken: cookie.token,
                 cookieName: cookie.name)
-            self.cacheSessionCookie(cookie, sourceLabel: "web")
+            self.cacheSessionCookieIfNeeded(resolvedCookie, sourceLabel: "web")
             return self.makeResult(
                 usage: snapshot.toUsageSnapshot(),
                 sourceLabel: "web")
         } catch PerplexityAPIError.invalidToken {
             // Clear stale cache and retry once with a fresh browser import
             CookieHeaderCache.clear(provider: .perplexity)
-            guard let freshCookie = self.resolveSessionCookieSkippingCache(context: context),
-                  freshCookie.token != cookie.token
+            guard let freshCookie = try self.resolveSessionCookieSkippingCache(context: context),
+                  freshCookie.value.token != cookie.token
             else {
                 throw PerplexityAPIError.invalidToken
             }
             let snapshot = try await PerplexityUsageFetcher.fetchCredits(
-                sessionToken: freshCookie.token,
-                cookieName: freshCookie.name)
-            self.cacheSessionCookie(freshCookie, sourceLabel: "web (retry)")
+                sessionToken: freshCookie.value.token,
+                cookieName: freshCookie.value.name)
+            self.cacheSessionCookieIfNeeded(freshCookie, sourceLabel: "web (retry)")
             return self.makeResult(
                 usage: snapshot.toUsageSnapshot(),
                 sourceLabel: "web")
@@ -104,22 +122,25 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         if case PerplexityAPIError.missingToken = error { return false }
+        if case PerplexityAPIError.invalidCookie = error { return false }
         if case PerplexityAPIError.invalidToken = error { return false }
         return true
     }
 
-    private func resolveSessionCookie(context: ProviderFetchContext) -> PerplexityCookieOverride? {
+    private func resolveSessionCookie(context: ProviderFetchContext) throws -> ResolvedSessionCookie? {
         guard context.settings?.perplexity?.cookieSource != .off else { return nil }
 
-        // Check manual cookie first (highest priority when set)
-        if let override = PerplexityCookieHeader.resolveCookieOverride(context: context) {
-            return override
+        if context.settings?.perplexity?.cookieSource == .manual {
+            guard let override = PerplexityCookieHeader.resolveCookieOverride(context: context) else {
+                throw PerplexityAPIError.invalidCookie
+            }
+            return ResolvedSessionCookie(value: override, source: .manual)
         }
 
         // Try cached cookie before expensive browser import
         if let cached = CookieHeaderCache.load(provider: .perplexity) {
             if let override = PerplexityCookieHeader.override(from: cached.cookieHeader) {
-                return override
+                return ResolvedSessionCookie(value: override, source: .cache)
             }
         }
 
@@ -127,16 +148,19 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
     }
 
     /// Resolves a session cookie without consulting the cache (used for retry after invalidToken).
-    private func resolveSessionCookieSkippingCache(context: ProviderFetchContext) -> PerplexityCookieOverride? {
+    private func resolveSessionCookieSkippingCache(context: ProviderFetchContext) throws -> ResolvedSessionCookie? {
         guard context.settings?.perplexity?.cookieSource != .off else { return nil }
 
-        if let override = PerplexityCookieHeader.resolveCookieOverride(context: context) {
-            return override
+        if context.settings?.perplexity?.cookieSource == .manual {
+            guard let override = PerplexityCookieHeader.resolveCookieOverride(context: context) else {
+                throw PerplexityAPIError.invalidCookie
+            }
+            return ResolvedSessionCookie(value: override, source: .manual)
         }
         return self.resolveSessionCookieFromBrowserOrEnv(context: context)
     }
 
-    private func resolveSessionCookieFromBrowserOrEnv(context: ProviderFetchContext) -> PerplexityCookieOverride? {
+    private func resolveSessionCookieFromBrowserOrEnv(context: ProviderFetchContext) -> ResolvedSessionCookie? {
         guard context.settings?.perplexity?.cookieSource != .off else { return nil }
 
         // Try browser cookie import when auto mode is enabled
@@ -144,7 +168,7 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
         do {
             let session = try PerplexityCookieImporter.importSession()
             if let cookie = session.sessionCookie {
-                return cookie
+                return ResolvedSessionCookie(value: cookie, source: .browser)
             }
         } catch {
             // No browser cookies found
@@ -152,13 +176,17 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
         #endif
 
         // Fall back to environment
-        return PerplexitySettingsReader.sessionCookieOverride(environment: context.env)
+        if let cookie = PerplexitySettingsReader.sessionCookieOverride(environment: context.env) {
+            return ResolvedSessionCookie(value: cookie, source: .environment)
+        }
+        return nil
     }
 
-    private func cacheSessionCookie(_ cookie: PerplexityCookieOverride, sourceLabel: String) {
+    private func cacheSessionCookieIfNeeded(_ cookie: ResolvedSessionCookie, sourceLabel: String) {
+        guard cookie.source.shouldCacheAfterFetch else { return }
         CookieHeaderCache.store(
             provider: .perplexity,
-            cookieHeader: "\(cookie.name)=\(cookie.token)",
+            cookieHeader: "\(cookie.value.name)=\(cookie.value.token)",
             sourceLabel: sourceLabel)
     }
 }
