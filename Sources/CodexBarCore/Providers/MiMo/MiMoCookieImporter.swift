@@ -68,6 +68,9 @@ enum MiMoCookieHeader {
         }
         guard requestPath.hasPrefix(cookiePath) else { return false }
         guard cookiePath != "/" else { return true }
+        if cookiePath.hasSuffix("/") {
+            return true
+        }
         guard
             let boundaryIndex = requestPath.index(
                 cookiePath.startIndex,

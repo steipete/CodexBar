@@ -137,6 +137,28 @@ struct MiMoProviderTests {
     }
 
     @Test
+    func `cookie header builder accepts slash terminated path prefixes`() throws {
+        let cookies = try [
+            self.makeCookie(
+                name: "userId",
+                value: "slash-user",
+                domain: "platform.xiaomimimo.com",
+                path: "/api/",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+            self.makeCookie(
+                name: "api-platform_serviceToken",
+                value: "slash-token",
+                domain: "platform.xiaomimimo.com",
+                path: "/api/",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+        ]
+
+        let header = MiMoCookieHeader.header(from: cookies)
+
+        #expect(header == "api-platform_serviceToken=slash-token; userId=slash-user")
+    }
+
+    @Test
     func `usage snapshot exposes balance through identity plan text`() {
         let snapshot = MiMoUsageSnapshot(
             balance: 25.51,
