@@ -66,6 +66,65 @@ struct AntigravityOAuthStorageTests {
         let storage = AntigravityOAuthStorage(serviceName: self.testServiceName)
         #expect(storage.loadTokens() == nil)
     }
+
+    @Test("saveTokens keeps previous tokens when update fails")
+    func saveTokensPreservesExistingTokensOnWriteFailure() throws {
+        let existingTokens = AntigravityOAuthTokens(
+            accessToken: "existing-access",
+            refreshToken: "existing-refresh",
+            expiresAt: Date().addingTimeInterval(3600),
+            email: "existing@example.com",
+            projectId: "existing-project")
+        let replacementTokens = AntigravityOAuthTokens(
+            accessToken: "replacement-access",
+            refreshToken: "replacement-refresh",
+            expiresAt: Date().addingTimeInterval(7200),
+            email: "replacement@example.com",
+            projectId: "replacement-project")
+
+        final class FakeKeychainStore: @unchecked Sendable {
+            var storedData: Data?
+        }
+
+        let fakeStore = FakeKeychainStore()
+        fakeStore.storedData = try JSONEncoder().encode(existingTokens)
+
+        let client = AntigravityOAuthStorage.KeychainClient(
+            add: { _ in
+                Issue.record("saveTokens should not attempt add when update fails for an existing item")
+                return errSecDuplicateItem
+            },
+            update: { _, _ in
+                errSecInteractionNotAllowed
+            },
+            copyMatchingData: { _ in
+                guard let storedData = fakeStore.storedData else {
+                    return (errSecItemNotFound, nil)
+                }
+                return (errSecSuccess, storedData)
+            },
+            delete: { _ in
+                fakeStore.storedData = nil
+                return errSecSuccess
+            },
+            exists: { _ in
+                fakeStore.storedData != nil
+            })
+
+        let storage = AntigravityOAuthStorage(
+            serviceName: self.testServiceName,
+            keychainClient: client)
+
+        #expect(throws: AntigravityOAuthError.self) {
+            try storage.saveTokens(replacementTokens)
+        }
+
+        let loaded = try #require(storage.loadTokens())
+        #expect(loaded.accessToken == existingTokens.accessToken)
+        #expect(loaded.refreshToken == existingTokens.refreshToken)
+        #expect(loaded.email == existingTokens.email)
+        #expect(loaded.projectId == existingTokens.projectId)
+    }
 }
 
 @Suite("AntigravityOAuthTokens Tests")

@@ -96,6 +96,19 @@ struct AntigravityCloudCodeClientTests {
         #expect(projectId == "my-project-456")
     }
 
+    @Test("parseProjectId extracts nested projectId fallback")
+    func parseProjectIdNestedProjectId() {
+        let json = Data(
+            """
+            {
+                "cloudaicompanionProject": { "projectId": "my-project-789" }
+            }
+            """.utf8)
+
+        let projectId = AntigravityCloudCodeClient.parseProjectId(from: json)
+        #expect(projectId == "my-project-789")
+    }
+
     @Test("parseProjectId returns nil for missing field")
     func parseProjectIdMissing() {
         let json = Data(

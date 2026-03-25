@@ -130,15 +130,20 @@ public struct AntigravityCloudCodeClient: Sendable {
         }
 
         // Case 1: String value
-        if let project = json["cloudaicompanionProject"] as? String, !project.isEmpty {
-            return project
+        if let project = json["cloudaicompanionProject"] as? String {
+            let trimmed = project.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
         }
 
-        // Case 2: Object with { id: "..." }
-        if let projectObj = json["cloudaicompanionProject"] as? [String: Any],
-           let id = projectObj["id"] as? String, !id.isEmpty
-        {
-            return id
+        // Case 2: Object with { id: "..." } or { projectId: "..." }
+        if let projectObj = json["cloudaicompanionProject"] as? [String: Any] {
+            let rawProjectId = (projectObj["id"] as? String) ?? (projectObj["projectId"] as? String)
+            let trimmed = rawProjectId?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let trimmed, !trimmed.isEmpty {
+                return trimmed
+            }
         }
 
         return nil
