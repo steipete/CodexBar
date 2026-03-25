@@ -222,10 +222,10 @@ struct KimiUsageSnapshotConversionTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
-        #expect(usageSnapshot.primary != nil)
+        #expect(usageSnapshot.primary == nil)
+        #expect(usageSnapshot.secondary != nil)
         let weeklyExpected = 375.0 / 2048.0 * 100.0
-        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
-        #expect(usageSnapshot.secondary == nil)
+        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
         #expect(usageSnapshot.tertiary == nil)
     }
 
@@ -244,7 +244,7 @@ struct KimiUsageSnapshotConversionTests {
             updatedAt: now)
 
         let usageSnapshot = snapshot.toUsageSnapshot()
-        #expect(usageSnapshot.primary?.usedPercent == 0.0)
+        #expect(usageSnapshot.secondary?.usedPercent == 0.0)
     }
 
     @Test
@@ -262,7 +262,7 @@ struct KimiUsageSnapshotConversionTests {
             updatedAt: now)
 
         let usageSnapshot = snapshot.toUsageSnapshot()
-        #expect(usageSnapshot.primary?.usedPercent == 100.0)
+        #expect(usageSnapshot.secondary?.usedPercent == 100.0)
     }
 }
 
