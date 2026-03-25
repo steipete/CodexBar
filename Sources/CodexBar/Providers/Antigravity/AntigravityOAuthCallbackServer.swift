@@ -21,6 +21,17 @@ enum AntigravityOAuthCallbackServer {
         case terminalFailure(message: String)
     }
 
+    private struct PendingCallbackSuccess {
+        let clientFD: Int32
+        let code: String
+    }
+
+    private enum CallbackConnectionOutcome {
+        case readyForExchange(PendingCallbackSuccess)
+        case retryableFailure(message: String)
+        case terminalFailure(message: String)
+    }
+
     /// Start a local HTTP listener, wait for the OAuth callback, exchange tokens, and return.
     static func waitForCallback(
         port: UInt16,
@@ -60,7 +71,7 @@ enum AntigravityOAuthCallbackServer {
         self.log.info("OAuth callback server listening on port \(port)")
 
         let deadline = Date().addingTimeInterval(timeout)
-        let code = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+        let pendingCallback: PendingCallbackSuccess = try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global().async {
                 defer { close(serverFD) }
 
@@ -92,8 +103,8 @@ enum AntigravityOAuthCallbackServer {
                         expectedState: expectedState)
 
                     switch outcome {
-                    case let .success(code):
-                        continuation.resume(returning: code)
+                    case let .readyForExchange(pending):
+                        continuation.resume(returning: pending)
                         return
                     case let .terminalFailure(message):
                         continuation.resume(throwing: AntigravityOAuthError.authenticationFailed(message))
@@ -106,18 +117,27 @@ enum AntigravityOAuthCallbackServer {
             }
         }
 
-        // Exchange code for tokens
-        let tokens = try await self.exchangeCodeForTokens(code: code, redirectURI: redirectURI)
+        defer { close(pendingCallback.clientFD) }
 
-        // Fetch user email
-        let email = try? await self.fetchUserEmail(accessToken: tokens.accessToken)
+        do {
+            let tokens = try await self.exchangeCodeForTokens(code: pendingCallback.code, redirectURI: redirectURI)
+            self.respond(to: pendingCallback.clientFD, with: .success(code: pendingCallback.code))
 
-        return AntigravityOAuthTokens(
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken,
-            expiresAt: tokens.expiresAt,
-            email: email,
-            projectId: nil)
+            // Email is optional, so don't block a successful login on this extra request.
+            let email = try? await self.fetchUserEmail(accessToken: tokens.accessToken)
+
+            return AntigravityOAuthTokens(
+                accessToken: tokens.accessToken,
+                refreshToken: tokens.refreshToken,
+                expiresAt: tokens.expiresAt,
+                email: email,
+                projectId: nil)
+        } catch {
+            self.respond(
+                to: pendingCallback.clientFD,
+                with: .terminalFailure(message: self.callbackFailureMessage(for: error)))
+            throw error
+        }
     }
 
     // MARK: - Token Exchange
@@ -169,21 +189,34 @@ enum AntigravityOAuthCallbackServer {
 
     private static func handleCallbackConnection(
         clientFD: Int32,
-        expectedState: String) -> CallbackValidationOutcome
+        expectedState: String) -> CallbackConnectionOutcome
     {
-        defer { close(clientFD) }
+        self.suppressSIGPIPE(on: clientFD)
 
         var buffer = [UInt8](repeating: 0, count: 4096)
         let bytesRead = recv(clientFD, &buffer, buffer.count, 0)
         guard bytesRead > 0 else {
+            close(clientFD)
             return .retryableFailure(message: "Empty callback request")
         }
 
         let request = String(bytes: buffer[..<bytesRead], encoding: .utf8) ?? ""
         let outcome = self.parseCallbackRequest(request, expectedState: expectedState)
-        let response = self.httpResponse(for: outcome)
-        _ = response.withCString { send(clientFD, $0, Int(strlen($0)), 0) }
-        return outcome
+        switch outcome {
+        case let .success(code):
+            return .readyForExchange(PendingCallbackSuccess(clientFD: clientFD, code: code))
+        case .retryableFailure, .terminalFailure:
+            self.respond(to: clientFD, with: outcome)
+            close(clientFD)
+            switch outcome {
+            case let .retryableFailure(message):
+                return .retryableFailure(message: message)
+            case let .terminalFailure(message):
+                return .terminalFailure(message: message)
+            case .success:
+                preconditionFailure("Unexpected success outcome")
+            }
+        }
     }
 
     private static func parseCallbackRequest(
@@ -221,18 +254,60 @@ enum AntigravityOAuthCallbackServer {
         return "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n\(html)"
     }
 
+    private static func respond(to clientFD: Int32, with outcome: CallbackValidationOutcome) {
+        let responseData = Data(self.httpResponse(for: outcome).utf8)
+        let errorCode = responseData.withUnsafeBytes { rawBuffer -> Int32? in
+            guard let baseAddress = rawBuffer.baseAddress else {
+                return nil
+            }
+
+            var totalBytesSent = 0
+            while totalBytesSent < rawBuffer.count {
+                let remainingBytes = rawBuffer.count - totalBytesSent
+                let bytesSent = send(clientFD, baseAddress.advanced(by: totalBytesSent), remainingBytes, 0)
+                if bytesSent < 0 {
+                    return errno
+                }
+                if bytesSent == 0 {
+                    return ECONNRESET
+                }
+                totalBytesSent += bytesSent
+            }
+
+            return nil
+        }
+
+        guard let errorCode else {
+            return
+        }
+
+        switch errorCode {
+        case EPIPE, ECONNRESET:
+            self.log.info(
+                "OAuth callback client disconnected before response was written",
+                metadata: ["errno": "\(errorCode)"])
+        default:
+            self.log.warning(
+                "Failed to write OAuth callback response",
+                metadata: ["errno": "\(errorCode)"])
+        }
+    }
+
     private static func callbackHTML(for outcome: CallbackValidationOutcome) -> String {
-        let title: String
-        let message: String
+        let rawTitle: String
+        let rawMessage: String
 
         switch outcome {
         case .success:
-            title = "✅ Signed in to CodexBar"
-            message = "You can close this tab and return to CodexBar."
+            rawTitle = "✅ Signed in to CodexBar"
+            rawMessage = "You can close this tab and return to CodexBar."
         case let .retryableFailure(reason), let .terminalFailure(reason):
-            title = "CodexBar could not sign you in"
-            message = "Return to CodexBar and try again. \(reason)"
+            rawTitle = "CodexBar could not sign you in"
+            rawMessage = "Return to CodexBar and try again. \(reason)"
         }
+
+        let title = self.escapeHTML(rawTitle)
+        let message = self.escapeHTML(rawMessage)
 
         return """
         <html><body style="font-family: -apple-system, sans-serif; display: flex; \
@@ -252,6 +327,45 @@ enum AntigravityOAuthCallbackServer {
         return timeval(
             tv_sec: Int(wholeSeconds),
             tv_usec: Int32(fractional * 1_000_000))
+    }
+
+    private static func suppressSIGPIPE(on clientFD: Int32) {
+        var noSIGPIPE: Int32 = 1
+        let result = withUnsafePointer(to: &noSIGPIPE) { pointer in
+            setsockopt(
+                clientFD,
+                SOL_SOCKET,
+                SO_NOSIGPIPE,
+                pointer,
+                socklen_t(MemoryLayout<Int32>.size))
+        }
+        guard result == 0 else {
+            self.log.warning(
+                "Failed to suppress SIGPIPE on OAuth callback socket",
+                metadata: ["errno": "\(errno)"])
+            return
+        }
+    }
+
+    private static func escapeHTML(_ string: String) -> String {
+        string
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
+    }
+
+    private static func callbackFailureMessage(for error: Error) -> String {
+        switch error {
+        case let AntigravityOAuthError.authenticationFailed(message),
+             let AntigravityOAuthError.tokenRefreshFailed(message):
+            message
+        case let AntigravityOAuthError.keychainWriteFailed(status):
+            "Keychain write failed (OSStatus: \(status))"
+        default:
+            error.localizedDescription
+        }
     }
 
     private static func data(for request: URLRequest, timeout: TimeInterval) async throws -> (Data, URLResponse) {
