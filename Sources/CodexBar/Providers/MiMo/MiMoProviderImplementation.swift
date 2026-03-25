@@ -11,7 +11,7 @@ struct MiMoProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "cookies" }
+        ProviderPresentation { _ in "web" }
     }
 
     @MainActor

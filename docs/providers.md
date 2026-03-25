@@ -39,7 +39,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | Ollama | Web settings page via browser cookies (`web`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
-| Xiaomi MiMo | Balance endpoint via browser cookies or manual cookie header (`web`). |
+| Xiaomi MiMo | Browser cookies → balance endpoint (`web`). |
 
 ## Codex
 - Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
