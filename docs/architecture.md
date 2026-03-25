@@ -12,6 +12,7 @@ read_when:
 - `Sources/CodexBar`: state + UI (UsageStore, SettingsStore, StatusItemController, menus, icon rendering).
 - `Sources/CodexBarWidget`: WidgetKit extension wired to the shared snapshot.
 - `Sources/CodexBarCLI`: bundled CLI for `codexbar` usage/status output.
+- `Sources/CodexBarLinux`: Linux frontend that refreshes `CodexBarCLI` JSON into a local dashboard + Waybar artifact.
 - `Sources/CodexBarMacros`: SwiftSyntax macros for provider registration.
 - `Sources/CodexBarMacroSupport`: shared macro support used by app/core/CLI targets.
 - `Sources/CodexBarClaudeWatchdog`: helper process for stable Claude CLI PTY sessions.
