@@ -40,7 +40,7 @@ extension StatusItemController {
                 port: port, expectedState: state, timeout: 120)
             let storage = AntigravityOAuthStorage()
             try storage.saveTokens(tokens)
-            AntigravitySessionState.preferRemote = true
+            await AntigravitySessionState.setPreferRemote(true)
 
             // Force-enable the provider since initial detection may have disabled it
             // (e.g., IDE wasn't running and no tokens existed at startup).

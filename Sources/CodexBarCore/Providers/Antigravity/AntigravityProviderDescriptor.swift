@@ -34,19 +34,32 @@ public enum AntigravityProviderDescriptor {
                 noDataMessage: { "Antigravity cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
-                    if AntigravitySessionState.preferRemote {
-                        // User explicitly switched account this session — prefer remote API.
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    switch context.sourceMode {
+                    case .auto:
+                        if await AntigravitySessionState.preferRemote() {
+                            // User explicitly switched account this session — prefer remote API.
+                            [
+                                AntigravityAPIFetchStrategy(),
+                                AntigravityStatusFetchStrategy(),
+                            ]
+                        } else {
+                            // Default — try local probe first, fall back to API.
+                            [
+                                AntigravityStatusFetchStrategy(),
+                                AntigravityAPIFetchStrategy(),
+                            ]
+                        }
+                    case .cli:
                         [
-                            AntigravityAPIFetchStrategy(),
                             AntigravityStatusFetchStrategy(),
                         ]
-                    } else {
-                        // Default — try local probe first, fall back to API.
+                    case .oauth:
                         [
-                            AntigravityStatusFetchStrategy(),
                             AntigravityAPIFetchStrategy(),
                         ]
+                    case .web, .api:
+                        []
                     }
                 })),
             cli: ProviderCLIConfig(
