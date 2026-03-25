@@ -100,6 +100,40 @@ struct MiMoProviderTests {
     }
 
     @Test
+    func `cookie header builder rejects partial path prefix matches`() throws {
+        let cookies = try [
+            self.makeCookie(
+                name: "userId",
+                value: "partial-path-user",
+                domain: "platform.xiaomimimo.com",
+                path: "/api/v1/bal",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+            self.makeCookie(
+                name: "userId",
+                value: "valid-user",
+                domain: "platform.xiaomimimo.com",
+                path: "/api",
+                expiresAt: Date(timeIntervalSince1970: 1_800_000_000)),
+            self.makeCookie(
+                name: "api-platform_serviceToken",
+                value: "partial-path-token",
+                domain: "platform.xiaomimimo.com",
+                path: "/api/v1/bal",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+            self.makeCookie(
+                name: "api-platform_serviceToken",
+                value: "valid-token",
+                domain: "platform.xiaomimimo.com",
+                path: "/api",
+                expiresAt: Date(timeIntervalSince1970: 1_800_000_000)),
+        ]
+
+        let header = MiMoCookieHeader.header(from: cookies)
+
+        #expect(header == "api-platform_serviceToken=valid-token; userId=valid-user")
+    }
+
+    @Test
     func `usage snapshot exposes balance through identity plan text`() {
         let snapshot = MiMoUsageSnapshot(
             balance: 25.51,

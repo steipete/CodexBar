@@ -63,7 +63,17 @@ enum MiMoCookieHeader {
 
         let cookiePath = cookie.path.isEmpty ? "/" : cookie.path
         let requestPath = url.path.isEmpty ? "/" : url.path
-        return requestPath.hasPrefix(cookiePath)
+        if requestPath == cookiePath {
+            return true
+        }
+        guard requestPath.hasPrefix(cookiePath) else { return false }
+        guard cookiePath != "/" else { return true }
+        guard let boundaryIndex = requestPath.index(cookiePath.startIndex, offsetBy: cookiePath.count, limitedBy: requestPath.endIndex),
+              boundaryIndex < requestPath.endIndex else
+        {
+            return true
+        }
+        return requestPath[boundaryIndex] == "/"
     }
 
     private static func cookieSortKey(for cookie: HTTPCookie) -> (Int, Int, Date) {
