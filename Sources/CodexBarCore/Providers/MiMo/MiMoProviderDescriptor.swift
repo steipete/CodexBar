@@ -99,7 +99,10 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
                     cookieHeader: cachedHeader,
                     environment: context.env)
                 return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
-            } catch let error as MiMoUsageError where Self.shouldRetryNextSession(for: error) {
+            } catch {
+                guard Self.shouldRetryNextSession(for: error) else {
+                    throw error
+                }
                 CookieHeaderCache.clear(provider: .mimo)
                 lastError = error
             }
@@ -121,7 +124,10 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
                     cookieHeader: session.cookieHeader,
                     sourceLabel: session.sourceLabel)
                 return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
-            } catch let error as MiMoUsageError where Self.shouldRetryNextSession(for: error) {
+            } catch {
+                guard Self.shouldRetryNextSession(for: error) else {
+                    throw error
+                }
                 lastError = error
                 continue
             }
@@ -143,12 +149,18 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         return MiMoCookieHeader.normalizedHeader(from: context.settings?.mimo?.manualCookieHeader)
     }
 
-    private static func shouldRetryNextSession(for error: MiMoUsageError) -> Bool {
-        switch error {
-        case .invalidCredentials, .loginRequired:
-            true
-        case .parseFailed, .networkError:
-            false
+    private static func shouldRetryNextSession(for error: Error) -> Bool {
+        if error is DecodingError {
+            return true
+        }
+        guard let mimoError = error as? MiMoUsageError else {
+            return false
+        }
+        switch mimoError {
+        case .invalidCredentials, .loginRequired, .parseFailed:
+            return true
+        case .networkError:
+            return false
         }
     }
 }

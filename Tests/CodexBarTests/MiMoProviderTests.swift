@@ -39,6 +39,67 @@ struct MiMoProviderTests {
     }
 
     @Test
+    func `cookie header builder keeps mimo auth cookies from one scope`() throws {
+        let cookies = try [
+            self.makeCookie(
+                name: "userId",
+                value: "root-user",
+                domain: "xiaomimimo.com",
+                expiresAt: Date(timeIntervalSince1970: 1_800_000_000)),
+            self.makeCookie(
+                name: "api-platform_serviceToken",
+                value: "platform-token",
+                domain: "platform.xiaomimimo.com",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+            self.makeCookie(
+                name: "userId",
+                value: "platform-user",
+                domain: "platform.xiaomimimo.com",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+            self.makeCookie(
+                name: "api-platform_ph",
+                value: "platform-ph",
+                domain: "platform.xiaomimimo.com",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+        ]
+
+        let header = MiMoCookieHeader.header(from: cookies)
+
+        #expect(header == "api-platform_ph=platform-ph; api-platform_serviceToken=platform-token; userId=platform-user")
+    }
+
+    @Test
+    func `cookie header builder prefers more specific matching cookie`() throws {
+        let cookies = try [
+            self.makeCookie(
+                name: "userId",
+                value: "root-user",
+                domain: "xiaomimimo.com",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+            self.makeCookie(
+                name: "userId",
+                value: "api-user",
+                domain: "platform.xiaomimimo.com",
+                path: "/api",
+                expiresAt: Date(timeIntervalSince1970: 1_800_000_000)),
+            self.makeCookie(
+                name: "api-platform_serviceToken",
+                value: "platform-token",
+                domain: ".xiaomimimo.com",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+            self.makeCookie(
+                name: "irrelevant",
+                value: "ignored",
+                domain: "platform.xiaomimimo.com",
+                expiresAt: Date(timeIntervalSince1970: 1_900_000_000)),
+        ]
+
+        let header = MiMoCookieHeader.header(from: cookies)
+
+        #expect(header == "api-platform_serviceToken=platform-token; userId=api-user")
+    }
+
+    @Test
     func `usage snapshot exposes balance through identity plan text`() {
         let snapshot = MiMoUsageSnapshot(
             balance: 25.51,
@@ -181,6 +242,71 @@ struct MiMoProviderTests {
         #expect(available == false)
     }
 
+    @Test
+    func `mimo web strategy retries imported sessions after decode failure`() async throws {
+        let registered = URLProtocol.registerClass(MiMoStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(MiMoStubURLProtocol.self)
+            }
+            MiMoStubURLProtocol.handler = nil
+            MiMoCookieImporter.importSessionsOverrideForTesting = nil
+            CookieHeaderCache.clear(provider: .mimo)
+        }
+
+        CookieHeaderCache.clear(provider: .mimo)
+        CookieHeaderCache.store(provider: .mimo, cookieHeader: "invalid", sourceLabel: "invalid")
+
+        MiMoCookieImporter.importSessionsOverrideForTesting = { _, _ in
+            [
+                .init(
+                    cookieHeader: "api-platform_serviceToken=expired-token; userId=111",
+                    sourceLabel: "Expired Chrome"),
+                .init(
+                    cookieHeader: "api-platform_serviceToken=valid-token; userId=222",
+                    sourceLabel: "Active Chrome"),
+            ]
+        }
+
+        var requestedCookies: [String] = []
+        MiMoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            let cookie = request.value(forHTTPHeaderField: "Cookie") ?? ""
+            requestedCookies.append(cookie)
+
+            if cookie.contains("expired-token") {
+                let response = HTTPURLResponse(
+                    url: url,
+                    statusCode: 200,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "text/html"])!
+                return (response, Data("<html>login</html>".utf8))
+            }
+
+            let body = """
+            {
+              "code": 0,
+              "message": "",
+              "data": {
+                "balance": "25.51",
+                "currency": "USD"
+              }
+            }
+            """
+            return Self.makeResponse(url: url, body: body)
+        }
+
+        let strategy = MiMoWebFetchStrategy()
+        let result = try await strategy
+            .fetch(self.makeContext(environment: ["MIMO_API_URL": "https://mimo.test/api/v1"]))
+
+        #expect(requestedCookies.count == 2)
+        #expect(requestedCookies[0].contains("expired-token"))
+        #expect(requestedCookies[1].contains("valid-token"))
+        #expect(result.usage.loginMethod(for: .mimo) == "Balance: $25.51")
+        #expect(CookieHeaderCache.load(provider: .mimo)?.sourceLabel == "Active Chrome")
+    }
+
     private static func makeResponse(
         url: URL,
         body: String,
@@ -223,7 +349,10 @@ struct MiMoProviderTests {
         }
     }
 
-    private func makeContext(settings: ProviderSettingsSnapshot? = nil) -> ProviderFetchContext {
+    private func makeContext(
+        settings: ProviderSettingsSnapshot? = nil,
+        environment: [String: String] = [:]) -> ProviderFetchContext
+    {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
             runtime: .app,
@@ -232,11 +361,29 @@ struct MiMoProviderTests {
             webTimeout: 1,
             webDebugDumpHTML: false,
             verbose: false,
-            env: [:],
+            env: environment,
             settings: settings,
             fetcher: UsageFetcher(environment: [:]),
             claudeFetcher: StubClaudeFetcher(),
             browserDetection: browserDetection)
+    }
+
+    private func makeCookie(
+        name: String,
+        value: String,
+        domain: String,
+        path: String = "/",
+        expiresAt: Date) throws -> HTTPCookie
+    {
+        let properties: [HTTPCookiePropertyKey: Any] = [
+            .name: name,
+            .value: value,
+            .domain: domain,
+            .path: path,
+            .expires: expiresAt,
+            .secure: "TRUE",
+        ]
+        return try #require(HTTPCookie(properties: properties))
     }
 }
 

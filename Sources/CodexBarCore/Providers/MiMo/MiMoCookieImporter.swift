@@ -31,17 +31,16 @@ enum MiMoCookieHeader {
     }
 
     static func header(from cookies: [HTTPCookie]) -> String? {
+        let requestURL = URL(string: "https://platform.xiaomimimo.com/api/v1/balance")!
         var byName: [String: HTTPCookie] = [:]
-
         for cookie in cookies {
             guard self.knownCookieNames.contains(cookie.name) else { continue }
             guard !cookie.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             if let expiry = cookie.expiresDate, expiry < Date() { continue }
+            guard Self.matchesRequestURL(cookie: cookie, url: requestURL) else { continue }
 
             if let existing = byName[cookie.name] {
-                let existingExpiry = existing.expiresDate ?? .distantPast
-                let candidateExpiry = cookie.expiresDate ?? .distantPast
-                if candidateExpiry >= existingExpiry {
+                if Self.cookieSortKey(for: cookie) >= Self.cookieSortKey(for: existing) {
                     byName[cookie.name] = cookie
                 }
             } else {
@@ -54,6 +53,25 @@ enum MiMoCookieHeader {
             guard let cookie = byName[name] else { return nil }
             return "\(cookie.name)=\(cookie.value)"
         }.joined(separator: "; ")
+    }
+
+    private static func matchesRequestURL(cookie: HTTPCookie, url: URL) -> Bool {
+        guard let host = url.host else { return false }
+        let normalizedDomain = cookie.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        guard !normalizedDomain.isEmpty else { return false }
+        guard host == normalizedDomain || host.hasSuffix(".\(normalizedDomain)") else { return false }
+
+        let cookiePath = cookie.path.isEmpty ? "/" : cookie.path
+        let requestPath = url.path.isEmpty ? "/" : url.path
+        return requestPath.hasPrefix(cookiePath)
+    }
+
+    private static func cookieSortKey(for cookie: HTTPCookie) -> (Int, Int, Date) {
+        let pathLength = cookie.path.count
+        let normalizedDomain = cookie.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        let domainLength = normalizedDomain.count
+        let expiry = cookie.expiresDate ?? .distantPast
+        return (pathLength, domainLength, expiry)
     }
 }
 
