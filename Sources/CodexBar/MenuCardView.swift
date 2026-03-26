@@ -935,6 +935,13 @@ extension UsageMenuCardView.Model {
         if input.provider == .antigravity {
             return Self.antigravityMetrics(input: input, snapshot: snapshot)
         }
+        if input.provider == .minimax {
+            if let minimaxUsage = snapshot.minimaxUsage {
+                if let services = minimaxUsage.services, !services.isEmpty {
+                    return Self.minimaxMetrics(services: services, input: input)
+                }
+            }
+        }
         var metrics: [Metric] = []
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
         let zaiUsage = input.provider == .zai ? snapshot.zaiUsage : nil
@@ -1094,6 +1101,42 @@ extension UsageMenuCardView.Model {
                 input: input,
                 percentStyle: percentStyle),
         ]
+    }
+    
+    private static func minimaxMetrics(services: [MiniMaxServiceUsage], input: Input) -> [Metric] {
+        let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
+        var metrics: [Metric] = []
+        
+        for (index, service) in services.enumerated() {
+            let id = "minimax-service-\(index)"
+            let title = service.displayName
+            let used = service.limit - service.usage  // usage is remaining, calculate used
+            let remaining = service.usage  // service.usage is remaining quota
+            let percent = service.percent  // This is used percent
+            
+            // Adjust display based on usageBarsShowUsed setting
+            let displayValue: Int = input.usageBarsShowUsed ? used : remaining
+            let detailText = "\(displayValue)/\(service.limit)"
+            
+            // Adjust percentage display - BOTH for progress bar AND text
+            let displayPercent = input.usageBarsShowUsed ? percent : (100 - percent)
+            let detailLeftText = service.windowType
+            let detailRightText = String(format: "%.0f%%", displayPercent)
+            
+            metrics.append(Metric(
+                id: id,
+                title: title,
+                percent: Self.clamped(displayPercent),  // Use displayPercent for progress bar too
+                percentStyle: percentStyle,
+                resetText: service.resetDescription,
+                detailText: detailText,
+                detailLeftText: detailLeftText,
+                detailRightText: detailRightText,
+                pacePercent: nil,
+                paceOnTop: true))
+        }
+        
+        return metrics
     }
 
     private static func antigravityMetric(

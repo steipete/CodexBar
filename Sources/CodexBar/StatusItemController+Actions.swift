@@ -43,6 +43,9 @@ extension StatusItemController {
         if provider == .alibaba {
             return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
         }
+        if provider == .minimax {
+            return self.settings.minimaxAPIRegion.dashboardURL
+        }
 
         let meta = self.store.metadata(for: provider)
         let urlString: String? = if provider == .claude, self.store.isClaudeSubscription() {
