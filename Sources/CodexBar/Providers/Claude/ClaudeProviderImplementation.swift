@@ -97,7 +97,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             ProviderSettingsToggleDescriptor(
                 id: "claude-peak-hours",
                 title: "Show peak hours indicator",
-                subtitle: "Show whether Claude is in peak usage hours (8 AM–2 PM ET, weekdays).",
+                subtitle: "Show whether Claude is in peak usage hours.",
                 binding: peakHoursBinding,
                 statusText: nil,
                 actions: [],
