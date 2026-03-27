@@ -245,6 +245,14 @@ extension SettingsStore {
         }
     }
 
+    var claudePeakHoursEnabled: Bool {
+        get { self.defaultsState.claudePeakHoursEnabled }
+        set {
+            self.defaultsState.claudePeakHoursEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "claudePeakHoursEnabled")
+        }
+    }
+
     var showOptionalCreditsAndExtraUsage: Bool {
         get { self.defaultsState.showOptionalCreditsAndExtraUsage }
         set {

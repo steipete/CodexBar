@@ -26,6 +26,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeOAuthKeychainPromptMode
         _ = settings.claudeOAuthKeychainReadStrategy
         _ = settings.claudeWebExtrasEnabled
+        _ = settings.claudePeakHoursEnabled
     }
 
     @MainActor
@@ -77,12 +78,27 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 context.settings.claudeOAuthPromptFreeCredentialsEnabled = enabled
             })
 
+        let peakHoursBinding = Binding(
+            get: { context.settings.claudePeakHoursEnabled },
+            set: { context.settings.claudePeakHoursEnabled = $0 })
+
         return [
             ProviderSettingsToggleDescriptor(
                 id: "claude-oauth-prompt-free-credentials",
                 title: "Avoid Keychain prompts (experimental)",
                 subtitle: subtitle,
                 binding: promptFreeBinding,
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "claude-peak-hours",
+                title: "Show peak hours indicator",
+                subtitle: "Show whether Claude is in peak usage hours (8 AM–2 PM ET, weekdays).",
+                binding: peakHoursBinding,
                 statusText: nil,
                 actions: [],
                 isVisible: nil,

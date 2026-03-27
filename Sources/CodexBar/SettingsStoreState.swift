@@ -25,6 +25,7 @@ struct SettingsDefaultsState {
     var claudeOAuthKeychainPromptModeRaw: String?
     var claudeOAuthKeychainReadStrategyRaw: String?
     var claudeWebExtrasEnabledRaw: Bool
+    var claudePeakHoursEnabled: Bool
     var showOptionalCreditsAndExtraUsage: Bool
     var openAIWebAccessEnabled: Bool
     var jetbrainsIDEBasePath: String

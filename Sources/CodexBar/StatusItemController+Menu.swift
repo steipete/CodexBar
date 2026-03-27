@@ -1482,6 +1482,7 @@ extension StatusItemController {
             sourceLabel: sourceLabel,
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
+            claudePeakHoursEnabled: self.settings.claudePeakHoursEnabled,
             weeklyPace: weeklyPace,
             now: now)
         return UsageMenuCardView.Model.make(input)
