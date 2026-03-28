@@ -3,6 +3,47 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.19.0</title>
+            <pubDate>Mon, 23 Mar 2026 17:44:57 -0700</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>53</sparkle:version>
+            <sparkle:shortVersionString>0.19.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.19.0</h2>
+<h3>Highlights</h3>
+<ul>
+<li>Add Alibaba Coding Plan provider with region-aware quota fetching, widget integration, and browser-cookie import defaults (#574).</li>
+<li>Align Cursor usage with the dashboard's Total/Auto/API lanes. (#587). Thanks @Rag30!</li>
+<li>Add subscription utilization history chart to the menu with DST-safe data point identification (#589). Thanks @maxceem!</li>
+<li>Refactor the Claude provider end to end into clearer, better-tested components while preserving behavior (#494). @ratulsarna</li>
+<li>Add reset time display for Codex code review limits (#581). Thanks @Q1CHENL!</li>
+<li>Add per-model token counts to cost history (#546). Thanks @iam-brain!</li>
+<li>Fix Antigravity model selection to use stable model-family matching for Claude, Gemini Pro, and Gemini Flash, and preserve fallback lane visibility in the menu bar and icon (#590). Thanks @skainguyen1412!</li>
+<li>Add GPT-5.4 mini and nano pricing (#561). Thanks @iam-brain!</li>
+</ul>
+<h3>Providers & Usage</h3>
+<ul>
+<li>Alibaba: add Coding Plan provider support with region-aware web/API quota fetching, widget integration, and browser-cookie import defaults (#574).</li>
+<li>Cursor: trust dashboard percent fields for Total/Auto/API usage, preserve on-demand remaining fallback views, and keep scanning imported browser-cookie candidates until a working Cursor session is found (#587, supersedes #579). Thanks @Rag30!</li>
+<li>Claude: refactor the provider end to end into clearer components, with baseline docs and expanded tests to lock down behavior (#494).</li>
+<li>Codex: show reset times for code review limits, including Core review reset parsing support (#581). Thanks @Q1CHENL!</li>
+<li>Cost history: add per-model token counts so token usage is broken out by model (#546). Thanks @iam-brain!</li>
+<li>Antigravity: replace label-order guessing with stable model-family selection for Claude, Gemini Pro, and Gemini Flash; fix mapping for Claude thinking models and placeholder model IDs; preserve fallback lane visibility in the menu bar and icon when only fallback lanes exist (#590). Thanks @skainguyen1412!</li>
+<li>Kimi: tolerate API responses without <code>resetTime</code> so usage decoding no longer fails on sparse payloads.</li>
+<li>Codex: add GPT-5.4 mini and nano pricing (#561). Thanks @iam-brain!</li>
+</ul>
+<h3>Menu & Settings</h3>
+<ul>
+<li>Menu: add subscription utilization history chart with DST-safe chart point identifiers and per-provider plan utilization tracking (#589). Thanks @maxceem!</li>
+<li>Menu bar: in Both display mode, fall back to percent when pace data is unavailable so text stays visible for providers without pace metrics (#527). Thanks @Astro-Han!</li>
+<li>Settings: persist the resolved refresh cadence default to <code>UserDefaults</code> on first launch and repair invalid stored values so the setting stays normalized across relaunches (#519). Thanks @Astro-Han!</li>
+<li>Menu: wrap long status blurbs and preserve wrapped titles for multiline entries (#543). Thanks @zkforge!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.19.0/CodexBar-0.19.0.zip" length="26122301" type="application/octet-stream" sparkle:edSignature="Qi8+pZV5u0I436wC/vZ022EpH6OD0KzOKA9Bf+VLAuqtzZiG4iueruEhhSPUhWXjJnpNVKq6k5L2JEh0BsF4BQ=="/>
+        </item>
+        <item>
             <title>0.18.0</title>
             <pubDate>Sun, 15 Mar 2026 22:16:41 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -132,38 +173,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.18.0-beta.3/CodexBar-0.18.0-beta.3.zip" length="23436028" type="application/octet-stream" sparkle:edSignature="mb72DHg5xz+AY/DrCDPhpkWaRa24NwcYXnW5lKuYBzlF5kMAsqTZGaG82KWPY8su8J5bJ5wtOMjVdzPCJWjvAw=="/>
-        </item>
-        <item sparkle:channel="beta">
-            <title>0.18.0-beta.2</title>
-            <pubDate>Wed, 21 Jan 2026 08:42:37 +0000</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>50</sparkle:version>
-            <sparkle:shortVersionString>0.18.0-beta.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.18.0-beta.2</h2>
-<h3>Highlights</h3>
-<ul>
-<li>OpenAI web dashboard refresh cadence now follows 5× the base refresh interval.</li>
-<li>OpenAI web dashboard WebView is torn down after each scrape to reduce idle CPU.</li>
-<li>Codex settings now include a toggle to disable OpenAI web extras.</li>
-</ul>
-<h3>Providers</h3>
-<ul>
-<li>Providers: add Dia browser support across cookie import and profile detection (#209). Thanks @validatedev!</li>
-<li>Codex: include archived session logs in local token cost scanning and dedupe by session id.</li>
-<li>Claude: harden CLI /usage parsing and avoid ANTHROPIC_* env interference during probes.</li>
-</ul>
-<h3>Menu & Menu Bar</h3>
-<ul>
-<li>Menu: opening OpenAI web submenus triggers a refresh when the data is stale.</li>
-<li>Menu: fix usage line labels to honor “Show usage as used”.</li>
-<li>Debug: add a toggle to keep Codex/Claude CLI sessions alive between probes.</li>
-<li>Debug: add a button to reset CLI probe sessions.</li>
-<li>App icon: use the classic icon on macOS 15 and earlier while keeping Liquid Glass for macOS 26+ (#178). Thanks @zerone0x!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.18.0-beta.2/CodexBar-0.18.0-beta.2.zip" length="22498811" type="application/octet-stream" sparkle:edSignature="Zcy1PnvfyNQnpFvuydwnIQ+lUh1wGF46p92MyVeVAa/z441erCIHZ9bKH4QDlc9cB/QsTkYfk3CvE0lHTu5CCA=="/>
         </item>
         <item>
             <title>0.14.0</title>

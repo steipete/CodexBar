@@ -20,15 +20,37 @@ struct StatusProbeTests {
 
     @Test
     func `parse codex status with ansi and resets`() throws {
+        let now = try #require(
+            Calendar(identifier: .gregorian).date(from: DateComponents(
+                timeZone: TimeZone.current,
+                year: 2026,
+                month: 11,
+                day: 26,
+                hour: 8,
+                minute: 0)))
         let sample = """
         \u{001B}[38;5;245mCredits:\u{001B}[0m 557 credits
         5h limit: [█████     ] 50% left (resets 09:01)
         Weekly limit: [███████   ] 85% left (resets 04:01 on 27 Nov)
         """
-        let snap = try CodexStatusProbe.parse(text: sample)
+        let snap = try CodexStatusProbe.parse(text: sample, now: now)
         #expect(snap.credits == 557)
         #expect(snap.fiveHourPercentLeft == 50)
         #expect(snap.weeklyPercentLeft == 85)
+        #expect(snap.fiveHourResetsAt == Calendar(identifier: .gregorian).date(from: DateComponents(
+            timeZone: TimeZone.current,
+            year: 2026,
+            month: 11,
+            day: 26,
+            hour: 9,
+            minute: 1)))
+        #expect(snap.weeklyResetsAt == Calendar(identifier: .gregorian).date(from: DateComponents(
+            timeZone: TimeZone.current,
+            year: 2026,
+            month: 11,
+            day: 27,
+            hour: 4,
+            minute: 1)))
     }
 
     @Test

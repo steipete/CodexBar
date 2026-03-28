@@ -55,7 +55,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         case start(UInt64, Task<Outcome, Never>, AttemptStateStorage)
     }
 
-    private struct AttemptConfiguration: Sendable {
+    private struct AttemptConfiguration {
         let environment: [String: String]
         let readStrategy: ClaudeOAuthKeychainReadStrategy
         let keychainAccessDisabled: Bool

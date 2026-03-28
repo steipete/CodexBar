@@ -145,7 +145,8 @@ struct CursorStatusProbeTests {
                 userInfo: nil,
                 rawJSON: nil)
 
-        #expect(snapshot.planPercentUsed == 9.8)
+        // totalPercentUsed is already expressed in percentage units.
+        #expect(snapshot.planPercentUsed == 0.40625)
     }
 
     @Test
@@ -175,13 +176,152 @@ struct CursorStatusProbeTests {
                 userInfo: nil,
                 rawJSON: nil)
 
-        #expect(snapshot.planPercentUsed == 50.0)
+        #expect(snapshot.planPercentUsed == 0.5)
+    }
+
+    @Test
+    func `headline total prefers provided total percent over lane average`() {
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: nil,
+                    billingCycleEnd: nil,
+                    membershipType: "pro",
+                    limitType: nil,
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: CursorPlanUsage(
+                            enabled: true,
+                            used: 5400,
+                            limit: 2000,
+                            remaining: nil,
+                            breakdown: nil,
+                            autoPercentUsed: 0,
+                            apiPercentUsed: 0.01,
+                            totalPercentUsed: 0.27),
+                        onDemand: nil),
+                    teamUsage: nil),
+                userInfo: nil,
+                rawJSON: nil)
+
+        #expect(snapshot.planPercentUsed == 0.27)
+        #expect(snapshot.autoPercentUsed == 0)
+        #expect(snapshot.apiPercentUsed == 0.01)
+    }
+
+    @Test
+    func `sub pool percents accept plain percent scale`() {
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: nil,
+                    billingCycleEnd: nil,
+                    membershipType: "pro",
+                    limitType: nil,
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: CursorPlanUsage(
+                            enabled: true,
+                            used: 0,
+                            limit: 2000,
+                            remaining: nil,
+                            breakdown: nil,
+                            autoPercentUsed: 12.5,
+                            apiPercentUsed: 3.0,
+                            totalPercentUsed: nil),
+                        onDemand: nil),
+                    teamUsage: nil),
+                userInfo: nil,
+                rawJSON: nil)
+
+        #expect(snapshot.autoPercentUsed == 12.5)
+        #expect(snapshot.apiPercentUsed == 3.0)
+        // Dashboard-style total ≈ average of Auto and API lanes
+        #expect(snapshot.planPercentUsed == 7.75)
+    }
+
+    @Test
+    func `headline total matches dashboard blend when lanes match totalPercentUsed`() {
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: nil,
+                    billingCycleEnd: nil,
+                    membershipType: "pro",
+                    limitType: nil,
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: CursorPlanUsage(
+                            enabled: true,
+                            used: 0,
+                            limit: 2000,
+                            remaining: nil,
+                            breakdown: nil,
+                            autoPercentUsed: 35,
+                            apiPercentUsed: 97,
+                            totalPercentUsed: 66),
+                        onDemand: nil),
+                    teamUsage: nil),
+                userInfo: nil,
+                rawJSON: nil)
+
+        #expect(snapshot.planPercentUsed == 66)
+        #expect(snapshot.autoPercentUsed == 35)
+        #expect(snapshot.apiPercentUsed == 97)
+    }
+
+    @Test
+    func `live cursor payload keeps fractional percents without scaling`() {
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: "2026-03-18T20:45:42.000Z",
+                    billingCycleEnd: "2026-04-18T20:45:42.000Z",
+                    membershipType: "pro",
+                    limitType: "user",
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: "You've used 1% of your included total usage",
+                    namedModelSelectedDisplayMessage: "You've used 1% of your included API usage",
+                    individualUsage: CursorIndividualUsage(
+                        plan: CursorPlanUsage(
+                            enabled: true,
+                            used: 86,
+                            limit: 2000,
+                            remaining: 1914,
+                            breakdown: CursorPlanBreakdown(
+                                included: 86,
+                                bonus: 0,
+                                total: 86),
+                            autoPercentUsed: 0.36,
+                            apiPercentUsed: 0.7111111111111111,
+                            totalPercentUsed: 0.441025641025641),
+                        onDemand: CursorOnDemandUsage(
+                            enabled: false,
+                            used: 0,
+                            limit: nil,
+                            remaining: nil)),
+                    teamUsage: CursorTeamUsage(onDemand: nil)),
+                userInfo: nil,
+                rawJSON: nil)
+
+        #expect(snapshot.planPercentUsed == 0.441025641025641)
+        #expect(snapshot.autoPercentUsed == 0.36)
+        #expect(snapshot.apiPercentUsed == 0.7111111111111111)
+        #expect(snapshot.toUsageSnapshot().primary?.remainingPercent == 99.55897435897436)
     }
 
     @Test
     func `converts snapshot to usage snapshot`() {
         let snapshot = CursorStatusSnapshot(
             planPercentUsed: 45.0,
+            autoPercentUsed: 5.0,
+            apiPercentUsed: nil,
             planUsedUSD: 22.50,
             planLimitUSD: 50.0,
             onDemandUsedUSD: 5.0,
@@ -200,7 +340,6 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.accountEmail(for: .cursor) == "user@example.com")
         #expect(usageSnapshot.loginMethod(for: .cursor) == "Cursor Pro")
         #expect(usageSnapshot.secondary != nil)
-        // Uses individual on-demand values (what users see in their dashboard)
         #expect(usageSnapshot.secondary?.usedPercent == 5.0)
         #expect(usageSnapshot.providerCost?.used == 5.0)
         #expect(usageSnapshot.providerCost?.limit == 100.0)
@@ -208,9 +347,36 @@ struct CursorStatusProbeTests {
     }
 
     @Test
+    func `provider cost includes on demand budget before first spend`() {
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 10.0,
+            autoPercentUsed: 5.0,
+            apiPercentUsed: nil,
+            planUsedUSD: 5.0,
+            planLimitUSD: 50.0,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: 75.0,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        #expect(usageSnapshot.providerCost != nil)
+        #expect(usageSnapshot.providerCost?.used == 0.0)
+        #expect(usageSnapshot.providerCost?.limit == 75.0)
+    }
+
+    @Test
     func `uses individual on demand when no team usage`() {
         let snapshot = CursorStatusSnapshot(
             planPercentUsed: 10.0,
+            autoPercentUsed: 20.0,
+            apiPercentUsed: nil,
             planUsedUSD: 5.0,
             planLimitUSD: 50.0,
             onDemandUsedUSD: 12.0,
@@ -381,6 +547,199 @@ struct CursorStatusProbeTests {
         #expect(snapshot.requestsLimit == 500)
     }
 
+    // MARK: - Imported Session Scanning
+
+    @Test
+    func `imported session scan continues after non auth failure until later success`() async {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let expected = CursorStatusSnapshot(
+            planPercentUsed: 0.441025641025641,
+            autoPercentUsed: 0.36,
+            apiPercentUsed: 0.7111111111111111,
+            planUsedUSD: 0.86,
+            planLimitUSD: 20.0,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+
+        let result = await probe.scanImportedSessions([
+            Self.makeSessionInfo(sourceLabel: "Chrome"),
+            Self.makeSessionInfo(sourceLabel: "Safari"),
+        ]) { session in
+            switch session.sourceLabel {
+            case "Chrome":
+                .failed(.networkError("HTTP 500"))
+            case "Safari":
+                .succeeded(expected)
+            default:
+                .tryNextBrowser
+            }
+        }
+
+        switch result {
+        case let .succeeded(snapshot):
+            #expect(snapshot.planPercentUsed == expected.planPercentUsed)
+            #expect(snapshot.autoPercentUsed == expected.autoPercentUsed)
+            #expect(snapshot.apiPercentUsed == expected.apiPercentUsed)
+        case .exhausted:
+            Issue.record("Expected scan to continue to the later successful browser session")
+        }
+    }
+
+    @Test
+    func `imported session scan preserves first non auth failure after exhausting sessions`() async {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+
+        let result = await probe.scanImportedSessions([
+            Self.makeSessionInfo(sourceLabel: "Chrome"),
+            Self.makeSessionInfo(sourceLabel: "Safari"),
+            Self.makeSessionInfo(sourceLabel: "Arc"),
+        ]) { session in
+            switch session.sourceLabel {
+            case "Chrome":
+                .failed(.networkError("HTTP 500"))
+            case "Safari":
+                .tryNextBrowser
+            case "Arc":
+                .failed(.parseFailed("bad payload"))
+            default:
+                .tryNextBrowser
+            }
+        }
+
+        switch result {
+        case .succeeded:
+            Issue.record("Expected scan to report the first recoverable error after exhausting sessions")
+        case let .exhausted(error):
+            guard let error else {
+                Issue.record("Expected first recoverable error to be preserved")
+                return
+            }
+            guard case let .networkError(message) = error else {
+                Issue.record("Expected first recoverable error to be the Chrome network failure")
+                return
+            }
+            #expect(message == "HTTP 500")
+        }
+    }
+
+    @Test
+    func `browser scan stops importing after later browser succeeds`() async {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let expected = CursorStatusSnapshot(
+            planPercentUsed: 42,
+            autoPercentUsed: 12,
+            apiPercentUsed: 85,
+            planUsedUSD: 8.4,
+            planLimitUSD: 20,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+        var importedLabels: [String] = []
+
+        let result = await probe.scanBrowsers(
+            [.chrome, .safari, .chromeBeta],
+            importSessions: { browser in
+                importedLabels.append(browser.displayName)
+                switch browser {
+                case .chrome:
+                    return [Self.makeSessionInfo(sourceLabel: "Chrome")]
+                case .safari:
+                    return [Self.makeSessionInfo(sourceLabel: "Safari")]
+                case .chromeBeta:
+                    return [Self.makeSessionInfo(sourceLabel: "Chrome Beta")]
+                default:
+                    return []
+                }
+            },
+            attemptFetch: { session in
+                switch session.sourceLabel {
+                case "Chrome":
+                    .failed(.networkError("HTTP 500"))
+                case "Safari":
+                    .succeeded(expected)
+                default:
+                    .tryNextBrowser
+                }
+            })
+
+        switch result {
+        case let .succeeded(snapshot):
+            #expect(snapshot.planPercentUsed == expected.planPercentUsed)
+            #expect(importedLabels == ["Chrome", "Safari"])
+        case .exhausted:
+            Issue.record("Expected browser scan to stop after the later successful browser")
+        }
+    }
+
+    @Test
+    func `browser scan keeps trying later sources within the same browser`() async {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let expected = CursorStatusSnapshot(
+            planPercentUsed: 12,
+            autoPercentUsed: 3,
+            apiPercentUsed: 45,
+            planUsedUSD: 2.4,
+            planLimitUSD: 20,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleEnd: nil,
+            membershipType: "pro",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+        var attemptedSources: [String] = []
+
+        let result = await probe.scanBrowsers(
+            [.chrome, .safari],
+            importSessions: { browser in
+                switch browser {
+                case .chrome:
+                    [
+                        Self.makeSessionInfo(sourceLabel: "Chrome Profile 1"),
+                        Self.makeSessionInfo(sourceLabel: "Chrome Profile 2 (domain cookies)"),
+                    ]
+                case .safari:
+                    [Self.makeSessionInfo(sourceLabel: "Safari")]
+                default:
+                    []
+                }
+            },
+            attemptFetch: { session in
+                attemptedSources.append(session.sourceLabel)
+                switch session.sourceLabel {
+                case "Chrome Profile 1":
+                    return CursorStatusProbe.ImportedSessionFetchOutcome.failed(.networkError("HTTP 500"))
+                case "Chrome Profile 2 (domain cookies)":
+                    return CursorStatusProbe.ImportedSessionFetchOutcome.succeeded(expected)
+                default:
+                    return CursorStatusProbe.ImportedSessionFetchOutcome.tryNextBrowser
+                }
+            })
+
+        switch result {
+        case let .succeeded(snapshot):
+            #expect(snapshot.planPercentUsed == expected.planPercentUsed)
+            #expect(attemptedSources == ["Chrome Profile 1", "Chrome Profile 2 (domain cookies)"])
+        case .exhausted:
+            Issue.record("Expected browser scan to continue to later sources within the same browser")
+        }
+    }
+
     @Test
     func `detects non legacy plan`() {
         let snapshot = CursorStatusSnapshot(
@@ -498,5 +857,18 @@ struct CursorStatusProbeTests {
         #expect(hasSession)
 
         await store.clearCookies()
+    }
+
+    private static func makeSessionInfo(sourceLabel: String) -> CursorCookieImporter.SessionInfo {
+        let cookieProps: [HTTPCookiePropertyKey: Any] = [
+            .name: "WorkosCursorSessionToken",
+            .value: sourceLabel.lowercased(),
+            .domain: "cursor.com",
+            .path: "/",
+            .secure: true,
+        ]
+
+        let cookie = HTTPCookie(properties: cookieProps)!
+        return CursorCookieImporter.SessionInfo(cookies: [cookie], sourceLabel: sourceLabel)
     }
 }

@@ -27,6 +27,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case warp
     case openrouter
     case windsurf
+    case perplexity
 }
 
 // swiftformat:enable sortDeclarations
@@ -56,6 +57,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case warp
     case openrouter
     case windsurf
+    case perplexity
     case combined
 }
 
@@ -136,6 +138,15 @@ public enum ProviderBrowserCookieDefaults {
     public static var defaultImportOrder: BrowserCookieImportOrder? {
         #if os(macOS)
         Browser.defaultImportOrder
+        #else
+        nil
+        #endif
+    }
+
+    /// Safari first for Cursor: active sessions often live only there, and Chromium profiles may carry stale tokens.
+    public static var cursorCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.safari] + Browser.defaultImportOrder.filter { $0 != .safari }
         #else
         nil
         #endif

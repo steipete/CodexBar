@@ -33,6 +33,7 @@ extension UsageStore {
         let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
         let effectiveSelected = selectedAccount ?? limitedAccounts.first
         var snapshots: [TokenAccountUsageSnapshot] = []
+        var historySamples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)] = []
         var selectedOutcome: ProviderFetchOutcome?
         var selectedSnapshot: UsageSnapshot?
 
@@ -41,6 +42,9 @@ extension UsageStore {
             let outcome = await self.fetchOutcome(provider: provider, override: override)
             let resolved = self.resolveAccountOutcome(outcome, provider: provider, account: account)
             snapshots.append(resolved.snapshot)
+            if let usage = resolved.usage {
+                historySamples.append((account: account, snapshot: usage))
+            }
             if account.id == effectiveSelected?.id {
                 selectedOutcome = outcome
                 selectedSnapshot = resolved.usage
@@ -58,6 +62,11 @@ extension UsageStore {
                 account: effectiveSelected,
                 fallbackSnapshot: selectedSnapshot)
         }
+
+        await self.recordFetchedTokenAccountPlanUtilizationHistory(
+            provider: provider,
+            samples: historySamples,
+            selectedAccount: effectiveSelected)
     }
 
     func limitedTokenAccounts(
@@ -113,6 +122,21 @@ extension UsageStore {
         let usage: UsageSnapshot?
     }
 
+    func recordFetchedTokenAccountPlanUtilizationHistory(
+        provider: UsageProvider,
+        samples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)],
+        selectedAccount: ProviderTokenAccount?) async
+    {
+        for sample in samples where sample.account.id != selectedAccount?.id {
+            await self.recordPlanUtilizationHistorySample(
+                provider: provider,
+                snapshot: sample.snapshot,
+                account: sample.account,
+                shouldUpdatePreferredAccountKey: false,
+                shouldAdoptUnscopedHistory: false)
+        }
+    }
+
     private func resolveAccountOutcome(
         _ outcome: ProviderFetchOutcome,
         provider: UsageProvider,
@@ -162,6 +186,10 @@ extension UsageStore {
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
             }
+            await self.recordPlanUtilizationHistorySample(
+                provider: provider,
+                snapshot: labeled,
+                account: account)
         case let .failure(error):
             await MainActor.run {
                 let hadPriorData = self.snapshots[provider] != nil || fallbackSnapshot != nil

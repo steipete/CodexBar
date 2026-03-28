@@ -10,7 +10,7 @@ extension UsageStore {
 }
 
 extension UsageStore {
-    struct ClaudeDebugLogConfiguration: Sendable {
+    struct ClaudeDebugLogConfiguration {
         let runtime: CodexBarCore.ProviderRuntime
         let sourceMode: ProviderSourceMode
         let environment: [String: String]

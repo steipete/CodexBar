@@ -811,11 +811,14 @@ struct HistoricalUsagePaceTests {
             tokenAccountStore: InMemoryTokenAccountStore())
         settings.historicalTrackingEnabled = true
 
+        let planHistoryStore = testPlanUtilizationHistoryStore(
+            suiteName: "HistoricalUsagePaceTests-\(UUID().uuidString)")
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
-            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: Self.makeTempURL()))
+            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: Self.makeTempURL()),
+            planUtilizationHistoryStore: planHistoryStore)
 
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(

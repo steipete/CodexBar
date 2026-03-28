@@ -132,3 +132,15 @@ func testConfigStore(suiteName: String, reset: Bool = true) -> CodexBarConfigSto
     }
     return CodexBarConfigStore(fileURL: url)
 }
+
+func testPlanUtilizationHistoryStore(suiteName: String, reset: Bool = true) -> PlanUtilizationHistoryStore {
+    let sanitized = suiteName.replacingOccurrences(of: "/", with: "-")
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("codexbar-tests", isDirectory: true)
+        .appendingPathComponent(sanitized, isDirectory: true)
+    let url = base.appendingPathComponent("history", isDirectory: true)
+    if reset {
+        try? FileManager.default.removeItem(at: url)
+    }
+    return PlanUtilizationHistoryStore(directoryURL: url)
+}

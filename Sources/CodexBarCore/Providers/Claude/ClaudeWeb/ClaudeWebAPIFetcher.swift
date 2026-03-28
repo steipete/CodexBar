@@ -708,7 +708,7 @@ public enum ClaudeWebAPIFetcher {
         return memberships.first
     }
 
-    private struct ProbeParseResult: Sendable {
+    private struct ProbeParseResult {
         let keys: [String]
         let emails: [String]
         let planHints: [String]

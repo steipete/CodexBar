@@ -4,22 +4,38 @@ import Testing
 @testable import CodexBar
 
 struct StatusItemControllerMenuTests {
-    private func makeSnapshot(primary: RateWindow?, secondary: RateWindow?) -> UsageSnapshot {
-        UsageSnapshot(primary: primary, secondary: secondary, updatedAt: Date())
+    private func makeSnapshot(
+        primary: RateWindow?,
+        secondary: RateWindow?,
+        tertiary: RateWindow? = nil,
+        providerCost: ProviderCostSnapshot? = nil)
+        -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
+            providerCost: providerCost,
+            updatedAt: Date())
     }
 
     @Test
-    func `cursor switcher falls back to secondary when plan exhausted and showing remaining`() {
+    func `cursor switcher falls back to on demand budget when plan exhausted and showing remaining`() {
         let primary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         let secondary = RateWindow(usedPercent: 36, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
-        let snapshot = self.makeSnapshot(primary: primary, secondary: secondary)
+        let providerCost = ProviderCostSnapshot(
+            used: 12,
+            limit: 200,
+            currencyCode: "USD",
+            updatedAt: Date())
+        let snapshot = self.makeSnapshot(primary: primary, secondary: secondary, providerCost: providerCost)
 
         let percent = StatusItemController.switcherWeeklyMetricPercent(
             for: .cursor,
             snapshot: snapshot,
             showUsed: false)
 
-        #expect(percent == 64)
+        #expect(percent == 94)
     }
 
     @Test
@@ -48,6 +64,35 @@ struct StatusItemControllerMenuTests {
             showUsed: false)
 
         #expect(percent == 80)
+    }
+
+    @Test
+    func `cursor switcher does not treat auto lane as extra remaining quota`() {
+        let primary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let secondary = RateWindow(usedPercent: 36, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let snapshot = self.makeSnapshot(primary: primary, secondary: secondary)
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .cursor,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 0)
+    }
+
+    @Test
+    func `perplexity switcher falls back after recurring credits are exhausted`() {
+        let primary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let secondary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let tertiary = RateWindow(usedPercent: 24, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let snapshot = self.makeSnapshot(primary: primary, secondary: secondary, tertiary: tertiary)
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .perplexity,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 76)
     }
 
     @Test

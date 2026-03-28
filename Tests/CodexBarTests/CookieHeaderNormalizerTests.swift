@@ -3,7 +3,7 @@ import Testing
 
 struct CookieHeaderNormalizerTests {
     @Test
-    func compactCurlShortFormWithoutWhitespaceStillParses() {
+    func `compact curl short form without whitespace still parses`() {
         let normalized = CookieHeaderNormalizer.normalize("curl https://example.com -bfoo=bar")
 
         #expect(normalized == "foo=bar")

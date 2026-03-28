@@ -29,8 +29,8 @@ enum MenuBarDisplayText {
             return self.paceText(pace: pace)
         case .both:
             guard let percent = percentText(window: percentWindow, showUsed: showUsed) else { return nil }
-            let paceText: String? = Self.paceText(pace: pace)
-            guard let paceText else { return nil }
+            // Fall back to percent-only when pace is unavailable (e.g. Copilot)
+            guard let paceText = Self.paceText(pace: pace) else { return percent }
             return "\(percent) · \(paceText)"
         }
     }

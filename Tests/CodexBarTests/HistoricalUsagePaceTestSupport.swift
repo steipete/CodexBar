@@ -162,10 +162,13 @@ extension HistoricalUsagePaceTests {
             copilotTokenStore: InMemoryCopilotTokenStore(),
             tokenAccountStore: InMemoryTokenAccountStore())
         settings.historicalTrackingEnabled = true
+        let planHistoryStore = testPlanUtilizationHistoryStore(
+            suiteName: "HistoricalUsagePaceTests-\(UUID().uuidString)")
         return UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
-            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: historyFileURL))
+            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: historyFileURL),
+            planUtilizationHistoryStore: planHistoryStore)
     }
 }

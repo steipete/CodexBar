@@ -242,6 +242,9 @@ extension StatusItemController {
                 currentProvider: currentProvider,
                 context: openAIContext,
                 addedOpenAIWebItems: addedOpenAIWebItems)
+            if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
+                menu.addItem(.separator())
+            }
         }
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
     }
@@ -291,6 +294,9 @@ extension StatusItemController {
             currentProvider: currentProvider,
             context: openAIContext,
             addedOpenAIWebItems: addedOpenAIWebItems)
+        if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
+            menu.addItem(.separator())
+        }
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
     }
 
@@ -820,11 +826,13 @@ extension StatusItemController {
         }
     }
 
-    private func makeMenuCardItem(
+    func makeMenuCardItem(
         _ view: some View,
         id: String,
         width: CGFloat,
         submenu: NSMenu? = nil,
+        submenuIndicatorAlignment: Alignment = .topTrailing,
+        submenuIndicatorTopPadding: CGFloat = 8,
         onClick: (() -> Void)? = nil) -> NSMenuItem
     {
         if !Self.menuCardRenderingEnabled {
@@ -842,7 +850,9 @@ extension StatusItemController {
         let highlightState = MenuCardHighlightState()
         let wrapped = MenuCardSectionContainerView(
             highlightState: highlightState,
-            showsSubmenuIndicator: submenu != nil)
+            showsSubmenuIndicator: submenu != nil,
+            submenuIndicatorAlignment: submenuIndicatorAlignment,
+            submenuIndicatorTopPadding: submenuIndicatorTopPadding)
         {
             view
         }
@@ -1137,15 +1147,21 @@ extension StatusItemController {
     private struct MenuCardSectionContainerView<Content: View>: View {
         @Bindable var highlightState: MenuCardHighlightState
         let showsSubmenuIndicator: Bool
+        let submenuIndicatorAlignment: Alignment
+        let submenuIndicatorTopPadding: CGFloat
         let content: Content
 
         init(
             highlightState: MenuCardHighlightState,
             showsSubmenuIndicator: Bool,
+            submenuIndicatorAlignment: Alignment,
+            submenuIndicatorTopPadding: CGFloat,
             @ViewBuilder content: () -> Content)
         {
             self.highlightState = highlightState
             self.showsSubmenuIndicator = showsSubmenuIndicator
+            self.submenuIndicatorAlignment = submenuIndicatorAlignment
+            self.submenuIndicatorTopPadding = submenuIndicatorTopPadding
             self.content = content()
         }
 
@@ -1161,12 +1177,12 @@ extension StatusItemController {
                             .padding(.vertical, 2)
                     }
                 }
-                .overlay(alignment: .topTrailing) {
+                .overlay(alignment: self.submenuIndicatorAlignment) {
                     if self.showsSubmenuIndicator {
                         Image(systemName: "chevron.right")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(MenuHighlightStyle.secondary(self.highlightState.isHighlighted))
-                            .padding(.top, 8)
+                            .padding(.top, self.submenuIndicatorTopPadding)
                             .padding(.trailing, 10)
                     }
                 }
@@ -1370,6 +1386,7 @@ extension StatusItemController {
             "usageBreakdownChart",
             "creditsHistoryChart",
             "costHistoryChart",
+            "usageHistoryChart",
         ]
         return menu.items.contains { item in
             guard let id = item.representedObject as? String else { return false }
@@ -1456,7 +1473,7 @@ extension StatusItemController {
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
             account: self.account,
-            isRefreshing: self.store.isRefreshing,
+            isRefreshing: self.store.shouldShowRefreshingMenuCard(for: target),
             lastError: errorOverride ?? self.store.error(for: target),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,

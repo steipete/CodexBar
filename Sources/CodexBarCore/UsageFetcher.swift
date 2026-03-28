@@ -145,20 +145,51 @@ public struct UsageSnapshot: Codable, Sendable {
         return identity
     }
 
+    public func automaticPerplexityWindow() -> RateWindow? {
+        let fallbackWindows = self.orderedPerplexityFallbackWindows()
+        guard let primary = self.primary else {
+            return fallbackWindows.first
+        }
+        if primary.remainingPercent > 0 || fallbackWindows.isEmpty {
+            return primary
+        }
+        return fallbackWindows.first
+    }
+
+    public func orderedPerplexityDisplayWindows() -> [RateWindow] {
+        let fallbackWindows = self.orderedPerplexityFallbackWindows()
+        guard let primary = self.primary else {
+            return fallbackWindows
+        }
+        if primary.remainingPercent > 0 || fallbackWindows.isEmpty {
+            return [primary] + fallbackWindows
+        }
+        return fallbackWindows + [primary]
+    }
+
     public func switcherWeeklyWindow(for provider: UsageProvider, showUsed: Bool) -> RateWindow? {
         switch provider {
         case .factory:
             // Factory prefers secondary window
             return self.secondary ?? self.primary
+        case .perplexity:
+            return self.automaticPerplexityWindow()
         case .cursor:
-            // Cursor: fall back to On-Demand when Plan is exhausted (only in "show remaining" mode).
-            // In "show used" mode, keep showing primary so 100% used Plan is visible.
+            // Cursor: fall back to on-demand budget when the included plan is exhausted (only in
+            // "show remaining" mode). The secondary/tertiary lanes are Total/Auto/API breakdowns,
+            // not extra capacity, so they should not replace the remaining paid quota indicator.
             if !showUsed,
                let primary = self.primary,
                primary.remainingPercent <= 0,
-               let secondary = self.secondary
+               let providerCost = self.providerCost,
+               providerCost.limit > 0
             {
-                return secondary
+                let usedPercent = max(0, min(100, (providerCost.used / providerCost.limit) * 100))
+                return RateWindow(
+                    usedPercent: usedPercent,
+                    windowMinutes: nil,
+                    resetsAt: providerCost.resetsAt,
+                    resetDescription: nil)
             }
             return self.primary ?? self.secondary
         default:
@@ -198,6 +229,13 @@ public struct UsageSnapshot: Codable, Sendable {
         let scopedIdentity = identity.scoped(to: provider)
         if scopedIdentity.providerID == identity.providerID { return self }
         return self.withIdentity(scopedIdentity)
+    }
+
+    private func orderedPerplexityFallbackWindows() -> [RateWindow] {
+        let fallbackWindows = [self.tertiary, self.secondary].compactMap(\.self)
+        let usableFallback = fallbackWindows.filter { $0.remainingPercent > 0 }
+        let exhaustedFallback = fallbackWindows.filter { $0.remainingPercent <= 0 }
+        return usableFallback + exhaustedFallback
     }
 }
 
@@ -569,12 +607,12 @@ public struct UsageFetcher: Sendable {
         let primary = RateWindow(
             usedPercent: max(0, 100 - Double(fiveLeft)),
             windowMinutes: 300,
-            resetsAt: nil,
+            resetsAt: status.fiveHourResetsAt,
             resetDescription: status.fiveHourResetDescription)
         let secondary = RateWindow(
             usedPercent: max(0, 100 - Double(weekLeft)),
             windowMinutes: 10080,
-            resetsAt: nil,
+            resetsAt: status.weeklyResetsAt,
             resetDescription: status.weeklyResetDescription)
 
         return UsageSnapshot(

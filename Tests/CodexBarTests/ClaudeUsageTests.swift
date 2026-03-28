@@ -41,7 +41,9 @@ struct ClaudeUsageTests {
         let snap = ClaudeUsageFetcher.parse(json: data)
         #expect(snap != nil)
         #expect(snap?.primary.usedPercent == 1)
+        #expect(snap?.primary.windowMinutes == 300)
         #expect(snap?.secondary?.usedPercent == 8)
+        #expect(snap?.secondary?.windowMinutes == 10080)
         #expect(snap?.primary.resetDescription == "11am (Europe/Vienna)")
     }
 
@@ -515,6 +517,7 @@ struct ClaudeUsageTests {
         let data = Data(json.utf8)
         let snap = ClaudeUsageFetcher.parse(json: data)
         #expect(snap?.opus?.usedPercent == 0)
+        #expect(snap?.opus?.windowMinutes == 10080)
         #expect(snap?.opus?.resetDescription?.isEmpty == true)
         #expect(snap?.accountEmail == "steipete@gmail.com")
         #expect(snap?.accountOrganization == nil)
