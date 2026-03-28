@@ -6,6 +6,8 @@ import WidgetKit
 @MainActor
 @Observable
 final class DashboardModel {
+    static let automaticRefreshInterval: TimeInterval = 15 * 60
+
     struct ClaudeLoginSession: Identifiable {
         let id = UUID()
         let entryURL: URL
@@ -16,6 +18,7 @@ final class DashboardModel {
     var claudeAccessToken = ""
     var hasClaudeWebSession = false
     var snapshot: WidgetSnapshot?
+    var widgetRefreshDiagnostics: WidgetRefreshDiagnostics?
     var refreshErrors: [UsageProvider: String] = [:]
     var isRefreshing = false
     var activeBrowserLoginProvider: UsageProvider?
@@ -24,7 +27,7 @@ final class DashboardModel {
 
     private let refreshService = UsageRefreshService()
     private let browserLoginCoordinator = BrowserLoginCoordinator()
-
+    private var shouldRefreshOnNextActivation = true
     init() {
         self.loadState()
     }
@@ -85,22 +88,43 @@ final class DashboardModel {
         }
     }
 
-    func refreshAll() async {
+    func refreshAll(silent: Bool = false) async {
         guard !self.isRefreshing else { return }
         self.isRefreshing = true
-        self.statusMessage = "Refreshing usage…"
+        if !silent {
+            self.statusMessage = "Refreshing usage…"
+        }
         let outcome = await self.refreshService.refreshAll()
         self.snapshot = outcome.snapshot
         self.refreshErrors = outcome.errors
         self.isRefreshing = false
         WidgetCenter.shared.reloadAllTimelines()
-        if outcome.snapshot.entries.isEmpty {
-            self.statusMessage = "Add Codex or Claude credentials to populate the widget."
-        } else if outcome.errors.isEmpty {
-            self.statusMessage = "Widget snapshot updated."
-        } else {
-            self.statusMessage = "Refresh completed with errors."
+        if !silent {
+            if outcome.snapshot.entries.isEmpty {
+                self.statusMessage = "Add Codex or Claude credentials to populate the widget."
+            } else if outcome.errors.isEmpty {
+                self.statusMessage = "Widget snapshot updated."
+            } else {
+                self.statusMessage = "Refresh completed with errors."
+            }
         }
+    }
+
+    func activateAutomaticRefresh() async {
+        self.widgetRefreshDiagnostics = WidgetRefreshDiagnosticsStore.load()
+        guard self.shouldRefreshOnNextActivation else { return }
+        self.shouldRefreshOnNextActivation = false
+        await self.refreshIfNeeded(force: true)
+        self.widgetRefreshDiagnostics = WidgetRefreshDiagnosticsStore.load()
+    }
+
+    func prepareForNextActivationRefresh() {
+        self.shouldRefreshOnNextActivation = true
+    }
+
+    func performBackgroundRefresh() async {
+        guard self.hasConfiguredCredentials else { return }
+        await self.refreshIfNeeded(force: true)
     }
 
     func browserLogin(provider: UsageProvider) async {
@@ -217,6 +241,45 @@ final class DashboardModel {
         }
         self.hasClaudeWebSession = (try? CredentialsStore.loadClaudeWebSession())?.isValid == true
         self.snapshot = WidgetSnapshotStore.load()
+        self.widgetRefreshDiagnostics = WidgetRefreshDiagnosticsStore.load()
+    }
+
+    var widgetRefreshSummary: String {
+        guard let widgetRefreshDiagnostics else { return "none" }
+        let status: String = switch widgetRefreshDiagnostics.result {
+        case .refreshed: "ok"
+        case .cached: "cached"
+        case .skipped: "skip"
+        }
+        return "#\(widgetRefreshDiagnostics.requestCount) \(status)"
+    }
+
+    var widgetRefreshDetail: String? {
+        guard let widgetRefreshDiagnostics else { return nil }
+        let source = widgetRefreshDiagnostics.source?.displayName ?? "unknown"
+        let network = widgetRefreshDiagnostics.networkAttempted ? "network" : "no-network"
+        return "Timeline #\(widgetRefreshDiagnostics.requestCount) | \(DisplayFormat.updateTimestamp(widgetRefreshDiagnostics.triggeredAt)) | \(source) | \(network)"
+    }
+
+    private var hasConfiguredCredentials: Bool {
+        self.codexAccessToken.nilIfBlank != nil
+            || self.claudeAccessToken.nilIfBlank != nil
+            || self.hasClaudeWebSession
+    }
+
+    private func refreshIfNeeded(force: Bool) async {
+        guard self.hasConfiguredCredentials else { return }
+        guard !self.isRefreshing else { return }
+        guard self.activeBrowserLoginProvider == nil else { return }
+
+        if !force,
+           let generatedAt = self.snapshot?.generatedAt,
+           Date().timeIntervalSince(generatedAt) < Self.automaticRefreshInterval
+        {
+            return
+        }
+
+        await self.refreshAll(silent: true)
     }
 }
 

@@ -165,6 +165,7 @@ extension ClaudeBrowserLoginViewModel: WKHTTPCookieStoreObserver {
 }
 
 struct ClaudeBrowserLoginExperience: View {
+    @Environment(\.colorScheme) private var colorScheme
     let session: DashboardModel.ClaudeLoginSession
     let onCancel: () -> Void
     let onComplete: (Result<ClaudeWebSession, Error>) -> Void
@@ -201,17 +202,24 @@ struct ClaudeBrowserLoginExperience: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color.white.opacity(0.74)))
+                                    .fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.96 : 0.82)))
                     }
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .fill(Color.white.opacity(0.88))
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(uiColor: .secondarySystemBackground),
+                                        Color(uiColor: .tertiarySystemBackground),
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                    .stroke(Color.white.opacity(0.6), lineWidth: 1)))
-                    .shadow(color: Color.black.opacity(0.06), radius: 18, y: 8)
+                                    .stroke(Color.white.opacity(self.colorScheme == .dark ? 0.08 : 0.4), lineWidth: 1)))
+                    .shadow(color: Color.black.opacity(self.colorScheme == .dark ? 0.24 : 0.06), radius: 18, y: 8)
 
                     VStack(spacing: 0) {
                         if self.model.isLoading {
@@ -234,8 +242,8 @@ struct ClaudeBrowserLoginExperience: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 30, style: .continuous)
-                            .fill(Color.white.opacity(0.72)))
-                    .shadow(color: Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255).opacity(0.12), radius: 20, y: 10)
+                            .fill(Color(uiColor: .secondarySystemBackground).opacity(self.colorScheme == .dark ? 0.98 : 0.86)))
+                    .shadow(color: Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255).opacity(self.colorScheme == .dark ? 0.16 : 0.12), radius: 20, y: 10)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
@@ -307,18 +315,20 @@ private struct ClaudeBrowserWebView: UIViewRepresentable {
 }
 
 private struct ClaudeLoginBackdrop: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         LinearGradient(
             colors: [
-                Color(red: 248 / 255, green: 235 / 255, blue: 230 / 255),
-                Color(red: 243 / 255, green: 238 / 255, blue: 231 / 255),
-                Color(red: 250 / 255, green: 247 / 255, blue: 242 / 255),
+                Color(uiColor: self.colorScheme == .dark ? .systemGroupedBackground : .systemBackground),
+                Color(uiColor: self.colorScheme == .dark ? .secondarySystemGroupedBackground : .secondarySystemBackground),
+                Color(uiColor: self.colorScheme == .dark ? .systemGroupedBackground : .systemGroupedBackground),
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing)
         .overlay(alignment: .topLeading) {
             Circle()
-                .fill(Color.white.opacity(0.45))
+                .fill(Color.white.opacity(self.colorScheme == .dark ? 0.08 : 0.34))
                 .frame(width: 240, height: 240)
                 .blur(radius: 20)
                 .offset(x: -60, y: -40)

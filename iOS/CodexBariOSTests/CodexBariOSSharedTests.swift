@@ -99,6 +99,20 @@ struct CodexBariOSSharedTests {
     }
 
     @Test
+    func `update timestamp uses concrete formatted time instead of relative copy`() {
+        let now = Date(timeIntervalSince1970: 1_743_068_400)
+        let sameDay = Date(timeIntervalSince1970: 1_743_065_700)
+        let earlierDay = Date(timeIntervalSince1970: 1_742_980_000)
+
+        #expect(
+            DisplayFormat.updateTimestamp(sameDay, now: now)
+                == sameDay.formatted(date: .omitted, time: .shortened))
+        #expect(
+            DisplayFormat.updateTimestamp(earlierDay, now: now)
+                == earlierDay.formatted(date: .abbreviated, time: .shortened))
+    }
+
+    @Test
     func `codex entry mapping keeps credits and reset data`() throws {
         let json = """
         {
@@ -181,5 +195,85 @@ struct CodexBariOSSharedTests {
 
         #expect(loaded?.enabledProviders == [.codex, .claude])
         #expect(loaded?.entries.first?.provider == .codex)
+    }
+
+    @Test
+    func widgetRefreshDiagnosticsRoundTripKeepsStatusAndMessage() {
+        let diagnostics = WidgetRefreshDiagnostics(
+            requestCount: 7,
+            triggeredAt: Date(timeIntervalSince1970: 1_700_000_000),
+            completedAt: Date(timeIntervalSince1970: 1_700_000_030),
+            source: .switcherWidget,
+            result: .cached,
+            networkAttempted: true,
+            message: "Widget kept cached data.",
+            snapshotGeneratedAt: Date(timeIntervalSince1970: 1_700_000_010))
+
+        WidgetRefreshDiagnosticsStore.save(diagnostics, bundleID: "com.steipete.CodexBariOSTests")
+        let loaded = WidgetRefreshDiagnosticsStore.load(bundleID: "com.steipete.CodexBariOSTests")
+
+        #expect(loaded == diagnostics)
+    }
+
+    @Test
+    func `widget refresh diagnostics legacy payload falls back to defaults`() throws {
+        let json = """
+        {
+          "triggeredAt": "2023-11-14T22:13:20Z",
+          "completedAt": "2023-11-14T22:13:50Z",
+          "result": "skipped",
+          "message": "legacy",
+          "snapshotGeneratedAt": "2023-11-14T22:13:30Z"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let diagnostics = try decoder.decode(WidgetRefreshDiagnostics.self, from: Data(json.utf8))
+
+        #expect(diagnostics.requestCount == 1)
+        #expect(diagnostics.source == nil)
+        #expect(diagnostics.networkAttempted == false)
+        #expect(diagnostics.result == .skipped)
+        #expect(diagnostics.message == "legacy")
+    }
+
+    @Test
+    func `refresh cancellation detection unwraps nested network errors`() {
+        #expect(UsageRefreshService.isCancellation(CancellationError()))
+        #expect(UsageRefreshService.isCancellation(CodexUsageAPIError.networkError(URLError(.cancelled))))
+        #expect(UsageRefreshService.isCancellation(ClaudeUsageAPIError.networkError(URLError(.cancelled))))
+        #expect(UsageRefreshService.isCancellation(ClaudeWebUsageAPIError.networkError(URLError(.cancelled))))
+        #expect(UsageRefreshService.isCancellation(CodexOAuthClientError.networkError(URLError(.cancelled))))
+        #expect(UsageRefreshService.isCancellation(ClaudeOAuthClientError.networkError(URLError(.cancelled))))
+        #expect(UsageRefreshService.isCancellation(CodexUsageAPIError.unauthorized) == false)
+    }
+
+    @Test
+    func `merged snapshot keeps previous timestamp when refresh produced no new data`() {
+        let previousGeneratedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let previousEntry = WidgetSnapshot.ProviderEntry(
+            provider: .codex,
+            updatedAt: previousGeneratedAt,
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: 50,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        let previousSnapshot = WidgetSnapshot(
+            entries: [previousEntry],
+            enabledProviders: [.codex],
+            generatedAt: previousGeneratedAt)
+
+        let merged = UsageRefreshService.mergedSnapshot(
+            previousSnapshot: previousSnapshot,
+            enabledProviders: [.codex],
+            entriesByProvider: [.codex: previousEntry],
+            didUpdateAnyEntry: false)
+
+        #expect(merged.entries == [previousEntry])
+        #expect(merged.generatedAt == previousGeneratedAt)
     }
 }

@@ -2,6 +2,8 @@ import CodexBariOSShared
 import SwiftUI
 import WidgetKit
 
+private let widgetAppURL = URL(string: "codexbarios://dashboard")!
+
 struct UsageWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: UsageWidgetEntry
@@ -17,6 +19,8 @@ struct UsageWidgetView: View {
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
+        .widgetURL(widgetAppURL)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -38,6 +42,8 @@ struct SwitcherWidgetView: View {
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
+        .widgetURL(widgetAppURL)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -65,7 +71,7 @@ private struct CompactUsageCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             if let availableProviders {
                 ProviderSwitcherRow(
                     providers: availableProviders,
@@ -76,45 +82,48 @@ private struct CompactUsageCard: View {
                 WidgetHeader(provider: self.entry.provider, updatedAt: self.entry.updatedAt, compact: true)
             }
 
-            ZStack {
-                ConcentricUsageRings(
-                    session: self.entry.sessionWindow,
-                    weekly: self.entry.weeklyWindow,
-                    accent: self.accent)
-                    .frame(maxWidth: .infinity)
-
-                VStack(spacing: 2) {
-                    Text(self.entry.provider.displayName)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(self.shortPercent(self.entry.sessionWindow?.remainingPercent))
-                        .font(.system(size: 23, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                    Text("session left")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            ConcentricUsageRings(
+                session: self.entry.sessionWindow,
+                weekly: self.entry.weeklyWindow,
+                accent: self.accent,
+                size: 88,
+                sessionLineWidth: 14,
+                weeklyLineWidth: 10)
             .frame(maxWidth: .infinity)
 
             HStack(spacing: 10) {
-                RingLegend(label: "Session", value: self.shortPercent(self.entry.sessionWindow?.remainingPercent))
-                RingLegend(label: "Week", value: self.shortPercent(self.entry.weeklyWindow?.remainingPercent))
+                RingLegend(
+                    label: "Session",
+                    value: self.shortPercent(self.entry.sessionWindow?.remainingPercent),
+                    subtitle: self.entry.sessionWindow.flatMap(DisplayFormat.resetLine))
+                RingLegend(
+                    label: "Week",
+                    value: self.shortPercent(self.entry.weeklyWindow?.remainingPercent),
+                    subtitle: self.entry.weeklyWindow.flatMap(DisplayFormat.resetLine))
             }
 
-            if let credits = self.entry.creditsRemaining {
-                Text("Credits \(DisplayFormat.credits(credits))")
+            if let footer = self.footerText {
+                Text(footer)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
         }
-        .padding(14)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 12)
     }
 
     private func shortPercent(_ value: Double?) -> String {
         guard let value else { return "--" }
         return "\(Int(value.rounded()))%"
+    }
+
+    private var footerText: String? {
+        if let credits = self.entry.creditsRemaining {
+            return "Credits \(DisplayFormat.credits(credits))"
+        }
+        return nil
     }
 }
 
@@ -139,22 +148,14 @@ private struct ExpandedUsageCard: View {
             }
 
             HStack(alignment: .center, spacing: 16) {
-                ZStack {
-                    ConcentricUsageRings(
-                        session: self.entry.sessionWindow,
-                        weekly: self.entry.weeklyWindow,
-                        accent: self.accent)
-
-                    VStack(spacing: 2) {
-                        Text(self.shortPercent(self.entry.sessionWindow?.remainingPercent))
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
-                        Text("session left")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(width: 112, height: 112)
+                ConcentricUsageRings(
+                    session: self.entry.sessionWindow,
+                    weekly: self.entry.weeklyWindow,
+                    accent: self.accent,
+                    size: 108,
+                    sessionLineWidth: 16,
+                    weeklyLineWidth: 11)
+                .frame(width: 108, height: 108)
 
                 VStack(alignment: .leading, spacing: 10) {
                     UsageDetailRow(
@@ -179,34 +180,33 @@ private struct ExpandedUsageCard: View {
                     }
                 }
             }
-
-            if self.entry.tokenUsage == nil {
-                Text("Colored arcs show remaining quota. Empty arc is already used.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
         }
-        .padding(16)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 14)
     }
 
     private func shortPercent(_ value: Double?) -> String {
         guard let value else { return "--" }
         return "\(Int(value.rounded()))%"
     }
+
 }
 
 private struct ConcentricUsageRings: View {
     let session: RateWindow?
     let weekly: RateWindow?
     let accent: Color
+    let size: CGFloat
+    let sessionLineWidth: CGFloat
+    let weeklyLineWidth: CGFloat
 
     var body: some View {
         ZStack {
-            RingLayer(progress: self.ratio(for: self.session), lineWidth: 16, color: self.accent)
-            RingLayer(progress: self.ratio(for: self.weekly), lineWidth: 12, color: self.accent.opacity(0.5))
-                .padding(17)
+            RingLayer(progress: self.ratio(for: self.session), lineWidth: self.sessionLineWidth, color: self.accent)
+            RingLayer(progress: self.ratio(for: self.weekly), lineWidth: self.weeklyLineWidth, color: self.accent.opacity(0.5))
+                .padding(self.sessionLineWidth + 2)
         }
-        .frame(width: 112, height: 112)
+        .frame(width: self.size, height: self.size)
     }
 
     private func ratio(for window: RateWindow?) -> Double {
@@ -237,16 +237,30 @@ private struct RingLayer: View {
 private struct RingLegend: View {
     let label: String
     let value: String
+    let subtitle: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(self.label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Text(self.value)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.primary)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.06)))
     }
 }
 
@@ -304,9 +318,11 @@ private struct ProviderSwitcherRow: View {
                     compact: self.compact)
             }
             Spacer(minLength: 6)
-            Text(DisplayFormat.relativeDate(self.updatedAt))
-                .font(.caption2)
+            Text(DisplayFormat.updateTimestamp(self.updatedAt))
+                .font(self.compact ? .caption2 : .caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
         }
     }
 }
@@ -343,12 +359,14 @@ private struct WidgetHeader: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(self.provider.displayName)
                     .font(self.compact ? .caption.weight(.semibold) : .headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text("Remaining quota")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(DisplayFormat.relativeDate(self.updatedAt))
+            Text(DisplayFormat.updateTimestamp(self.updatedAt))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -356,18 +374,30 @@ private struct WidgetHeader: View {
 }
 
 private struct WidgetBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         LinearGradient(
             colors: [
-                Color.white.opacity(0.94),
-                Color(red: 244 / 255, green: 243 / 255, blue: 239 / 255),
+                Color(uiColor: self.colorScheme == .dark ? .secondarySystemBackground : .systemBackground),
+                Color(uiColor: self.colorScheme == .dark ? .tertiarySystemBackground : .secondarySystemBackground),
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing)
         .overlay {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.18))
-                .padding(8)
+                .stroke(Color.white.opacity(self.colorScheme == .dark ? 0.06 : 0.22), lineWidth: 1)
+        }
+        .overlay(alignment: .top) {
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(self.colorScheme == .dark ? 0.06 : 0.16),
+                    .clear,
+                ],
+                startPoint: .top,
+                endPoint: .bottom)
+                .frame(height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
     }
 }

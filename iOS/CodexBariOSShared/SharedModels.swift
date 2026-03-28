@@ -231,6 +231,137 @@ public enum WidgetSnapshotStore {
     }
 }
 
+public struct WidgetRefreshDiagnostics: Codable, Sendable, Equatable {
+    public enum Result: String, Codable, Sendable {
+        case refreshed
+        case cached
+        case skipped
+    }
+
+    public enum Source: String, Codable, Sendable {
+        case usageWidget
+        case switcherWidget
+
+        public var displayName: String {
+            switch self {
+            case .usageWidget: "usage"
+            case .switcherWidget: "switcher"
+            }
+        }
+    }
+
+    public let requestCount: Int
+    public let triggeredAt: Date
+    public let completedAt: Date
+    public let source: Source?
+    public let result: Result
+    public let networkAttempted: Bool
+    public let message: String?
+    public let snapshotGeneratedAt: Date?
+
+    public init(
+        requestCount: Int = 1,
+        triggeredAt: Date,
+        completedAt: Date,
+        source: Source? = nil,
+        result: Result,
+        networkAttempted: Bool = false,
+        message: String?,
+        snapshotGeneratedAt: Date?)
+    {
+        self.requestCount = requestCount
+        self.triggeredAt = triggeredAt
+        self.completedAt = completedAt
+        self.source = source
+        self.result = result
+        self.networkAttempted = networkAttempted
+        self.message = message
+        self.snapshotGeneratedAt = snapshotGeneratedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case requestCount
+        case triggeredAt
+        case completedAt
+        case source
+        case result
+        case networkAttempted
+        case message
+        case snapshotGeneratedAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.requestCount = try container.decodeIfPresent(Int.self, forKey: .requestCount) ?? 1
+        self.triggeredAt = try container.decode(Date.self, forKey: .triggeredAt)
+        self.completedAt = try container.decode(Date.self, forKey: .completedAt)
+        self.source = try container.decodeIfPresent(Source.self, forKey: .source)
+        self.result = try container.decode(Result.self, forKey: .result)
+        self.networkAttempted = try container.decodeIfPresent(Bool.self, forKey: .networkAttempted) ?? false
+        self.message = try container.decodeIfPresent(String.self, forKey: .message)
+        self.snapshotGeneratedAt = try container.decodeIfPresent(Date.self, forKey: .snapshotGeneratedAt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.requestCount, forKey: .requestCount)
+        try container.encode(self.triggeredAt, forKey: .triggeredAt)
+        try container.encode(self.completedAt, forKey: .completedAt)
+        try container.encodeIfPresent(self.source, forKey: .source)
+        try container.encode(self.result, forKey: .result)
+        try container.encode(self.networkAttempted, forKey: .networkAttempted)
+        try container.encodeIfPresent(self.message, forKey: .message)
+        try container.encodeIfPresent(self.snapshotGeneratedAt, forKey: .snapshotGeneratedAt)
+    }
+}
+
+public enum WidgetRefreshDiagnosticsStore {
+    private static let filename = "widget-refresh-diagnostics-ios.json"
+
+    public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetRefreshDiagnostics? {
+        guard let url = self.diagnosticsURL(bundleID: bundleID) else { return nil }
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? self.decoder.decode(WidgetRefreshDiagnostics.self, from: data)
+    }
+
+    public static func save(_ diagnostics: WidgetRefreshDiagnostics, bundleID: String? = Bundle.main.bundleIdentifier) {
+        guard let url = self.diagnosticsURL(bundleID: bundleID) else { return }
+        do {
+            let data = try self.encoder.encode(diagnostics)
+            try data.write(to: url, options: [.atomic])
+        } catch {
+            return
+        }
+    }
+
+    private static func diagnosticsURL(bundleID: String?) -> URL? {
+        let fm = FileManager.default
+        if let groupID = WidgetSnapshotStore.groupID(for: bundleID),
+           let container = fm.containerURL(forSecurityApplicationGroupIdentifier: groupID)
+        {
+            return container.appendingPathComponent(self.filename, isDirectory: false)
+        }
+
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fm.temporaryDirectory
+        let dir = base.appendingPathComponent("CodexBariOS", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent(self.filename, isDirectory: false)
+    }
+
+    private static var encoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+
+    private static var decoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+}
+
 public enum WidgetSelectionStore {
     private static let selectedProviderKey = "widgetSelectedProvider"
 

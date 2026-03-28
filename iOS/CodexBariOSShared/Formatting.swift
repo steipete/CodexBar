@@ -1,6 +1,14 @@
 import Foundation
 
 public enum DisplayFormat {
+    public static func updateTimestamp(_ date: Date, now: Date = .init()) -> String {
+        let calendar = Calendar.current
+        if calendar.isDate(date, inSameDayAs: now) {
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
     public static func resetDescription(from date: Date, now: Date = .init()) -> String {
         let calendar = Calendar.current
         if calendar.isDate(date, inSameDayAs: now) {

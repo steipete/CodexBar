@@ -19,6 +19,7 @@ struct CodexBariOSSwitcherWidget: Widget {
         .configurationDisplayName("CodexBar Switcher")
         .description("Switch between Codex and Claude usage snapshots.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 
@@ -36,5 +37,6 @@ struct CodexBariOSUsageWidget: Widget {
         .configurationDisplayName("CodexBar Usage")
         .description("Codex or Claude quota windows and credits.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }

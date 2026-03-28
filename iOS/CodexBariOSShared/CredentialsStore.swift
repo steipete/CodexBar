@@ -81,52 +81,164 @@ public struct ClaudeWebSession: Codable, Equatable, Sendable {
 }
 
 public enum CredentialsStore {
+    private struct SharedCredentialPayload: Codable {
+        var codex: CodexCredentials?
+        var claude: ClaudeCredentials?
+        var claudeWebSession: ClaudeWebSession?
+    }
+
+    private static let sharedFilename = "credentials-ios.json"
+
     private static var service: String {
         if let bundleID = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
            !bundleID.isEmpty
         {
-            return "\(bundleID).credentials"
+            return "\(self.baseBundleIdentifier(from: bundleID)).credentials"
         }
         return "CodexBariOS.credentials"
     }
 
     public static func loadCodex() throws -> CodexCredentials? {
-        try self.load(key: "codex", as: CodexCredentials.self)
+        let payload = try self.loadSharedPayload()
+        if let credentials = payload.codex {
+            return credentials
+        }
+        if let legacy = try self.loadFromKeychain(key: "codex", as: CodexCredentials.self) {
+            try? self.saveCodex(legacy)
+            return legacy
+        }
+        return nil
     }
 
     public static func saveCodex(_ credentials: CodexCredentials) throws {
-        try self.save(credentials, key: "codex")
+        try self.updateSharedPayload { payload in
+            payload.codex = credentials
+        }
+        try? self.saveToKeychain(credentials, key: "codex")
     }
 
     public static func deleteCodex() throws {
-        try self.delete(key: "codex")
+        try self.updateSharedPayload { payload in
+            payload.codex = nil
+        }
+        try? self.deleteFromKeychain(key: "codex")
     }
 
     public static func loadClaude() throws -> ClaudeCredentials? {
-        try self.load(key: "claude", as: ClaudeCredentials.self)
+        let payload = try self.loadSharedPayload()
+        if let credentials = payload.claude {
+            return credentials
+        }
+        if let legacy = try self.loadFromKeychain(key: "claude", as: ClaudeCredentials.self) {
+            try? self.saveClaude(legacy)
+            return legacy
+        }
+        return nil
     }
 
     public static func saveClaude(_ credentials: ClaudeCredentials) throws {
-        try self.save(credentials, key: "claude")
+        try self.updateSharedPayload { payload in
+            payload.claude = credentials
+        }
+        try? self.saveToKeychain(credentials, key: "claude")
     }
 
     public static func deleteClaude() throws {
-        try self.delete(key: "claude")
+        try self.updateSharedPayload { payload in
+            payload.claude = nil
+        }
+        try? self.deleteFromKeychain(key: "claude")
     }
 
     public static func loadClaudeWebSession() throws -> ClaudeWebSession? {
-        try self.load(key: "claude-web-session", as: ClaudeWebSession.self)
+        let payload = try self.loadSharedPayload()
+        if let session = payload.claudeWebSession {
+            return session
+        }
+        if let legacy = try self.loadFromKeychain(key: "claude-web-session", as: ClaudeWebSession.self) {
+            try? self.saveClaudeWebSession(legacy)
+            return legacy
+        }
+        return nil
     }
 
     public static func saveClaudeWebSession(_ session: ClaudeWebSession) throws {
-        try self.save(session, key: "claude-web-session")
+        try self.updateSharedPayload { payload in
+            payload.claudeWebSession = session
+        }
+        try? self.saveToKeychain(session, key: "claude-web-session")
     }
 
     public static func deleteClaudeWebSession() throws {
-        try self.delete(key: "claude-web-session")
+        try self.updateSharedPayload { payload in
+            payload.claudeWebSession = nil
+        }
+        try? self.deleteFromKeychain(key: "claude-web-session")
     }
 
-    private static func load<T: Decodable>(key: String, as type: T.Type) throws -> T? {
+    private static func loadSharedPayload() throws -> SharedCredentialPayload {
+        guard let url = self.sharedCredentialsURL() else {
+            return SharedCredentialPayload()
+        }
+        guard let data = try? Data(contentsOf: url) else {
+            return SharedCredentialPayload()
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(SharedCredentialPayload.self, from: data)
+    }
+
+    private static func updateSharedPayload(_ update: (inout SharedCredentialPayload) -> Void) throws {
+        var payload = try self.loadSharedPayload()
+        update(&payload)
+
+        guard let url = self.sharedCredentialsURL() else { return }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(payload)
+        try data.write(to: url, options: [.atomic])
+    }
+
+    private static func sharedCredentialsURL(bundleID: String? = Bundle.main.bundleIdentifier) -> URL? {
+        let fm = FileManager.default
+        if let groupID = self.groupID(for: bundleID),
+           let container = fm.containerURL(forSecurityApplicationGroupIdentifier: groupID)
+        {
+            return container.appendingPathComponent(self.sharedFilename, isDirectory: false)
+        }
+
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fm.temporaryDirectory
+        let dir = base.appendingPathComponent("CodexBariOS", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent(self.sharedFilename, isDirectory: false)
+    }
+
+    private static func groupID(for bundleID: String?) -> String? {
+        if let configuredGroupID = Bundle.main.object(
+            forInfoDictionaryKey: WidgetSnapshotStore.appGroupInfoKey) as? String
+        {
+            let trimmed = configuredGroupID.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        guard let bundleID, !bundleID.isEmpty else { return nil }
+        return "group.\(self.baseBundleIdentifier(from: bundleID))"
+    }
+
+    private static func baseBundleIdentifier(from bundleID: String) -> String {
+        var base = bundleID
+        let suffixes = [".widget", ".shared", ".tests"]
+        for suffix in suffixes where base.hasSuffix(suffix) {
+            base.removeLast(suffix.count)
+            break
+        }
+        return base
+    }
+
+    private static func loadFromKeychain<T: Decodable>(key: String, as type: T.Type) throws -> T? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,
@@ -150,7 +262,7 @@ public enum CredentialsStore {
         }
     }
 
-    private static func save<T: Encodable>(_ value: T, key: String) throws {
+    private static func saveToKeychain<T: Encodable>(_ value: T, key: String) throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(value)
@@ -181,7 +293,7 @@ public enum CredentialsStore {
         }
     }
 
-    private static func delete(key: String) throws {
+    private static func deleteFromKeychain(key: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,

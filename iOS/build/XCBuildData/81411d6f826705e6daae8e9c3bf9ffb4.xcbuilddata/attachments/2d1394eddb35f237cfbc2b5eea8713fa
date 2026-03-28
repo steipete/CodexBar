@@ -1,0 +1,109 @@
+{
+  "" : {
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexBariOSShared-primary.dia",
+    "emit-module-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexBariOSShared-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexBariOSShared-primary-emit-module.dia",
+    "pch" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexBariOSShared-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexBariOSShared-primary.swiftdeps"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/ClaudeOAuthClient.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeOAuthClient.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeOAuthClient.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeOAuthClient.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeOAuthClient.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeOAuthClient.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeOAuthClient.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeOAuthClient.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeOAuthClient~partial.swiftmodule"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/ClaudeUsageAPI.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeUsageAPI.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeUsageAPI.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeUsageAPI.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeUsageAPI.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeUsageAPI.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeUsageAPI.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeUsageAPI.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeUsageAPI~partial.swiftmodule"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/ClaudeWebUsageAPI.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeWebUsageAPI.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeWebUsageAPI.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeWebUsageAPI.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeWebUsageAPI.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeWebUsageAPI.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeWebUsageAPI.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeWebUsageAPI.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/ClaudeWebUsageAPI~partial.swiftmodule"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/CodexOAuthClient.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexOAuthClient.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexOAuthClient.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexOAuthClient.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexOAuthClient.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexOAuthClient.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexOAuthClient.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexOAuthClient.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexOAuthClient~partial.swiftmodule"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/CodexUsageAPI.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexUsageAPI.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexUsageAPI.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexUsageAPI.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexUsageAPI.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexUsageAPI.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexUsageAPI.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexUsageAPI.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CodexUsageAPI~partial.swiftmodule"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/CredentialsStore.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CredentialsStore.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CredentialsStore.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CredentialsStore.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CredentialsStore.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CredentialsStore.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CredentialsStore.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CredentialsStore.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/CredentialsStore~partial.swiftmodule"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/Formatting.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/Formatting.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/Formatting.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/Formatting.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/Formatting.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/Formatting.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/Formatting.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/Formatting.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/Formatting~partial.swiftmodule"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/OAuthSupport.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/OAuthSupport.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/OAuthSupport.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/OAuthSupport.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/OAuthSupport.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/OAuthSupport.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/OAuthSupport.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/OAuthSupport.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/OAuthSupport~partial.swiftmodule"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/SharedModels.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/SharedModels.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/SharedModels.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/SharedModels.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/SharedModels.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/SharedModels.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/SharedModels.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/SharedModels.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/SharedModels~partial.swiftmodule"
+  },
+  "/Users/snode/Documents/CodexBar-Origin/iOS/CodexBariOSShared/UsageRefreshService.swift" : {
+    "const-values" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/UsageRefreshService.swiftconstvalues",
+    "dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/UsageRefreshService.d",
+    "diagnostics" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/UsageRefreshService.dia",
+    "index-unit-output-path" : "/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/UsageRefreshService.o",
+    "llvm-bc" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/UsageRefreshService.bc",
+    "object" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/UsageRefreshService.o",
+    "swift-dependencies" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/UsageRefreshService.swiftdeps",
+    "swiftmodule" : "/Users/snode/Documents/CodexBar-Origin/iOS/build/CodexBariOS.build/Debug-iphoneos/CodexBariOSShared.build/Objects-normal/arm64/UsageRefreshService~partial.swiftmodule"
+  }
+}

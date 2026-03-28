@@ -1,0 +1,4 @@
+framework module CodexBariOSShared {
+  header "CodexBariOSShared-Swift.h"
+  requires objc
+}

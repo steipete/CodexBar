@@ -57,6 +57,7 @@ struct DashboardView: View {
 }
 
 private struct HeroPanel: View {
+    @Environment(\.colorScheme) private var colorScheme
     let model: DashboardModel
 
     var body: some View {
@@ -79,6 +80,9 @@ private struct HeroPanel: View {
                 InfoChip(
                     title: "State",
                     value: self.model.isRefreshing ? "refreshing" : "ready")
+                InfoChip(
+                    title: "Widget",
+                    value: self.model.widgetRefreshSummary)
             }
 
             if let status = self.model.statusMessage {
@@ -90,22 +94,44 @@ private struct HeroPanel: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white.opacity(0.72)))
+                            .fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.92 : 0.82)))
+            }
+
+            if let detail = self.model.widgetRefreshDetail {
+                Text(detail)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let diagnostics = self.model.widgetRefreshDiagnostics?.message {
+                Text(diagnostics)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.84))
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(uiColor: .secondarySystemBackground),
+                            Color(uiColor: .tertiarySystemBackground),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing))
                 .overlay(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.55), lineWidth: 1)))
-        .shadow(color: Color.black.opacity(0.06), radius: 18, y: 10)
+                        .stroke(Color.white.opacity(self.colorScheme == .dark ? 0.08 : 0.4), lineWidth: 1)))
+        .shadow(color: Color.black.opacity(self.colorScheme == .dark ? 0.24 : 0.06), radius: 18, y: 10)
     }
 }
 
 private struct ProviderPanel: View {
+    @Environment(\.colorScheme) private var colorScheme
     let provider: UsageProvider
     @Bindable var model: DashboardModel
 
@@ -139,7 +165,7 @@ private struct ProviderPanel: View {
                             .foregroundStyle(self.palette.tint)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 7)
-                            .background(Capsule().fill(Color.white.opacity(0.82)))
+                            .background(Capsule().fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.94 : 0.86)))
                     }
 
                     Text(self.entry.map { DisplayFormat.relativeDate($0.updatedAt) } ?? "Not synced")
@@ -147,7 +173,7 @@ private struct ProviderPanel: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .background(Capsule().fill(Color.white.opacity(0.75)))
+                        .background(Capsule().fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.92 : 0.8)))
                 }
             }
 
@@ -204,11 +230,11 @@ private struct ProviderPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(self.palette.background)
+                .fill(self.palette.background(for: self.colorScheme))
                 .overlay(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(self.palette.stroke, lineWidth: 1)))
-        .shadow(color: self.palette.tint.opacity(0.12), radius: 18, y: 10)
+                        .stroke(self.palette.stroke(for: self.colorScheme), lineWidth: 1)))
+        .shadow(color: self.palette.tint.opacity(self.colorScheme == .dark ? 0.18 : 0.12), radius: 18, y: 10)
     }
 }
 
@@ -269,6 +295,7 @@ private struct ManualFallbackForm: View {
 }
 
 private struct EmptyProviderState: View {
+    @Environment(\.colorScheme) private var colorScheme
     let provider: UsageProvider
 
     var body: some View {
@@ -283,11 +310,12 @@ private struct EmptyProviderState: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.55)))
+                .fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.96 : 0.76)))
     }
 }
 
 private struct ProviderSummaryCard: View {
+    @Environment(\.colorScheme) private var colorScheme
     let entry: WidgetSnapshot.ProviderEntry
     let accent: Color
 
@@ -317,10 +345,10 @@ private struct ProviderSummaryCard: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.6))
+                .fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.98 : 0.82))
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(self.accent.opacity(0.15), lineWidth: 1)))
+                        .stroke(self.accent.opacity(self.colorScheme == .dark ? 0.22 : 0.15), lineWidth: 1)))
     }
 
     private func describe(_ window: RateWindow) -> String {
@@ -333,6 +361,7 @@ private struct ProviderSummaryCard: View {
 }
 
 private struct WindowTile: View {
+    @Environment(\.colorScheme) private var colorScheme
     let title: String
     let window: RateWindow?
     let accent: Color
@@ -382,11 +411,12 @@ private struct WindowTile: View {
         .frame(maxWidth: .infinity, minHeight: 138, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.66)))
+                .fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.98 : 0.84)))
     }
 }
 
 private struct InfoChip: View {
+    @Environment(\.colorScheme) private var colorScheme
     let title: String
     let value: String
 
@@ -403,7 +433,7 @@ private struct InfoChip: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.72)))
+                .fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.96 : 0.82)))
     }
 }
 
@@ -425,18 +455,19 @@ private struct SummaryRow: View {
 }
 
 private struct AppBackdrop: View {
+    @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         LinearGradient(
             colors: [
-                Color(red: 246 / 255, green: 242 / 255, blue: 233 / 255),
-                Color(red: 232 / 255, green: 241 / 255, blue: 245 / 255),
-                Color(red: 249 / 255, green: 247 / 255, blue: 242 / 255),
+                Color(uiColor: self.colorScheme == .dark ? .systemGroupedBackground : .systemBackground),
+                Color(uiColor: self.colorScheme == .dark ? .secondarySystemGroupedBackground : .secondarySystemBackground),
+                Color(uiColor: self.colorScheme == .dark ? .systemGroupedBackground : .systemGroupedBackground),
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing)
         .overlay(alignment: .topTrailing) {
             Circle()
-                .fill(Color.white.opacity(0.4))
+                .fill(Color.white.opacity(self.colorScheme == .dark ? 0.08 : 0.32))
                 .frame(width: 220, height: 220)
                 .blur(radius: 20)
                 .offset(x: 80, y: -40)
@@ -447,31 +478,27 @@ private struct AppBackdrop: View {
 
 private struct ProviderPalette {
     let tint: Color
-    let background: LinearGradient
-    let stroke: Color
 
     init(provider: UsageProvider) {
         switch provider {
         case .codex:
             self.tint = Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
-            self.background = LinearGradient(
-                colors: [
-                    Color(red: 228 / 255, green: 244 / 255, blue: 247 / 255),
-                    Color(red: 244 / 255, green: 249 / 255, blue: 250 / 255),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing)
-            self.stroke = self.tint.opacity(0.14)
         case .claude:
             self.tint = Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255)
-            self.background = LinearGradient(
-                colors: [
-                    Color(red: 248 / 255, green: 235 / 255, blue: 230 / 255),
-                    Color(red: 251 / 255, green: 245 / 255, blue: 241 / 255),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing)
-            self.stroke = self.tint.opacity(0.14)
         }
+    }
+
+    func background(for colorScheme: ColorScheme) -> LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(uiColor: colorScheme == .dark ? .secondarySystemBackground : .systemBackground),
+                self.tint.opacity(colorScheme == .dark ? 0.18 : 0.1),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing)
+    }
+
+    func stroke(for colorScheme: ColorScheme) -> Color {
+        self.tint.opacity(colorScheme == .dark ? 0.26 : 0.14)
     }
 }
