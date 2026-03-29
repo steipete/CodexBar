@@ -54,12 +54,16 @@ extension UsageStore {
     }
 
     func applyOpenAIDashboardFailure(message: String) async {
+        if self.openAIWebManagedTargetStoreIsUnreadable() {
+            await self.failClosedRefreshForUnreadableManagedCodexStore()
+            return
+        }
+        if self.openAIWebManagedTargetIsMissing() {
+            await self.failClosedRefreshForMissingManagedCodexTarget()
+            return
+        }
+
         await MainActor.run {
-            if self.openAIWebManagedTargetStoreIsUnreadable() {
-                self.failClosedOpenAIDashboardSnapshot()
-                self.lastOpenAIDashboardError = message
-                return
-            }
             if let cached = self.lastOpenAIDashboardSnapshot {
                 self.openAIDashboard = cached
                 let stamp = cached.updatedAt.formatted(date: .abbreviated, time: .shortened)
@@ -83,16 +87,21 @@ extension UsageStore {
     }
 
     func applyOpenAIDashboardLoginRequiredFailure() async {
+        if self.openAIWebManagedTargetStoreIsUnreadable() {
+            await self.failClosedRefreshForUnreadableManagedCodexStore()
+            return
+        }
+        if self.openAIWebManagedTargetIsMissing() {
+            await self.failClosedRefreshForMissingManagedCodexTarget()
+            return
+        }
+
         await MainActor.run {
             self.lastOpenAIDashboardError = [
                 "OpenAI web access requires a signed-in chatgpt.com session.",
                 "Sign in using \(self.codexBrowserCookieOrder.loginHint), " +
                     "then update OpenAI cookies in Providers → Codex.",
             ].joined(separator: " ")
-            if self.openAIWebManagedTargetStoreIsUnreadable() {
-                self.failClosedOpenAIDashboardSnapshot()
-                return
-            }
             self.openAIDashboard = self.lastOpenAIDashboardSnapshot
             self.openAIDashboardRequiresLogin = true
         }

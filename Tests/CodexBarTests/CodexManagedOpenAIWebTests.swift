@@ -358,6 +358,41 @@ struct CodexManagedOpenAIWebTests {
         #expect(store.lastOpenAIDashboardError?.contains("requires a signed-in chatgpt.com session") == true)
     }
 
+    @Test
+    func `missing managed target failure handlers do not resurrect stale dashboard state`() async {
+        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebTests-missing-target-failure-handlers")
+        settings.codexActiveSource = .managedAccount(id: UUID())
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let staleSnapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "stale@example.com",
+            codeReviewRemainingPercent: 100,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            updatedAt: Date())
+
+        await store.applyOpenAIDashboard(staleSnapshot, targetEmail: "stale@example.com")
+        await store.applyOpenAIDashboardFailure(message: "No dashboard data")
+
+        #expect(store.openAIDashboard == nil)
+        #expect(store.lastOpenAIDashboardSnapshot == nil)
+        #expect(store.lastOpenAIDashboardError?.contains("selected managed Codex account is unavailable") == true)
+
+        await store.applyOpenAIDashboard(staleSnapshot, targetEmail: "stale@example.com")
+        await store.applyOpenAIDashboardLoginRequiredFailure()
+
+        #expect(store.openAIDashboard == nil)
+        #expect(store.lastOpenAIDashboardSnapshot == nil)
+        #expect(store.openAIDashboardRequiresLogin == true)
+        #expect(store.lastOpenAIDashboardError?.contains("selected managed Codex account is unavailable") == true)
+    }
+
     private func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
