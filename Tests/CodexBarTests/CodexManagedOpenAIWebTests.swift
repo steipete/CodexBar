@@ -820,11 +820,18 @@ struct CodexManagedOpenAIWebTests {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
-        return SettingsStore(
+        let settings = SettingsStore(
             userDefaults: defaults,
             configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+        settings._test_activeManagedCodexAccount = nil
+        settings._test_activeManagedCodexRemoteHomePath = nil
+        settings._test_unreadableManagedCodexAccountStore = false
+        settings._test_managedCodexAccountStoreURL = nil
+        settings._test_liveSystemCodexAccount = nil
+        settings._test_codexReconciliationEnvironment = nil
+        return settings
     }
 }
 
