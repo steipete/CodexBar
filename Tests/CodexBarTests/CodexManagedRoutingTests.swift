@@ -202,6 +202,35 @@ struct CodexManagedRoutingTests {
     }
 
     @Test
+    func `full refresh persists live correction for stale managed source`() async {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-full-refresh-persists-correction")
+        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: ambientHome) }
+
+        try? self.writeCodexAuthFile(homeURL: ambientHome, email: "live@example.com", plan: "pro")
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: ambientHome.path,
+            observedAt: Date())
+        settings.codexActiveSource = .managedAccount(id: UUID())
+        defer { settings._test_liveSystemCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: ["CODEX_HOME": ambientHome.path]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+
+        #expect(settings.codexActiveSource != .liveSystem)
+
+        await store.refresh()
+
+        #expect(settings.codexActiveSource == .liveSystem)
+    }
+
+    @Test
     func `provider registry fails closed when managed account store is unreadable`() {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-unreadable-store")
         settings._test_unreadableManagedCodexAccountStore = true

@@ -78,6 +78,88 @@ struct CodexAccountsSettingsSectionTests {
     }
 
     @Test
+    func `selecting merged visible account from settings keeps live system source`() async throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-select-merged")
+        let store = Self.makeUsageStore(settings: settings)
+        let managedStoreURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: managedStoreURL) }
+
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "same@example.com",
+            managedHomePath: "/tmp/managed",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let managedStore = FileManagedCodexAccountStore(fileURL: managedStoreURL)
+        try managedStore.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [managedAccount]))
+
+        settings._test_managedCodexAccountStoreURL = managedStoreURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "SAME@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+
+        let pane = ProvidersPane(settings: settings, store: store)
+        await pane._test_selectCodexVisibleAccount(id: "same@example.com")
+
+        #expect(settings.codexActiveSource == .liveSystem)
+        let state = try #require(pane._test_codexAccountsSectionState())
+        #expect(state.activeVisibleAccountID == "same@example.com")
+    }
+
+    @Test
+    func `codex accounts section disables add and reauth while managed authentication is in flight`() async throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-in-flight")
+        let store = Self.makeUsageStore(settings: settings)
+        let managedStoreURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: managedStoreURL) }
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let managedStore = FileManagedCodexAccountStore(fileURL: managedStoreURL)
+        try managedStore.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [managedAccount]))
+        settings._test_managedCodexAccountStoreURL = managedStoreURL
+
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let runner = BlockingManagedCodexLoginRunnerForSettingsSectionTests()
+        let service = ManagedCodexAccountService(
+            store: managedStore,
+            homeFactory: TestManagedCodexHomeFactoryForSettingsSectionTests(root: root),
+            loginRunner: runner,
+            identityReader: StubManagedCodexIdentityReaderForSettingsSectionTests(emails: ["managed@example.com"]))
+        let coordinator = ManagedCodexAccountCoordinator(service: service)
+        let authTask = Task { try await coordinator.authenticateManagedAccount() }
+        await runner.waitUntilStarted()
+
+        let pane = ProvidersPane(
+            settings: settings,
+            store: store,
+            managedCodexAccountCoordinator: coordinator)
+        let state = try #require(pane._test_codexAccountsSectionState())
+        let visibleAccount = try #require(state.visibleAccounts.first { $0.email == "managed@example.com" })
+
+        #expect(state.canAddAccount == false)
+        #expect(state.addAccountTitle == "Adding Account…")
+        #expect(state.canReauthenticate(visibleAccount) == false)
+
+        await runner.resume()
+        _ = try await authTask.value
+    }
+
+    @Test
     func `adding managed codex account auto selects the merged live row`() async throws {
         let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-add-merged")
         let store = Self.makeUsageStore(settings: settings)
@@ -197,6 +279,34 @@ private struct StubManagedCodexLoginRunnerForSettingsSectionTests: ManagedCodexL
 
     static let success = StubManagedCodexLoginRunnerForSettingsSectionTests(
         result: CodexLoginRunner.Result(outcome: .success, output: "ok"))
+}
+
+private actor BlockingManagedCodexLoginRunnerForSettingsSectionTests: ManagedCodexLoginRunning {
+    private var waiters: [CheckedContinuation<CodexLoginRunner.Result, Never>] = []
+    private var startedWaiters: [CheckedContinuation<Void, Never>] = []
+    private var didStart = false
+
+    func run(homePath _: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
+        self.didStart = true
+        self.startedWaiters.forEach { $0.resume() }
+        self.startedWaiters.removeAll()
+        return await withCheckedContinuation { continuation in
+            self.waiters.append(continuation)
+        }
+    }
+
+    func waitUntilStarted() async {
+        if self.didStart { return }
+        await withCheckedContinuation { continuation in
+            self.startedWaiters.append(continuation)
+        }
+    }
+
+    func resume() {
+        let result = CodexLoginRunner.Result(outcome: .success, output: "ok")
+        self.waiters.forEach { $0.resume(returning: result) }
+        self.waiters.removeAll()
+    }
 }
 
 private final class StubManagedCodexIdentityReaderForSettingsSectionTests: ManagedCodexIdentityReading,

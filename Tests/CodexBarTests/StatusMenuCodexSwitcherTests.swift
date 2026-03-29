@@ -248,6 +248,46 @@ struct StatusMenuCodexSwitcherTests {
         await runner.resume()
         _ = try await authTask.value
     }
+
+    @Test
+    func `codex menu disables add account when managed store is unreadable`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnlyCodex(settings)
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        settings._test_unreadableManagedCodexAccountStore = true
+        defer {
+            settings._test_liveSystemCodexAccount = nil
+            settings._test_unreadableManagedCodexAccountStore = false
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        let addItem = try? #require(self.menuItem(titled: "Add Account...", in: menu))
+        #expect(addItem?.isEnabled == false)
+        if #available(macOS 14.4, *) {
+            #expect(addItem?.subtitle == "Managed account storage unavailable")
+        } else {
+            #expect(addItem?.toolTip?.contains("Managed account storage unavailable") == true)
+        }
+    }
 }
 
 private actor BlockingManagedCodexLoginRunnerForStatusMenuTests: ManagedCodexLoginRunning {
