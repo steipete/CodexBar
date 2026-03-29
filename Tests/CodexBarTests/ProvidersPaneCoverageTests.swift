@@ -104,6 +104,7 @@ struct ProvidersPaneCoverageTests {
 
         try Self.writeCodexAuthFile(homeURL: ambientHome, email: "ambient@example.com", plan: "plus")
         try Self.writeCodexAuthFile(homeURL: managedHome, email: "managed@example.com", plan: "enterprise")
+        settings.codexActiveSource = .managedAccount(id: UUID())
         settings._test_activeManagedCodexRemoteHomePath = managedHome.path
 
         let store = UsageStore(
