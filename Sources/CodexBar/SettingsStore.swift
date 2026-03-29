@@ -193,6 +193,7 @@ extension SettingsStore {
         }
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
+        let menuBarShowsTimeUntilReset = userDefaults.object(forKey: "menuBarShowsTimeUntilReset") as? Bool ?? false
         let menuBarShowsBrandIconWithPercent = userDefaults.object(
             forKey: "menuBarShowsBrandIconWithPercent") as? Bool ?? false
         let menuBarDisplayModeRaw = userDefaults.string(forKey: "menuBarDisplayMode")
@@ -244,6 +245,7 @@ extension SettingsStore {
             sessionQuotaNotificationsEnabled: sessionQuotaNotificationsEnabled,
             usageBarsShowUsed: usageBarsShowUsed,
             resetTimesShowAbsolute: resetTimesShowAbsolute,
+            menuBarShowsTimeUntilReset: menuBarShowsTimeUntilReset,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,

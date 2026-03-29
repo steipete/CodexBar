@@ -92,6 +92,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var lastSwitcherProviders: [UsageProvider] = []
     /// Tracks which switcher tab state was used for the current merged-menu switcher instance.
     var lastMergedSwitcherSelection: ProviderSwitcherSelection?
+    /// Fires every 60 seconds to keep the time-until-reset countdown current in the menu bar.
+    private var countdownRefreshTimer: Timer?
+
     let loginLogger = CodexBarLog.logger(LogCategories.login)
     var selectedMenuProvider: UsageProvider? {
         get { self.settings.selectedMenuProvider }
@@ -183,6 +186,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.observeDebugForceAnimation()
         self.observeSettingsChanges()
         self.observeUpdaterChanges()
+        self.updateCountdownTimer()
     }
 
     private func observeStoreChanges() {
@@ -308,8 +312,24 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
         self.updateVisibility()
         self.updateIcons()
+        self.updateCountdownTimer()
         if shouldRefreshOpenMenus {
             self.refreshOpenMenusIfNeeded()
+        }
+    }
+
+    /// Starts a 60-second repeating timer when the countdown feature is active, stops it otherwise.
+    private func updateCountdownTimer() {
+        let needsTimer = self.settings.menuBarShowsTimeUntilReset &&
+            self.settings.menuBarShowsBrandIconWithPercent
+        if needsTimer, self.countdownRefreshTimer == nil {
+            self.countdownRefreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) {
+                [weak self] _ in
+                Task { @MainActor [weak self] in self?.updateIcons() }
+            }
+        } else if !needsTimer, self.countdownRefreshTimer != nil {
+            self.countdownRefreshTimer?.invalidate()
+            self.countdownRefreshTimer = nil
         }
     }
 
