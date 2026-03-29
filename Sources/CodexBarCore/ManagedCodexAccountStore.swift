@@ -38,8 +38,7 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
     public func storeAccounts(_ accounts: ManagedCodexAccountSet) throws {
         let normalizedAccounts = ManagedCodexAccountSet(
             version: Self.currentVersion,
-            accounts: accounts.accounts,
-            activeAccountID: accounts.activeAccountID)
+            accounts: accounts.accounts)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(normalizedAccounts)
@@ -66,7 +65,7 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
     }
 
     private static func emptyAccountSet() -> ManagedCodexAccountSet {
-        ManagedCodexAccountSet(version: self.currentVersion, accounts: [], activeAccountID: nil)
+        ManagedCodexAccountSet(version: self.currentVersion, accounts: [])
     }
 
     public static func defaultURL() -> URL {

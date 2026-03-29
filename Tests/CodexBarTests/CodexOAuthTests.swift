@@ -26,6 +26,28 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func `parses legacy camel case O auth credentials`() throws {
+        let json = """
+        {
+          "OPENAI_API_KEY": null,
+          "tokens": {
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "idToken": "id-token",
+            "accountId": "account-123"
+          },
+          "last_refresh": "2025-12-20T12:34:56Z"
+        }
+        """
+        let creds = try CodexOAuthCredentialsStore.parse(data: Data(json.utf8))
+        #expect(creds.accessToken == "access-token")
+        #expect(creds.refreshToken == "refresh-token")
+        #expect(creds.idToken == "id-token")
+        #expect(creds.accountId == "account-123")
+        #expect(creds.lastRefresh != nil)
+    }
+
+    @Test
     func `parses API key credentials`() throws {
         let json = """
         {

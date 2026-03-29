@@ -9,13 +9,20 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
     public init() {}
 
     public func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        context.sourceMode.usesWeb && !Self.managedAccountStoreIsUnreadable(context)
+        context.sourceMode.usesWeb &&
+            !Self.managedAccountStoreIsUnreadable(context) &&
+            !Self.managedAccountTargetIsUnavailable(context)
     }
 
     public func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard !Self.managedAccountStoreIsUnreadable(context) else {
             // A fail-closed placeholder CODEX_HOME does not identify a target account. If the managed store
             // itself is unreadable, web import must not fall back to "any signed-in browser account".
+            throw OpenAIDashboardFetcher.FetchError.loginRequired
+        }
+        guard !Self.managedAccountTargetIsUnavailable(context) else {
+            // If the selected managed account no longer exists in a readable store, web import must not
+            // fall back to "any signed-in browser account" for that stale selection.
             throw OpenAIDashboardFetcher.FetchError.loginRequired
         }
 
@@ -50,6 +57,10 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
 
     private static func managedAccountStoreIsUnreadable(_ context: ProviderFetchContext) -> Bool {
         context.settings?.codex?.managedAccountStoreUnreadable == true
+    }
+
+    private static func managedAccountTargetIsUnavailable(_ context: ProviderFetchContext) -> Bool {
+        context.settings?.codex?.managedAccountTargetUnavailable == true
     }
 }
 

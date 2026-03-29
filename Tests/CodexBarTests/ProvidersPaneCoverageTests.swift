@@ -1,5 +1,6 @@
 import CodexBarCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 
@@ -74,7 +75,7 @@ struct ProvidersPaneCoverageTests {
 
     @Test
     func `provider detail plan row formats open router as balance`() {
-        let row = ProviderDetailView.planRow(provider: .openrouter, planText: "Balance: $4.61")
+        let row = ProviderDetailView<EmptyView>.planRow(provider: .openrouter, planText: "Balance: $4.61")
 
         #expect(row?.label == "Balance")
         #expect(row?.value == "$4.61")
@@ -82,7 +83,7 @@ struct ProvidersPaneCoverageTests {
 
     @Test
     func `provider detail plan row keeps plan label for non open router`() {
-        let row = ProviderDetailView.planRow(provider: .codex, planText: "Pro")
+        let row = ProviderDetailView<EmptyView>.planRow(provider: .codex, planText: "Pro")
 
         #expect(row?.label == "Plan")
         #expect(row?.value == "Pro")
@@ -104,7 +105,15 @@ struct ProvidersPaneCoverageTests {
 
         try Self.writeCodexAuthFile(homeURL: ambientHome, email: "ambient@example.com", plan: "plus")
         try Self.writeCodexAuthFile(homeURL: managedHome, email: "managed@example.com", plan: "enterprise")
-        settings._test_activeManagedCodexRemoteHomePath = managedHome.path
+        let managedAccountID = UUID()
+        settings.codexActiveSource = .managedAccount(id: managedAccountID)
+        settings._test_activeManagedCodexAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
 
         let store = UsageStore(
             fetcher: UsageFetcher(environment: ["CODEX_HOME": ambientHome.path]),
@@ -162,6 +171,8 @@ struct ProvidersPaneCoverageTests {
         try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
         let auth = [
             "tokens": [
+                "accessToken": "access-token",
+                "refreshToken": "refresh-token",
                 "idToken": Self.fakeJWT(email: email, plan: plan),
             ],
         ]

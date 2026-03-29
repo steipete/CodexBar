@@ -652,12 +652,9 @@ public struct UsageFetcher: Sendable {
 
     public func loadAccountInfo() -> AccountInfo {
         // Keep using auth.json for quick startup (non-blocking, no RPC spin-up required).
-        let authURL = CodexHomeScope
-            .ambientHomeURL(env: self.environment)
-            .appendingPathComponent("auth.json")
-        guard let data = try? Data(contentsOf: authURL),
-              let auth = try? JSONDecoder().decode(AuthFile.self, from: data),
-              let idToken = auth.tokens?.idToken
+        guard let credentials = try? CodexOAuthCredentialsStore.load(env: self.environment),
+              let idToken = credentials.idToken,
+              !idToken.isEmpty
         else {
             return AccountInfo(email: nil, plan: nil)
         }
@@ -711,10 +708,4 @@ public struct UsageFetcher: Sendable {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return json
     }
-}
-
-/// Minimal auth.json struct preserved from previous implementation
-private struct AuthFile: Decodable {
-    struct Tokens: Decodable { let idToken: String? }
-    let tokens: Tokens?
 }

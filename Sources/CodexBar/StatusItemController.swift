@@ -16,16 +16,24 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     // Disable SwiftUI menu cards + menu refresh work in tests to avoid swiftpm-testing-helper crashes.
     static var menuCardRenderingEnabled = !SettingsStore.isRunningTests
     static var menuRefreshEnabled = !SettingsStore.isRunningTests
-    typealias Factory = (UsageStore, SettingsStore, AccountInfo, UpdaterProviding, PreferencesSelection)
+    typealias Factory = (
+        UsageStore,
+        SettingsStore,
+        AccountInfo,
+        UpdaterProviding,
+        PreferencesSelection,
+        ManagedCodexAccountCoordinator)
         -> StatusItemControlling
-    static let defaultFactory: Factory = { store, settings, account, updater, selection in
-        StatusItemController(
-            store: store,
-            settings: settings,
-            account: account,
-            updater: updater,
-            preferencesSelection: selection)
-    }
+    static let defaultFactory: Factory =
+        { store, settings, account, updater, selection, managedCodexAccountCoordinator in
+            StatusItemController(
+                store: store,
+                settings: settings,
+                account: account,
+                updater: updater,
+                preferencesSelection: selection,
+                managedCodexAccountCoordinator: managedCodexAccountCoordinator)
+        }
 
     static var factory: Factory = StatusItemController.defaultFactory
 
@@ -33,6 +41,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let settings: SettingsStore
     let account: AccountInfo
     let updater: UpdaterProviding
+    let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
     private let statusBar: NSStatusBar
     var statusItem: NSStatusItem
     var statusItems: [UsageProvider: NSStatusItem] = [:]
@@ -45,6 +54,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var fallbackMenu: NSMenu?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    #if DEBUG
+    var _test_openMenuRefreshYieldOverride: (@MainActor () async -> Void)?
+    var _test_openMenuRebuildObserver: (@MainActor (NSMenu) -> Void)?
+    #endif
     var blinkTask: Task<Void, Never>?
     var loginTask: Task<Void, Never>? {
         didSet { self.refreshMenusForLoginStateChange() }
@@ -135,6 +148,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         account: AccountInfo,
         updater: UpdaterProviding,
         preferencesSelection: PreferencesSelection,
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
         statusBar: NSStatusBar = .system)
     {
         if SettingsStore.isRunningTests {
@@ -145,6 +159,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.account = account
         self.updater = updater
         self.preferencesSelection = preferencesSelection
+        self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
         self.lastConfigRevision = settings.configRevision
         self.lastProviderOrder = settings.providerOrder
         self.lastMergeIcons = settings.mergeIcons
@@ -178,11 +193,30 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             object: nil)
     }
 
+    convenience init(
+        store: UsageStore,
+        settings: SettingsStore,
+        account: AccountInfo,
+        updater: UpdaterProviding,
+        preferencesSelection: PreferencesSelection,
+        statusBar: NSStatusBar = .system)
+    {
+        self.init(
+            store: store,
+            settings: settings,
+            account: account,
+            updater: updater,
+            preferencesSelection: preferencesSelection,
+            managedCodexAccountCoordinator: ManagedCodexAccountCoordinator(),
+            statusBar: statusBar)
+    }
+
     private func wireBindings() {
         self.observeStoreChanges()
         self.observeDebugForceAnimation()
         self.observeSettingsChanges()
         self.observeUpdaterChanges()
+        self.observeManagedCodexCoordinatorChanges()
     }
 
     private func observeStoreChanges() {
@@ -250,6 +284,19 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 guard let self else { return }
                 self.observeUpdaterChanges()
                 self.invalidateMenus()
+            }
+        }
+    }
+
+    private func observeManagedCodexCoordinatorChanges() {
+        withObservationTracking {
+            _ = self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount
+            _ = self.managedCodexAccountCoordinator.authenticatingManagedAccountID
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.observeManagedCodexCoordinatorChanges()
+                self.refreshMenusForLoginStateChange()
             }
         }
     }

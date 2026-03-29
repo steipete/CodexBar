@@ -119,18 +119,31 @@ final class UsageStore {
     var probeLogs: [UsageProvider: String] = [:]
     var historicalPaceRevision: Int = 0
     @ObservationIgnored var lastCreditsSnapshot: CreditsSnapshot?
+    @ObservationIgnored var lastCreditsSnapshotAccountKey: String?
     @ObservationIgnored var creditsFailureStreak: Int = 0
     @ObservationIgnored var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
     @ObservationIgnored var lastOpenAIDashboardTargetEmail: String?
     @ObservationIgnored var lastOpenAIDashboardCookieImportAttemptAt: Date?
     @ObservationIgnored var lastOpenAIDashboardCookieImportEmail: String?
+    @ObservationIgnored var lastCodexAccountScopedRefreshGuard: CodexAccountScopedRefreshGuard?
+    @ObservationIgnored var lastKnownLiveSystemCodexEmail: String?
     @ObservationIgnored var openAIWebAccountDidChange: Bool = false
+    @ObservationIgnored var openAIDashboardRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var openAIDashboardRefreshTaskKey: String?
+    @ObservationIgnored var openAIDashboardRefreshTaskToken: UUID?
     @ObservationIgnored var _test_openAIDashboardCookieImportOverride: (@MainActor (
         String?,
         Bool,
         ProviderCookieSource,
         CookieHeaderCache.Scope?,
         @escaping (String) -> Void) async throws -> OpenAIDashboardBrowserCookieImporter.ImportResult)?
+    @ObservationIgnored var _test_openAIDashboardLoaderOverride: (@MainActor (
+        String?,
+        @escaping (String) -> Void,
+        TimeInterval) async throws -> OpenAIDashboardSnapshot)?
+    @ObservationIgnored var _test_codexCreditsLoaderOverride: (@MainActor () async throws -> CreditsSnapshot)?
+    @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?
+    @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
 
     @ObservationIgnored let codexFetcher: UsageFetcher
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
@@ -406,6 +419,7 @@ final class UsageStore {
 
     func refresh(forceTokenUsage: Bool = false) async {
         guard !self.isRefreshing else { return }
+        self.prepareRefreshState()
         let refreshPhase: ProviderRefreshPhase = self.hasCompletedInitialRefresh ? .regular : .startup
         let refreshStartedAt = Date()
 
@@ -429,7 +443,10 @@ final class UsageStore {
 
             // OpenAI web scrape depends on the current Codex account email (which can change after login/account
             // switch). Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
-            await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
+            let codexDashboardGuard = self.currentCodexOpenAIWebRefreshGuard()
+            await self.refreshOpenAIDashboardIfNeeded(
+                force: forceTokenUsage,
+                expectedGuard: codexDashboardGuard)
 
             if self.openAIDashboardRequiresLogin {
                 await self.refreshProvider(.codex)

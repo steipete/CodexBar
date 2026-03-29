@@ -92,6 +92,15 @@ final class ManagedCodexAccountService {
         self.fileManager = fileManager
     }
 
+    convenience init(fileManager: FileManager = .default) {
+        self.init(
+            store: FileManagedCodexAccountStore(fileManager: fileManager),
+            homeFactory: ManagedCodexHomeFactory(fileManager: fileManager),
+            loginRunner: DefaultManagedCodexLoginRunner(),
+            identityReader: DefaultManagedCodexIdentityReader(),
+            fileManager: fileManager)
+    }
+
     func authenticateManagedAccount(
         existingAccountID: UUID? = nil,
         timeout: TimeInterval = 120)
@@ -129,8 +138,7 @@ final class ManagedCodexAccountService {
 
             let updatedSnapshot = ManagedCodexAccountSet(
                 version: snapshot.version,
-                accounts: snapshot.accounts.filter { $0.id != account.id && $0.email != account.email } + [account],
-                activeAccountID: account.id)
+                accounts: snapshot.accounts.filter { $0.id != account.id && $0.email != account.email } + [account])
             try self.store.storeAccounts(updatedSnapshot)
         } catch {
             try? self.removeManagedHomeIfSafe(atPath: homeURL.path)
@@ -151,15 +159,9 @@ final class ManagedCodexAccountService {
         try self.homeFactory.validateManagedHomeForDeletion(homeURL)
 
         let remaining = snapshot.accounts.filter { $0.id != id }
-        let nextActive = if snapshot.activeAccountID == id {
-            remaining.last?.id
-        } else {
-            snapshot.activeAccountID
-        }
         try self.store.storeAccounts(ManagedCodexAccountSet(
             version: snapshot.version,
-            accounts: remaining,
-            activeAccountID: nextActive))
+            accounts: remaining))
 
         if self.fileManager.fileExists(atPath: homeURL.path) {
             try? self.fileManager.removeItem(at: homeURL)

@@ -186,9 +186,16 @@ struct CodexProviderImplementation: ProviderImplementation {
                 entries.append(.text("Last spend: \(UsageFormatter.creditEventSummary(latest))", .secondary))
             }
         } else {
-            let hint = context.store.lastCreditsError ?? context.metadata.creditsHint
+            let hint = context.store.userFacingLastCreditsError ?? context.metadata.creditsHint
             entries.append(.text(hint, .secondary))
         }
+    }
+
+    @MainActor
+    func loginMenuAction(context _: ProviderMenuLoginContext)
+        -> (label: String, action: MenuDescriptor.MenuAction)?
+    {
+        ("Add Account...", .addCodexAccount)
     }
 
     @MainActor

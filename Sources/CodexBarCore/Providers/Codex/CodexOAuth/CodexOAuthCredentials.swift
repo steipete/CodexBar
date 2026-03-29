@@ -86,15 +86,18 @@ public enum CodexOAuthCredentialsStore {
         guard let tokens = json["tokens"] as? [String: Any] else {
             throw CodexOAuthCredentialsError.missingTokens
         }
-        guard let accessToken = tokens["access_token"] as? String,
-              let refreshToken = tokens["refresh_token"] as? String,
+        guard let accessToken = Self.stringValue(in: tokens, snakeCaseKey: "access_token", camelCaseKey: "accessToken"),
+              let refreshToken = Self.stringValue(
+                  in: tokens,
+                  snakeCaseKey: "refresh_token",
+                  camelCaseKey: "refreshToken"),
               !accessToken.isEmpty
         else {
             throw CodexOAuthCredentialsError.missingTokens
         }
 
-        let idToken = tokens["id_token"] as? String
-        let accountId = tokens["account_id"] as? String
+        let idToken = Self.stringValue(in: tokens, snakeCaseKey: "id_token", camelCaseKey: "idToken")
+        let accountId = Self.stringValue(in: tokens, snakeCaseKey: "account_id", camelCaseKey: "accountId")
         let lastRefresh = Self.parseLastRefresh(from: json["last_refresh"])
 
         return CodexOAuthCredentials(
@@ -145,6 +148,21 @@ public enum CodexOAuthCredentialsStore {
         if let date = formatter.date(from: value) { return date }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
+    }
+
+    private static func stringValue(
+        in dictionary: [String: Any],
+        snakeCaseKey: String,
+        camelCaseKey: String)
+        -> String?
+    {
+        if let value = dictionary[snakeCaseKey] as? String, !value.isEmpty {
+            return value
+        }
+        if let value = dictionary[camelCaseKey] as? String, !value.isEmpty {
+            return value
+        }
+        return nil
     }
 }
 
