@@ -11,6 +11,12 @@ struct OpenAIDashboardNavigationDelegateTests {
     }
 
     @Test
+    func `ignores WebKit frame load interrupted by policy change`() {
+        let error = NSError(domain: "WebKitErrorDomain", code: 102)
+        #expect(NavigationDelegate.shouldIgnoreNavigationError(error))
+    }
+
+    @Test
     func `does not ignore non-cancelled URL errors`() {
         let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
         #expect(!NavigationDelegate.shouldIgnoreNavigationError(error))
@@ -55,6 +61,29 @@ struct OpenAIDashboardNavigationDelegateTests {
         case let .failure(error as NSError)?:
             #expect(error.domain == NSURLErrorDomain)
             #expect(error.code == NSURLErrorTimedOut)
+        default:
+            #expect(Bool(false))
+        }
+    }
+
+    @MainActor
+    @Test
+    func `frame load interrupted provisional failure is ignored until finish`() {
+        let webView = WKWebView()
+        var result: Result<Void, Error>?
+        let delegate = NavigationDelegate { result = $0 }
+
+        delegate.webView(
+            webView,
+            didFailProvisionalNavigation: nil,
+            withError: NSError(domain: "WebKitErrorDomain", code: 102))
+        #expect(result == nil)
+
+        delegate.webView(webView, didFinish: nil)
+
+        switch result {
+        case .success?:
+            #expect(Bool(true))
         default:
             #expect(Bool(false))
         }
