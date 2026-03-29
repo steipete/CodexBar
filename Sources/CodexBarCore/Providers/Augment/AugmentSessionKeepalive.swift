@@ -59,9 +59,9 @@ public final class AugmentSessionKeepalive {
         }
 
         self.log("🚀 Starting Augment session keepalive")
-        self.log("   - Check interval: \(Int(self.checkInterval))s (every 5 minutes)")
-        self.log("   - Refresh buffer: \(Int(self.refreshBufferSeconds))s (5 minutes before expiry)")
-        self.log("   - Min refresh interval: \(Int(self.minRefreshInterval))s (2 minutes)")
+        self.log("   - Check interval: \(Int(self.checkInterval))s (\(Int(self.checkInterval / 60)) min)")
+        self.log("   - Refresh buffer: \(Int(self.refreshBufferSeconds))s (\(Int(self.refreshBufferSeconds / 60)) min before expiry)")
+        self.log("   - Min refresh interval: \(Int(self.minRefreshInterval))s (\(Int(self.minRefreshInterval / 60)) min)")
 
         self.timerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {

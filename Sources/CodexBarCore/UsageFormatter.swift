@@ -145,24 +145,32 @@ public enum UsageFormatter {
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
+    private static let creditEventSummaryDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        return f
+    }()
+
+    private static let creditEventCompactDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f
+    }()
+
     public static func creditEventSummary(_ event: CreditEvent) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
         let number = NumberFormatter()
         number.numberStyle = .decimal
         number.maximumFractionDigits = 2
         let credits = number.string(from: NSNumber(value: event.creditsUsed)) ?? "0"
-        return "\(formatter.string(from: event.date)) · \(event.service) · \(credits) credits"
+        return "\(creditEventSummaryDateFormatter.string(from: event.date)) · \(event.service) · \(credits) credits"
     }
 
     public static func creditEventCompact(_ event: CreditEvent) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
         let number = NumberFormatter()
         number.numberStyle = .decimal
         number.maximumFractionDigits = 2
         let credits = number.string(from: NSNumber(value: event.creditsUsed)) ?? "0"
-        return "\(formatter.string(from: event.date)) — \(event.service): \(credits)"
+        return "\(creditEventCompactDateFormatter.string(from: event.date)) — \(event.service): \(credits)"
     }
 
     public static func creditShort(_ value: Double) -> String {

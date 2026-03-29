@@ -13,6 +13,7 @@ struct SettingsDefaultsState {
     var sessionQuotaNotificationsEnabled: Bool
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
+    var menuBarShowsTimeUntilReset: Bool
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
