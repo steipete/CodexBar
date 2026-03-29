@@ -475,10 +475,9 @@ extension UsageStore {
                             "No signed-in OpenAI web session found.",
                             "Found \(foundText).",
                         ].joined(separator: " ")
-                        : [
-                            "Browser cookies do not match Codex account (\(normalizedTarget ?? "unknown")).",
-                            "Found \(foundText).",
-                        ].joined(separator: " ")
+                        : Self.conciseOpenAICookieMismatchStatus(
+                            found: found.map(\.email),
+                            targetEmail: normalizedTarget)
                     self.failClosedOpenAIDashboardSnapshot()
                 }
             case .noCookiesFound,
@@ -634,17 +633,44 @@ extension UsageStore {
         let targetLabel = (emailLabel?.isEmpty == false) ? emailLabel! : "your OpenAI account"
         if let status, !status.isEmpty {
             if status.contains("cookies do not match Codex account")
+                || status.localizedCaseInsensitiveContains("openai cookies are for")
                 || status.localizedCaseInsensitiveContains("cookie import failed")
             {
-                return [
-                    status,
-                    "Sign in to chatgpt.com as \(targetLabel), then update OpenAI cookies in Providers → Codex.",
-                ].joined(separator: " ")
+                return "\(status) Switch chatgpt.com account, then refresh OpenAI cookies."
             }
         }
         return [
             "OpenAI web dashboard returned a public page (not signed in).",
             "Sign in to chatgpt.com as \(targetLabel), then update OpenAI cookies in Providers → Codex.",
         ].joined(separator: " ")
+    }
+
+    private static func conciseOpenAICookieMismatchStatus(
+        found: [String],
+        targetEmail: String?)
+        -> String
+    {
+        let normalizedFound = Array(Set(
+            found
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }))
+            .sorted()
+
+        let foundLabel: String = switch normalizedFound.count {
+        case 0:
+            "another account"
+        case 1:
+            normalizedFound[0]
+        case 2:
+            "\(normalizedFound[0]) or \(normalizedFound[1])"
+        default:
+            "\(normalizedFound[0]) or \(normalizedFound.count - 1) other accounts"
+        }
+
+        let targetLabel = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let targetLabel, !targetLabel.isEmpty else {
+            return "OpenAI cookies are for \(foundLabel)."
+        }
+        return "OpenAI cookies are for \(foundLabel), not \(targetLabel)."
     }
 }

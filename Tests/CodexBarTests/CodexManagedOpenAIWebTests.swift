@@ -471,7 +471,9 @@ struct CodexManagedOpenAIWebTests {
         #expect(imported == nil)
         #expect(store.openAIDashboard == nil)
         #expect(store.openAIDashboardRequiresLogin == true)
-        #expect(store.openAIDashboardCookieImportStatus?.contains("do not match Codex account") == true)
+        #expect(
+            store.openAIDashboardCookieImportStatus ==
+                "OpenAI cookies are for other@example.com, not managed@example.com.")
 
         await store.applyOpenAIDashboardFailure(message: "No dashboard data")
         #expect(store.openAIDashboard == nil)
@@ -516,6 +518,26 @@ struct CodexManagedOpenAIWebTests {
         #expect(store.lastOpenAIDashboardSnapshot == nil)
         #expect(store.openAIDashboardRequiresLogin == true)
         #expect(store.lastOpenAIDashboardError?.contains("selected managed Codex account is unavailable") == true)
+    }
+
+    @Test
+    func `friendly error shortens cookie mismatch copy`() {
+        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebTests-friendly-error-short")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+
+        let message = store.openAIDashboardFriendlyError(
+            body: "Sign in to continue",
+            targetEmail: "ratulsarna@gmail.com",
+            cookieImportStatus: "OpenAI cookies are for rdsarna@gmail.com, not ratulsarna@gmail.com.")
+
+        #expect(
+            message ==
+                "OpenAI cookies are for rdsarna@gmail.com, not ratulsarna@gmail.com. " +
+                "Switch chatgpt.com account, then refresh OpenAI cookies.")
     }
 
     private func makeSettingsStore(suite: String) -> SettingsStore {
