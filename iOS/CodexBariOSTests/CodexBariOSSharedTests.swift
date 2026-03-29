@@ -276,4 +276,33 @@ struct CodexBariOSSharedTests {
         #expect(merged.entries == [previousEntry])
         #expect(merged.generatedAt == previousGeneratedAt)
     }
+
+    @Test
+    func `merged snapshot clears cached providers when refresh has no eligible credentials`() {
+        let previousGeneratedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let previousEntry = WidgetSnapshot.ProviderEntry(
+            provider: .codex,
+            updatedAt: previousGeneratedAt,
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: 50,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        let previousSnapshot = WidgetSnapshot(
+            entries: [previousEntry],
+            enabledProviders: [.codex],
+            generatedAt: previousGeneratedAt)
+
+        let merged = UsageRefreshService.mergedSnapshot(
+            previousSnapshot: previousSnapshot,
+            enabledProviders: [],
+            entriesByProvider: [.codex: previousEntry],
+            didUpdateAnyEntry: false)
+
+        #expect(merged.entries.isEmpty)
+        #expect(merged.enabledProviders.isEmpty)
+        #expect(merged.generatedAt == previousGeneratedAt)
+    }
 }

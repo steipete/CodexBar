@@ -127,9 +127,23 @@ public enum WidgetPreviewData {
                         resetDescription: DisplayFormat.resetDescription(from: now.addingTimeInterval(39 * 60 * 60))),
                     tertiary: nil,
                     creditsRemaining: 48.5,
-                    codeReviewRemainingPercent: nil,
-                    tokenUsage: nil,
-                    dailyUsage: []),
+                    codeReviewRemainingPercent: 82,
+                    tokenUsage: WidgetSnapshot.TokenUsageSummary(
+                        sessionCostUSD: 1.47,
+                        sessionTokens: 28_500,
+                        last30DaysCostUSD: 42.30,
+                        last30DaysTokens: 890_000),
+                    dailyUsage: (0 ..< 7).map { i in
+                        WidgetSnapshot.DailyUsagePoint(
+                            dayKey: {
+                                let cal = Calendar.current
+                                let d = cal.date(byAdding: .day, value: -(6 - i), to: now)!
+                                let c = cal.dateComponents([.year, .month, .day], from: d)
+                                return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+                            }(),
+                            totalTokens: [12_000, 45_000, 31_000, 58_000, 22_000, 67_000, 28_500][i],
+                            costUSD: [0.24, 0.90, 0.62, 1.16, 0.44, 1.34, 0.57][i])
+                    }),
                 WidgetSnapshot.ProviderEntry(
                     provider: .claude,
                     updatedAt: now,

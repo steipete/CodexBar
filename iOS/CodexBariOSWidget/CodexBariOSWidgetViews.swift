@@ -53,143 +53,247 @@ private struct ProviderUsageContent: View {
     let availableProviders: [UsageProvider]?
 
     var body: some View {
-        switch self.family {
-        case .systemSmall:
-            CompactUsageCard(entry: self.entry, availableProviders: self.availableProviders)
-        default:
-            ExpandedUsageCard(entry: self.entry, availableProviders: self.availableProviders)
+        if let availableProviders {
+            switch self.family {
+            case .systemSmall:
+                CompactSwitcherCard(entry: self.entry, availableProviders: availableProviders)
+            default:
+                ExpandedSwitcherCard(entry: self.entry, family: self.family, availableProviders: availableProviders)
+            }
+        } else {
+            switch self.family {
+            case .systemSmall:
+                CompactUsageCard(entry: self.entry)
+            default:
+                ExpandedUsageCard(entry: self.entry, family: self.family)
+            }
         }
     }
 }
 
 private struct CompactUsageCard: View {
     let entry: WidgetSnapshot.ProviderEntry
-    let availableProviders: [UsageProvider]?
 
     private var accent: Color {
         WidgetColors.color(for: self.entry.provider)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let availableProviders {
-                ProviderSwitcherRow(
-                    providers: availableProviders,
-                    selected: self.entry.provider,
-                    updatedAt: self.entry.updatedAt,
-                    compact: true)
-            } else {
-                WidgetHeader(provider: self.entry.provider, updatedAt: self.entry.updatedAt, compact: true)
+        VStack(spacing: 8) {
+            HStack {
+                Spacer(minLength: 0)
+                TimestampText(updatedAt: self.entry.updatedAt)
             }
 
-            ConcentricUsageRings(
+            CompactHeroGauge(
+                title: "Session",
+                value: self.entry.primaryMetricValue,
+                subtitle: self.entry.primaryMetricSubtitle,
+                session: self.entry.sessionWindow,
+                weekly: self.entry.weeklyWindow,
+                accent: self.accent)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+    }
+}
+
+private struct CompactSwitcherCard: View {
+    let entry: WidgetSnapshot.ProviderEntry
+    let availableProviders: [UsageProvider]
+
+    private var accent: Color {
+        WidgetColors.color(for: self.entry.provider)
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ProviderSwitcherRow(
+                providers: self.availableProviders,
+                selected: self.entry.provider,
+                updatedAt: self.entry.updatedAt,
+                compact: true,
+                showsTimestamp: false)
+
+            CompactHeroGauge(
+                title: "Session",
+                value: self.entry.primaryMetricValue,
+                subtitle: nil,
                 session: self.entry.sessionWindow,
                 weekly: self.entry.weeklyWindow,
                 accent: self.accent,
-                size: 88,
-                sessionLineWidth: 14,
-                weeklyLineWidth: 10)
-            .frame(maxWidth: .infinity)
+                compact: true)
 
-            HStack(spacing: 10) {
-                RingLegend(
-                    label: "Session",
-                    value: self.shortPercent(self.entry.sessionWindow?.remainingPercent),
-                    subtitle: self.entry.sessionWindow.flatMap(DisplayFormat.resetLine))
-                RingLegend(
-                    label: "Week",
-                    value: self.shortPercent(self.entry.weeklyWindow?.remainingPercent),
-                    subtitle: self.entry.weeklyWindow.flatMap(DisplayFormat.resetLine))
-            }
-
-            if let footer = self.footerText {
-                Text(footer)
-                    .font(.caption2)
+            if let reset = self.entry.primaryMetricSubtitle {
+                Text(reset)
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                    .minimumScaleFactor(0.65)
             }
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 12)
-    }
-
-    private func shortPercent(_ value: Double?) -> String {
-        guard let value else { return "--" }
-        return "\(Int(value.rounded()))%"
-    }
-
-    private var footerText: String? {
-        if let credits = self.entry.creditsRemaining {
-            return "Credits \(DisplayFormat.credits(credits))"
-        }
-        return nil
+        .padding(.vertical, 8)
     }
 }
 
 private struct ExpandedUsageCard: View {
     let entry: WidgetSnapshot.ProviderEntry
-    let availableProviders: [UsageProvider]?
+    let family: WidgetFamily
 
     private var accent: Color {
         WidgetColors.color(for: self.entry.provider)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if let availableProviders {
-                ProviderSwitcherRow(
-                    providers: availableProviders,
-                    selected: self.entry.provider,
-                    updatedAt: self.entry.updatedAt,
-                    compact: false)
+        Group {
+            if self.family == .systemMedium {
+                MediumUsageCard(entry: self.entry, accent: self.accent)
             } else {
-                WidgetHeader(provider: self.entry.provider, updatedAt: self.entry.updatedAt, compact: false)
+                LargeUsageCard(entry: self.entry, accent: self.accent)
             }
+        }
+    }
+}
+
+private struct ExpandedSwitcherCard: View {
+    let entry: WidgetSnapshot.ProviderEntry
+    let family: WidgetFamily
+    let availableProviders: [UsageProvider]
+
+    private var accent: Color {
+        WidgetColors.color(for: self.entry.provider)
+    }
+
+    var body: some View {
+        Group {
+            if self.family == .systemMedium {
+                MediumSwitcherCard(
+                    entry: self.entry,
+                    accent: self.accent,
+                    availableProviders: self.availableProviders)
+            } else {
+                LargeSwitcherCard(
+                    entry: self.entry,
+                    accent: self.accent,
+                    availableProviders: self.availableProviders)
+            }
+        }
+    }
+}
+
+private struct MediumUsageCard: View {
+    let entry: WidgetSnapshot.ProviderEntry
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            WidgetHeader(
+                provider: self.entry.provider,
+                updatedAt: self.entry.updatedAt,
+                compact: false,
+                subtitle: nil)
 
             HStack(alignment: .center, spacing: 16) {
                 ConcentricUsageRings(
                     session: self.entry.sessionWindow,
                     weekly: self.entry.weeklyWindow,
                     accent: self.accent,
-                    size: 108,
-                    sessionLineWidth: 16,
-                    weeklyLineWidth: 11)
-                .frame(width: 108, height: 108)
+                    size: 88,
+                    sessionLineWidth: 13,
+                    weeklyLineWidth: 9)
+                .frame(width: 88, height: 88)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    UsageDetailRow(
-                        title: "Session",
-                        value: self.shortPercent(self.entry.sessionWindow?.remainingPercent),
-                        subtitle: self.entry.sessionWindow.flatMap(DisplayFormat.resetLine))
-                    UsageDetailRow(
-                        title: "Week",
-                        value: self.shortPercent(self.entry.weeklyWindow?.remainingPercent),
-                        subtitle: self.entry.weeklyWindow.flatMap(DisplayFormat.resetLine))
-
-                    if let credits = self.entry.creditsRemaining {
-                        UsageDetailRow(
-                            title: "Credits",
-                            value: DisplayFormat.credits(credits),
-                            subtitle: nil)
-                    } else if let tertiary = self.entry.tertiary, self.entry.secondary != nil {
-                        UsageDetailRow(
-                            title: "Extra",
-                            value: self.shortPercent(tertiary.remainingPercent),
-                            subtitle: DisplayFormat.resetLine(for: tertiary))
-                    }
-                }
+                MetricSummaryColumn(rows: self.entry.widgetMetricRows)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
         .padding(.vertical, 14)
     }
+}
 
-    private func shortPercent(_ value: Double?) -> String {
-        guard let value else { return "--" }
-        return "\(Int(value.rounded()))%"
+private struct MediumSwitcherCard: View {
+    let entry: WidgetSnapshot.ProviderEntry
+    let accent: Color
+    let availableProviders: [UsageProvider]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ProviderSwitcherRow(
+                providers: self.availableProviders,
+                selected: self.entry.provider,
+                updatedAt: self.entry.updatedAt,
+                compact: false,
+                showsTimestamp: true)
+
+            HStack(alignment: .center, spacing: 16) {
+                ConcentricUsageRings(
+                    session: self.entry.sessionWindow,
+                    weekly: self.entry.weeklyWindow,
+                    accent: self.accent,
+                    size: 88,
+                    sessionLineWidth: 13,
+                    weeklyLineWidth: 9)
+                .frame(width: 88, height: 88)
+
+                MetricSummaryColumn(rows: self.entry.widgetMetricRows)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
+}
 
+private struct LargeUsageCard: View {
+    let entry: WidgetSnapshot.ProviderEntry
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            WidgetHeader(
+                provider: self.entry.provider,
+                updatedAt: self.entry.updatedAt,
+                compact: false,
+                subtitle: "Remaining quota")
+
+            MetricProgressStack(rows: self.entry.largeWidgetMetricRows, accent: self.accent)
+
+            if !self.entry.dailyUsage.isEmpty {
+                DailyUsageSparkline(points: self.entry.dailyUsage, accent: self.accent)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+    }
+}
+
+private struct LargeSwitcherCard: View {
+    let entry: WidgetSnapshot.ProviderEntry
+    let accent: Color
+    let availableProviders: [UsageProvider]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ProviderSwitcherRow(
+                providers: self.availableProviders,
+                selected: self.entry.provider,
+                updatedAt: self.entry.updatedAt,
+                compact: false,
+                showsTimestamp: true)
+
+            MetricProgressStack(rows: self.entry.largeWidgetMetricRows, accent: self.accent)
+
+            if !self.entry.dailyUsage.isEmpty {
+                DailyUsageSparkline(points: self.entry.dailyUsage, accent: self.accent)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+    }
 }
 
 private struct ConcentricUsageRings: View {
@@ -234,20 +338,89 @@ private struct RingLayer: View {
     }
 }
 
-private struct RingLegend: View {
-    let label: String
+private struct CompactHeroGauge: View {
+    let title: String
     let value: String
     let subtitle: String?
+    let session: RateWindow?
+    let weekly: RateWindow?
+    let accent: Color
+    var compact: Bool = false
+
+    private var ringSize: CGFloat { self.compact ? 100 : 124 }
+    private var sessionLine: CGFloat { self.compact ? 12 : 14 }
+    private var weeklyLine: CGFloat { self.compact ? 8 : 10 }
+    private static let ringGap: CGFloat = 2
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(self.label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(self.value)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.primary)
-            if let subtitle {
+        ZStack {
+            ConcentricUsageRings(
+                session: self.session,
+                weekly: self.weekly,
+                accent: self.accent,
+                size: self.ringSize,
+                sessionLineWidth: self.sessionLine,
+                weeklyLineWidth: self.weeklyLine)
+
+            VStack(spacing: self.compact ? 1 : 2) {
+                Text(self.title)
+                    .font(.system(size: self.compact ? 10 : 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(self.value)
+                    .font(.system(size: self.compact ? 22 : 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.55)
+                }
+            }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: self.ringSize - 2 * (self.sessionLine + Self.ringGap + self.weeklyLine) - 4)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct MetricSummaryColumn: View {
+    let rows: [MetricRowModel]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(self.rows) { row in
+                MetricSummaryRow(row: row)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct MetricSummaryRow: View {
+    let row: MetricRowModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(self.row.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 6)
+                Text(self.row.value)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            if let subtitle = self.row.subtitle {
                 Text(subtitle)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -255,38 +428,164 @@ private struct RingLegend: View {
                     .minimumScaleFactor(0.72)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.06)))
     }
 }
 
-private struct UsageDetailRow: View {
+private struct MetricProgressStack: View {
+    let rows: [MetricRowModel]
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            ForEach(self.rows) { row in
+                MetricProgressRow(row: row, accent: self.accent)
+            }
+        }
+    }
+}
+
+private struct MetricProgressRow: View {
+    let row: MetricRowModel
+    let accent: Color
+
+    private static let titleWidth: CGFloat = 56
+    private static let titleBarSpacing: CGFloat = 10
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: Self.titleBarSpacing) {
+                Text(self.row.title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: Self.titleWidth, alignment: .leading)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                if self.row.progress != nil {
+                    MetricProgressBar(progress: self.row.progress ?? 0, accent: self.accent)
+                } else {
+                    Spacer(minLength: 4)
+                }
+
+                Text(self.row.value)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 76, alignment: .trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+            }
+
+            if let subtitle = self.row.subtitle {
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
+                    .padding(.leading, Self.titleWidth + Self.titleBarSpacing)
+            }
+        }
+    }
+}
+
+private struct MetricProgressBar: View {
+    let progress: Double
+    let accent: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.primary.opacity(0.08))
+
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [self.accent.opacity(0.96), self.accent.opacity(0.78)],
+                            startPoint: .leading,
+                            endPoint: .trailing))
+                    .frame(width: proxy.size.width * max(min(self.progress, 1), 0))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 16)
+    }
+}
+
+private struct DailyUsageSparkline: View {
+    let points: [WidgetSnapshot.DailyUsagePoint]
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Recent usage")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            GeometryReader { proxy in
+                let values = self.normalizedValues
+                let barWidth = max(4, (proxy.size.width - CGFloat(max(values.count - 1, 0)) * 3) / CGFloat(max(values.count, 1)))
+                HStack(alignment: .bottom, spacing: 3) {
+                    ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [self.accent.opacity(0.85), self.accent.opacity(0.5)],
+                                    startPoint: .top,
+                                    endPoint: .bottom))
+                            .frame(width: barWidth, height: max(3, proxy.size.height * value))
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            }
+            .frame(height: 48)
+
+            if let lastDay = self.points.last {
+                HStack {
+                    Text(self.dayLabel(lastDay.dayKey))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    if let cost = lastDay.costUSD {
+                        Text(DisplayFormat.usd(cost))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    } else if let tokens = lastDay.totalTokens {
+                        Text(DisplayFormat.tokenCount(tokens))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private var normalizedValues: [Double] {
+        let raw: [Double] = self.points.suffix(7).map { point in
+            if let cost = point.costUSD { return cost }
+            if let tokens = point.totalTokens { return Double(tokens) }
+            return 0
+        }
+        let maxVal = raw.max() ?? 1
+        guard maxVal > 0 else { return raw.map { _ in 0.0 } }
+        return raw.map { $0 / maxVal }
+    }
+
+    private func dayLabel(_ key: String) -> String {
+        let parts = key.split(separator: "-")
+        guard parts.count >= 2 else { return key }
+        return "\(parts[parts.count - 2])/\(parts.last ?? "")"
+    }
+}
+
+private struct MetricRowModel: Identifiable {
     let title: String
     let value: String
     let subtitle: String?
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(self.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(self.value)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.primary)
-            }
+    let progress: Double?
 
-            if let subtitle {
-                Text(subtitle)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
+    var id: String {
+        self.title
     }
 }
 
@@ -308,21 +607,28 @@ private struct ProviderSwitcherRow: View {
     let selected: UsageProvider
     let updatedAt: Date
     let compact: Bool
+    let showsTimestamp: Bool
 
     var body: some View {
-        HStack(spacing: self.compact ? 4 : 6) {
-            ForEach(self.providers, id: \.self) { provider in
-                ProviderSwitchChip(
-                    provider: provider,
-                    selected: provider == self.selected,
-                    compact: self.compact)
+        HStack(spacing: self.compact ? 6 : 10) {
+            HStack(spacing: self.compact ? 3 : 3) {
+                ForEach(self.providers, id: \.self) { provider in
+                    ProviderSwitchChip(
+                        provider: provider,
+                        selected: provider == self.selected,
+                        compact: self.compact)
+                }
             }
-            Spacer(minLength: 6)
-            Text(DisplayFormat.updateTimestamp(self.updatedAt))
-                .font(self.compact ? .caption2 : .caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
+            .padding(self.compact ? 2 : 4)
+            .background(Capsule().fill(Color.primary.opacity(0.06)))
+            .overlay(
+                Capsule()
+                    .stroke(Color.primary.opacity(0.05), lineWidth: 1))
+
+            if self.showsTimestamp {
+                Spacer(minLength: self.compact ? 4 : 8)
+                TimestampText(updatedAt: self.updatedAt)
+            }
         }
     }
 }
@@ -333,19 +639,54 @@ private struct ProviderSwitchChip: View {
     let compact: Bool
 
     var body: some View {
-        let background = self.selected
-            ? WidgetColors.color(for: self.provider).opacity(0.18)
-            : Color.primary.opacity(0.08)
-
         Button(intent: SwitchWidgetProviderIntent(provider: ProviderChoice(provider: self.provider))) {
             Text(self.provider.displayName)
                 .font(self.compact ? .caption2.weight(.semibold) : .caption.weight(.semibold))
                 .foregroundStyle(self.selected ? Color.primary : Color.secondary)
-                .padding(.horizontal, self.compact ? 6 : 8)
-                .padding(.vertical, self.compact ? 3 : 4)
-                .background(Capsule().fill(background))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(minWidth: self.compact ? nil : 52)
+                .padding(.horizontal, self.compact ? 6 : 10)
+                .padding(.vertical, self.compact ? 4 : 6)
+                .background(
+                    Capsule()
+                        .fill(self.selected ? WidgetColors.color(for: self.provider).opacity(0.18) : .clear))
+                .overlay(
+                    Capsule()
+                        .stroke(self.selected ? WidgetColors.color(for: self.provider).opacity(0.14) : .clear, lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct ProviderBadge: View {
+    let provider: UsageProvider
+    let compact: Bool
+
+    var body: some View {
+        Text(self.provider.displayName)
+            .font(self.compact ? .caption2.weight(.semibold) : .caption.weight(.semibold))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, self.compact ? 8 : 10)
+            .padding(.vertical, self.compact ? 5 : 6)
+            .background(
+                Capsule()
+                    .fill(WidgetColors.color(for: self.provider).opacity(0.16)))
+    }
+}
+
+private struct TimestampText: View {
+    let updatedAt: Date
+
+    var body: some View {
+        Text(DisplayFormat.updateTimestamp(self.updatedAt))
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+            .monospacedDigit()
     }
 }
 
@@ -353,22 +694,23 @@ private struct WidgetHeader: View {
     let provider: UsageProvider
     let updatedAt: Date
     let compact: Bool
+    let subtitle: String?
 
     var body: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(self.provider.displayName)
-                    .font(self.compact ? .caption.weight(.semibold) : .headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Text("Remaining quota")
+        VStack(alignment: .leading, spacing: self.compact ? 4 : 6) {
+            HStack(alignment: .center) {
+                ProviderBadge(provider: self.provider, compact: self.compact)
+                Spacer(minLength: 8)
+                TimestampText(updatedAt: self.updatedAt)
+            }
+
+            if let subtitle {
+                Text(subtitle)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
-            Spacer()
-            Text(DisplayFormat.updateTimestamp(self.updatedAt))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
         }
     }
 }
@@ -413,7 +755,97 @@ private enum WidgetColors {
     }
 }
 
+private func compactPercent(_ value: Double?) -> String {
+    guard let value else { return "--" }
+    return "\(Int(value.rounded()))%"
+}
+
+private func normalizedPercent(_ value: Double?) -> Double? {
+    guard let value else { return nil }
+    return min(max(value / 100, 0), 1)
+}
+
+private func normalizedFraction(_ value: Double?, total: Double) -> Double? {
+    guard let value, total > 0 else { return nil }
+    return min(max(value / total, 0), 1)
+}
+
 private extension WidgetSnapshot.ProviderEntry {
+    var primaryMetricValue: String {
+        compactPercent(self.sessionWindow?.remainingPercent)
+    }
+
+    var primaryMetricSubtitle: String? {
+        self.sessionWindow.flatMap(DisplayFormat.resetLine)
+    }
+
+    var widgetMetricRows: [MetricRowModel] {
+        var rows: [MetricRowModel] = [
+            MetricRowModel(
+                title: "Session",
+                value: compactPercent(self.sessionWindow?.remainingPercent),
+                subtitle: self.sessionWindow.flatMap(DisplayFormat.resetLine),
+                progress: normalizedPercent(self.sessionWindow?.remainingPercent)),
+            MetricRowModel(
+                title: "Week",
+                value: compactPercent(self.weeklyWindow?.remainingPercent),
+                subtitle: self.weeklyWindow.flatMap(DisplayFormat.resetLine),
+                progress: normalizedPercent(self.weeklyWindow?.remainingPercent)),
+        ]
+
+        if let credits = self.creditsRemaining {
+            rows.append(
+                MetricRowModel(
+                    title: "Credits",
+                    value: DisplayFormat.credits(credits),
+                    subtitle: nil,
+                    progress: normalizedFraction(credits, total: 1000)))
+        } else if let tertiary = self.tertiary, self.secondary != nil {
+            rows.append(
+                MetricRowModel(
+                    title: "Extra",
+                    value: compactPercent(tertiary.remainingPercent),
+                    subtitle: DisplayFormat.resetLine(for: tertiary),
+                    progress: normalizedPercent(tertiary.remainingPercent)))
+        }
+
+        return rows
+    }
+
+    var largeWidgetMetricRows: [MetricRowModel] {
+        var rows = self.widgetMetricRows
+
+        if let codeReview = self.codeReviewRemainingPercent {
+            rows.append(
+                MetricRowModel(
+                    title: "Review",
+                    value: compactPercent(codeReview),
+                    subtitle: nil,
+                    progress: normalizedPercent(codeReview)))
+        }
+
+        if let tokenUsage {
+            if let sessionCost = tokenUsage.sessionCostUSD {
+                rows.append(
+                    MetricRowModel(
+                        title: "Cost",
+                        value: DisplayFormat.usd(sessionCost),
+                        subtitle: tokenUsage.sessionTokens.map { "Session: \(DisplayFormat.tokenCount($0)) tokens" },
+                        progress: nil))
+            }
+            if let last30DaysCost = tokenUsage.last30DaysCostUSD {
+                rows.append(
+                    MetricRowModel(
+                        title: "30-day",
+                        value: DisplayFormat.usd(last30DaysCost),
+                        subtitle: tokenUsage.last30DaysTokens.map { "\(DisplayFormat.tokenCount($0)) tokens" },
+                        progress: nil))
+            }
+        }
+
+        return rows
+    }
+
     var sessionWindow: RateWindow? {
         self.primary
     }

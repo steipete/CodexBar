@@ -261,6 +261,26 @@ final class DashboardModel {
         return "Timeline #\(widgetRefreshDiagnostics.requestCount) | \(DisplayFormat.updateTimestamp(widgetRefreshDiagnostics.triggeredAt)) | \(source) | \(network)"
     }
 
+    var widgetStatusTitle: String {
+        guard let widgetRefreshDiagnostics else {
+            return self.isRefreshing ? "Syncing" : "Idle"
+        }
+
+        return switch widgetRefreshDiagnostics.result {
+        case .refreshed: "Updated"
+        case .cached: "Cached"
+        case .skipped: "Skipped"
+        }
+    }
+
+    var widgetStatusDetail: String {
+        guard let widgetRefreshDiagnostics else {
+            return self.isRefreshing ? "refresh in progress" : "waiting for sync"
+        }
+        let requestLabel = widgetRefreshDiagnostics.requestCount == 1 ? "request" : "requests"
+        return "#\(widgetRefreshDiagnostics.requestCount) \(requestLabel)"
+    }
+
     private var hasConfiguredCredentials: Bool {
         self.codexAccessToken.nilIfBlank != nil
             || self.claudeAccessToken.nilIfBlank != nil

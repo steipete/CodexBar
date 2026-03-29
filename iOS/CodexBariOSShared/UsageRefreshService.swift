@@ -151,6 +151,7 @@ public actor UsageRefreshService {
                 partialResult.append(provider)
             }
         }
+
         let generatedAt = didUpdateAnyEntry ? Date() : (previousSnapshot?.generatedAt ?? Date())
 
         return WidgetSnapshot(

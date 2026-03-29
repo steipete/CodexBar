@@ -58,31 +58,36 @@ struct DashboardView: View {
 
 private struct HeroPanel: View {
     @Environment(\.colorScheme) private var colorScheme
+    @State private var showsDiagnostics = false
     let model: DashboardModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Token usage on your phone.")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
+            Text("Usage at a glance.")
+                .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary)
 
-            Text("Codex uses OAuth browser sign-in, Claude uses a captured `claude.ai` web session, and both feed the same widget snapshot store.")
+            Text("Track Codex and Claude limits, then push the latest snapshot into the widgets without leaving your phone.")
                 .font(.body)
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 10) {
-                InfoChip(
-                    title: "Snapshot",
-                    value: self.model.snapshot.map { DisplayFormat.relativeDate($0.generatedAt) } ?? "none")
-                InfoChip(
-                    title: "Providers",
-                    value: "\(self.model.snapshot?.entries.count ?? 0)/2")
-                InfoChip(
-                    title: "State",
-                    value: self.model.isRefreshing ? "refreshing" : "ready")
-                InfoChip(
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3),
+                alignment: .leading,
+                spacing: 12)
+            {
+                OverviewStatCard(
+                    title: "Sync",
+                    value: self.snapshotValue,
+                    detail: self.snapshotDetail)
+                OverviewStatCard(
+                    title: "Active",
+                    value: "\(self.model.snapshot?.entries.count ?? 0)/2",
+                    detail: (self.model.snapshot?.entries.isEmpty == false) ? "online" : "empty")
+                OverviewStatCard(
                     title: "Widget",
-                    value: self.model.widgetRefreshSummary)
+                    value: self.model.widgetStatusTitle,
+                    detail: self.model.widgetStatusDetail)
             }
 
             if let status = self.model.statusMessage {
@@ -97,18 +102,27 @@ private struct HeroPanel: View {
                             .fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.92 : 0.82)))
             }
 
-            if let detail = self.model.widgetRefreshDetail {
-                Text(detail)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            if self.model.widgetRefreshDetail != nil || self.model.widgetRefreshDiagnostics?.message != nil {
+                DisclosureGroup("Diagnostics", isExpanded: self.$showsDiagnostics) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let detail = self.model.widgetRefreshDetail {
+                            Text(detail)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
 
-            if let diagnostics = self.model.widgetRefreshDiagnostics?.message {
-                Text(diagnostics)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                        if let diagnostics = self.model.widgetRefreshDiagnostics?.message {
+                            Text(diagnostics)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+                .font(.footnote.weight(.semibold))
+                .tint(.secondary)
             }
         }
         .padding(22)
@@ -127,6 +141,20 @@ private struct HeroPanel: View {
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .stroke(Color.white.opacity(self.colorScheme == .dark ? 0.08 : 0.4), lineWidth: 1)))
         .shadow(color: Color.black.opacity(self.colorScheme == .dark ? 0.24 : 0.06), radius: 18, y: 10)
+    }
+
+    private var snapshotValue: String {
+        guard let generatedAt = self.model.snapshot?.generatedAt else { return "--" }
+        let relative = DisplayFormat.relativeDate(generatedAt)
+        if relative == "just now" {
+            return "Now"
+        }
+        return relative.replacingOccurrences(of: " ago", with: "")
+    }
+
+    private var snapshotDetail: String {
+        guard self.model.snapshot != nil else { return "not synced" }
+        return "ago"
     }
 }
 
@@ -149,20 +177,20 @@ private struct ProviderPanel: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(self.provider.displayName)
                         .font(.title3.weight(.bold))
-                    if let hint = self.model.browserLoginHint(provider: self.provider) {
-                        Text(hint)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(self.entry == nil ? "Connect once to seed the first widget snapshot." : "Latest synced usage snapshot")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
+                .layoutPriority(1)
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 VStack(alignment: .trailing, spacing: 8) {
                     if let label = self.model.storedCredentialLabel(provider: self.provider) {
                         Text(label)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(self.palette.tint)
+                            .lineLimit(1)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 7)
                             .background(Capsule().fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.94 : 0.86)))
@@ -171,6 +199,7 @@ private struct ProviderPanel: View {
                     Text(self.entry.map { DisplayFormat.relativeDate($0.updatedAt) } ?? "Not synced")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
                         .background(Capsule().fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.92 : 0.8)))
@@ -191,31 +220,53 @@ private struct ProviderPanel: View {
             }
 
             HStack(spacing: 12) {
-                Button {
-                    Task {
-                        await self.model.browserLogin(provider: self.provider)
+                if self.entry == nil {
+                    Button {
+                        Task {
+                            await self.model.browserLogin(provider: self.provider)
+                        }
+                    } label: {
+                        if self.model.isAuthenticating(provider: self.provider) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .tint(.white)
+                        } else {
+                            Text("Browser Sign In")
+                        }
                     }
-                } label: {
-                    if self.model.isAuthenticating(provider: self.provider) {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .tint(.white)
-                    } else {
-                        Text("Browser Sign In")
+                    .buttonStyle(.borderedProminent)
+                    .tint(self.palette.tint)
+                    .disabled(!self.model.browserLoginSupported(provider: self.provider) || self.model.activeBrowserLoginProvider != nil)
+                } else {
+                    Button("Refresh") {
+                        Task {
+                            await self.model.refreshAll()
+                        }
                     }
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(self.palette.tint)
-                .disabled(!self.model.browserLoginSupported(provider: self.provider) || self.model.activeBrowserLoginProvider != nil)
+                    .buttonStyle(.borderedProminent)
+                    .tint(self.palette.tint)
+                    .disabled(self.model.isRefreshing || self.model.activeBrowserLoginProvider != nil)
 
-                Button("Refresh") {
-                    Task {
-                        await self.model.refreshAll()
+                    Button("Reconnect") {
+                        Task {
+                            await self.model.browserLogin(provider: self.provider)
+                        }
                     }
+                    .buttonStyle(.bordered)
+                    .tint(self.palette.tint)
+                    .disabled(!self.model.browserLoginSupported(provider: self.provider) || self.model.activeBrowserLoginProvider != nil)
                 }
-                .buttonStyle(.bordered)
-                .tint(self.palette.tint)
-                .disabled(self.model.isRefreshing || self.model.activeBrowserLoginProvider != nil)
+
+                if self.entry == nil {
+                    Button("Refresh") {
+                        Task {
+                            await self.model.refreshAll()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(self.palette.tint)
+                    .disabled(self.model.isRefreshing || self.model.activeBrowserLoginProvider != nil)
+                }
             }
 
             ManualFallbackForm(provider: self.provider, model: self.model, accent: self.palette.tint)
@@ -244,7 +295,7 @@ private struct ManualFallbackForm: View {
     let accent: Color
 
     var body: some View {
-        DisclosureGroup("Manual token fallback") {
+        DisclosureGroup("Advanced access") {
             VStack(alignment: .leading, spacing: 12) {
                 switch self.provider {
                 case .codex:
@@ -264,27 +315,40 @@ private struct ManualFallbackForm: View {
                         .textFieldStyle(.roundedBorder)
                 }
 
-                HStack(spacing: 10) {
-                    Button("Save") {
-                        self.model.save(provider: self.provider)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(self.accent)
+                let saveButton = Button("Save") {
+                    self.model.save(provider: self.provider)
+                }
+                .buttonStyle(.bordered)
+                .tint(self.accent)
 
-                    Button("Clear") {
-                        self.model.clear(provider: self.provider)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(self.accent)
+                let clearButton = Button("Clear") {
+                    self.model.clear(provider: self.provider)
+                }
+                .buttonStyle(.bordered)
+                .tint(self.accent)
 
-                    Button("Save & Refresh") {
-                        self.model.save(provider: self.provider)
-                        Task {
-                            await self.model.refreshAll()
+                let saveRefreshButton = Button("Save & Refresh") {
+                    self.model.save(provider: self.provider)
+                    Task {
+                        await self.model.refreshAll()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(self.accent)
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        saveButton
+                        clearButton
+                        saveRefreshButton
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
+                            saveButton
+                            clearButton
                         }
+                        saveRefreshButton
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(self.accent)
                 }
             }
             .padding(.top, 10)
@@ -302,7 +366,7 @@ private struct EmptyProviderState: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("No usage snapshot yet.")
                 .font(.headline)
-            Text("Sign in to \(self.provider.displayName) and refresh once to push a real snapshot into the widget container.")
+            Text("Use browser sign-in for \(self.provider.displayName), then refresh once to save a real widget snapshot.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -371,6 +435,8 @@ private struct WindowTile: View {
             Text(self.title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
 
             if let window = self.window {
                 Text(DisplayFormat.percentRemaining(window.remainingPercent))
@@ -388,14 +454,14 @@ private struct WindowTile: View {
                 }
 
                 GeometryReader { proxy in
-                    let availableWidth = max(0, proxy.size.width - 10)
+                    let availableWidth = max(0, proxy.size.width)
                     let remainingWidth = availableWidth * CGFloat(window.remainingPercent / 100)
                     ZStack(alignment: .leading) {
                         Capsule()
                             .fill(Color.primary.opacity(0.08))
                         Capsule()
                             .fill(self.accent)
-                            .frame(width: max(10, remainingWidth))
+                            .frame(width: min(max(10, remainingWidth), availableWidth))
                     }
                 }
                 .frame(height: 10)
@@ -437,6 +503,37 @@ private struct InfoChip: View {
     }
 }
 
+private struct OverviewStatCard: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let title: String
+    let value: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(self.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(self.value)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(self.detail)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(uiColor: .tertiarySystemBackground).opacity(self.colorScheme == .dark ? 0.96 : 0.82)))
+    }
+}
+
 private struct SummaryRow: View {
     let title: String
     let value: String
@@ -445,10 +542,13 @@ private struct SummaryRow: View {
         HStack(alignment: .top, spacing: 12) {
             Text(self.title)
                 .foregroundStyle(.secondary)
+                .layoutPriority(1)
             Spacer(minLength: 12)
             Text(self.value)
                 .multilineTextAlignment(.trailing)
                 .foregroundStyle(.primary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
         }
         .font(.footnote)
     }
