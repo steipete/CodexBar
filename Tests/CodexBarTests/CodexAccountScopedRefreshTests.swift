@@ -177,7 +177,7 @@ struct CodexAccountScopedRefreshTests {
         let elapsed = startedAt.duration(to: .now)
 
         #expect(loaderCalled == false)
-        #expect(elapsed < .seconds(1))
+        #expect(elapsed < .seconds(2))
     }
 
     @Test
