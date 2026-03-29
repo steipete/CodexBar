@@ -43,13 +43,10 @@ public struct ManagedCodexAccount: Codable, Identifiable, Sendable {
 public struct ManagedCodexAccountSet: Codable, Sendable {
     public let version: Int
     public let accounts: [ManagedCodexAccount]
-    public let activeAccountID: UUID?
 
-    public init(version: Int, accounts: [ManagedCodexAccount], activeAccountID: UUID?) {
-        let sanitizedAccounts = Self.sanitizedAccounts(accounts)
+    public init(version: Int, accounts: [ManagedCodexAccount]) {
         self.version = version
-        self.accounts = sanitizedAccounts
-        self.activeAccountID = Self.validatedActiveAccountID(activeAccountID, accounts: sanitizedAccounts)
+        self.accounts = Self.sanitizedAccounts(accounts)
     }
 
     public func account(id: UUID) -> ManagedCodexAccount? {
@@ -65,13 +62,7 @@ public struct ManagedCodexAccountSet: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(
             version: container.decode(Int.self, forKey: .version),
-            accounts: container.decode([ManagedCodexAccount].self, forKey: .accounts),
-            activeAccountID: container.decodeIfPresent(UUID.self, forKey: .activeAccountID))
-    }
-
-    private static func validatedActiveAccountID(_ activeAccountID: UUID?, accounts: [ManagedCodexAccount]) -> UUID? {
-        guard let activeAccountID else { return nil }
-        return accounts.contains { $0.id == activeAccountID } ? activeAccountID : nil
+            accounts: container.decode([ManagedCodexAccount].self, forKey: .accounts))
     }
 
     private static func sanitizedAccounts(_ accounts: [ManagedCodexAccount]) -> [ManagedCodexAccount] {

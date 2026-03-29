@@ -40,14 +40,14 @@ struct CodexAccountReconciliationSnapshot: Equatable, Sendable {
 struct DefaultCodexAccountReconciler {
     let storeLoader: @Sendable () throws -> ManagedCodexAccountSet
     let systemObserver: any CodexSystemAccountObserving
-    let activeSource: CodexActiveSource?
+    let activeSource: CodexActiveSource
 
     init(
         storeLoader: @escaping @Sendable () throws -> ManagedCodexAccountSet = {
             try FileManagedCodexAccountStore().loadAccounts()
         },
         systemObserver: any CodexSystemAccountObserving = DefaultCodexSystemAccountObserver(),
-        activeSource: CodexActiveSource? = nil)
+        activeSource: CodexActiveSource = .liveSystem)
     {
         self.storeLoader = storeLoader
         self.systemObserver = systemObserver
@@ -59,7 +59,12 @@ struct DefaultCodexAccountReconciler {
 
         do {
             let accounts = try self.storeLoader()
-            let activeStoredAccount = accounts.activeAccountID.flatMap { accounts.account(id: $0) }
+            let activeStoredAccount: ManagedCodexAccount? = switch self.activeSource {
+            case let .managedAccount(id):
+                accounts.account(id: id)
+            case .liveSystem:
+                nil
+            }
             let matchingStoredAccountForLiveSystemAccount = liveSystemAccount.flatMap {
                 accounts.account(email: $0.email)
             }
@@ -69,8 +74,7 @@ struct DefaultCodexAccountReconciler {
                 activeStoredAccount: activeStoredAccount,
                 liveSystemAccount: liveSystemAccount,
                 matchingStoredAccountForLiveSystemAccount: matchingStoredAccountForLiveSystemAccount,
-                activeSource: self.activeSource ?? Self.defaultActiveSource(
-                    activeStoredAccount: activeStoredAccount),
+                activeSource: self.activeSource,
                 hasUnreadableAddedAccountStore: false)
         } catch {
             return CodexAccountReconciliationSnapshot(
@@ -78,7 +82,7 @@ struct DefaultCodexAccountReconciler {
                 activeStoredAccount: nil,
                 liveSystemAccount: liveSystemAccount,
                 matchingStoredAccountForLiveSystemAccount: nil,
-                activeSource: self.activeSource ?? .liveSystem,
+                activeSource: self.activeSource,
                 hasUnreadableAddedAccountStore: true)
         }
     }
@@ -107,13 +111,6 @@ struct DefaultCodexAccountReconciler {
 
     private static func normalizeEmail(_ email: String) -> String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-
-    private static func defaultActiveSource(activeStoredAccount: ManagedCodexAccount?) -> CodexActiveSource {
-        if let activeStoredAccount {
-            return .managedAccount(id: activeStoredAccount.id)
-        }
-        return .liveSystem
     }
 }
 

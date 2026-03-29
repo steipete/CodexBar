@@ -26,12 +26,11 @@ struct ManagedCodexAccountServiceTests {
         #expect(first.id == second.id)
         #expect(second.email == "user@example.com")
         #expect(snapshot.accounts.count == 1)
-        #expect(snapshot.activeAccountID == second.id)
         #expect(second.managedHomePath.hasPrefix(root.standardizedFileURL.path + "/"))
     }
 
     @Test
-    func `new authentication becomes active managed account`() async throws {
+    func `new authentication appends managed account without implicit selection side effect`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
@@ -46,8 +45,7 @@ struct ManagedCodexAccountServiceTests {
         let store = InMemoryManagedCodexAccountStore(
             accounts: ManagedCodexAccountSet(
                 version: 1,
-                accounts: [firstAccount],
-                activeAccountID: firstAccount.id))
+                accounts: [firstAccount]))
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: TestManagedCodexHomeFactory(root: root),
@@ -57,7 +55,6 @@ struct ManagedCodexAccountServiceTests {
         let authenticated = try await service.authenticateManagedAccount()
 
         #expect(store.snapshot.accounts.count == 2)
-        #expect(store.snapshot.activeAccountID == authenticated.id)
         #expect(authenticated.email == "second@example.com")
     }
 
@@ -79,8 +76,7 @@ struct ManagedCodexAccountServiceTests {
         let store = FailingManagedCodexAccountStore(
             accounts: ManagedCodexAccountSet(
                 version: 1,
-                accounts: [existingAccount],
-                activeAccountID: existingAccount.id))
+                accounts: [existingAccount]))
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: TestManagedCodexHomeFactory(root: root),
@@ -96,7 +92,6 @@ struct ManagedCodexAccountServiceTests {
         #expect(FileManager.default.fileExists(atPath: newHome.path) == false)
         #expect(store.snapshot.accounts.count == 1)
         #expect(store.snapshot.accounts.first?.managedHomePath == existingHome.path)
-        #expect(store.snapshot.activeAccountID == existingAccount.id)
     }
 
     @Test
@@ -127,8 +122,7 @@ struct ManagedCodexAccountServiceTests {
         let store = InMemoryManagedCodexAccountStore(
             accounts: ManagedCodexAccountSet(
                 version: 1,
-                accounts: [alphaAccount, betaAccount],
-                activeAccountID: alphaAccount.id))
+                accounts: [alphaAccount, betaAccount]))
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: TestManagedCodexHomeFactory(root: root),
@@ -163,7 +157,7 @@ struct ManagedCodexAccountServiceTests {
         }
 
         let store = InMemoryManagedCodexAccountStore(
-            accounts: ManagedCodexAccountSet(version: 1, accounts: [], activeAccountID: nil))
+            accounts: ManagedCodexAccountSet(version: 1, accounts: []))
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: UnsafeManagedCodexHomeFactory(root: root, homeURL: outsideHome),
@@ -177,11 +171,10 @@ struct ManagedCodexAccountServiceTests {
 
         #expect(FileManager.default.fileExists(atPath: outsideHome.path))
         #expect(store.snapshot.accounts.isEmpty)
-        #expect(store.snapshot.activeAccountID == nil)
     }
 
     @Test
-    func `remove deletes managed home under managed root and clears active account`() async throws {
+    func `remove deletes managed home under managed root`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let home = root.appendingPathComponent("accounts/account-a", isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -196,7 +189,7 @@ struct ManagedCodexAccountServiceTests {
             updatedAt: 1,
             lastAuthenticatedAt: 1)
         let store = InMemoryManagedCodexAccountStore(
-            accounts: ManagedCodexAccountSet(version: 1, accounts: [account], activeAccountID: account.id))
+            accounts: ManagedCodexAccountSet(version: 1, accounts: [account]))
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: TestManagedCodexHomeFactory(root: root),
@@ -205,13 +198,12 @@ struct ManagedCodexAccountServiceTests {
 
         try await service.removeManagedAccount(id: account.id)
 
-        #expect(store.snapshot.activeAccountID == nil)
         #expect(store.snapshot.accounts.isEmpty)
         #expect(FileManager.default.fileExists(atPath: home.path) == false)
     }
 
     @Test
-    func `remove active account falls back to remaining managed account`() async throws {
+    func `remove keeps remaining managed account records`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let firstHome = root.appendingPathComponent("accounts/account-a", isDirectory: true)
         let secondHome = root.appendingPathComponent("accounts/account-b", isDirectory: true)
@@ -238,8 +230,7 @@ struct ManagedCodexAccountServiceTests {
         let store = InMemoryManagedCodexAccountStore(
             accounts: ManagedCodexAccountSet(
                 version: 1,
-                accounts: [first, second],
-                activeAccountID: second.id))
+                accounts: [first, second]))
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: TestManagedCodexHomeFactory(root: root),
@@ -250,7 +241,6 @@ struct ManagedCodexAccountServiceTests {
 
         #expect(store.snapshot.accounts.count == 1)
         #expect(store.snapshot.accounts.first?.id == first.id)
-        #expect(store.snapshot.activeAccountID == first.id)
         #expect(FileManager.default.fileExists(atPath: secondHome.path) == false)
     }
 
@@ -270,7 +260,7 @@ struct ManagedCodexAccountServiceTests {
             updatedAt: 1,
             lastAuthenticatedAt: 1)
         let store = FailingManagedCodexAccountStore(
-            accounts: ManagedCodexAccountSet(version: 1, accounts: [account], activeAccountID: account.id))
+            accounts: ManagedCodexAccountSet(version: 1, accounts: [account]))
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: TestManagedCodexHomeFactory(root: root),
@@ -281,7 +271,6 @@ struct ManagedCodexAccountServiceTests {
             try await service.removeManagedAccount(id: account.id)
         }
 
-        #expect(store.snapshot.activeAccountID == account.id)
         #expect(store.snapshot.accounts.count == 1)
         #expect(store.snapshot.accounts.first?.managedHomePath == home.path)
         #expect(FileManager.default.fileExists(atPath: home.path))
@@ -308,7 +297,7 @@ struct ManagedCodexAccountServiceTests {
             updatedAt: 1,
             lastAuthenticatedAt: 1)
         let store = InMemoryManagedCodexAccountStore(
-            accounts: ManagedCodexAccountSet(version: 1, accounts: [account], activeAccountID: account.id))
+            accounts: ManagedCodexAccountSet(version: 1, accounts: [account]))
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: TestManagedCodexHomeFactory(root: root),
@@ -319,7 +308,6 @@ struct ManagedCodexAccountServiceTests {
             try await service.removeManagedAccount(id: account.id)
         }
 
-        #expect(store.snapshot.activeAccountID == account.id)
         #expect(store.snapshot.accounts.count == 1)
         #expect(FileManager.default.fileExists(atPath: outsideRoot.path))
     }

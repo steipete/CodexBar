@@ -27,30 +27,27 @@ func `FileManagedCodexAccountStore round trip`() throws {
         lastAuthenticatedAt: nil)
     let payload = ManagedCodexAccountSet(
         version: 1,
-        accounts: [firstAccount, secondAccount],
-        activeAccountID: secondID)
+        accounts: [firstAccount, secondAccount])
     let store = FileManagedCodexAccountStore(fileURL: fileURL)
 
     try store.storeAccounts(payload)
     let contents = try String(contentsOf: fileURL, encoding: .utf8)
     let loaded = try store.loadAccounts()
     let accountsRange = try #require(contents.range(of: "\"accounts\""))
-    let activeAccountRange = try #require(contents.range(of: "\"activeAccountID\""))
     let versionRange = try #require(contents.range(of: "\"version\""))
 
     #expect(loaded.version == 1)
     #expect(loaded.accounts.count == 2)
-    #expect(loaded.activeAccountID == secondID)
     #expect(loaded.accounts[0].email == "first@example.com")
     #expect(loaded.account(id: firstID)?.managedHomePath == "/tmp/managed-home-1")
     #expect(loaded.account(email: "SECOND@example.com")?.id == secondID)
     #expect(contents.contains("\n  \"accounts\""))
-    #expect(accountsRange.lowerBound < activeAccountRange.lowerBound)
-    #expect(activeAccountRange.lowerBound < versionRange.lowerBound)
+    #expect(accountsRange.lowerBound < versionRange.lowerBound)
+    #expect(contents.contains("\"activeAccountID\"") == false)
 }
 
 @Test
-func `FileManagedCodexAccountStore preserves nil active account and missing file loads empty set`() throws {
+func `FileManagedCodexAccountStore missing file loads empty set`() throws {
     let tempDir = FileManager.default.temporaryDirectory
     let fileURL = tempDir.appendingPathComponent("codexbar-managed-codex-accounts-nil-active-test.json")
     defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -61,7 +58,6 @@ func `FileManagedCodexAccountStore preserves nil active account and missing file
 
     #expect(initial.version == 1)
     #expect(initial.accounts.isEmpty)
-    #expect(initial.activeAccountID == nil)
 
     let account = ManagedCodexAccount(
         id: UUID(),
@@ -72,15 +68,13 @@ func `FileManagedCodexAccountStore preserves nil active account and missing file
         lastAuthenticatedAt: nil)
     let payload = ManagedCodexAccountSet(
         version: 1,
-        accounts: [account],
-        activeAccountID: nil)
+        accounts: [account])
 
     try store.storeAccounts(payload)
     let loaded = try store.loadAccounts()
 
     #expect(loaded.version == 1)
     #expect(loaded.accounts.count == 1)
-    #expect(loaded.activeAccountID == nil)
     #expect(loaded.account(email: "USER@example.com")?.id == account.id)
 }
 
@@ -103,7 +97,6 @@ func `FileManagedCodexAccountStore canonicalizes decoded emails`() throws {
           "updatedAt" : 20
         }
       ],
-      "activeAccountID" : "\(accountID.uuidString)",
       "version" : 1
     }
     """
@@ -115,40 +108,6 @@ func `FileManagedCodexAccountStore canonicalizes decoded emails`() throws {
 
     #expect(loaded.accounts.first?.email == "mixed@example.com")
     #expect(loaded.account(email: "mixed@example.com")?.id == accountID)
-}
-
-@Test
-func `FileManagedCodexAccountStore clears dangling active account IDs on load`() throws {
-    let tempDir = FileManager.default.temporaryDirectory
-    let fileURL = tempDir.appendingPathComponent("codexbar-managed-codex-accounts-dangling-active-test.json")
-    defer { try? FileManager.default.removeItem(at: fileURL) }
-
-    let accountID = UUID()
-    let danglingID = UUID()
-    let json = """
-    {
-      "accounts" : [
-        {
-          "createdAt" : 10,
-          "email" : "user@example.com",
-          "id" : "\(accountID.uuidString)",
-          "lastAuthenticatedAt" : null,
-          "managedHomePath" : "/tmp/managed-home",
-          "updatedAt" : 20
-        }
-      ],
-      "activeAccountID" : "\(danglingID.uuidString)",
-      "version" : 1
-    }
-    """
-
-    try json.write(to: fileURL, atomically: true, encoding: .utf8)
-
-    let store = FileManagedCodexAccountStore(fileURL: fileURL)
-    let loaded = try store.loadAccounts()
-
-    #expect(loaded.accounts.count == 1)
-    #expect(loaded.activeAccountID == nil)
 }
 
 @Test
@@ -179,7 +138,6 @@ func `FileManagedCodexAccountStore drops duplicate canonical emails on load`() t
           "updatedAt" : 40
         }
       ],
-      "activeAccountID" : "\(secondID.uuidString)",
       "version" : 1
     }
     """
@@ -192,7 +150,6 @@ func `FileManagedCodexAccountStore drops duplicate canonical emails on load`() t
     #expect(loaded.accounts.count == 1)
     #expect(loaded.accounts.first?.id == firstID)
     #expect(loaded.accounts.first?.managedHomePath == "/tmp/managed-home-1")
-    #expect(loaded.activeAccountID == nil)
 }
 
 @Test
@@ -222,7 +179,6 @@ func `FileManagedCodexAccountStore drops duplicate IDs on load`() throws {
           "updatedAt" : 40
         }
       ],
-      "activeAccountID" : "\(sharedID.uuidString)",
       "version" : 1
     }
     """
@@ -236,7 +192,40 @@ func `FileManagedCodexAccountStore drops duplicate IDs on load`() throws {
     #expect(loaded.accounts.first?.id == sharedID)
     #expect(loaded.accounts.first?.email == "first@example.com")
     #expect(loaded.accounts.first?.managedHomePath == "/tmp/managed-home-1")
-    #expect(loaded.activeAccountID == sharedID)
+}
+
+@Test
+func `FileManagedCodexAccountStore ignores legacy active account key on load`() throws {
+    let tempDir = FileManager.default.temporaryDirectory
+    let fileURL = tempDir.appendingPathComponent("codexbar-managed-codex-accounts-legacy-active-key-test.json")
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let accountID = UUID()
+    let danglingID = UUID()
+    let json = """
+    {
+      "accounts" : [
+        {
+          "createdAt" : 10,
+          "email" : "user@example.com",
+          "id" : "\(accountID.uuidString)",
+          "lastAuthenticatedAt" : null,
+          "managedHomePath" : "/tmp/managed-home",
+          "updatedAt" : 20
+        }
+      ],
+      "activeAccountID" : "\(danglingID.uuidString)",
+      "version" : 1
+    }
+    """
+
+    try json.write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let store = FileManagedCodexAccountStore(fileURL: fileURL)
+    let loaded = try store.loadAccounts()
+
+    #expect(loaded.accounts.count == 1)
+    #expect(loaded.account(id: accountID)?.email == "user@example.com")
 }
 
 @Test
@@ -258,7 +247,6 @@ func `FileManagedCodexAccountStore rejects unsupported on disk versions`() throw
           "updatedAt" : 20
         }
       ],
-      "activeAccountID" : "\(accountID.uuidString)",
       "version" : 999
     }
     """
@@ -288,8 +276,7 @@ func `FileManagedCodexAccountStore normalizes stored version to current schema`(
         lastAuthenticatedAt: nil)
     let payload = ManagedCodexAccountSet(
         version: 999,
-        accounts: [account],
-        activeAccountID: accountID)
+        accounts: [account])
     let store = FileManagedCodexAccountStore(fileURL: fileURL)
 
     try store.storeAccounts(payload)

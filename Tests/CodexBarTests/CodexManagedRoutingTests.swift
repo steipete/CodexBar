@@ -126,15 +126,12 @@ struct CodexManagedRoutingTests {
     }
 
     @Test
-    func `provider registry fails closed for unreadable legacy codex source`() {
+    func `provider registry bootstraps live system source instead of inferring managed fallback`() {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-unreadable-legacy-source")
         settings._test_unreadableManagedCodexAccountStore = true
         defer { settings._test_unreadableManagedCodexAccountStore = false }
 
         let ambientHome = "/Users/example/.codex"
-        let expectedFailClosedPath = ManagedCodexHomeFactory.defaultRootURL()
-            .appendingPathComponent("managed-store-unreadable", isDirectory: true)
-            .path
         let env = ProviderRegistry.makeEnvironment(
             base: ["CODEX_HOME": ambientHome],
             provider: .codex,
@@ -142,9 +139,9 @@ struct CodexManagedRoutingTests {
             tokenOverride: nil)
         let snapshot = settings.codexSettingsSnapshot(tokenOverride: nil)
 
-        #expect(env["CODEX_HOME"] == expectedFailClosedPath)
-        #expect(env["CODEX_HOME"] != ambientHome)
-        #expect(snapshot.managedAccountStoreUnreadable == true)
+        #expect(env["CODEX_HOME"] == ambientHome)
+        #expect(settings.providerConfig(for: .codex)?.codexActiveSource == .liveSystem)
+        #expect(snapshot.managedAccountStoreUnreadable == false)
         #expect(snapshot.managedAccountTargetUnavailable == false)
     }
 
@@ -163,8 +160,7 @@ struct CodexManagedRoutingTests {
         let store = FileManagedCodexAccountStore(fileURL: storeURL)
         try store.storeAccounts(ManagedCodexAccountSet(
             version: FileManagedCodexAccountStore.currentVersion,
-            accounts: [storedAccount],
-            activeAccountID: storedAccount.id))
+            accounts: [storedAccount]))
         settings._test_managedCodexAccountStoreURL = storeURL
         settings.codexActiveSource = .managedAccount(id: UUID())
         defer {
@@ -202,8 +198,7 @@ struct CodexManagedRoutingTests {
         let store = FileManagedCodexAccountStore(fileURL: storeURL)
         try store.storeAccounts(ManagedCodexAccountSet(
             version: FileManagedCodexAccountStore.currentVersion,
-            accounts: [storedAccount],
-            activeAccountID: storedAccount.id))
+            accounts: [storedAccount]))
         settings._test_managedCodexAccountStoreURL = storeURL
         settings.codexActiveSource = .managedAccount(id: UUID())
         defer {
@@ -231,7 +226,7 @@ struct CodexManagedRoutingTests {
     }
 
     @Test
-    func `provider registry honors debug managed home override without explicit active source`() throws {
+    func `provider registry ignores debug managed home override without explicit managed source`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-debug-home-override")
         let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString,
@@ -249,8 +244,8 @@ struct CodexManagedRoutingTests {
             settings: settings,
             tokenOverride: nil)
 
-        #expect(env["CODEX_HOME"] == managedHome.path)
-        #expect(env["CODEX_HOME"] != ambientHome)
+        #expect(env["CODEX_HOME"] == ambientHome)
+        #expect(settings.providerConfig(for: .codex)?.codexActiveSource == .liveSystem)
     }
 
     @Test

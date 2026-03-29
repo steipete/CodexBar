@@ -210,8 +210,7 @@ struct CodexManagedOpenAIWebTests {
         let managedStore = FileManagedCodexAccountStore(fileURL: storeURL)
         try? managedStore.storeAccounts(ManagedCodexAccountSet(
             version: FileManagedCodexAccountStore.currentVersion,
-            accounts: [storedAccount],
-            activeAccountID: storedAccount.id))
+            accounts: [storedAccount]))
         settings._test_managedCodexAccountStoreURL = storeURL
         settings.codexActiveSource = .managedAccount(id: UUID())
         defer {

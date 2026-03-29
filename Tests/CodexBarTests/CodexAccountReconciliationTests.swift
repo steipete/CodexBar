@@ -29,6 +29,7 @@ struct CodexAccountReconciliationTests {
             observedAt: Date())
         settings._test_activeManagedCodexAccount = managed
         settings._test_liveSystemCodexAccount = live
+        settings.codexActiveSource = .managedAccount(id: managed.id)
         defer {
             settings._test_activeManagedCodexAccount = nil
             settings._test_liveSystemCodexAccount = nil
@@ -71,6 +72,7 @@ struct CodexAccountReconciliationTests {
             updatedAt: 2,
             lastAuthenticatedAt: 3)
         settings._test_activeManagedCodexAccount = managed
+        settings.codexActiveSource = .managedAccount(id: managed.id)
         defer {
             settings._test_activeManagedCodexAccount = nil
         }
@@ -171,8 +173,7 @@ struct CodexAccountReconciliationTests {
             lastAuthenticatedAt: 3)
         let accounts = ManagedCodexAccountSet(
             version: FileManagedCodexAccountStore.currentVersion,
-            accounts: [ambient],
-            activeAccountID: ambient.id)
+            accounts: [ambient])
         let storeURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-managed-store-\(UUID().uuidString).json")
         try Self.writeManagedCodexStore(accounts, to: storeURL)
@@ -187,8 +188,8 @@ struct CodexAccountReconciliationTests {
 
         let snapshot = settings.codexAccountReconciliationSnapshot
 
-        #expect(settings.providerConfig(for: .codex)?.codexActiveSource == nil)
         #expect(settings.codexActiveSource == .liveSystem)
+        #expect(settings.providerConfig(for: .codex)?.codexActiveSource == .liveSystem)
         #expect(snapshot.storedAccounts.isEmpty)
         #expect(snapshot.activeStoredAccount == nil)
         #expect(snapshot.activeSource == .liveSystem)
@@ -241,14 +242,15 @@ struct CodexAccountReconciliationTests {
             createdAt: 1,
             updatedAt: 2,
             lastAuthenticatedAt: 3)
-        let accounts = ManagedCodexAccountSet(version: 1, accounts: [stored], activeAccountID: stored.id)
+        let accounts = ManagedCodexAccountSet(version: 1, accounts: [stored])
         let live = ObservedSystemCodexAccount(
             email: "USER@example.com",
             codexHomePath: "/Users/test/.codex",
             observedAt: Date())
         let reconciler = DefaultCodexAccountReconciler(
             storeLoader: { accounts },
-            systemObserver: StubSystemObserver(account: live))
+            systemObserver: StubSystemObserver(account: live),
+            activeSource: .managedAccount(id: stored.id))
 
         let projection = reconciler.loadVisibleAccounts(environment: [:])
 
@@ -295,14 +297,15 @@ struct CodexAccountReconciliationTests {
             createdAt: 1,
             updatedAt: 2,
             lastAuthenticatedAt: 3)
-        let accounts = ManagedCodexAccountSet(version: 1, accounts: [active], activeAccountID: active.id)
+        let accounts = ManagedCodexAccountSet(version: 1, accounts: [active])
         let live = ObservedSystemCodexAccount(
             email: "system@example.com",
             codexHomePath: "/Users/test/.codex",
             observedAt: Date())
         let reconciler = DefaultCodexAccountReconciler(
             storeLoader: { accounts },
-            systemObserver: StubSystemObserver(account: live))
+            systemObserver: StubSystemObserver(account: live),
+            activeSource: .managedAccount(id: active.id))
 
         let projection = reconciler.loadVisibleAccounts(environment: [:])
 
@@ -329,15 +332,15 @@ struct CodexAccountReconciliationTests {
             lastAuthenticatedAt: 6)
         let accounts = ManagedCodexAccountSet(
             version: 1,
-            accounts: [active, inactive],
-            activeAccountID: active.id)
+            accounts: [active, inactive])
         let live = ObservedSystemCodexAccount(
             email: "system@example.com",
             codexHomePath: "/Users/test/.codex",
             observedAt: Date())
         let reconciler = DefaultCodexAccountReconciler(
             storeLoader: { accounts },
-            systemObserver: StubSystemObserver(account: live))
+            systemObserver: StubSystemObserver(account: live),
+            activeSource: .managedAccount(id: active.id))
 
         let projection = reconciler.loadVisibleAccounts(environment: [:])
 
@@ -370,7 +373,7 @@ struct CodexAccountReconciliationTests {
 
     @Test
     func `whitespace only live email is ignored`() {
-        let accounts = ManagedCodexAccountSet(version: 1, accounts: [], activeAccountID: nil)
+        let accounts = ManagedCodexAccountSet(version: 1, accounts: [])
         let live = ObservedSystemCodexAccount(
             email: "   \n\t  ",
             codexHomePath: "/Users/test/.codex",
