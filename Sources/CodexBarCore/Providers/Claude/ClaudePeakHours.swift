@@ -34,37 +34,33 @@ public enum ClaudePeakHours: Sendable {
                 label: "Peak · ends in \(self.formatDuration(minutes: remaining))")
         }
 
-        if isWeekday {
-            if nowMinutes < peakStartMinutes {
-                let until = peakStartMinutes - nowMinutes
-                return Status(
-                    isPeak: false,
-                    label: "Off-peak · peak in \(self.formatDuration(minutes: until))")
-            } else {
-                let minutesLeftToday = 24 * 60 - nowMinutes
-                let nextPeakMinutes: Int
-                if weekday == 6 {
-                    nextPeakMinutes = minutesLeftToday + 2 * 24 * 60 + peakStartMinutes
-                } else {
-                    nextPeakMinutes = minutesLeftToday + peakStartMinutes
-                }
-                return Status(
-                    isPeak: false,
-                    label: "Off-peak · peak in \(self.formatDuration(minutes: nextPeakMinutes))")
-            }
-        }
-
-        let daysUntilMonday: Int
-        if weekday == 7 {
-            daysUntilMonday = 2
-        } else {
-            daysUntilMonday = 1
-        }
-        let minutesLeftToday = 24 * 60 - nowMinutes
-        let totalMinutes = minutesLeftToday + (daysUntilMonday - 1) * 24 * 60 + peakStartMinutes
+        let nextPeak = self.nextPeakStart(after: date, calendar: calendar)
+        let seconds = nextPeak.timeIntervalSince(date)
+        let minutes = max(Int(seconds / 60), 0)
         return Status(
             isPeak: false,
-            label: "Off-peak · peak in \(self.formatDuration(minutes: totalMinutes))")
+            label: "Off-peak · peak in \(self.formatDuration(minutes: minutes))")
+    }
+
+    private static func nextPeakStart(after date: Date, calendar: Calendar) -> Date {
+        guard let todayPeak = calendar.date(
+            bySettingHour: self.peakStartHour,
+            minute: 0,
+            second: 0,
+            of: date) else { return date }
+
+        let anchor = todayPeak > date ? todayPeak : calendar.date(byAdding: .day, value: 1, to: todayPeak) ?? date
+        let weekday = calendar.component(.weekday, from: anchor)
+
+        let skip: Int
+        switch weekday {
+        case 1: skip = 1
+        case 7: skip = 2
+        default: skip = 0
+        }
+
+        if skip == 0 { return anchor }
+        return calendar.date(byAdding: .day, value: skip, to: anchor) ?? anchor
     }
 
     private static func formatDuration(minutes: Int) -> String {
