@@ -11,17 +11,17 @@ struct AdvancedPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 SettingsSection(contentSpacing: 8) {
-                    Text("Keyboard shortcut")
+                    Text(AppStrings.tr("Keyboard shortcut"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     HStack(alignment: .center, spacing: 12) {
-                        Text("Open menu")
+                        Text(AppStrings.tr("Open menu"))
                             .font(.body)
                         Spacer()
                         KeyboardShortcuts.Recorder(for: .openMenu)
                     }
-                    Text("Trigger the menu bar menu from anywhere.")
+                    Text(AppStrings.tr("Trigger the menu bar menu from anywhere."))
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
                 }
@@ -36,7 +36,7 @@ struct AdvancedPane: View {
                             if self.isInstallingCLI {
                                 ProgressView().controlSize(.small)
                             } else {
-                                Text("Install CLI")
+                                Text(AppStrings.tr("Install CLI"))
                             }
                         }
                         .disabled(self.isInstallingCLI)
@@ -48,7 +48,7 @@ struct AdvancedPane: View {
                                 .lineLimit(2)
                         }
                     }
-                    Text("Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.")
+                    Text(AppStrings.tr("Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar."))
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
                 }
@@ -57,12 +57,12 @@ struct AdvancedPane: View {
 
                 SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
-                        title: "Show Debug Settings",
-                        subtitle: "Expose troubleshooting tools in the Debug tab.",
+                        title: AppStrings.tr("Show Debug Settings"),
+                        subtitle: AppStrings.tr("Expose troubleshooting tools in the Debug tab."),
                         binding: self.$settings.debugMenuEnabled)
                     PreferenceToggleRow(
-                        title: "Surprise me",
-                        subtitle: "Check if you like your agents having some fun up there.",
+                        title: AppStrings.tr("Surprise me"),
+                        subtitle: AppStrings.tr("Check if you like your agents having some fun up there."),
                         binding: self.$settings.randomBlinkEnabled)
                 }
 
@@ -70,24 +70,24 @@ struct AdvancedPane: View {
 
                 SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
-                        title: "Hide personal information",
-                        subtitle: "Obscure email addresses in the menu bar and menu UI.",
+                        title: AppStrings.tr("Hide personal information"),
+                        subtitle: AppStrings.tr("Obscure email addresses in the menu bar and menu UI."),
                         binding: self.$settings.hidePersonalInfo)
                 }
 
                 Divider()
 
                 SettingsSection(
-                    title: "Keychain access",
-                    caption: """
-                    Disable all Keychain reads and writes. Browser cookie import is unavailable; paste Cookie \
-                    headers manually in Providers.
-                    """) {
-                        PreferenceToggleRow(
-                            title: "Disable Keychain access",
-                            subtitle: "Prevents any Keychain access while enabled.",
-                            binding: self.$settings.debugDisableKeychainAccess)
-                    }
+                    title: AppStrings.tr("Keychain access"),
+                    caption: AppStrings.tr(
+                        "Disable all Keychain reads and writes. Browser cookie import is unavailable; " +
+                            "paste Cookie headers manually in Providers."))
+                {
+                    PreferenceToggleRow(
+                        title: AppStrings.tr("Disable Keychain access"),
+                        subtitle: AppStrings.tr("Prevents any Keychain access while enabled."),
+                        binding: self.$settings.debugDisableKeychainAccess)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
@@ -105,7 +105,7 @@ extension AdvancedPane {
         let helperURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/CodexBarCLI")
         let fm = FileManager.default
         guard fm.fileExists(atPath: helperURL.path) else {
-            self.cliStatus = "CodexBarCLI not found in app bundle."
+            self.cliStatus = AppStrings.tr("CodexBarCLI not found in app bundle.")
             return
         }
 
@@ -119,29 +119,29 @@ extension AdvancedPane {
             let dir = (dest as NSString).deletingLastPathComponent
             guard fm.fileExists(atPath: dir) else { continue }
             guard fm.isWritableFile(atPath: dir) else {
-                results.append("No write access: \(dir)")
+                results.append(AppStrings.fmt("No write access: %@", dir))
                 continue
             }
 
             if fm.fileExists(atPath: dest) {
                 if Self.isLink(atPath: dest, pointingTo: helperURL.path) {
-                    results.append("Installed: \(dir)")
+                    results.append(AppStrings.fmt("Installed: %@", dir))
                 } else {
-                    results.append("Exists: \(dir)")
+                    results.append(AppStrings.fmt("Exists: %@", dir))
                 }
                 continue
             }
 
             do {
                 try fm.createSymbolicLink(atPath: dest, withDestinationPath: helperURL.path)
-                results.append("Installed: \(dir)")
+                results.append(AppStrings.fmt("Installed: %@", dir))
             } catch {
-                results.append("Failed: \(dir)")
+                results.append(AppStrings.fmt("Failed: %@", dir))
             }
         }
 
         self.cliStatus = results.isEmpty
-            ? "No writable bin dirs found."
+            ? AppStrings.tr("No writable bin dirs found.")
             : results.joined(separator: " · ")
     }
 

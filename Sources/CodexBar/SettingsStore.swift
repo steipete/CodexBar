@@ -27,14 +27,7 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
     }
 
     var label: String {
-        switch self {
-        case .manual: "Manual"
-        case .oneMinute: "1 min"
-        case .twoMinutes: "2 min"
-        case .fiveMinutes: "5 min"
-        case .fifteenMinutes: "15 min"
-        case .thirtyMinutes: "30 min"
-        }
+        AppStrings.refreshFrequency(self)
     }
 }
 
@@ -50,13 +43,7 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
     }
 
     var label: String {
-        switch self {
-        case .automatic: "Automatic"
-        case .primary: "Primary"
-        case .secondary: "Secondary"
-        case .tertiary: "Tertiary"
-        case .average: "Average"
-        }
+        AppStrings.menuBarMetricPreference(self)
     }
 }
 
@@ -160,6 +147,7 @@ final class SettingsStore {
 
 extension SettingsStore {
     private static func loadDefaultsState(userDefaults: UserDefaults) -> SettingsDefaultsState {
+        let appLanguageRaw = userDefaults.string(forKey: AppLanguage.userDefaultsKey)
         let refreshDefault = userDefaults.string(forKey: "refreshFrequency")
             .flatMap(RefreshFrequency.init(rawValue:))
         let refreshFrequency = refreshDefault ?? .fiveMinutes
@@ -232,6 +220,7 @@ extension SettingsStore {
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
 
         return SettingsDefaultsState(
+            appLanguageRaw: appLanguageRaw,
             refreshFrequency: refreshFrequency,
             launchAtLogin: launchAtLogin,
             debugMenuEnabled: debugMenuEnabled,

@@ -4,6 +4,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct PreferencesPaneSmokeTests {
     @Test
     func `builds preference panes with default settings`() {
@@ -41,6 +42,73 @@ struct PreferencesPaneSmokeTests {
         _ = ProvidersPane(settings: settings, store: store).body
         _ = DebugPane(settings: settings, store: store).body
         _ = AboutPane(updater: DisabledUpdaterController()).body
+    }
+
+    @Test
+    func `builds preference panes for each supported app language`() {
+        let languages = AppLanguage.allCases
+
+        for language in languages {
+            let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-\(language.rawValue)")
+            settings.appLanguage = language
+            let store = Self.makeUsageStore(settings: settings)
+            let selection = PreferencesSelection()
+
+            _ = PreferencesView(
+                settings: settings,
+                store: store,
+                updater: DisabledUpdaterController(),
+                selection: selection).body
+
+            #expect(settings.appLanguage == language)
+            let expectedPrefix = language == .system ? Locale.autoupdatingCurrent.identifier : language.rawValue
+            #expect(settings.appLocale.identifier.hasPrefix(expectedPrefix))
+            #expect(AppLanguage.allCases.map(\.displayName) == ["System", "English", "简体中文", "繁體中文"])
+
+            switch language {
+            case .system:
+                #expect(!PreferencesView._test_visibleTabTitles(debugMenuEnabled: false).isEmpty)
+            case .english:
+                AppStrings.withTestingLanguage(.english) {
+                    #expect(PreferencesView._test_visibleTabTitles(debugMenuEnabled: false) == [
+                        "General",
+                        "Providers",
+                        "Display",
+                        "Advanced",
+                        "About",
+                    ])
+                    #expect(AppStrings.tr("System") == "System")
+                    #expect(AppStrings.tr("Language") == "Language")
+                    #expect(AppStrings.tr("Quit CodexBar") == "Quit CodexBar")
+                }
+            case .simplifiedChinese:
+                AppStrings.withTestingLanguage(.simplifiedChinese) {
+                    #expect(PreferencesView._test_visibleTabTitles(debugMenuEnabled: false) == [
+                        "通用",
+                        "提供商",
+                        "显示",
+                        "高级",
+                        "关于",
+                    ])
+                    #expect(AppStrings.tr("System") == "系统")
+                    #expect(AppStrings.tr("Language") == "语言")
+                    #expect(AppStrings.tr("Quit CodexBar") == "退出 CodexBar")
+                }
+            case .traditionalChinese:
+                AppStrings.withTestingLanguage(.traditionalChinese) {
+                    #expect(PreferencesView._test_visibleTabTitles(debugMenuEnabled: false) == [
+                        "一般",
+                        "供應商",
+                        "顯示",
+                        "進階",
+                        "關於",
+                    ])
+                    #expect(AppStrings.tr("System") == "系統")
+                    #expect(AppStrings.tr("Language") == "語言")
+                    #expect(AppStrings.tr("Quit CodexBar") == "結束 CodexBar")
+                }
+            }
+        }
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {

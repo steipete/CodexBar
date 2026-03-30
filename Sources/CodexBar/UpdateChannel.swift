@@ -8,21 +8,11 @@ enum UpdateChannel: String, CaseIterable, Codable {
     static let sparkleBetaChannel = "beta"
 
     var displayName: String {
-        switch self {
-        case .stable:
-            "Stable"
-        case .beta:
-            "Beta"
-        }
+        AppStrings.updateChannel(self)
     }
 
     var description: String {
-        switch self {
-        case .stable:
-            "Receive only stable, production-ready releases."
-        case .beta:
-            "Receive stable releases plus beta previews."
-        }
+        AppStrings.updateChannelDescription(self)
     }
 
     var allowedSparkleChannels: Set<String> {

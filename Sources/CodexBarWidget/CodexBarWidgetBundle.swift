@@ -21,8 +21,8 @@ struct CodexBarSwitcherWidget: Widget {
         { entry in
             CodexBarSwitcherWidgetView(entry: entry)
         }
-        .configurationDisplayName("CodexBar Switcher")
-        .description("Usage widget with a provider switcher.")
+        .configurationDisplayName(WidgetStrings.resource("CodexBar Switcher"))
+        .description(WidgetStrings.resource("Usage widget with a provider switcher."))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -38,8 +38,8 @@ struct CodexBarUsageWidget: Widget {
         { entry in
             CodexBarUsageWidgetView(entry: entry)
         }
-        .configurationDisplayName("CodexBar Usage")
-        .description("Session and weekly usage with credits and costs.")
+        .configurationDisplayName(WidgetStrings.resource("CodexBar Usage"))
+        .description(WidgetStrings.resource("Session and weekly usage with credits and costs."))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -55,8 +55,8 @@ struct CodexBarHistoryWidget: Widget {
         { entry in
             CodexBarHistoryWidgetView(entry: entry)
         }
-        .configurationDisplayName("CodexBar History")
-        .description("Usage history chart with recent totals.")
+        .configurationDisplayName(WidgetStrings.resource("CodexBar History"))
+        .description(WidgetStrings.resource("Usage history chart with recent totals."))
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }
@@ -72,8 +72,8 @@ struct CodexBarCompactWidget: Widget {
         { entry in
             CodexBarCompactWidgetView(entry: entry)
         }
-        .configurationDisplayName("CodexBar Metric")
-        .description("Compact widget for credits or cost.")
+        .configurationDisplayName(WidgetStrings.resource("CodexBar Metric"))
+        .description(WidgetStrings.resource("Compact widget for credits or cost."))
         .supportedFamilies([.systemSmall])
     }
 }

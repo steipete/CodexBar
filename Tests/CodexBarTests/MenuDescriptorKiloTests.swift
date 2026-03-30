@@ -4,6 +4,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct MenuDescriptorKiloTests {
     @Test
     func `kilo credits detail does not render as reset line`() throws {
@@ -109,7 +110,7 @@ struct MenuDescriptorKiloTests {
             return text
         }
 
-        #expect(textLines.contains(where: { $0.contains("Resets") }))
+        #expect(textLines.contains(where: { $0.contains(AppStrings.tr("Resets")) }))
         #expect(textLines.contains("$0.00 / $19.00 (+ $9.50 bonus)"))
     }
 
@@ -161,7 +162,60 @@ struct MenuDescriptorKiloTests {
                 return text
             }
 
-        #expect(textLines.contains("Activity: Auto top-up: off"))
-        #expect(!textLines.contains("Plan: Auto top-up: off"))
+        #expect(textLines.contains(AppStrings.fmt("Activity: %@", "Auto top-up: off")))
+        #expect(!textLines.contains(AppStrings.fmt("Plan: %@", "Auto top-up: off")))
+    }
+
+    @Test
+    func `kilo activity label localizes with selected language`() throws {
+        try AppStrings.withTestingLanguage(.simplifiedChinese) {
+            let suite = "MenuDescriptorKiloTests-kilo-activity-language"
+            let defaults = try #require(UserDefaults(suiteName: suite))
+            defaults.removePersistentDomain(forName: suite)
+
+            let settings = SettingsStore(
+                userDefaults: defaults,
+                configStore: testConfigStore(suiteName: suite),
+                zaiTokenStore: NoopZaiTokenStore(),
+                syntheticTokenStore: NoopSyntheticTokenStore())
+            settings.statusChecksEnabled = false
+
+            let store = UsageStore(
+                fetcher: UsageFetcher(environment: [:]),
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                settings: settings)
+            let snapshot = UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: "0/0 credits"),
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .kilo,
+                    accountEmail: nil,
+                    accountOrganization: nil,
+                    loginMethod: "Auto top-up: off"))
+            store._setSnapshotForTesting(snapshot, provider: .kilo)
+
+            let descriptor = MenuDescriptor.build(
+                provider: .kilo,
+                store: store,
+                settings: settings,
+                account: AccountInfo(email: nil, plan: nil),
+                updateReady: false,
+                includeContextualActions: false)
+            let textLines = descriptor.sections
+                .flatMap(\.entries)
+                .compactMap { entry -> String? in
+                    guard case let .text(text, _) = entry else { return nil }
+                    return text
+                }
+
+            #expect(textLines.contains(AppStrings.fmt("Activity: %@", "Auto top-up: off")))
+            #expect(!textLines.contains("Activity: Auto top-up: off"))
+        }
     }
 }

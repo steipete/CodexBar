@@ -29,7 +29,7 @@ struct CreditsHistoryChartMenuView: View {
         let model = Self.makeModel(from: self.breakdown)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No credits history data.")
+                Text(AppStrings.tr("No credits history data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -98,7 +98,10 @@ struct CreditsHistoryChartMenuView: View {
                 }
 
                 if let total = model.totalCreditsUsed {
-                    Text("Total (30d): \(total.formatted(.number.precision(.fractionLength(0...2)))) credits")
+                    Text(
+                        AppStrings.fmt(
+                            "Total (30d): %@ credits",
+                            total.formatted(.number.precision(.fractionLength(0...2)))))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -299,17 +302,17 @@ struct CreditsHistoryChartMenuView: View {
               let day = model.breakdownByDayKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return ("Hover a bar for details", nil)
+            return (AppStrings.tr("Hover a bar for details"), nil)
         }
 
-        let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
+        let dayLabel = AppStrings.monthDayString(from: date)
         let total = day.totalCreditsUsed.formatted(.number.precision(.fractionLength(0...2)))
         if day.services.isEmpty {
-            return ("\(dayLabel): \(total) credits", nil)
+            return (AppStrings.fmt("%@: %@ credits", dayLabel, total), nil)
         }
         if day.services.count <= 1, let first = day.services.first {
             let used = first.creditsUsed.formatted(.number.precision(.fractionLength(0...2)))
-            return ("\(dayLabel): \(used) credits", first.service)
+            return (AppStrings.fmt("%@: %@ credits", dayLabel, used), first.service)
         }
 
         let services = day.services
@@ -321,6 +324,6 @@ struct CreditsHistoryChartMenuView: View {
             .map { "\($0.service) \($0.creditsUsed.formatted(.number.precision(.fractionLength(0...2))))" }
             .joined(separator: " · ")
 
-        return ("\(dayLabel): \(total) credits", services)
+        return (AppStrings.fmt("%@: %@ credits", dayLabel, total), services)
     }
 }

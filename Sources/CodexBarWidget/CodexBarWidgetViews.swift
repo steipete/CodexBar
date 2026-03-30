@@ -33,10 +33,10 @@ struct CodexBarUsageWidgetView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Open CodexBar")
+            Text(WidgetStrings.tr("Open CodexBar"))
                 .font(.body)
                 .fontWeight(.semibold)
-            Text("Usage data will appear once the app refreshes.")
+            Text(WidgetStrings.tr("Usage data will appear once the app refreshes."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -63,10 +63,10 @@ struct CodexBarHistoryWidgetView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Open CodexBar")
+            Text(WidgetStrings.tr("Open CodexBar"))
                 .font(.body)
                 .fontWeight(.semibold)
-            Text("Usage history will appear after a refresh.")
+            Text(WidgetStrings.tr("Usage history will appear after a refresh."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -92,10 +92,10 @@ struct CodexBarCompactWidgetView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Open CodexBar")
+            Text(WidgetStrings.tr("Open CodexBar"))
                 .font(.body)
                 .fontWeight(.semibold)
-            Text("Usage data will appear once the app refreshes.")
+            Text(WidgetStrings.tr("Usage data will appear once the app refreshes."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -143,10 +143,10 @@ struct CodexBarSwitcherWidgetView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Open CodexBar")
+            Text(WidgetStrings.tr("Open CodexBar"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text("Usage data appears after a refresh.")
+            Text(WidgetStrings.tr("Usage data appears after a refresh."))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -182,15 +182,15 @@ private struct CompactMetricView: View {
         switch self.metric {
         case .credits:
             let value = self.entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
-            return (value, "Credits left", nil)
+            return (value, WidgetStrings.tr("Credits left"), nil)
         case .todayCost:
             let value = self.entry.tokenUsage?.sessionCostUSD.map(WidgetFormat.usd) ?? "—"
             let detail = self.entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
-            return (value, "Today cost", detail)
+            return (value, WidgetStrings.tr("Today cost"), detail)
         case .last30DaysCost:
             let value = self.entry.tokenUsage?.last30DaysCostUSD.map(WidgetFormat.usd) ?? "—"
             let detail = self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
-            return (value, "30d cost", detail)
+            return (value, WidgetStrings.tr("30d cost"), detail)
         }
     }
 }
@@ -291,16 +291,16 @@ private struct SwitcherSmallUsageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session"),
                 percentLeft: self.entry.primary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly"),
                 percentLeft: self.entry.secondary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             if let codeReview = entry.codeReviewRemainingPercent {
                 UsageBarRow(
-                    title: "Code review",
+                    title: WidgetStrings.tr("Code review"),
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
             }
@@ -314,19 +314,19 @@ private struct SwitcherMediumUsageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session"),
                 percentLeft: self.entry.primary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly"),
                 percentLeft: self.entry.secondary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             if let credits = entry.creditsRemaining {
-                ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
+                ValueLine(title: WidgetStrings.tr("Credits"), value: WidgetFormat.credits(credits))
             }
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
+                    title: WidgetStrings.tr("Today"),
                     value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
             }
         }
@@ -339,29 +339,29 @@ private struct SwitcherLargeUsageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session"),
                 percentLeft: self.entry.primary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly"),
                 percentLeft: self.entry.secondary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             if let codeReview = entry.codeReviewRemainingPercent {
                 UsageBarRow(
-                    title: "Code review",
+                    title: WidgetStrings.tr("Code review"),
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
             }
             if let credits = entry.creditsRemaining {
-                ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
+                ValueLine(title: WidgetStrings.tr("Credits"), value: WidgetFormat.credits(credits))
             }
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
-                        title: "Today",
+                        title: WidgetStrings.tr("Today"),
                         value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
                     ValueLine(
-                        title: "30d",
+                        title: WidgetStrings.tr("30d"),
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens))
@@ -380,16 +380,16 @@ private struct SmallUsageView: View {
         VStack(alignment: .leading, spacing: 8) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session"),
                 percentLeft: self.entry.primary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly"),
                 percentLeft: self.entry.secondary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             if let codeReview = entry.codeReviewRemainingPercent {
                 UsageBarRow(
-                    title: "Code review",
+                    title: WidgetStrings.tr("Code review"),
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
             }
@@ -405,19 +405,19 @@ private struct MediumUsageView: View {
         VStack(alignment: .leading, spacing: 10) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session"),
                 percentLeft: self.entry.primary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly"),
                 percentLeft: self.entry.secondary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             if let credits = entry.creditsRemaining {
-                ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
+                ValueLine(title: WidgetStrings.tr("Credits"), value: WidgetFormat.credits(credits))
             }
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
+                    title: WidgetStrings.tr("Today"),
                     value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
             }
         }
@@ -432,29 +432,29 @@ private struct LargeUsageView: View {
         VStack(alignment: .leading, spacing: 12) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session"),
                 percentLeft: self.entry.primary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
+                title: WidgetStrings.tr(ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly"),
                 percentLeft: self.entry.secondary?.remainingPercent,
                 color: WidgetColors.color(for: self.entry.provider))
             if let codeReview = entry.codeReviewRemainingPercent {
                 UsageBarRow(
-                    title: "Code review",
+                    title: WidgetStrings.tr("Code review"),
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
             }
             if let credits = entry.creditsRemaining {
-                ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
+                ValueLine(title: WidgetStrings.tr("Credits"), value: WidgetFormat.credits(credits))
             }
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
-                        title: "Today",
+                        title: WidgetStrings.tr("Today"),
                         value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
                     ValueLine(
-                        title: "30d",
+                        title: WidgetStrings.tr("30d"),
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens))
@@ -478,10 +478,10 @@ private struct HistoryView: View {
                 .frame(height: self.isLarge ? 90 : 60)
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
+                    title: WidgetStrings.tr("Today"),
                     value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
                 ValueLine(
-                    title: "30d",
+                    title: WidgetStrings.tr("30d"),
                     value: WidgetFormat.costAndTokens(cost: token.last30DaysCostUSD, tokens: token.last30DaysTokens))
             }
         }
@@ -664,7 +664,7 @@ enum WidgetFormat {
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 0
         let raw = formatter.string(from: NSNumber(value: value)) ?? "\(value)"
-        return "\(raw) tokens"
+        return WidgetStrings.fmt("%@ tokens", raw)
     }
 
     static func relativeDate(_ date: Date) -> String {

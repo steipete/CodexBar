@@ -220,7 +220,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
 
             let accounts = self.descriptor.accounts()
             if accounts.isEmpty {
-                Text("No token accounts yet.")
+                Text(AppStrings.tr("No token accounts yet."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -237,7 +237,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 .pickerStyle(.menu)
                 .controlSize(.small)
 
-                Button("Remove selected account") {
+                Button(AppStrings.tr("Remove selected account")) {
                     let account = accounts[selectedIndex]
                     self.descriptor.removeAccount(account.id)
                 }
@@ -246,13 +246,13 @@ struct ProviderSettingsTokenAccountsRowView: View {
             }
 
             HStack(spacing: 8) {
-                TextField("Label", text: self.$newLabel)
+                TextField(AppStrings.tr("Label"), text: self.$newLabel)
                     .textFieldStyle(.roundedBorder)
                     .font(.footnote)
                 SecureField(self.descriptor.placeholder, text: self.$newToken)
                     .textFieldStyle(.roundedBorder)
                     .font(.footnote)
-                Button("Add") {
+                Button(AppStrings.tr("Add")) {
                     let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
                     let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !label.isEmpty, !token.isEmpty else { return }
@@ -267,12 +267,12 @@ struct ProviderSettingsTokenAccountsRowView: View {
             }
 
             HStack(spacing: 10) {
-                Button("Open token file") {
+                Button(AppStrings.tr("Open token file")) {
                     self.descriptor.openConfigFile()
                 }
                 .buttonStyle(.link)
                 .controlSize(.small)
-                Button("Reload") {
+                Button(AppStrings.tr("Reload")) {
                     self.descriptor.reloadFromDisk()
                 }
                 .buttonStyle(.link)
