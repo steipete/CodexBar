@@ -242,7 +242,9 @@ extension StatusItemController {
                 currentProvider: currentProvider,
                 context: openAIContext,
                 addedOpenAIWebItems: addedOpenAIWebItems)
-            if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
+            let addedUsageHistory = self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider)
+            let addedSessionAnalytics = self.addSessionAnalyticsMenuItemIfNeeded(to: menu, provider: currentProvider)
+            if addedUsageHistory || addedSessionAnalytics {
                 menu.addItem(.separator())
             }
         }
@@ -294,7 +296,9 @@ extension StatusItemController {
             currentProvider: currentProvider,
             context: openAIContext,
             addedOpenAIWebItems: addedOpenAIWebItems)
-        if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
+        let addedUsageHistory = self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider)
+        let addedSessionAnalytics = self.addSessionAnalyticsMenuItemIfNeeded(to: menu, provider: currentProvider)
+        if addedUsageHistory || addedSessionAnalytics {
             menu.addItem(.separator())
         }
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
@@ -1387,6 +1391,8 @@ extension StatusItemController {
             "creditsHistoryChart",
             "costHistoryChart",
             "usageHistoryChart",
+            "sessionAnalyticsContent",
+            "sessionAnalyticsEmptyState",
         ]
         return menu.items.contains { item in
             guard let id = item.representedObject as? String else { return false }

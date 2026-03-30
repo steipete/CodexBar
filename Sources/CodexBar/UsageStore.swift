@@ -17,6 +17,8 @@ extension UsageStore {
         _ = self.tokenSnapshots
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
+        _ = self.codexSessionAnalytics
+        _ = self.codexSessionAnalyticsError
         _ = self.credits
         _ = self.lastCreditsError
         _ = self.openAIDashboard
@@ -103,6 +105,8 @@ final class UsageStore {
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
+    var codexSessionAnalytics: CodexSessionAnalyticsSnapshot?
+    var codexSessionAnalyticsError: String?
     var credits: CreditsSnapshot?
     var lastCreditsError: String?
     var openAIDashboard: OpenAIDashboardSnapshot?
@@ -156,10 +160,13 @@ final class UsageStore {
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
+    @ObservationIgnored var lastCodexSessionAnalyticsRefreshAt: Date?
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
+    @ObservationIgnored var codexSessionAnalyticsLoader = CodexSessionAnalyticsLoader()
+    @ObservationIgnored let codexSessionAnalyticsTTL: TimeInterval = 60
     @ObservationIgnored private let startupBehavior: StartupBehavior
     @ObservationIgnored let planUtilizationPersistenceCoordinator: PlanUtilizationHistoryPersistenceCoordinator
 
