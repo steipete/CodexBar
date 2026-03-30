@@ -599,6 +599,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         // Validate against the persistent store (login + email sync).
         do {
+            defer {
+                // The probe is only a validation step. Start the real dashboard scrape with a
+                // fresh WKWebView instead of reusing the probe instance.
+                OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
+            }
             let probe = try await OpenAIDashboardFetcher().probeUsagePage(
                 websiteDataStore: persistent,
                 logger: logger,
@@ -632,6 +637,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
         await self.setCookies(candidate.cookies, into: persistent)
 
         do {
+            defer {
+                // The probe is only a validation step. Start the real dashboard scrape with a
+                // fresh WKWebView instead of reusing the probe instance.
+                OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
+            }
             let probe = try await OpenAIDashboardFetcher().probeUsagePage(
                 websiteDataStore: persistent,
                 logger: logger,
