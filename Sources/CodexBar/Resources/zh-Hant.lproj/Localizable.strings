@@ -44,9 +44,9 @@
 "Resets" = "重設";
 "Resets %@" = "%@ 重設";
 "Secondary" = "次視窗";
-"Show both percentage and pace (e.g. 45%% · +5%%)" = "同時顯示百分比和節奏（例如 45%% · +5%%）";
-"Show pace indicator (e.g. +5%%)" = "顯示節奏指示（例如 +5%%）";
-"Show remaining/used percentage (e.g. 45%%)" = "顯示剩餘/已用百分比（例如 45%%）";
+"Show both percentage and pace (e.g. 45% · +5%)" = "同時顯示百分比和節奏（例如 45% · +5%）";
+"Show pace indicator (e.g. +5%)" = "顯示節奏指示（例如 +5%）";
+"Show remaining/used percentage (e.g. 45%)" = "顯示剩餘/已用百分比（例如 45%）";
 "Weekly" = "每週";
 "Stable" = "穩定版";
 "Status unknown" = "狀態未知";
@@ -76,6 +76,7 @@
 "%.0f%% used" = "已用 %.0f%%";
 "%@ / %@ (%@ remaining)" = "%@ / %@（剩餘 %@）";
 "%@ login successful" = "%@ 登入成功";
+"Last %@ fetch failed:" = "%@ 最近一次擷取失敗：";
 "%@ tokens" = "%@ tokens";
 "%@/%@ left" = "%@/%@ 剩餘";
 "%@: %@ / %@" = "%@: %@ / %@";

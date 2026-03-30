@@ -43,9 +43,9 @@
 "Resets" = "Resets";
 "Resets %@" = "Resets %@";
 "Secondary" = "Secondary";
-"Show both percentage and pace (e.g. 45%% · +5%%)" = "Show both percentage and pace (e.g. 45%% · +5%%)";
-"Show pace indicator (e.g. +5%%)" = "Show pace indicator (e.g. +5%%)";
-"Show remaining/used percentage (e.g. 45%%)" = "Show remaining/used percentage (e.g. 45%%)";
+"Show both percentage and pace (e.g. 45% · +5%)" = "Show both percentage and pace (e.g. 45% · +5%)";
+"Show pace indicator (e.g. +5%)" = "Show pace indicator (e.g. +5%)";
+"Show remaining/used percentage (e.g. 45%)" = "Show remaining/used percentage (e.g. 45%)";
 "Weekly" = "Weekly";
 "Stable" = "Stable";
 "Status unknown" = "Status unknown";
@@ -76,6 +76,7 @@
 "%.0f%% used" = "%.0f%% used";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ remaining)";
 "%@ login successful" = "%@ login successful";
+"Last %@ fetch failed:" = "Last %@ fetch failed:";
 "%@ tokens" = "%@ tokens";
 "%@/%@ left" = "%@/%@ left";
 "%@: %@ / %@" = "%@: %@ / %@";

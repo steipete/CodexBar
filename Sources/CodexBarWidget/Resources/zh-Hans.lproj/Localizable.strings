@@ -28,3 +28,4 @@
 "Usage history will appear after a refresh." = "刷新后会显示使用历史。";
 "Usage widget with a provider switcher." = "带提供商切换器的用量小组件。";
 "Weekly" = "每周";
+"%@ tokens" = "%@ tokens";
