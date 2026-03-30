@@ -63,7 +63,7 @@ extension StatusItemController {
         let showSwitcher: Bool
     }
 
-    private struct CodexAccountMenuDisplay {
+    struct CodexAccountMenuDisplay {
         let accounts: [CodexVisibleAccount]
         let activeVisibleAccountID: String?
     }
@@ -698,31 +698,36 @@ extension StatusItemController {
             selectedAccountID: display.activeVisibleAccountID,
             width: self.menuCardWidth(for: self.store.enabledProvidersForDisplay(), menu: menu),
             onSelect: { [weak self, weak menu] visibleAccountID in
-                guard let self, let menu else { return }
-                guard self.settings.selectCodexVisibleAccount(id: visibleAccountID) else { return }
-                if self.store.prepareCodexAccountScopedRefreshIfNeeded() {
-                    self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
-                }
-                Task { @MainActor in
-                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        await self.store.refreshCodexAccountScopedState(
-                            allowDisabled: true,
-                            phaseDidChange: { [weak self, weak menu] _ in
-                                guard let self, let menu else { return }
-                                guard self.settings.codexVisibleAccountProjection.activeVisibleAccountID ==
-                                    visibleAccountID
-                                else {
-                                    return
-                                }
-                                self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
-                            })
-                    }
-                }
+                guard let self else { return }
+                self.handleCodexVisibleAccountSelection(visibleAccountID, menu: menu)
             })
         let item = NSMenuItem()
         item.view = view
         item.isEnabled = false
         return item
+    }
+
+    @discardableResult
+    func handleCodexVisibleAccountSelection(_ visibleAccountID: String, menu: NSMenu?) -> Bool {
+        guard self.settings.selectCodexVisibleAccount(id: visibleAccountID) else { return false }
+        if self.store.prepareCodexAccountScopedRefreshIfNeeded(), let menu {
+            self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
+        }
+        Task { @MainActor in
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await self.store.refreshCodexAccountScopedState(
+                    allowDisabled: true,
+                    phaseDidChange: { [weak self, weak menu] _ in
+                        guard let self, let menu else { return }
+                        guard self.settings.codexVisibleAccountProjection.activeVisibleAccountID == visibleAccountID
+                        else {
+                            return
+                        }
+                        self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
+                    })
+            }
+        }
+        return true
     }
 
     private func resolvedMenuProvider(enabledProviders: [UsageProvider]? = nil) -> UsageProvider? {
@@ -768,7 +773,7 @@ extension StatusItemController {
             showSwitcher: !showAll)
     }
 
-    private func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {
+    func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {
         guard provider == .codex else { return nil }
         let projection = self.settings.codexVisibleAccountProjection
         guard projection.visibleAccounts.count > 1 else { return nil }

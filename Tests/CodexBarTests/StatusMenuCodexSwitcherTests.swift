@@ -44,24 +44,19 @@ struct StatusMenuCodexSwitcherTests {
         return storeURL
     }
 
-    private func codexSwitcherButtons(in menu: NSMenu) -> [NSButton] {
-        guard let switcherView = menu.items.compactMap({ $0.view as? CodexAccountSwitcherView }).first
-        else { return [] }
-        return self.buttons(in: switcherView).sorted { $0.title < $1.title }
-    }
-
-    private func buttons(in view: NSView) -> [NSButton] {
-        let directButtons = view.subviews.compactMap { $0 as? NSButton }
-        let nestedButtons = view.subviews.flatMap { self.buttons(in: $0) }
-        return directButtons + nestedButtons
-    }
-
     private func menuItem(titled title: String, in menu: NSMenu) -> NSMenuItem? {
         menu.items.first { $0.title == title }
     }
 
     private func representedIDs(in menu: NSMenu) -> [String] {
         menu.items.compactMap { $0.representedObject as? String }
+    }
+
+    private func actionLabels(in descriptor: MenuDescriptor) -> [String] {
+        descriptor.sections.flatMap(\.entries).compactMap { entry in
+            guard case let .action(label, _) = entry else { return nil }
+            return label
+        }
     }
 
     private func installBlockingCodexProvider(on store: UsageStore, blocker: BlockingStatusMenuCodexFetchStrategy) {
@@ -133,14 +128,18 @@ struct StatusMenuCodexSwitcherTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        let switcher = try #require(controller._test_codexAccountSwitcherState(for: .codex))
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false)
 
-        let menu = controller.makeMenu(for: .codex)
-        controller.menuWillOpen(menu)
-
-        let buttons = self.codexSwitcherButtons(in: menu)
-        #expect(buttons.map(\.title) == ["live@example.com", "managed@example.com"])
-        #expect(self.menuItem(titled: "Add Account...", in: menu) != nil)
-        #expect(self.menuItem(titled: "Switch Account...", in: menu) == nil)
+        #expect(switcher.accountEmails == ["live@example.com", "managed@example.com"])
+        let actionLabels = self.actionLabels(in: descriptor)
+        #expect(actionLabels.contains("Add Account..."))
+        #expect(actionLabels.contains("Switch Account...") == false)
     }
 
     @Test
@@ -166,12 +165,15 @@ struct StatusMenuCodexSwitcherTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false)
 
-        let menu = controller.makeMenu(for: .codex)
-        controller.menuWillOpen(menu)
-
-        #expect(self.codexSwitcherButtons(in: menu).isEmpty)
-        #expect(self.menuItem(titled: "Add Account...", in: menu) != nil)
+        #expect(controller._test_codexAccountSwitcherState(for: .codex) == nil)
+        #expect(self.actionLabels(in: descriptor).contains("Add Account..."))
     }
 
     @Test
@@ -214,13 +216,7 @@ struct StatusMenuCodexSwitcherTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
-
-        let menu = controller.makeMenu(for: .codex)
-        controller.menuWillOpen(menu)
-
-        let managedButton = try #require(self.codexSwitcherButtons(in: menu)
-            .first { $0.title == "managed@example.com" })
-        managedButton.performClick(nil)
+        #expect(controller._test_selectCodexVisibleAccountFromMenu(id: "managed@example.com"))
 
         #expect(settings.codexActiveSource == .managedAccount(id: managedAccountID))
     }
@@ -284,13 +280,7 @@ struct StatusMenuCodexSwitcherTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
-
-        let menu = controller.makeMenu(for: .codex)
-        controller.menuWillOpen(menu)
-
-        let managedButton = try #require(self.codexSwitcherButtons(in: menu)
-            .first { $0.title == "managed@example.com" })
-        managedButton.performClick(nil)
+        #expect(controller._test_selectCodexVisibleAccountFromMenu(id: "managed@example.com"))
 
         await blocker.waitUntilStarted()
         #expect(settings.codexActiveSource == .managedAccount(id: managedAccountID))
@@ -522,7 +512,7 @@ struct StatusMenuCodexSwitcherTests {
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
 
-        let addItem = try? #require(self.menuItem(titled: "Add Account...", in: menu))
+        let addItem = self.menuItem(titled: "Add Account...", in: menu)
         #expect(addItem?.isEnabled == false)
         if #available(macOS 14.4, *) {
             #expect(addItem?.subtitle == "Managed account storage unavailable")
