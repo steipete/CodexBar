@@ -227,6 +227,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 guard let self else { return }
                 self.observeStoreChanges()
                 self.invalidateMenus()
+                if self.openMenus.values
+                    .contains(where: { self.isSessionAnalyticsRootMenu($0) || self.isSessionAnalyticsSubviewMenu($0)
+                    })
+                {
+                    self.refreshOpenMenusIfNeeded()
+                }
                 self.updateIcons()
                 self.updateBlinkingState()
             }

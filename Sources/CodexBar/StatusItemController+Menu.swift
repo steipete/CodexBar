@@ -84,6 +84,13 @@ extension StatusItemController {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        if self.isSessionAnalyticsRootMenu(menu) {
+            self.populateSessionAnalyticsSubmenu(menu)
+            self.refreshHostedSubviewHeights(in: menu)
+            self.openMenus[ObjectIdentifier(menu)] = menu
+            return
+        }
+
         if self.isHostedSubviewMenu(menu) {
             self.refreshHostedSubviewHeights(in: menu)
             if Self.menuRefreshEnabled, self.isOpenAIWebSubviewMenu(menu) {
@@ -803,6 +810,12 @@ extension StatusItemController {
                 continue
             }
 
+            if self.isSessionAnalyticsRootMenu(menu) {
+                self.populateSessionAnalyticsSubmenu(menu)
+                self.refreshHostedSubviewHeights(in: menu)
+                continue
+            }
+
             if self.isHostedSubviewMenu(menu) {
                 self.refreshHostedSubviewHeights(in: menu)
                 continue
@@ -1487,32 +1500,6 @@ extension StatusItemController {
         chartItem.representedObject = "costHistoryChart"
         submenu.addItem(chartItem)
         return submenu
-    }
-
-    private func isHostedSubviewMenu(_ menu: NSMenu) -> Bool {
-        let ids: Set = [
-            "usageBreakdownChart",
-            "creditsHistoryChart",
-            "costHistoryChart",
-            "usageHistoryChart",
-            "sessionAnalyticsContent",
-            "sessionAnalyticsEmptyState",
-        ]
-        return menu.items.contains { item in
-            guard let id = item.representedObject as? String else { return false }
-            return ids.contains(id)
-        }
-    }
-
-    private func isOpenAIWebSubviewMenu(_ menu: NSMenu) -> Bool {
-        let ids: Set = [
-            "usageBreakdownChart",
-            "creditsHistoryChart",
-        ]
-        return menu.items.contains { item in
-            guard let id = item.representedObject as? String else { return false }
-            return ids.contains(id)
-        }
     }
 
     private func refreshHostedSubviewHeights(in menu: NSMenu) {

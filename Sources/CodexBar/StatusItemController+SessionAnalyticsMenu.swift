@@ -2,6 +2,10 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
+enum SessionAnalyticsMenuIdentifiers {
+    static let rootMenuTitle = "sessionAnalyticsRoot"
+}
+
 private final class SessionAnalyticsMenuHostingView<Content: View>: NSHostingView<Content> {
     override var allowsVibrancy: Bool {
         true
@@ -62,6 +66,7 @@ private struct SessionAnalyticsWindowPresetButton: View {
 
 private struct SessionAnalyticsWindowSelectorView: View {
     let selectedWindow: Int
+    let statusText: String
     let width: CGFloat
     let onSelect: (Int) -> Void
 
@@ -85,6 +90,10 @@ private struct SessionAnalyticsWindowSelectorView: View {
             Text("Analyzing recent \(self.selectedWindow) sessions")
                 .font(.system(size: 11))
                 .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+
+            Text(self.statusText)
+                .font(.system(size: 11))
+                .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -196,6 +205,7 @@ private struct SessionAnalyticsSessionRowView: View {
 
 private struct SessionAnalyticsEmptyStateView: View {
     let error: String?
+    let statusText: String?
     let width: CGFloat
 
     var body: some View {
@@ -203,6 +213,12 @@ private struct SessionAnalyticsEmptyStateView: View {
             Text("No local Codex session data found.")
                 .font(.system(size: 12))
                 .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+
+            if let statusText, !statusText.isEmpty {
+                Text(statusText)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+            }
 
             if let error, !error.isEmpty {
                 Text(error)
@@ -520,6 +536,10 @@ private enum SessionAnalyticsFormatters {
 }
 
 extension StatusItemController {
+    func isSessionAnalyticsRootMenu(_ menu: NSMenu) -> Bool {
+        menu.title == SessionAnalyticsMenuIdentifiers.rootMenuTitle
+    }
+
     @discardableResult
     func addSessionAnalyticsMenuItemIfNeeded(to menu: NSMenu, provider: UsageProvider) -> Bool {
         guard provider == .codex else { return false }
@@ -548,16 +568,17 @@ extension StatusItemController {
         let submenu = NSMenu()
         submenu.autoenablesItems = false
         submenu.delegate = self
-        self.populateSessionAnalyticsSubmenu(submenu)
+        submenu.title = SessionAnalyticsMenuIdentifiers.rootMenuTitle
         return submenu
     }
 
-    private func populateSessionAnalyticsSubmenu(_ submenu: NSMenu) {
+    func populateSessionAnalyticsSubmenu(_ submenu: NSMenu) {
         self.store.requestCodexSessionAnalyticsRefreshIfStale(reason: "session analytics submenu")
         submenu.removeAllItems()
 
         let snapshot = self.store.codexSessionAnalyticsSnapshot()
         let error = self.store.lastCodexSessionAnalyticsError()
+        let statusText = self.store.codexSessionAnalyticsStatusText()
 
         if !Self.menuCardRenderingEnabled {
             let item = NSMenuItem()
@@ -571,7 +592,7 @@ extension StatusItemController {
 
         guard let snapshot else {
             submenu.addItem(self.makeSessionAnalyticsHostedItem(
-                SessionAnalyticsEmptyStateView(error: error, width: width),
+                SessionAnalyticsEmptyStateView(error: error, statusText: statusText, width: width),
                 id: "sessionAnalyticsEmptyState",
                 width: width))
             return
@@ -580,11 +601,12 @@ extension StatusItemController {
         submenu.addItem(self.makeSessionAnalyticsHostedItem(
             SessionAnalyticsWindowSelectorView(
                 selectedWindow: self.settings.codexSessionAnalyticsWindowSize,
+                statusText: statusText,
                 width: width)
             { [weak submenu] value in
                 guard value != self.settings.codexSessionAnalyticsWindowSize else { return }
                 self.settings.codexSessionAnalyticsWindowSize = value
-                self.store.refreshCodexSessionAnalyticsIfNeeded(force: true)
+                self.store.refreshCodexSessionAnalyticsIfNeeded()
                 DispatchQueue.main.async {
                     guard let submenu else { return }
                     self.populateSessionAnalyticsSubmenu(submenu)

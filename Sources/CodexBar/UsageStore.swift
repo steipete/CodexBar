@@ -60,6 +60,7 @@ extension UsageStore {
                 guard let self else { return }
                 self.observeSettingsChanges()
                 self.probeLogs = [:]
+                self.updateCodexSessionAnalyticsBackgroundWork()
                 guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
                 self.startTimer()
                 self.updateProviderRuntimes()
@@ -107,6 +108,7 @@ final class UsageStore {
     var tokenRefreshInFlight: Set<UsageProvider> = []
     var codexSessionAnalytics: CodexSessionAnalyticsSnapshot?
     var codexSessionAnalyticsError: String?
+    var codexSessionAnalyticsIsRefreshing = false
     var credits: CreditsSnapshot?
     var lastCreditsError: String?
     var openAIDashboard: OpenAIDashboardSnapshot?
@@ -183,13 +185,24 @@ final class UsageStore {
     @ObservationIgnored var lastCodexSessionAnalyticsRefreshAtByWindow: [Int: Date] = [:]
     @ObservationIgnored var codexSessionAnalyticsCacheByWindow: [Int: CodexSessionAnalyticsSnapshot] = [:]
     @ObservationIgnored var codexSessionAnalyticsErrorCacheByWindow: [Int: String] = [:]
+    @ObservationIgnored var codexSessionAnalyticsIndex: CodexSessionAnalyticsIndex?
+    @ObservationIgnored var codexSessionAnalyticsDirty = false
+    @ObservationIgnored var codexSessionAnalyticsLastInteractionAt: Date?
+    @ObservationIgnored var codexSessionAnalyticsLastSuccessfulRefreshAt: Date?
+    @ObservationIgnored var codexSessionAnalyticsRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var codexSessionAnalyticsWarmupTask: Task<Void, Never>?
+    @ObservationIgnored var codexSessionAnalyticsRefreshToken: UUID?
+    @ObservationIgnored var codexSessionAnalyticsWatcher: CodexSessionsWatcher?
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
     @ObservationIgnored var codexSessionAnalyticsLoader = CodexSessionAnalyticsLoader()
-    @ObservationIgnored let codexSessionAnalyticsTTL: TimeInterval = 60
-    @ObservationIgnored private let startupBehavior: StartupBehavior
+    @ObservationIgnored var codexSessionAnalyticsIndexer = CodexSessionAnalyticsIndexer()
+    @ObservationIgnored let codexSessionAnalyticsRefreshDebounce: Duration = .seconds(1.5)
+    @ObservationIgnored let codexSessionAnalyticsStartupWarmupDelay: Duration = .seconds(3)
+    @ObservationIgnored let codexSessionAnalyticsValidationInterval: TimeInterval = 5 * 60
+    @ObservationIgnored let startupBehavior: StartupBehavior
     @ObservationIgnored let planUtilizationPersistenceCoordinator: PlanUtilizationHistoryPersistenceCoordinator
 
     init(
@@ -234,6 +247,7 @@ final class UsageStore {
             implementation.makeRuntime().map { (implementation.id, $0) }
         })
         self.planUtilizationHistory = planUtilizationHistoryStore.load()
+        self.bootstrapCodexSessionAnalyticsCache()
         self.logStartupState()
         self.bindSettings()
         self.pathDebugInfo = PathDebugSnapshot(
@@ -257,6 +271,7 @@ final class UsageStore {
             await self?.refreshHistoricalDatasetIfNeeded()
         }
         Task { await self.refresh() }
+        self.updateCodexSessionAnalyticsBackgroundWork()
         self.startTimer()
         self.startTokenTimer()
     }
