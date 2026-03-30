@@ -95,6 +95,7 @@ public struct TTYCommandRunner {
         public var idleTimeout: TimeInterval?
         public var workingDirectory: URL?
         public var extraArgs: [String] = []
+        public var baseEnvironment: [String: String]?
         public var initialDelay: TimeInterval = 0.4
         public var sendEnterEvery: TimeInterval?
         public var sendOnSubstrings: [String: String]
@@ -109,6 +110,7 @@ public struct TTYCommandRunner {
             idleTimeout: TimeInterval? = nil,
             workingDirectory: URL? = nil,
             extraArgs: [String] = [],
+            baseEnvironment: [String: String]? = nil,
             initialDelay: TimeInterval = 0.4,
             sendEnterEvery: TimeInterval? = nil,
             sendOnSubstrings: [String: String] = [:],
@@ -122,6 +124,7 @@ public struct TTYCommandRunner {
             self.idleTimeout = idleTimeout
             self.workingDirectory = workingDirectory
             self.extraArgs = extraArgs
+            self.baseEnvironment = baseEnvironment
             self.initialDelay = initialDelay
             self.sendEnterEvery = sendEnterEvery
             self.sendOnSubstrings = sendOnSubstrings
@@ -375,7 +378,8 @@ public struct TTYCommandRunner {
         proc.standardError = secondaryHandle
         // Use login-shell PATH when available, but keep the caller’s environment (HOME, LANG, etc.) so
         // the CLIs can find their auth/config files.
-        var env = Self.enrichedEnvironment()
+        let baseEnv = options.baseEnvironment ?? ProcessInfo.processInfo.environment
+        var env = Self.enrichedEnvironment(baseEnv: baseEnv, home: baseEnv["HOME"] ?? NSHomeDirectory())
         if let workingDirectory = options.workingDirectory {
             proc.currentDirectoryURL = workingDirectory
             env["PWD"] = workingDirectory.path

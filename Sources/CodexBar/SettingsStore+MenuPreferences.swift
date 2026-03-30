@@ -51,12 +51,14 @@ extension SettingsStore {
     }
 
     func menuBarMetricSupportsTertiary(for provider: UsageProvider) -> Bool {
-        provider == .cursor
+        provider == .cursor || provider == .perplexity
     }
 
     func menuBarMetricSupportsTertiary(for provider: UsageProvider, snapshot: UsageSnapshot?) -> Bool {
-        guard provider == .cursor else { return self.menuBarMetricSupportsTertiary(for: provider) }
-        return snapshot?.tertiary != nil
+        if provider == .cursor {
+            return snapshot?.tertiary != nil
+        }
+        return self.menuBarMetricSupportsTertiary(for: provider)
     }
 
     func menuBarMetricPreference(for provider: UsageProvider, snapshot: UsageSnapshot?) -> MenuBarMetricPreference {

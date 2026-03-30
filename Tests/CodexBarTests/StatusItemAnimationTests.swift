@@ -440,6 +440,209 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `menu bar percent automatic falls back to purchased perplexity lane when bonus is exhausted`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-perplexity-automatic-purchased"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .perplexity
+        settings.setMenuBarMetricPreference(.automatic, for: .perplexity)
+
+        let registry = ProviderRegistry.shared
+        if let perplexityMeta = registry.metadata[.perplexity] {
+            settings.setProviderEnabled(provider: .perplexity, metadata: perplexityMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .perplexity)
+        store._setErrorForTesting(nil, provider: .perplexity)
+
+        let window = controller.menuBarMetricWindow(for: .perplexity, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 20)
+    }
+
+    @Test
+    func `menu bar percent automatic falls through after recurring perplexity credits are exhausted`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(
+                suiteName: "StatusItemAnimationTests-perplexity-automatic-recurring-exhausted"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .perplexity
+        settings.setMenuBarMetricPreference(.automatic, for: .perplexity)
+
+        let registry = ProviderRegistry.shared
+        if let perplexityMeta = registry.metadata[.perplexity] {
+            settings.setProviderEnabled(provider: .perplexity, metadata: perplexityMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 32, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .perplexity)
+        store._setErrorForTesting(nil, provider: .perplexity)
+
+        let window = controller.menuBarMetricWindow(for: .perplexity, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 32)
+    }
+
+    @Test
+    func `menu bar percent automatic prefers purchased perplexity credits before bonus`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(
+                suiteName: "StatusItemAnimationTests-perplexity-automatic-purchased-before-bonus"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .perplexity
+        settings.setMenuBarMetricPreference(.automatic, for: .perplexity)
+
+        let registry = ProviderRegistry.shared
+        if let perplexityMeta = registry.metadata[.perplexity] {
+            settings.setProviderEnabled(provider: .perplexity, metadata: perplexityMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 45, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .perplexity)
+        store._setErrorForTesting(nil, provider: .perplexity)
+
+        let window = controller.menuBarMetricWindow(for: .perplexity, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 45)
+    }
+
+    @Test
+    func `menu bar percent primary preference stays on recurring perplexity credits`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(
+                suiteName: "StatusItemAnimationTests-perplexity-primary-recurring-exhausted"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .perplexity
+        settings.setMenuBarMetricPreference(.primary, for: .perplexity)
+
+        let registry = ProviderRegistry.shared
+        if let perplexityMeta = registry.metadata[.perplexity] {
+            settings.setProviderEnabled(provider: .perplexity, metadata: perplexityMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 32, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .perplexity)
+        store._setErrorForTesting(nil, provider: .perplexity)
+
+        let window = controller.menuBarMetricWindow(for: .perplexity, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 100)
+    }
+
+    @Test
+    func `menu bar percent tertiary preference uses purchased perplexity lane`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-perplexity-tertiary-pref"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .perplexity
+        settings.setMenuBarMetricPreference(.tertiary, for: .perplexity)
+
+        let registry = ProviderRegistry.shared
+        if let perplexityMeta = registry.metadata[.perplexity] {
+            settings.setProviderEnabled(provider: .perplexity, metadata: perplexityMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 28, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .perplexity)
+        store._setErrorForTesting(nil, provider: .perplexity)
+
+        let window = controller.menuBarMetricWindow(for: .perplexity, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 28)
+    }
+
+    @Test
     func `menu bar percent tertiary preference uses api lane for cursor`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-cursor-tertiary-pref"),

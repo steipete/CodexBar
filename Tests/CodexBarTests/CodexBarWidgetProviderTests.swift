@@ -27,4 +27,25 @@ struct CodexBarWidgetProviderTests {
 
         #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.alibaba])
     }
+
+    @Test
+    func `codex weekly only widget rows omit session`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .codex,
+            updatedAt: now,
+            primary: nil,
+            secondary: RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+
+        let rows = WidgetUsageRow.rows(for: entry)
+
+        #expect(rows.count == 1)
+        #expect(rows.first?.title == "Weekly")
+        #expect(rows.first?.percentLeft == 75)
+    }
 }

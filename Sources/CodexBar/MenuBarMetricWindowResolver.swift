@@ -12,6 +12,9 @@ enum MenuBarMetricWindowResolver {
         guard let snapshot else { return nil }
         switch preference {
         case .tertiary:
+            if provider == .perplexity {
+                return snapshot.tertiary ?? snapshot.secondary ?? snapshot.primary
+            }
             guard provider == .cursor else {
                 if provider == .antigravity {
                     return snapshot.tertiary ?? snapshot.secondary ?? snapshot.primary
@@ -20,11 +23,17 @@ enum MenuBarMetricWindowResolver {
             }
             return snapshot.tertiary ?? snapshot.secondary ?? snapshot.primary
         case .primary:
+            if provider == .perplexity {
+                return snapshot.primary ?? snapshot.secondary ?? snapshot.tertiary
+            }
             if provider == .antigravity {
                 return snapshot.primary ?? snapshot.secondary ?? snapshot.tertiary
             }
             return snapshot.primary ?? snapshot.secondary
         case .secondary:
+            if provider == .perplexity {
+                return snapshot.secondary ?? snapshot.tertiary ?? snapshot.primary
+            }
             if provider == .antigravity {
                 return snapshot.secondary ?? snapshot.primary ?? snapshot.tertiary
             }
@@ -44,6 +53,9 @@ enum MenuBarMetricWindowResolver {
         case .automatic:
             if provider == .antigravity {
                 return snapshot.primary ?? snapshot.secondary ?? snapshot.tertiary
+            }
+            if provider == .perplexity {
+                return snapshot.automaticPerplexityWindow()
             }
             if provider == .factory || provider == .kimi {
                 return snapshot.secondary ?? snapshot.primary

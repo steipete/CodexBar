@@ -63,6 +63,11 @@ extension StatusItemController {
         let showSwitcher: Bool
     }
 
+    private struct CodexAccountMenuDisplay {
+        let accounts: [CodexVisibleAccount]
+        let activeVisibleAccountID: String?
+    }
+
     private func menuCardWidth(for providers: [UsageProvider], menu: NSMenu? = nil) -> CGFloat {
         _ = menu
         return Self.menuCardBaseWidth
@@ -162,13 +167,16 @@ extension StatusItemController {
         }
         let menuWidth = self.menuCardWidth(for: enabledProviders, menu: menu)
         let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
+        let codexAccountDisplay = isOverviewSelected ? nil : self.codexAccountMenuDisplay(for: currentProvider)
         let tokenAccountDisplay = isOverviewSelected ? nil : self.tokenAccountMenuDisplay(for: currentProvider)
         let showAllTokenAccounts = tokenAccountDisplay?.showAll ?? false
         let openAIContext = self.openAIWebContext(
             currentProvider: currentProvider,
             showAllTokenAccounts: showAllTokenAccounts)
 
-        let hasTokenAccountSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
+        let hasAuxiliarySwitcher = menu.items.contains {
+            $0.view is TokenAccountSwitcherView || $0.view is CodexAccountSwitcherView
+        }
         let switcherProvidersMatch = enabledProviders == self.lastSwitcherProviders
         let switcherUsageBarsShowUsedMatch = self.settings.usageBarsShowUsed == self.lastSwitcherUsageBarsShowUsed
         let switcherSelectionMatches = switcherSelection == self.lastMergedSwitcherSelection
@@ -180,8 +188,9 @@ extension StatusItemController {
             switcherUsageBarsShowUsedMatch &&
             switcherSelectionMatches &&
             switcherOverviewAvailabilityMatches &&
+            codexAccountDisplay == nil &&
             tokenAccountDisplay == nil &&
-            !hasTokenAccountSwitcher &&
+            !hasAuxiliarySwitcher &&
             !menu.items.isEmpty &&
             menu.items.first?.view is ProviderSwitcherView
 
@@ -217,6 +226,7 @@ extension StatusItemController {
             self.lastMergedSwitcherSelection = switcherSelection
             self.lastSwitcherIncludesOverview = includesOverview
         }
+        self.addCodexAccountSwitcherIfNeeded(to: menu, display: codexAccountDisplay)
         self.addTokenAccountSwitcherIfNeeded(to: menu, display: tokenAccountDisplay)
         let menuContext = MenuCardContext(
             currentProvider: currentProvider,
@@ -355,6 +365,13 @@ extension StatusItemController {
     private func addTokenAccountSwitcherIfNeeded(to menu: NSMenu, display: TokenAccountMenuDisplay?) {
         guard let display, display.showSwitcher else { return }
         let switcherItem = self.makeTokenAccountSwitcherItem(display: display, menu: menu)
+        menu.addItem(switcherItem)
+        menu.addItem(.separator())
+    }
+
+    private func addCodexAccountSwitcherIfNeeded(to menu: NSMenu, display: CodexAccountMenuDisplay?) {
+        guard let display else { return }
+        let switcherItem = self.makeCodexAccountSwitcherItem(display: display, menu: menu)
         menu.addItem(switcherItem)
         menu.addItem(.separator())
     }
@@ -536,6 +553,11 @@ extension StatusItemController {
                     {
                         item.isEnabled = false
                         self.applySubtitle(subtitle, to: item, title: title)
+                    } else if case .addCodexAccount = action,
+                              let subtitle = self.codexAddAccountSubtitle()
+                    {
+                        item.isEnabled = false
+                        self.applySubtitle(subtitle, to: item, title: title)
                     }
                     menu.addItem(item)
                 case .divider:
@@ -667,6 +689,47 @@ extension StatusItemController {
         return item
     }
 
+    private func makeCodexAccountSwitcherItem(
+        display: CodexAccountMenuDisplay,
+        menu: NSMenu) -> NSMenuItem
+    {
+        let view = CodexAccountSwitcherView(
+            accounts: display.accounts,
+            selectedAccountID: display.activeVisibleAccountID,
+            width: self.menuCardWidth(for: self.store.enabledProvidersForDisplay(), menu: menu),
+            onSelect: { [weak self, weak menu] visibleAccountID in
+                guard let self else { return }
+                self.handleCodexVisibleAccountSelection(visibleAccountID, menu: menu)
+            })
+        let item = NSMenuItem()
+        item.view = view
+        item.isEnabled = false
+        return item
+    }
+
+    @discardableResult
+    private func handleCodexVisibleAccountSelection(_ visibleAccountID: String, menu: NSMenu?) -> Bool {
+        guard self.settings.selectCodexVisibleAccount(id: visibleAccountID) else { return false }
+        if self.store.prepareCodexAccountScopedRefreshIfNeeded(), let menu {
+            self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
+        }
+        Task { @MainActor in
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await self.store.refreshCodexAccountScopedState(
+                    allowDisabled: true,
+                    phaseDidChange: { [weak self, weak menu] _ in
+                        guard let self, let menu else { return }
+                        guard self.settings.codexVisibleAccountProjection.activeVisibleAccountID == visibleAccountID
+                        else {
+                            return
+                        }
+                        self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
+                    })
+            }
+        }
+        return true
+    }
+
     private func resolvedMenuProvider(enabledProviders: [UsageProvider]? = nil) -> UsageProvider? {
         let enabled = enabledProviders ?? self.store.enabledProvidersForDisplay()
         if enabled.isEmpty { return .codex }
@@ -708,6 +771,15 @@ extension StatusItemController {
             activeIndex: activeIndex,
             showAll: showAll,
             showSwitcher: !showAll)
+    }
+
+    private func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {
+        guard provider == .codex else { return nil }
+        let projection = self.settings.codexVisibleAccountProjection
+        guard projection.visibleAccounts.count > 1 else { return nil }
+        return CodexAccountMenuDisplay(
+            accounts: projection.visibleAccounts,
+            activeVisibleAccountID: projection.activeVisibleAccountID)
     }
 
     private func menuNeedsRefresh(_ menu: NSMenu) -> Bool {
@@ -757,6 +829,33 @@ extension StatusItemController {
             return nil
         }
         return self.store.enabledProvidersForDisplay().first ?? .codex
+    }
+
+    func refreshOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
+        self.rebuildOpenMenuIfStillVisible(menu, provider: provider)
+        Task { @MainActor [weak self, weak menu] in
+            guard let self, let menu else { return }
+            #if DEBUG
+            if let override = self._test_openMenuRefreshYieldOverride {
+                await override()
+            } else {
+                await Task.yield()
+            }
+            #else
+            await Task.yield()
+            #endif
+            self.rebuildOpenMenuIfStillVisible(menu, provider: provider)
+        }
+    }
+
+    private func rebuildOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
+        guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
+        self.populateMenu(menu, provider: provider)
+        self.markMenuFresh(menu)
+        self.applyIcon(phase: nil)
+        #if DEBUG
+        self._test_openMenuRebuildObserver?(menu)
+        #endif
     }
 
     private func scheduleOpenMenuRefresh(for menu: NSMenu) {
@@ -993,8 +1092,15 @@ extension StatusItemController {
         // Fallback to the dynamic icon renderer if resources are missing (e.g. dev bundle mismatch).
         let snapshot = self.store.snapshot(for: provider)
         let showUsed = self.settings.usageBarsShowUsed
-        let primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
-        var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        let style = self.store.style(for: provider)
+        let resolved = snapshot.map {
+            IconRemainingResolver.resolvedPercents(
+                snapshot: $0,
+                style: style,
+                showUsed: showUsed)
+        }
+        let primary = resolved?.primary
+        var weekly = resolved?.secondary
         if showUsed,
            provider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,
@@ -1014,7 +1120,6 @@ extension StatusItemController {
         }
         let credits = provider == .codex ? self.store.credits?.remaining : nil
         let stale = self.store.isStale(provider: provider)
-        let style = self.store.style(for: provider)
         let indicator = self.store.statusIndicator(for: provider)
         let image = IconRenderer.makeIcon(
             primaryRemaining: primary,
@@ -1028,16 +1133,6 @@ extension StatusItemController {
             statusIndicator: indicator)
         image.isTemplate = true
         return image
-    }
-
-    nonisolated static func switcherWeeklyMetricPercent(
-        for provider: UsageProvider,
-        snapshot: UsageSnapshot?,
-        showUsed: Bool) -> Double?
-    {
-        let window = snapshot?.switcherWeeklyWindow(for: provider, showUsed: showUsed)
-        guard let window else { return nil }
-        return showUsed ? window.usedPercent : window.remainingPercent
     }
 
     private func switcherWeeklyRemaining(for provider: UsageProvider) -> Double? {
@@ -1054,6 +1149,7 @@ extension StatusItemController {
         case .refreshAugmentSession: (#selector(self.refreshAugmentSession), nil)
         case .dashboard: (#selector(self.openDashboard), nil)
         case .statusPage: (#selector(self.openStatusPage), nil)
+        case .addCodexAccount: (#selector(self.addManagedCodexAccountFromMenu(_:)), nil)
         case let .switchAccount(provider): (#selector(self.runSwitchAccount(_:)), provider.rawValue)
         case let .openTerminal(command): (#selector(self.openTerminalCommand(_:)), command)
         case let .loginToProvider(url): (#selector(self.openLoginToProvider(_:)), url)
@@ -1062,6 +1158,14 @@ extension StatusItemController {
         case .quit: (#selector(self.quit), nil)
         case let .copyError(message): (#selector(self.copyError(_:)), message)
         }
+    }
+
+    private func codexAddAccountSubtitle() -> String? {
+        if self.settings.hasUnreadableManagedCodexAccountStore {
+            return "Managed account storage unavailable"
+        }
+        guard self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount else { return nil }
+        return "Managed Codex login in progress…"
     }
 
     @MainActor
@@ -1435,9 +1539,9 @@ extension StatusItemController {
         let tokenError: String?
         if target == .codex, snapshotOverride == nil {
             credits = self.store.credits
-            creditsError = self.store.lastCreditsError
+            creditsError = self.store.userFacingLastCreditsError
             dashboard = self.store.openAIDashboardRequiresLogin ? nil : self.store.openAIDashboard
-            dashboardError = self.store.lastOpenAIDashboardError
+            dashboardError = self.store.userFacingLastOpenAIDashboardError
             tokenSnapshot = self.store.tokenSnapshot(for: target)
             tokenError = self.store.tokenError(for: target)
         } else if target == .claude || target == .vertexai, snapshotOverride == nil {
@@ -1472,9 +1576,9 @@ extension StatusItemController {
             dashboardError: dashboardError,
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
-            account: self.account,
+            account: self.store.accountInfo(for: target),
             isRefreshing: self.store.shouldShowRefreshingMenuCard(for: target),
-            lastError: errorOverride ?? self.store.error(for: target),
+            lastError: errorOverride ?? self.store.userFacingError(for: target),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),

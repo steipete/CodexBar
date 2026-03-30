@@ -17,6 +17,7 @@ struct MenuDescriptor {
         case refresh = "arrow.clockwise"
         case dashboard = "chart.bar"
         case statusPage = "waveform.path.ecg"
+        case addAccount = "plus"
         case switchAccount = "key"
         case openTerminal = "terminal"
         case loginToProvider = "arrow.right.square"
@@ -38,6 +39,7 @@ struct MenuDescriptor {
         case refreshAugmentSession
         case dashboard
         case statusPage
+        case addCodexAccount
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
         case loginToProvider(url: String)
@@ -60,12 +62,13 @@ struct MenuDescriptor {
         var sections: [Section] = []
 
         if let provider {
+            let fallbackAccount = store.accountInfo(for: provider)
             sections.append(Self.usageSection(for: provider, store: store, settings: settings))
             if let accountSection = Self.accountSection(
                 for: provider,
                 store: store,
                 settings: settings,
-                account: account)
+                account: fallbackAccount)
             {
                 sections.append(accountSection)
             }
@@ -78,11 +81,12 @@ struct MenuDescriptor {
             }
             if addedUsage {
                 if let accountProvider = Self.accountProviderForCombined(store: store),
+                   let fallbackAccount = Optional(store.accountInfo(for: accountProvider)),
                    let accountSection = Self.accountSection(
                        for: accountProvider,
                        store: store,
                        settings: settings,
-                       account: account)
+                       account: fallbackAccount)
                 {
                     sections.append(accountSection)
                 }
@@ -144,7 +148,7 @@ struct MenuDescriptor {
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
-                    guard provider == .warp || provider == .kilo else { return nil }
+                    guard provider == .warp || provider == .kilo || provider == .perplexity else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let detail, !detail.isEmpty else { return nil }
                     if provider == .kilo, weekly.resetsAt != nil {
@@ -172,12 +176,17 @@ struct MenuDescriptor {
                 }
             }
             if meta.supportsOpus, let opus = snap.tertiary {
+                // Perplexity purchased credits don't reset; show the balance as plain text.
+                let opusResetOverride: String? = provider == .perplexity
+                    ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    : nil
                 Self.appendRateWindow(
                     entries: &entries,
                     title: meta.opusLabel ?? "Sonnet",
                     window: opus,
                     resetStyle: resetStyle,
-                    showUsed: settings.usageBarsShowUsed)
+                    showUsed: settings.usageBarsShowUsed,
+                    resetOverride: opusResetOverride)
             }
 
             if let cost = snap.providerCost {
@@ -318,12 +327,13 @@ struct MenuDescriptor {
         var entries: [Entry] = []
         let targetProvider = provider ?? store.enabledProviders().first
         let metadata = targetProvider.map { store.metadata(for: $0) }
+        let fallbackAccount = targetProvider.map { store.accountInfo(for: $0) } ?? account
         let loginContext = targetProvider.map {
             ProviderMenuLoginContext(
                 provider: $0,
                 store: store,
                 settings: store.settings,
-                account: account)
+                account: fallbackAccount)
         }
 
         // Show "Add Account" if no account, "Switch Account" if logged in
@@ -337,7 +347,7 @@ struct MenuDescriptor {
                 entries.append(.action(override.label, override.action))
             } else {
                 let loginAction = self.switchAccountTarget(for: provider, store: store)
-                let hasAccount = self.hasAccount(for: provider, store: store, account: account)
+                let hasAccount = self.hasAccount(for: provider, store: store, account: fallbackAccount)
                 let accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
                 entries.append(.action(accountLabel, loginAction))
             }
@@ -348,7 +358,7 @@ struct MenuDescriptor {
                 provider: targetProvider,
                 store: store,
                 settings: store.settings,
-                account: account)
+                account: fallbackAccount)
             ProviderCatalog.implementation(for: targetProvider)?
                 .appendActionMenuEntries(context: actionContext, entries: &entries)
         }
@@ -467,6 +477,7 @@ extension MenuDescriptor.MenuAction {
         case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
+        case .addCodexAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue

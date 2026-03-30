@@ -280,6 +280,7 @@ private struct ProviderSwitchChip: View {
         case .synthetic: "Synthetic"
         case .openrouter: "OpenRouter"
         case .warp: "Warp"
+        case .perplexity: "Pplx"
         case .mimo: "MiMo"
         }
     }
@@ -290,14 +291,12 @@ private struct SwitcherSmallUsageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
-                percentLeft: self.entry.primary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
-                percentLeft: self.entry.secondary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
+            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+                UsageBarRow(
+                    title: row.title,
+                    percentLeft: row.percentLeft,
+                    color: WidgetColors.color(for: self.entry.provider))
+            }
             if let codeReview = entry.codeReviewRemainingPercent {
                 UsageBarRow(
                     title: "Code review",
@@ -313,14 +312,12 @@ private struct SwitcherMediumUsageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
-                percentLeft: self.entry.primary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
-                percentLeft: self.entry.secondary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
+            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+                UsageBarRow(
+                    title: row.title,
+                    percentLeft: row.percentLeft,
+                    color: WidgetColors.color(for: self.entry.provider))
+            }
             if let credits = entry.creditsRemaining {
                 ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
             }
@@ -338,14 +335,12 @@ private struct SwitcherLargeUsageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
-                percentLeft: self.entry.primary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
-                percentLeft: self.entry.secondary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
+            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+                UsageBarRow(
+                    title: row.title,
+                    percentLeft: row.percentLeft,
+                    color: WidgetColors.color(for: self.entry.provider))
+            }
             if let codeReview = entry.codeReviewRemainingPercent {
                 UsageBarRow(
                     title: "Code review",
@@ -379,14 +374,12 @@ private struct SmallUsageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
-                percentLeft: self.entry.primary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
-                percentLeft: self.entry.secondary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
+            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+                UsageBarRow(
+                    title: row.title,
+                    percentLeft: row.percentLeft,
+                    color: WidgetColors.color(for: self.entry.provider))
+            }
             if let codeReview = entry.codeReviewRemainingPercent {
                 UsageBarRow(
                     title: "Code review",
@@ -404,14 +397,12 @@ private struct MediumUsageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
-                percentLeft: self.entry.primary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
-                percentLeft: self.entry.secondary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
+            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+                UsageBarRow(
+                    title: row.title,
+                    percentLeft: row.percentLeft,
+                    color: WidgetColors.color(for: self.entry.provider))
+            }
             if let credits = entry.creditsRemaining {
                 ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
             }
@@ -431,14 +422,12 @@ private struct LargeUsageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.sessionLabel ?? "Session",
-                percentLeft: self.entry.primary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
-            UsageBarRow(
-                title: ProviderDefaults.metadata[self.entry.provider]?.weeklyLabel ?? "Weekly",
-                percentLeft: self.entry.secondary?.remainingPercent,
-                color: WidgetColors.color(for: self.entry.provider))
+            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+                UsageBarRow(
+                    title: row.title,
+                    percentLeft: row.percentLeft,
+                    color: WidgetColors.color(for: self.entry.provider))
+            }
             if let codeReview = entry.codeReviewRemainingPercent {
                 UsageBarRow(
                     title: "Code review",
@@ -464,6 +453,39 @@ private struct LargeUsageView: View {
                 .frame(height: 50)
         }
         .padding(12)
+    }
+}
+
+struct WidgetUsageRow: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let percentLeft: Double?
+
+    static func rows(for entry: WidgetSnapshot.ProviderEntry) -> [WidgetUsageRow] {
+        let metadata = ProviderDefaults.metadata[entry.provider]
+        let session = WidgetUsageRow(
+            id: "primary",
+            title: metadata?.sessionLabel ?? "Session",
+            percentLeft: entry.primary?.remainingPercent)
+        let weekly = WidgetUsageRow(
+            id: "secondary",
+            title: metadata?.weeklyLabel ?? "Weekly",
+            percentLeft: entry.secondary?.remainingPercent)
+
+        if entry.provider == .codex {
+            return [session, weekly].filter { row in
+                switch row.id {
+                case "primary":
+                    entry.primary != nil
+                case "secondary":
+                    entry.secondary != nil
+                default:
+                    true
+                }
+            }
+        }
+
+        return [session, weekly]
     }
 }
 
@@ -622,6 +644,8 @@ enum WidgetColors {
             Color(red: 111 / 255, green: 66 / 255, blue: 193 / 255) // OpenRouter purple
         case .warp:
             Color(red: 147 / 255, green: 139 / 255, blue: 180 / 255)
+        case .perplexity:
+            Color(red: 32 / 255, green: 178 / 255, blue: 170 / 255) // Perplexity teal
         case .mimo:
             .primary
         }

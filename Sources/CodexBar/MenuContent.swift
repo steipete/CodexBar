@@ -86,6 +86,8 @@ struct MenuContent: View {
             self.actions.openDashboard()
         case .statusPage:
             self.actions.openStatusPage()
+        case .addCodexAccount:
+            self.actions.addCodexAccount()
         case let .switchAccount(provider):
             self.actions.switchAccount(provider)
         case let .openTerminal(command):
@@ -112,6 +114,7 @@ struct MenuActions {
     let refreshAugmentSession: () -> Void
     let openDashboard: () -> Void
     let openStatusPage: () -> Void
+    let addCodexAccount: () -> Void
     let switchAccount: (UsageProvider) -> Void
     let openTerminal: (String) -> Void
     let openSettings: () -> Void

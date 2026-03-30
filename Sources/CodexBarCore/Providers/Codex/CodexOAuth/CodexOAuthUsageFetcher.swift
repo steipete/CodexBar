@@ -150,8 +150,12 @@ public enum CodexOAuthUsageFetcher {
     private static let chatGPTUsagePath = "/wham/usage"
     private static let codexUsagePath = "/api/codex/usage"
 
-    public static func fetchUsage(accessToken: String, accountId: String?) async throws -> CodexUsageResponse {
-        var request = URLRequest(url: Self.resolveUsageURL())
+    public static func fetchUsage(
+        accessToken: String,
+        accountId: String?,
+        env: [String: String] = ProcessInfo.processInfo.environment) async throws -> CodexUsageResponse
+    {
+        var request = URLRequest(url: Self.resolveUsageURL(env: env))
         request.httpMethod = "GET"
         request.timeoutInterval = 30
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -188,8 +192,8 @@ public enum CodexOAuthUsageFetcher {
         }
     }
 
-    private static func resolveUsageURL() -> URL {
-        self.resolveUsageURL(env: ProcessInfo.processInfo.environment, configContents: nil)
+    private static func resolveUsageURL(env: [String: String]) -> URL {
+        self.resolveUsageURL(env: env, configContents: nil)
     }
 
     private static func resolveUsageURL(env: [String: String], configContents: String?) -> URL {

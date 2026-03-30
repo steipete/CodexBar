@@ -7,12 +7,14 @@ struct StatusItemControllerMenuTests {
     private func makeSnapshot(
         primary: RateWindow?,
         secondary: RateWindow?,
+        tertiary: RateWindow? = nil,
         providerCost: ProviderCostSnapshot? = nil)
         -> UsageSnapshot
     {
         UsageSnapshot(
             primary: primary,
             secondary: secondary,
+            tertiary: tertiary,
             providerCost: providerCost,
             updatedAt: Date())
     }
@@ -76,6 +78,21 @@ struct StatusItemControllerMenuTests {
             showUsed: false)
 
         #expect(percent == 0)
+    }
+
+    @Test
+    func `perplexity switcher falls back after recurring credits are exhausted`() {
+        let primary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let secondary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let tertiary = RateWindow(usedPercent: 24, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let snapshot = self.makeSnapshot(primary: primary, secondary: secondary, tertiary: tertiary)
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .perplexity,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 76)
     }
 
     @Test

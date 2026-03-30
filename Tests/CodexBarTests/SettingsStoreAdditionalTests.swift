@@ -26,6 +26,11 @@ struct SettingsStoreAdditionalTests {
         #expect(settings.menuBarMetricPreference(for: .cursor, snapshot: nil) == .automatic)
         #expect(settings.menuBarMetricSupportsTertiary(for: .cursor, snapshot: nil) == false)
 
+        settings.setMenuBarMetricPreference(.tertiary, for: .perplexity)
+        #expect(settings.menuBarMetricPreference(for: .perplexity) == .tertiary)
+        #expect(settings.menuBarMetricPreference(for: .perplexity, snapshot: nil) == .tertiary)
+        #expect(settings.menuBarMetricSupportsTertiary(for: .perplexity, snapshot: nil))
+
         settings.setMenuBarMetricPreference(.tertiary, for: .gemini)
         #expect(settings.menuBarMetricPreference(for: .gemini) == .automatic)
     }

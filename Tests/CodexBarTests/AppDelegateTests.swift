@@ -9,10 +9,12 @@ struct AppDelegateTests {
     func `builds status controller after launch`() {
         let appDelegate = AppDelegate()
         var factoryCalls = 0
+        let managedCodexAccountCoordinator = ManagedCodexAccountCoordinator()
 
         // Install a test factory that records invocations without touching NSStatusBar.
-        StatusItemController.factory = { _, _, _, _, _ in
+        StatusItemController.factory = { _, _, _, _, _, receivedCoordinator in
             factoryCalls += 1
+            #expect(receivedCoordinator === managedCodexAccountCoordinator)
             return DummyStatusController()
         }
         defer { StatusItemController.factory = StatusItemController.defaultFactory }
@@ -26,7 +28,12 @@ struct AppDelegateTests {
         let account = fetcher.loadAccountInfo()
 
         // configure should not eagerly construct the status controller
-        appDelegate.configure(store: store, settings: settings, account: account, selection: PreferencesSelection())
+        appDelegate.configure(
+            store: store,
+            settings: settings,
+            account: account,
+            selection: PreferencesSelection(),
+            managedCodexAccountCoordinator: managedCodexAccountCoordinator)
         #expect(factoryCalls == 0)
 
         // construction happens once after launch

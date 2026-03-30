@@ -2,7 +2,7 @@ import CodexBarCore
 import SwiftUI
 
 @MainActor
-struct ProviderDetailView: View {
+struct ProviderDetailView<SupplementaryContent: View>: View {
     let provider: UsageProvider
     @Bindable var store: UsageStore
     @Binding var isEnabled: Bool
@@ -16,6 +16,42 @@ struct ProviderDetailView: View {
     @Binding var isErrorExpanded: Bool
     let onCopyError: (String) -> Void
     let onRefresh: () -> Void
+    let supplementarySettingsContent: SupplementaryContent
+    let showsSupplementarySettingsContent: Bool
+
+    init(
+        provider: UsageProvider,
+        store: UsageStore,
+        isEnabled: Binding<Bool>,
+        subtitle: String,
+        model: UsageMenuCardView.Model,
+        settingsPickers: [ProviderSettingsPickerDescriptor],
+        settingsToggles: [ProviderSettingsToggleDescriptor],
+        settingsFields: [ProviderSettingsFieldDescriptor],
+        settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?,
+        errorDisplay: ProviderErrorDisplay?,
+        isErrorExpanded: Binding<Bool>,
+        onCopyError: @escaping (String) -> Void,
+        onRefresh: @escaping () -> Void,
+        showsSupplementarySettingsContent: Bool = false,
+        @ViewBuilder supplementarySettingsContent: () -> SupplementaryContent)
+    {
+        self.provider = provider
+        self.store = store
+        self._isEnabled = isEnabled
+        self.subtitle = subtitle
+        self.model = model
+        self.settingsPickers = settingsPickers
+        self.settingsToggles = settingsToggles
+        self.settingsFields = settingsFields
+        self.settingsTokenAccounts = settingsTokenAccounts
+        self.errorDisplay = errorDisplay
+        self._isErrorExpanded = isErrorExpanded
+        self.onCopyError = onCopyError
+        self.onRefresh = onRefresh
+        self.showsSupplementarySettingsContent = showsSupplementarySettingsContent
+        self.supplementarySettingsContent = supplementarySettingsContent()
+    }
 
     static func metricTitle(provider: UsageProvider, metric: UsageMenuCardView.Model.Metric) -> String {
         UsageMenuCardView.popupMetricTitle(provider: provider, metric: metric)
@@ -83,6 +119,10 @@ struct ProviderDetailView: View {
                             ProviderSettingsFieldRowView(field: field)
                         }
                     }
+                }
+
+                if self.showsSupplementarySettingsContent {
+                    self.supplementarySettingsContent
                 }
 
                 if !self.settingsToggles.isEmpty {
@@ -256,7 +296,10 @@ private struct ProviderDetailInfoGrid: View {
                 ProviderDetailInfoRow(label: "Account", value: email, labelWidth: self.labelWidth)
             }
 
-            if let planRow = ProviderDetailView.planRow(provider: self.provider, planText: self.model.planText) {
+            if let planRow = ProviderDetailView<EmptyView>.planRow(
+                provider: self.provider,
+                planText: self.model.planText)
+            {
                 ProviderDetailInfoRow(label: planRow.label, value: planRow.value, labelWidth: self.labelWidth)
             }
         }
@@ -317,7 +360,7 @@ struct ProviderMetricsInlineView: View {
                 ForEach(self.model.metrics, id: \.id) { metric in
                     ProviderMetricInlineRow(
                         metric: metric,
-                        title: ProviderDetailView.metricTitle(provider: self.provider, metric: metric),
+                        title: ProviderDetailView<EmptyView>.metricTitle(provider: self.provider, metric: metric),
                         progressColor: self.model.progressColor,
                         labelWidth: self.labelWidth)
                 }

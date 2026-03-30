@@ -75,13 +75,11 @@ public enum CodexProviderDescriptor {
     }
 
     private static func noDataMessage() -> String {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser.path
-        let base = ProcessInfo.processInfo.environment["CODEX_HOME"].flatMap { raw -> String? in
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return nil }
-            return trimmed
-        } ?? "\(home)/.codex"
+        self.noDataMessage(env: ProcessInfo.processInfo.environment)
+    }
+
+    private static func noDataMessage(env: [String: String], fileManager: FileManager = .default) -> String {
+        let base = CodexHomeScope.ambientHomeURL(env: env, fileManager: fileManager).path
         let sessions = "\(base)/sessions"
         let archived = "\(base)/archived_sessions"
         return "No Codex sessions found in \(sessions) or \(archived)."
@@ -134,21 +132,22 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
     let id: String = "codex.oauth"
     let kind: ProviderFetchKind = .oauth
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool {
-        (try? CodexOAuthCredentialsStore.load()) != nil
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        (try? CodexOAuthCredentialsStore.load(env: context.env)) != nil
     }
 
-    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
-        var credentials = try CodexOAuthCredentialsStore.load()
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        var credentials = try CodexOAuthCredentialsStore.load(env: context.env)
 
         if credentials.needsRefresh, !credentials.refreshToken.isEmpty {
             credentials = try await CodexTokenRefresher.refresh(credentials)
-            try CodexOAuthCredentialsStore.save(credentials)
+            try CodexOAuthCredentialsStore.save(credentials, env: context.env)
         }
 
         let usage = try await CodexOAuthUsageFetcher.fetchUsage(
             accessToken: credentials.accessToken,
-            accountId: credentials.accountId)
+            accountId: credentials.accountId,
+            env: context.env)
 
         return self.makeResult(
             usage: Self.mapUsage(usage, credentials: credentials),
@@ -162,8 +161,11 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func mapUsage(_ response: CodexUsageResponse, credentials: CodexOAuthCredentials) -> UsageSnapshot {
-        let primary = Self.makeWindow(response.rateLimit?.primaryWindow)
-        let secondary = Self.makeWindow(response.rateLimit?.secondaryWindow)
+        let normalized = CodexRateWindowNormalizer.normalize(
+            primary: Self.makeWindow(response.rateLimit?.primaryWindow),
+            secondary: Self.makeWindow(response.rateLimit?.secondaryWindow))
+        let primary = normalized.primary
+        let secondary = normalized.secondary
 
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -172,7 +174,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             loginMethod: Self.resolvePlan(response: response, credentials: credentials))
 
         return UsageSnapshot(
-            primary: primary ?? RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            primary: primary ?? (secondary == nil
+                ? RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+                : nil),
             secondary: secondary,
             tertiary: nil,
             updatedAt: Date(),
@@ -225,6 +229,12 @@ extension CodexOAuthFetchStrategy {
     static func _mapUsageForTesting(_ data: Data, credentials: CodexOAuthCredentials) throws -> UsageSnapshot {
         let usage = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
         return Self.mapUsage(usage, credentials: credentials)
+    }
+}
+
+extension CodexProviderDescriptor {
+    static func _noDataMessageForTesting(env: [String: String]) -> String {
+        self.noDataMessage(env: env)
     }
 }
 #endif

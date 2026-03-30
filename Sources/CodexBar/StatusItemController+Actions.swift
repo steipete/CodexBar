@@ -105,6 +105,33 @@ extension StatusItemController {
         NSWorkspace.shared.open(url)
     }
 
+    @objc func addManagedCodexAccountFromMenu(_: NSMenuItem) {
+        guard self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount == false else {
+            self.loginLogger.info("Add Account tap ignored: managed Codex login already in-flight")
+            return
+        }
+        guard self.settings.hasUnreadableManagedCodexAccountStore == false else {
+            self.presentLoginAlert(
+                title: "Managed Codex accounts unavailable",
+                message: "CodexBar could not read managed account storage. " +
+                    "Recover the store before adding another account.")
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let account = try await self.managedCodexAccountCoordinator.authenticateManagedAccount()
+                self.settings.selectAuthenticatedManagedCodexAccount(account)
+                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await self.store.refreshCodexAccountScopedState(allowDisabled: true)
+                }
+            } catch {
+                self.presentManagedCodexAccountError(error)
+            }
+        }
+    }
+
     @objc func runSwitchAccount(_ sender: NSMenuItem) {
         if self.loginTask != nil {
             self.loginLogger.info("Switch Account tap ignored: login already in-flight")
@@ -210,24 +237,34 @@ extension StatusItemController {
     }
 
     func presentCodexLoginResult(_ result: CodexLoginRunner.Result) {
-        switch result.outcome {
-        case .success:
-            return
-        case .missingBinary:
-            self.presentLoginAlert(
-                title: "Codex CLI not found",
-                message: "Install the Codex CLI (npm i -g @openai/codex) and try again.")
-        case let .launchFailed(message):
-            self.presentLoginAlert(title: "Could not start codex login", message: message)
-        case .timedOut:
-            self.presentLoginAlert(
-                title: "Codex login timed out",
-                message: self.trimmedLoginOutput(result.output))
-        case let .failed(status):
-            let statusLine = "codex login exited with status \(status)."
-            let message = self.trimmedLoginOutput(result.output.isEmpty ? statusLine : result.output)
-            self.presentLoginAlert(title: "Codex login failed", message: message)
+        guard let info = CodexLoginAlertPresentation.alertInfo(for: result) else { return }
+        self.presentLoginAlert(title: info.title, message: info.message)
+    }
+
+    private func presentManagedCodexAccountError(_ error: Error) {
+        let info: LoginAlertInfo
+        if let error = error as? ManagedCodexAccountCoordinatorError,
+           error == .authenticationInProgress
+        {
+            info = LoginAlertInfo(
+                title: "Codex account login already running",
+                message: "Wait for the current managed Codex login to finish before adding another account.")
+        } else if let error = error as? ManagedCodexAccountServiceError {
+            let message = switch error {
+            case .loginFailed:
+                "Managed Codex login did not complete. Try again after finishing the browser login flow."
+            case .missingEmail:
+                "Codex login completed, but no account email was available. " +
+                    "Try again after confirming the account is fully signed in."
+            case let .unsafeManagedHome(path):
+                "CodexBar refused to modify an unexpected managed home path: \(path)"
+            }
+            info = LoginAlertInfo(title: "Could not add Codex account", message: message)
+        } else {
+            info = LoginAlertInfo(title: "Could not add Codex account", message: error.localizedDescription)
         }
+
+        self.presentLoginAlert(title: info.title, message: info.message)
     }
 
     func presentClaudeLoginResult(_ result: ClaudeLoginRunner.Result) {

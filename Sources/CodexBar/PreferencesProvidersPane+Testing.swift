@@ -22,6 +22,26 @@ extension ProvidersPane {
     func _test_menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
         self.menuCardModel(for: provider)
     }
+
+    func _test_providerErrorDisplay(for provider: UsageProvider) -> ProviderErrorDisplay? {
+        self.providerErrorDisplay(provider)
+    }
+
+    func _test_codexAccountsSectionState() -> CodexAccountsSectionState? {
+        self.codexAccountsSectionState(for: .codex)
+    }
+
+    func _test_selectCodexVisibleAccount(id: String) async {
+        await self.selectCodexVisibleAccount(id: id)
+    }
+
+    func _test_addManagedCodexAccount() async {
+        await self.addManagedCodexAccount()
+    }
+
+    func _test_reauthenticateCodexAccount(_ account: CodexVisibleAccount) async {
+        await self.reauthenticateCodexAccount(account)
+    }
 }
 
 @MainActor
@@ -100,7 +120,13 @@ enum ProvidersPaneTestHarness {
             errorDisplay: ProviderErrorDisplay(preview: "Preview", full: "Full"),
             isErrorExpanded: expandedBinding,
             onCopyError: { _ in },
-            onRefresh: {}).body
+            onRefresh: {},
+            showsSupplementarySettingsContent: true,
+            supplementarySettingsContent: {
+                ProviderSettingsSection(title: "Accounts") {
+                    Text("Supplementary")
+                }
+            }).body
     }
 
     private static func makeDescriptors() -> ProviderListTestDescriptors {
