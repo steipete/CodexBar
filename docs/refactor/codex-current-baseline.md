@@ -154,18 +154,26 @@ Current normalization rules:
 - `(weekly, unknown)` swaps to `(unknown, weekly)`
 - other pairings preserve input order
 
-These rules apply across the current Codex mapping surfaces:
+These normalization rules apply across the current Codex mapping surfaces:
 
 - OAuth usage mapping in `CodexOAuthFetchStrategy.mapUsage(...)`
 - Codex RPC mapping in `UsageFetcher.makeCodexUsageSnapshot(...)`
 - Codex PTY `/status` mapping in `UsageFetcher.makeCodexUsageSnapshot(...)`
+
+Current no-window behavior is source-specific and should not be over-generalized:
+
+- OAuth mapping diverges here: if both OAuth windows are absent or `nil`, the current mapper synthesizes an empty
+  primary window (`usedPercent = 0`, `windowMinutes = nil`) instead of failing.
+- Codex RPC mapping fails when no usable windows are present.
+- Codex PTY `/status` mapping also fails when no usable windows are present.
 
 Current edge cases already visible in code and tests include:
 
 - weekly-only,
 - unknown single-window,
 - reversed weekly/unknown ordering,
-- no-window failure.
+- OAuth no-window synthetic empty primary,
+- RPC / PTY no-window failure.
 
 ## Compatibility-seam behavior
 
@@ -176,8 +184,9 @@ Current behavior that later work must preserve:
 
 - `MenuDescriptor` renders `primary` as the session row and `secondary` as the weekly row.
 - If Codex has only a weekly window, the menu shows only a weekly row and does not synthesize a session row.
-- Account and plan rows come from provider-scoped snapshot identity first.
-- If provider-scoped identity is missing and the provider metadata allows fallback, the menu falls back to
+- Account email and plan rows are resolved field by field.
+- Each row prefers the provider-scoped snapshot field when that specific field is present and non-empty.
+- If a specific snapshot field is missing or empty and the provider metadata allows fallback, that row falls back to
   provider-scoped `AccountInfo`.
 - Current Codex source-label decoration is additive:
   - base label comes from current Codex source setting or the last successful source label,

@@ -257,6 +257,30 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func `synthesizes empty primary window when O auth usage has no windows`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": null,
+            "secondary_window": null
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        #expect(snapshot.primary?.usedPercent == 0)
+        #expect(snapshot.primary?.windowMinutes == nil)
+        #expect(snapshot.primary?.resetsAt == nil)
+        #expect(snapshot.primary?.resetDescription == nil)
+        #expect(snapshot.secondary == nil)
+    }
+
+    @Test
     func `resolves chat GPT usage URL from config`() {
         let config = "chatgpt_base_url = \"https://chatgpt.com/backend-api/\"\n"
         let url = CodexOAuthUsageFetcher._resolveUsageURLForTesting(configContents: config)

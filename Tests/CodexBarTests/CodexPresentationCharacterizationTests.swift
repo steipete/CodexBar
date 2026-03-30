@@ -96,6 +96,121 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
+    func `Codex menu prefers snapshot identity over conflicting fallback account info`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-snapshot-precedence")
+        settings.statusChecksEnabled = false
+        let managedHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-presentation-fallback-\(UUID().uuidString)", isDirectory: true)
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "fallback@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        try Self.writeCodexAuthFile(homeURL: managedHome, email: "fallback@example.com", plan: "plus")
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings._test_activeManagedCodexRemoteHomePath = managedHome.path
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer {
+            settings._test_activeManagedCodexAccount = nil
+            settings._test_activeManagedCodexRemoteHomePath = nil
+            try? FileManager.default.removeItem(at: managedHome)
+        }
+
+        let fetcher = UsageFetcher(environment: [:])
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "snapshot@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "enterprise")),
+            provider: .codex)
+
+        let fallback = store.accountInfo(for: .codex)
+        #expect(fallback.email == "fallback@example.com")
+        #expect(fallback.plan == "plus")
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(lines.contains("Account: snapshot@example.com"))
+        #expect(lines.contains("Plan: Enterprise"))
+        #expect(!lines.contains("Account: fallback@example.com"))
+        #expect(!lines.contains("Plan: Plus"))
+    }
+
+    @Test
+    func `Codex menu falls back per field when snapshot identity is partial`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-partial-fallback")
+        settings.statusChecksEnabled = false
+        let managedHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-presentation-partial-\(UUID().uuidString)", isDirectory: true)
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "fallback@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        try? Self.writeCodexAuthFile(homeURL: managedHome, email: "fallback@example.com", plan: "plus")
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings._test_activeManagedCodexRemoteHomePath = managedHome.path
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer {
+            settings._test_activeManagedCodexAccount = nil
+            settings._test_activeManagedCodexRemoteHomePath = nil
+            try? FileManager.default.removeItem(at: managedHome)
+        }
+
+        let fetcher = UsageFetcher(environment: [:])
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "snapshot@example.com",
+                    accountOrganization: nil,
+                    loginMethod: nil)),
+            provider: .codex)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(lines.contains("Account: snapshot@example.com"))
+        #expect(lines.contains("Plan: Plus"))
+        #expect(!lines.contains("Account: fallback@example.com"))
+    }
+
+    @Test
     func `managed OpenAI web targeting uses active managed Codex identity and scope`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-managed-openai-web")
         let managedAccount = ManagedCodexAccount(
@@ -255,5 +370,35 @@ struct CodexPresentationCharacterizationTests {
                 guard case let .text(text, _) = entry else { return nil }
                 return text
             }
+    }
+
+    private static func writeCodexAuthFile(homeURL: URL, email: String, plan: String) throws {
+        try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
+        let auth = [
+            "tokens": [
+                "accessToken": "access-token",
+                "refreshToken": "refresh-token",
+                "idToken": Self.fakeJWT(email: email, plan: plan),
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: auth)
+        try data.write(to: homeURL.appendingPathComponent("auth.json"))
+    }
+
+    private static func fakeJWT(email: String, plan: String) -> String {
+        let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        let payload = (try? JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "chatgpt_plan_type": plan,
+        ])) ?? Data()
+
+        func base64URL(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "=", with: "")
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+        }
+
+        return "\(base64URL(header)).\(base64URL(payload))."
     }
 }
