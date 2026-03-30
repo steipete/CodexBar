@@ -373,6 +373,7 @@ struct ProvidersPane: View {
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
+            resetWarnings: self.store.activeResetWarnings[provider],
             now: now)
         return UsageMenuCardView.Model.make(input)
     }

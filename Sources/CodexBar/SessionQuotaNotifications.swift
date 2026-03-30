@@ -32,6 +32,7 @@ enum SessionQuotaNotificationLogic {
 @MainActor
 protocol SessionQuotaNotifying: AnyObject {
     func post(transition: SessionQuotaTransition, provider: UsageProvider, badge: NSNumber?)
+    func postResetWarning(idPrefix: String, title: String, body: String)
 }
 
 @MainActor
@@ -59,5 +60,10 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
         let idPrefix = "session-\(providerText)-\(transitionText)"
         self.logger.info("enqueuing", metadata: ["prefix": idPrefix])
         AppNotifications.shared.post(idPrefix: idPrefix, title: title, body: body, badge: badge)
+    }
+
+    func postResetWarning(idPrefix: String, title: String, body: String) {
+        self.logger.info("enqueuing reset warning", metadata: ["prefix": idPrefix])
+        AppNotifications.shared.post(idPrefix: idPrefix, title: title, body: body, badge: nil)
     }
 }

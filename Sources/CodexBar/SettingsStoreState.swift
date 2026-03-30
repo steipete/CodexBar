@@ -34,4 +34,6 @@ struct SettingsDefaultsState {
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
+    var resetWarningEnabled: Bool
+    var resetWarningHours: Int
 }

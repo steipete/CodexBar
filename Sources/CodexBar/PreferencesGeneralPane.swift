@@ -96,6 +96,31 @@ struct GeneralPane: View {
                         subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +
                             "available again.",
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
+                    PreferenceToggleRow(
+                        title: "Reset warnings",
+                        subtitle: "Notifies when a usage window is about to reset and you still have " +
+                            "significant capacity remaining.",
+                        binding: self.$settings.resetWarningEnabled)
+                    if self.settings.resetWarningEnabled {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Warning advance time")
+                                    .font(.body)
+                                Text("How many hours before reset to trigger the warning.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Picker("Warning advance time", selection: self.$settings.resetWarningHours) {
+                                ForEach([1, 2, 4, 8, 12, 24, 48], id: \.self) { hours in
+                                    Text(hours == 1 ? "1 hour" : "\(hours) hours").tag(hours)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 200)
+                        }
+                    }
                 }
 
                 Divider()

@@ -117,6 +117,7 @@ final class UsageStore {
     var pathDebugInfo: PathDebugSnapshot = .empty
     var statuses: [UsageProvider: ProviderStatus] = [:]
     var probeLogs: [UsageProvider: String] = [:]
+    var activeResetWarnings: [UsageProvider: [ResetWarning]] = [:]
     var historicalPaceRevision: Int = 0
     @ObservationIgnored var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored var creditsFailureStreak: Int = 0
@@ -155,6 +156,7 @@ final class UsageStore {
     @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
+    @ObservationIgnored var lastResetWarningDate: [String: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
@@ -430,6 +432,7 @@ final class UsageStore {
                 await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
 
+            self.checkResetWarnings()
             self.persistWidgetSnapshot(reason: "refresh")
         }
     }
@@ -600,6 +603,74 @@ final class UsageStore {
         self.sessionQuotaLogger.info(message)
 
         self.sessionQuotaNotifier.post(transition: transition, provider: provider, badge: nil)
+    }
+
+    // MARK: - Reset warnings
+
+    func checkResetWarnings() {
+        guard self.settings.resetWarningEnabled else {
+            self.activeResetWarnings = [:]
+            return
+        }
+
+        let warningHours = self.settings.resetWarningHours
+        let now = Date()
+        var newWarnings: [UsageProvider: [ResetWarning]] = [:]
+
+        for provider in self.enabledProviders() {
+            guard let snapshot = self.snapshots[provider] else { continue }
+            var providerWarnings: [ResetWarning] = []
+
+            if let primary = snapshot.primary,
+               let warning = ResetWarningEvaluator.evaluate(
+                   provider: provider,
+                   window: primary,
+                   windowKind: .session,
+                   warningHours: warningHours,
+                   now: now)
+            {
+                providerWarnings.append(warning)
+            }
+
+            if let secondary = snapshot.secondary,
+               let warning = ResetWarningEvaluator.evaluate(
+                   provider: provider,
+                   window: secondary,
+                   windowKind: .weekly,
+                   warningHours: warningHours,
+                   now: now)
+            {
+                providerWarnings.append(warning)
+            }
+
+            if !providerWarnings.isEmpty {
+                newWarnings[provider] = providerWarnings
+                for warning in providerWarnings {
+                    let key = "reset-\(provider.rawValue)-\(warning.windowKind.rawValue)"
+                    if ResetWarningEvaluator.shouldNotify(
+                        warning: warning,
+                        lastNotifiedAt: self.lastResetWarningDate[key],
+                        now: now)
+                    {
+                        self.lastResetWarningDate[key] = now
+                        self.postResetWarningNotification(warning: warning)
+                    }
+                }
+            }
+        }
+
+        self.activeResetWarnings = newWarnings
+    }
+
+    private func postResetWarningNotification(warning: ResetWarning) {
+        let providerName = ProviderDescriptorRegistry.descriptor(for: warning.providerID).metadata.displayName
+        let windowLabel = warning.windowKind == .session ? "session" : "weekly"
+        let hoursLeft = String(format: "%.0f", warning.hoursUntilReset)
+        let percentLeft = String(format: "%.0f", warning.remainingPercent)
+        let title = "\(providerName) \(windowLabel) resets in \(hoursLeft)h"
+        let body = "You still have \(percentLeft)% remaining. Consider starting long-running tasks."
+        let idPrefix = "reset-warning-\(warning.providerID.rawValue)-\(warning.windowKind.rawValue)"
+        self.sessionQuotaNotifier.postResetWarning(idPrefix: idPrefix, title: title, body: body)
     }
 
     private func refreshStatus(_ provider: UsageProvider) async {

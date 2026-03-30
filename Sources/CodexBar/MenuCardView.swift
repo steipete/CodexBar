@@ -104,6 +104,7 @@ struct UsageMenuCardView: View {
         let tokenUsage: TokenUsageSection?
         let placeholder: String?
         let progressColor: Color
+        let resetWarnings: [ResetWarning]
     }
 
     let model: Model
@@ -140,6 +141,9 @@ struct UsageMenuCardView: View {
                 let hasCost = self.model.tokenUsage != nil || hasProviderCost
 
                 VStack(alignment: .leading, spacing: 12) {
+                    if !self.model.resetWarnings.isEmpty {
+                        ResetWarningBannerContent(warnings: self.model.resetWarnings)
+                    }
                     if hasUsage {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(self.model.metrics, id: \.id) { metric in
@@ -518,6 +522,45 @@ struct UsageMenuCardCreditsSectionView: View {
     }
 }
 
+private struct ResetWarningBannerContent: View {
+    let warnings: [ResetWarning]
+
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(self.warnings, id: \.windowKind) { warning in
+                Self.warningRow(warning: warning, isHighlighted: self.isHighlighted)
+            }
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(.orange.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(.orange.opacity(0.3), lineWidth: 1)))
+    }
+
+    private static func warningRow(warning: ResetWarning, isHighlighted: Bool) -> some View {
+        let hoursLeft = String(format: "%.1f", warning.hoursUntilReset)
+        let percentLeft = String(format: "%.0f", warning.remainingPercent)
+        let windowLabel = warning.windowKind == .session ? "Session" : "Weekly"
+        let label = "\(windowLabel) resets in \(hoursLeft)h — \(percentLeft)% remaining"
+        let textColor: Color = isHighlighted ? .primary : .orange
+        return HStack(spacing: 6) {
+            Image(systemName: "clock.badge.exclamationmark")
+                .font(.caption)
+                .foregroundStyle(.orange)
+            Text(label)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(textColor)
+        }
+    }
+}
+
 private struct CreditsBarContent: View {
     private static let fullScaleTokens: Double = 1000
 
@@ -670,6 +713,7 @@ extension UsageMenuCardView.Model {
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
         let weeklyPace: UsagePace?
+        let resetWarnings: [ResetWarning]?
         let now: Date
 
         init(
@@ -693,6 +737,7 @@ extension UsageMenuCardView.Model {
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
             weeklyPace: UsagePace? = nil,
+            resetWarnings: [ResetWarning]? = nil,
             now: Date)
         {
             self.provider = provider
@@ -715,6 +760,7 @@ extension UsageMenuCardView.Model {
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
             self.weeklyPace = weeklyPace
+            self.resetWarnings = resetWarnings
             self.now = now
         }
     }
@@ -767,7 +813,8 @@ extension UsageMenuCardView.Model {
             providerCost: providerCost,
             tokenUsage: tokenUsage,
             placeholder: placeholder,
-            progressColor: Self.progressColor(for: input.provider))
+            progressColor: Self.progressColor(for: input.provider),
+            resetWarnings: input.resetWarnings ?? [])
     }
 
     private static func usageNotes(input: Input) -> [String] {

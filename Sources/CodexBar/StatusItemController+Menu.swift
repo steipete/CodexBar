@@ -1483,6 +1483,7 @@ extension StatusItemController {
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
+            resetWarnings: self.store.activeResetWarnings[target],
             now: now)
         return UsageMenuCardView.Model.make(input)
     }

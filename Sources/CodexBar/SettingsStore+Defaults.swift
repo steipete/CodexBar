@@ -474,6 +474,23 @@ extension SettingsStore {
         }
     }
 
+    var resetWarningEnabled: Bool {
+        get { self.defaultsState.resetWarningEnabled }
+        set {
+            self.defaultsState.resetWarningEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "resetWarningEnabled")
+        }
+    }
+
+    var resetWarningHours: Int {
+        get { self.defaultsState.resetWarningHours }
+        set {
+            let clamped = max(1, min(48, newValue))
+            self.defaultsState.resetWarningHours = clamped
+            self.userDefaults.set(clamped, forKey: "resetWarningHours")
+        }
+    }
+
     var debugLoadingPattern: LoadingPattern? {
         get { self.debugLoadingPatternRaw.flatMap(LoadingPattern.init(rawValue:)) }
         set { self.debugLoadingPatternRaw = newValue?.rawValue }

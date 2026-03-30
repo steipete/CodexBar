@@ -230,6 +230,9 @@ extension SettingsStore {
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
+        let resetWarningEnabled = userDefaults.object(forKey: "resetWarningEnabled") as? Bool ?? true
+        let resetWarningHours = userDefaults.object(forKey: "resetWarningHours") as? Int
+            ?? ResetWarningEvaluator.defaultWarningHours
 
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -264,7 +267,9 @@ extension SettingsStore {
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
-            providerDetectionCompleted: providerDetectionCompleted)
+            providerDetectionCompleted: providerDetectionCompleted,
+            resetWarningEnabled: resetWarningEnabled,
+            resetWarningHours: resetWarningHours)
     }
 }
 
