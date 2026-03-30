@@ -9,7 +9,8 @@ public enum MistralUsageFetcher {
         timeout: TimeInterval = 15) async throws -> MistralUsageSnapshot
     {
         let now = Date()
-        let calendar = Calendar.current
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
         let month = calendar.component(.month, from: now)
         let year = calendar.component(.year, from: now)
 
