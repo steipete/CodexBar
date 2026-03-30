@@ -160,6 +160,28 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `codex session analytics window size persists and normalizes`() throws {
+        let suite = "SettingsStoreCoverageTests-codex-analytics-window"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(first.codexSessionAnalyticsWindowSize == 20)
+
+        first.codexSessionAnalyticsWindowSize = 50
+        #expect(defaults.integer(forKey: "codexSessionAnalyticsWindowSize") == 50)
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.codexSessionAnalyticsWindowSize == 50)
+
+        defaults.set(13, forKey: "codexSessionAnalyticsWindowSize")
+        let third = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(third.codexSessionAnalyticsWindowSize == 20)
+        #expect(defaults.integer(forKey: "codexSessionAnalyticsWindowSize") == 20)
+    }
+
+    @Test
     func `ensure token loaders execute`() {
         let settings = Self.makeSettingsStore()
 

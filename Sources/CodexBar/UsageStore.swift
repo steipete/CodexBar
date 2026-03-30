@@ -161,6 +161,9 @@ final class UsageStore {
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastCodexSessionAnalyticsRefreshAt: Date?
+    @ObservationIgnored var lastCodexSessionAnalyticsRefreshAtByWindow: [Int: Date] = [:]
+    @ObservationIgnored var codexSessionAnalyticsCacheByWindow: [Int: CodexSessionAnalyticsSnapshot] = [:]
+    @ObservationIgnored var codexSessionAnalyticsErrorCacheByWindow: [Int: String] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60

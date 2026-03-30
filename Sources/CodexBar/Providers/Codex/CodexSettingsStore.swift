@@ -2,6 +2,14 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    static var codexSessionAnalyticsWindowPresets: [Int] {
+        [10, 20, 50, 100]
+    }
+
+    static func normalizedCodexSessionAnalyticsWindowSize(_ value: Int) -> Int {
+        self.codexSessionAnalyticsWindowPresets.contains(value) ? value : 20
+    }
+
     var codexUsageDataSource: CodexUsageDataSource {
         get {
             let source = self.configSnapshot.providerConfig(for: .codex)?.source

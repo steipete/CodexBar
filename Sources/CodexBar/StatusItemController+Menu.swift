@@ -835,6 +835,7 @@ extension StatusItemController {
         id: String,
         width: CGFloat,
         submenu: NSMenu? = nil,
+        showsSubmenuIndicator: Bool = true,
         submenuIndicatorAlignment: Alignment = .topTrailing,
         submenuIndicatorTopPadding: CGFloat = 8,
         onClick: (() -> Void)? = nil) -> NSMenuItem
@@ -854,7 +855,7 @@ extension StatusItemController {
         let highlightState = MenuCardHighlightState()
         let wrapped = MenuCardSectionContainerView(
             highlightState: highlightState,
-            showsSubmenuIndicator: submenu != nil,
+            showsSubmenuIndicator: submenu != nil && showsSubmenuIndicator,
             submenuIndicatorAlignment: submenuIndicatorAlignment,
             submenuIndicatorTopPadding: submenuIndicatorTopPadding)
         {
