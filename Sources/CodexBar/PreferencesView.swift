@@ -28,8 +28,23 @@ struct PreferencesView: View {
     @Bindable var store: UsageStore
     let updater: UpdaterProviding
     @Bindable var selection: PreferencesSelection
+    let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
     @State private var contentWidth: CGFloat = PreferencesTab.general.preferredWidth
     @State private var contentHeight: CGFloat = PreferencesTab.general.preferredHeight
+
+    init(
+        settings: SettingsStore,
+        store: UsageStore,
+        updater: UpdaterProviding,
+        selection: PreferencesSelection,
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator())
+    {
+        self.settings = settings
+        self.store = store
+        self.updater = updater
+        self.selection = selection
+        self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+    }
 
     var body: some View {
         TabView(selection: self.$selection.tab) {
@@ -37,7 +52,10 @@ struct PreferencesView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
                 .tag(PreferencesTab.general)
 
-            ProvidersPane(settings: self.settings, store: self.store)
+            ProvidersPane(
+                settings: self.settings,
+                store: self.store,
+                managedCodexAccountCoordinator: self.managedCodexAccountCoordinator)
                 .tabItem { Label("Providers", systemImage: "square.grid.2x2") }
                 .tag(PreferencesTab.providers)
 

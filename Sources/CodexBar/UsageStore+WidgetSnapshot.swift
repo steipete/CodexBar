@@ -7,12 +7,20 @@ import WidgetKit
 extension UsageStore {
     func persistWidgetSnapshot(reason: String) {
         let snapshot = self.makeWidgetSnapshot()
-        Task.detached(priority: .utility) {
-            WidgetSnapshotStore.save(snapshot)
-            #if canImport(WidgetKit)
-            await MainActor.run {
-                WidgetCenter.shared.reloadAllTimelines()
+        let previousTask = self.widgetSnapshotPersistTask
+        self.widgetSnapshotPersistTask = Task { @MainActor in
+            _ = await previousTask?.result
+
+            if let override = self._test_widgetSnapshotSaveOverride {
+                await override(snapshot)
+                return
             }
+
+            await Task.detached(priority: .utility) {
+                WidgetSnapshotStore.save(snapshot)
+            }.value
+            #if canImport(WidgetKit)
+            WidgetCenter.shared.reloadAllTimelines()
             #endif
         }
     }

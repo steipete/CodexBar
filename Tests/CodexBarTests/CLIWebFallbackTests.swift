@@ -63,6 +63,34 @@ struct CLIWebFallbackTests {
     }
 
     @Test
+    func `codex web strategy is unavailable when managed account store is unreadable`() async {
+        let context = self.makeContext(settings: ProviderSettingsSnapshot.make(
+            codex: .init(
+                usageDataSource: .auto,
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                managedAccountStoreUnreadable: true)))
+        let strategy = CodexWebDashboardStrategy()
+        let available = await strategy.isAvailable(context)
+
+        #expect(!available)
+    }
+
+    @Test
+    func `codex web strategy is unavailable when selected managed target is unavailable`() async {
+        let context = self.makeContext(settings: ProviderSettingsSnapshot.make(
+            codex: .init(
+                usageDataSource: .auto,
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                managedAccountTargetUnavailable: true)))
+        let strategy = CodexWebDashboardStrategy()
+        let available = await strategy.isAvailable(context)
+
+        #expect(!available)
+    }
+
+    @Test
     func `claude falls back when no session key`() {
         let context = self.makeContext()
         let strategy = ClaudeWebFetchStrategy(browserDetection: BrowserDetection(cacheTTL: 0))

@@ -88,6 +88,14 @@ extension UsageStore {
         override: TokenAccountOverride?) async -> ProviderFetchOutcome
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let context = self.makeFetchContext(provider: provider, override: override)
+        return await descriptor.fetchOutcome(context: context)
+    }
+
+    func makeFetchContext(
+        provider: UsageProvider,
+        override: TokenAccountOverride?) -> ProviderFetchContext
+    {
         let sourceMode = self.sourceMode(for: provider)
         let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: override)
         let env = ProviderRegistry.makeEnvironment(
@@ -95,8 +103,9 @@ extension UsageStore {
             provider: provider,
             settings: self.settings,
             tokenOverride: override)
+        let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: provider, env: env)
         let verbose = self.settings.isVerboseLoggingEnabled
-        let context = ProviderFetchContext(
+        return ProviderFetchContext(
             runtime: .app,
             sourceMode: sourceMode,
             includeCredits: false,
@@ -105,10 +114,9 @@ extension UsageStore {
             verbose: verbose,
             env: env,
             settings: snapshot,
-            fetcher: self.codexFetcher,
+            fetcher: fetcher,
             claudeFetcher: self.claudeFetcher,
             browserDetection: self.browserDetection)
-        return await descriptor.fetchOutcome(context: context)
     }
 
     func sourceMode(for provider: UsageProvider) -> ProviderSourceMode {

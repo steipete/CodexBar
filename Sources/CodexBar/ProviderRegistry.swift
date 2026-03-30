@@ -45,6 +45,7 @@ struct ProviderRegistry {
                         provider: provider,
                         settings: settings,
                         tokenOverride: nil)
+                    let fetcher = Self.makeFetcher(base: codexFetcher, provider: provider, env: env)
                     let verbose = settings.isVerboseLoggingEnabled
                     return ProviderFetchContext(
                         runtime: .app,
@@ -55,7 +56,7 @@ struct ProviderRegistry {
                         verbose: verbose,
                         env: env,
                         settings: snapshot,
-                        fetcher: codexFetcher,
+                        fetcher: fetcher,
                         claudeFetcher: claudeFetcher,
                         browserDetection: browserDetection)
                 })
@@ -107,6 +108,21 @@ struct ProviderRegistry {
                 env[key] = value
             }
         }
+        // Managed Codex routing only scopes remote account fetches such as identity, plan,
+        // quotas, and dashboard data, and only when the active source is a managed account.
+        // Token-cost/session history is intentionally not routed through the managed home
+        // because that data is currently treated as provider-level local telemetry from this
+        // Mac's Codex sessions, not as account-owned remote state. If we later want
+        // account-scoped token history in the UI, that needs an explicit product decision and
+        // presentation change so the two concepts are not conflated.
+        if provider == .codex, let managedHomePath = settings.activeManagedCodexRemoteHomePath {
+            env = CodexHomeScope.scopedEnvironment(base: env, codexHome: managedHomePath)
+        }
         return env
+    }
+
+    static func makeFetcher(base: UsageFetcher, provider: UsageProvider, env: [String: String]) -> UsageFetcher {
+        guard provider == .codex else { return base }
+        return UsageFetcher(environment: env)
     }
 }

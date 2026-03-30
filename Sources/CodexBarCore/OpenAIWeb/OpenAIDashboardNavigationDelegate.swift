@@ -41,7 +41,15 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
 
     nonisolated static func shouldIgnoreNavigationError(_ error: Error) -> Bool {
         let nsError = error as NSError
-        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+        if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled {
+            return true
+        }
+
+        if nsError.domain == "WebKitErrorDomain", nsError.code == 102 {
+            return true
+        }
+
+        return false
     }
 
     private func completeOnce(_ result: Result<Void, Error>) {

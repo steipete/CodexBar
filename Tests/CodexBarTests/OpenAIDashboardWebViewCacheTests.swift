@@ -168,6 +168,27 @@ struct OpenAIDashboardWebViewCacheTests {
         cache.clearAllForTesting()
     }
 
+    @Test
+    func `Evicted WebView should not be reused on next acquire`() async throws {
+        let cache = OpenAIDashboardWebViewCache()
+        let store = WKWebsiteDataStore.nonPersistent()
+        let url = try #require(URL(string: "about:blank"))
+
+        let lease1 = try await cache.acquire(websiteDataStore: store, usageURL: url, logger: nil)
+        let webView1 = lease1.webView
+        lease1.release()
+
+        cache.evict(websiteDataStore: store)
+
+        let lease2 = try await cache.acquire(websiteDataStore: store, usageURL: url, logger: nil)
+        let webView2 = lease2.webView
+
+        #expect(webView1 !== webView2, "Acquire after eviction should create a fresh WebView")
+
+        lease2.release()
+        cache.clearAllForTesting()
+    }
+
     // MARK: - Busy WebView Tests
 
     @Test

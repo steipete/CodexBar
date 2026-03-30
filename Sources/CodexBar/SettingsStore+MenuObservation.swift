@@ -29,6 +29,7 @@ extension SettingsStore {
         _ = self.showOptionalCreditsAndExtraUsage
         _ = self.openAIWebAccessEnabled
         _ = self.codexUsageDataSource
+        _ = self.codexActiveSource
         _ = self.claudeUsageDataSource
         _ = self.kiloUsageDataSource
         _ = self.kiloExtrasEnabled

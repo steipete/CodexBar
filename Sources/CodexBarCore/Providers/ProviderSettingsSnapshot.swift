@@ -46,15 +46,21 @@ public struct ProviderSettingsSnapshot: Sendable {
         public let usageDataSource: CodexUsageDataSource
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
+        public let managedAccountStoreUnreadable: Bool
+        public let managedAccountTargetUnavailable: Bool
 
         public init(
             usageDataSource: CodexUsageDataSource,
             cookieSource: ProviderCookieSource,
-            manualCookieHeader: String?)
+            manualCookieHeader: String?,
+            managedAccountStoreUnreadable: Bool = false,
+            managedAccountTargetUnavailable: Bool = false)
         {
             self.usageDataSource = usageDataSource
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
+            self.managedAccountStoreUnreadable = managedAccountStoreUnreadable
+            self.managedAccountTargetUnavailable = managedAccountTargetUnavailable
         }
     }
 
