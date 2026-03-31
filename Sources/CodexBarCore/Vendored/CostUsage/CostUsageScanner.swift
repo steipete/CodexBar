@@ -31,17 +31,48 @@ enum CostUsageScanner {
         }
     }
 
-    struct CodexParseResult {
+    private struct CodexRawUsage: Equatable {
+        let input: Int
+        let cached: Int
+        let output: Int
+    }
+
+    private struct CodexUsageEntry: Equatable {
+        let timestamp: String
+        let dayKey: String
+        let model: String
+        let lastUsage: CodexRawUsage?
+        let totalUsage: CodexRawUsage?
+    }
+
+    private struct CodexSessionMeta {
+        let sessionId: String?
+        let forkedFromId: String?
+        let sessionStartTimestamp: String?
+    }
+
+    private struct CodexRawParseResult {
+        let usageEntries: [CodexUsageEntry]
+        let parsedBytes: Int64
+        let lastModel: String?
+        let lastTotals: CostUsageCodexTotals?
+        let sessionId: String?
+        let sessionStartTimestamp: String?
+    }
+
+    private struct CodexParseResult {
         let days: [String: [String: [Int]]]
         let parsedBytes: Int64
         let lastModel: String?
         let lastTotals: CostUsageCodexTotals?
         let sessionId: String?
+        let usageEntries: [CodexUsageEntry]
     }
 
     private struct CodexScanState {
         var seenSessionIds: Set<String> = []
         var seenFileIds: Set<String> = []
+        var rawEntriesBySessionId: [String: [CodexUsageEntry]] = [:]
     }
 
     struct ClaudeParseResult {
@@ -226,32 +257,125 @@ enum CostUsageScanner {
         return String(describing: identifier)
     }
 
-    static func parseCodexFile(
+    private static func codexRawUsage(from raw: [String: Any]?) -> CodexRawUsage? {
+        guard let raw else { return nil }
+
+        func toInt(_ value: Any?) -> Int {
+            if let number = value as? NSNumber { return number.intValue }
+            return 0
+        }
+
+        return CodexRawUsage(
+            input: toInt(raw["input_tokens"]),
+            cached: toInt(raw["cached_input_tokens"] ?? raw["cache_read_input_tokens"]),
+            output: toInt(raw["output_tokens"]))
+    }
+
+    private static func subtractCodexUsage(_ current: CodexRawUsage, previous: CostUsageCodexTotals?) -> CodexRawUsage {
+        CodexRawUsage(
+            input: max(0, current.input - (previous?.input ?? 0)),
+            cached: max(0, current.cached - (previous?.cached ?? 0)),
+            output: max(0, current.output - (previous?.output ?? 0)))
+    }
+
+    private static func codexSessionMeta(from object: [String: Any]) -> CodexSessionMeta {
+        let payload = object["payload"] as? [String: Any]
+        let sessionId = payload?["session_id"] as? String
+            ?? payload?["sessionId"] as? String
+            ?? payload?["id"] as? String
+            ?? object["session_id"] as? String
+            ?? object["sessionId"] as? String
+            ?? object["id"] as? String
+        let forkedFromId = payload?["forked_from_id"] as? String
+            ?? payload?["forkedFromId"] as? String
+            ?? object["forked_from_id"] as? String
+            ?? object["forkedFromId"] as? String
+        let sessionStartTimestamp = payload?["timestamp"] as? String
+            ?? object["timestamp"] as? String
+        return CodexSessionMeta(
+            sessionId: sessionId,
+            forkedFromId: forkedFromId,
+            sessionStartTimestamp: sessionStartTimestamp)
+    }
+
+    private static func scanCodexSessionMeta(fileURL: URL) -> CodexSessionMeta {
+        let maxBytes = 256 * 1024
+        let chunkBytes = 64 * 1024
+
+        guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
+            return CodexSessionMeta(sessionId: nil, forkedFromId: nil, sessionStartTimestamp: nil)
+        }
+        defer { try? handle.close() }
+
+        var buffer = Data()
+        var totalRead = 0
+
+        func parseLine(_ line: Data) -> CodexSessionMeta? {
+            guard !line.isEmpty else { return nil }
+            guard line.containsAscii(#""type":"session_meta""#) else { return nil }
+            guard let object = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] else { return nil }
+            guard (object["type"] as? String) == "session_meta" else { return nil }
+            return Self.codexSessionMeta(from: object)
+        }
+
+        while totalRead < maxBytes {
+            let count = min(chunkBytes, maxBytes - totalRead)
+            guard let chunk = try? handle.read(upToCount: count), !chunk.isEmpty else { break }
+            totalRead += chunk.count
+            buffer.append(chunk)
+
+            while let newlineIndex = buffer.firstIndex(of: 0x0A) {
+                let line = buffer.prefix(upTo: newlineIndex)
+                if let meta = parseLine(Data(line)) {
+                    return meta
+                }
+                buffer.removeSubrange(...newlineIndex)
+            }
+        }
+
+        if let meta = parseLine(buffer) {
+            return meta
+        }
+
+        return CodexSessionMeta(sessionId: nil, forkedFromId: nil, sessionStartTimestamp: nil)
+    }
+
+    private static func codexUsageEntriesMatch(_ lhs: CodexUsageEntry, _ rhs: CodexUsageEntry) -> Bool {
+        lhs.model == rhs.model && lhs.lastUsage == rhs.lastUsage && lhs.totalUsage == rhs.totalUsage
+    }
+
+    private static func inheritedCodexPrefixLength(
+        childEntries: [CodexUsageEntry],
+        parentEntries: [CodexUsageEntry],
+        childSessionStartTimestamp: String?) -> Int
+    {
+        guard !childEntries.isEmpty, !parentEntries.isEmpty else { return 0 }
+
+        var matched = 0
+        while matched < childEntries.count, matched < parentEntries.count {
+            if let childSessionStartTimestamp, parentEntries[matched].timestamp > childSessionStartTimestamp {
+                break
+            }
+            if !Self.codexUsageEntriesMatch(childEntries[matched], parentEntries[matched]) {
+                break
+            }
+            matched += 1
+        }
+        return matched
+    }
+
+    private static func scanCodexRawFile(
         fileURL: URL,
-        range: CostUsageDayRange,
         startOffset: Int64 = 0,
         initialModel: String? = nil,
-        initialTotals: CostUsageCodexTotals? = nil) -> CodexParseResult
+        initialTotals: CostUsageCodexTotals? = nil) -> CodexRawParseResult
     {
         var currentModel = initialModel
-        var previousTotals = initialTotals
+        var lastTotals = initialTotals
         var sessionId: String?
+        var sessionStartTimestamp: String?
 
-        var days: [String: [String: [Int]]] = [:]
-
-        func add(dayKey: String, model: String, input: Int, cached: Int, output: Int) {
-            guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
-            else { return }
-            let normModel = CostUsagePricing.normalizeCodexModel(model)
-
-            var dayModels = days[dayKey] ?? [:]
-            var packed = dayModels[normModel] ?? [0, 0, 0]
-            packed[0] = (packed[safe: 0] ?? 0) + input
-            packed[1] = (packed[safe: 1] ?? 0) + cached
-            packed[2] = (packed[safe: 2] ?? 0) + output
-            dayModels[normModel] = packed
-            days[dayKey] = dayModels
-        }
+        var usageEntries: [CodexUsageEntry] = []
 
         let maxLineBytes = 256 * 1024
         let prefixBytes = 32 * 1024
@@ -282,13 +406,9 @@ enum CostUsageScanner {
 
                 if type == "session_meta" {
                     if sessionId == nil {
-                        let payload = obj["payload"] as? [String: Any]
-                        sessionId = payload?["session_id"] as? String
-                            ?? payload?["sessionId"] as? String
-                            ?? payload?["id"] as? String
-                            ?? obj["session_id"] as? String
-                            ?? obj["sessionId"] as? String
-                            ?? obj["id"] as? String
+                        let meta = Self.codexSessionMeta(from: obj)
+                        sessionId = meta.sessionId
+                        sessionStartTimestamp = meta.sessionStartTimestamp
                     }
                     return
                 }
@@ -317,55 +437,125 @@ enum CostUsageScanner {
                     ?? payload["model"] as? String
                     ?? obj["model"] as? String
                 let model = modelFromInfo ?? currentModel ?? "gpt-5"
+                currentModel = model
 
-                func toInt(_ v: Any?) -> Int {
-                    if let n = v as? NSNumber { return n.intValue }
-                    return 0
-                }
+                let total = Self.codexRawUsage(from: info?["total_token_usage"] as? [String: Any])
+                let last = Self.codexRawUsage(from: info?["last_token_usage"] as? [String: Any])
 
-                let total = (info?["total_token_usage"] as? [String: Any])
-                let last = (info?["last_token_usage"] as? [String: Any])
-
-                var deltaInput = 0
-                var deltaCached = 0
-                var deltaOutput = 0
-
-                if let total {
-                    let input = toInt(total["input_tokens"])
-                    let cached = toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"])
-                    let output = toInt(total["output_tokens"])
-
-                    let prev = previousTotals
-                    deltaInput = max(0, input - (prev?.input ?? 0))
-                    deltaCached = max(0, cached - (prev?.cached ?? 0))
-                    deltaOutput = max(0, output - (prev?.output ?? 0))
-                    previousTotals = CostUsageCodexTotals(input: input, cached: cached, output: output)
-                } else if let last {
-                    deltaInput = max(0, toInt(last["input_tokens"]))
-                    deltaCached = max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"]))
-                    deltaOutput = max(0, toInt(last["output_tokens"]))
-                } else {
+                if total == nil, last == nil {
                     return
                 }
 
-                if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
-                let cachedClamp = min(deltaCached, deltaInput)
-                add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
+                if let total {
+                    lastTotals = CostUsageCodexTotals(input: total.input, cached: total.cached, output: total.output)
+                }
+                usageEntries.append(CodexUsageEntry(
+                    timestamp: tsText,
+                    dayKey: dayKey,
+                    model: model,
+                    lastUsage: last,
+                    totalUsage: total))
             })) ?? startOffset
+
+        return CodexRawParseResult(
+            usageEntries: usageEntries,
+            parsedBytes: parsedBytes,
+            lastModel: currentModel,
+            lastTotals: lastTotals,
+            sessionId: sessionId,
+            sessionStartTimestamp: sessionStartTimestamp)
+    }
+
+    private static func parseCodexFile(
+        fileURL: URL,
+        range: CostUsageDayRange,
+        startOffset: Int64 = 0,
+        initialModel: String? = nil,
+        initialTotals: CostUsageCodexTotals? = nil,
+        parentUsageEntries: [CodexUsageEntry]? = nil) -> CodexParseResult
+    {
+        let raw = Self.scanCodexRawFile(
+            fileURL: fileURL,
+            startOffset: startOffset,
+            initialModel: initialModel,
+            initialTotals: initialTotals)
+        let prefixToSkip = Self.inheritedCodexPrefixLength(
+            childEntries: raw.usageEntries,
+            parentEntries: parentUsageEntries ?? [],
+            childSessionStartTimestamp: raw.sessionStartTimestamp)
+
+        var previousTotals = initialTotals
+        var days: [String: [String: [Int]]] = [:]
+
+        func add(dayKey: String, model: String, input: Int, cached: Int, output: Int) {
+            guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
+            else { return }
+            let normModel = CostUsagePricing.normalizeCodexModel(model)
+
+            var dayModels = days[dayKey] ?? [:]
+            var packed = dayModels[normModel] ?? [0, 0, 0]
+            packed[0] = (packed[safe: 0] ?? 0) + input
+            packed[1] = (packed[safe: 1] ?? 0) + cached
+            packed[2] = (packed[safe: 2] ?? 0) + output
+            dayModels[normModel] = packed
+            days[dayKey] = dayModels
+        }
+
+        for (index, entry) in raw.usageEntries.enumerated() {
+            let skipInheritedPrefix = index < prefixToSkip
+            var delta: CodexRawUsage?
+
+            if let total = entry.totalUsage {
+                if !skipInheritedPrefix {
+                    delta = Self.subtractCodexUsage(total, previous: previousTotals)
+                }
+                previousTotals = CostUsageCodexTotals(input: total.input, cached: total.cached, output: total.output)
+            } else if let last = entry.lastUsage, !skipInheritedPrefix {
+                delta = last
+            }
+
+            guard let delta else { continue }
+            if delta.input == 0, delta.cached == 0, delta.output == 0 { continue }
+            add(
+                dayKey: entry.dayKey,
+                model: entry.model,
+                input: delta.input,
+                cached: min(delta.cached, delta.input),
+                output: delta.output)
+        }
 
         return CodexParseResult(
             days: days,
-            parsedBytes: parsedBytes,
-            lastModel: currentModel,
-            lastTotals: previousTotals,
-            sessionId: sessionId)
+            parsedBytes: raw.parsedBytes,
+            lastModel: raw.lastModel,
+            lastTotals: previousTotals ?? raw.lastTotals,
+            sessionId: raw.sessionId,
+            usageEntries: raw.usageEntries)
+    }
+
+    private static func loadParentUsageEntries(
+        childMeta: CodexSessionMeta?,
+        state: inout CodexScanState,
+        sessionFilesById: [String: URL]) -> [CodexUsageEntry]?
+    {
+        guard let parentSessionId = childMeta?.forkedFromId else { return nil }
+        if let cached = state.rawEntriesBySessionId[parentSessionId] {
+            return cached
+        }
+        guard let parentFileURL = sessionFilesById[parentSessionId] else { return nil }
+        let parentRaw = Self.scanCodexRawFile(fileURL: parentFileURL)
+        let cacheKey = parentRaw.sessionId ?? parentSessionId
+        state.rawEntriesBySessionId[cacheKey] = parentRaw.usageEntries
+        return parentRaw.usageEntries
     }
 
     private static func scanCodexFile(
         fileURL: URL,
         range: CostUsageDayRange,
         cache: inout CostUsageCache,
-        state: inout CodexScanState)
+        state: inout CodexScanState,
+        sessionMetaByPath: [String: CodexSessionMeta],
+        sessionFilesById: [String: URL])
     {
         let path = fileURL.path
         let attrs = (try? FileManager.default.attributesOfItem(atPath: path)) ?? [:]
@@ -452,7 +642,15 @@ enum CostUsageScanner {
             Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
         }
 
-        let parsed = Self.parseCodexFile(fileURL: fileURL, range: range)
+        let childMeta = sessionMetaByPath[path]
+        let parentUsageEntries = Self.loadParentUsageEntries(
+            childMeta: childMeta,
+            state: &state,
+            sessionFilesById: sessionFilesById)
+        let parsed = Self.parseCodexFile(
+            fileURL: fileURL,
+            range: range,
+            parentUsageEntries: parentUsageEntries)
         let sessionId = parsed.sessionId ?? cached?.sessionId
         if let sessionId, state.seenSessionIds.contains(sessionId) {
             cache.files.removeValue(forKey: path)
@@ -471,6 +669,7 @@ enum CostUsageScanner {
         Self.applyFileDays(cache: &cache, fileDays: usage.days, sign: 1)
         if let sessionId {
             state.seenSessionIds.insert(sessionId)
+            state.rawEntriesBySessionId[sessionId] = parsed.usageEntries
         }
         if let fileId {
             state.seenFileIds.insert(fileId)
@@ -503,13 +702,29 @@ enum CostUsageScanner {
             if options.forceRescan {
                 cache = CostUsageCache()
             }
+
+            var sessionMetaByPath: [String: CodexSessionMeta] = [:]
+            var sessionFilesById: [String: URL] = [:]
+            for fileURL in files {
+                let path = fileURL.path
+                let meta = Self.scanCodexSessionMeta(fileURL: fileURL)
+                sessionMetaByPath[path] = meta
+                if let sessionId = meta.sessionId, sessionFilesById[sessionId] == nil {
+                    sessionFilesById[sessionId] = fileURL
+                } else if let cachedSessionId = cache.files[path]?.sessionId, sessionFilesById[cachedSessionId] == nil {
+                    sessionFilesById[cachedSessionId] = fileURL
+                }
+            }
+
             var scanState = CodexScanState()
             for fileURL in files {
                 Self.scanCodexFile(
                     fileURL: fileURL,
                     range: range,
                     cache: &cache,
-                    state: &scanState)
+                    state: &scanState,
+                    sessionMetaByPath: sessionMetaByPath,
+                    sessionFilesById: sessionFilesById)
             }
 
             for key in cache.files.keys where !filePathsInScan.contains(key) {
