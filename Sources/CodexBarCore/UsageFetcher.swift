@@ -23,17 +23,20 @@ public struct ProviderIdentitySnapshot: Codable, Sendable {
     public let providerID: UsageProvider?
     public let accountEmail: String?
     public let accountOrganization: String?
+    public let accountWorkspaceID: String?
     public let loginMethod: String?
 
     public init(
         providerID: UsageProvider?,
         accountEmail: String?,
         accountOrganization: String?,
+        accountWorkspaceID: String? = nil,
         loginMethod: String?)
     {
         self.providerID = providerID
         self.accountEmail = accountEmail
         self.accountOrganization = accountOrganization
+        self.accountWorkspaceID = accountWorkspaceID?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.loginMethod = loginMethod
     }
 
@@ -43,6 +46,7 @@ public struct ProviderIdentitySnapshot: Codable, Sendable {
             providerID: provider,
             accountEmail: self.accountEmail,
             accountOrganization: self.accountOrganization,
+            accountWorkspaceID: self.accountWorkspaceID,
             loginMethod: self.loginMethod)
     }
 }
@@ -69,6 +73,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case identity
         case accountEmail
         case accountOrganization
+        case accountWorkspaceID
         case loginMethod
     }
 
@@ -112,12 +117,14 @@ public struct UsageSnapshot: Codable, Sendable {
         } else {
             let email = try container.decodeIfPresent(String.self, forKey: .accountEmail)
             let organization = try container.decodeIfPresent(String.self, forKey: .accountOrganization)
+            let workspaceID = try container.decodeIfPresent(String.self, forKey: .accountWorkspaceID)
             let loginMethod = try container.decodeIfPresent(String.self, forKey: .loginMethod)
-            if email != nil || organization != nil || loginMethod != nil {
+            if email != nil || organization != nil || workspaceID != nil || loginMethod != nil {
                 self.identity = ProviderIdentitySnapshot(
                     providerID: nil,
                     accountEmail: email,
                     accountOrganization: organization,
+                    accountWorkspaceID: workspaceID,
                     loginMethod: loginMethod)
             } else {
                 self.identity = nil
@@ -137,6 +144,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.identity, forKey: .identity)
         try container.encodeIfPresent(self.identity?.accountEmail, forKey: .accountEmail)
         try container.encodeIfPresent(self.identity?.accountOrganization, forKey: .accountOrganization)
+        try container.encodeIfPresent(self.identity?.accountWorkspaceID, forKey: .accountWorkspaceID)
         try container.encodeIfPresent(self.identity?.loginMethod, forKey: .loginMethod)
     }
 
@@ -205,6 +213,10 @@ public struct UsageSnapshot: Codable, Sendable {
         self.identity(for: provider)?.accountOrganization
     }
 
+    public func accountWorkspaceID(for provider: UsageProvider) -> String? {
+        self.identity(for: provider)?.accountWorkspaceID
+    }
+
     public func loginMethod(for provider: UsageProvider) -> String? {
         self.identity(for: provider)?.loginMethod
     }
@@ -242,10 +254,22 @@ public struct UsageSnapshot: Codable, Sendable {
 public struct AccountInfo: Equatable, Sendable {
     public let email: String?
     public let plan: String?
+    public let workspaceLabel: String?
+    public let workspaceAccountID: String?
 
-    public init(email: String?, plan: String?) {
+    public init(
+        email: String?,
+        plan: String?,
+        workspaceLabel: String? = nil,
+        workspaceAccountID: String? = nil)
+    {
         self.email = email
         self.plan = plan
+        self.workspaceLabel = workspaceLabel?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        self.workspaceAccountID = workspaceAccountID?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 }
 
@@ -685,8 +709,26 @@ public struct UsageFetcher: Sendable {
 
         let email = (payload["email"] as? String)
             ?? (profileDict?["email"] as? String)
+        let workspaceAccountID = credentials.accountId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let workspaceLabel = CodexOpenAIWorkspaceIdentityCache().workspaceLabel(for: workspaceAccountID)
+            ?? Self.resolveOpenAIWorkspaceLabel(authPayload: authDict)
 
-        return AccountInfo(email: email, plan: plan)
+        return AccountInfo(
+            email: email,
+            plan: plan,
+            workspaceLabel: workspaceLabel,
+            workspaceAccountID: workspaceAccountID)
+    }
+
+    private static func resolveOpenAIWorkspaceLabel(authPayload: [String: Any]?) -> String? {
+        guard let organizations = authPayload?["organizations"] as? [[String: Any]], !organizations.isEmpty else {
+            return nil
+        }
+
+        let selected = organizations.first(where: { ($0["is_default"] as? Bool) == true }) ?? organizations.first
+        let title = (selected?["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let title, !title.isEmpty else { return nil }
+        return title
     }
 
     // MARK: - Helpers

@@ -291,6 +291,7 @@ struct CodexAccountReconciliationTests {
         let accounts = ManagedCodexAccountSet(version: 1, accounts: [stored])
         let live = ObservedSystemCodexAccount(
             email: "USER@example.com",
+            workspaceLabel: nil,
             codexHomePath: "/Users/test/.codex",
             observedAt: Date())
         let reconciler = DefaultCodexAccountReconciler(
@@ -303,6 +304,68 @@ struct CodexAccountReconciliationTests {
         #expect(projection.visibleAccounts.count == 1)
         #expect(projection.activeVisibleAccountID == "user@example.com")
         #expect(projection.liveVisibleAccountID == "user@example.com")
+    }
+
+    @Test
+    func `same email different workspace remains as separate visible accounts`() {
+        let stored = ManagedCodexAccount(
+            id: UUID(),
+            email: "user@example.com",
+            workspaceLabel: "Team Alpha",
+            managedHomePath: "/tmp/managed-a",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let accounts = ManagedCodexAccountSet(version: 1, accounts: [stored])
+        let live = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            workspaceLabel: "Personal",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        let reconciler = DefaultCodexAccountReconciler(
+            storeLoader: { accounts },
+            systemObserver: StubSystemObserver(account: live),
+            activeSource: .managedAccount(id: stored.id))
+
+        let projection = reconciler.loadVisibleAccounts(environment: [:])
+
+        #expect(projection.visibleAccounts.count == 2)
+        #expect(Set(projection.visibleAccounts.map(\.displayName)) == [
+            "user@example.com — Personal",
+            "user@example.com — Team Alpha",
+        ])
+    }
+
+    @Test
+    func `same email same label different workspace account ids remain separate visible accounts`() {
+        let stored = ManagedCodexAccount(
+            id: UUID(),
+            email: "user@example.com",
+            workspaceLabel: "Shared Team",
+            workspaceAccountID: "team-a",
+            managedHomePath: "/tmp/managed-a",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let accounts = ManagedCodexAccountSet(version: 1, accounts: [stored])
+        let live = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            workspaceLabel: "Shared Team",
+            workspaceAccountID: "team-b",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        let reconciler = DefaultCodexAccountReconciler(
+            storeLoader: { accounts },
+            systemObserver: StubSystemObserver(account: live),
+            activeSource: .managedAccount(id: stored.id))
+
+        let projection = reconciler.loadVisibleAccounts(environment: [:])
+
+        #expect(projection.visibleAccounts.count == 2)
+        #expect(Set(projection.visibleAccounts.map(\.id)) == [
+            "user@example.com\naccount:team-a",
+            "user@example.com\naccount:team-b",
+        ])
     }
 
     @Test

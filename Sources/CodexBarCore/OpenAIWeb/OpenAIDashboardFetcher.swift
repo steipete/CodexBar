@@ -69,11 +69,16 @@ public struct OpenAIDashboardFetcher {
 
     public func loadLatestDashboard(
         accountEmail: String?,
+        workspaceAccountID: String? = nil,
+        workspaceLabel: String? = nil,
         logger: ((String) -> Void)? = nil,
         debugDumpHTML: Bool = false,
         timeout: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot
     {
-        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail)
+        let store = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: accountEmail,
+            workspaceAccountID: workspaceAccountID,
+            workspaceLabel: workspaceLabel)
         return try await self.loadLatestDashboard(
             websiteDataStore: store,
             logger: logger,
@@ -274,10 +279,20 @@ public struct OpenAIDashboardFetcher {
         return false
     }
 
-    public func clearSessionData(accountEmail: String?) async {
-        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail)
+    public func clearSessionData(
+        accountEmail: String?,
+        workspaceAccountID: String? = nil,
+        workspaceLabel: String? = nil) async
+    {
+        let store = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: accountEmail,
+            workspaceAccountID: workspaceAccountID,
+            workspaceLabel: workspaceLabel)
         OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: store)
-        await OpenAIDashboardWebsiteDataStore.clearStore(forAccountEmail: accountEmail)
+        await OpenAIDashboardWebsiteDataStore.clearStore(
+            forAccountEmail: accountEmail,
+            workspaceAccountID: workspaceAccountID,
+            workspaceLabel: workspaceLabel)
     }
 
     public func probeUsagePage(
@@ -505,6 +520,8 @@ public struct OpenAIDashboardFetcher {
 
     public func loadLatestDashboard(
         accountEmail _: String?,
+        workspaceAccountID _: String? = nil,
+        workspaceLabel _: String? = nil,
         logger _: ((String) -> Void)? = nil,
         debugDumpHTML _: Bool = false,
         timeout _: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot

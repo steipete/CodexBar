@@ -164,6 +164,49 @@ struct StatusMenuCodexSwitcherTests {
     }
 
     @Test
+    func `codex switcher compacts same email pills while preserving email and workspace`() {
+        let accounts = [
+            CodexVisibleAccount(
+                id: "pl.fr@yandex.com\naccount:personal",
+                email: "pl.fr@yandex.com",
+                workspaceLabel: "Personal",
+                storedAccountID: nil,
+                selectionSource: .liveSystem,
+                isActive: true,
+                isLive: true,
+                canReauthenticate: true,
+                canRemove: false),
+            CodexVisibleAccount(
+                id: "pl.fr@yandex.com\naccount:idconcepts",
+                email: "pl.fr@yandex.com",
+                workspaceLabel: "IDconcepts",
+                storedAccountID: nil,
+                selectionSource: .managedAccount(id: UUID()),
+                isActive: false,
+                isLive: false,
+                canReauthenticate: true,
+                canRemove: true),
+        ]
+
+        let view = CodexAccountSwitcherView(
+            accounts: accounts,
+            selectedAccountID: accounts.first?.id,
+            width: 220,
+            onSelect: { _ in })
+
+        let titles = view._test_buttonTitles()
+        let toolTips = view._test_buttonToolTips()
+
+        #expect(titles.count == 2)
+        #expect(titles[0] != titles[1])
+        #expect(titles.allSatisfy { $0.contains("|") })
+        #expect(titles.allSatisfy { $0.lowercased().contains("pl.") })
+        #expect(titles[0].lowercased().contains("pers"))
+        #expect(titles[1].lowercased().contains("id"))
+        #expect(toolTips == accounts.map(\.displayName))
+    }
+
+    @Test
     func `codex menu switcher selection activates the visible managed account`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()

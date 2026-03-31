@@ -42,7 +42,10 @@ extension UsageStore {
     {
         guard self.shouldApplyOpenAIDashboardRefreshTask(token: refreshTaskToken) else { return }
         let resolvedAccountEmail = targetEmail ?? dash.signedInEmail
-        let resolvedAccountKey = Self.normalizeCodexAccountScopedKey(resolvedAccountEmail)
+        let resolvedAccountKey = Self.normalizeCodexAccountScopedKey(
+            email: resolvedAccountEmail,
+            workspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+            workspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard())
         if let expectedGuard,
            !self.shouldApplyOpenAIDashboardResult(
                expectedGuard: expectedGuard,
@@ -74,7 +77,10 @@ extension UsageStore {
                 self.lastCreditsError = nil
                 self.creditsFailureStreak = 0
             }
-            self.seedCodexAccountScopedRefreshGuard(accountEmail: resolvedAccountEmail)
+            self.seedCodexAccountScopedRefreshGuard(
+                accountEmail: resolvedAccountEmail,
+                workspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+                workspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard())
         }
 
         if let email = targetEmail, !email.isEmpty {
@@ -549,7 +555,12 @@ extension UsageStore {
         expectedGuard: CodexAccountScopedRefreshGuard?) -> String
     {
         let source = String(describing: expectedGuard?.source ?? self.settings.codexResolvedActiveSource)
-        let accountKey = Self.normalizeCodexAccountScopedKey(targetEmail ?? expectedGuard?.accountKey) ?? "unknown"
+        let accountKey = Self.normalizeCodexAccountScopedKey(
+            email: targetEmail,
+            workspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+            workspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard())
+            ?? expectedGuard?.accountKey
+            ?? "unknown"
         return "\(source)|\(accountKey)"
     }
 
@@ -643,6 +654,8 @@ extension UsageStore {
         }
         return try await OpenAIDashboardFetcher().loadLatestDashboard(
             accountEmail: accountEmail,
+            workspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+            workspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard(),
             logger: logger,
             debugDumpHTML: timeout != Self.openAIWebPrimaryFetchTimeout,
             timeout: timeout)
@@ -761,12 +774,16 @@ extension UsageStore {
                     result = try await importer.importManualCookies(
                         cookieHeader: manualHeader,
                         intoAccountEmail: normalizedTarget,
+                        intoWorkspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+                        intoWorkspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard(),
                         allowAnyAccount: allowAnyAccount,
                         cacheScope: cacheScope,
                         logger: log)
                 case .auto:
                     result = try await importer.importBestCookies(
                         intoAccountEmail: normalizedTarget,
+                        intoWorkspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+                        intoWorkspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard(),
                         allowAnyAccount: allowAnyAccount,
                         cacheScope: cacheScope,
                         logger: log)

@@ -153,6 +153,44 @@ func `FileManagedCodexAccountStore drops duplicate canonical emails on load`() t
 }
 
 @Test
+func `FileManagedCodexAccountStore keeps same email accounts when workspace differs`() throws {
+    let tempDir = FileManager.default.temporaryDirectory
+    let fileURL = tempDir.appendingPathComponent("codexbar-managed-codex-accounts-workspace-identity-test.json")
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let personalID = UUID()
+    let teamID = UUID()
+    let payload = ManagedCodexAccountSet(
+        version: 1,
+        accounts: [
+            ManagedCodexAccount(
+                id: personalID,
+                email: "same@example.com",
+                workspaceLabel: "Personal",
+                managedHomePath: "/tmp/managed-home-1",
+                createdAt: 10,
+                updatedAt: 20,
+                lastAuthenticatedAt: nil),
+            ManagedCodexAccount(
+                id: teamID,
+                email: "same@example.com",
+                workspaceLabel: "Team Alpha",
+                managedHomePath: "/tmp/managed-home-2",
+                createdAt: 30,
+                updatedAt: 40,
+                lastAuthenticatedAt: nil),
+        ])
+    let store = FileManagedCodexAccountStore(fileURL: fileURL)
+
+    try store.storeAccounts(payload)
+    let loaded = try store.loadAccounts()
+
+    #expect(loaded.accounts.count == 2)
+    #expect(loaded.account(email: "same@example.com", workspaceLabel: "personal")?.id == personalID)
+    #expect(loaded.account(email: "same@example.com", workspaceLabel: "team alpha")?.id == teamID)
+}
+
+@Test
 func `FileManagedCodexAccountStore drops duplicate IDs on load`() throws {
     let tempDir = FileManager.default.temporaryDirectory
     let fileURL = tempDir.appendingPathComponent("codexbar-managed-codex-accounts-duplicate-id-test.json")

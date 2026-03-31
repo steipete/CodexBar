@@ -44,25 +44,74 @@ struct CodexSystemAccountObserverTests {
         #expect(observed.observedAt >= before)
     }
 
-    private static func writeCodexAuthFile(homeURL: URL, email: String, plan: String) throws {
+    @Test
+    func `observer prefers cached authoritative workspace label over weak jwt label`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let cacheURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: home)
+            try? FileManager.default.removeItem(at: cacheURL)
+        }
+
+        try Self.writeCodexAuthFile(
+            homeURL: home,
+            email: "user@example.com",
+            plan: "team",
+            accountId: "TEAM-123",
+            workspaceTitle: "Personal")
+
+        try CodexOpenAIWorkspaceIdentityCache.withFileURLOverrideForTesting(cacheURL) {
+            try CodexOpenAIWorkspaceIdentityCache().store(
+                CodexOpenAIWorkspaceIdentity(
+                    workspaceAccountID: "team-123",
+                    workspaceLabel: "IDconcepts"))
+
+            let observer = DefaultCodexSystemAccountObserver()
+            let account = try observer.loadSystemAccount(environment: ["CODEX_HOME": home.path])
+
+            #expect(account?.workspaceAccountID == "team-123")
+            #expect(account?.workspaceLabel == "IDconcepts")
+        }
+    }
+
+    private static func writeCodexAuthFile(
+        homeURL: URL,
+        email: String,
+        plan: String,
+        accountId: String? = nil,
+        workspaceTitle: String? = nil) throws
+    {
         try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
-        let auth = [
-            "tokens": [
-                "accessToken": "access-token",
-                "refreshToken": "refresh-token",
-                "idToken": Self.fakeJWT(email: email, plan: plan),
-            ],
+        var tokens: [String: Any] = [
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "idToken": Self.fakeJWT(email: email, plan: plan, workspaceTitle: workspaceTitle),
         ]
+        if let accountId {
+            tokens["account_id"] = accountId
+        }
+        let auth = ["tokens": tokens]
         let data = try JSONSerialization.data(withJSONObject: auth)
         try data.write(to: homeURL.appendingPathComponent("auth.json"))
     }
 
-    private static func fakeJWT(email: String, plan: String) -> String {
+    private static func fakeJWT(email: String, plan: String, workspaceTitle: String? = nil) -> String {
         let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
-        let payload = (try? JSONSerialization.data(withJSONObject: [
+        var payload: [String: Any] = [
             "email": email,
             "chatgpt_plan_type": plan,
-        ])) ?? Data()
+        ]
+        if let workspaceTitle {
+            payload["https://api.openai.com/auth"] = [
+                "organizations": [
+                    [
+                        "title": workspaceTitle,
+                        "is_default": true,
+                    ],
+                ],
+            ]
+        }
+        let payloadData = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
 
         func base64URL(_ data: Data) -> String {
             data.base64EncodedString()
@@ -71,6 +120,6 @@ struct CodexSystemAccountObserverTests {
                 .replacingOccurrences(of: "/", with: "_")
         }
 
-        return "\(base64URL(header)).\(base64URL(payload))."
+        return "\(base64URL(header)).\(base64URL(payloadData))."
     }
 }
