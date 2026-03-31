@@ -79,7 +79,9 @@ public enum AlibabaCodingPlanAPIRegion: String, CaseIterable, Sendable {
         case .international:
             "https://bailian-singapore-cs.alibabacloud.com"
         case .chinaMainland:
-            "https://bailian-beijing-cs.aliyuncs.com"
+            // bailian-beijing-cs.aliyuncs.com and other *-cs.aliyuncs.com endpoints have SSL issues
+            // Use main console domain instead which has working SSL
+            "https://bailian.console.aliyun.com"
         }
     }
 
