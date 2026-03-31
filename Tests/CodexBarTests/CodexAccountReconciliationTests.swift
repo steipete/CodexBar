@@ -400,6 +400,43 @@ struct CodexAccountReconciliationTests {
     }
 
     @Test
+    func `matching live system account prefers live authoritative workspace label`() throws {
+        let workspaceAccountID = "team-123"
+        let stored = ManagedCodexAccount(
+            id: UUID(),
+            email: "user@example.com",
+            workspaceLabel: "Personal",
+            workspaceAccountID: workspaceAccountID,
+            managedHomePath: "/tmp/managed-a",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let live = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            workspaceLabel: "Team Alpha",
+            workspaceAccountID: workspaceAccountID,
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        let snapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [stored],
+            activeStoredAccount: stored,
+            liveSystemAccount: live,
+            matchingStoredAccountForLiveSystemAccount: stored,
+            activeSource: .managedAccount(id: stored.id),
+            hasUnreadableAddedAccountStore: false)
+
+        let projection = CodexVisibleAccountProjection.make(from: snapshot)
+        let visible = try #require(projection.visibleAccounts.first)
+
+        #expect(projection.visibleAccounts.count == 1)
+        #expect(visible.id == "user@example.com\naccount:team-123")
+        #expect(visible.workspaceLabel == "Team Alpha")
+        #expect(visible.displayName == "user@example.com — Team Alpha")
+        #expect(visible.selectionSource == .liveSystem)
+        #expect(visible.isLive)
+    }
+
+    @Test
     func `missing managed source resolves to live system when live account exists`() {
         let live = ObservedSystemCodexAccount(
             email: "live@example.com",

@@ -213,7 +213,7 @@ extension CodexVisibleAccountProjection {
                 visibleByID[visibleID] = CodexVisibleAccount(
                     id: existing.id,
                     email: existing.email,
-                    workspaceLabel: existing.workspaceLabel,
+                    workspaceLabel: workspaceLabel ?? existing.workspaceLabel,
                     storedAccountID: existing.storedAccountID,
                     selectionSource: .liveSystem,
                     isActive: existing.isActive,
