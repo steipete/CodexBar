@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import Testing
@@ -23,6 +24,14 @@ struct StatusMenuCodexSwitcherTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
     }
 
+    private func makeStatusBarForTesting() -> NSStatusBar {
+        let env = ProcessInfo.processInfo.environment
+        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
+            return .system
+        }
+        return NSStatusBar()
+    }
+
     private func enableOnlyCodex(_ settings: SettingsStore) {
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
@@ -44,6 +53,17 @@ struct StatusMenuCodexSwitcherTests {
         descriptor.sections.flatMap(\.entries).compactMap { entry in
             guard case let .action(label, _) = entry else { return nil }
             return label
+        }
+    }
+
+    private func descendantButtons(in view: NSView) -> [NSButton] {
+        view.subviews.flatMap { subview in
+            var buttons: [NSButton] = []
+            if let button = subview as? NSButton {
+                buttons.append(button)
+            }
+            buttons.append(contentsOf: self.descendantButtons(in: subview))
+            return buttons
         }
     }
 
@@ -346,6 +366,73 @@ struct StatusMenuCodexSwitcherTests {
 
         #expect(state.hasUnreadableManagedAccountStore)
         #expect(state.canAddAccount == false)
+    }
+
+    @Test
+    func `codex menu shows local profile switcher and selecting profile updates displayed profile`() async throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.costUsageEnabled = false
+        settings.codexCookieSource = .off
+        self.enableOnlyCodex(settings)
+
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "plus-a@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        defer {
+            settings._test_liveSystemCodexAccount = nil
+            settings._test_codexProfiles = nil
+        }
+
+        let profiles = [
+            DiscoveredCodexProfile(
+                alias: "plus-a",
+                fileURL: URL(fileURLWithPath: "/tmp/codex-profile-plus-a.json"),
+                accountEmail: "plus-a@example.com",
+                accountID: "acct-a",
+                plan: "plus",
+                isActiveInCodex: true),
+            DiscoveredCodexProfile(
+                alias: "plus-b",
+                fileURL: URL(fileURLWithPath: "/tmp/codex-profile-plus-b.json"),
+                accountEmail: "plus-b@example.com",
+                accountID: "acct-b",
+                plan: "plus",
+                isActiveInCodex: false),
+        ]
+        settings._test_codexProfiles = profiles
+        settings.selectCodexProfile(path: profiles[0].fileURL.path)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        let switcherView = try #require(menu.items.compactMap { $0.view as? CodexProfileSwitcherView }.first)
+        let buttons = self.descendantButtons(in: switcherView)
+        #expect(buttons.map(\.title) == ["plus-a", "plus-b"])
+
+        let plusBButton = try #require(buttons.first(where: { $0.title == "plus-b" }))
+        plusBButton.performClick(nil)
+
+        for _ in 0..<10 where settings.selectedCodexProfile()?.alias != "plus-b" {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+
+        #expect(settings.codexActiveSource == .liveSystem)
+        #expect(settings.selectedCodexProfile()?.alias == "plus-b")
     }
 
     @Test

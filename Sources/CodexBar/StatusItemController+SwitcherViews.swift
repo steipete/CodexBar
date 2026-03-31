@@ -1002,3 +1002,111 @@ final class CodexAccountSwitcherView: NSView {
         self.onSelect(accountID)
     }
 }
+
+final class CodexProfileSwitcherView: NSView {
+    private let profiles: [DiscoveredCodexProfile]
+    private let onSelect: (String) -> Void
+    private var selectedProfilePath: String
+    private var buttons: [NSButton] = []
+    private let rowSpacing: CGFloat = 4
+    private let rowHeight: CGFloat = 26
+    private let selectedBackground = NSColor.controlAccentColor.cgColor
+    private let unselectedBackground = NSColor.clear.cgColor
+    private let selectedTextColor = NSColor.white
+    private let unselectedTextColor = NSColor.secondaryLabelColor
+
+    init(
+        profiles: [DiscoveredCodexProfile],
+        selectedProfilePath: String?,
+        width: CGFloat,
+        onSelect: @escaping (String) -> Void)
+    {
+        self.profiles = profiles
+        self.onSelect = onSelect
+        self.selectedProfilePath = selectedProfilePath ?? profiles.first?.fileURL.standardizedFileURL.path ?? ""
+        let useTwoRows = profiles.count > 3
+        let rows = useTwoRows ? 2 : 1
+        let height = self.rowHeight * CGFloat(rows) + (useTwoRows ? self.rowSpacing : 0)
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        self.wantsLayer = true
+        self.buildButtons(useTwoRows: useTwoRows)
+        self.updateButtonStyles()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    private func buildButtons(useTwoRows: Bool) {
+        let perRow = useTwoRows ? Int(ceil(Double(self.profiles.count) / 2.0)) : self.profiles.count
+        let rows: [[DiscoveredCodexProfile]] = {
+            if !useTwoRows { return [self.profiles] }
+            let first = Array(self.profiles.prefix(perRow))
+            let second = Array(self.profiles.dropFirst(perRow))
+            return [first, second]
+        }()
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = self.rowSpacing
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        for rowProfiles in rows {
+            let row = NSStackView()
+            row.orientation = .horizontal
+            row.alignment = .centerY
+            row.distribution = .fillEqually
+            row.spacing = self.rowSpacing
+            row.translatesAutoresizingMaskIntoConstraints = false
+
+            for profile in rowProfiles {
+                let button = PaddedToggleButton(
+                    title: profile.alias,
+                    target: self,
+                    action: #selector(self.handleSelect))
+                let path = profile.fileURL.standardizedFileURL.path
+                button.identifier = NSUserInterfaceItemIdentifier(path)
+                button.toolTip = path
+                button.isBordered = false
+                button.setButtonType(.toggle)
+                button.controlSize = .small
+                button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+                button.wantsLayer = true
+                button.layer?.cornerRadius = 6
+                row.addArrangedSubview(button)
+                self.buttons.append(button)
+            }
+
+            stack.addArrangedSubview(row)
+        }
+
+        self.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 6),
+            stack.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -6),
+            stack.topAnchor.constraint(equalTo: self.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: self.bottomAnchor),
+            stack.heightAnchor.constraint(equalToConstant: self.rowHeight * CGFloat(rows.count) +
+                (useTwoRows ? self.rowSpacing : 0)),
+        ])
+    }
+
+    private func updateButtonStyles() {
+        for button in self.buttons {
+            let selected = button.identifier?.rawValue == self.selectedProfilePath
+            button.state = selected ? .on : .off
+            button.layer?.backgroundColor = selected ? self.selectedBackground : self.unselectedBackground
+            button.contentTintColor = selected ? self.selectedTextColor : self.unselectedTextColor
+        }
+    }
+
+    @objc private func handleSelect(_ sender: NSButton) {
+        guard let profilePath = sender.identifier?.rawValue else { return }
+        guard self.profiles.contains(where: { $0.fileURL.standardizedFileURL.path == profilePath }) else { return }
+        self.selectedProfilePath = profilePath
+        self.updateButtonStyles()
+        self.onSelect(profilePath)
+    }
+}

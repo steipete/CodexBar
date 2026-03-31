@@ -68,6 +68,11 @@ extension StatusItemController {
         let activeVisibleAccountID: String?
     }
 
+    private struct CodexProfileMenuDisplay {
+        let profiles: [DiscoveredCodexProfile]
+        let selectedProfilePath: String?
+    }
+
     private func menuCardWidth(for providers: [UsageProvider], menu: NSMenu? = nil) -> CGFloat {
         _ = menu
         return Self.menuCardBaseWidth
@@ -168,6 +173,7 @@ extension StatusItemController {
         let menuWidth = self.menuCardWidth(for: enabledProviders, menu: menu)
         let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
         let codexAccountDisplay = isOverviewSelected ? nil : self.codexAccountMenuDisplay(for: currentProvider)
+        let codexProfileDisplay = isOverviewSelected ? nil : self.codexProfileMenuDisplay(for: currentProvider)
         let tokenAccountDisplay = isOverviewSelected ? nil : self.tokenAccountMenuDisplay(for: currentProvider)
         let showAllTokenAccounts = tokenAccountDisplay?.showAll ?? false
         let openAIContext = self.openAIWebContext(
@@ -175,7 +181,9 @@ extension StatusItemController {
             showAllTokenAccounts: showAllTokenAccounts)
 
         let hasAuxiliarySwitcher = menu.items.contains {
-            $0.view is TokenAccountSwitcherView || $0.view is CodexAccountSwitcherView
+            $0.view is TokenAccountSwitcherView ||
+                $0.view is CodexAccountSwitcherView ||
+                $0.view is CodexProfileSwitcherView
         }
         let switcherProvidersMatch = enabledProviders == self.lastSwitcherProviders
         let switcherUsageBarsShowUsedMatch = self.settings.usageBarsShowUsed == self.lastSwitcherUsageBarsShowUsed
@@ -189,6 +197,7 @@ extension StatusItemController {
             switcherSelectionMatches &&
             switcherOverviewAvailabilityMatches &&
             codexAccountDisplay == nil &&
+            codexProfileDisplay == nil &&
             tokenAccountDisplay == nil &&
             !hasAuxiliarySwitcher &&
             !menu.items.isEmpty &&
@@ -227,6 +236,7 @@ extension StatusItemController {
             self.lastSwitcherIncludesOverview = includesOverview
         }
         self.addCodexAccountSwitcherIfNeeded(to: menu, display: codexAccountDisplay)
+        self.addCodexProfileSwitcherIfNeeded(to: menu, display: codexProfileDisplay)
         self.addTokenAccountSwitcherIfNeeded(to: menu, display: tokenAccountDisplay)
         let menuContext = MenuCardContext(
             currentProvider: currentProvider,
@@ -372,6 +382,13 @@ extension StatusItemController {
     private func addCodexAccountSwitcherIfNeeded(to menu: NSMenu, display: CodexAccountMenuDisplay?) {
         guard let display else { return }
         let switcherItem = self.makeCodexAccountSwitcherItem(display: display, menu: menu)
+        menu.addItem(switcherItem)
+        menu.addItem(.separator())
+    }
+
+    private func addCodexProfileSwitcherIfNeeded(to menu: NSMenu, display: CodexProfileMenuDisplay?) {
+        guard let display else { return }
+        let switcherItem = self.makeCodexProfileSwitcherItem(display: display, menu: menu)
         menu.addItem(switcherItem)
         menu.addItem(.separator())
     }
@@ -707,6 +724,24 @@ extension StatusItemController {
         return item
     }
 
+    private func makeCodexProfileSwitcherItem(
+        display: CodexProfileMenuDisplay,
+        menu: NSMenu) -> NSMenuItem
+    {
+        let view = CodexProfileSwitcherView(
+            profiles: display.profiles,
+            selectedProfilePath: display.selectedProfilePath,
+            width: self.menuCardWidth(for: self.store.enabledProvidersForDisplay(), menu: menu),
+            onSelect: { [weak self, weak menu] profilePath in
+                guard let self else { return }
+                self.handleCodexProfileSelection(profilePath, menu: menu)
+            })
+        let item = NSMenuItem()
+        item.view = view
+        item.isEnabled = false
+        return item
+    }
+
     @discardableResult
     private func handleCodexVisibleAccountSelection(_ visibleAccountID: String, menu: NSMenu?) -> Bool {
         guard self.settings.selectCodexVisibleAccount(id: visibleAccountID) else { return false }
@@ -780,6 +815,56 @@ extension StatusItemController {
         return CodexAccountMenuDisplay(
             accounts: projection.visibleAccounts,
             activeVisibleAccountID: projection.activeVisibleAccountID)
+    }
+
+    private func codexProfileMenuDisplay(for provider: UsageProvider) -> CodexProfileMenuDisplay? {
+        guard provider == .codex else { return nil }
+        guard case .liveSystem = self.settings.codexResolvedActiveSource else { return nil }
+        let profiles = self.settings.codexProfiles()
+        guard profiles.count > 1 else { return nil }
+        let defaultAuthPath = CodexOAuthCredentialsStore.authFilePath().standardizedFileURL.path
+        let selectedPath: String? = {
+            if let rawSelectedPath = self.settings.selectedCodexProfilePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !rawSelectedPath.isEmpty
+            {
+                let standardized = URL(fileURLWithPath: rawSelectedPath).standardizedFileURL.path
+                if standardized == defaultAuthPath {
+                    return profiles.first(where: \.isActiveInCodex)?.fileURL.standardizedFileURL.path
+                }
+                if profiles.contains(where: { $0.fileURL.standardizedFileURL.path == standardized }) {
+                    return standardized
+                }
+                return nil
+            }
+            return self.settings.selectedCodexProfile()?.fileURL.standardizedFileURL.path
+        }()
+        return CodexProfileMenuDisplay(
+            profiles: profiles,
+            selectedProfilePath: selectedPath)
+    }
+
+    @discardableResult
+    private func handleCodexProfileSelection(_ profilePath: String, menu: NSMenu?) -> Bool {
+        self.settings.codexActiveSource = .liveSystem
+        self.settings.selectCodexProfile(path: profilePath)
+        if self.store.prepareCodexAccountScopedRefreshIfNeeded(), let menu {
+            self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
+        }
+        Task { @MainActor in
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await self.store.refreshCodexAccountScopedState(
+                    allowDisabled: true,
+                    phaseDidChange: { [weak self, weak menu] _ in
+                        guard let self, let menu else { return }
+                        guard self.settings.selectedCodexProfile()?.fileURL.standardizedFileURL.path == profilePath
+                        else {
+                            return
+                        }
+                        self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
+                    })
+            }
+        }
+        return true
     }
 
     private func menuNeedsRefresh(_ menu: NSMenu) -> Bool {

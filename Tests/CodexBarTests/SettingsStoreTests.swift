@@ -662,20 +662,25 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        var didChange = false
+        @MainActor
+        final class ObservationFlag {
+            var value = false
+        }
+
+        let didChange = ObservationFlag()
 
         withObservationTracking {
             _ = store.menuObservationToken
         } onChange: {
             Task { @MainActor in
-                didChange = true
+                didChange.value = true
             }
         }
 
         store.statusChecksEnabled.toggle()
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        #expect(didChange == true)
+        #expect(didChange.value == true)
     }
 
     @Test
@@ -691,20 +696,25 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        var didChange = false
+        @MainActor
+        final class ObservationFlag {
+            var value = false
+        }
+
+        let didChange = ObservationFlag()
 
         withObservationTracking {
             _ = store.codexCookieSource
         } onChange: {
             Task { @MainActor in
-                didChange = true
+                didChange.value = true
             }
         }
 
         store.codexCookieSource = .manual
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        #expect(didChange == true)
+        #expect(didChange.value == true)
     }
 
     @Test
@@ -720,20 +730,25 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        var didChange = false
+        @MainActor
+        final class ObservationFlag {
+            var value = false
+        }
+
+        let didChange = ObservationFlag()
 
         withObservationTracking {
             _ = store.menuObservationToken
         } onChange: {
             Task { @MainActor in
-                didChange = true
+                didChange.value = true
             }
         }
 
         store.codexActiveSource = .liveSystem
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        #expect(didChange == true)
+        #expect(didChange.value == true)
     }
 
     @Test

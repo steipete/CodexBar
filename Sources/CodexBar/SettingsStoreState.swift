@@ -33,5 +33,6 @@ struct SettingsDefaultsState {
     var mergedMenuLastSelectedWasOverview: Bool
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
+    var selectedCodexProfilePath: String?
     var providerDetectionCompleted: Bool
 }

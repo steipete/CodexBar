@@ -91,6 +91,19 @@ struct ProvidersPane: View {
                                     Task { @MainActor in
                                         await self.addManagedCodexAccount()
                                     }
+                                },
+                                selectLocalProfile: { profilePath in
+                                    Task { @MainActor in
+                                        await self.selectCodexLocalProfile(path: profilePath)
+                                    }
+                                },
+                                reloadLocalProfiles: {
+                                    Task { @MainActor in
+                                        await self.reloadCodexLocalProfiles()
+                                    }
+                                },
+                                openLocalProfilesFolder: {
+                                    self.openCodexProfilesFolder()
                                 })
                         }
                     })
@@ -181,6 +194,39 @@ struct ProvidersPane: View {
     func codexAccountsSectionState(for provider: UsageProvider) -> CodexAccountsSectionState? {
         guard provider == .codex else { return nil }
         let projection = self.settings.codexVisibleAccountProjection
+        let profiles = self.settings.codexProfiles()
+        let defaultAuthPath = CodexOAuthCredentialsStore.authFilePath().standardizedFileURL.path
+        let selectedProfilePath: String? = {
+            if let rawSelectedPath = self.settings.selectedCodexProfilePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !rawSelectedPath.isEmpty
+            {
+                let standardized = URL(fileURLWithPath: rawSelectedPath).standardizedFileURL.path
+                if standardized == defaultAuthPath {
+                    return profiles.first(where: \.isActiveInCodex)?.fileURL.standardizedFileURL.path
+                }
+                if profiles.contains(where: { $0.fileURL.standardizedFileURL.path == standardized }) {
+                    return standardized
+                }
+                return nil
+            }
+            return self.settings.selectedCodexProfile()?.fileURL.standardizedFileURL.path
+        }()
+        let localProfiles = profiles.map { profile in
+            let cleanedPlan = profile.plan.flatMap { plan in
+                let cleaned = UsageFormatter.cleanPlanName(plan)
+                return cleaned.isEmpty ? plan : cleaned
+            }
+            let title = profile.fileURL.standardizedFileURL.path == defaultAuthPath && profile.alias == "Live"
+                ? "Live (unsaved)"
+                : profile.alias
+            return CodexDiscoveredProfileState(
+                id: profile.fileURL.standardizedFileURL.path,
+                title: title,
+                subtitle: PersonalInfoRedactor.redactEmail(profile.accountEmail, isEnabled: self.settings.hidePersonalInfo),
+                detail: cleanedPlan,
+                isDisplayed: selectedProfilePath == profile.fileURL.standardizedFileURL.path,
+                isLive: profile.isActiveInCodex)
+        }
         let degradedNotice: CodexAccountsSectionNotice? = if projection.hasUnreadableAddedAccountStore {
             CodexAccountsSectionNotice(
                 text: "Managed account storage is unreadable. Live account access is still available, "
@@ -197,7 +243,9 @@ struct ProvidersPane: View {
             isAuthenticatingManagedAccount: self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount,
             authenticatingManagedAccountID: self.managedCodexAccountCoordinator.authenticatingManagedAccountID,
             isAuthenticatingLiveAccount: self.isAuthenticatingLiveCodexAccount,
-            notice: self.codexAccountsNotice ?? degradedNotice)
+            notice: self.codexAccountsNotice ?? degradedNotice,
+            localProfiles: localProfiles,
+            hasUnavailableSelectedProfile: self.settings.hasUnavailableSelectedCodexProfile)
     }
 
     func selectCodexVisibleAccount(id: String) async {
@@ -261,6 +309,27 @@ struct ProvidersPane: View {
         } catch {
             self.codexAccountsNotice = self.codexAccountsNotice(for: error)
         }
+    }
+
+    func selectCodexLocalProfile(path: String) async {
+        self.codexAccountsNotice = nil
+        self.settings.codexActiveSource = .liveSystem
+        self.settings.selectCodexProfile(path: path)
+        await self.refreshCodexProvider()
+    }
+
+    func reloadCodexLocalProfiles() async {
+        self.codexAccountsNotice = nil
+        self.settings.reloadCodexProfiles()
+        await self.refreshCodexProvider()
+    }
+
+    func openCodexProfilesFolder() {
+        let profilesURL = CodexOAuthCredentialsStore.authFilePath()
+            .deletingLastPathComponent()
+            .appendingPathComponent("profiles", isDirectory: true)
+        let fallbackURL = profilesURL.deletingLastPathComponent()
+        NSWorkspace.shared.open(FileManager.default.fileExists(atPath: profilesURL.path) ? profilesURL : fallbackURL)
     }
 
     func requestManagedCodexAccountRemoval(_ account: CodexVisibleAccount) {

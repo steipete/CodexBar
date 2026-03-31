@@ -85,6 +85,10 @@ extension UsageStore {
             await self.failClosedRefreshForMissingManagedCodexTarget()
             return
         }
+        if self.openAIWebSelectedProfileIsUnavailable() {
+            await self.failClosedRefreshForUnavailableSelectedCodexProfile()
+            return
+        }
 
         await MainActor.run {
             if let cached = self.lastOpenAIDashboardSnapshot {
@@ -118,6 +122,10 @@ extension UsageStore {
         }
         if self.openAIWebManagedTargetIsMissing() {
             await self.failClosedRefreshForMissingManagedCodexTarget()
+            return
+        }
+        if self.openAIWebSelectedProfileIsUnavailable() {
+            await self.failClosedRefreshForUnavailableSelectedCodexProfile()
             return
         }
 
@@ -303,6 +311,10 @@ extension UsageStore {
         }
         if self.openAIWebManagedTargetIsMissing() {
             await self.failClosedRefreshForMissingManagedCodexTarget()
+            return
+        }
+        if self.openAIWebSelectedProfileIsUnavailable() {
+            await self.failClosedRefreshForUnavailableSelectedCodexProfile()
             return
         }
 
@@ -614,11 +626,11 @@ extension UsageStore {
     {
         switch self.settings.codexResolvedActiveSource {
         case .liveSystem:
-            let liveSystem = self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?.email
+            let selectedProfile = self.settings.selectedCodexProfileEmail()?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if let liveSystem, !liveSystem.isEmpty {
-                self.lastKnownLiveSystemCodexEmail = liveSystem
-                return liveSystem
+            if let selectedProfile, !selectedProfile.isEmpty {
+                self.lastKnownLiveSystemCodexEmail = selectedProfile
+                return selectedProfile
             }
 
             if allowCurrentSnapshotFallback,
@@ -784,6 +796,27 @@ extension UsageStore {
         ].joined(separator: " ")
     }
 
+    private func failClosedForUnavailableSelectedCodexProfile() async -> String? {
+        await MainActor.run {
+            self.failClosedOpenAIDashboardSnapshot()
+            self.openAIDashboardCookieImportStatus = [
+                "The selected local Codex profile is unavailable.",
+                "Pick another profile or reload profiles before importing OpenAI cookies.",
+            ].joined(separator: " ")
+        }
+        return nil
+    }
+
+    private func failClosedRefreshForUnavailableSelectedCodexProfile() async {
+        await MainActor.run {
+            self.failClosedOpenAIDashboardSnapshot()
+            self.lastOpenAIDashboardError = [
+                "The selected local Codex profile is unavailable.",
+                "Pick another profile or reload profiles before refreshing OpenAI web data.",
+            ].joined(separator: " ")
+        }
+    }
+
     private func openAIWebCookieImportShouldFailClosed() async -> Bool {
         if self.openAIWebManagedTargetStoreIsUnreadable() {
             _ = await self.failClosedForUnreadableManagedCodexStore()
@@ -791,6 +824,10 @@ extension UsageStore {
         }
         if self.openAIWebManagedTargetIsMissing() {
             _ = await self.failClosedForMissingManagedCodexTarget()
+            return true
+        }
+        if self.openAIWebSelectedProfileIsUnavailable() {
+            _ = await self.failClosedForUnavailableSelectedCodexProfile()
             return true
         }
         return false
@@ -1007,6 +1044,13 @@ extension UsageStore {
         return self.selectedManagedCodexAccountForOpenAIWeb() == nil
     }
 
+    private func openAIWebSelectedProfileIsUnavailable() -> Bool {
+        guard case .liveSystem = self.settings.codexResolvedActiveSource else {
+            return false
+        }
+        return self.settings.codexSettingsSnapshot(tokenOverride: nil).selectedProfileUnavailable
+    }
+
     private func selectedManagedCodexAccountForOpenAIWeb() -> ManagedCodexAccount? {
         guard case let .managedAccount(id) = self.settings.codexResolvedActiveSource else {
             return nil
@@ -1019,11 +1063,11 @@ extension UsageStore {
     func codexAccountEmailForOpenAIDashboard(allowLastKnownLiveFallback: Bool = true) -> String? {
         switch self.settings.codexResolvedActiveSource {
         case .liveSystem:
-            let liveSystem = self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?.email
+            let selectedProfile = self.settings.selectedCodexProfileEmail()?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if let liveSystem, !liveSystem.isEmpty {
-                self.lastKnownLiveSystemCodexEmail = liveSystem
-                return liveSystem
+            if let selectedProfile, !selectedProfile.isEmpty {
+                self.lastKnownLiveSystemCodexEmail = selectedProfile
+                return selectedProfile
             }
 
             guard allowLastKnownLiveFallback else { return nil }

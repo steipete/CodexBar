@@ -2,6 +2,47 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    private var standardizedSelectedCodexProfilePath: String? {
+        guard let selectedPath = self.selectedCodexProfilePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !selectedPath.isEmpty
+        else {
+            return nil
+        }
+        return URL(fileURLWithPath: selectedPath).standardizedFileURL.path
+    }
+
+    func codexProfiles() -> [DiscoveredCodexProfile] {
+        #if DEBUG
+        if let override = self._test_codexProfiles {
+            return override
+        }
+        #endif
+        _ = self.codexProfilesRevision
+        return CodexProfileStore.displayProfiles()
+    }
+
+    func selectedCodexProfile() -> DiscoveredCodexProfile? {
+        #if DEBUG
+        if let override = self._test_codexProfiles {
+            if let standardizedPath = self.standardizedSelectedCodexProfilePath {
+                if let exact = override.first(where: { $0.fileURL.standardizedFileURL.path == standardizedPath }) {
+                    return exact
+                }
+            }
+            return override.first(where: \.isActiveInCodex) ?? override.first
+        }
+        #endif
+        return CodexProfileStore.selectedDisplayProfile(selectedPath: self.selectedCodexProfilePath)
+    }
+
+    func selectCodexProfile(path: String?) {
+        self.selectedCodexProfilePath = path
+    }
+
+    func reloadCodexProfiles() {
+        self.codexProfilesRevision &+= 1
+    }
+
     private var codexPersistedActiveSource: CodexActiveSource {
         self.providerConfig(for: .codex)?.codexActiveSource ?? .liveSystem
     }
@@ -125,6 +166,18 @@ extension SettingsStore {
         } catch {
             return false
         }
+    }
+
+    var hasUnavailableSelectedCodexProfile: Bool {
+        guard case .liveSystem = self.codexResolvedActiveSource else {
+            return false
+        }
+        guard let standardizedSelectedPath = self.standardizedSelectedCodexProfilePath else {
+            return false
+        }
+        let defaultPath = CodexOAuthCredentialsStore.authFilePath().standardizedFileURL.path
+        guard standardizedSelectedPath != defaultPath else { return false }
+        return self.codexProfiles().contains(where: { $0.fileURL.standardizedFileURL.path == standardizedSelectedPath }) == false
     }
 
     var codexUsageDataSource: CodexUsageDataSource {
@@ -442,6 +495,27 @@ private enum CodexManagedRemoteHomeTestingOverrideError: Error {
     case unreadableManagedStore
 }
 
+#if DEBUG
+private enum CodexProfileTestingOverride {
+    @MainActor private static var values: [ObjectIdentifier: [DiscoveredCodexProfile]] = [:]
+
+    @MainActor
+    static func profiles(for settings: SettingsStore) -> [DiscoveredCodexProfile]? {
+        self.values[ObjectIdentifier(settings)]
+    }
+
+    @MainActor
+    static func setProfiles(_ profiles: [DiscoveredCodexProfile]?, for settings: SettingsStore) {
+        let key = ObjectIdentifier(settings)
+        if let profiles {
+            self.values[key] = profiles
+        } else {
+            self.values.removeValue(forKey: key)
+        }
+    }
+}
+#endif
+
 private struct CodexManagedRemoteHomeTestingSystemObserver: CodexSystemAccountObserving {
     let overrideAccount: ObservedSystemCodexAccount?
     let usesInjectedEnvironment: Bool
@@ -458,6 +532,11 @@ private struct CodexManagedRemoteHomeTestingSystemObserver: CodexSystemAccountOb
 }
 
 extension SettingsStore {
+    var _test_codexProfiles: [DiscoveredCodexProfile]? {
+        get { CodexProfileTestingOverride.profiles(for: self) }
+        set { CodexProfileTestingOverride.setProfiles(newValue, for: self) }
+    }
+
     var _test_activeManagedCodexRemoteHomePath: String? {
         get { CodexManagedRemoteHomeTestingOverride.homePath(for: self) }
         set { CodexManagedRemoteHomeTestingOverride.setHomePath(newValue, for: self) }
@@ -497,7 +576,8 @@ extension SettingsStore {
             cookieSource: self.codexSnapshotCookieSource(tokenOverride: tokenOverride),
             manualCookieHeader: self.codexSnapshotCookieHeader(tokenOverride: tokenOverride),
             managedAccountStoreUnreadable: self.hasUnreadableSelectedManagedCodexAccountStore,
-            managedAccountTargetUnavailable: self.hasUnavailableSelectedManagedCodexAccount)
+            managedAccountTargetUnavailable: self.hasUnavailableSelectedManagedCodexAccount,
+            selectedProfileUnavailable: self.hasUnavailableSelectedCodexProfile)
     }
 
     private static func codexUsageDataSource(from source: ProviderSourceMode?) -> CodexUsageDataSource {
@@ -538,5 +618,95 @@ extension SettingsStore {
         }
         if self.tokenAccounts(for: .codex).isEmpty { return fallback }
         return .manual
+    }
+
+    func codexEnvironmentOverrides(tokenOverride: TokenAccountOverride?) -> [String: String] {
+        if let tokenOverride, tokenOverride.provider == .codex {
+            let overrideURL = URL(fileURLWithPath: tokenOverride.account.token).standardizedFileURL
+            return [CodexProfileExecutionEnvironment.authFileOverrideKey: overrideURL.path]
+        }
+        guard case .liveSystem = self.codexResolvedActiveSource else { return [:] }
+        guard let selectedPath = self.standardizedSelectedCodexProfilePath else { return [:] }
+        let defaultPath = CodexOAuthCredentialsStore.authFilePath().standardizedFileURL.path
+        guard selectedPath != defaultPath else { return [:] }
+        return [CodexProfileExecutionEnvironment.authFileOverrideKey: selectedPath]
+    }
+
+    func selectedCodexProfileEmail() -> String? {
+        switch self.codexResolvedActiveSource {
+        case .managedAccount:
+            return self.activeManagedCodexAccount?.email
+        case .liveSystem:
+            if let standardizedSelectedPath = self.standardizedSelectedCodexProfilePath {
+                if let overrideProfile = self.codexProfiles().first(where: {
+                    $0.fileURL.standardizedFileURL.path == standardizedSelectedPath
+                }) {
+                    return overrideProfile.accountEmail
+                }
+                let overrideURL = URL(fileURLWithPath: standardizedSelectedPath)
+                return CodexProfileStore.profile(
+                    at: overrideURL,
+                    alias: overrideURL.deletingPathExtension().lastPathComponent)?.accountEmail
+            }
+            return self.selectedCodexProfile()?.accountEmail
+        }
+    }
+
+    func selectedCodexProfilePlan() -> String? {
+        guard case .liveSystem = self.codexResolvedActiveSource else { return nil }
+        guard let standardizedSelectedPath = self.standardizedSelectedCodexProfilePath else {
+            return self.selectedCodexProfile()?.plan
+        }
+        if let overrideProfile = self.codexProfiles().first(where: {
+            $0.fileURL.standardizedFileURL.path == standardizedSelectedPath
+        }) {
+            return overrideProfile.plan
+        }
+        let overrideURL = URL(fileURLWithPath: standardizedSelectedPath)
+        return CodexProfileStore.profile(
+            at: overrideURL,
+            alias: overrideURL.deletingPathExtension().lastPathComponent)?.plan
+    }
+
+    func selectedCodexProfileAlias() -> String? {
+        guard case .liveSystem = self.codexResolvedActiveSource else { return nil }
+        guard let standardizedSelectedPath = self.standardizedSelectedCodexProfilePath else {
+            return self.selectedCodexProfile()?.alias
+        }
+        if let overrideProfile = self.codexProfiles().first(where: {
+            $0.fileURL.standardizedFileURL.path == standardizedSelectedPath
+        }) {
+            return overrideProfile.alias
+        }
+        let overrideURL = URL(fileURLWithPath: standardizedSelectedPath)
+        return CodexProfileStore.profile(
+            at: overrideURL,
+            alias: overrideURL.deletingPathExtension().lastPathComponent)?.alias
+    }
+
+    func codexDiscoveredProfileSelection(for tokenOverride: TokenAccountOverride?) -> CodexProfileSelection? {
+        if let tokenOverride, tokenOverride.provider == .codex {
+            let overrideURL = URL(fileURLWithPath: tokenOverride.account.token)
+            if let overrideProfile = self.codexProfiles().first(where: {
+                $0.fileURL.standardizedFileURL == overrideURL.standardizedFileURL
+            }) {
+                return overrideProfile.selection
+            }
+            return CodexProfileStore.profile(
+                at: overrideURL,
+                alias: overrideURL.deletingPathExtension().lastPathComponent)?.selection
+        }
+        guard let standardizedSelectedPath = self.standardizedSelectedCodexProfilePath else {
+            return self.selectedCodexProfile()?.selection
+        }
+        if let overrideProfile = self.codexProfiles().first(where: {
+            $0.fileURL.standardizedFileURL.path == standardizedSelectedPath
+        }) {
+            return overrideProfile.selection
+        }
+        let overrideURL = URL(fileURLWithPath: standardizedSelectedPath)
+        return CodexProfileStore.profile(
+            at: overrideURL,
+            alias: overrideURL.deletingPathExtension().lastPathComponent)?.selection
     }
 }

@@ -46,11 +46,17 @@ public enum CodexOAuthCredentialsError: LocalizedError, Sendable {
 }
 
 public enum CodexOAuthCredentialsStore {
-    private static func authFilePath(
+    public static func authFilePath(
         env: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default) -> URL
     {
-        CodexHomeScope
+        if let override = env[CodexProfileExecutionEnvironment.authFileOverrideKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !override.isEmpty
+        {
+            return URL(fileURLWithPath: override)
+        }
+        return CodexHomeScope
             .ambientHomeURL(env: env, fileManager: fileManager)
             .appendingPathComponent("auth.json")
     }
@@ -59,6 +65,10 @@ public enum CodexOAuthCredentialsStore {
         .environment) throws -> CodexOAuthCredentials
     {
         let url = self.authFilePath(env: env)
+        return try self.load(from: url)
+    }
+
+    public static func load(from url: URL) throws -> CodexOAuthCredentials {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CodexOAuthCredentialsError.notFound
         }
@@ -112,7 +122,10 @@ public enum CodexOAuthCredentialsStore {
         _ credentials: CodexOAuthCredentials,
         env: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        let url = self.authFilePath(env: env)
+        try self.save(credentials, to: self.authFilePath(env: env))
+    }
+
+    public static func save(_ credentials: CodexOAuthCredentials, to url: URL) throws {
 
         var json: [String: Any] = [:]
         if let data = try? Data(contentsOf: url),
