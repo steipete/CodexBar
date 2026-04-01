@@ -520,7 +520,7 @@ None carried forward from review. All failure modes have graceful degradation.
 - Removing `KeychainCopilotTokenStore` — follow-up cleanup
 
 ## Execution Status
-Status: Reviewed
+Status: Shipped
 
 ## Task Checklist
 - [x] Task 1: Add Copilot to TokenAccountSupportCatalog
@@ -545,3 +545,4 @@ Status: Reviewed
 ## Outcomes / Drift
 - Pre-existing test suite compilation errors in SettingsStoreTests.swift (@const / @section attribute errors from Swift Testing macro expansion) prevent running the full test suite. This is unrelated to our changes — the app target compiles cleanly and our test file compiles without errors.
 - 2026-04-01: Pre-landing review completed. 0 critical findings. 3 informational findings: (1) duplicate predicate closure in login flow duplicate detection, (2) makeSettingsStore factory duplicated in test file, (3) edge case where migration label mismatch on re-auth won't deduplicate. All acceptable — no auto-fixes applied.
+- 2026-04-01: Shipped as PR https://github.com/ajmccall/CodexBar/pull/1. 7 commits (6 implementation + 1 docs). Build passes. Test suite blocked by pre-existing SettingsStoreTests compilation errors; our test file compiles cleanly with 0 errors.
