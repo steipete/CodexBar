@@ -220,9 +220,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
            contentType.lowercased().contains("application/json")
         {
-            let payload = try MiniMaxUsageParser.decodePayload(data: data)
-            self.logCodingPlanStatus(payload: payload)
-            let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(payload: payload, now: now)
+            let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: data, now: now)
             if let services = snapshot.services, !services.isEmpty {
                 Self.log.debug("MiniMax multi-service response detected: \(services.count) services")
             }

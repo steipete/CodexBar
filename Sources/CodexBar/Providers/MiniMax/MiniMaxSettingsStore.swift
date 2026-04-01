@@ -24,6 +24,16 @@ extension SettingsStore {
         }
     }
 
+    var minimaxAPIToken: String {
+        get { self.configSnapshot.providerConfig(for: .minimax)?.sanitizedAPIKey ?? "" }
+        set {
+            self.updateProviderConfig(provider: .minimax) { entry in
+                entry.apiKey = self.normalizedConfigValue(newValue)
+            }
+            self.logSecretUpdate(provider: .minimax, field: "apiKey", value: newValue)
+        }
+    }
+
     var minimaxCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .minimax, fallback: .auto) }
         set {
@@ -34,49 +44,54 @@ extension SettingsStore {
         }
     }
 
-    var minimaxAPIToken: String {
-        get { self.configSnapshot.providerConfig(for: .minimax)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .minimax) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            let hasToken = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            if hasToken,
-               let metadata = ProviderDescriptorRegistry.metadata[.minimax],
-               !self.isProviderEnabled(provider: .minimax, metadata: metadata)
-            {
-                self.setProviderEnabled(provider: .minimax, metadata: metadata, enabled: true)
-            }
-            self.logSecretUpdate(provider: .minimax, field: "apiKey", value: newValue)
-        }
+    func ensureMiniMaxCookieLoaded() {}
+
+    func ensureMiniMaxAPITokenLoaded() {}
+
+    func minimaxAuthMode(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> MiniMaxAuthMode
+    {
+        let apiToken = MiniMaxAPISettingsReader.apiToken(environment: environment) ?? self.minimaxAPIToken
+        let cookieHeader = MiniMaxSettingsReader.cookieHeader(environment: environment) ?? self.minimaxCookieHeader
+        return MiniMaxAuthMode.resolve(apiToken: apiToken, cookieHeader: cookieHeader)
     }
 }
 
 extension SettingsStore {
-    func minimaxSettingsSnapshot() -> ProviderSettingsSnapshot.MiniMaxProviderSettings {
+    func minimaxSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
+    .MiniMaxProviderSettings {
         ProviderSettingsSnapshot.MiniMaxProviderSettings(
-            cookieSource: self.minimaxCookieSource,
-            manualCookieHeader: self.minimaxCookieHeader,
+            cookieSource: self.minimaxSnapshotCookieSource(tokenOverride: tokenOverride),
+            manualCookieHeader: self.minimaxSnapshotCookieHeader(tokenOverride: tokenOverride),
             apiRegion: self.minimaxAPIRegion)
     }
-}
 
-extension SettingsStore {
-    func ensureMiniMaxCookieLoaded() {
-        // Cookie loading handled by MiniMaxCookieImporter
+    private func minimaxSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
+        let fallback = self.minimaxCookieHeader
+        guard let support = TokenAccountSupportCatalog.support(for: .minimax),
+              case .cookieHeader = support.injection
+        else {
+            return fallback
+        }
+        guard let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: .minimax,
+            settings: self,
+            override: tokenOverride)
+        else {
+            return fallback
+        }
+        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
+    }
+
+    private func minimaxSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
+        let fallback = self.minimaxCookieSource
+        guard let support = TokenAccountSupportCatalog.support(for: .minimax),
+              support.requiresManualCookieSource
+        else {
+            return fallback
+        }
+        if self.tokenAccounts(for: .minimax).isEmpty { return fallback }
+        return .manual
     }
 }
 
-extension SettingsStore {
-    func ensureMiniMaxAPITokenLoaded() {
-        // Token loading handled by MiniMaxAPITokenStore
-    }
-}
-
-extension SettingsStore {
-    func minimaxAuthMode() -> MiniMaxAuthMode {
-        MiniMaxAuthMode.resolve(
-            apiToken: self.minimaxAPIToken,
-            cookieHeader: self.minimaxCookieHeader)
-    }
-}
