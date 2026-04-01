@@ -66,6 +66,32 @@ public struct CopilotUsageFetcher: Sendable {
             identity: identity)
     }
 
+    public static func fetchGitHubUsername(token: String) async throws -> String {
+        guard let url = URL(string: "https://api.github.com/user") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw URLError(.userAuthenticationRequired)
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+
+        struct GitHubUser: Decodable {
+            let login: String
+        }
+        let user = try JSONDecoder().decode(GitHubUser.self, from: data)
+        return user.login
+    }
+
     private func addCommonHeaders(to request: inout URLRequest) {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("vscode/1.96.2", forHTTPHeaderField: "Editor-Version")
