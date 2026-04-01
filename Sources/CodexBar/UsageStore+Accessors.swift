@@ -57,7 +57,8 @@ extension UsageStore {
             base: ProcessInfo.processInfo.environment,
             provider: .codex,
             settings: self.settings,
-            tokenOverride: nil)
+            tokenOverride: nil,
+            codexActiveSourceOverride: nil)
         let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: .codex, env: env)
         return fetcher.loadAccountInfo()
     }

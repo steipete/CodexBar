@@ -150,6 +150,40 @@ extension SettingsStore {
         }
     }
 
+    private var codexMenuDisplayModeRaw: String? {
+        get { self.defaultsState.codexMenuDisplayModeRaw }
+        set {
+            self.defaultsState.codexMenuDisplayModeRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "codexMenuDisplayMode")
+            } else {
+                self.userDefaults.removeObject(forKey: "codexMenuDisplayMode")
+            }
+        }
+    }
+
+    var codexMenuDisplayMode: CodexMenuDisplayMode {
+        get { CodexMenuDisplayMode(rawValue: self.codexMenuDisplayModeRaw ?? "") ?? .default }
+        set { self.codexMenuDisplayModeRaw = newValue.rawValue }
+    }
+
+    private var codexMenuAccountSortModeRaw: String? {
+        get { self.defaultsState.codexMenuAccountSortModeRaw }
+        set {
+            self.defaultsState.codexMenuAccountSortModeRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "codexMenuAccountSortMode")
+            } else {
+                self.userDefaults.removeObject(forKey: "codexMenuAccountSortMode")
+            }
+        }
+    }
+
+    var codexMenuAccountSortMode: CodexMenuAccountSortMode {
+        get { CodexMenuAccountSortMode(rawValue: self.codexMenuAccountSortModeRaw ?? "") ?? .default }
+        set { self.codexMenuAccountSortModeRaw = newValue.rawValue }
+    }
+
     var historicalTrackingEnabled: Bool {
         get { self.defaultsState.historicalTrackingEnabled }
         set {

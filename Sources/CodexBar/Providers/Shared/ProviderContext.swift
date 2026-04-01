@@ -34,4 +34,5 @@ struct ProviderVersionContext {
 struct ProviderSettingsSnapshotContext {
     let settings: SettingsStore
     let tokenOverride: TokenAccountOverride?
+    let codexActiveSourceOverride: CodexActiveSource?
 }

@@ -269,12 +269,19 @@ struct CodexManagedRoutingTests {
     }
 
     @Test
-    func `provider registry fails closed when selected managed source is missing from readable store`() throws {
+    func `provider registry fails closed for ambiguous missing managed selection`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-missing-managed-source")
-        let storedAccount = ManagedCodexAccount(
+        let firstStoredAccount = ManagedCodexAccount(
             id: UUID(),
             email: "stored@example.com",
-            managedHomePath: "/tmp/stored-managed-home",
+            managedHomePath: "/tmp/stored-managed-home-a",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let secondStoredAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "second@example.com",
+            managedHomePath: "/tmp/stored-managed-home-b",
             createdAt: 1,
             updatedAt: 1,
             lastAuthenticatedAt: 1)
@@ -283,7 +290,7 @@ struct CodexManagedRoutingTests {
         let store = FileManagedCodexAccountStore(fileURL: storeURL)
         try store.storeAccounts(ManagedCodexAccountSet(
             version: FileManagedCodexAccountStore.currentVersion,
-            accounts: [storedAccount]))
+            accounts: [firstStoredAccount, secondStoredAccount]))
         settings._test_managedCodexAccountStoreURL = storeURL
         settings.codexActiveSource = .managedAccount(id: UUID())
         settings._test_codexReconciliationEnvironment = ["CODEX_HOME": "/Users/example/.codex"]
@@ -305,16 +312,24 @@ struct CodexManagedRoutingTests {
 
         #expect(env["CODEX_HOME"] == expectedFailClosedPath)
         #expect(env["CODEX_HOME"] != ambientHome)
-        #expect(env["CODEX_HOME"] != storedAccount.managedHomePath)
+        #expect(env["CODEX_HOME"] != firstStoredAccount.managedHomePath)
+        #expect(env["CODEX_HOME"] != secondStoredAccount.managedHomePath)
     }
 
     @Test
-    func `codex settings snapshot marks missing selected managed source as unavailable`() throws {
+    func `codex settings snapshot marks ambiguous missing managed selection as unavailable`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-missing-managed-snapshot")
-        let storedAccount = ManagedCodexAccount(
+        let firstStoredAccount = ManagedCodexAccount(
             id: UUID(),
             email: "stored@example.com",
-            managedHomePath: "/tmp/stored-managed-home",
+            managedHomePath: "/tmp/stored-managed-home-a",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let secondStoredAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "second@example.com",
+            managedHomePath: "/tmp/stored-managed-home-b",
             createdAt: 1,
             updatedAt: 1,
             lastAuthenticatedAt: 1)
@@ -323,7 +338,7 @@ struct CodexManagedRoutingTests {
         let store = FileManagedCodexAccountStore(fileURL: storeURL)
         try store.storeAccounts(ManagedCodexAccountSet(
             version: FileManagedCodexAccountStore.currentVersion,
-            accounts: [storedAccount]))
+            accounts: [firstStoredAccount, secondStoredAccount]))
         settings._test_managedCodexAccountStoreURL = storeURL
         settings.codexActiveSource = .managedAccount(id: UUID())
         defer {
@@ -335,6 +350,94 @@ struct CodexManagedRoutingTests {
 
         #expect(snapshot.managedAccountStoreUnreadable == false)
         #expect(snapshot.managedAccountTargetUnavailable == true)
+    }
+
+    @Test
+    func `provider registry fails closed when stale managed selection has no replacement`() {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-empty-missing-managed-source")
+        settings.codexActiveSource = .managedAccount(id: UUID())
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": "/Users/example/.codex"]
+        defer {
+            settings._test_codexReconciliationEnvironment = nil
+        }
+
+        let ambientHome = "/Users/example/.codex"
+        let expectedFailClosedPath = ManagedCodexHomeFactory.defaultRootURL()
+            .appendingPathComponent("managed-store-unreadable", isDirectory: true)
+            .path
+        let env = ProviderRegistry.makeEnvironment(
+            base: ["CODEX_HOME": ambientHome],
+            provider: .codex,
+            settings: settings,
+            tokenOverride: nil)
+        let snapshot = settings.codexSettingsSnapshot(tokenOverride: nil)
+
+        #expect(env["CODEX_HOME"] == expectedFailClosedPath)
+        #expect(snapshot.managedAccountTargetUnavailable)
+    }
+
+    @Test
+    func `provider registry recovers stale selection to sole managed source`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-sole-managed-recovery")
+        let soleStoredAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "stored@example.com",
+            managedHomePath: "/tmp/stored-managed-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-routing-sole-\(UUID().uuidString).json")
+        let store = FileManagedCodexAccountStore(fileURL: storeURL)
+        try store.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [soleStoredAccount]))
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .managedAccount(id: UUID())
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": "/Users/example/.codex"]
+        defer {
+            settings._test_codexReconciliationEnvironment = nil
+            settings._test_managedCodexAccountStoreURL = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        let env = ProviderRegistry.makeEnvironment(
+            base: ["CODEX_HOME": "/Users/example/.codex"],
+            provider: .codex,
+            settings: settings,
+            tokenOverride: nil)
+
+        #expect(env["CODEX_HOME"] == soleStoredAccount.managedHomePath)
+        #expect(settings.codexResolvedActiveSource == .managedAccount(id: soleStoredAccount.id))
+    }
+
+    @Test
+    func `persisted stale selected managed source corrects to sole remaining managed account`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-sole-managed-persist-correction")
+        let soleStoredAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "stored@example.com",
+            managedHomePath: "/tmp/stored-managed-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-persist-sole-\(UUID().uuidString).json")
+        let store = FileManagedCodexAccountStore(fileURL: storeURL)
+        try store.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [soleStoredAccount]))
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .managedAccount(id: UUID())
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        let corrected = settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
+
+        #expect(corrected)
+        #expect(settings.codexActiveSource == .managedAccount(id: soleStoredAccount.id))
     }
 
     @Test

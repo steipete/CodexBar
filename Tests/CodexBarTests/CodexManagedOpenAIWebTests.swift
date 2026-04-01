@@ -490,7 +490,7 @@ struct CodexManagedOpenAIWebTests {
     }
 
     @Test
-    func `missing managed codex open A I web target fails closed`() async {
+    func `missing ambiguous managed codex open A I web target fails closed`() async {
         let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebTests-missing-managed-target")
         let storedAccount = ManagedCodexAccount(
             id: UUID(),
@@ -499,12 +499,19 @@ struct CodexManagedOpenAIWebTests {
             createdAt: 1,
             updatedAt: 1,
             lastAuthenticatedAt: 1)
+        let otherStoredAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "other@example.com",
+            managedHomePath: "/tmp/other-managed-home",
+            createdAt: 2,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
         let storeURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-openai-web-\(UUID().uuidString).json")
         let managedStore = FileManagedCodexAccountStore(fileURL: storeURL)
         try? managedStore.storeAccounts(ManagedCodexAccountSet(
             version: FileManagedCodexAccountStore.currentVersion,
-            accounts: [storedAccount]))
+            accounts: [storedAccount, otherStoredAccount]))
         settings._test_managedCodexAccountStoreURL = storeURL
         settings.codexActiveSource = .managedAccount(id: UUID())
         defer {
@@ -553,6 +560,40 @@ struct CodexManagedOpenAIWebTests {
         #expect(importWasCalled == false)
         #expect(store.openAIDashboard == nil)
         #expect(store.lastOpenAIDashboardError?.contains("selected managed Codex account is unavailable") == true)
+    }
+
+    @Test
+    func `missing managed codex open A I web target recovers to sole stored account`() {
+        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebTests-sole-managed-recovery")
+        let storedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "stored@example.com",
+            managedHomePath: "/tmp/stored-managed-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-openai-web-sole-\(UUID().uuidString).json")
+        let managedStore = FileManagedCodexAccountStore(fileURL: storeURL)
+        try? managedStore.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [storedAccount]))
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .managedAccount(id: UUID())
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+
+        #expect(settings.codexResolvedActiveSource == .managedAccount(id: storedAccount.id))
+        #expect(store.codexAccountEmailForOpenAIDashboard() == storedAccount.email)
+        #expect(store.codexCookieCacheScopeForOpenAIWeb() == .managedAccount(storedAccount.id))
     }
 
     @Test

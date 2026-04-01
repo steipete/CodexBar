@@ -99,7 +99,13 @@ extension UsageStore {
                 self.failureGates[provider]?.recordSuccess()
                 if provider == .codex {
                     self.rememberLiveSystemCodexEmailIfNeeded(scoped.accountEmail(for: .codex))
-                    self.seedCodexAccountScopedRefreshGuard(accountEmail: scoped.accountEmail(for: .codex))
+                    self.seedCodexAccountScopedRefreshGuard(
+                        accountEmail: scoped.accountEmail(for: .codex),
+                        workspaceAccountID: scoped.accountWorkspaceID(for: .codex),
+                        workspaceLabel: scoped.accountOrganization(for: .codex))
+                    self.cacheActiveCodexVisibleAccountSnapshot(
+                        snapshot: scoped,
+                        sourceLabel: result.sourceLabel)
                 }
             }
             await self.recordPlanUtilizationHistorySample(

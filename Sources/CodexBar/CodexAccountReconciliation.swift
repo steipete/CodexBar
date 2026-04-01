@@ -49,8 +49,12 @@ enum CodexActiveSourceResolver {
                 self.matchesLiveSystemAccountIdentity(
                     storedAccount: activeStoredAccount,
                     liveSystemAccount: snapshot.liveSystemAccount) ? .liveSystem : .managedAccount(id: id)
+            } else if snapshot.liveSystemAccount != nil {
+                .liveSystem
+            } else if let soleStoredAccount = self.soleStoredManagedAccount(from: snapshot) {
+                .managedAccount(id: soleStoredAccount.id)
             } else {
-                snapshot.liveSystemAccount != nil ? .liveSystem : .managedAccount(id: id)
+                .managedAccount(id: id)
             }
         }
 
@@ -71,6 +75,13 @@ enum CodexActiveSourceResolver {
             email: liveSystemAccount.email,
             workspaceAccountID: liveSystemAccount.workspaceAccountID,
             workspaceLabel: liveSystemAccount.workspaceLabel)
+    }
+
+    private static func soleStoredManagedAccount(
+        from snapshot: CodexAccountReconciliationSnapshot) -> ManagedCodexAccount?
+    {
+        guard snapshot.storedAccounts.count == 1 else { return nil }
+        return snapshot.storedAccounts.first
     }
 }
 

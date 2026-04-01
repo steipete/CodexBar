@@ -883,8 +883,18 @@ final class TokenAccountSwitcherView: NSView {
             let selected = index == self.selectedIndex
             button.state = selected ? .on : .off
             button.layer?.backgroundColor = selected ? self.selectedBackground : self.unselectedBackground
-            button.contentTintColor = selected ? self.selectedTextColor : self.unselectedTextColor
+            self.applyTitleColor(selected ? self.selectedTextColor : self.unselectedTextColor, to: button)
         }
+    }
+
+    private func applyTitleColor(_ color: NSColor, to button: NSButton) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: button.font ?? NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: color,
+        ]
+        let title = NSAttributedString(string: button.title, attributes: attributes)
+        button.attributedTitle = title
+        button.attributedAlternateTitle = title
     }
 
     @objc private func handleSelect(_ sender: NSButton) {
@@ -1079,8 +1089,18 @@ final class CodexAccountSwitcherView: NSView {
             let selected = button.identifier?.rawValue == self.selectedAccountID
             button.state = selected ? .on : .off
             button.layer?.backgroundColor = selected ? self.selectedBackground : self.unselectedBackground
-            button.contentTintColor = selected ? self.selectedTextColor : self.unselectedTextColor
+            self.applyTitleColor(selected ? self.selectedTextColor : self.unselectedTextColor, to: button)
         }
+    }
+
+    private func applyTitleColor(_ color: NSColor, to button: NSButton) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: button.font ?? self.buttonFont,
+            .foregroundColor: color,
+        ]
+        let title = NSAttributedString(string: button.title, attributes: attributes)
+        button.attributedTitle = title
+        button.attributedAlternateTitle = title
     }
 
     @objc private func handleSelect(_ sender: NSButton) {

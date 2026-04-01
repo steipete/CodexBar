@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import Testing
@@ -21,6 +22,32 @@ struct StatusMenuCodexSwitcherTests {
             configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+    }
+
+    private func makeStatusBarForTesting() -> NSStatusBar {
+        let env = ProcessInfo.processInfo.environment
+        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
+            return .system
+        }
+        return NSStatusBar()
+    }
+
+    private func makeController(
+        settings: SettingsStore,
+        store: UsageStore,
+        fetcher: UsageFetcher) -> StatusItemController
+    {
+        StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+    }
+
+    private func representedIDs(in menu: NSMenu) -> [String] {
+        menu.items.compactMap { $0.representedObject as? String }
     }
 
     private func enableOnlyCodex(_ settings: SettingsStore) {
@@ -207,6 +234,48 @@ struct StatusMenuCodexSwitcherTests {
     }
 
     @Test
+    func `codex all mode toggle renders all before single`() {
+        let view = CodexMenuDisplayModeToggleView(selectedMode: .all, width: 220, onSelect: { _ in })
+
+        #expect(view._test_buttonTitles() == ["All", "Single"])
+    }
+
+    @Test
+    func `codex all mode display hides switcher while keeping sort available`() {
+        let accounts = [
+            CodexVisibleAccount(
+                id: "live@example.com",
+                email: "live@example.com",
+                workspaceLabel: "Personal",
+                storedAccountID: nil,
+                selectionSource: .liveSystem,
+                isActive: true,
+                isLive: true,
+                canReauthenticate: true,
+                canRemove: false),
+            CodexVisibleAccount(
+                id: "managed@example.com",
+                email: "managed@example.com",
+                workspaceLabel: "Team Alpha",
+                storedAccountID: UUID(),
+                selectionSource: .managedAccount(id: UUID()),
+                isActive: false,
+                isLive: false,
+                canReauthenticate: true,
+                canRemove: true),
+        ]
+        let display = CodexAccountMenuDisplay(
+            accounts: accounts,
+            cachedSnapshots: [:],
+            activeVisibleAccountID: accounts.first?.id,
+            displayMode: .all)
+
+        #expect(display.showAll)
+        #expect(display.showSwitcher == false)
+        #expect(display.showSortControl)
+    }
+
+    @Test
     func `codex menu switcher selection activates the visible managed account`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -389,6 +458,209 @@ struct StatusMenuCodexSwitcherTests {
 
         #expect(state.hasUnreadableManagedAccountStore)
         #expect(state.canAddAccount == false)
+    }
+
+    @Test
+    func `codex menu state helpers show grouped controls only for multi account all mode`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnlyCodex(settings)
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            workspaceLabel: "Team Alpha",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let storeURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            workspaceLabel: "Personal",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+
+        settings.codexMenuDisplayMode = .single
+        #expect(settings.shouldShowCodexMenuDisplayModeToggle(for: .codex))
+        #expect(settings.shouldShowCodexMenuSortControl(for: .codex) == false)
+
+        settings.codexMenuDisplayMode = .all
+        #expect(settings.shouldShowCodexMenuDisplayModeToggle(for: .codex))
+        #expect(settings.shouldShowCodexMenuSortControl(for: .codex))
+    }
+
+    @Test
+    func `codex menu state helpers hide grouped controls when only one visible account exists`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.codexMenuDisplayMode = .all
+        self.enableOnlyCodex(settings)
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "solo@example.com",
+            workspaceLabel: "Personal",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        defer { settings._test_liveSystemCodexAccount = nil }
+
+        #expect(settings.shouldShowCodexMenuDisplayModeToggle(for: .codex) == false)
+        #expect(settings.shouldShowCodexMenuSortControl(for: .codex) == false)
+    }
+
+    @Test
+    func `codex all accounts sort orders cached cards by session remaining`() {
+        self.disableMenuCardsForTesting()
+        let accounts = [
+            CodexVisibleAccount(
+                id: "alpha@example.com\naccount:one",
+                email: "alpha@example.com",
+                workspaceLabel: "One",
+                storedAccountID: nil,
+                selectionSource: .liveSystem,
+                isActive: true,
+                isLive: true,
+                canReauthenticate: true,
+                canRemove: false),
+            CodexVisibleAccount(
+                id: "beta@example.com\naccount:two",
+                email: "beta@example.com",
+                workspaceLabel: "Two",
+                storedAccountID: nil,
+                selectionSource: .managedAccount(id: UUID()),
+                isActive: false,
+                isLive: false,
+                canReauthenticate: true,
+                canRemove: true),
+        ]
+        let cached: [String: CodexVisibleAccountUsageSnapshot] = [
+            accounts[0].id: CodexVisibleAccountUsageSnapshot(
+                visibleAccountID: accounts[0].id,
+                snapshot: UsageSnapshot(
+                    primary: RateWindow(usedPercent: 60, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                    secondary: nil,
+                    updatedAt: Date(),
+                    identity: ProviderIdentitySnapshot(
+                        providerID: .codex,
+                        accountEmail: accounts[0].email,
+                        accountOrganization: accounts[0].workspaceLabel,
+                        loginMethod: "Team")),
+                error: nil,
+                sourceLabel: nil),
+            accounts[1].id: CodexVisibleAccountUsageSnapshot(
+                visibleAccountID: accounts[1].id,
+                snapshot: UsageSnapshot(
+                    primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                    secondary: nil,
+                    updatedAt: Date(),
+                    identity: ProviderIdentitySnapshot(
+                        providerID: .codex,
+                        accountEmail: accounts[1].email,
+                        accountOrganization: accounts[1].workspaceLabel,
+                        loginMethod: "Team")),
+                error: nil,
+                sourceLabel: nil),
+        ]
+
+        let sorted = StatusItemController.sortedCodexVisibleAccounts(
+            accounts,
+            cachedSnapshots: cached,
+            mode: .sessionLeftHighToLow)
+
+        #expect(sorted.map(\.id) == [accounts[1].id, accounts[0].id])
+    }
+
+    @Test
+    func `codex switch applies cached visible-account snapshot immediately before refresh completes`() async throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.costUsageEnabled = false
+        settings.codexCookieSource = .off
+        self.enableOnlyCodex(settings)
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let storeURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        settings.codexActiveSource = .liveSystem
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let cachedManagedSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 22, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "managed@example.com",
+                accountOrganization: nil,
+                loginMethod: "Pro"))
+        store.codexAllAccountsSnapshotCache["managed@example.com"] = CodexVisibleAccountUsageSnapshot(
+            visibleAccountID: "managed@example.com",
+            snapshot: cachedManagedSnapshot,
+            error: nil,
+            sourceLabel: "cached")
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 30, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "live@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "Pro")),
+            provider: .codex)
+        store.lastCodexAccountScopedRefreshGuard = store
+            .currentCodexAccountScopedRefreshGuard(preferCurrentSnapshot: false)
+
+        let blocker = BlockingStatusMenuCodexFetchStrategy()
+        self.installBlockingCodexProvider(on: store, blocker: blocker)
+
+        #expect(settings.selectCodexVisibleAccount(id: "managed@example.com"))
+        _ = store.prepareCodexAccountScopedRefreshIfNeeded()
+        #expect(store.applyCachedCodexVisibleAccountSnapshotIfAvailable(visibleAccountID: "managed@example.com"))
+        let refreshTask = Task { @MainActor in
+            await store.refreshCodexAccountScopedState(allowDisabled: true)
+        }
+
+        await blocker.waitUntilStarted()
+        #expect(store.snapshots[.codex]?.accountEmail(for: .codex) == "managed@example.com")
+
+        await blocker.resume(with: .success(cachedManagedSnapshot))
+        await refreshTask.value
     }
 }
 

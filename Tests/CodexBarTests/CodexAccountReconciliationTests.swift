@@ -459,6 +459,50 @@ struct CodexAccountReconciliationTests {
     }
 
     @Test
+    func `missing managed source resolves to sole stored managed account when it is the only remaining account`() {
+        let soleStored = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            workspaceLabel: "Team Alpha",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let missingID = UUID()
+        let snapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [soleStored],
+            activeStoredAccount: nil,
+            liveSystemAccount: nil,
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .managedAccount(id: missingID),
+            hasUnreadableAddedAccountStore: false)
+
+        let resolution = CodexActiveSourceResolver.resolve(from: snapshot)
+
+        #expect(resolution.persistedSource == .managedAccount(id: missingID))
+        #expect(resolution.resolvedSource == .managedAccount(id: soleStored.id))
+        #expect(resolution.requiresPersistenceCorrection)
+    }
+
+    @Test
+    func `missing managed source stays unresolved when no replacement account exists`() {
+        let missingID = UUID()
+        let snapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [],
+            activeStoredAccount: nil,
+            liveSystemAccount: nil,
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .managedAccount(id: missingID),
+            hasUnreadableAddedAccountStore: false)
+
+        let resolution = CodexActiveSourceResolver.resolve(from: snapshot)
+
+        #expect(resolution.persistedSource == .managedAccount(id: missingID))
+        #expect(resolution.resolvedSource == .managedAccount(id: missingID))
+        #expect(resolution.requiresPersistenceCorrection == false)
+    }
+
+    @Test
     func `unreadable managed source resolves to live system when live account exists`() {
         let live = ObservedSystemCodexAccount(
             email: "live@example.com",

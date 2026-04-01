@@ -40,8 +40,10 @@ extension SettingsStore {
         return try store.loadAccounts()
     }
 
-    private func managedCodexAccountStoreState() -> ManagedCodexAccountStoreState {
-        guard case let .managedAccount(id) = self.codexResolvedActiveSource else {
+    private func managedCodexAccountStoreState(for activeSourceOverride: CodexActiveSource? = nil)
+    -> ManagedCodexAccountStoreState {
+        let activeSource = activeSourceOverride ?? self.codexResolvedActiveSource
+        guard case let .managedAccount(id) = activeSource else {
             return .none
         }
         do {
@@ -56,15 +58,20 @@ extension SettingsStore {
         }
     }
 
-    var activeManagedCodexAccount: ManagedCodexAccount? {
-        guard case let .selected(account) = self.managedCodexAccountStoreState() else {
+    func activeManagedCodexAccount(for activeSourceOverride: CodexActiveSource? = nil) -> ManagedCodexAccount? {
+        guard case let .selected(account) = self.managedCodexAccountStoreState(for: activeSourceOverride) else {
             return nil
         }
         return account
     }
 
-    var activeManagedCodexRemoteHomePath: String? {
-        guard case .managedAccount = self.codexResolvedActiveSource else {
+    var activeManagedCodexAccount: ManagedCodexAccount? {
+        self.activeManagedCodexAccount(for: nil)
+    }
+
+    func activeManagedCodexRemoteHomePath(for activeSourceOverride: CodexActiveSource? = nil) -> String? {
+        let activeSource = activeSourceOverride ?? self.codexResolvedActiveSource
+        guard case .managedAccount = activeSource else {
             return nil
         }
 
@@ -74,7 +81,7 @@ extension SettingsStore {
         }
         #endif
 
-        guard case let .managedAccount(id) = self.codexResolvedActiveSource else {
+        guard case let .managedAccount(id) = activeSource else {
             return nil
         }
 
@@ -85,6 +92,10 @@ extension SettingsStore {
         } catch {
             return Self.failClosedManagedCodexHomePath()
         }
+    }
+
+    var activeManagedCodexRemoteHomePath: String? {
+        self.activeManagedCodexRemoteHomePath(for: nil)
     }
 
     var activeManagedCodexCookieCacheScope: CookieHeaderCache.Scope? {
@@ -102,18 +113,21 @@ extension SettingsStore {
         self.codexAccountReconciliationSnapshot.hasUnreadableAddedAccountStore
     }
 
-    private var hasUnreadableSelectedManagedCodexAccountStore: Bool {
-        guard case .managedAccount = self.codexResolvedActiveSource else {
+    private func hasUnreadableSelectedManagedCodexAccountStore(for activeSourceOverride: CodexActiveSource? = nil)
+    -> Bool {
+        let activeSource = activeSourceOverride ?? self.codexResolvedActiveSource
+        guard case .managedAccount = activeSource else {
             return false
         }
-        if case .unreadable = self.managedCodexAccountStoreState() {
+        if case .unreadable = self.managedCodexAccountStoreState(for: activeSourceOverride) {
             return true
         }
         return false
     }
 
-    private var hasUnavailableSelectedManagedCodexAccount: Bool {
-        guard case let .managedAccount(id) = self.codexResolvedActiveSource else {
+    private func hasUnavailableSelectedManagedCodexAccount(for activeSourceOverride: CodexActiveSource? = nil) -> Bool {
+        let activeSource = activeSourceOverride ?? self.codexResolvedActiveSource
+        guard case let .managedAccount(id) = activeSource else {
             return false
         }
         guard self.hasUnreadableManagedCodexAccountStore == false else {
@@ -466,13 +480,18 @@ extension SettingsStore {
 #endif
 
 extension SettingsStore {
-    func codexSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.CodexProviderSettings {
+    func codexSettingsSnapshot(
+        tokenOverride: TokenAccountOverride?,
+        activeSourceOverride: CodexActiveSource? = nil) -> ProviderSettingsSnapshot.CodexProviderSettings
+    {
         ProviderSettingsSnapshot.CodexProviderSettings(
             usageDataSource: self.codexUsageDataSource,
             cookieSource: self.codexSnapshotCookieSource(tokenOverride: tokenOverride),
             manualCookieHeader: self.codexSnapshotCookieHeader(tokenOverride: tokenOverride),
-            managedAccountStoreUnreadable: self.hasUnreadableSelectedManagedCodexAccountStore,
-            managedAccountTargetUnavailable: self.hasUnavailableSelectedManagedCodexAccount)
+            managedAccountStoreUnreadable: self.hasUnreadableSelectedManagedCodexAccountStore(
+                for: activeSourceOverride),
+            managedAccountTargetUnavailable: self.hasUnavailableSelectedManagedCodexAccount(
+                for: activeSourceOverride))
     }
 
     private static func codexUsageDataSource(from source: ProviderSourceMode?) -> CodexUsageDataSource {
