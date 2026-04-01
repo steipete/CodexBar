@@ -25,7 +25,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .minimax(context.settings.minimaxSettingsSnapshot())
+        .minimax(context.settings.minimaxSettingsSnapshot(tokenOverride: context.tokenOverride))
     }
 
     @MainActor
