@@ -490,6 +490,56 @@ struct UsageMenuCardUsageSectionView: View {
     }
 }
 
+struct CodexCompactAllAccountsCardView: View {
+    let title: String
+    let model: UsageMenuCardView.Model
+    let width: CGFloat
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(self.title)
+                .font(.body)
+                .fontWeight(.medium)
+                .lineLimit(1)
+
+            if self.displayMetrics.isEmpty {
+                Text(self.emptyStateText)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .font(.footnote)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(self.displayMetrics, id: \.id) { metric in
+                    MetricRow(
+                        metric: metric,
+                        title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
+                        progressColor: self.model.progressColor)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .frame(width: self.width, alignment: .leading)
+    }
+
+    private var displayMetrics: [UsageMenuCardView.Model.Metric] {
+        Array(self.model.metrics.prefix(2))
+    }
+
+    private var emptyStateText: String {
+        switch self.model.subtitleStyle {
+        case .loading:
+            "Refreshing…"
+        case .error:
+            "Unavailable"
+        case .info:
+            self.model.placeholder ?? self.model.subtitleText
+        }
+    }
+}
+
 struct UsageMenuCardCreditsSectionView: View {
     let model: UsageMenuCardView.Model
     let showBottomDivider: Bool

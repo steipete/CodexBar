@@ -113,7 +113,18 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let keepAlive = context.settings?.debugKeepCLISessionsAlive ?? false
-        let usage = try await context.fetcher.loadLatestUsage(keepCLISessionsAlive: keepAlive)
+        var usage = try await context.fetcher.loadLatestUsage(keepCLISessionsAlive: keepAlive)
+        if let credentials = try? CodexOAuthCredentialsStore.load(env: context.env) {
+            let resolvedWorkspaceIdentity = try? await CodexOpenAIWorkspaceResolver.resolve(credentials: credentials)
+            if let resolvedWorkspaceIdentity {
+                try? CodexOpenAIWorkspaceIdentityCache().store(resolvedWorkspaceIdentity)
+            }
+            if let workspaceIdentity = resolvedWorkspaceIdentity
+                ?? CodexOAuthFetchStrategy.cachedWorkspaceIdentity(for: credentials.accountId)
+            {
+                usage = CodexOAuthFetchStrategy.applyWorkspaceIdentity(workspaceIdentity, to: usage)
+            }
+        }
         let credits = await context.includeCredits
             ? (try? context.fetcher.loadLatestCredits(keepCLISessionsAlive: keepAlive))
             : nil
@@ -148,9 +159,14 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             accessToken: credentials.accessToken,
             accountId: credentials.accountId,
             env: context.env)
+        let resolvedWorkspaceIdentity = try? await CodexOpenAIWorkspaceResolver.resolve(credentials: credentials)
+        if let resolvedWorkspaceIdentity {
+            try? CodexOpenAIWorkspaceIdentityCache().store(resolvedWorkspaceIdentity)
+        }
+        let workspaceIdentity = resolvedWorkspaceIdentity ?? Self.cachedWorkspaceIdentity(for: credentials.accountId)
 
         return self.makeResult(
-            usage: Self.mapUsage(usage, credentials: credentials),
+            usage: Self.mapUsage(usage, credentials: credentials, workspaceIdentity: workspaceIdentity),
             credits: Self.mapCredits(usage.credits),
             sourceLabel: "oauth")
     }
@@ -160,7 +176,11 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         return true
     }
 
-    private static func mapUsage(_ response: CodexUsageResponse, credentials: CodexOAuthCredentials) -> UsageSnapshot {
+    private static func mapUsage(
+        _ response: CodexUsageResponse,
+        credentials: CodexOAuthCredentials,
+        workspaceIdentity: CodexOpenAIWorkspaceIdentity?) -> UsageSnapshot
+    {
         let normalized = CodexRateWindowNormalizer.normalize(
             primary: Self.makeWindow(response.rateLimit?.primaryWindow),
             secondary: Self.makeWindow(response.rateLimit?.secondaryWindow))
@@ -170,7 +190,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
             accountEmail: Self.resolveAccountEmail(from: credentials),
-            accountOrganization: nil,
+            accountOrganization: workspaceIdentity?.workspaceLabel,
+            accountWorkspaceID: workspaceIdentity?.workspaceAccountID
+                ?? ManagedCodexAccount.normalizeWorkspaceAccountID(credentials.accountId),
             loginMethod: Self.resolvePlan(response: response, credentials: credentials))
 
         return UsageSnapshot(
@@ -222,13 +244,40 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         let plan = (authDict?["chatgpt_plan_type"] as? String) ?? (payload["chatgpt_plan_type"] as? String)
         return plan?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    fileprivate static func applyWorkspaceIdentity(
+        _ workspaceIdentity: CodexOpenAIWorkspaceIdentity,
+        to usage: UsageSnapshot) -> UsageSnapshot
+    {
+        let existingIdentity = usage.identity(for: .codex)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: existingIdentity?.accountEmail,
+            accountOrganization: workspaceIdentity.workspaceLabel,
+            accountWorkspaceID: workspaceIdentity.workspaceAccountID,
+            loginMethod: existingIdentity?.loginMethod)
+        return usage.withIdentity(identity)
+    }
+
+    fileprivate static func cachedWorkspaceIdentity(for workspaceAccountID: String?) -> CodexOpenAIWorkspaceIdentity? {
+        guard let normalizedWorkspaceAccountID = CodexOpenAIWorkspaceResolver
+            .normalizeWorkspaceAccountID(workspaceAccountID)
+        else {
+            return nil
+        }
+
+        let cachedWorkspaceLabel = CodexOpenAIWorkspaceIdentityCache().workspaceLabel(for: normalizedWorkspaceAccountID)
+        return CodexOpenAIWorkspaceIdentity(
+            workspaceAccountID: normalizedWorkspaceAccountID,
+            workspaceLabel: cachedWorkspaceLabel)
+    }
 }
 
 #if DEBUG
 extension CodexOAuthFetchStrategy {
     static func _mapUsageForTesting(_ data: Data, credentials: CodexOAuthCredentials) throws -> UsageSnapshot {
         let usage = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
-        return Self.mapUsage(usage, credentials: credentials)
+        return Self.mapUsage(usage, credentials: credentials, workspaceIdentity: nil)
     }
 }
 

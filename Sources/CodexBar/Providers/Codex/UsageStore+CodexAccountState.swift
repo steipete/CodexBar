@@ -85,9 +85,17 @@ extension UsageStore {
 
     func seedCodexAccountScopedRefreshGuard(
         source: CodexActiveSource? = nil,
-        accountEmail: String?)
+        accountEmail: String?,
+        workspaceAccountID: String? = nil,
+        workspaceLabel: String? = nil)
     {
-        guard let accountKey = Self.normalizeCodexAccountScopedKey(accountEmail) else { return }
+        guard let accountKey = Self.normalizeCodexAccountScopedKey(
+            email: accountEmail,
+            workspaceAccountID: workspaceAccountID,
+            workspaceLabel: workspaceLabel)
+        else {
+            return
+        }
         self.lastCodexAccountScopedRefreshGuard = CodexAccountScopedRefreshGuard(
             source: source ?? self.settings.codexResolvedActiveSource,
             accountKey: accountKey)
@@ -107,11 +115,16 @@ extension UsageStore {
     func currentCodexOpenAIWebRefreshGuard() -> CodexAccountScopedRefreshGuard {
         let accountKey: String? = switch self.settings.codexResolvedActiveSource {
         case .liveSystem:
-            Self
-                .normalizeCodexAccountScopedKey(self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?
-                    .email)
+            Self.normalizeCodexAccountScopedKey(
+                email: self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?.email,
+                workspaceAccountID: self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?
+                    .workspaceAccountID,
+                workspaceLabel: self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?.workspaceLabel)
         case .managedAccount:
-            Self.normalizeCodexAccountScopedKey(self.settings.activeManagedCodexAccount?.email)
+            Self.normalizeCodexAccountScopedKey(
+                email: self.settings.activeManagedCodexAccount?.email,
+                workspaceAccountID: self.settings.activeManagedCodexAccount?.workspaceAccountID,
+                workspaceLabel: self.settings.activeManagedCodexAccount?.workspaceLabel)
         }
         return CodexAccountScopedRefreshGuard(
             source: self.settings.codexResolvedActiveSource,
@@ -129,7 +142,10 @@ extension UsageStore {
             return currentGuard.accountKey == expectedKey
         }
 
-        let resultKey = Self.normalizeCodexAccountScopedKey(usage.accountEmail(for: .codex))
+        let resultKey = Self.normalizeCodexAccountScopedKey(
+            email: usage.accountEmail(for: .codex),
+            workspaceAccountID: usage.accountWorkspaceID(for: .codex),
+            workspaceLabel: usage.accountOrganization(for: .codex))
         if let currentKey = currentGuard.accountKey {
             return resultKey == currentKey
         }
@@ -174,10 +190,19 @@ extension UsageStore {
         guard currentGuard.source == expectedGuard.source else { return false }
         guard case .liveSystem = expectedGuard.source else { return false }
         guard currentGuard.accountKey == nil else { return false }
-        guard let dashboardKey = Self.normalizeCodexAccountScopedKey(dashboardAccountEmail) else { return false }
-        let currentTargetKey = Self.normalizeCodexAccountScopedKey(self.currentCodexOpenAIWebTargetEmail(
-            allowCurrentSnapshotFallback: true,
-            allowLastKnownLiveFallback: false))
+        guard let dashboardKey = Self.normalizeCodexAccountScopedKey(
+            email: dashboardAccountEmail,
+            workspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+            workspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard())
+        else {
+            return false
+        }
+        let currentTargetKey = Self.normalizeCodexAccountScopedKey(
+            email: self.currentCodexOpenAIWebTargetEmail(
+                allowCurrentSnapshotFallback: true,
+                allowLastKnownLiveFallback: false),
+            workspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+            workspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard())
         if let currentTargetKey {
             return dashboardKey == currentTargetKey
         }
@@ -195,9 +220,29 @@ extension UsageStore {
         allowLastKnownLiveFallback: Bool = true) -> String?
     {
         Self.normalizeCodexAccountScopedKey(
-            self.codexAccountScopedRefreshEmail(
+            email: self.codexAccountScopedRefreshEmail(
                 preferCurrentSnapshot: preferCurrentSnapshot,
-                allowLastKnownLiveFallback: allowLastKnownLiveFallback))
+                allowLastKnownLiveFallback: allowLastKnownLiveFallback),
+            workspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+            workspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard())
+    }
+
+    func codexWorkspaceAccountIDForOpenAIDashboard() -> String? {
+        switch self.settings.codexResolvedActiveSource {
+        case .liveSystem:
+            self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?.workspaceAccountID
+        case .managedAccount:
+            self.settings.activeManagedCodexAccount?.workspaceAccountID
+        }
+    }
+
+    func codexWorkspaceLabelForOpenAIDashboard() -> String? {
+        switch self.settings.codexResolvedActiveSource {
+        case .liveSystem:
+            self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?.workspaceLabel
+        case .managedAccount:
+            self.settings.activeManagedCodexAccount?.workspaceLabel
+        }
     }
 
     func codexAccountScopedRefreshEmail(
@@ -239,7 +284,10 @@ extension UsageStore {
     private func clearCodexOpenAIWebStateForAccountTransition(targetEmail: String?) {
         self.invalidateOpenAIDashboardRefreshTask()
         if self.settings.codexCookieSource.isEnabled,
-           let normalizedTarget = Self.normalizeCodexAccountScopedEmail(targetEmail)
+           let normalizedTarget = Self.normalizeCodexAccountScopedKey(
+               email: targetEmail,
+               workspaceAccountID: self.codexWorkspaceAccountIDForOpenAIDashboard(),
+               workspaceLabel: self.codexWorkspaceLabelForOpenAIDashboard())
         {
             let previous = self.lastOpenAIDashboardTargetEmail
             self.lastOpenAIDashboardTargetEmail = normalizedTarget
@@ -272,7 +320,23 @@ extension UsageStore {
         return trimmed
     }
 
-    static func normalizeCodexAccountScopedKey(_ email: String?) -> String? {
-        self.normalizeCodexAccountScopedEmail(email)?.lowercased()
+    static func normalizeCodexAccountScopedKey(
+        email: String?,
+        workspaceAccountID: String? = nil,
+        workspaceLabel: String?) -> String?
+    {
+        guard let normalizedEmail = self.normalizeCodexAccountScopedEmail(email)?.lowercased() else {
+            return nil
+        }
+        if let normalizedWorkspaceAccountID = ManagedCodexAccount.normalizeWorkspaceAccountID(workspaceAccountID) {
+            return "\(normalizedEmail)\naccount:\(normalizedWorkspaceAccountID)"
+        }
+        let normalizedWorkspace = workspaceLabel?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let normalizedWorkspace, !normalizedWorkspace.isEmpty {
+            return "\(normalizedEmail)\n\(normalizedWorkspace)"
+        }
+        return normalizedEmail
     }
 }

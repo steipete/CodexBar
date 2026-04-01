@@ -39,12 +39,16 @@ struct ProviderRegistry {
                     let sourceMode = ProviderCatalog.implementation(for: provider)?
                         .sourceMode(context: ProviderSourceModeContext(provider: provider, settings: settings))
                         ?? .auto
-                    let snapshot = Self.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+                    let snapshot = Self.makeSettingsSnapshot(
+                        settings: settings,
+                        tokenOverride: nil,
+                        codexActiveSourceOverride: nil)
                     let env = Self.makeEnvironment(
                         base: ProcessInfo.processInfo.environment,
                         provider: provider,
                         settings: settings,
-                        tokenOverride: nil)
+                        tokenOverride: nil,
+                        codexActiveSourceOverride: nil)
                     let fetcher = Self.makeFetcher(base: codexFetcher, provider: provider, env: env)
                     let verbose = settings.isVerboseLoggingEnabled
                     return ProviderFetchContext(
@@ -69,13 +73,17 @@ struct ProviderRegistry {
     @MainActor
     static func makeSettingsSnapshot(
         settings: SettingsStore,
-        tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
+        tokenOverride: TokenAccountOverride?,
+        codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderSettingsSnapshot
     {
         settings.ensureTokenAccountsLoaded()
         var builder = ProviderSettingsSnapshotBuilder(
             debugMenuEnabled: settings.debugMenuEnabled,
             debugKeepCLISessionsAlive: settings.debugKeepCLISessionsAlive)
-        let context = ProviderSettingsSnapshotContext(settings: settings, tokenOverride: tokenOverride)
+        let context = ProviderSettingsSnapshotContext(
+            settings: settings,
+            tokenOverride: tokenOverride,
+            codexActiveSourceOverride: codexActiveSourceOverride)
         for implementation in ProviderCatalog.all {
             if let contribution = implementation.settingsSnapshot(context: context) {
                 builder.apply(contribution)
@@ -89,7 +97,8 @@ struct ProviderRegistry {
         base: [String: String],
         provider: UsageProvider,
         settings: SettingsStore,
-        tokenOverride: TokenAccountOverride?) -> [String: String]
+        tokenOverride: TokenAccountOverride?,
+        codexActiveSourceOverride: CodexActiveSource? = nil) -> [String: String]
     {
         let account = ProviderTokenAccountSelection.selectedAccount(
             provider: provider,
@@ -115,7 +124,9 @@ struct ProviderRegistry {
         // Mac's Codex sessions, not as account-owned remote state. If we later want
         // account-scoped token history in the UI, that needs an explicit product decision and
         // presentation change so the two concepts are not conflated.
-        if provider == .codex, let managedHomePath = settings.activeManagedCodexRemoteHomePath {
+        if provider == .codex,
+           let managedHomePath = settings.activeManagedCodexRemoteHomePath(for: codexActiveSourceOverride)
+        {
             env = CodexHomeScope.scopedEnvironment(base: env, codexHome: managedHomePath)
         }
         return env

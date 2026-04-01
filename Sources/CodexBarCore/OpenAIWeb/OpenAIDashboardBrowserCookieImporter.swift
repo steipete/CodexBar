@@ -3,6 +3,7 @@ import Foundation
 import SweetCookieKit
 import WebKit
 
+// swiftlint:disable type_body_length
 @MainActor
 public struct OpenAIDashboardBrowserCookieImporter {
     public struct FoundAccount: Sendable, Hashable {
@@ -80,8 +81,18 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
     private struct ImportContext {
         let targetEmail: String?
+        let targetWorkspaceAccountID: String?
+        let targetWorkspaceLabel: String?
         let allowAnyAccount: Bool
         let cacheScope: CookieHeaderCache.Scope?
+    }
+
+    private struct TargetMatchContext {
+        let targetEmail: String
+        let targetWorkspaceAccountID: String?
+        let targetWorkspaceLabel: String?
+        let candidateLabel: String
+        let log: (String) -> Void
     }
 
     private static let cookieDomains = ["chatgpt.com", "openai.com"]
@@ -99,6 +110,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
     public func importBestCookies(
         intoAccountEmail targetEmail: String?,
+        intoWorkspaceAccountID targetWorkspaceAccountID: String? = nil,
+        intoWorkspaceLabel targetWorkspaceLabel: String? = nil,
         allowAnyAccount: Bool = false,
         cacheScope: CookieHeaderCache.Scope? = nil,
         logger: ((String) -> Void)? = nil) async throws -> ImportResult
@@ -111,6 +124,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
         let normalizedTarget = targetEmail?.isEmpty == false ? targetEmail : nil
         let context = ImportContext(
             targetEmail: normalizedTarget,
+            targetWorkspaceAccountID: ManagedCodexAccount.normalizeWorkspaceAccountID(targetWorkspaceAccountID),
+            targetWorkspaceLabel: targetWorkspaceLabel,
             allowAnyAccount: allowAnyAccount,
             cacheScope: cacheScope)
 
@@ -133,6 +148,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 return try await self.importManualCookies(
                     cookieHeader: cached.cookieHeader,
                     intoAccountEmail: context.targetEmail,
+                    intoWorkspaceAccountID: context.targetWorkspaceAccountID,
+                    intoWorkspaceLabel: context.targetWorkspaceLabel,
                     allowAnyAccount: context.allowAnyAccount,
                     cacheScope: cacheScope,
                     logger: log)
@@ -187,6 +204,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
     public func importManualCookies(
         cookieHeader: String,
         intoAccountEmail targetEmail: String?,
+        intoWorkspaceAccountID targetWorkspaceAccountID: String? = nil,
+        intoWorkspaceLabel targetWorkspaceLabel: String? = nil,
         allowAnyAccount: Bool = false,
         cacheScope _: CookieHeaderCache.Scope? = nil,
         logger: ((String) -> Void)? = nil) async throws -> ImportResult
@@ -196,6 +215,12 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
         let normalizedTarget = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let allowAnyAccount = allowAnyAccount || normalizedTarget == nil || normalizedTarget?.isEmpty == true
+        let context = ImportContext(
+            targetEmail: normalizedTarget,
+            targetWorkspaceAccountID: ManagedCodexAccount.normalizeWorkspaceAccountID(targetWorkspaceAccountID),
+            targetWorkspaceLabel: targetWorkspaceLabel,
+            allowAnyAccount: allowAnyAccount,
+            cacheScope: nil)
 
         guard let normalized = CookieHeaderNormalizer.normalize(cookieHeader) else {
             throw ImportError.manualCookieHeaderInvalid
@@ -206,16 +231,21 @@ public struct OpenAIDashboardBrowserCookieImporter {
         guard !cookies.isEmpty else { throw ImportError.manualCookieHeaderInvalid }
 
         let candidate = Candidate(label: "Manual", cookies: cookies)
-        switch await self.evaluateCandidate(
-            candidate,
-            targetEmail: normalizedTarget,
-            allowAnyAccount: allowAnyAccount,
-            log: log)
-        {
+        switch await self.evaluateCandidate(candidate, context: context, log: log) {
         case let .match(_, signedInEmail):
-            return try await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log)
+            return try await self.persist(
+                candidate: candidate,
+                targetEmail: signedInEmail,
+                workspaceAccountID: ManagedCodexAccount.normalizeWorkspaceAccountID(targetWorkspaceAccountID),
+                workspaceLabel: targetWorkspaceLabel,
+                logger: log)
         case let .loggedIn(_, signedInEmail):
-            return try await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log)
+            return try await self.persist(
+                candidate: candidate,
+                targetEmail: signedInEmail,
+                workspaceAccountID: ManagedCodexAccount.normalizeWorkspaceAccountID(targetWorkspaceAccountID),
+                workspaceLabel: targetWorkspaceLabel,
+                logger: log)
         case let .mismatch(_, signedInEmail):
             throw ImportError.noMatchingAccount(found: [FoundAccount(sourceLabel: "Manual", email: signedInEmail)])
         case .unknown:
@@ -396,16 +426,17 @@ public struct OpenAIDashboardBrowserCookieImporter {
         log: @escaping (String) -> Void,
         diagnostics: inout ImportDiagnostics) async -> ImportResult?
     {
-        switch await self.evaluateCandidate(
-            candidate,
-            targetEmail: context.targetEmail,
-            allowAnyAccount: context.allowAnyAccount,
-            log: log)
-        {
+        switch await self.evaluateCandidate(candidate, context: context, log: log) {
         case let .match(candidate, signedInEmail):
             log("Selected \(candidate.label) (matches Codex: \(signedInEmail))")
             guard let targetEmail = context.targetEmail else { return nil }
-            if let result = try? await self.persist(candidate: candidate, targetEmail: targetEmail, logger: log) {
+            if let result = try? await self.persist(
+                candidate: candidate,
+                targetEmail: targetEmail,
+                workspaceAccountID: context.targetWorkspaceAccountID,
+                workspaceLabel: context.targetWorkspaceLabel,
+                logger: log)
+            {
                 self.cacheCookies(candidate: candidate, scope: context.cacheScope)
                 return result
             }
@@ -414,12 +445,19 @@ public struct OpenAIDashboardBrowserCookieImporter {
             await self.handleMismatch(
                 candidate: candidate,
                 signedInEmail: signedInEmail,
+                context: context,
                 log: log,
                 diagnostics: &diagnostics)
             return nil
         case let .loggedIn(candidate, signedInEmail):
             log("Selected \(candidate.label) (signed in: \(signedInEmail))")
-            if let result = try? await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log) {
+            if let result = try? await self.persist(
+                candidate: candidate,
+                targetEmail: signedInEmail,
+                workspaceAccountID: context.targetWorkspaceAccountID,
+                workspaceLabel: context.targetWorkspaceLabel,
+                logger: log)
+            {
                 self.cacheCookies(candidate: candidate, scope: context.cacheScope)
                 return result
             }
@@ -442,11 +480,15 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
     private func evaluateCandidate(
         _ candidate: Candidate,
-        targetEmail: String?,
-        allowAnyAccount: Bool,
+        context: ImportContext,
         log: @escaping (String) -> Void) async -> CandidateEvaluation
     {
         log("Trying candidate \(candidate.label) (\(candidate.cookies.count) cookies)")
+
+        let resolvedWorkspaceLabel = self.resolveWorkspaceLabel(from: candidate.cookies)
+        if let resolvedWorkspaceLabel, !resolvedWorkspaceLabel.isEmpty {
+            log("Candidate \(candidate.label) workspace: \(resolvedWorkspaceLabel)")
+        }
 
         let apiEmail = await self.fetchSignedInEmailFromAPI(cookies: candidate.cookies, logger: log)
         if let apiEmail {
@@ -455,13 +497,23 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         // Prefer the API email when available (fast; avoids WebKit hydration/timeout risks).
         if let apiEmail, !apiEmail.isEmpty {
-            if let targetEmail {
-                if apiEmail.lowercased() == targetEmail.lowercased() {
+            if let targetEmail = context.targetEmail {
+                if self.matchesTarget(
+                    signedInEmail: apiEmail,
+                    candidateWorkspaceAccountID: self.resolveWorkspaceAccountID(from: candidate.cookies),
+                    candidateWorkspaceLabel: resolvedWorkspaceLabel,
+                    context: TargetMatchContext(
+                        targetEmail: targetEmail,
+                        targetWorkspaceAccountID: context.targetWorkspaceAccountID,
+                        targetWorkspaceLabel: context.targetWorkspaceLabel,
+                        candidateLabel: candidate.label,
+                        log: log))
+                {
                     return .match(candidate: candidate, signedInEmail: apiEmail)
                 }
                 return .mismatch(candidate: candidate, signedInEmail: apiEmail)
             }
-            if allowAnyAccount { return .loggedIn(candidate: candidate, signedInEmail: apiEmail) }
+            if context.allowAnyAccount { return .loggedIn(candidate: candidate, signedInEmail: apiEmail) }
         }
 
         if !self.hasSessionCookies(candidate.cookies) {
@@ -482,13 +534,25 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
             let resolvedEmail = signedInEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
             if let resolvedEmail, !resolvedEmail.isEmpty {
-                if let targetEmail {
-                    if resolvedEmail.lowercased() == targetEmail.lowercased() {
+                if let targetEmail = context.targetEmail {
+                    if self.matchesTarget(
+                        signedInEmail: resolvedEmail,
+                        candidateWorkspaceAccountID: self.resolveWorkspaceAccountID(from: candidate.cookies),
+                        candidateWorkspaceLabel: resolvedWorkspaceLabel,
+                        context: TargetMatchContext(
+                            targetEmail: targetEmail,
+                            targetWorkspaceAccountID: context.targetWorkspaceAccountID,
+                            targetWorkspaceLabel: context.targetWorkspaceLabel,
+                            candidateLabel: candidate.label,
+                            log: log))
+                    {
                         return .match(candidate: candidate, signedInEmail: resolvedEmail)
                     }
                     return .mismatch(candidate: candidate, signedInEmail: resolvedEmail)
                 }
-                if allowAnyAccount { return .loggedIn(candidate: candidate, signedInEmail: resolvedEmail) }
+                if context.allowAnyAccount {
+                    return .loggedIn(candidate: candidate, signedInEmail: resolvedEmail)
+                }
             }
 
             return .unknown(candidate: candidate)
@@ -512,18 +576,122 @@ public struct OpenAIDashboardBrowserCookieImporter {
         return false
     }
 
+    private func matchesTarget(
+        signedInEmail: String,
+        candidateWorkspaceAccountID: String?,
+        candidateWorkspaceLabel: String?,
+        context: TargetMatchContext) -> Bool
+    {
+        guard signedInEmail.lowercased() == context.targetEmail.lowercased() else { return false }
+
+        let normalizedTargetWorkspaceAccountID = ManagedCodexAccount.normalizeWorkspaceAccountID(
+            context.targetWorkspaceAccountID)
+        if let normalizedTargetWorkspaceAccountID {
+            let normalizedCandidateWorkspaceAccountID = ManagedCodexAccount.normalizeWorkspaceAccountID(
+                candidateWorkspaceAccountID)
+            guard let normalizedCandidateWorkspaceAccountID else {
+                context.log(
+                    "Candidate \(context.candidateLabel) matched email but workspace account id is unknown; " +
+                        "expected \(normalizedTargetWorkspaceAccountID)")
+                return false
+            }
+            if normalizedCandidateWorkspaceAccountID == normalizedTargetWorkspaceAccountID {
+                return true
+            }
+            context.log(
+                "Candidate \(context.candidateLabel) matched email but workspace account id mismatched " +
+                    "(candidate=\(normalizedCandidateWorkspaceAccountID), " +
+                    "target=\(normalizedTargetWorkspaceAccountID))")
+            return false
+        }
+
+        let normalizedTargetWorkspace = self.normalizeWorkspaceLabel(context.targetWorkspaceLabel)
+        guard let normalizedTargetWorkspace else { return true }
+
+        let normalizedCandidateWorkspace = self.normalizeWorkspaceLabel(candidateWorkspaceLabel)
+        guard let normalizedCandidateWorkspace else {
+            context.log(
+                "Candidate \(context.candidateLabel) matched email but workspace is unknown; " +
+                    "expected \(normalizedTargetWorkspace)")
+            return false
+        }
+
+        if normalizedCandidateWorkspace == normalizedTargetWorkspace {
+            return true
+        }
+
+        context.log(
+            "Candidate \(context.candidateLabel) matched email but workspace mismatched " +
+                "(candidate=\(normalizedCandidateWorkspace), target=\(normalizedTargetWorkspace))")
+        return false
+    }
+
+    private func normalizeWorkspaceLabel(_ label: String?) -> String? {
+        let trimmed = label?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed.lowercased()
+    }
+
+    private func resolveWorkspaceAccountID(from cookies: [HTTPCookie]) -> String? {
+        ManagedCodexAccount.normalizeWorkspaceAccountID(
+            cookies.first(where: { $0.name == "_account" })?.value)
+    }
+
+    private func resolveWorkspaceLabel(from cookies: [HTTPCookie]) -> String? {
+        guard let accountID = self.resolveWorkspaceAccountID(from: cookies),
+              let sessionCookie = cookies.first(where: { $0.name == "oai-client-auth-session" })?.value,
+              let payload = self.decodeBase64URLJSONPayload(fromCookieValue: sessionCookie),
+              let json = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
+              let workspaces = json["workspaces"] as? [[String: Any]]
+        else {
+            return nil
+        }
+
+        guard let workspace = workspaces.first(where: {
+            ManagedCodexAccount.normalizeWorkspaceAccountID($0["id"] as? String) == accountID
+        }) else {
+            return nil
+        }
+
+        let name = (workspace["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let name, !name.isEmpty { return name }
+
+        let kind = (workspace["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if kind == "personal" { return "Personal" }
+        return nil
+    }
+
+    private func decodeBase64URLJSONPayload(fromCookieValue value: String) -> Data? {
+        let prefix = value.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false).first
+            .map(String.init) ?? value
+        guard !prefix.isEmpty else { return nil }
+        var base64 = prefix.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        let remainder = base64.count % 4
+        if remainder != 0 {
+            base64 += String(repeating: "=", count: 4 - remainder)
+        }
+        return Data(base64Encoded: base64)
+    }
+
     private func handleMismatch(
         candidate: Candidate,
         signedInEmail: String,
+        context: ImportContext,
         log: @escaping (String) -> Void,
         diagnostics: inout ImportDiagnostics) async
     {
         log("Candidate \(candidate.label) mismatch (\(signedInEmail)); continuing browser search")
         diagnostics.mismatches.append(FoundAccount(sourceLabel: candidate.label, email: signedInEmail))
-        // Mismatch still means we found a valid signed-in session. Persist it keyed by its email so if
-        // the user switches Codex accounts later, we can reuse this session immediately without another
-        // Keychain prompt.
-        await self.persistCookies(candidate: candidate, accountEmail: signedInEmail, logger: log)
+        // Mismatch still means we found a valid signed-in session. Persist it keyed by the
+        // candidate's resolved email/workspace so later account switches can reuse the right
+        // browser state without collapsing same-email workspaces together.
+        await self.persistCookies(
+            candidate: candidate,
+            accountEmail: signedInEmail,
+            workspaceAccountID: self.resolveWorkspaceAccountID(from: candidate.cookies) ?? context
+                .targetWorkspaceAccountID,
+            workspaceLabel: self.resolveWorkspaceLabel(from: candidate.cookies) ?? context.targetWorkspaceLabel,
+            logger: log)
     }
 
     private func fetchSignedInEmailFromAPI(
@@ -591,9 +759,14 @@ public struct OpenAIDashboardBrowserCookieImporter {
     private func persist(
         candidate: Candidate,
         targetEmail: String,
+        workspaceAccountID: String?,
+        workspaceLabel: String?,
         logger: @escaping (String) -> Void) async throws -> ImportResult
     {
-        let persistent = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: targetEmail)
+        let persistent = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: targetEmail,
+            workspaceAccountID: workspaceAccountID,
+            workspaceLabel: workspaceLabel)
         await self.clearChatGPTCookies(in: persistent)
         await self.setCookies(candidate.cookies, into: persistent)
 
@@ -697,11 +870,23 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
     // MARK: - WebKit cookie store
 
-    private func persistCookies(candidate: Candidate, accountEmail: String, logger: (String) -> Void) async {
-        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail)
+    private func persistCookies(
+        candidate: Candidate,
+        accountEmail: String,
+        workspaceAccountID: String?,
+        workspaceLabel: String?,
+        logger: (String) -> Void) async
+    {
+        let store = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: accountEmail,
+            workspaceAccountID: workspaceAccountID,
+            workspaceLabel: workspaceLabel)
         await self.clearChatGPTCookies(in: store)
         await self.setCookies(candidate.cookies, into: store)
-        logger("Persisted cookies for \(accountEmail) (source=\(candidate.label))")
+        let workspaceSuffix = workspaceLabel.map { " [\($0)]" } ?? ""
+        logger(
+            "Persisted cookies for \(accountEmail)\(workspaceSuffix) " +
+                "(source=\(candidate.label))")
     }
 
     private func clearChatGPTCookies(in store: WKWebsiteDataStore) async {
@@ -808,6 +993,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
     public func importBestCookies(
         intoAccountEmail _: String?,
+        intoWorkspaceAccountID _: String? = nil,
+        intoWorkspaceLabel _: String? = nil,
         allowAnyAccount _: Bool = false,
         cacheScope _: CookieHeaderCache.Scope? = nil,
         logger _: ((String) -> Void)? = nil) async throws -> ImportResult
@@ -818,6 +1005,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
     public func importManualCookies(
         cookieHeader _: String,
         intoAccountEmail _: String?,
+        intoWorkspaceAccountID _: String? = nil,
+        intoWorkspaceLabel _: String? = nil,
         allowAnyAccount _: Bool = false,
         cacheScope _: CookieHeaderCache.Scope? = nil,
         logger _: ((String) -> Void)? = nil) async throws -> ImportResult
@@ -825,4 +1014,5 @@ public struct OpenAIDashboardBrowserCookieImporter {
         throw ImportError.browserAccessDenied(details: "OpenAI web cookie import is only supported on macOS.")
     }
 }
+// swiftlint:enable type_body_length
 #endif

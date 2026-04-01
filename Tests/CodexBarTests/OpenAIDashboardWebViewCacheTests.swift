@@ -32,6 +32,26 @@ struct OpenAIDashboardWebViewCacheTests {
         OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
     }
 
+    @Test
+    func `WKWebsiteDataStore should return different instances for same email in different workspaces`() {
+        OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
+
+        let personal = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: "test@example.com",
+            workspaceLabel: "Personal")
+        let team = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: "test@example.com",
+            workspaceLabel: "Team Alpha")
+        let personalCaseVariant = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: "TEST@example.com",
+            workspaceLabel: "personal")
+
+        #expect(personal !== team, "Same email with different workspaces should use separate stores")
+        #expect(personal === personalCaseVariant, "Workspace comparison should be case-insensitive")
+
+        OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
+    }
+
     // MARK: - WebView Reuse Tests
 
     @Test

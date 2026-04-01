@@ -105,7 +105,7 @@ struct CodexAccountsSectionView: View {
 
                         Picker("", selection: selection) {
                             ForEach(self.state.visibleAccounts) { account in
-                                Text(account.email).tag(account.id)
+                                Text(account.displayName).tag(account.id)
                             }
                         }
                         .labelsHidden()
@@ -127,7 +127,7 @@ struct CodexAccountsSectionView: View {
                             .font(.subheadline.weight(.semibold))
                             .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
 
-                        Text(account.email)
+                        Text(account.displayName)
                             .font(.subheadline)
 
                         Spacer(minLength: 0)
@@ -192,7 +192,7 @@ private struct CodexAccountsSectionRowView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(self.account.email)
+                Text(self.account.displayName)
                     .font(.subheadline.weight(.semibold))
                 if self.showsLiveBadge {
                     Text("(Live)")

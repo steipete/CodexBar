@@ -85,24 +85,33 @@ extension UsageStore {
 
     func fetchOutcome(
         provider: UsageProvider,
-        override: TokenAccountOverride?) async -> ProviderFetchOutcome
+        override: TokenAccountOverride?,
+        codexActiveSourceOverride: CodexActiveSource? = nil) async -> ProviderFetchOutcome
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-        let context = self.makeFetchContext(provider: provider, override: override)
+        let context = self.makeFetchContext(
+            provider: provider,
+            override: override,
+            codexActiveSourceOverride: codexActiveSourceOverride)
         return await descriptor.fetchOutcome(context: context)
     }
 
     func makeFetchContext(
         provider: UsageProvider,
-        override: TokenAccountOverride?) -> ProviderFetchContext
+        override: TokenAccountOverride?,
+        codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderFetchContext
     {
         let sourceMode = self.sourceMode(for: provider)
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: override)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            settings: self.settings,
+            tokenOverride: override,
+            codexActiveSourceOverride: codexActiveSourceOverride)
         let env = ProviderRegistry.makeEnvironment(
             base: ProcessInfo.processInfo.environment,
             provider: provider,
             settings: self.settings,
-            tokenOverride: override)
+            tokenOverride: override,
+            codexActiveSourceOverride: codexActiveSourceOverride)
         let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: provider, env: env)
         let verbose = self.settings.isVerboseLoggingEnabled
         return ProviderFetchContext(

@@ -14,6 +14,10 @@ protocol ManagedCodexIdentityReading: Sendable {
     func loadAccountInfo(homePath: String) throws -> AccountInfo
 }
 
+protocol ManagedCodexWorkspaceResolving: Sendable {
+    func resolveAccountInfo(homePath: String, fallback: AccountInfo) async -> AccountInfo
+}
+
 enum ManagedCodexAccountServiceError: Error, Equatable, Sendable {
     case loginFailed
     case missingEmail
@@ -70,12 +74,55 @@ struct DefaultManagedCodexIdentityReader: ManagedCodexIdentityReading {
     }
 }
 
+struct DefaultManagedCodexWorkspaceResolver: ManagedCodexWorkspaceResolving {
+    func resolveAccountInfo(homePath: String, fallback: AccountInfo) async -> AccountInfo {
+        let env = CodexHomeScope.scopedEnvironment(
+            base: ProcessInfo.processInfo.environment,
+            codexHome: homePath)
+
+        guard let credentials = try? CodexOAuthCredentialsStore.load(env: env),
+              let workspaceAccountID = ManagedCodexAccount.normalizeWorkspaceAccountID(credentials.accountId)
+        else {
+            return fallback
+        }
+
+        do {
+            let authoritativeIdentity = try await CodexOpenAIWorkspaceResolver.resolve(credentials: credentials)
+            if let authoritativeIdentity {
+                try? CodexOpenAIWorkspaceIdentityCache().store(authoritativeIdentity)
+                return CodexOpenAIWorkspaceResolver.mergeAuthoritativeIdentity(
+                    into: fallback,
+                    authoritativeIdentity: authoritativeIdentity)
+            }
+        } catch {
+            // Fail closed on the workspace label when we have a selected account id but cannot
+            // resolve the authoritative workspace name. This avoids persisting a misleading
+            // JWT-derived label such as "Personal" for a selected team workspace.
+        }
+
+        if let cachedWorkspaceLabel = CodexOpenAIWorkspaceIdentityCache().workspaceLabel(for: workspaceAccountID) {
+            return AccountInfo(
+                email: fallback.email,
+                plan: fallback.plan,
+                workspaceLabel: cachedWorkspaceLabel,
+                workspaceAccountID: workspaceAccountID)
+        }
+
+        return AccountInfo(
+            email: fallback.email,
+            plan: fallback.plan,
+            workspaceLabel: nil,
+            workspaceAccountID: workspaceAccountID)
+    }
+}
+
 @MainActor
 final class ManagedCodexAccountService {
     private let store: any ManagedCodexAccountStoring
     private let homeFactory: any ManagedCodexHomeProducing
     private let loginRunner: any ManagedCodexLoginRunning
     private let identityReader: any ManagedCodexIdentityReading
+    private let workspaceResolver: any ManagedCodexWorkspaceResolving
     private let fileManager: FileManager
 
     init(
@@ -83,12 +130,14 @@ final class ManagedCodexAccountService {
         homeFactory: any ManagedCodexHomeProducing,
         loginRunner: any ManagedCodexLoginRunning,
         identityReader: any ManagedCodexIdentityReading,
+        workspaceResolver: any ManagedCodexWorkspaceResolving = DefaultManagedCodexWorkspaceResolver(),
         fileManager: FileManager = .default)
     {
         self.store = store
         self.homeFactory = homeFactory
         self.loginRunner = loginRunner
         self.identityReader = identityReader
+        self.workspaceResolver = workspaceResolver
         self.fileManager = fileManager
     }
 
@@ -98,6 +147,7 @@ final class ManagedCodexAccountService {
             homeFactory: ManagedCodexHomeFactory(fileManager: fileManager),
             loginRunner: DefaultManagedCodexLoginRunner(),
             identityReader: DefaultManagedCodexIdentityReader(),
+            workspaceResolver: DefaultManagedCodexWorkspaceResolver(),
             fileManager: fileManager)
     }
 
@@ -116,7 +166,8 @@ final class ManagedCodexAccountService {
             let result = await self.loginRunner.run(homePath: homeURL.path, timeout: timeout)
             guard case .success = result.outcome else { throw ManagedCodexAccountServiceError.loginFailed }
 
-            let info = try self.identityReader.loadAccountInfo(homePath: homeURL.path)
+            let baseInfo = try self.identityReader.loadAccountInfo(homePath: homeURL.path)
+            let info = await self.workspaceResolver.resolveAccountInfo(homePath: homeURL.path, fallback: baseInfo)
             guard let rawEmail = info.email?.trimmingCharacters(in: .whitespacesAndNewlines), !rawEmail.isEmpty else {
                 throw ManagedCodexAccountServiceError.missingEmail
             }
@@ -124,12 +175,16 @@ final class ManagedCodexAccountService {
             let now = Date().timeIntervalSince1970
             let existing = self.reconciledExistingAccount(
                 authenticatedEmail: rawEmail,
+                authenticatedWorkspaceAccountID: info.workspaceAccountID,
+                authenticatedWorkspaceLabel: info.workspaceLabel,
                 existingAccountID: existingAccountID,
                 snapshot: snapshot)
 
             account = ManagedCodexAccount(
                 id: existing?.id ?? UUID(),
                 email: rawEmail,
+                workspaceLabel: info.workspaceLabel,
+                workspaceAccountID: info.workspaceAccountID,
                 managedHomePath: homeURL.path,
                 createdAt: existing?.createdAt ?? now,
                 updatedAt: now,
@@ -138,7 +193,9 @@ final class ManagedCodexAccountService {
 
             let updatedSnapshot = ManagedCodexAccountSet(
                 version: snapshot.version,
-                accounts: snapshot.accounts.filter { $0.id != account.id && $0.email != account.email } + [account])
+                accounts: snapshot.accounts.filter {
+                    $0.id != account.id && $0.identityKey != account.identityKey
+                } + [account])
             try self.store.storeAccounts(updatedSnapshot)
         } catch {
             try? self.removeManagedHomeIfSafe(atPath: homeURL.path)
@@ -178,19 +235,24 @@ final class ManagedCodexAccountService {
 
     private func reconciledExistingAccount(
         authenticatedEmail: String,
+        authenticatedWorkspaceAccountID: String?,
+        authenticatedWorkspaceLabel: String?,
         existingAccountID: UUID?,
         snapshot: ManagedCodexAccountSet)
         -> ManagedCodexAccount?
     {
-        if let existingByEmail = snapshot.account(email: authenticatedEmail) {
-            return existingByEmail
+        if let existingByIdentity = snapshot.account(
+            email: authenticatedEmail,
+            workspaceAccountID: authenticatedWorkspaceAccountID,
+            workspaceLabel: authenticatedWorkspaceLabel)
+        {
+            return existingByIdentity
         }
         guard let existingAccountID else { return nil }
         guard let existingByID = snapshot.account(id: existingAccountID) else { return nil }
-        return existingByID.email == Self.normalizeEmail(authenticatedEmail) ? existingByID : nil
-    }
-
-    private static func normalizeEmail(_ email: String) -> String {
-        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return existingByID.identityKey == ManagedCodexAccount.identityKey(
+            email: authenticatedEmail,
+            workspaceAccountID: authenticatedWorkspaceAccountID,
+            workspaceLabel: authenticatedWorkspaceLabel) ? existingByID : nil
     }
 }

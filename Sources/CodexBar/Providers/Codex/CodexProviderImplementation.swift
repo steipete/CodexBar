@@ -24,7 +24,10 @@ struct CodexProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .codex(context.settings.codexSettingsSnapshot(tokenOverride: context.tokenOverride))
+        .codex(
+            context.settings.codexSettingsSnapshot(
+                tokenOverride: context.tokenOverride,
+                activeSourceOverride: context.codexActiveSourceOverride))
     }
 
     @MainActor

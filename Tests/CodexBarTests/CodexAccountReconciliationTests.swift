@@ -291,6 +291,7 @@ struct CodexAccountReconciliationTests {
         let accounts = ManagedCodexAccountSet(version: 1, accounts: [stored])
         let live = ObservedSystemCodexAccount(
             email: "USER@example.com",
+            workspaceLabel: nil,
             codexHomePath: "/Users/test/.codex",
             observedAt: Date())
         let reconciler = DefaultCodexAccountReconciler(
@@ -303,6 +304,68 @@ struct CodexAccountReconciliationTests {
         #expect(projection.visibleAccounts.count == 1)
         #expect(projection.activeVisibleAccountID == "user@example.com")
         #expect(projection.liveVisibleAccountID == "user@example.com")
+    }
+
+    @Test
+    func `same email different workspace remains as separate visible accounts`() {
+        let stored = ManagedCodexAccount(
+            id: UUID(),
+            email: "user@example.com",
+            workspaceLabel: "Team Alpha",
+            managedHomePath: "/tmp/managed-a",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let accounts = ManagedCodexAccountSet(version: 1, accounts: [stored])
+        let live = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            workspaceLabel: "Personal",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        let reconciler = DefaultCodexAccountReconciler(
+            storeLoader: { accounts },
+            systemObserver: StubSystemObserver(account: live),
+            activeSource: .managedAccount(id: stored.id))
+
+        let projection = reconciler.loadVisibleAccounts(environment: [:])
+
+        #expect(projection.visibleAccounts.count == 2)
+        #expect(Set(projection.visibleAccounts.map(\.displayName)) == [
+            "user@example.com — Personal",
+            "user@example.com — Team Alpha",
+        ])
+    }
+
+    @Test
+    func `same email same label different workspace account ids remain separate visible accounts`() {
+        let stored = ManagedCodexAccount(
+            id: UUID(),
+            email: "user@example.com",
+            workspaceLabel: "Shared Team",
+            workspaceAccountID: "team-a",
+            managedHomePath: "/tmp/managed-a",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let accounts = ManagedCodexAccountSet(version: 1, accounts: [stored])
+        let live = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            workspaceLabel: "Shared Team",
+            workspaceAccountID: "team-b",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        let reconciler = DefaultCodexAccountReconciler(
+            storeLoader: { accounts },
+            systemObserver: StubSystemObserver(account: live),
+            activeSource: .managedAccount(id: stored.id))
+
+        let projection = reconciler.loadVisibleAccounts(environment: [:])
+
+        #expect(projection.visibleAccounts.count == 2)
+        #expect(Set(projection.visibleAccounts.map(\.id)) == [
+            "user@example.com\naccount:team-a",
+            "user@example.com\naccount:team-b",
+        ])
     }
 
     @Test
@@ -337,6 +400,43 @@ struct CodexAccountReconciliationTests {
     }
 
     @Test
+    func `matching live system account prefers live authoritative workspace label`() throws {
+        let workspaceAccountID = "team-123"
+        let stored = ManagedCodexAccount(
+            id: UUID(),
+            email: "user@example.com",
+            workspaceLabel: "Personal",
+            workspaceAccountID: workspaceAccountID,
+            managedHomePath: "/tmp/managed-a",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let live = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            workspaceLabel: "Team Alpha",
+            workspaceAccountID: workspaceAccountID,
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        let snapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [stored],
+            activeStoredAccount: stored,
+            liveSystemAccount: live,
+            matchingStoredAccountForLiveSystemAccount: stored,
+            activeSource: .managedAccount(id: stored.id),
+            hasUnreadableAddedAccountStore: false)
+
+        let projection = CodexVisibleAccountProjection.make(from: snapshot)
+        let visible = try #require(projection.visibleAccounts.first)
+
+        #expect(projection.visibleAccounts.count == 1)
+        #expect(visible.id == "user@example.com\naccount:team-123")
+        #expect(visible.workspaceLabel == "Team Alpha")
+        #expect(visible.displayName == "user@example.com — Team Alpha")
+        #expect(visible.selectionSource == .liveSystem)
+        #expect(visible.isLive)
+    }
+
+    @Test
     func `missing managed source resolves to live system when live account exists`() {
         let live = ObservedSystemCodexAccount(
             email: "live@example.com",
@@ -356,6 +456,50 @@ struct CodexAccountReconciliationTests {
         #expect(resolution.persistedSource == .managedAccount(id: missingID))
         #expect(resolution.resolvedSource == .liveSystem)
         #expect(resolution.requiresPersistenceCorrection)
+    }
+
+    @Test
+    func `missing managed source resolves to sole stored managed account when it is the only remaining account`() {
+        let soleStored = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            workspaceLabel: "Team Alpha",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let missingID = UUID()
+        let snapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [soleStored],
+            activeStoredAccount: nil,
+            liveSystemAccount: nil,
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .managedAccount(id: missingID),
+            hasUnreadableAddedAccountStore: false)
+
+        let resolution = CodexActiveSourceResolver.resolve(from: snapshot)
+
+        #expect(resolution.persistedSource == .managedAccount(id: missingID))
+        #expect(resolution.resolvedSource == .managedAccount(id: soleStored.id))
+        #expect(resolution.requiresPersistenceCorrection)
+    }
+
+    @Test
+    func `missing managed source stays unresolved when no replacement account exists`() {
+        let missingID = UUID()
+        let snapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [],
+            activeStoredAccount: nil,
+            liveSystemAccount: nil,
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .managedAccount(id: missingID),
+            hasUnreadableAddedAccountStore: false)
+
+        let resolution = CodexActiveSourceResolver.resolve(from: snapshot)
+
+        #expect(resolution.persistedSource == .managedAccount(id: missingID))
+        #expect(resolution.resolvedSource == .managedAccount(id: missingID))
+        #expect(resolution.requiresPersistenceCorrection == false)
     }
 
     @Test

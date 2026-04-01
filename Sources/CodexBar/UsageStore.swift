@@ -14,6 +14,8 @@ extension UsageStore {
         _ = self.lastSourceLabels
         _ = self.lastFetchAttempts
         _ = self.accountSnapshots
+        _ = self.codexAllAccountsSnapshotCache
+        _ = self.codexAllAccountsRefreshInFlight
         _ = self.tokenSnapshots
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
@@ -100,6 +102,8 @@ final class UsageStore {
     var lastSourceLabels: [UsageProvider: String] = [:]
     var lastFetchAttempts: [UsageProvider: [ProviderFetchAttempt]] = [:]
     var accountSnapshots: [UsageProvider: [TokenAccountUsageSnapshot]] = [:]
+    var codexAllAccountsSnapshotCache: [String: CodexVisibleAccountUsageSnapshot] = [:]
+    var codexAllAccountsRefreshInFlight: Bool = false
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
@@ -166,6 +170,7 @@ final class UsageStore {
     @ObservationIgnored private var timerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
+    @ObservationIgnored var codexAllAccountsRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored var codexPlanHistoryBackfillTask: Task<Void, Never>?
     @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
@@ -389,7 +394,8 @@ final class UsageStore {
             base: ProcessInfo.processInfo.environment,
             provider: provider,
             settings: self.settings,
-            tokenOverride: nil)
+            tokenOverride: nil,
+            codexActiveSourceOverride: nil)
         let context = ProviderAvailabilityContext(
             provider: provider,
             settings: self.settings,
@@ -527,6 +533,7 @@ final class UsageStore {
         self.timerTask?.cancel()
         self.tokenTimerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
+        self.codexAllAccountsRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
     }
 
@@ -831,12 +838,16 @@ extension UsageStore {
     {
         await MainActor.run {
             let sourceMode = self.sourceMode(for: .claude)
-            let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: nil)
+            let snapshot = ProviderRegistry.makeSettingsSnapshot(
+                settings: self.settings,
+                tokenOverride: nil,
+                codexActiveSourceOverride: nil)
             let environment = ProviderRegistry.makeEnvironment(
                 base: ProcessInfo.processInfo.environment,
                 provider: .claude,
                 settings: self.settings,
-                tokenOverride: nil)
+                tokenOverride: nil,
+                codexActiveSourceOverride: nil)
             let claudeSettings = snapshot.claude ?? ProviderSettingsSnapshot.ClaudeProviderSettings(
                 usageDataSource: fallbackUsageDataSource,
                 webExtrasEnabled: fallbackWebExtrasEnabled,

@@ -118,6 +118,8 @@ extension OpenAIDashboardSnapshot {
     public func toUsageSnapshot(
         provider: UsageProvider = .codex,
         accountEmail: String? = nil,
+        accountOrganization: String? = nil,
+        accountWorkspaceID: String? = nil,
         accountPlan: String? = nil) -> UsageSnapshot?
     {
         guard let primaryLimit else { return nil }
@@ -126,7 +128,8 @@ extension OpenAIDashboardSnapshot {
         let identity = ProviderIdentitySnapshot(
             providerID: provider,
             accountEmail: resolvedEmail,
-            accountOrganization: nil,
+            accountOrganization: accountOrganization,
+            accountWorkspaceID: accountWorkspaceID,
             loginMethod: resolvedPlan)
         return UsageSnapshot(
             primary: primaryLimit,

@@ -59,6 +59,97 @@ struct ManagedCodexAccountServiceTests {
     }
 
     @Test
+    func `same email different workspace creates distinct managed accounts`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = InMemoryManagedCodexAccountStore(
+            accounts: ManagedCodexAccountSet(version: 1, accounts: []))
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.accounts([
+                AccountInfo(email: "user@example.com", plan: "Team", workspaceLabel: "Personal"),
+                AccountInfo(email: "user@example.com", plan: "Team", workspaceLabel: "Team Alpha"),
+            ]))
+
+        let first = try await service.authenticateManagedAccount()
+        let second = try await service.authenticateManagedAccount()
+
+        #expect(first.id != second.id)
+        #expect(store.snapshot.accounts.count == 2)
+        #expect(Set(store.snapshot.accounts.map { $0.workspaceLabel ?? "" }) == ["Personal", "Team Alpha"])
+    }
+
+    @Test
+    func `authoritative workspace resolver overrides weak personal label during authentication`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = InMemoryManagedCodexAccountStore(
+            accounts: ManagedCodexAccountSet(version: 1, accounts: []))
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.accounts([
+                AccountInfo(
+                    email: "user@example.com",
+                    plan: "Team",
+                    workspaceLabel: "Personal",
+                    workspaceAccountID: "team-123"),
+            ]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver.accounts([
+                AccountInfo(
+                    email: "user@example.com",
+                    plan: "Team",
+                    workspaceLabel: "IDconcepts",
+                    workspaceAccountID: "team-123"),
+            ]))
+
+        let account = try await service.authenticateManagedAccount()
+
+        #expect(account.workspaceLabel == "IDconcepts")
+        #expect(account.workspaceAccountID == "team-123")
+        #expect(store.snapshot.accounts.first?.workspaceLabel == "IDconcepts")
+        #expect(store.snapshot.accounts.first?.workspaceAccountID == "team-123")
+    }
+
+    @Test
+    func `same email same label different workspace account ids create distinct managed accounts`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = InMemoryManagedCodexAccountStore(
+            accounts: ManagedCodexAccountSet(version: 1, accounts: []))
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.accounts([
+                AccountInfo(
+                    email: "user@example.com",
+                    plan: "Team",
+                    workspaceLabel: "Shared Team",
+                    workspaceAccountID: "team-a"),
+                AccountInfo(
+                    email: "user@example.com",
+                    plan: "Team",
+                    workspaceLabel: "Shared Team",
+                    workspaceAccountID: "team-b"),
+            ]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver.passThrough)
+
+        let first = try await service.authenticateManagedAccount()
+        let second = try await service.authenticateManagedAccount()
+
+        #expect(first.id != second.id)
+        #expect(store.snapshot.accounts.count == 2)
+        #expect(Set(store.snapshot.accounts.compactMap(\.workspaceAccountID)) == ["team-a", "team-b"])
+    }
+
+    @Test
     func `reauth keeps previous home when store write fails`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let existingHome = root.appendingPathComponent("accounts/existing", isDirectory: true)
@@ -409,20 +500,49 @@ private enum TestManagedCodexAccountStoreError: Error, Equatable {
 
 private final class StubManagedCodexIdentityReader: ManagedCodexIdentityReading, @unchecked Sendable {
     private let lock = NSLock()
-    private var emails: [String]
+    private var accounts: [AccountInfo]
 
-    init(emails: [String]) {
-        self.emails = emails
+    init(accounts: [AccountInfo]) {
+        self.accounts = accounts
     }
 
     func loadAccountInfo(homePath: String) throws -> AccountInfo {
         self.lock.lock()
         defer { self.lock.unlock() }
-        let email = self.emails.isEmpty ? nil : self.emails.removeFirst()
-        return AccountInfo(email: email, plan: "Pro")
+        if self.accounts.isEmpty {
+            return AccountInfo(email: nil, plan: "Pro")
+        }
+        return self.accounts.removeFirst()
     }
 
     static func emails(_ emails: [String]) -> StubManagedCodexIdentityReader {
-        StubManagedCodexIdentityReader(emails: emails)
+        StubManagedCodexIdentityReader(accounts: emails.map { AccountInfo(email: $0, plan: "Pro") })
+    }
+
+    static func accounts(_ accounts: [AccountInfo]) -> StubManagedCodexIdentityReader {
+        StubManagedCodexIdentityReader(accounts: accounts)
+    }
+}
+
+private actor StubManagedCodexWorkspaceResolver: ManagedCodexWorkspaceResolving {
+    private var accounts: [AccountInfo]?
+
+    init(accounts: [AccountInfo]?) {
+        self.accounts = accounts
+    }
+
+    func resolveAccountInfo(homePath _: String, fallback: AccountInfo) async -> AccountInfo {
+        guard var accounts = self.accounts, !accounts.isEmpty else {
+            return fallback
+        }
+        let next = accounts.removeFirst()
+        self.accounts = accounts
+        return next
+    }
+
+    static let passThrough = StubManagedCodexWorkspaceResolver(accounts: nil)
+
+    static func accounts(_ accounts: [AccountInfo]) -> StubManagedCodexWorkspaceResolver {
+        StubManagedCodexWorkspaceResolver(accounts: accounts)
     }
 }
