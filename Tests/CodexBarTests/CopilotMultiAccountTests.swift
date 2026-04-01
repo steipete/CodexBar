@@ -51,54 +51,31 @@ func `GitHub user response parses login with minimal fields`() throws {
     #expect(user.login == "minimaluser")
 }
 
-// MARK: - Migration
+// MARK: - API Key Fallback
 
 @MainActor
-struct CopilotMigrationTests {
+struct CopilotAPIKeyFallbackTests {
     @Test
-    func `migration moves config token to account`() {
-        let settings = Self.makeSettingsStore(suite: "copilot-migration-move")
-        settings.copilotAPIToken = "gh_token_123"
-        #expect(settings.tokenAccounts(for: .copilot).isEmpty)
-
-        settings.migrateCopilotTokenToAccountIfNeeded()
-
-        #expect(settings.copilotAPIToken.isEmpty)
-        let accounts = settings.tokenAccounts(for: .copilot)
-        #expect(accounts.count == 1)
-        #expect(accounts.first?.token == "gh_token_123")
-        #expect(accounts.first?.label == "Account 1")
-    }
-
-    @Test
-    func `migration is idempotent`() {
-        let settings = Self.makeSettingsStore(suite: "copilot-migration-idempotent")
+    func `ensure loader preserves config token`() {
+        let settings = Self.makeSettingsStore(suite: "copilot-api-key-loader")
         settings.copilotAPIToken = "gh_token_123"
 
-        settings.migrateCopilotTokenToAccountIfNeeded()
-        settings.migrateCopilotTokenToAccountIfNeeded()
+        settings.ensureCopilotAPITokenLoaded()
 
-        #expect(settings.tokenAccounts(for: .copilot).count == 1)
-    }
-
-    @Test
-    func `migration no-op when no token`() {
-        let settings = Self.makeSettingsStore(suite: "copilot-migration-no-token")
-
-        settings.migrateCopilotTokenToAccountIfNeeded()
-
+        #expect(settings.copilotAPIToken == "gh_token_123")
         #expect(settings.tokenAccounts(for: .copilot).isEmpty)
     }
 
     @Test
-    func `migration no-op when accounts already exist`() {
-        let settings = Self.makeSettingsStore(suite: "copilot-migration-existing")
+    func `config token remains when token accounts already exist`() {
+        let settings = Self.makeSettingsStore(suite: "copilot-api-key-with-accounts")
         settings.copilotAPIToken = "gh_token_old"
         settings.addTokenAccount(provider: .copilot, label: "existing", token: "gh_token_existing")
 
-        settings.migrateCopilotTokenToAccountIfNeeded()
+        settings.ensureCopilotAPITokenLoaded()
 
         #expect(settings.tokenAccounts(for: .copilot).count == 1)
+        #expect(settings.copilotAPIToken == "gh_token_old")
         #expect(settings.tokenAccounts(for: .copilot).first?.label == "existing")
     }
 
@@ -133,7 +110,7 @@ struct CopilotEnvironmentPrecedenceTests {
         settings.copilotAPIToken = "old_config_token"
         settings.addTokenAccount(provider: .copilot, label: "new", token: "new_account_token")
 
-        let account = settings.selectedTokenAccount(for: .copilot)!
+        let account = try #require(settings.selectedTokenAccount(for: .copilot))
         let override = TokenAccountOverride(provider: .copilot, account: account)
         let env = ProviderRegistry.makeEnvironment(
             base: [:],
