@@ -388,7 +388,7 @@ struct ZaiThreeLimitTests {
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary?.usedPercent == 9.0)
         #expect(usage.primary?.windowMinutes == 10080)
-        #expect(usage.secondary != nil)    // MCP
+        #expect(usage.secondary != nil) // MCP
         #expect(usage.tertiary?.usedPercent == 25.0)
         #expect(usage.tertiary?.windowMinutes == 300)
     }

@@ -391,7 +391,8 @@ public struct ZaiUsageFetcher: Sendable {
             }
         }
 
-        // Multiple TOKENS_LIMIT entries: shortest window → sessionTokenLimit (tertiary), longest → tokenLimit (primary).
+        // Multiple TOKENS_LIMIT entries: shortest window → sessionTokenLimit (tertiary),
+        // longest → tokenLimit (primary).
         let tokenLimit: ZaiLimitEntry?
         let sessionTokenLimit: ZaiLimitEntry?
         if tokenLimits.count >= 2 {
