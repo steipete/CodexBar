@@ -425,4 +425,27 @@ struct CLISnapshotTests {
         #expect(!output.contains("\u{001B}["))
         #expect(output.contains("Status: Operational – Operational"))
     }
+
+    @Test
+    func `renders 5-hour tertiary row for zai`() {
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 9, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: .init(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: .init(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CLIRenderer.renderText(
+            provider: .zai,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "z.ai 0.0.0 (zai)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("5-hour:"))
+        #expect(output.contains("Tokens:"))
+        #expect(output.contains("MCP:"))
+    }
 }

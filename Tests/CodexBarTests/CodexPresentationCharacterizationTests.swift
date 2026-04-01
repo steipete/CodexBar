@@ -346,6 +346,56 @@ struct CodexPresentationCharacterizationTests {
         #expect(store.codexCookieCacheScopeForOpenAIWeb() == nil)
     }
 
+    @Test
+    func `zai menu descriptor includes Tokens MCP and 5-hour rows`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-zai-three-quota")
+        settings.statusChecksEnabled = false
+
+        let fetcher = UsageFetcher(environment: [:])
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 9,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 50,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                tertiary: RateWindow(
+                    usedPercent: 25,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .zai,
+                    accountEmail: nil,
+                    accountOrganization: nil,
+                    loginMethod: "pro")),
+            provider: .zai)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .zai,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(lines.contains(where: { $0.hasPrefix("Tokens:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("MCP:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("5-hour:") }))
+    }
+
     private func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
