@@ -25,7 +25,8 @@ extension UsageStore {
 
     func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
-        return self.settings.showAllTokenAccountsInMenu && accounts.count > 1
+        // Always fetch all accounts so the stacked display has data for each
+        return accounts.count > 1
     }
 
     func refreshTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) async {
