@@ -88,6 +88,8 @@ struct MenuContent: View {
             self.actions.openStatusPage()
         case .addCodexAccount:
             self.actions.addCodexAccount()
+        case let .addProviderAccount(provider):
+            self.actions.switchAccount(provider)
         case let .switchAccount(provider):
             self.actions.switchAccount(provider)
         case let .openTerminal(command):

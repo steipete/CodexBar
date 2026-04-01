@@ -133,6 +133,12 @@ extension UsageStore {
         let usage: UsageSnapshot?
     }
 
+    func tokenAccountErrorMessage(_ error: any Error) -> String? {
+        guard !(error is CancellationError) else { return nil }
+        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? nil : message
+    }
+
     func recordFetchedTokenAccountPlanUtilizationHistory(
         provider: UsageProvider,
         samples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)],
@@ -167,7 +173,7 @@ extension UsageStore {
             let snapshot = TokenAccountUsageSnapshot(
                 account: account,
                 snapshot: nil,
-                error: error.localizedDescription,
+                error: self.tokenAccountErrorMessage(error),
                 sourceLabel: nil)
             return ResolvedAccountOutcome(snapshot: snapshot, usage: nil)
         }
@@ -203,11 +209,15 @@ extension UsageStore {
                 account: account)
         case let .failure(error):
             await MainActor.run {
+                guard let message = self.tokenAccountErrorMessage(error) else {
+                    self.errors[provider] = nil
+                    return
+                }
                 let hadPriorData = self.snapshots[provider] != nil || fallbackSnapshot != nil
                 let shouldSurface = self.failureGates[provider]?
                     .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
                 if shouldSurface {
-                    self.errors[provider] = error.localizedDescription
+                    self.errors[provider] = message
                     self.snapshots.removeValue(forKey: provider)
                 } else {
                     self.errors[provider] = nil

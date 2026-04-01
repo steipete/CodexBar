@@ -151,6 +151,15 @@ struct UsageStoreCoverageTests {
         #expect(gate.streak == 0)
     }
 
+    @Test
+    func `token account error message ignores cancellation`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-token-account-cancel")
+        let store = Self.makeUsageStore(settings: settings)
+
+        #expect(store.tokenAccountErrorMessage(CancellationError()) == nil)
+        #expect(store.tokenAccountErrorMessage(ProviderFetchError.noAvailableStrategy(.copilot)) != nil)
+    }
+
     private static func makeSettingsStore(
         suite: String,
         zaiTokenStore: any ZaiTokenStoring = NoopZaiTokenStore(),

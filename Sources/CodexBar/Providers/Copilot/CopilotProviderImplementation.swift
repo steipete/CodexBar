@@ -24,6 +24,13 @@ struct CopilotProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func loginMenuAction(context _: ProviderMenuLoginContext)
+        -> (label: String, action: MenuDescriptor.MenuAction)?
+    {
+        ("Add Account...", .addProviderAccount(.copilot))
+    }
+
+    @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
             ProviderSettingsFieldDescriptor(

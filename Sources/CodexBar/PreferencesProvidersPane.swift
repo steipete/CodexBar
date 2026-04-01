@@ -353,6 +353,13 @@ struct ProvidersPane: View {
                     }
                 }
             },
+            primaryAddActionTitle: provider == .copilot ? "Add Account" : nil,
+            primaryAddAction: provider == .copilot ? {
+                await CopilotLoginFlow.run(settings: self.settings)
+                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await self.store.refreshProvider(provider, allowDisabled: true)
+                }
+            } : nil,
             openConfigFile: {
                 self.settings.openTokenAccountsFile()
             },

@@ -199,6 +199,8 @@ enum ProvidersPaneTestHarness {
             setActiveIndex: { _ in },
             addAccount: { _, _ in },
             removeAccount: { _ in },
+            primaryAddActionTitle: nil,
+            primaryAddAction: nil,
             openConfigFile: {},
             reloadFromDisk: {})
 
