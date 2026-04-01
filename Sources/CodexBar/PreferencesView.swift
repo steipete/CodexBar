@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 import SwiftUI
 
 enum PreferencesTab: String, Hashable {
@@ -29,6 +30,7 @@ struct PreferencesView: View {
     let updater: UpdaterProviding
     @Bindable var selection: PreferencesSelection
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
     @State private var contentWidth: CGFloat = PreferencesTab.general.preferredWidth
     @State private var contentHeight: CGFloat = PreferencesTab.general.preferredHeight
 
@@ -37,13 +39,15 @@ struct PreferencesView: View {
         store: UsageStore,
         updater: UpdaterProviding,
         selection: PreferencesSelection,
-        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator())
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
+        runProviderLoginFlow: @escaping @MainActor (UsageProvider) async -> Void = { _ in })
     {
         self.settings = settings
         self.store = store
         self.updater = updater
         self.selection = selection
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+        self.runProviderLoginFlow = runProviderLoginFlow
     }
 
     var body: some View {
@@ -55,7 +59,8 @@ struct PreferencesView: View {
             ProvidersPane(
                 settings: self.settings,
                 store: self.store,
-                managedCodexAccountCoordinator: self.managedCodexAccountCoordinator)
+                managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
+                runProviderLoginFlow: self.runProviderLoginFlow)
                 .tabItem { Label("Providers", systemImage: "square.grid.2x2") }
                 .tag(PreferencesTab.providers)
 

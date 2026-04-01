@@ -9,6 +9,7 @@ import SwiftUI
 @MainActor
 protocol StatusItemControlling: AnyObject {
     func openMenuFromShortcut()
+    func runLoginFlowFromSettings(provider: UsageProvider) async
 }
 
 @MainActor

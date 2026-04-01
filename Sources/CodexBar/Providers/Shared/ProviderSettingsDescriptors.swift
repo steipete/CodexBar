@@ -25,6 +25,7 @@ struct ProviderSettingsContext {
     let setLastAppActiveRunAt: (String, Date?) -> Void
 
     let requestConfirmation: (ProviderSettingsConfirmation) -> Void
+    let runLoginFlow: () async -> Void
 }
 
 /// Shared confirmation alert descriptor.
@@ -82,6 +83,16 @@ struct ProviderSettingsFieldDescriptor: Identifiable {
     let actions: [ProviderSettingsActionDescriptor]
     let isVisible: (() -> Bool)?
     let onActivate: (() -> Void)?
+}
+
+/// Shared action row descriptor rendered in the Providers settings pane.
+@MainActor
+struct ProviderSettingsActionsDescriptor: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let actions: [ProviderSettingsActionDescriptor]
+    let isVisible: (() -> Bool)?
 }
 
 /// Shared token account descriptor rendered in the Providers settings pane.

@@ -49,4 +49,5 @@ struct AppDelegateTests {
 @MainActor
 private final class DummyStatusController: StatusItemControlling {
     func openMenuFromShortcut() {}
+    func runLoginFlowFromSettings(provider _: UsageProvider) async {}
 }

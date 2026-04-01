@@ -81,7 +81,10 @@ struct CodexBarApp: App {
                 store: self.store,
                 updater: self.appDelegate.updaterController,
                 selection: self.preferencesSelection,
-                managedCodexAccountCoordinator: self.managedCodexAccountCoordinator)
+                managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
+                runProviderLoginFlow: { provider in
+                    await self.appDelegate.runProviderLoginFlow(provider)
+                })
         }
         .defaultSize(width: PreferencesTab.general.preferredWidth, height: PreferencesTab.general.preferredHeight)
         .windowResizability(.contentSize)
@@ -298,6 +301,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         TTYCommandRunner.terminateActiveProcessesForAppShutdown()
+    }
+
+    func runProviderLoginFlow(_ provider: UsageProvider) async {
+        self.ensureStatusController()
+        guard let statusController else { return }
+        await statusController.runLoginFlowFromSettings(provider: provider)
     }
 
     /// Use the classic (non-Liquid Glass) app icon on macOS versions before 26.
