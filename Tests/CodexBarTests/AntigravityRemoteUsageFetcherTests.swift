@@ -69,8 +69,8 @@ struct AntigravityRemoteUsageFetcherTests {
             accessToken: "old-token",
             refreshToken: "refresh-token",
             expiry: Date().addingTimeInterval(-3600),
-            idToken: GeminiAPITestHelpers.makeIDToken(email: "user@example.com"),
-            email: "user@example.com",
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "stale@example.com"),
+            email: "stale@example.com",
             clientID: "test-client-id",
             clientSecret: "test-client-secret")
 
@@ -87,7 +87,7 @@ struct AntigravityRemoteUsageFetcherTests {
                     body: GeminiAPITestHelpers.jsonData([
                         "access_token": "new-token",
                         "expires_in": 3600,
-                        "id_token": GeminiAPITestHelpers.makeIDToken(email: "user@example.com"),
+                        "id_token": GeminiAPITestHelpers.makeIDToken(email: "refreshed@example.com"),
                     ]))
             case "cloudcode-pa.googleapis.com":
                 let auth = request.value(forHTTPHeaderField: "Authorization")
@@ -117,10 +117,11 @@ struct AntigravityRemoteUsageFetcherTests {
             timeout: 2,
             homeDirectory: env.homeURL.path,
             dataLoader: dataLoader)
-        _ = try await fetcher.fetch()
+        let snapshot = try await fetcher.fetch()
 
         let updated = try env.readAntigravityCredentials()
         #expect(updated["access_token"] as? String == "new-token")
+        #expect(snapshot.accountEmail == "refreshed@example.com")
     }
 
     @Test
@@ -141,16 +142,17 @@ struct AntigravityRemoteUsageFetcherTests {
                 throw URLError(.badServerResponse)
             })
 
-        await #expect {
-            do {
-                _ = try await fetcher.fetch()
-                return false
-            } catch let error as AntigravityRemoteFetchError {
-                guard case let .apiError(message) = error else { return false }
-                return message.contains("ANTIGRAVITY_OAUTH_CLIENT_ID")
-            } catch {
-                return false
+        do {
+            _ = try await fetcher.fetch()
+            #expect(Bool(false), "Expected missing OAuth client configuration error")
+        } catch let error as AntigravityRemoteFetchError {
+            guard case let .apiError(message) = error else {
+                #expect(Bool(false), "Unexpected Antigravity error: \(error)")
+                return
             }
+            #expect(message.contains("ANTIGRAVITY_OAUTH_CLIENT_ID"))
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
         }
     }
 

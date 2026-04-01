@@ -84,7 +84,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 timeout: timeout,
                 store: store,
                 dataLoader: dataLoader)
-            credentials.accessToken = accessToken
+            credentials = try store.load() ?? credentials
+            credentials.accessToken = credentials.accessToken?.trimmedNonEmpty ?? accessToken
         }
 
         let claims = Self.extractClaims(from: credentials)

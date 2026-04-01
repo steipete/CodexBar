@@ -49,8 +49,17 @@ enum AntigravityLoginRunner {
                 return Result(outcome: .launchFailed(authURL.absoluteString))
             }
 
-            let callback = try await Self.withTimeout(seconds: timeout) {
-                try await server.waitForCallback()
+            let callback = try await withThrowingTaskGroup(of: AntigravityOAuthCallback.self) { group in
+                group.addTask {
+                    try await server.waitForCallback()
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(timeout))
+                    server.cancelCallbackWait(with: AntigravityLoginError.timedOut)
+                    throw AntigravityLoginError.timedOut
+                }
+                defer { group.cancelAll() }
+                return try await group.next().unsafelyUnwrapped
             }
             server.stop()
 
@@ -185,23 +194,6 @@ enum AntigravityLoginRunner {
             .data(using: .utf8)
     }
 
-    private static func withTimeout<T: Sendable>(
-        seconds: TimeInterval,
-        operation: @escaping @Sendable () async throws -> T) async throws -> T
-    {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask {
-                try await operation()
-            }
-            group.addTask {
-                try await Task.sleep(for: .seconds(seconds))
-                throw AntigravityLoginError.timedOut
-            }
-            let result = try await group.next().unsafelyUnwrapped
-            group.cancelAll()
-            return result
-        }
-    }
 }
 
 private enum AntigravityLoginError: LocalizedError {
@@ -313,6 +305,11 @@ private final class AntigravityLoopbackServer: @unchecked Sendable {
     func stop() {
         self.listener?.cancel()
         self.listener = nil
+    }
+
+    func cancelCallbackWait(with error: Error) {
+        self.stop()
+        self.finishCallback(with: .failure(error))
     }
 
     private func handle(_ connection: NWConnection) {
