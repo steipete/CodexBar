@@ -15,7 +15,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        settings.migrateCopilotTokenToAccountIfNeeded()
+        _ = settings.copilotAPIToken
     }
 
     @MainActor
