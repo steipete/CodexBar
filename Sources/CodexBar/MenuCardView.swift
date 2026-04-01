@@ -943,6 +943,7 @@ extension UsageMenuCardView.Model {
         let zaiUsage = input.provider == .zai ? snapshot.zaiUsage : nil
         let zaiTokenDetail = Self.zaiLimitDetailText(limit: zaiUsage?.tokenLimit)
         let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
+        let zaiSessionDetail = Self.zaiLimitDetailText(limit: zaiUsage?.sessionTokenLimit)
         let openRouterQuotaDetail = Self.openRouterQuotaDetail(provider: input.provider, snapshot: snapshot)
         if input.provider == .codex, let codexProjection = input.codexProjection {
             metrics.append(contentsOf: Self.codexRateMetrics(
@@ -982,6 +983,9 @@ extension UsageMenuCardView.Model {
                let detail = opus.resetDescription,
                !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
+                tertiaryDetailText = detail
+            }
+            if input.provider == .zai, let detail = zaiSessionDetail {
                 tertiaryDetailText = detail
             }
             // Perplexity purchased credits don't reset; show balance without "Resets" prefix.
