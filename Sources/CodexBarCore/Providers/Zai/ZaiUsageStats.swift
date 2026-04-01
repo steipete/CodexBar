@@ -163,15 +163,13 @@ extension ZaiUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
         let primaryLimit = self.tokenLimit ?? self.timeLimit
         let secondaryLimit = (self.tokenLimit != nil && self.timeLimit != nil) ? self.timeLimit : nil
-        let tertiaryLimit = self.sessionTokenLimit
-
         let primary = primaryLimit.map { Self.rateWindow(for: $0) } ?? RateWindow(
             usedPercent: 0,
             windowMinutes: nil,
             resetsAt: nil,
             resetDescription: nil)
         let secondary = secondaryLimit.map { Self.rateWindow(for: $0) }
-        let tertiary = tertiaryLimit.map { Self.rateWindow(for: $0) }
+        let tertiary = self.sessionTokenLimit.map { Self.rateWindow(for: $0) }
 
         let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
@@ -393,16 +391,15 @@ public struct ZaiUsageFetcher: Sendable {
             }
         }
 
-        // When two TOKENS_LIMIT entries are present, the shorter-window one (5-hour) becomes
-        // sessionTokenLimit (tertiary) and the longer-window one (weekly) becomes tokenLimit (primary).
+        // Multiple TOKENS_LIMIT entries: shortest window → sessionTokenLimit (tertiary), longest → tokenLimit (primary).
         let tokenLimit: ZaiLimitEntry?
         let sessionTokenLimit: ZaiLimitEntry?
         if tokenLimits.count >= 2 {
             let sorted = tokenLimits.sorted {
                 ($0.windowMinutes ?? Int.max) < ($1.windowMinutes ?? Int.max)
             }
-            sessionTokenLimit = sorted.first   // shorter window → 5-hour
-            tokenLimit = sorted.last           // longer window → weekly
+            sessionTokenLimit = sorted.first
+            tokenLimit = sorted.last
         } else {
             tokenLimit = tokenLimits.first
             sessionTokenLimit = nil
