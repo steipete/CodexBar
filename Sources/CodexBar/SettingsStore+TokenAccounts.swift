@@ -107,16 +107,24 @@ extension SettingsStore {
 
     func removeTokenAccount(provider: UsageProvider, accountID: UUID) {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
+        let activeAccountID = data.accounts[data.clampedActiveIndex()].id
+        guard let removedIndex = data.accounts.firstIndex(where: { $0.id == accountID }) else { return }
         let filtered = data.accounts.filter { $0.id != accountID }
         self.updateProviderConfig(provider: provider) { entry in
             if filtered.isEmpty {
                 entry.tokenAccounts = nil
             } else {
-                let clamped = min(max(data.activeIndex, 0), filtered.count - 1)
+                let nextActiveIndex = if activeAccountID != accountID,
+                                         let preservedIndex = filtered.firstIndex(where: { $0.id == activeAccountID })
+                {
+                    preservedIndex
+                } else {
+                    min(removedIndex, filtered.count - 1)
+                }
                 entry.tokenAccounts = ProviderTokenAccountData(
                     version: data.version,
                     accounts: filtered,
-                    activeIndex: clamped)
+                    activeIndex: nextActiveIndex)
             }
         }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
