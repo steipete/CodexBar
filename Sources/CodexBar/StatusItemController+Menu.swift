@@ -767,15 +767,15 @@ extension StatusItemController {
         let accounts = self.settings.tokenAccounts(for: provider)
         guard accounts.count > 1 else { return nil }
         let activeIndex = self.settings.tokenAccountsData(for: provider)?.clampedActiveIndex() ?? 0
-        // Always stack accounts vertically instead of using a tab switcher
-        let snapshots = self.store.accountSnapshots[provider] ?? []
+        let showAll = provider == .copilot || self.settings.showAllTokenAccountsInMenu
+        let snapshots = showAll ? (self.store.accountSnapshots[provider] ?? []) : []
         return TokenAccountMenuDisplay(
             provider: provider,
             accounts: accounts,
             snapshots: snapshots,
             activeIndex: activeIndex,
-            showAll: true,
-            showSwitcher: false)
+            showAll: showAll,
+            showSwitcher: !showAll)
     }
 
     private func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {

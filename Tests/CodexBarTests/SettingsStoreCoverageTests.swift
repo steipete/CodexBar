@@ -82,6 +82,28 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `token account update preserves identity and selection`() throws {
+        let settings = Self.makeSettingsStore()
+
+        settings.addTokenAccount(provider: .copilot, label: "Primary", token: "token-1")
+        settings.addTokenAccount(provider: .copilot, label: "Secondary", token: "token-2")
+        settings.setActiveTokenAccountIndex(0, for: .copilot)
+
+        let original = try #require(settings.selectedTokenAccount(for: .copilot))
+        settings.updateTokenAccount(
+            provider: .copilot,
+            accountID: original.id,
+            label: "Primary (Pro)",
+            token: "token-1b")
+
+        let updated = try #require(settings.selectedTokenAccount(for: .copilot))
+        #expect(updated.id == original.id)
+        #expect(updated.label == "Primary (Pro)")
+        #expect(updated.token == "token-1b")
+        #expect(settings.tokenAccounts(for: .copilot).count == 2)
+    }
+
+    @Test
     func `claude snapshot uses OAuth routing for OAuth token accounts`() {
         let settings = Self.makeSettingsStore()
         settings.addTokenAccount(provider: .claude, label: "OAuth", token: "Bearer sk-ant-oat-account-token")

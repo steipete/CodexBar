@@ -110,9 +110,14 @@ struct CopilotLoginFlow {
                     let existingPrefix = $0.label.components(separatedBy: " (").first ?? $0.label
                     return existingPrefix == usernamePrefix
                 }) {
-                    settings.removeTokenAccount(provider: .copilot, accountID: existing.id)
+                    settings.updateTokenAccount(
+                        provider: .copilot,
+                        accountID: existing.id,
+                        label: label,
+                        token: token)
+                } else {
+                    settings.addTokenAccount(provider: .copilot, label: label, token: token)
                 }
-                settings.addTokenAccount(provider: .copilot, label: label, token: token)
                 settings.setProviderEnabled(
                     provider: .copilot,
                     metadata: ProviderRegistry.shared.metadata[.copilot]!,
