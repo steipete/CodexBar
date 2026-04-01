@@ -66,6 +66,45 @@ extension SettingsStore {
             ])
     }
 
+    func updateTokenAccount(
+        provider: UsageProvider,
+        accountID: UUID,
+        label: String? = nil,
+        token: String? = nil)
+    {
+        guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
+        guard let index = data.accounts.firstIndex(where: { $0.id == accountID }) else { return }
+
+        let trimmedLabel = label?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedToken = token?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedToken, trimmedToken.isEmpty { return }
+
+        let existing = data.accounts[index]
+        let updatedAccount = ProviderTokenAccount(
+            id: existing.id,
+            label: (trimmedLabel?.isEmpty == false) ? trimmedLabel! : existing.label,
+            token: trimmedToken ?? existing.token,
+            addedAt: existing.addedAt,
+            lastUsed: existing.lastUsed)
+
+        var accounts = data.accounts
+        accounts[index] = updatedAccount
+        let updated = ProviderTokenAccountData(
+            version: data.version,
+            accounts: accounts,
+            activeIndex: data.clampedActiveIndex())
+        self.updateProviderConfig(provider: provider) { entry in
+            entry.tokenAccounts = updated
+        }
+        self.applyTokenAccountCookieSourceIfNeeded(provider: provider)
+        CodexBarLog.logger(LogCategories.tokenAccounts).info(
+            "Token account updated",
+            metadata: [
+                "provider": provider.rawValue,
+                "count": "\(updated.accounts.count)",
+            ])
+    }
+
     func removeTokenAccount(provider: UsageProvider, accountID: UUID) {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         let filtered = data.accounts.filter { $0.id != accountID }
