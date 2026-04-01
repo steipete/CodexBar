@@ -80,14 +80,47 @@ struct CopilotLoginFlow {
 
             switch tokenResult {
             case let .success(token):
-                settings.copilotAPIToken = token
+                // Fetch username for account label
+                var label: String
+                do {
+                    let username = try await CopilotUsageFetcher.fetchGitHubUsername(token: token)
+                    let planSuffix: String
+                    do {
+                        let fetcher = CopilotUsageFetcher(token: token)
+                        let usage = try await fetcher.fetch()
+                        let plan = usage.identity(for: .copilot)?.loginMethod ?? ""
+                        planSuffix = plan.isEmpty ? "" : " (\(plan))"
+                    } catch {
+                        planSuffix = ""
+                    }
+                    label = "\(username)\(planSuffix)"
+                } catch {
+                    let count = settings.tokenAccounts(for: .copilot).count
+                    label = "Account \(count + 1)"
+                }
+
+                // Check for duplicate — same username means same GitHub user
+                let existingAccounts = settings.tokenAccounts(for: .copilot)
+                let usernamePrefix = label.components(separatedBy: " (").first ?? label
+                let wasRefresh = existingAccounts.contains(where: {
+                    let existingPrefix = $0.label.components(separatedBy: " (").first ?? $0.label
+                    return existingPrefix == usernamePrefix
+                })
+                if let existing = existingAccounts.first(where: {
+                    let existingPrefix = $0.label.components(separatedBy: " (").first ?? $0.label
+                    return existingPrefix == usernamePrefix
+                }) {
+                    settings.removeTokenAccount(provider: .copilot, accountID: existing.id)
+                }
+                settings.addTokenAccount(provider: .copilot, label: label, token: token)
                 settings.setProviderEnabled(
                     provider: .copilot,
                     metadata: ProviderRegistry.shared.metadata[.copilot]!,
                     enabled: true)
 
                 let success = NSAlert()
-                success.messageText = "Login Successful"
+                success.messageText = wasRefresh ? "Token Refreshed" : "Account Added"
+                success.informativeText = label
                 success.runModal()
             case let .failure(error):
                 guard !(error is CancellationError) else { return }
