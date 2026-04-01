@@ -456,6 +456,26 @@ struct CodexManagedRoutingTests {
     }
 
     @Test
+    func `default managed codex identity reader preserves provider account from scoped auth`() throws {
+        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: managedHome) }
+        try self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "managed@example.com",
+            plan: "pro",
+            accountId: "managed-account-id")
+
+        let reader = DefaultManagedCodexIdentityReader()
+        let account = try reader.loadAccountIdentity(homePath: managedHome.path)
+
+        #expect(account.email == "managed@example.com")
+        #expect(account.plan == "pro")
+        #expect(account.identity == .providerAccount(id: "managed-account-id"))
+    }
+
+    @Test
     func `codex O auth strategy availability reads auth from context env`() async throws {
         let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString,
@@ -553,24 +573,38 @@ struct CodexManagedRoutingTests {
             tokenAccountStore: InMemoryTokenAccountStore())
     }
 
-    private func writeCodexAuthFile(homeURL: URL, email: String, plan: String) throws {
+    private func writeCodexAuthFile(
+        homeURL: URL,
+        email: String,
+        plan: String,
+        accountId: String? = nil) throws
+    {
         try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
-        let auth = [
-            "tokens": [
-                "accessToken": "access-token",
-                "refreshToken": "refresh-token",
-                "idToken": Self.fakeJWT(email: email, plan: plan),
-            ],
+        var tokens: [String: Any] = [
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "idToken": Self.fakeJWT(email: email, plan: plan, accountId: accountId),
         ]
+        if let accountId {
+            tokens["accountId"] = accountId
+        }
+        let auth = ["tokens": tokens]
         let data = try JSONSerialization.data(withJSONObject: auth)
         try data.write(to: homeURL.appendingPathComponent("auth.json"))
     }
 
-    private static func fakeJWT(email: String, plan: String) -> String {
+    private static func fakeJWT(email: String, plan: String, accountId: String? = nil) -> String {
         let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        var authClaims: [String: Any] = [
+            "chatgpt_plan_type": plan,
+        ]
+        if let accountId {
+            authClaims["chatgpt_account_id"] = accountId
+        }
         let payload = (try? JSONSerialization.data(withJSONObject: [
             "email": email,
             "chatgpt_plan_type": plan,
+            "https://api.openai.com/auth": authClaims,
         ])) ?? Data()
 
         func base64URL(_ data: Data) -> String {

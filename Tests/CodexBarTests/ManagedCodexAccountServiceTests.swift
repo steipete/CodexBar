@@ -415,11 +415,14 @@ private final class StubManagedCodexIdentityReader: ManagedCodexIdentityReading,
         self.emails = emails
     }
 
-    func loadAccountInfo(homePath: String) throws -> AccountInfo {
+    func loadAccountIdentity(homePath _: String) throws -> CodexAuthBackedAccount {
         self.lock.lock()
         defer { self.lock.unlock() }
         let email = self.emails.isEmpty ? nil : self.emails.removeFirst()
-        return AccountInfo(email: email, plan: "Pro")
+        return CodexAuthBackedAccount(
+            identity: CodexIdentityResolver.resolve(accountId: nil, email: email),
+            email: email,
+            plan: "Pro")
     }
 
     static func emails(_ emails: [String]) -> StubManagedCodexIdentityReader {

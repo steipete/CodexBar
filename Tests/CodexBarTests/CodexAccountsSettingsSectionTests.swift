@@ -317,8 +317,11 @@ private final class StubManagedCodexIdentityReaderForSettingsSectionTests: Manag
         self.emails = emails
     }
 
-    func loadAccountInfo(homePath _: String) throws -> AccountInfo {
+    func loadAccountIdentity(homePath _: String) throws -> CodexAuthBackedAccount {
         let email = self.emails.isEmpty ? nil : self.emails.removeFirst()
-        return AccountInfo(email: email, plan: "Pro")
+        return CodexAuthBackedAccount(
+            identity: CodexIdentityResolver.resolve(accountId: nil, email: email),
+            email: email,
+            plan: "Pro")
     }
 }

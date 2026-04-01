@@ -9,13 +9,18 @@ struct CodexSystemAccountObserverTests {
     func `observer reads ambient CODEX_HOME when present`() throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
-        try Self.writeCodexAuthFile(homeURL: home, email: "  LIVE@Example.com  ", plan: "pro")
+        try Self.writeCodexAuthFile(
+            homeURL: home,
+            email: "  LIVE@Example.com  ",
+            plan: "pro",
+            accountId: "account-live")
 
         let observer = DefaultCodexSystemAccountObserver()
         let account = try observer.loadSystemAccount(environment: ["CODEX_HOME": home.path])
 
         #expect(account?.email == "live@example.com")
         #expect(account?.codexHomePath == home.path)
+        #expect(account?.identity == .providerAccount(id: "account-live"))
     }
 
     @Test
@@ -44,15 +49,38 @@ struct CodexSystemAccountObserverTests {
         #expect(observed.observedAt >= before)
     }
 
-    private static func writeCodexAuthFile(homeURL: URL, email: String, plan: String) throws {
+    @Test
+    func `observer preserves provider account identity from scoped auth`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        try Self.writeCodexAuthFile(
+            homeURL: home,
+            email: "user@example.com",
+            plan: "team",
+            accountId: "account-live-123")
+
+        let observer = DefaultCodexSystemAccountObserver()
+        let account = try #require(try observer.loadSystemAccount(environment: ["CODEX_HOME": home.path]))
+
+        #expect(account.identity == .providerAccount(id: "account-live-123"))
+    }
+
+    private static func writeCodexAuthFile(
+        homeURL: URL,
+        email: String,
+        plan: String,
+        accountId: String? = nil) throws
+    {
         try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
-        let auth = [
-            "tokens": [
-                "accessToken": "access-token",
-                "refreshToken": "refresh-token",
-                "idToken": Self.fakeJWT(email: email, plan: plan),
-            ],
+        var tokens: [String: Any] = [
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "idToken": Self.fakeJWT(email: email, plan: plan),
         ]
+        if let accountId {
+            tokens["accountId"] = accountId
+        }
+        let auth = ["tokens": tokens]
         let data = try JSONSerialization.data(withJSONObject: auth)
         try data.write(to: homeURL.appendingPathComponent("auth.json"))
     }

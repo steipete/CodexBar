@@ -151,7 +151,8 @@ struct DefaultCodexAccountReconciler {
             return ObservedSystemCodexAccount(
                 email: normalizedEmail,
                 codexHomePath: account.codexHomePath,
-                observedAt: account.observedAt)
+                observedAt: account.observedAt,
+                identity: account.identity)
         } catch {
             return nil
         }

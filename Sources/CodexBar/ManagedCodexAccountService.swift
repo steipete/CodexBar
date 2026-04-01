@@ -11,7 +11,7 @@ protocol ManagedCodexLoginRunning: Sendable {
 }
 
 protocol ManagedCodexIdentityReading: Sendable {
-    func loadAccountInfo(homePath: String) throws -> AccountInfo
+    func loadAccountIdentity(homePath: String) throws -> CodexAuthBackedAccount
 }
 
 enum ManagedCodexAccountServiceError: Error, Equatable, Sendable {
@@ -62,11 +62,11 @@ struct DefaultManagedCodexLoginRunner: ManagedCodexLoginRunning {
 }
 
 struct DefaultManagedCodexIdentityReader: ManagedCodexIdentityReading {
-    func loadAccountInfo(homePath: String) throws -> AccountInfo {
+    func loadAccountIdentity(homePath: String) throws -> CodexAuthBackedAccount {
         let env = CodexHomeScope.scopedEnvironment(
             base: ProcessInfo.processInfo.environment,
             codexHome: homePath)
-        return UsageFetcher(environment: env).loadAccountInfo()
+        return UsageFetcher(environment: env).loadAuthBackedCodexAccount()
     }
 }
 
@@ -116,8 +116,10 @@ final class ManagedCodexAccountService {
             let result = await self.loginRunner.run(homePath: homeURL.path, timeout: timeout)
             guard case .success = result.outcome else { throw ManagedCodexAccountServiceError.loginFailed }
 
-            let info = try self.identityReader.loadAccountInfo(homePath: homeURL.path)
-            guard let rawEmail = info.email?.trimmingCharacters(in: .whitespacesAndNewlines), !rawEmail.isEmpty else {
+            let identity = try self.identityReader.loadAccountIdentity(homePath: homeURL.path)
+            guard let rawEmail = identity.email?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !rawEmail.isEmpty
+            else {
                 throw ManagedCodexAccountServiceError.missingEmail
             }
 
