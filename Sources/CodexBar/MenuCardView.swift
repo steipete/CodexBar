@@ -785,6 +785,13 @@ extension UsageMenuCardView.Model {
             return notes
         }
 
+        if input.provider == .mimo, input.snapshot != nil {
+            return [
+                "Balance updates in near-real time (up to 5 min lag)",
+                "Daily billing data finalizes at 07:00 UTC",
+            ]
+        }
+
         guard input.provider == .openrouter,
               let openRouter = input.snapshot?.openRouterUsage
         else {
