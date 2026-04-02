@@ -232,10 +232,16 @@ public struct ProviderSettingsSnapshot: Sendable {
     public struct MistralProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
+        public let prefersAPIInAuto: Bool
 
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+        public init(
+            cookieSource: ProviderCookieSource,
+            manualCookieHeader: String?,
+            prefersAPIInAuto: Bool = false)
+        {
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
+            self.prefersAPIInAuto = prefersAPIInAuto
         }
     }
 

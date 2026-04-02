@@ -40,9 +40,9 @@ extension SettingsStore {
 extension SettingsStore {
     func mistralSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     .MistralProviderSettings {
-        _ = tokenOverride
         return ProviderSettingsSnapshot.MistralProviderSettings(
             cookieSource: self.mistralCookieSource,
-            manualCookieHeader: self.mistralManualCookieHeader)
+            manualCookieHeader: self.mistralManualCookieHeader,
+            prefersAPIInAuto: tokenOverride?.provider == .mistral)
     }
 }

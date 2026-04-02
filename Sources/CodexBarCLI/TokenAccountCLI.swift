@@ -190,7 +190,8 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(
                 mistral: ProviderSettingsSnapshot.MistralProviderSettings(
                     cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
+                    manualCookieHeader: cookieHeader,
+                    prefersAPIInAuto: account != nil))
         case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp:
             return nil
         }

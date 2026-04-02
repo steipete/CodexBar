@@ -204,6 +204,7 @@ struct MistralSharedIntegrationTests {
 
         #expect(snapshot.mistral?.cookieSource == .manual)
         #expect(snapshot.mistral?.manualCookieHeader == "ory_session=abc; csrftoken=def")
+        #expect(snapshot.mistral?.prefersAPIInAuto == false)
     }
 
     @Test
@@ -215,11 +216,24 @@ struct MistralSharedIntegrationTests {
                     cookieSource: .auto,
                     manualCookieHeader: nil,
                 ))
+        )
 
         let snapshot = builder.build()
 
         #expect(snapshot.mistral?.cookieSource == .auto)
         #expect(snapshot.mistral?.manualCookieHeader == nil)
+        #expect(snapshot.mistral?.prefersAPIInAuto == false)
+    }
+
+    @Test
+    func `mistral token account snapshots prefer api in auto mode`() {
+        let snapshot = ProviderSettingsSnapshot.make(
+            mistral: ProviderSettingsSnapshot.MistralProviderSettings(
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                prefersAPIInAuto: true))
+
+        #expect(snapshot.mistral?.prefersAPIInAuto == true)
     }
 
     @Test

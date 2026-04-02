@@ -69,6 +69,13 @@ public enum MistralProviderDescriptor {
             return [MistralAPIFetchStrategy()]
         }
 
+        // Token-account/API-key overrides are account-scoped, while browser cookies are workspace-scoped.
+        // In auto mode, prefer the API strategy first so account switching does not silently return the
+        // browser-logged workspace instead of the selected Mistral account.
+        if context.settings?.mistral?.prefersAPIInAuto == true {
+            return [MistralAPIFetchStrategy(), MistralWebFetchStrategy()]
+        }
+
         return [MistralWebFetchStrategy(), MistralAPIFetchStrategy()]
     }
 }
