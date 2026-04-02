@@ -35,13 +35,17 @@ struct MistralProviderImplementation: ProviderImplementation {
         if !context.settings.mistralAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
         }
-        if context.settings.mistralCookieSource != .off {
+
+        switch context.settings.mistralCookieSource {
+        case .auto:
             return true
+        case .manual:
+            return !context.settings.mistralManualCookieHeader
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+        case .off:
+            return false
         }
-        if !context.settings.mistralManualCookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return true
-        }
-        return false
     }
 
     @MainActor
