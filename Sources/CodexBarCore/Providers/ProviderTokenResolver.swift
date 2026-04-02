@@ -65,6 +65,10 @@ public enum ProviderTokenResolver {
         self.openRouterResolution(environment: environment)?.token
     }
 
+    public static func mistralToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.mistralResolution(environment: environment)?.token
+    }
+
     public static func perplexitySessionToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -155,6 +159,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(OpenRouterSettingsReader.apiToken(environment: environment))
+    }
+
+    public static func mistralResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(MistralSettingsReader.apiKey(environment: environment))
     }
 
     public static func perplexityResolution(

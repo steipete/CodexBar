@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter, Mistral)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -39,6 +39,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | Ollama | Web settings page via browser cookies (`web`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
+| Mistral | Admin dashboard billing via cookies (`web`) → API key model probe (`api`). |
 
 ## Codex
 - Web dashboard (when enabled): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -181,5 +182,15 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Override base URL with `OPENROUTER_API_URL` env var.
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
 - Details: `docs/openrouter.md`.
+
+## Mistral
+- Auto mode prefers the Mistral admin dashboard (`https://admin.mistral.ai/organization/usage`) via browser cookies, with API fallback when web auth is unavailable.
+- Web auth supports automatic browser-cookie import or a manual `Cookie` header in Settings → Providers → Mistral.
+- Dashboard fetch uses `GET /api/billing/v2/usage?month=<m>&year=<y>` on `admin.mistral.ai` and aggregates the current month's spend/token totals.
+- API auth uses `~/.codexbar/config.json` (`providers[].apiKey`), token-account overrides, or `MISTRAL_API_KEY`.
+- Base URL defaults to `https://api.mistral.ai/v1`; override with `MISTRAL_API_URL`.
+- API fallback uses the documented models endpoint, `GET /models`, to validate the key and list accessible models, plus best-effort request/token rate-limit headers when present.
+- Because Mistral does not document a public billing endpoint, the numeric spend/token dashboard data currently comes from the authenticated AI Studio web session rather than the public API.
+- Status: none yet.
 
 See also: `docs/provider.md` for architecture notes.

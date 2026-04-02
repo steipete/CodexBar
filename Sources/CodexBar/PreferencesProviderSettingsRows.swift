@@ -133,6 +133,21 @@ struct ProviderSettingsPickerRowView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            let actions = self.picker.actions.filter { $0.isVisible?() ?? true }
+            if !actions.isEmpty {
+                HStack(spacing: 10) {
+                    ForEach(actions) { action in
+                        Button(action.title) {
+                            Task { @MainActor in
+                                await action.perform()
+                            }
+                        }
+                        .applyProviderSettingsButtonStyle(action.style)
+                        .controlSize(.small)
+                    }
+                }
+            }
         }
         .disabled(!isEnabled)
         .onChange(of: self.picker.binding.wrappedValue) { _, selection in

@@ -35,6 +35,7 @@ enum ProviderImplementationRegistry {
         case .ollama: OllamaProviderImplementation()
         case .synthetic: SyntheticProviderImplementation()
         case .openrouter: OpenRouterProviderImplementation()
+        case .mistral: MistralProviderImplementation()
         case .warp: WarpProviderImplementation()
         case .perplexity: PerplexityProviderImplementation()
         }

@@ -26,6 +26,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case synthetic
     case warp
     case openrouter
+    case mistral
     case perplexity
 }
 
@@ -55,6 +56,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case synthetic
     case warp
     case openrouter
+    case mistral
     case perplexity
     case combined
 }

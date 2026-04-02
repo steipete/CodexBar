@@ -16,6 +16,13 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: ZaiSettingsReader.apiTokenKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .mistral: TokenAccountSupport(
+            title: "API keys (Optional)",
+            subtitle: "Optional. Store multiple Mistral API keys for API fallback and CLI use.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: MistralSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .cursor: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Cursor Cookie headers.",

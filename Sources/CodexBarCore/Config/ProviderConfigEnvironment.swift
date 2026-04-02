@@ -31,6 +31,8 @@ public enum ProviderConfigEnvironment {
             }
         case .openrouter:
             env[OpenRouterSettingsReader.envKey] = apiKey
+        case .mistral:
+            env[MistralSettingsReader.apiKeyEnvironmentKey] = apiKey
         default:
             break
         }

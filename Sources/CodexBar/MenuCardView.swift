@@ -86,6 +86,8 @@ struct UsageMenuCardView: View {
             let title: String
             let percentUsed: Double
             let spendLine: String
+            let showsProgress: Bool
+            let trailingText: String?
         }
 
         let provider: UsageProvider
@@ -330,17 +332,21 @@ private struct ProviderCostContent: View {
             Text(self.section.title)
                 .font(.body)
                 .fontWeight(.medium)
-            UsageProgressBar(
-                percent: self.section.percentUsed,
-                tint: self.progressColor,
-                accessibilityLabel: "Extra usage spent")
+            if self.section.showsProgress {
+                UsageProgressBar(
+                    percent: self.section.percentUsed,
+                    tint: self.progressColor,
+                    accessibilityLabel: "Extra usage spent")
+            }
             HStack(alignment: .firstTextBaseline) {
                 Text(self.section.spendLine)
                     .font(.footnote)
-                Spacer()
-                Text(String(format: "%.0f%% used", min(100, max(0, self.section.percentUsed))))
-                    .font(.footnote)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                if let trailingText = self.section.trailingText {
+                    Spacer()
+                    Text(trailingText)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                }
             }
         }
     }
@@ -785,6 +791,18 @@ extension UsageMenuCardView.Model {
             return notes
         }
 
+        if input.provider == .mistral {
+            guard let snapshot = input.snapshot else { return [] }
+            if let summary = snapshot.mistralUsage {
+                return Self.mistralUsageNotes(summary: summary, snapshot: snapshot)
+            }
+            guard snapshot.primary == nil, snapshot.secondary == nil else { return [] }
+            return [
+                "Connected to the public Mistral API",
+                "Usage and billing totals are currently only available in Mistral AI Studio",
+            ]
+        }
+
         guard input.provider == .openrouter,
               let openRouter = input.snapshot?.openRouterUsage
         else {
@@ -819,6 +837,9 @@ extension UsageMenuCardView.Model {
         account: AccountInfo,
         metadata: ProviderMetadata) -> String?
     {
+        if provider == .mistral, snapshot?.mistralUsage != nil {
+            return nil
+        }
         if provider == .kilo {
             guard let pass = self.kiloLoginPass(snapshot: snapshot) else {
                 return nil
@@ -941,7 +962,9 @@ extension UsageMenuCardView.Model {
         let zaiTokenDetail = Self.zaiLimitDetailText(limit: zaiUsage?.tokenLimit)
         let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
         let openRouterQuotaDetail = Self.openRouterQuotaDetail(provider: input.provider, snapshot: snapshot)
-        if let primary = snapshot.primary {
+        if let primary = snapshot.primary,
+           Self.shouldRenderPrimaryMetric(provider: input.provider, snapshot: snapshot)
+        {
             var primaryDetailText: String? = input.provider == .zai ? zaiTokenDetail : nil
             var primaryResetText = Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now)
             if input.provider == .openrouter,
@@ -1267,29 +1290,98 @@ extension UsageMenuCardView.Model {
         cost: ProviderCostSnapshot?) -> ProviderCostSection?
     {
         guard let cost else { return nil }
-        guard cost.limit > 0 else { return nil }
 
         let used: String
-        let limit: String
         let title: String
+        let trailingText: String?
+        let showsProgress: Bool
 
-        if cost.currencyCode == "Quota" {
+        if cost.limit <= 0 {
+            guard provider == .mistral else { return nil }
+            title = "Billing"
+            used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            trailingText = nil
+            showsProgress = false
+        } else if cost.currencyCode == "Quota" {
             title = "Quota usage"
             used = String(format: "%.0f", cost.used)
-            limit = String(format: "%.0f", cost.limit)
+            let limit = String(format: "%.0f", cost.limit)
+            trailingText = "\(String(format: "%.0f%% used", Self.clamped((cost.used / cost.limit) * 100)))"
+            showsProgress = true
+            let percentUsed = Self.clamped((cost.used / cost.limit) * 100)
+            let periodLabel = cost.period ?? "This month"
+
+            return ProviderCostSection(
+                title: title,
+                percentUsed: percentUsed,
+                spendLine: "\(periodLabel): \(used) / \(limit)",
+                showsProgress: showsProgress,
+                trailingText: trailingText)
         } else {
             title = "Extra usage"
             used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-            limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+            let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+            trailingText = "\(String(format: "%.0f%% used", Self.clamped((cost.used / cost.limit) * 100)))"
+            showsProgress = true
+            let percentUsed = Self.clamped((cost.used / cost.limit) * 100)
+            let periodLabel = cost.period ?? "This month"
+
+            return ProviderCostSection(
+                title: title,
+                percentUsed: percentUsed,
+                spendLine: "\(periodLabel): \(used) / \(limit)",
+                showsProgress: showsProgress,
+                trailingText: trailingText)
         }
 
-        let percentUsed = Self.clamped((cost.used / cost.limit) * 100)
         let periodLabel = cost.period ?? "This month"
 
         return ProviderCostSection(
             title: title,
-            percentUsed: percentUsed,
-            spendLine: "\(periodLabel): \(used) / \(limit)")
+            percentUsed: 0,
+            spendLine: "\(periodLabel): \(used)",
+            showsProgress: false,
+            trailingText: nil)
+    }
+
+    private static func shouldRenderPrimaryMetric(provider: UsageProvider, snapshot: UsageSnapshot) -> Bool {
+        guard provider == .mistral, snapshot.mistralUsage != nil, let primary = snapshot.primary else {
+            return true
+        }
+        guard snapshot.secondary == nil else { return true }
+        guard let providerCost = snapshot.providerCost, providerCost.limit <= 0 else { return true }
+        return primary.usedPercent > 0
+    }
+
+    private static func mistralUsageNotes(summary: MistralUsageSummarySnapshot, snapshot: UsageSnapshot) -> [String] {
+        var notes: [String] = []
+        switch summary.sourceKind {
+        case .web:
+            if let tokenLine = summary.tokenSummaryLine, !tokenLine.isEmpty {
+                notes.append(tokenLine)
+            }
+            if let workspaceLine = summary.workspaceLine, !workspaceLine.isEmpty {
+                notes.append(workspaceLine)
+            }
+            if let modelsLine = summary.modelsLine, !modelsLine.isEmpty {
+                notes.append(modelsLine)
+            }
+        case .api:
+            notes.append("API fallback active")
+            if let modelsLine = summary.modelsLine, !modelsLine.isEmpty {
+                notes.append(modelsLine)
+            }
+            if let preview = summary.previewModelNames, !preview.isEmpty {
+                notes.append(preview)
+            }
+            if let workspaceLine = summary.workspaceLine, !workspaceLine.isEmpty {
+                notes.append(workspaceLine)
+            }
+            if snapshot.primary == nil, snapshot.secondary == nil {
+                notes.append("Sign into Mistral AI Studio in Chrome to unlock billing totals automatically")
+            }
+        }
+        return notes
     }
 
     private static func clamped(_ value: Double) -> Double {

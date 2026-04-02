@@ -75,6 +75,7 @@ public enum ProviderDescriptorRegistry {
         .ollama: OllamaProviderDescriptor.descriptor,
         .synthetic: SyntheticProviderDescriptor.descriptor,
         .openrouter: OpenRouterProviderDescriptor.descriptor,
+        .mistral: MistralProviderDescriptor.descriptor,
         .warp: WarpProviderDescriptor.descriptor,
         .perplexity: PerplexityProviderDescriptor.descriptor,
     ]

@@ -19,7 +19,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         amp: AmpProviderSettings? = nil,
         ollama: OllamaProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil,
-        perplexity: PerplexityProviderSettings? = nil) -> ProviderSettingsSnapshot
+        perplexity: PerplexityProviderSettings? = nil,
+        mistral: MistralProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
             debugMenuEnabled: debugMenuEnabled,
@@ -39,7 +40,8 @@ public struct ProviderSettingsSnapshot: Sendable {
             amp: amp,
             ollama: ollama,
             jetbrains: jetbrains,
-            perplexity: perplexity)
+            perplexity: perplexity,
+            mistral: mistral)
     }
 
     public struct CodexProviderSettings: Sendable {
@@ -227,6 +229,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct MistralProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public let debugMenuEnabled: Bool
     public let debugKeepCLISessionsAlive: Bool
     public let codex: CodexProviderSettings?
@@ -245,6 +257,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let ollama: OllamaProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
     public let perplexity: PerplexityProviderSettings?
+    public let mistral: MistralProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
         self.jetbrains?.ideBasePath
@@ -268,7 +281,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         amp: AmpProviderSettings?,
         ollama: OllamaProviderSettings?,
         jetbrains: JetBrainsProviderSettings? = nil,
-        perplexity: PerplexityProviderSettings? = nil)
+        perplexity: PerplexityProviderSettings? = nil,
+        mistral: MistralProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
@@ -288,6 +302,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.ollama = ollama
         self.jetbrains = jetbrains
         self.perplexity = perplexity
+        self.mistral = mistral
     }
 }
 
@@ -308,6 +323,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
+    case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
 }
 
 public struct ProviderSettingsSnapshotBuilder: Sendable {
@@ -329,6 +345,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
+    public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
         self.debugMenuEnabled = debugMenuEnabled
@@ -353,6 +370,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .ollama(value): self.ollama = value
         case let .jetbrains(value): self.jetbrains = value
         case let .perplexity(value): self.perplexity = value
+        case let .mistral(value): self.mistral = value
         }
     }
 
@@ -375,6 +393,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             amp: self.amp,
             ollama: self.ollama,
             jetbrains: self.jetbrains,
-            perplexity: self.perplexity)
+            perplexity: self.perplexity,
+            mistral: self.mistral)
     }
 }
