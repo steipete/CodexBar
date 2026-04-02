@@ -72,6 +72,34 @@ struct CodexProfileStoreTests {
     }
 
     @Test
+    func `selected profile stays unset when no active auth exists`() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let authURL = root.appendingPathComponent("auth.json")
+        let profilesURL = root.appendingPathComponent("profiles", isDirectory: true)
+        try FileManager.default.createDirectory(at: profilesURL, withIntermediateDirectories: true)
+
+        try self.writeAuthFile(
+            to: profilesURL.appendingPathComponent("plus-a.json"),
+            email: "plus-a@example.com",
+            plan: "plus",
+            accountID: "acct-a")
+        try self.writeAuthFile(
+            to: profilesURL.appendingPathComponent("plus-b.json"),
+            email: "plus-b@example.com",
+            plan: "plus",
+            accountID: "acct-b")
+
+        let selected = CodexProfileStore.selectedDisplayProfile(
+            selectedPath: nil,
+            authFileURL: authURL)
+
+        #expect(selected == nil)
+    }
+
+    @Test
     func `display profiles collapse live auth into matching saved profile`() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

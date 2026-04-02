@@ -29,7 +29,7 @@ extension SettingsStore {
                     return exact
                 }
             }
-            return override.first(where: \.isActiveInCodex) ?? override.first
+            return override.first(where: \.isActiveInCodex)
         }
         #endif
         return CodexProfileStore.selectedDisplayProfile(selectedPath: self.selectedCodexProfilePath)

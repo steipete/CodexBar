@@ -114,7 +114,9 @@ public enum CodexProfileStore {
             }
 
         if let activeProfile,
-           discovered.contains(where: { $0.fileURL.standardizedFileURL == activeProfile.fileURL.standardizedFileURL }) == false
+           discovered.contains(where: {
+               $0.fileURL.standardizedFileURL == activeProfile.fileURL.standardizedFileURL
+           }) == false
         {
             discovered.append(activeProfile)
         }
@@ -213,10 +215,10 @@ public enum CodexProfileStore {
             }
             let authPath = authFileURL.standardizedFileURL.path
             if standardizedPath == authPath {
-                return displayed.first(where: \.isActiveInCodex) ?? displayed.first
+                return displayed.first(where: \.isActiveInCodex)
             }
         }
-        return displayed.first(where: \.isActiveInCodex) ?? displayed.first
+        return displayed.first(where: \.isActiveInCodex)
     }
 
     private static func credentials(at url: URL, fileManager: FileManager) -> CodexOAuthCredentials? {
