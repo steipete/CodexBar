@@ -120,6 +120,13 @@ struct CodexAccountsSectionView: View {
 
     var body: some View {
         ProviderSettingsSection(title: "Accounts") {
+            Button(self.state.addAccountTitle) {
+                self.addAccount()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(self.state.canAddAccount == false)
+        } content: {
             if let selection = self.activeSelectionBinding {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -135,8 +142,10 @@ struct CodexAccountsSectionView: View {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .controlSize(.small)
+                        .fixedSize()
+                        .frame(maxWidth: 300, alignment: .leading)
 
-                        Spacer(minLength: 0)
+                        Spacer(minLength: 8)
                     }
 
                     Text("Choose which Codex account CodexBar should follow.")
@@ -154,7 +163,7 @@ struct CodexAccountsSectionView: View {
                         Text(account.email)
                             .font(.subheadline)
 
-                        Spacer(minLength: 0)
+                        Spacer(minLength: 8)
                     }
                 }
             }
@@ -164,7 +173,7 @@ struct CodexAccountsSectionView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     ForEach(self.state.visibleAccounts) { account in
                         CodexAccountsSectionRowView(
                             account: account,
@@ -185,29 +194,31 @@ struct CodexAccountsSectionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button(self.state.addAccountTitle) {
-                self.addAccount()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(self.state.canAddAccount == false)
-
             Divider()
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Local Profiles")
-                    .font(.subheadline.weight(.semibold))
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("Local Profiles")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Button(self.state.saveCurrentProfileTitle) {
+                        self.saveCurrentProfile()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(self.state.localProfileActionsDisabled)
+                }
 
-                Text("Save and switch the live Codex desktop/CLI account stored in ~/.codex/auth.json.")
+                Text("Save and switch local Codex desktop and CLI accounts.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
                 if self.state.localProfiles.isEmpty {
-                    Text("No saved local Codex profiles yet.")
+                    Text("No saved local Codex profiles yet. Save the current account to switch back to it later.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 8) {
                         ForEach(self.state.localProfiles) { profile in
                             CodexLocalProfileRowView(
                                 profile: profile,
@@ -217,25 +228,18 @@ struct CodexAccountsSectionView: View {
                     }
                 }
 
-                HStack(spacing: 8) {
-                    Button(self.state.saveCurrentProfileTitle) {
-                        self.saveCurrentProfile()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(self.state.localProfileActionsDisabled)
-
+                HStack(spacing: 10) {
                     Button("Reload Profiles") {
                         self.reloadLocalProfiles()
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.link)
                     .controlSize(.small)
                     .disabled(self.state.localProfileActionsDisabled)
 
                     Button("Open Profiles Folder") {
                         self.openLocalProfilesFolder()
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.link)
                     .controlSize(.small)
                 }
             }
@@ -308,14 +312,12 @@ private struct CodexLocalProfileRowView: View {
                     Text(self.profile.title)
                         .font(.subheadline.weight(.semibold))
                     if self.profile.isActive {
-                        Text("(Active)")
-                            .font(.caption.weight(.semibold))
+                        Text("Active")
+                            .font(.caption2.weight(.medium))
                             .foregroundStyle(.secondary)
-                    }
-                    if self.profile.isLive {
-                        Text("(Live)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
                     }
                 }
 
@@ -333,12 +335,16 @@ private struct CodexLocalProfileRowView: View {
 
             Spacer(minLength: 8)
 
-            Button(self.profile.isActive ? "Active" : "Switch") {
-                self.onSwitch()
+            if self.profile.isActive {
+                EmptyView()
+            } else {
+                Button("Switch") {
+                    self.onSwitch()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!self.canSwitch)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(!self.canSwitch)
         }
     }
 }

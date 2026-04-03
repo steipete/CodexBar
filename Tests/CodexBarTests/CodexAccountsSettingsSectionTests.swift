@@ -207,6 +207,40 @@ struct CodexAccountsSettingsSectionTests {
     }
 
     @Test
+    func `codex accounts section orders active account before other emails`() throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-active-first")
+        let store = Self.makeUsageStore(settings: settings)
+        let managedStoreURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: managedStoreURL) }
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "zeta@example.com",
+            managedHomePath: "/tmp/managed",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let managedStore = FileManagedCodexAccountStore(fileURL: managedStoreURL)
+        try managedStore.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [managedAccount]))
+
+        settings._test_managedCodexAccountStoreURL = managedStoreURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "alpha@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        settings.codexActiveSource = .managedAccount(id: managedAccountID)
+
+        let pane = ProvidersPane(settings: settings, store: store)
+        let state = try #require(pane._test_codexAccountsSectionState())
+
+        #expect(state.visibleAccounts.map(\.email) == ["zeta@example.com", "alpha@example.com"])
+        #expect(state.activeVisibleAccountID == "zeta@example.com")
+    }
+
+    @Test
     func `codex accounts section shows empty local profiles state for first time user`() throws {
         let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-local-profiles-empty")
         let store = Self.makeUsageStore(settings: settings)
@@ -272,10 +306,48 @@ struct CodexAccountsSettingsSectionTests {
         let profile = try #require(state.localProfiles.first)
 
         #expect(state.localProfiles.count == 1)
-        #expect(profile.title == "plus-b")
-        #expect(profile.subtitle == "plus-b@example.com")
+        #expect(profile.title == "plus-b@example.com")
+        #expect(profile.subtitle == "Plus")
+        #expect(profile.detail == nil)
         #expect(profile.isActive)
         #expect(profile.isLive == false)
+    }
+
+    @Test
+    func `codex accounts section shows alias fallback for duplicate email and plan`() throws {
+        let settings = Self.makeSettingsStore(
+            suite: "CodexAccountsSettingsSectionTests-local-profiles-duplicate-display")
+        let store = Self.makeUsageStore(settings: settings)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let profilesURL = root.appendingPathComponent("profiles", isDirectory: true)
+        try FileManager.default.createDirectory(at: profilesURL, withIntermediateDirectories: true)
+        try Self.writeCodexAuthFile(to: authURL, email: "same@example.com", plan: "plus", accountID: "acct-a")
+        try Self.writeCodexAuthFile(
+            to: profilesURL.appendingPathComponent("plus-a.json"),
+            email: "same@example.com",
+            plan: "plus",
+            accountID: "acct-a")
+        try Self.writeCodexAuthFile(
+            to: profilesURL.appendingPathComponent("plus-b.json"),
+            email: "same@example.com",
+            plan: "plus",
+            accountID: "acct-b")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: NoopCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
+        let state = try #require(pane._test_codexAccountsSectionState())
+
+        #expect(state.localProfiles.count == 2)
+        #expect(state.localProfiles.allSatisfy { $0.title == "same@example.com" })
+        #expect(state.localProfiles.allSatisfy { $0.subtitle == "Plus" })
+        #expect(state.localProfiles.contains { $0.detail == "Saved as plus-a" })
+        #expect(state.localProfiles.contains { $0.detail == "Saved as plus-b" })
     }
 
     private static func makeManagedCoordinator(

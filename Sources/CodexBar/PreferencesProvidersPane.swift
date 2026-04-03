@@ -213,7 +213,7 @@ struct ProvidersPane: View {
         }
 
         return CodexAccountsSectionState(
-            visibleAccounts: projection.visibleAccounts,
+            visibleAccounts: self.orderedCodexVisibleAccounts(projection.visibleAccounts),
             activeVisibleAccountID: projection.activeVisibleAccountID,
             hasUnreadableManagedAccountStore: projection.hasUnreadableAddedAccountStore,
             isAuthenticatingManagedAccount: self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount,
@@ -636,20 +636,53 @@ struct ProvidersPane: View {
         return CodexAccountsSectionNotice(text: outcome.successMessage, tone: .secondary)
     }
 
-    private func codexLocalProfiles() -> [CodexAccountsSectionState.LocalProfile] {
-        self.codexLocalProfileManager.profiles().filter { $0.alias != "Live" }.map { profile in
-            let detail = profile.plan.flatMap { plan in
-                let cleaned = UsageFormatter.cleanPlanName(plan)
-                return cleaned.isEmpty ? plan : cleaned
+    private func orderedCodexVisibleAccounts(_ accounts: [CodexVisibleAccount]) -> [CodexVisibleAccount] {
+        accounts.sorted { lhs, rhs in
+            if lhs.isActive != rhs.isActive {
+                return lhs.isActive && !rhs.isActive
             }
-            return CodexAccountsSectionState.LocalProfile(
-                id: profile.fileURL.path,
-                title: profile.alias,
-                subtitle: profile.accountEmail,
-                detail: detail,
-                isActive: profile.isActiveInCodex,
-                isLive: false)
+            return lhs.email.localizedStandardCompare(rhs.email) == .orderedAscending
         }
+    }
+
+    private func codexLocalProfiles() -> [CodexAccountsSectionState.LocalProfile] {
+        let profiles = self.codexLocalProfileManager.profiles().filter { $0.alias != "Live" }
+        let displayIdentityCounts = Dictionary(
+            grouping: profiles,
+            by: { profile in
+                let email = profile.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+                let plan = profile.plan
+                    .map(UsageFormatter.cleanPlanName)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased() ?? ""
+                return "\(email)|\(plan)"
+            })
+            .mapValues(\.count)
+
+        return profiles
+            .map { profile in
+                let cleanedPlan = profile.plan.flatMap { plan in
+                    let cleaned = UsageFormatter.cleanPlanName(plan)
+                    return cleaned.isEmpty ? plan : cleaned
+                }
+                let email = profile.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let identityKey = "\(email?.lowercased() ?? "")|\(cleanedPlan?.lowercased() ?? "")"
+                let showsAliasFallback = (displayIdentityCounts[identityKey] ?? 0) > 1 && email != nil
+
+                return CodexAccountsSectionState.LocalProfile(
+                    id: profile.fileURL.path,
+                    title: email ?? profile.alias,
+                    subtitle: cleanedPlan,
+                    detail: showsAliasFallback ? "Saved as \(profile.alias)" : nil,
+                    isActive: profile.isActiveInCodex,
+                    isLive: false)
+            }
+            .sorted { lhs, rhs in
+                if lhs.isActive != rhs.isActive {
+                    return lhs.isActive && !rhs.isActive
+                }
+                return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+            }
     }
 
     private func codexLocalProfileActionCoordinator() -> CodexLocalProfileActionCoordinator {
