@@ -8,12 +8,15 @@ struct ProvidersPane: View {
     @Bindable var store: UsageStore
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
     let codexAmbientLoginRunner: any CodexAmbientLoginRunning
+    let codexLocalProfileManager: CodexLocalProfileManager
     @State private var expandedErrors: Set<UsageProvider> = []
     @State private var settingsStatusTextByID: [String: String] = [:]
     @State private var settingsLastAppActiveRunAtByID: [String: Date] = [:]
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
     @State private var codexAccountsNotice: CodexAccountsSectionNotice?
     @State private var isAuthenticatingLiveCodexAccount = false
+    @State private var isPerformingCodexLocalProfileOperation = false
+    @State private var codexLocalProfilesRevision = 0
     @State private var selectedProvider: UsageProvider?
 
     private var providers: [UsageProvider] {
@@ -24,12 +27,14 @@ struct ProvidersPane: View {
         settings: SettingsStore,
         store: UsageStore,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
-        codexAmbientLoginRunner: any CodexAmbientLoginRunning = DefaultCodexAmbientLoginRunner())
+        codexAmbientLoginRunner: any CodexAmbientLoginRunning = DefaultCodexAmbientLoginRunner(),
+        codexLocalProfileManager: CodexLocalProfileManager = CodexLocalProfileManager())
     {
         self.settings = settings
         self.store = store
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
         self.codexAmbientLoginRunner = codexAmbientLoginRunner
+        self.codexLocalProfileManager = codexLocalProfileManager
     }
 
     var body: some View {
@@ -91,6 +96,22 @@ struct ProvidersPane: View {
                                     Task { @MainActor in
                                         await self.addManagedCodexAccount()
                                     }
+                                },
+                                saveCurrentProfile: {
+                                    Task { @MainActor in
+                                        await self.saveCurrentCodexProfile()
+                                    }
+                                },
+                                switchLocalProfile: { profilePath in
+                                    Task { @MainActor in
+                                        await self.switchCodexLocalProfile(profilePath: profilePath)
+                                    }
+                                },
+                                reloadLocalProfiles: {
+                                    self.reloadCodexLocalProfiles()
+                                },
+                                openLocalProfilesFolder: {
+                                    self.openCodexLocalProfilesFolder()
                                 })
                         }
                     })
@@ -180,6 +201,7 @@ struct ProvidersPane: View {
 
     func codexAccountsSectionState(for provider: UsageProvider) -> CodexAccountsSectionState? {
         guard provider == .codex else { return nil }
+        _ = self.codexLocalProfilesRevision
         let projection = self.settings.codexVisibleAccountProjection
         let degradedNotice: CodexAccountsSectionNotice? = if projection.hasUnreadableAddedAccountStore {
             CodexAccountsSectionNotice(
@@ -197,7 +219,9 @@ struct ProvidersPane: View {
             isAuthenticatingManagedAccount: self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount,
             authenticatingManagedAccountID: self.managedCodexAccountCoordinator.authenticatingManagedAccountID,
             isAuthenticatingLiveAccount: self.isAuthenticatingLiveCodexAccount,
-            notice: self.codexAccountsNotice ?? degradedNotice)
+            isPerformingLocalProfileOperation: self.isPerformingCodexLocalProfileOperation,
+            notice: self.codexAccountsNotice ?? degradedNotice,
+            localProfiles: self.codexLocalProfiles())
     }
 
     func selectCodexVisibleAccount(id: String) async {
@@ -261,6 +285,65 @@ struct ProvidersPane: View {
         } catch {
             self.codexAccountsNotice = self.codexAccountsNotice(for: error)
         }
+    }
+
+    func saveCurrentCodexProfile() async {
+        self.codexAccountsNotice = nil
+        guard let profileName = self.promptForCodexLocalProfileName() else { return }
+        do {
+            let processes = try await self.codexLocalProfileManager.runningProcesses()
+            let allowClosing = processes.hasRunningProcesses
+                ? self.confirmLocalProfileActionIfNeeded(processes: processes, verb: "save the current account")
+                : false
+            if processes.hasRunningProcesses, allowClosing == false { return }
+            self.isPerformingCodexLocalProfileOperation = true
+            defer { self.isPerformingCodexLocalProfileOperation = false }
+            let result = try await self.codexLocalProfileManager.saveCurrentProfile(
+                named: profileName,
+                allowClosingRunningProcesses: allowClosing)
+            self.codexLocalProfilesRevision &+= 1
+            self.codexAccountsNotice = CodexAccountsSectionNotice(
+                text: "Saved local Codex profile '\(result.profile.alias)'.",
+                tone: .secondary)
+            await self.refreshCodexProvider()
+        } catch {
+            self.codexAccountsNotice = self.codexAccountsNotice(for: error)
+        }
+    }
+
+    func switchCodexLocalProfile(profilePath: String) async {
+        self.codexAccountsNotice = nil
+        do {
+            let processes = try await self.codexLocalProfileManager.runningProcesses()
+            let allowClosing = processes.hasRunningProcesses
+                ? self.confirmLocalProfileActionIfNeeded(processes: processes, verb: "switch the active Codex account")
+                : false
+            if processes.hasRunningProcesses, allowClosing == false { return }
+            self.isPerformingCodexLocalProfileOperation = true
+            defer { self.isPerformingCodexLocalProfileOperation = false }
+            let result = try await self.codexLocalProfileManager.switchToProfile(
+                at: profilePath,
+                allowClosingRunningProcesses: allowClosing)
+            self.settings.codexActiveSource = .liveSystem
+            self.codexLocalProfilesRevision &+= 1
+            self.codexAccountsNotice = CodexAccountsSectionNotice(
+                text: "Switched live Codex account to '\(result.profile.alias)'.",
+                tone: .secondary)
+            await self.refreshCodexProvider()
+        } catch {
+            self.codexAccountsNotice = self.codexAccountsNotice(for: error)
+        }
+    }
+
+    func reloadCodexLocalProfiles() {
+        self.codexAccountsNotice = nil
+        self.codexLocalProfilesRevision &+= 1
+    }
+
+    func openCodexLocalProfilesFolder() {
+        let profilesURL = self.codexLocalProfileManager.profilesDirectoryURL()
+        let fallbackURL = profilesURL.deletingLastPathComponent()
+        NSWorkspace.shared.open(FileManager.default.fileExists(atPath: profilesURL.path) ? profilesURL : fallbackURL)
     }
 
     func requestManagedCodexAccountRemoval(_ account: CodexVisibleAccount) {
@@ -557,6 +640,61 @@ struct ProvidersPane: View {
         return CodexAccountsSectionNotice(
             text: error.localizedDescription,
             tone: .warning)
+    }
+
+    private func codexLocalProfiles() -> [CodexAccountsSectionState.LocalProfile] {
+        self.codexLocalProfileManager.profiles().map { profile in
+            let detail = profile.plan.flatMap { plan in
+                let cleaned = UsageFormatter.cleanPlanName(plan)
+                return cleaned.isEmpty ? plan : cleaned
+            }
+            return CodexAccountsSectionState.LocalProfile(
+                id: profile.fileURL.path,
+                title: profile.alias,
+                subtitle: profile.accountEmail,
+                detail: detail,
+                isActive: profile.isActiveInCodex,
+                isLive: profile.alias == "Live")
+        }
+    }
+
+    private func promptForCodexLocalProfileName() -> String? {
+        let alert = NSAlert()
+        alert.messageText = "Save Current Codex Account"
+        alert.informativeText = "Enter a name for the current live Codex account."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        field.placeholderString = "plus-a"
+        alert.accessoryView = field
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return nil }
+        return field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func confirmLocalProfileActionIfNeeded(
+        processes: CodexLocalProfileRunningProcesses,
+        verb: String) -> Bool
+    {
+        guard processes.hasRunningProcesses else { return false }
+        let alert = NSAlert()
+        alert.messageText = "Close Codex before continuing?"
+        var details: [String] = []
+        if processes.codexAppRunning {
+            details.append("Codex.app")
+        }
+        if !processes.cliProcesses.isEmpty {
+            details
+                .append("\(processes.cliProcesses.count) codex CLI session" +
+                    (processes.cliProcesses.count == 1 ? "" : "s"))
+        }
+        alert.informativeText =
+            "CodexBar will close \(details.joined(separator: " and ")) to \(verb), then reopen Codex.app."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private func presentLoginAlert(title: String, message: String) {

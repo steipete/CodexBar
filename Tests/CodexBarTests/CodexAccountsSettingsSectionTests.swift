@@ -206,6 +206,58 @@ struct CodexAccountsSettingsSectionTests {
         #expect(state.activeVisibleAccountID == "managed@example.com")
     }
 
+    @Test
+    func `codex accounts section shows empty local profiles state for first time user`() throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-local-profiles-empty")
+        let store = Self.makeUsageStore(settings: settings)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manager = CodexLocalProfileManager(
+            authFileURL: root.appendingPathComponent("auth.json"),
+            fileManager: .default,
+            runtime: NoopCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
+        let state = try #require(pane._test_codexAccountsSectionState())
+
+        #expect(state.localProfiles.isEmpty)
+        #expect(state.saveCurrentProfileTitle == "Save Current Account…")
+        #expect(state.localProfileActionsDisabled == false)
+    }
+
+    @Test
+    func `codex accounts section exposes active saved local profile`() throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-local-profiles-active")
+        let store = Self.makeUsageStore(settings: settings)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let profilesURL = root.appendingPathComponent("profiles", isDirectory: true)
+        try FileManager.default.createDirectory(at: profilesURL, withIntermediateDirectories: true)
+        try Self.writeCodexAuthFile(to: authURL, email: "plus-b@example.com", plan: "plus", accountID: "acct-b")
+        try Self.writeCodexAuthFile(
+            to: profilesURL.appendingPathComponent("plus-b.json"),
+            email: "plus-b@example.com",
+            plan: "plus",
+            accountID: "acct-b")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: NoopCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
+        let state = try #require(pane._test_codexAccountsSectionState())
+        let profile = try #require(state.localProfiles.first)
+
+        #expect(state.localProfiles.count == 1)
+        #expect(profile.title == "plus-b")
+        #expect(profile.subtitle == "plus-b@example.com")
+        #expect(profile.isActive)
+        #expect(profile.isLive == false)
+    }
+
     private static func makeManagedCoordinator(
         settings: SettingsStore,
         email: String)
@@ -255,6 +307,49 @@ struct CodexAccountsSettingsSectionTests {
             settings: settings,
             startupBehavior: .testing)
     }
+
+    private static func writeCodexAuthFile(to url: URL, email: String, plan: String, accountID: String) throws {
+        let token = self.fakeJWT(email: email, plan: plan)
+        let payload: [String: Any] = [
+            "tokens": [
+                "access_token": "access-\(accountID)",
+                "refresh_token": "refresh-\(accountID)",
+                "id_token": token,
+                "account_id": accountID,
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        try data.write(to: url)
+    }
+
+    private static func fakeJWT(email: String, plan: String) -> String {
+        let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        let payload = (try? JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "chatgpt_plan_type": plan,
+            "https://api.openai.com/auth": ["chatgpt_plan_type": plan],
+            "https://api.openai.com/profile": ["email": email],
+        ])) ?? Data()
+        return "\(self.base64URL(header)).\(self.base64URL(payload))."
+    }
+
+    private static func base64URL(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+}
+
+@MainActor
+private final class NoopCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
+    func runningProcesses() async throws -> CodexLocalProfileRunningProcesses {
+        .init(codexAppRunning: false, cliProcesses: [])
+    }
+
+    func close(processes _: CodexLocalProfileRunningProcesses) async throws {}
+
+    func reopenCodexApp(at _: URL) async throws {}
 }
 
 private struct TestManagedCodexHomeFactoryForSettingsSectionTests: ManagedCodexHomeProducing, Sendable {

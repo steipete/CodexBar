@@ -22,13 +22,24 @@ struct CodexAccountsSectionNotice: Equatable {
 }
 
 struct CodexAccountsSectionState: Equatable {
+    struct LocalProfile: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let subtitle: String?
+        let detail: String?
+        let isActive: Bool
+        let isLive: Bool
+    }
+
     let visibleAccounts: [CodexVisibleAccount]
     let activeVisibleAccountID: String?
     let hasUnreadableManagedAccountStore: Bool
     let isAuthenticatingManagedAccount: Bool
     let authenticatingManagedAccountID: UUID?
     let isAuthenticatingLiveAccount: Bool
+    let isPerformingLocalProfileOperation: Bool
     let notice: CodexAccountsSectionNotice?
+    let localProfiles: [LocalProfile]
 
     var showsActivePicker: Bool {
         self.visibleAccounts.count > 1
@@ -49,6 +60,10 @@ struct CodexAccountsSectionState: Equatable {
             return "Adding Account…"
         }
         return "Add Account"
+    }
+
+    var saveCurrentProfileTitle: String {
+        self.isPerformingLocalProfileOperation ? "Saving…" : "Save Current Account…"
     }
 
     func showsLiveBadge(for account: CodexVisibleAccount) -> Bool {
@@ -84,6 +99,11 @@ struct CodexAccountsSectionState: Equatable {
         }
         return "Re-auth"
     }
+
+    var localProfileActionsDisabled: Bool {
+        self.isAuthenticatingManagedAccount || self.isAuthenticatingLiveAccount || self
+            .isPerformingLocalProfileOperation
+    }
 }
 
 @MainActor
@@ -93,6 +113,10 @@ struct CodexAccountsSectionView: View {
     let reauthenticateAccount: (CodexVisibleAccount) -> Void
     let removeAccount: (CodexVisibleAccount) -> Void
     let addAccount: () -> Void
+    let saveCurrentProfile: () -> Void
+    let switchLocalProfile: (String) -> Void
+    let reloadLocalProfiles: () -> Void
+    let openLocalProfilesFolder: () -> Void
 
     var body: some View {
         ProviderSettingsSection(title: "Accounts") {
@@ -167,6 +191,54 @@ struct CodexAccountsSectionView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(self.state.canAddAccount == false)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Local Profiles")
+                    .font(.subheadline.weight(.semibold))
+
+                Text("Save and switch the live Codex desktop/CLI account stored in ~/.codex/auth.json.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                if self.state.localProfiles.isEmpty {
+                    Text("No saved local Codex profiles yet.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(self.state.localProfiles) { profile in
+                            CodexLocalProfileRowView(
+                                profile: profile,
+                                canSwitch: !self.state.localProfileActionsDisabled && !profile.isActive,
+                                onSwitch: { self.switchLocalProfile(profile.id) })
+                        }
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Button(self.state.saveCurrentProfileTitle) {
+                        self.saveCurrentProfile()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(self.state.localProfileActionsDisabled)
+
+                    Button("Reload Profiles") {
+                        self.reloadLocalProfiles()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(self.state.localProfileActionsDisabled)
+
+                    Button("Open Profiles Folder") {
+                        self.openLocalProfilesFolder()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
         }
     }
 
@@ -220,6 +292,53 @@ private struct CodexAccountsSectionRowView: View {
                 .controlSize(.small)
                 .disabled(self.canRemove == false)
             }
+        }
+    }
+}
+
+private struct CodexLocalProfileRowView: View {
+    let profile: CodexAccountsSectionState.LocalProfile
+    let canSwitch: Bool
+    let onSwitch: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(self.profile.title)
+                        .font(.subheadline.weight(.semibold))
+                    if self.profile.isActive {
+                        Text("(Active)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    if self.profile.isLive {
+                        Text("(Live)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let subtitle = self.profile.subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if let detail = self.profile.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Button(self.profile.isActive ? "Active" : "Switch") {
+                self.onSwitch()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!self.canSwitch)
         }
     }
 }
