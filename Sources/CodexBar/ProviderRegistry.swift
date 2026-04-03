@@ -108,6 +108,12 @@ struct ProviderRegistry {
                 env[key] = value
             }
         }
+        if provider == .codex {
+            let profileOverride = settings.codexEnvironmentOverrides(tokenOverride: tokenOverride)
+            for (key, value) in profileOverride {
+                env[key] = value
+            }
+        }
         // Managed Codex routing only scopes remote account fetches such as identity, plan,
         // quotas, and dashboard data, and only when the active source is a managed account.
         // Token-cost/session history is intentionally not routed through the managed home

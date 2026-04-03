@@ -126,9 +126,7 @@ extension UsageStore {
         let source = self.settings.codexResolvedActiveSource
         let accountKey: String? = switch self.settings.codexResolvedActiveSource {
         case .liveSystem:
-            Self
-                .normalizeCodexAccountScopedKey(self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?
-                    .email)
+            Self.normalizeCodexAccountScopedKey(self.settings.selectedCodexProfileEmail())
         case .managedAccount:
             Self.normalizeCodexAccountScopedKey(self.currentManagedCodexRuntimeEmail())
         }
@@ -304,11 +302,10 @@ extension UsageStore {
     {
         switch self.settings.codexResolvedActiveSource {
         case .liveSystem:
-            let liveSystem = Self.normalizeCodexAccountScopedEmail(
-                self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?.email)
-            if let liveSystem {
-                self.lastKnownLiveSystemCodexEmail = liveSystem
-                return liveSystem
+            let selectedProfile = Self.normalizeCodexAccountScopedEmail(self.settings.selectedCodexProfileEmail())
+            if let selectedProfile {
+                self.lastKnownLiveSystemCodexEmail = selectedProfile
+                return selectedProfile
             }
 
             if preferCurrentSnapshot,

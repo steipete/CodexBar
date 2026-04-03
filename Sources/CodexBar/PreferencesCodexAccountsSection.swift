@@ -21,6 +21,15 @@ struct CodexAccountsSectionNotice: Equatable {
     let tone: Tone
 }
 
+struct CodexDiscoveredProfileState: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let detail: String?
+    let isDisplayed: Bool
+    let isLive: Bool
+}
+
 struct CodexAccountsSectionState: Equatable {
     let visibleAccounts: [CodexVisibleAccount]
     let activeVisibleAccountID: String?
@@ -29,6 +38,8 @@ struct CodexAccountsSectionState: Equatable {
     let authenticatingManagedAccountID: UUID?
     let isAuthenticatingLiveAccount: Bool
     let notice: CodexAccountsSectionNotice?
+    let localProfiles: [CodexDiscoveredProfileState]
+    let hasUnavailableSelectedProfile: Bool
 
     var showsActivePicker: Bool {
         self.visibleAccounts.count > 1
@@ -84,6 +95,17 @@ struct CodexAccountsSectionState: Equatable {
         }
         return "Re-auth"
     }
+
+    var showsLocalProfiles: Bool {
+        !self.localProfiles.isEmpty || self.hasUnavailableSelectedProfile
+    }
+
+    var localProfilesNotice: CodexAccountsSectionNotice? {
+        guard self.hasUnavailableSelectedProfile else { return nil }
+        return CodexAccountsSectionNotice(
+            text: "The selected local Codex profile is unavailable. Pick another profile or reload profiles.",
+            tone: .warning)
+    }
 }
 
 @MainActor
@@ -93,6 +115,9 @@ struct CodexAccountsSectionView: View {
     let reauthenticateAccount: (CodexVisibleAccount) -> Void
     let removeAccount: (CodexVisibleAccount) -> Void
     let addAccount: () -> Void
+    let selectLocalProfile: (String) -> Void
+    let reloadLocalProfiles: () -> Void
+    let openLocalProfilesFolder: () -> Void
 
     var body: some View {
         ProviderSettingsSection(title: "Accounts") {
@@ -167,6 +192,56 @@ struct CodexAccountsSectionView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(self.state.canAddAccount == false)
+
+            if self.state.showsLocalProfiles {
+                Divider()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Local Profiles (Advanced)")
+                        .font(.subheadline.weight(.semibold))
+
+                    Text(
+                        "Reuse existing local Codex profiles/auth files. Selecting one switches CodexBar back to the local live-system account.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    if self.state.localProfiles.isEmpty {
+                        Text("No saved local Codex profiles found in ~/.codex/profiles.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(self.state.localProfiles) { profile in
+                                CodexLocalProfileRowView(
+                                    profile: profile,
+                                    onSelect: { self.selectLocalProfile(profile.id) })
+                            }
+                        }
+                    }
+
+                    if let notice = self.state.localProfilesNotice {
+                        Text(notice.text)
+                            .font(.footnote)
+                            .foregroundStyle(notice.tone == .warning ? .red : .secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    HStack(spacing: 8) {
+                        Button("Reload profiles") {
+                            self.reloadLocalProfiles()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button("Open profiles folder") {
+                            self.openLocalProfilesFolder()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                .disabled(self.state.isAuthenticatingManagedAccount || self.state.isAuthenticatingLiveAccount)
+            }
         }
     }
 
@@ -221,5 +296,62 @@ private struct CodexAccountsSectionRowView: View {
                 .disabled(self.canRemove == false)
             }
         }
+    }
+}
+
+private struct CodexLocalProfileRowView: View {
+    let profile: CodexDiscoveredProfileState
+    let onSelect: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(self.profile.title)
+                        .font(.subheadline.weight(.semibold))
+                    if self.profile.isDisplayed {
+                        CodexLocalProfileBadgeView(title: "Displayed", tone: .emphasized)
+                    }
+                    if self.profile.isLive {
+                        CodexLocalProfileBadgeView(title: "Live", tone: .subtle)
+                    }
+                }
+                if let subtitle = self.profile.subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if let detail = self.profile.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Button(self.profile.isDisplayed ? "Displayed" : "Display") {
+                self.onSelect()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(self.profile.isDisplayed)
+        }
+    }
+}
+
+private struct CodexLocalProfileBadgeView: View {
+    enum Tone {
+        case emphasized
+        case subtle
+    }
+
+    let title: String
+    let tone: Tone
+
+    var body: some View {
+        Text(self.title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(self.tone == .emphasized ? Color.accentColor : .secondary)
     }
 }

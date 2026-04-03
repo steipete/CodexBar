@@ -318,6 +318,18 @@ extension SettingsStore {
         }
     }
 
+    var selectedCodexProfilePath: String? {
+        get { self.defaultsState.selectedCodexProfilePath }
+        set {
+            self.defaultsState.selectedCodexProfilePath = newValue
+            if let value = newValue {
+                self.userDefaults.set(value, forKey: "selectedCodexProfilePath")
+            } else {
+                self.userDefaults.removeObject(forKey: "selectedCodexProfilePath")
+            }
+        }
+    }
+
     var selectedMenuProvider: UsageProvider? {
         get { self.selectedMenuProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
         set {

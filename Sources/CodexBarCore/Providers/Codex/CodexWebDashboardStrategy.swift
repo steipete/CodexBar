@@ -11,7 +11,8 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
     public func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         context.sourceMode.usesWeb &&
             !Self.managedAccountStoreIsUnreadable(context) &&
-            !Self.managedAccountTargetIsUnavailable(context)
+            !Self.managedAccountTargetIsUnavailable(context) &&
+            !Self.selectedProfileIsUnavailable(context)
     }
 
     public func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -23,6 +24,10 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
         guard !Self.managedAccountTargetIsUnavailable(context) else {
             // If the selected managed account no longer exists in a readable store, web import must not
             // fall back to "any signed-in browser account" for that stale selection.
+            throw OpenAIDashboardFetcher.FetchError.loginRequired
+        }
+        guard !Self.selectedProfileIsUnavailable(context) else {
+            // A missing selected live-system profile must not fall back to the ambient local Codex account.
             throw OpenAIDashboardFetcher.FetchError.loginRequired
         }
 
@@ -57,6 +62,10 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
 
     private static func managedAccountTargetIsUnavailable(_ context: ProviderFetchContext) -> Bool {
         context.settings?.codex?.managedAccountTargetUnavailable == true
+    }
+
+    private static func selectedProfileIsUnavailable(_ context: ProviderFetchContext) -> Bool {
+        context.settings?.codex?.selectedProfileUnavailable == true
     }
 }
 

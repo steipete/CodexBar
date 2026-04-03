@@ -81,6 +81,7 @@ final class SettingsStore {
     @ObservationIgnored var tokenAccountsLoaded = false
     var defaultsState: SettingsDefaultsState
     var configRevision: Int = 0
+    var codexProfilesRevision: Int = 0
     var providerOrder: [UsageProvider] = []
     var providerEnablement: [UsageProvider: Bool] = [:]
 
@@ -240,6 +241,7 @@ extension SettingsStore {
         let mergedOverviewSelectedProvidersRaw = userDefaults.array(
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
+        let selectedCodexProfilePath = userDefaults.string(forKey: "selectedCodexProfilePath")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
 
         return SettingsDefaultsState(
@@ -275,6 +277,7 @@ extension SettingsStore {
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
+            selectedCodexProfilePath: selectedCodexProfilePath,
             providerDetectionCompleted: providerDetectionCompleted)
     }
 }

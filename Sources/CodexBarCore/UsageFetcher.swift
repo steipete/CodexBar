@@ -566,7 +566,9 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCUsage() async throws -> UsageSnapshot {
-        let rpc = try CodexRPCClient(environment: self.environment)
+        let resolved = try CodexProfileExecutionEnvironment.resolvedEnvironment(from: self.environment)
+        defer { resolved.cleanup() }
+        let rpc = try CodexRPCClient(environment: resolved.environment)
         defer { rpc.shutdown() }
 
         try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
@@ -592,9 +594,11 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
+        let resolved = try CodexProfileExecutionEnvironment.resolvedEnvironment(from: self.environment)
+        defer { resolved.cleanup() }
         let status = try await CodexStatusProbe(
             keepCLISessionsAlive: keepCLISessionsAlive,
-            environment: self.environment)
+            environment: resolved.environment)
             .fetch()
         return try Self.makeCodexUsageSnapshot(
             primary: Self.makeTTYWindow(
@@ -617,7 +621,9 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCCredits() async throws -> CreditsSnapshot {
-        let rpc = try CodexRPCClient(environment: self.environment)
+        let resolved = try CodexProfileExecutionEnvironment.resolvedEnvironment(from: self.environment)
+        defer { resolved.cleanup() }
+        let rpc = try CodexRPCClient(environment: resolved.environment)
         defer { rpc.shutdown() }
         try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
         let limits = try await rpc.fetchRateLimits().rateLimits
@@ -627,9 +633,11 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
+        let resolved = try CodexProfileExecutionEnvironment.resolvedEnvironment(from: self.environment)
+        defer { resolved.cleanup() }
         let status = try await CodexStatusProbe(
             keepCLISessionsAlive: keepCLISessionsAlive,
-            environment: self.environment)
+            environment: resolved.environment)
             .fetch()
         guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
         return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
@@ -653,7 +661,9 @@ public struct UsageFetcher: Sendable {
 
     public func debugRawRateLimits() async -> String {
         do {
-            let rpc = try CodexRPCClient(environment: self.environment)
+            let resolved = try CodexProfileExecutionEnvironment.resolvedEnvironment(from: self.environment)
+            defer { resolved.cleanup() }
+            let rpc = try CodexRPCClient(environment: resolved.environment)
             defer { rpc.shutdown() }
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
             let limits = try await rpc.fetchRateLimits()
@@ -670,7 +680,15 @@ public struct UsageFetcher: Sendable {
     }
 
     public func loadAuthBackedCodexAccount() -> CodexAuthBackedAccount {
-        guard let credentials = try? CodexOAuthCredentialsStore.load(env: self.environment) else {
+        let resolvedEnv: [String: String]
+        if let resolved = try? CodexProfileExecutionEnvironment.resolvedEnvironment(from: self.environment) {
+            defer { resolved.cleanup() }
+            resolvedEnv = resolved.environment
+        } else {
+            resolvedEnv = self.environment
+        }
+
+        guard let credentials = try? CodexOAuthCredentialsStore.load(env: resolvedEnv) else {
             return CodexAuthBackedAccount(identity: .unresolved, email: nil, plan: nil)
         }
 
