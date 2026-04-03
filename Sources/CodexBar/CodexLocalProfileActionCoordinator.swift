@@ -76,23 +76,41 @@ struct CodexLocalProfileActionCoordinator {
     }
 
     func perform(_ action: Action) async throws -> CodexLocalProfileActionOutcome? {
-        let processes = try await self.manager.runningProcesses()
-        if processes.hasRunningProcesses, !self.confirm(processes: processes, action: action) {
-            return nil
+        for _ in 0..<3 {
+            let processes = try await self.manager.runningProcesses()
+            let confirmedProcesses: CodexLocalProfileRunningProcesses?
+            if processes.hasRunningProcesses {
+                guard self.confirm(processes: processes, action: action) else { return nil }
+                confirmedProcesses = processes
+            } else {
+                confirmedProcesses = nil
+            }
+
+            do {
+                switch action {
+                case let .saveCurrent(named: name):
+                    let result = try await self.manager.saveCurrentProfile(
+                        named: name,
+                        confirmedProcesses: confirmedProcesses)
+                    return .saved(result)
+                case let .switchToProfile(path: path):
+                    let result = try await self.manager.switchToProfile(
+                        at: path,
+                        confirmedProcesses: confirmedProcesses)
+                    return .switched(result)
+                }
+            } catch let error as CodexLocalProfileManagerError {
+                guard case let .runningProcessesFound(latestProcesses) = error else {
+                    throw error
+                }
+                if latestProcesses == confirmedProcesses {
+                    throw error
+                }
+            }
         }
 
-        switch action {
-        case let .saveCurrent(named: name):
-            let result = try await self.manager.saveCurrentProfile(
-                named: name,
-                allowClosingRunningProcesses: processes.hasRunningProcesses)
-            return .saved(result)
-        case let .switchToProfile(path: path):
-            let result = try await self.manager.switchToProfile(
-                at: path,
-                allowClosingRunningProcesses: processes.hasRunningProcesses)
-            return .switched(result)
-        }
+        let latestProcesses = try await self.manager.runningProcesses()
+        throw CodexLocalProfileManagerError.runningProcessesFound(latestProcesses)
     }
 
     private func confirm(processes: CodexLocalProfileRunningProcesses, action: Action) -> Bool {

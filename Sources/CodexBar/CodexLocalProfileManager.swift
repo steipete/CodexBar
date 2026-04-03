@@ -73,26 +73,24 @@ enum CodexLocalProfileManagerError: LocalizedError, Equatable {
     }
 }
 
-@MainActor
-protocol CodexLocalProfileRuntimeProtocol {
+protocol CodexLocalProfileRuntimeProtocol: Sendable {
     func runningProcesses() async throws -> CodexLocalProfileRunningProcesses
     func close(processes: CodexLocalProfileRunningProcesses) async throws
     func reopenCodexApp(at appURL: URL) async throws
 }
 
-@MainActor
-final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
+final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol, @unchecked Sendable {
     private let workspace: NSWorkspace
-    private let runningApplicationsProvider: (String) -> [NSRunningApplication]
-    private let psOutputProvider: () throws -> String
-    private let waitForCLIExitProvider: ([pid_t]) async -> Set<pid_t>
+    private let runningApplicationsProvider: @Sendable (String) -> [NSRunningApplication]
+    private let psOutputProvider: @Sendable () throws -> String
+    private let waitForCLIExitProvider: @Sendable ([pid_t]) async -> Set<pid_t>
 
     init(
         workspace: NSWorkspace = .shared,
-        runningApplicationsProvider: @escaping (String) -> [NSRunningApplication] = {
+        runningApplicationsProvider: @escaping @Sendable (String) -> [NSRunningApplication] = {
             NSRunningApplication.runningApplications(withBundleIdentifier: $0)
         },
-        psOutputProvider: @escaping () throws -> String = {
+        psOutputProvider: @escaping @Sendable () throws -> String = {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/ps")
             process.arguments = ["-axo", "pid=,comm=,command="]
@@ -103,7 +101,7 @@ final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             return String(data: data, encoding: .utf8) ?? ""
         },
-        waitForCLIExitProvider: @escaping ([pid_t]) async -> Set<pid_t> = DefaultCodexLocalProfileRuntime
+        waitForCLIExitProvider: @escaping @Sendable ([pid_t]) async -> Set<pid_t> = DefaultCodexLocalProfileRuntime
             .waitForCLIExit)
     {
         self.workspace = workspace
@@ -113,8 +111,11 @@ final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
     }
 
     func runningProcesses() async throws -> CodexLocalProfileRunningProcesses {
-        let apps = self.runningApplicationsProvider(CodexLocalProfileManager.codexBundleIdentifier)
-            .filter { !$0.isTerminated }
+        let runningApplicationsProvider = self.runningApplicationsProvider
+        let apps = await MainActor.run {
+            runningApplicationsProvider(CodexLocalProfileManager.codexBundleIdentifier)
+                .filter { !$0.isTerminated }
+        }
         return try CodexLocalProfileRunningProcesses(
             codexAppRunning: !apps.isEmpty,
             cliProcesses: self.discoverCLIProcesses())
@@ -122,10 +123,15 @@ final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
 
     func close(processes: CodexLocalProfileRunningProcesses) async throws {
         if processes.codexAppRunning {
-            let apps = self.runningApplicationsProvider(CodexLocalProfileManager.codexBundleIdentifier)
-                .filter { !$0.isTerminated }
-            for app in apps {
-                _ = app.terminate()
+            let runningApplicationsProvider = self.runningApplicationsProvider
+            let apps = await MainActor.run {
+                runningApplicationsProvider(CodexLocalProfileManager.codexBundleIdentifier)
+                    .filter { !$0.isTerminated }
+            }
+            await MainActor.run {
+                for app in apps {
+                    _ = app.terminate()
+                }
             }
             try await self.waitForAppsToTerminate(apps)
         }
@@ -155,8 +161,13 @@ final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
         guard FileManager.default.fileExists(atPath: appURL.path) else {
             throw CodexLocalProfileManagerError.codexAppMissing(appURL.path)
         }
-        let configuration = NSWorkspace.OpenConfiguration()
+        try await self.openCodexAppOnMainActor(at: appURL)
+    }
+
+    @MainActor
+    private func openCodexAppOnMainActor(at appURL: URL) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let configuration = NSWorkspace.OpenConfiguration()
             self.workspace.openApplication(at: appURL, configuration: configuration) { _, error in
                 if error != nil {
                     continuation.resume(throwing: CodexLocalProfileManagerError.failedToReopenCodexApp(appURL.path))
@@ -175,30 +186,35 @@ final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
                 guard !trimmed.isEmpty else { return nil }
                 let parts = trimmed.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
                 guard parts.count >= 3,
-                      let pidValue = Int32(parts[0]),
-                      parts[1] == "codex"
+                      let pidValue = Int32(parts[0])
                 else {
+                    return nil
+                }
+                let command = String(parts[2])
+                guard Self.isCodexCLIProcess(comm: String(parts[1]), command: command) else {
                     return nil
                 }
                 return CodexLocalProfileRunningProcesses.CLIProcess(
                     id: pid_t(pidValue),
-                    command: String(parts[2]))
+                    command: command)
             }
             .sorted { $0.id < $1.id }
     }
 
     private func waitForAppsToTerminate(_ apps: [NSRunningApplication]) async throws {
         for _ in 0..<20 {
-            if apps.allSatisfy(\.isTerminated) {
+            if await self.appsAreTerminated(apps) {
                 return
             }
             try? await Task.sleep(for: .milliseconds(100))
         }
-        for app in apps where !app.isTerminated {
-            _ = app.forceTerminate()
+        await MainActor.run {
+            for app in apps where !app.isTerminated {
+                _ = app.forceTerminate()
+            }
         }
         for _ in 0..<20 {
-            if apps.allSatisfy(\.isTerminated) {
+            if await self.appsAreTerminated(apps) {
                 return
             }
             try? await Task.sleep(for: .milliseconds(100))
@@ -223,10 +239,27 @@ final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
         }
         return errno != ESRCH
     }
+
+    private static func isCodexCLIProcess(comm: String, command: String) -> Bool {
+        let commName = URL(fileURLWithPath: comm).lastPathComponent
+        if commName == "codex" {
+            return true
+        }
+
+        guard let executable = command.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true).first else {
+            return false
+        }
+        return URL(fileURLWithPath: String(executable)).lastPathComponent == "codex"
+    }
+
+    private func appsAreTerminated(_ apps: [NSRunningApplication]) async -> Bool {
+        await MainActor.run {
+            apps.allSatisfy(\.isTerminated)
+        }
+    }
 }
 
-@MainActor
-final class CodexLocalProfileManager {
+final class CodexLocalProfileManager: @unchecked Sendable {
     static let codexBundleIdentifier = "com.openai.codex"
     static let codexAppURL = URL(fileURLWithPath: "/Applications/Codex.app", isDirectory: true)
 
@@ -257,16 +290,10 @@ final class CodexLocalProfileManager {
 
     func saveCurrentProfile(
         named rawName: String,
-        allowClosingRunningProcesses: Bool = false) async throws -> CodexLocalProfileSaveResult
+        confirmedProcesses: CodexLocalProfileRunningProcesses? = nil) async throws -> CodexLocalProfileSaveResult
     {
         let profileName = try self.validateProfileName(rawName)
-        let processes = try await self.runningProcesses()
-        if processes.hasRunningProcesses {
-            guard allowClosingRunningProcesses else {
-                throw CodexLocalProfileManagerError.runningProcessesFound(processes)
-            }
-            try await self.runtime.close(processes: processes)
-        }
+        try await self.closeConfirmedProcessesIfNeeded(confirmedProcesses)
 
         try self.ensurePrivateDirectory(self.codexDirectoryURL())
         try self.ensurePrivateDirectory(self.profilesDirectoryURL())
@@ -278,7 +305,15 @@ final class CodexLocalProfileManager {
             throw CodexLocalProfileManagerError.duplicateProfileName(profileName)
         }
 
-        try self.copyAtomically(from: self.authFileURL, to: destinationURL, permissions: 0o600)
+        do {
+            try self.copyAtomically(
+                from: self.authFileURL,
+                to: destinationURL,
+                permissions: 0o600,
+                replaceExisting: false)
+        } catch CocoaError.fileWriteFileExists {
+            throw CodexLocalProfileManagerError.duplicateProfileName(profileName)
+        }
         guard let profile = CodexProfileStore.profile(
             at: destinationURL,
             alias: profileName,
@@ -291,19 +326,12 @@ final class CodexLocalProfileManager {
 
     func switchToProfile(
         at rawPath: String,
-        allowClosingRunningProcesses: Bool = false) async throws -> CodexLocalProfileSwitchResult
+        confirmedProcesses: CodexLocalProfileRunningProcesses? = nil) async throws -> CodexLocalProfileSwitchResult
     {
         let sourceURL = URL(fileURLWithPath: rawPath, isDirectory: false).standardizedFileURL
         try self.ensureSavedProfilePath(sourceURL)
         try self.validateAuthFile(at: sourceURL, invalidPathError: .invalidProfilePath(sourceURL.path))
-
-        let processes = try await self.runningProcesses()
-        if processes.hasRunningProcesses {
-            guard allowClosingRunningProcesses else {
-                throw CodexLocalProfileManagerError.runningProcessesFound(processes)
-            }
-            try await self.runtime.close(processes: processes)
-        }
+        try await self.closeConfirmedProcessesIfNeeded(confirmedProcesses)
 
         try self.ensurePrivateDirectory(self.codexDirectoryURL())
         try self.ensurePrivateDirectory(self.profilesDirectoryURL())
@@ -312,9 +340,12 @@ final class CodexLocalProfileManager {
         let backupURL: URL?
         if self.fileManager.fileExists(atPath: self.authFileURL.path) {
             try self.validateAuthFile(at: self.authFileURL)
-            let timestamp = Self.backupTimestampFormatter.string(from: Date())
-            let url = self.backupsDirectoryURL().appendingPathComponent("auth-\(timestamp).json", isDirectory: false)
-            try self.copyAtomically(from: self.authFileURL, to: url, permissions: 0o600)
+            let url = self.uniqueBackupURL()
+            try self.copyAtomically(
+                from: self.authFileURL,
+                to: url,
+                permissions: 0o600,
+                replaceExisting: false)
             backupURL = url
         } else {
             backupURL = nil
@@ -428,20 +459,35 @@ final class CodexLocalProfileManager {
         }
     }
 
-    private func copyAtomically(from sourceURL: URL, to destinationURL: URL, permissions: Int16) throws {
+    private func copyAtomically(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        permissions: Int16,
+        replaceExisting: Bool = true) throws
+    {
         let directoryURL = destinationURL.deletingLastPathComponent()
         try self.fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let temporaryURL = directoryURL.appendingPathComponent(
             ".\(destinationURL.lastPathComponent).\(UUID().uuidString)",
             isDirectory: false)
-        try self.fileManager.copyItem(at: sourceURL, to: temporaryURL)
-        try self.setPermissions(permissions, at: temporaryURL)
-        if self.fileManager.fileExists(atPath: destinationURL.path) {
-            _ = try self.fileManager.replaceItemAt(destinationURL, withItemAt: temporaryURL)
-        } else {
-            try self.fileManager.moveItem(at: temporaryURL, to: destinationURL)
+        do {
+            try self.fileManager.copyItem(at: sourceURL, to: temporaryURL)
+            try self.setPermissions(permissions, at: temporaryURL)
+            if self.fileManager.fileExists(atPath: destinationURL.path) {
+                guard replaceExisting else {
+                    throw CocoaError(.fileWriteFileExists)
+                }
+                _ = try self.fileManager.replaceItemAt(destinationURL, withItemAt: temporaryURL)
+            } else {
+                try self.fileManager.moveItem(at: temporaryURL, to: destinationURL)
+            }
+            try self.setPermissions(permissions, at: destinationURL)
+        } catch {
+            if self.fileManager.fileExists(atPath: temporaryURL.path) {
+                try? self.fileManager.removeItem(at: temporaryURL)
+            }
+            throw error
         }
-        try self.setPermissions(permissions, at: destinationURL)
     }
 
     private func setPermissions(_ permissions: Int16, at url: URL) throws {
@@ -457,4 +503,28 @@ final class CodexLocalProfileManager {
         formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
         return formatter
     }()
+
+    private func closeConfirmedProcessesIfNeeded(
+        _ confirmedProcesses: CodexLocalProfileRunningProcesses?) async throws
+    {
+        let currentProcesses = try await self.runningProcesses()
+        guard currentProcesses.hasRunningProcesses else { return }
+
+        guard let confirmedProcesses, confirmedProcesses == currentProcesses else {
+            throw CodexLocalProfileManagerError.runningProcessesFound(currentProcesses)
+        }
+
+        try await self.runtime.close(processes: currentProcesses)
+
+        let remainingProcesses = try await self.runningProcesses()
+        if remainingProcesses.hasRunningProcesses {
+            throw CodexLocalProfileManagerError.runningProcessesFound(remainingProcesses)
+        }
+    }
+
+    private func uniqueBackupURL() -> URL {
+        let timestamp = Self.backupTimestampFormatter.string(from: Date())
+        let filename = "auth-\(timestamp)-\(UUID().uuidString).json"
+        return self.backupsDirectoryURL().appendingPathComponent(filename, isDirectory: false)
+    }
 }

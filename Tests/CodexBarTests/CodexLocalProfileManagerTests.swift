@@ -163,6 +163,31 @@ struct CodexLocalProfileManagerTests {
     }
 
     @Test
+    func `save rejects stale confirmed running process approval`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        let runtime = TestCodexLocalProfileRuntime(
+            runningProcesses: CodexLocalProfileRunningProcesses(
+                codexAppRunning: false,
+                cliProcesses: [.init(id: 101, command: "codex chat")]))
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: runtime,
+            appURL: root.appendingPathComponent("Codex.app"))
+        let staleApproval = CodexLocalProfileRunningProcesses(
+            codexAppRunning: true,
+            cliProcesses: [.init(id: 99, command: "codex login")])
+
+        await #expect(throws: CodexLocalProfileManagerError.runningProcessesFound(runtime.runningProcessesStub)) {
+            try await manager.saveCurrentProfile(named: "plus-a", confirmedProcesses: staleApproval)
+        }
+        #expect(runtime.closeCallCount == 0)
+    }
+
+    @Test
     func `switch creates backup replaces live auth and reopens app`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -248,7 +273,9 @@ struct CodexLocalProfileManagerTests {
             runtime: runtime,
             appURL: root.appendingPathComponent("Codex.app"))
 
-        _ = try await manager.switchToProfile(at: profileURL.path, allowClosingRunningProcesses: true)
+        _ = try await manager.switchToProfile(
+            at: profileURL.path,
+            confirmedProcesses: runtime.runningProcessesStub)
 
         #expect(runtime.closeCallCount == 1)
         #expect(runtime.reopenCallCount == 1)
@@ -326,6 +353,56 @@ struct CodexLocalProfileManagerTests {
         #expect(try self.posixPermissions(at: authURL) == 0o600)
     }
 
+    @Test
+    func `switch creates unique backups on repeated operations`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let profileURL = root.appendingPathComponent("profiles/plus-b.json")
+        try FileManager.default.createDirectory(
+            at: profileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Codex.app"),
+            withIntermediateDirectories: true)
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        try self.writeAuthFile(to: profileURL, email: "plus-b@example.com", plan: "plus", accountID: "acct-b")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: TestCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let first = try await manager.switchToProfile(at: profileURL.path)
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        let second = try await manager.switchToProfile(at: profileURL.path)
+
+        let firstBackup = try #require(first.backupURL)
+        let secondBackup = try #require(second.backupURL)
+        #expect(firstBackup != secondBackup)
+        let backupFiles = try FileManager.default.contentsOfDirectory(
+            at: firstBackup.deletingLastPathComponent(),
+            includingPropertiesForKeys: nil)
+        #expect(backupFiles.count(where: { $0.pathExtension == "json" }) == 2)
+    }
+
+    @Test
+    func `runtime detects codex cli when ps comm is a path`() async throws {
+        let runtime = DefaultCodexLocalProfileRuntime(
+            runningApplicationsProvider: { _ in [] },
+            psOutputProvider: {
+                """
+                  42 /Users/markhardy/.local/bin/codex /Users/markhardy/.local/bin/codex chat
+                """
+            },
+            waitForCLIExitProvider: { _ in [] })
+
+        let processes = try await runtime.runningProcesses()
+
+        #expect(processes.codexAppRunning == false)
+        #expect(processes.cliProcesses == [.init(id: 42, command: "/Users/markhardy/.local/bin/codex chat")])
+    }
+
     private func writeAuthFile(to url: URL, email: String, plan: String, accountID: String) throws {
         let token = Self.fakeJWT(email: email, plan: plan)
         let payload: [String: Any] = [
@@ -365,8 +442,7 @@ struct CodexLocalProfileManagerTests {
     }
 }
 
-@MainActor
-private final class TestCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
+private final class TestCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol, @unchecked Sendable {
     let runningProcessesStub: CodexLocalProfileRunningProcesses
     let reopenError: CodexLocalProfileManagerError?
     private(set) var closeCallCount = 0
