@@ -27,7 +27,7 @@ struct CodexAccountsSettingsSectionTests {
         settings._test_managedCodexAccountStoreURL = managedStoreURL
         settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
             email: "live@example.com",
-            codexHomePath: "/Users/test/.codex",
+            codexHomePath: "/tmp/test-codex-home",
             observedAt: Date())
 
         let pane = ProvidersPane(settings: settings, store: store)
@@ -45,7 +45,7 @@ struct CodexAccountsSettingsSectionTests {
         let store = Self.makeUsageStore(settings: settings)
         settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
             email: "solo@example.com",
-            codexHomePath: "/Users/test/.codex",
+            codexHomePath: "/tmp/test-codex-home",
             observedAt: Date())
 
         let pane = ProvidersPane(settings: settings, store: store)
@@ -62,7 +62,7 @@ struct CodexAccountsSettingsSectionTests {
         let store = Self.makeUsageStore(settings: settings)
         settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
             email: "live@example.com",
-            codexHomePath: "/Users/test/.codex",
+            codexHomePath: "/tmp/test-codex-home",
             observedAt: Date())
         settings._test_unreadableManagedCodexAccountStore = true
         defer { settings._test_unreadableManagedCodexAccountStore = false }
@@ -99,7 +99,7 @@ struct CodexAccountsSettingsSectionTests {
         settings._test_managedCodexAccountStoreURL = managedStoreURL
         settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
             email: "SAME@example.com",
-            codexHomePath: "/Users/test/.codex",
+            codexHomePath: "/tmp/test-codex-home",
             observedAt: Date())
         settings.codexActiveSource = .managedAccount(id: managedAccount.id)
 
@@ -165,7 +165,7 @@ struct CodexAccountsSettingsSectionTests {
         let store = Self.makeUsageStore(settings: settings)
         settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
             email: "same@example.com",
-            codexHomePath: "/Users/test/.codex",
+            codexHomePath: "/tmp/test-codex-home",
             observedAt: Date())
 
         let coordinator = Self.makeManagedCoordinator(settings: settings, email: "same@example.com")
@@ -187,7 +187,7 @@ struct CodexAccountsSettingsSectionTests {
         let store = Self.makeUsageStore(settings: settings)
         settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
             email: "live@example.com",
-            codexHomePath: "/Users/test/.codex",
+            codexHomePath: "/tmp/test-codex-home",
             observedAt: Date())
 
         let coordinator = Self.makeManagedCoordinator(settings: settings, email: "managed@example.com")
@@ -229,7 +229,7 @@ struct CodexAccountsSettingsSectionTests {
         settings._test_managedCodexAccountStoreURL = managedStoreURL
         settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
             email: "alpha@example.com",
-            codexHomePath: "/Users/test/.codex",
+            codexHomePath: "/tmp/test-codex-home",
             observedAt: Date())
         settings.codexActiveSource = .managedAccount(id: managedAccountID)
 
