@@ -526,7 +526,7 @@ struct CodexLocalProfileManagerTests {
             runningApplicationsProvider: { _ in [] },
             psOutputProvider: {
                 """
-                  42 /Users/markhardy/.local/bin/codex /Users/markhardy/.local/bin/codex chat
+                  42 /usr/local/bin/codex /usr/local/bin/codex chat
                 """
             },
             waitForCLIExitProvider: { _ in [] })
@@ -534,7 +534,7 @@ struct CodexLocalProfileManagerTests {
         let processes = try await runtime.runningProcesses()
 
         #expect(processes.codexAppRunning == false)
-        #expect(processes.cliProcesses == [.init(id: 42, command: "/Users/markhardy/.local/bin/codex chat")])
+        #expect(processes.cliProcesses == [.init(id: 42, command: "/usr/local/bin/codex chat")])
     }
 
     private func writeAuthFile(to url: URL, email: String, plan: String, accountID: String) throws {
