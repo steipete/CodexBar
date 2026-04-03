@@ -34,6 +34,12 @@ struct DisplayPane: View {
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
+                        title: "Show active provider",
+                        subtitle: "Auto-show the provider for the active AI app window.",
+                        binding: self.$settings.menuBarShowsActiveProvider)
+                        .disabled(!self.settings.mergeIcons)
+                        .opacity(self.settings.mergeIcons ? 1 : 0.5)
+                    PreferenceToggleRow(
                         title: "Menu bar shows percent",
                         subtitle: "Replace critter bars with provider branding icons and a percentage.",
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)

@@ -29,6 +29,7 @@ struct SettingsDefaultsState {
     var openAIWebAccessEnabled: Bool
     var jetbrainsIDEBasePath: String
     var mergeIcons: Bool
+    var menuBarShowsActiveProvider: Bool
     var switcherShowsIcons: Bool
     var mergedMenuLastSelectedWasOverview: Bool
     var mergedOverviewSelectedProvidersRaw: [String]
