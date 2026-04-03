@@ -25,6 +25,17 @@ struct CodexLocalProfileSwitchResult: Equatable {
     let profile: DiscoveredCodexProfile
     let backupURL: URL?
     let reopenError: CodexLocalProfileManagerError?
+    let backupPruneWarning: String?
+}
+
+struct CodexLocalProfilesPresentation: Equatable {
+    let profiles: [DiscoveredCodexProfile]
+    let hasValidLiveAuth: Bool
+    let currentAccountIsSaved: Bool
+
+    var canSaveCurrentProfile: Bool {
+        self.hasValidLiveAuth && !self.currentAccountIsSaved
+    }
 }
 
 enum CodexLocalProfileManagerError: LocalizedError, Equatable {
@@ -262,6 +273,7 @@ final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol, @
 final class CodexLocalProfileManager: @unchecked Sendable {
     static let codexBundleIdentifier = "com.openai.codex"
     static let codexAppURL = URL(fileURLWithPath: "/Applications/Codex.app", isDirectory: true)
+    private static let maxRetainedBackups = 20
 
     private let authFileURL: URL
     private let fileManager: FileManager
@@ -284,8 +296,23 @@ final class CodexLocalProfileManager: @unchecked Sendable {
         CodexProfileStore.displayProfiles(authFileURL: self.authFileURL, fileManager: self.fileManager)
     }
 
+    func presentation() -> CodexLocalProfilesPresentation {
+        let visibleProfiles = self.profiles().filter { $0.alias != "Live" }
+        let hasValidLiveAuth = self.liveProfile() != nil
+        return CodexLocalProfilesPresentation(
+            profiles: visibleProfiles,
+            hasValidLiveAuth: hasValidLiveAuth,
+            currentAccountIsSaved: visibleProfiles.contains(where: \.isActiveInCodex))
+    }
+
     func runningProcesses() async throws -> CodexLocalProfileRunningProcesses {
         try await self.runtime.runningProcesses()
+    }
+
+    func prepareProfilesDirectoryForOpening() throws -> URL {
+        try self.ensurePrivateDirectory(self.codexDirectoryURL())
+        try self.ensurePrivateDirectory(self.profilesDirectoryURL())
+        return self.profilesDirectoryURL()
     }
 
     func saveCurrentProfile(
@@ -352,6 +379,13 @@ final class CodexLocalProfileManager: @unchecked Sendable {
         }
 
         try self.copyAtomically(from: sourceURL, to: self.authFileURL, permissions: 0o600)
+        let backupPruneWarning: String?
+        do {
+            try self.pruneOldBackups(retaining: Self.maxRetainedBackups)
+            backupPruneWarning = nil
+        } catch {
+            backupPruneWarning = "Old Codex auth backups could not be pruned automatically."
+        }
         let reopenError: CodexLocalProfileManagerError?
         do {
             try await self.runtime.reopenCodexApp(at: self.appURL)
@@ -373,7 +407,8 @@ final class CodexLocalProfileManager: @unchecked Sendable {
         return CodexLocalProfileSwitchResult(
             profile: activeProfile,
             backupURL: backupURL,
-            reopenError: reopenError)
+            reopenError: reopenError,
+            backupPruneWarning: backupPruneWarning)
     }
 
     func profilesDirectoryURL() -> URL {
@@ -390,6 +425,13 @@ final class CodexLocalProfileManager: @unchecked Sendable {
 
     private func profileURL(named name: String) -> URL {
         self.profilesDirectoryURL().appendingPathComponent("\(name).json", isDirectory: false)
+    }
+
+    private func liveProfile() -> DiscoveredCodexProfile? {
+        CodexProfileStore.profile(
+            at: self.authFileURL,
+            alias: "Current",
+            fileManager: self.fileManager)
     }
 
     private func validateProfileName(_ rawName: String) throws -> String {
@@ -526,5 +568,31 @@ final class CodexLocalProfileManager: @unchecked Sendable {
         let timestamp = Self.backupTimestampFormatter.string(from: Date())
         let filename = "auth-\(timestamp)-\(UUID().uuidString).json"
         return self.backupsDirectoryURL().appendingPathComponent(filename, isDirectory: false)
+    }
+
+    private func pruneOldBackups(retaining count: Int) throws {
+        guard count >= 0 else { return }
+        let candidates = try self.fileManager.contentsOfDirectory(
+            at: self.backupsDirectoryURL(),
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles])
+            .filter { url in
+                guard url.pathExtension.lowercased() == "json",
+                      url.lastPathComponent.hasPrefix("auth-"),
+                      let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
+                      values.isRegularFile == true,
+                      values.isSymbolicLink != true
+                else {
+                    return false
+                }
+                return true
+            }
+            .sorted { lhs, rhs in
+                lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent) == .orderedDescending
+            }
+
+        for url in candidates.dropFirst(count) {
+            try self.fileManager.removeItem(at: url)
+        }
     }
 }

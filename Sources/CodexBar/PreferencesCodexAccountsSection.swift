@@ -40,7 +40,8 @@ struct CodexAccountsSectionState: Equatable {
     let isPerformingLocalProfileOperation: Bool
     let notice: CodexAccountsSectionNotice?
     let localProfiles: [LocalProfile]
-    let currentLocalAccountIsSaved: Bool
+    let hasValidLiveAuth: Bool
+    let canSaveCurrentProfile: Bool
 
     var showsActivePicker: Bool {
         self.visibleAccounts.count > 1
@@ -68,7 +69,7 @@ struct CodexAccountsSectionState: Equatable {
     }
 
     var showsSaveCurrentProfileButton: Bool {
-        !self.currentLocalAccountIsSaved
+        self.canSaveCurrentProfile
     }
 
     func showsLiveBadge(for account: CodexVisibleAccount) -> Bool {
@@ -221,7 +222,10 @@ struct CodexAccountsSectionView: View {
                     .foregroundStyle(.secondary)
 
                 if self.state.localProfiles.isEmpty {
-                    Text("No saved local Codex profiles yet. Save the current account to switch back to it later.")
+                    Text(
+                        self.state.hasValidLiveAuth
+                            ? "No saved local Codex profiles yet. Save the current account to switch back to it later."
+                            : "No saved local Codex profiles yet. Log into Codex first to save the current account.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {

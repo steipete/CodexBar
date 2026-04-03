@@ -223,7 +223,8 @@ struct ProvidersPane: View {
             isPerformingLocalProfileOperation: self.isPerformingCodexLocalProfileOperation,
             notice: self.codexAccountsNotice ?? degradedNotice,
             localProfiles: localProfiles.profiles,
-            currentLocalAccountIsSaved: localProfiles.currentAccountIsSaved)
+            hasValidLiveAuth: localProfiles.hasValidLiveAuth,
+            canSaveCurrentProfile: localProfiles.canSaveCurrentProfile)
     }
 
     func selectCodexVisibleAccount(id: String) async {
@@ -328,9 +329,17 @@ struct ProvidersPane: View {
     }
 
     func openCodexLocalProfilesFolder() {
-        let profilesURL = self.codexLocalProfileManager.profilesDirectoryURL()
-        let fallbackURL = profilesURL.deletingLastPathComponent()
-        NSWorkspace.shared.open(FileManager.default.fileExists(atPath: profilesURL.path) ? profilesURL : fallbackURL)
+        self.codexAccountsNotice = nil
+        do {
+            let profilesURL = try self.codexLocalProfileManager.prepareProfilesDirectoryForOpening()
+            guard NSWorkspace.shared.open(profilesURL) else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+        } catch {
+            self.codexAccountsNotice = CodexAccountsSectionNotice(
+                text: "Could not open the Codex profiles folder.",
+                tone: .warning)
+        }
     }
 
     func requestManagedCodexAccountRemoval(_ account: CodexVisibleAccount) {
@@ -648,10 +657,12 @@ struct ProvidersPane: View {
     }
 
     private func codexLocalProfiles() -> (
-        profiles: [CodexAccountsSectionState.LocalProfile], currentAccountIsSaved: Bool)
+        profiles: [CodexAccountsSectionState.LocalProfile],
+        hasValidLiveAuth: Bool,
+        canSaveCurrentProfile: Bool)
     {
-        let profiles = self.codexLocalProfileManager.profiles().filter { $0.alias != "Live" }
-        let currentAccountIsSaved = profiles.contains(where: \.isActiveInCodex)
+        let presentation = self.codexLocalProfileManager.presentation()
+        let profiles = presentation.profiles
         let displayIdentityCounts = Dictionary(
             grouping: profiles,
             by: { profile in
@@ -689,7 +700,10 @@ struct ProvidersPane: View {
                 return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
             }
 
-        return (profiles: localProfiles, currentAccountIsSaved: currentAccountIsSaved)
+        return (
+            profiles: localProfiles,
+            hasValidLiveAuth: presentation.hasValidLiveAuth,
+            canSaveCurrentProfile: presentation.canSaveCurrentProfile)
     }
 
     private func codexLocalProfileActionCoordinator() -> CodexLocalProfileActionCoordinator {

@@ -26,9 +26,12 @@ enum CodexLocalProfileActionOutcome: Equatable {
     var warningMessage: String? {
         switch self {
         case .saved:
-            nil
+            return nil
         case let .switched(result):
-            result.reopenError?.localizedDescription
+            let warning = [result.reopenError?.localizedDescription, result.backupPruneWarning]
+                .compactMap(\.self)
+                .joined(separator: " ")
+            return warning.isEmpty ? nil : warning
         }
     }
 }

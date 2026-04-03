@@ -256,9 +256,31 @@ struct CodexAccountsSettingsSectionTests {
         let state = try #require(pane._test_codexAccountsSectionState())
 
         #expect(state.localProfiles.isEmpty)
-        #expect(state.saveCurrentProfileTitle == "Save Current Account…")
-        #expect(state.showsSaveCurrentProfileButton)
+        #expect(state.hasValidLiveAuth == false)
+        #expect(state.showsSaveCurrentProfileButton == false)
         #expect(state.localProfileActionsDisabled == false)
+    }
+
+    @Test
+    func `codex accounts section shows save action when live auth exists and no profiles are saved`() throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-local-profiles-save-visible")
+        let store = Self.makeUsageStore(settings: settings)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        try Self.writeCodexAuthFile(to: authURL, email: "live@example.com", plan: "plus", accountID: "acct-live")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: NoopCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
+        let state = try #require(pane._test_codexAccountsSectionState())
+
+        #expect(state.localProfiles.isEmpty)
+        #expect(state.hasValidLiveAuth)
+        #expect(state.showsSaveCurrentProfileButton)
     }
 
     @Test
@@ -312,6 +334,7 @@ struct CodexAccountsSettingsSectionTests {
         #expect(profile.detail == nil)
         #expect(profile.isActive)
         #expect(profile.isLive == false)
+        #expect(state.hasValidLiveAuth)
         #expect(state.showsSaveCurrentProfileButton == false)
     }
 
@@ -341,6 +364,7 @@ struct CodexAccountsSettingsSectionTests {
         let state = try #require(pane._test_codexAccountsSectionState())
 
         #expect(state.localProfiles.count == 1)
+        #expect(state.hasValidLiveAuth)
         #expect(state.localProfiles.first?.isActive == false)
         #expect(state.showsSaveCurrentProfileButton)
     }

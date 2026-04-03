@@ -173,9 +173,19 @@ extension StatusItemController {
     }
 
     @objc func openCodexLocalProfilesFolderFromMenu(_: NSMenuItem) {
-        let profilesURL = self.codexLocalProfileManager.profilesDirectoryURL()
-        let fallbackURL = profilesURL.deletingLastPathComponent()
-        NSWorkspace.shared.open(FileManager.default.fileExists(atPath: profilesURL.path) ? profilesURL : fallbackURL)
+        do {
+            let profilesURL = try self.codexLocalProfileManager.prepareProfilesDirectoryForOpening()
+            guard NSWorkspace.shared.open(profilesURL) else {
+                self.presentLoginAlert(
+                    title: "Could not open Codex profiles folder",
+                    message: "CodexBar could not open \(profilesURL.path).")
+                return
+            }
+        } catch {
+            self.presentLoginAlert(
+                title: "Could not open Codex profiles folder",
+                message: error.localizedDescription)
+        }
     }
 
     @objc func runSwitchAccount(_ sender: NSMenuItem) {

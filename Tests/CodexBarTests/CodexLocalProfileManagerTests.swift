@@ -163,6 +163,67 @@ struct CodexLocalProfileManagerTests {
     }
 
     @Test
+    func `presentation hides synthetic live profile and allows save only for unsaved live auth`() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: TestCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let presentation = manager.presentation()
+
+        #expect(presentation.profiles.isEmpty)
+        #expect(presentation.hasValidLiveAuth)
+        #expect(presentation.currentAccountIsSaved == false)
+        #expect(presentation.canSaveCurrentProfile)
+    }
+
+    @Test
+    func `presentation hides save when current live auth already matches a saved profile`() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let profileURL = root.appendingPathComponent("profiles/plus-a.json")
+        try FileManager.default.createDirectory(
+            at: profileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        try self.writeAuthFile(to: profileURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: TestCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let presentation = manager.presentation()
+
+        #expect(presentation.profiles.count == 1)
+        #expect(presentation.currentAccountIsSaved)
+        #expect(presentation.canSaveCurrentProfile == false)
+    }
+
+    @Test
+    func `prepare profiles directory for opening creates and returns profiles directory`() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manager = CodexLocalProfileManager(
+            authFileURL: root.appendingPathComponent("auth.json"),
+            fileManager: .default,
+            runtime: TestCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let profilesURL = try manager.prepareProfilesDirectoryForOpening()
+
+        #expect(profilesURL == root.appendingPathComponent("profiles", isDirectory: true))
+        #expect(FileManager.default.fileExists(atPath: profilesURL.path))
+        #expect(try self.posixPermissions(at: profilesURL) == 0o700)
+    }
+
+    @Test
     func `save rejects stale confirmed running process approval`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -387,6 +448,79 @@ struct CodexLocalProfileManagerTests {
     }
 
     @Test
+    func `switch prunes old managed auth backups and ignores unrelated files`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let profileURL = root.appendingPathComponent("profiles/plus-b.json")
+        let backupsURL = root.appendingPathComponent("auth-backups", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: profileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: backupsURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Codex.app"),
+            withIntermediateDirectories: true)
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        try self.writeAuthFile(to: profileURL, email: "plus-b@example.com", plan: "plus", accountID: "acct-b")
+
+        for index in 0..<25 {
+            let oldBackupURL = backupsURL
+                .appendingPathComponent("auth-20240101T0000\(String(format: "%02d", index))Z-\(index).json")
+            try Data("{}".utf8).write(to: oldBackupURL)
+        }
+        let unrelatedURL = backupsURL.appendingPathComponent("notes.txt")
+        try Data("keep".utf8).write(to: unrelatedURL)
+
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: TestCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let result = try await manager.switchToProfile(at: profileURL.path)
+
+        let backupFiles = try FileManager.default.contentsOfDirectory(
+            at: backupsURL,
+            includingPropertiesForKeys: nil)
+        #expect(backupFiles
+            .count(where: { $0.lastPathComponent.hasPrefix("auth-") && $0.pathExtension == "json" }) == 20)
+        #expect(backupFiles.contains(unrelatedURL))
+        #expect(result.backupPruneWarning == nil)
+    }
+
+    @Test
+    func `switch still succeeds when backup pruning fails`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let profileURL = root.appendingPathComponent("profiles/plus-b.json")
+        let backupsURL = root.appendingPathComponent("auth-backups", isDirectory: true)
+        let fileManager = FailingBackupPruneFileManager()
+        try fileManager.createDirectory(at: profileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: backupsURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: root.appendingPathComponent("Codex.app"), withIntermediateDirectories: true)
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        try self.writeAuthFile(to: profileURL, email: "plus-b@example.com", plan: "plus", accountID: "acct-b")
+        for index in 0..<25 {
+            let oldBackupURL = backupsURL
+                .appendingPathComponent("auth-20240101T0000\(String(format: "%02d", index))Z-\(index).json")
+            try Data("{}".utf8).write(to: oldBackupURL)
+        }
+
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: fileManager,
+            runtime: TestCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let result = try await manager.switchToProfile(at: profileURL.path)
+
+        #expect(try Data(contentsOf: authURL) == Data(contentsOf: profileURL))
+        #expect(result.backupPruneWarning == "Old Codex auth backups could not be pruned automatically.")
+    }
+
+    @Test
     func `runtime detects codex cli when ps comm is a path`() async throws {
         let runtime = DefaultCodexLocalProfileRuntime(
             runningApplicationsProvider: { _ in [] },
@@ -469,5 +603,14 @@ private final class TestCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtoc
         if let reopenError {
             throw reopenError
         }
+    }
+}
+
+private final class FailingBackupPruneFileManager: FileManager, @unchecked Sendable {
+    override func removeItem(at URL: URL) throws {
+        if URL.lastPathComponent.hasPrefix("auth-20240101") {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try super.removeItem(at: URL)
     }
 }

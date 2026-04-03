@@ -97,6 +97,80 @@ struct StatusMenuCodexLocalProfilesTests {
         #expect(switchItem.submenu != nil)
     }
 
+    @Test
+    func `codex local profiles menu shows save action when live auth exists but no saved match exists`() throws {
+        self.disableMenuCardsForTesting()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let authURL = root.appendingPathComponent("auth.json")
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnlyCodex(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            appURL: root.appendingPathComponent("Codex.app"))
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            codexLocalProfileManager: manager,
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        #expect(menu.items.contains(where: { $0.title == "Save Current Account…" }))
+    }
+
+    @Test
+    func `codex local profiles menu hides save action when no valid live auth exists`() throws {
+        self.disableMenuCardsForTesting()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnlyCodex(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let manager = CodexLocalProfileManager(
+            authFileURL: root.appendingPathComponent("auth.json"),
+            fileManager: .default,
+            appURL: root.appendingPathComponent("Codex.app"))
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            codexLocalProfileManager: manager,
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        #expect(menu.items.contains(where: { $0.title == "Save Current Account…" }) == false)
+        let switchItem = try #require(menu.items.first(where: { $0.title == "Switch Local Profile" }))
+        let submenuTitles = try #require(switchItem.submenu).items.map(\.title)
+        #expect(submenuTitles.contains("Log into Codex first to save a profile"))
+    }
+
     private static func fakeJWT(email: String, plan: String) -> String {
         let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
         let payload = (try? JSONSerialization.data(withJSONObject: [
