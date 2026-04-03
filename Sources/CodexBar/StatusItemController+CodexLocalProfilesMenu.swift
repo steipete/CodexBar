@@ -6,18 +6,22 @@ extension StatusItemController {
     func addCodexLocalProfilesMenuIfNeeded(to menu: NSMenu, provider: UsageProvider) {
         guard provider == .codex else { return }
 
-        let saveItem = NSMenuItem(
-            title: "Save Current Account…",
-            action: #selector(self.saveCurrentCodexProfileFromMenu(_:)),
-            keyEquivalent: "")
-        saveItem.target = self
-        menu.addItem(saveItem)
+        let profiles = self.codexLocalProfileManager.profiles().filter { $0.alias != "Live" }
+        let currentAccountIsSaved = profiles.contains(where: \.isActiveInCodex)
+
+        if !currentAccountIsSaved {
+            let saveItem = NSMenuItem(
+                title: "Save Current Account…",
+                action: #selector(self.saveCurrentCodexProfileFromMenu(_:)),
+                keyEquivalent: "")
+            saveItem.target = self
+            menu.addItem(saveItem)
+        }
 
         let profilesItem = NSMenuItem(title: "Switch Local Profile", action: nil, keyEquivalent: "")
         let submenu = NSMenu()
         submenu.autoenablesItems = false
 
-        let profiles = self.codexLocalProfileManager.profiles().filter { $0.alias != "Live" }
         if profiles.isEmpty {
             let emptyItem = NSMenuItem(title: "No saved profiles yet", action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false

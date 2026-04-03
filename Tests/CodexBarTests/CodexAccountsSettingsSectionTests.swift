@@ -257,6 +257,7 @@ struct CodexAccountsSettingsSectionTests {
 
         #expect(state.localProfiles.isEmpty)
         #expect(state.saveCurrentProfileTitle == "Save Current Account…")
+        #expect(state.showsSaveCurrentProfileButton)
         #expect(state.localProfileActionsDisabled == false)
     }
 
@@ -311,6 +312,37 @@ struct CodexAccountsSettingsSectionTests {
         #expect(profile.detail == nil)
         #expect(profile.isActive)
         #expect(profile.isLive == false)
+        #expect(state.showsSaveCurrentProfileButton == false)
+    }
+
+    @Test
+    func `codex accounts section keeps save action when same email profile is not an exact match`() throws {
+        let settings = Self.makeSettingsStore(
+            suite: "CodexAccountsSettingsSectionTests-local-profiles-same-email-new-profile")
+        let store = Self.makeUsageStore(settings: settings)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let profilesURL = root.appendingPathComponent("profiles", isDirectory: true)
+        try FileManager.default.createDirectory(at: profilesURL, withIntermediateDirectories: true)
+        try Self.writeCodexAuthFile(to: authURL, email: "same@example.com", plan: "plus", accountID: "acct-current")
+        try Self.writeCodexAuthFile(
+            to: profilesURL.appendingPathComponent("same-email.json"),
+            email: "same@example.com",
+            plan: "plus",
+            accountID: "acct-saved")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: NoopCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
+        let state = try #require(pane._test_codexAccountsSectionState())
+
+        #expect(state.localProfiles.count == 1)
+        #expect(state.localProfiles.first?.isActive == false)
+        #expect(state.showsSaveCurrentProfileButton)
     }
 
     @Test

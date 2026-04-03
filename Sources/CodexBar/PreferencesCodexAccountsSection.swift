@@ -40,6 +40,7 @@ struct CodexAccountsSectionState: Equatable {
     let isPerformingLocalProfileOperation: Bool
     let notice: CodexAccountsSectionNotice?
     let localProfiles: [LocalProfile]
+    let currentLocalAccountIsSaved: Bool
 
     var showsActivePicker: Bool {
         self.visibleAccounts.count > 1
@@ -64,6 +65,10 @@ struct CodexAccountsSectionState: Equatable {
 
     var saveCurrentProfileTitle: String {
         self.isPerformingLocalProfileOperation ? "Saving…" : "Save Current Account…"
+    }
+
+    var showsSaveCurrentProfileButton: Bool {
+        !self.currentLocalAccountIsSaved
     }
 
     func showsLiveBadge(for account: CodexVisibleAccount) -> Bool {
@@ -201,12 +206,14 @@ struct CodexAccountsSectionView: View {
                     Text("Local Profiles")
                         .font(.subheadline.weight(.semibold))
                     Spacer(minLength: 8)
-                    Button(self.state.saveCurrentProfileTitle) {
-                        self.saveCurrentProfile()
+                    if self.state.showsSaveCurrentProfileButton {
+                        Button(self.state.saveCurrentProfileTitle) {
+                            self.saveCurrentProfile()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(self.state.localProfileActionsDisabled)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(self.state.localProfileActionsDisabled)
                 }
 
                 Text("Save and switch local Codex desktop and CLI accounts.")

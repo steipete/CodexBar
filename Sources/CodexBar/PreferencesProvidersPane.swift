@@ -212,6 +212,7 @@ struct ProvidersPane: View {
             nil
         }
 
+        let localProfiles = self.codexLocalProfiles()
         return CodexAccountsSectionState(
             visibleAccounts: self.orderedCodexVisibleAccounts(projection.visibleAccounts),
             activeVisibleAccountID: projection.activeVisibleAccountID,
@@ -221,7 +222,8 @@ struct ProvidersPane: View {
             isAuthenticatingLiveAccount: self.isAuthenticatingLiveCodexAccount,
             isPerformingLocalProfileOperation: self.isPerformingCodexLocalProfileOperation,
             notice: self.codexAccountsNotice ?? degradedNotice,
-            localProfiles: self.codexLocalProfiles())
+            localProfiles: localProfiles.profiles,
+            currentLocalAccountIsSaved: localProfiles.currentAccountIsSaved)
     }
 
     func selectCodexVisibleAccount(id: String) async {
@@ -645,8 +647,11 @@ struct ProvidersPane: View {
         }
     }
 
-    private func codexLocalProfiles() -> [CodexAccountsSectionState.LocalProfile] {
+    private func codexLocalProfiles() -> (
+        profiles: [CodexAccountsSectionState.LocalProfile], currentAccountIsSaved: Bool)
+    {
         let profiles = self.codexLocalProfileManager.profiles().filter { $0.alias != "Live" }
+        let currentAccountIsSaved = profiles.contains(where: \.isActiveInCodex)
         let displayIdentityCounts = Dictionary(
             grouping: profiles,
             by: { profile in
@@ -659,7 +664,7 @@ struct ProvidersPane: View {
             })
             .mapValues(\.count)
 
-        return profiles
+        let localProfiles = profiles
             .map { profile in
                 let cleanedPlan = profile.plan.flatMap { plan in
                     let cleaned = UsageFormatter.cleanPlanName(plan)
@@ -683,6 +688,8 @@ struct ProvidersPane: View {
                 }
                 return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
             }
+
+        return (profiles: localProfiles, currentAccountIsSaved: currentAccountIsSaved)
     }
 
     private func codexLocalProfileActionCoordinator() -> CodexLocalProfileActionCoordinator {
