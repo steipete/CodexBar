@@ -262,6 +262,8 @@ struct CodexAccountsSettingsSectionTests {
         #expect(
             state.onboardingText
                 == "Sign into a Codex account in the Codex app or Codex CLI, then save it here to switch later.")
+        #expect(CodexLocalProfilesSectionView.helpSymbolName == "info.circle")
+        #expect(CodexLocalProfilesSectionView.helpText.contains("Codex app or Codex CLI"))
     }
 
     @Test
@@ -287,6 +289,7 @@ struct CodexAccountsSettingsSectionTests {
         #expect(
             state.onboardingText
                 == "Sign into a Codex account in the Codex app or Codex CLI, then save it here to switch later.")
+        #expect(CodexLocalProfilesSectionView.helpSymbolName == "info.circle")
     }
 
     @Test
@@ -342,6 +345,8 @@ struct CodexAccountsSettingsSectionTests {
         #expect(state.hasValidLiveAuth)
         #expect(state.showsSaveCurrentProfileButton == false)
         #expect(state.onboardingText == nil)
+        #expect(CodexLocalProfilesSectionView.helpSymbolName == "info.circle")
+        #expect(CodexLocalProfilesSectionView.helpText.contains("Switch Local Profile"))
     }
 
     @Test

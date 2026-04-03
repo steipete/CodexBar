@@ -285,7 +285,8 @@ struct CodexAccountsSectionView: View {
 
 @MainActor
 struct CodexLocalProfilesSectionView: View {
-    private static let helpText =
+    static let helpSymbolName = "info.circle"
+    static let helpText =
         """
         1. Sign into a Codex account in the Codex app or Codex CLI.
         2. Choose Save Current Account… in CodexBar.
@@ -300,19 +301,15 @@ struct CodexLocalProfilesSectionView: View {
     let openLocalProfilesFolder: () -> Void
 
     var body: some View {
-        ProviderSettingsSection(title: "Local Profiles") {
+        CodexLocalProfilesSection(
+            helpSymbolName: Self.helpSymbolName,
+            helpText: Self.helpText)
+        {
             if let onboardingText = self.state.onboardingText {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(onboardingText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Image(systemName: "questionmark.circle")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .help(Self.helpText)
-                }
+                Text(onboardingText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if self.state.settingsProfiles.isEmpty {
@@ -354,6 +351,31 @@ struct CodexLocalProfilesSectionView: View {
                 .controlSize(.small)
             }
         }
+    }
+}
+
+private struct CodexLocalProfilesSection<Content: View>: View {
+    let helpSymbolName: String
+    let helpText: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("Local Profiles")
+                    .font(.headline)
+
+                Image(systemName: self.helpSymbolName)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .help(self.helpText)
+            }
+
+            self.content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 4)
     }
 }
 
