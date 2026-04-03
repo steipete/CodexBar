@@ -132,6 +132,62 @@ extension StatusItemController {
         }
     }
 
+    @objc func saveCurrentCodexProfileFromMenu(_: NSMenuItem) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let coordinator = self.codexLocalProfileActionCoordinator()
+            guard let name = coordinator.promptForSaveName() else { return }
+            do {
+                guard let outcome = try await coordinator.perform(.saveCurrent(named: name)) else { return }
+                self.refreshCodexLocalProfilesMenuState()
+                self.presentCodexLocalProfileOutcomeWarningIfNeeded(outcome)
+            } catch {
+                self.presentLoginAlert(title: "Could not save Codex profile", message: error.localizedDescription)
+            }
+        }
+    }
+
+    @objc func switchLocalCodexProfileFromMenu(_ sender: NSMenuItem) {
+        guard let profilePath = sender.representedObject as? String else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let coordinator = self.codexLocalProfileActionCoordinator()
+                guard let outcome = try await coordinator.perform(.switchToProfile(path: profilePath)) else { return }
+                if outcome.didSwitchActiveProfile {
+                    self.settings.codexActiveSource = .liveSystem
+                    await self.refreshAfterLocalProfileSwitch()
+                } else {
+                    self.refreshCodexLocalProfilesMenuState()
+                }
+                self.presentCodexLocalProfileOutcomeWarningIfNeeded(outcome)
+            } catch {
+                self.presentLoginAlert(title: "Could not switch Codex profile", message: error.localizedDescription)
+            }
+        }
+    }
+
+    @objc func reloadCodexLocalProfilesFromMenu(_: NSMenuItem) {
+        self.menuContentVersion &+= 1
+        self.refreshOpenMenusIfNeeded()
+    }
+
+    @objc func openCodexLocalProfilesFolderFromMenu(_: NSMenuItem) {
+        do {
+            let profilesURL = try self.codexLocalProfileManager.prepareProfilesDirectoryForOpening()
+            guard NSWorkspace.shared.open(profilesURL) else {
+                self.presentLoginAlert(
+                    title: "Could not open Codex profiles folder",
+                    message: "CodexBar could not open \(profilesURL.path).")
+                return
+            }
+        } catch {
+            self.presentLoginAlert(
+                title: "Could not open Codex profiles folder",
+                message: error.localizedDescription)
+        }
+    }
+
     @objc func runSwitchAccount(_ sender: NSMenuItem) {
         if self.loginTask != nil {
             self.loginLogger.info("Switch Account tap ignored: login already in-flight")
@@ -239,6 +295,30 @@ extension StatusItemController {
     func presentCodexLoginResult(_ result: CodexLoginRunner.Result) {
         guard let info = CodexLoginAlertPresentation.alertInfo(for: result) else { return }
         self.presentLoginAlert(title: info.title, message: info.message)
+    }
+
+    private func codexLocalProfileActionCoordinator() -> CodexLocalProfileActionCoordinator {
+        CodexLocalProfileActionCoordinator(manager: self.codexLocalProfileManager)
+    }
+
+    private func refreshCodexLocalProfilesMenuState() {
+        self.menuContentVersion &+= 1
+        self.refreshOpenMenusIfNeeded()
+        self.applyIcon(phase: nil)
+    }
+
+    private func refreshAfterLocalProfileSwitch() async {
+        await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            await self.store.refreshCodexAccountScopedState(allowDisabled: true)
+        }
+        self.refreshCodexLocalProfilesMenuState()
+    }
+
+    private func presentCodexLocalProfileOutcomeWarningIfNeeded(_ outcome: CodexLocalProfileActionOutcome) {
+        guard let warning = outcome.warningMessage else { return }
+        self.presentLoginAlert(
+            title: "Codex profile switched with warning",
+            message: "\(outcome.successMessage) \(warning)")
     }
 
     private func presentManagedCodexAccountError(_ error: Error) {

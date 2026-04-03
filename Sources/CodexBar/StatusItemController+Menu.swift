@@ -227,6 +227,7 @@ extension StatusItemController {
             self.lastSwitcherIncludesOverview = includesOverview
         }
         self.addCodexAccountSwitcherIfNeeded(to: menu, display: codexAccountDisplay)
+        self.addCodexLocalProfilesMenuIfNeeded(to: menu, provider: currentProvider)
         self.addTokenAccountSwitcherIfNeeded(to: menu, display: tokenAccountDisplay)
         let menuContext = MenuCardContext(
             currentProvider: currentProvider,

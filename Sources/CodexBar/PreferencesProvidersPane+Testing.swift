@@ -31,6 +31,10 @@ extension ProvidersPane {
         self.codexAccountsSectionState(for: .codex)
     }
 
+    func _test_codexLocalProfilesSectionState() -> CodexLocalProfilesSectionState? {
+        self.codexLocalProfilesSectionState(for: .codex)
+    }
+
     func _test_selectCodexVisibleAccount(id: String) async {
         await self.selectCodexVisibleAccount(id: id)
     }

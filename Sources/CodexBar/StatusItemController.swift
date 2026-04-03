@@ -42,6 +42,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let account: AccountInfo
     let updater: UpdaterProviding
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    let codexLocalProfileManager: CodexLocalProfileManager
     private let statusBar: NSStatusBar
     var statusItem: NSStatusItem
     var statusItems: [UsageProvider: NSStatusItem] = [:]
@@ -149,6 +150,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         updater: UpdaterProviding,
         preferencesSelection: PreferencesSelection,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
+        codexLocalProfileManager: CodexLocalProfileManager = CodexLocalProfileManager(),
         statusBar: NSStatusBar = .system)
     {
         if SettingsStore.isRunningTests {
@@ -160,6 +162,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.updater = updater
         self.preferencesSelection = preferencesSelection
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+        self.codexLocalProfileManager = codexLocalProfileManager
         self.lastConfigRevision = settings.configRevision
         self.lastProviderOrder = settings.providerOrder
         self.lastMergeIcons = settings.mergeIcons
@@ -208,6 +211,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             updater: updater,
             preferencesSelection: preferencesSelection,
             managedCodexAccountCoordinator: ManagedCodexAccountCoordinator(),
+            codexLocalProfileManager: CodexLocalProfileManager(),
             statusBar: statusBar)
     }
 

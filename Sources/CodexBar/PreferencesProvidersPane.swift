@@ -8,12 +8,15 @@ struct ProvidersPane: View {
     @Bindable var store: UsageStore
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
     let codexAmbientLoginRunner: any CodexAmbientLoginRunning
+    let codexLocalProfileManager: CodexLocalProfileManager
     @State private var expandedErrors: Set<UsageProvider> = []
     @State private var settingsStatusTextByID: [String: String] = [:]
     @State private var settingsLastAppActiveRunAtByID: [String: Date] = [:]
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
     @State private var codexAccountsNotice: CodexAccountsSectionNotice?
     @State private var isAuthenticatingLiveCodexAccount = false
+    @State private var isPerformingCodexLocalProfileOperation = false
+    @State private var codexLocalProfilesRevision = 0
     @State private var selectedProvider: UsageProvider?
 
     private var providers: [UsageProvider] {
@@ -24,12 +27,14 @@ struct ProvidersPane: View {
         settings: SettingsStore,
         store: UsageStore,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
-        codexAmbientLoginRunner: any CodexAmbientLoginRunning = DefaultCodexAmbientLoginRunner())
+        codexAmbientLoginRunner: any CodexAmbientLoginRunning = DefaultCodexAmbientLoginRunner(),
+        codexLocalProfileManager: CodexLocalProfileManager = CodexLocalProfileManager())
     {
         self.settings = settings
         self.store = store
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
         self.codexAmbientLoginRunner = codexAmbientLoginRunner
+        self.codexLocalProfileManager = codexLocalProfileManager
     }
 
     var body: some View {
@@ -71,27 +76,49 @@ struct ProvidersPane: View {
                     },
                     showsSupplementarySettingsContent: self.codexAccountsSectionState(for: provider) != nil,
                     supplementarySettingsContent: {
-                        if let state = self.codexAccountsSectionState(for: provider) {
-                            CodexAccountsSectionView(
-                                state: state,
-                                setActiveVisibleAccount: { visibleAccountID in
-                                    Task { @MainActor in
-                                        await self.selectCodexVisibleAccount(id: visibleAccountID)
-                                    }
-                                },
-                                reauthenticateAccount: { account in
-                                    Task { @MainActor in
-                                        await self.reauthenticateCodexAccount(account)
-                                    }
-                                },
-                                removeAccount: { account in
-                                    self.requestManagedCodexAccountRemoval(account)
-                                },
-                                addAccount: {
-                                    Task { @MainActor in
-                                        await self.addManagedCodexAccount()
-                                    }
-                                })
+                        if let accountsState = self.codexAccountsSectionState(for: provider),
+                           let localProfilesState = self.codexLocalProfilesSectionState(for: provider)
+                        {
+                            VStack(alignment: .leading, spacing: 0) {
+                                CodexAccountsSectionView(
+                                    state: accountsState,
+                                    setActiveVisibleAccount: { visibleAccountID in
+                                        Task { @MainActor in
+                                            await self.selectCodexVisibleAccount(id: visibleAccountID)
+                                        }
+                                    },
+                                    reauthenticateAccount: { account in
+                                        Task { @MainActor in
+                                            await self.reauthenticateCodexAccount(account)
+                                        }
+                                    },
+                                    removeAccount: { account in
+                                        self.requestManagedCodexAccountRemoval(account)
+                                    },
+                                    addAccount: {
+                                        Task { @MainActor in
+                                            await self.addManagedCodexAccount()
+                                        }
+                                    })
+                                CodexLocalProfilesSectionView(
+                                    state: localProfilesState,
+                                    saveCurrentProfile: {
+                                        Task { @MainActor in
+                                            await self.saveCurrentCodexProfile()
+                                        }
+                                    },
+                                    switchLocalProfile: { profilePath in
+                                        Task { @MainActor in
+                                            await self.switchCodexLocalProfile(profilePath: profilePath)
+                                        }
+                                    },
+                                    reloadLocalProfiles: {
+                                        self.reloadCodexLocalProfiles()
+                                    },
+                                    openLocalProfilesFolder: {
+                                        self.openCodexLocalProfilesFolder()
+                                    })
+                            }
                         }
                     })
             } else {
@@ -200,6 +227,17 @@ struct ProvidersPane: View {
             notice: self.codexAccountsNotice ?? degradedNotice)
     }
 
+    func codexLocalProfilesSectionState(for provider: UsageProvider) -> CodexLocalProfilesSectionState? {
+        guard provider == .codex else { return nil }
+        _ = self.codexLocalProfilesRevision
+        return CodexLocalProfilesSectionState(
+            presentation: self.codexLocalProfileManager.presentation(),
+            isPerformingOperation: self.isPerformingCodexLocalProfileOperation,
+            areActionsDisabled: self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount ||
+                self.isAuthenticatingLiveCodexAccount ||
+                self.isPerformingCodexLocalProfileOperation)
+    }
+
     func selectCodexVisibleAccount(id: String) async {
         self.codexAccountsNotice = nil
         guard self.settings.selectCodexVisibleAccount(id: id) else { return }
@@ -260,6 +298,58 @@ struct ProvidersPane: View {
             await self.refreshCodexProvider()
         } catch {
             self.codexAccountsNotice = self.codexAccountsNotice(for: error)
+        }
+    }
+
+    func saveCurrentCodexProfile() async {
+        self.codexAccountsNotice = nil
+        let coordinator = self.codexLocalProfileActionCoordinator()
+        guard let profileName = coordinator.promptForSaveName() else { return }
+        do {
+            self.isPerformingCodexLocalProfileOperation = true
+            defer { self.isPerformingCodexLocalProfileOperation = false }
+            guard let outcome = try await coordinator.perform(.saveCurrent(named: profileName)) else { return }
+            self.codexLocalProfilesRevision &+= 1
+            self.codexAccountsNotice = self.codexAccountsNotice(for: outcome)
+        } catch {
+            self.codexAccountsNotice = self.codexAccountsNotice(for: error)
+        }
+    }
+
+    func switchCodexLocalProfile(profilePath: String) async {
+        self.codexAccountsNotice = nil
+        do {
+            self.isPerformingCodexLocalProfileOperation = true
+            defer { self.isPerformingCodexLocalProfileOperation = false }
+            let coordinator = self.codexLocalProfileActionCoordinator()
+            guard let outcome = try await coordinator.perform(.switchToProfile(path: profilePath)) else { return }
+            if outcome.didSwitchActiveProfile {
+                self.settings.codexActiveSource = .liveSystem
+                await self.refreshCodexProvider()
+            }
+            self.codexLocalProfilesRevision &+= 1
+            self.codexAccountsNotice = self.codexAccountsNotice(for: outcome)
+        } catch {
+            self.codexAccountsNotice = self.codexAccountsNotice(for: error)
+        }
+    }
+
+    func reloadCodexLocalProfiles() {
+        self.codexAccountsNotice = nil
+        self.codexLocalProfilesRevision &+= 1
+    }
+
+    func openCodexLocalProfilesFolder() {
+        self.codexAccountsNotice = nil
+        do {
+            let profilesURL = try self.codexLocalProfileManager.prepareProfilesDirectoryForOpening()
+            guard NSWorkspace.shared.open(profilesURL) else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+        } catch {
+            self.codexAccountsNotice = CodexAccountsSectionNotice(
+                text: "Could not open the Codex profiles folder.",
+                tone: .warning)
         }
     }
 
@@ -557,6 +647,19 @@ struct ProvidersPane: View {
         return CodexAccountsSectionNotice(
             text: error.localizedDescription,
             tone: .warning)
+    }
+
+    private func codexAccountsNotice(for outcome: CodexLocalProfileActionOutcome) -> CodexAccountsSectionNotice {
+        if let warning = outcome.warningMessage {
+            return CodexAccountsSectionNotice(
+                text: "\(outcome.successMessage) \(warning)",
+                tone: .warning)
+        }
+        return CodexAccountsSectionNotice(text: outcome.successMessage, tone: .secondary)
+    }
+
+    private func codexLocalProfileActionCoordinator() -> CodexLocalProfileActionCoordinator {
+        CodexLocalProfileActionCoordinator(manager: self.codexLocalProfileManager)
     }
 
     private func presentLoginAlert(title: String, message: String) {
