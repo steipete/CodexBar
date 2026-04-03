@@ -361,12 +361,12 @@ private struct CodexLocalProfilesSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .center, spacing: 6) {
                 Text("Local Profiles")
                     .font(.headline)
 
                 Image(systemName: self.helpSymbolName)
-                    .font(.footnote)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .help(self.helpText)
             }
