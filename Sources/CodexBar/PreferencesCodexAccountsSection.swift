@@ -71,6 +71,11 @@ struct CodexAccountsSectionState: Equatable {
         self.canSaveCurrentProfile
     }
 
+    var localProfilesOnboardingText: String? {
+        guard self.localProfiles.isEmpty else { return nil }
+        return "Sign into a Codex account in the Codex app or Codex CLI, then save it here to switch later."
+    }
+
     func showsLiveBadge(for account: CodexVisibleAccount) -> Bool {
         self.visibleAccounts.count > 1 && account.isLive && account.storedAccountID == nil
     }
@@ -207,6 +212,14 @@ struct CodexAccountsSectionView: View {
 
 @MainActor
 struct CodexLocalProfilesSectionView: View {
+    private static let helpText =
+        """
+        1. Sign into a Codex account in the Codex app or Codex CLI.
+        2. Choose Save Current Account… in CodexBar.
+        3. Repeat for each additional account.
+        4. After saving, switch accounts from Local Profiles in Settings or Switch Local Profile in the menu bar.
+        """
+
     let state: CodexAccountsSectionState
     let saveCurrentProfile: () -> Void
     let switchLocalProfile: (String) -> Void
@@ -215,15 +228,22 @@ struct CodexLocalProfilesSectionView: View {
 
     var body: some View {
         ProviderSettingsSection(title: "Local Profiles") {
-            Text("Save and switch local Codex desktop and CLI accounts.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            if let onboardingText = self.state.localProfilesOnboardingText {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(onboardingText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Image(systemName: "questionmark.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .help(Self.helpText)
+                }
+            }
 
             if self.state.localProfiles.isEmpty {
-                Text(
-                    self.state.hasValidLiveAuth
-                        ? "No saved local Codex profiles yet. Save the current account to switch back to it later."
-                        : "No saved local Codex profiles yet. Log into Codex first to save the current account.")
+                Text(self.state.hasValidLiveAuth ? "No saved profiles yet." : "Log into Codex first to save a profile.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {

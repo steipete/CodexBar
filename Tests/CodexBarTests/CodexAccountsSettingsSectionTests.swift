@@ -259,6 +259,9 @@ struct CodexAccountsSettingsSectionTests {
         #expect(state.hasValidLiveAuth == false)
         #expect(state.showsSaveCurrentProfileButton == false)
         #expect(state.localProfileActionsDisabled == false)
+        #expect(
+            state.localProfilesOnboardingText
+                == "Log into a Codex account in Codex.app first, then save it here to switch later.")
     }
 
     @Test
@@ -281,6 +284,9 @@ struct CodexAccountsSettingsSectionTests {
         #expect(state.localProfiles.isEmpty)
         #expect(state.hasValidLiveAuth)
         #expect(state.showsSaveCurrentProfileButton)
+        #expect(
+            state.localProfilesOnboardingText
+                == "Log into each Codex account once in Codex.app, then save it here to switch later.")
     }
 
     @Test
@@ -335,6 +341,7 @@ struct CodexAccountsSettingsSectionTests {
         #expect(profile.isActive)
         #expect(state.hasValidLiveAuth)
         #expect(state.showsSaveCurrentProfileButton == false)
+        #expect(state.localProfilesOnboardingText == nil)
     }
 
     @Test
