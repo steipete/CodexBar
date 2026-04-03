@@ -207,8 +207,8 @@ struct CodexAccountsSettingsSectionTests {
     }
 
     @Test
-    func `codex accounts section orders active account before other emails`() throws {
-        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-active-first")
+    func `codex accounts section preserves stock alphabetical account ordering`() throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-alpha-order")
         let store = Self.makeUsageStore(settings: settings)
         let managedStoreURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: managedStoreURL) }
@@ -236,7 +236,7 @@ struct CodexAccountsSettingsSectionTests {
         let pane = ProvidersPane(settings: settings, store: store)
         let state = try #require(pane._test_codexAccountsSectionState())
 
-        #expect(state.visibleAccounts.map(\.email) == ["zeta@example.com", "alpha@example.com"])
+        #expect(state.visibleAccounts.map(\.email) == ["alpha@example.com", "zeta@example.com"])
         #expect(state.activeVisibleAccountID == "zeta@example.com")
     }
 
@@ -333,7 +333,6 @@ struct CodexAccountsSettingsSectionTests {
         #expect(profile.subtitle == "Plus")
         #expect(profile.detail == nil)
         #expect(profile.isActive)
-        #expect(profile.isLive == false)
         #expect(state.hasValidLiveAuth)
         #expect(state.showsSaveCurrentProfileButton == false)
     }

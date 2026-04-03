@@ -1,11 +1,10 @@
 import SwiftUI
 
-struct ProviderSettingsSection<Content: View, HeaderTrailing: View>: View {
+struct ProviderSettingsSection<Content: View>: View {
     let title: String
     let spacing: CGFloat
     let verticalPadding: CGFloat
     let horizontalPadding: CGFloat
-    @ViewBuilder let headerTrailing: () -> HeaderTrailing
     @ViewBuilder let content: () -> Content
 
     init(
@@ -13,42 +12,19 @@ struct ProviderSettingsSection<Content: View, HeaderTrailing: View>: View {
         spacing: CGFloat = 12,
         verticalPadding: CGFloat = 10,
         horizontalPadding: CGFloat = 4,
-        @ViewBuilder headerTrailing: @escaping () -> HeaderTrailing,
         @ViewBuilder content: @escaping () -> Content)
     {
         self.title = title
         self.spacing = spacing
         self.verticalPadding = verticalPadding
         self.horizontalPadding = horizontalPadding
-        self.headerTrailing = headerTrailing
         self.content = content
-    }
-
-    init(
-        title: String,
-        spacing: CGFloat = 12,
-        verticalPadding: CGFloat = 10,
-        horizontalPadding: CGFloat = 4,
-        @ViewBuilder content: @escaping () -> Content)
-        where HeaderTrailing == EmptyView
-    {
-        self.init(
-            title: title,
-            spacing: spacing,
-            verticalPadding: verticalPadding,
-            horizontalPadding: horizontalPadding,
-            headerTrailing: { EmptyView() },
-            content: content)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: self.spacing) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(self.title)
-                    .font(.headline)
-                Spacer(minLength: 8)
-                self.headerTrailing()
-            }
+            Text(self.title)
+                .font(.headline)
             self.content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -28,7 +28,6 @@ struct CodexAccountsSectionState: Equatable {
         let subtitle: String?
         let detail: String?
         let isActive: Bool
-        let isLive: Bool
     }
 
     let visibleAccounts: [CodexVisibleAccount]
@@ -119,20 +118,9 @@ struct CodexAccountsSectionView: View {
     let reauthenticateAccount: (CodexVisibleAccount) -> Void
     let removeAccount: (CodexVisibleAccount) -> Void
     let addAccount: () -> Void
-    let saveCurrentProfile: () -> Void
-    let switchLocalProfile: (String) -> Void
-    let reloadLocalProfiles: () -> Void
-    let openLocalProfilesFolder: () -> Void
 
     var body: some View {
         ProviderSettingsSection(title: "Accounts") {
-            Button(self.state.addAccountTitle) {
-                self.addAccount()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(self.state.canAddAccount == false)
-        } content: {
             if let selection = self.activeSelectionBinding {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -148,10 +136,8 @@ struct CodexAccountsSectionView: View {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .controlSize(.small)
-                        .fixedSize()
-                        .frame(maxWidth: 300, alignment: .leading)
 
-                        Spacer(minLength: 8)
+                        Spacer(minLength: 0)
                     }
 
                     Text("Choose which Codex account CodexBar should follow.")
@@ -169,7 +155,7 @@ struct CodexAccountsSectionView: View {
                         Text(account.email)
                             .font(.subheadline)
 
-                        Spacer(minLength: 8)
+                        Spacer(minLength: 0)
                     }
                 }
             }
@@ -179,7 +165,7 @@ struct CodexAccountsSectionView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     ForEach(self.state.visibleAccounts) { account in
                         CodexAccountsSectionRowView(
                             account: account,
@@ -200,60 +186,12 @@ struct CodexAccountsSectionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("Local Profiles")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer(minLength: 8)
-                    if self.state.showsSaveCurrentProfileButton {
-                        Button(self.state.saveCurrentProfileTitle) {
-                            self.saveCurrentProfile()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(self.state.localProfileActionsDisabled)
-                    }
-                }
-
-                Text("Save and switch local Codex desktop and CLI accounts.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                if self.state.localProfiles.isEmpty {
-                    Text(
-                        self.state.hasValidLiveAuth
-                            ? "No saved local Codex profiles yet. Save the current account to switch back to it later."
-                            : "No saved local Codex profiles yet. Log into Codex first to save the current account.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(self.state.localProfiles) { profile in
-                            CodexLocalProfileRowView(
-                                profile: profile,
-                                canSwitch: !self.state.localProfileActionsDisabled && !profile.isActive,
-                                onSwitch: { self.switchLocalProfile(profile.id) })
-                        }
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    Button("Reload Profiles") {
-                        self.reloadLocalProfiles()
-                    }
-                    .buttonStyle(.link)
-                    .controlSize(.small)
-                    .disabled(self.state.localProfileActionsDisabled)
-
-                    Button("Open Profiles Folder") {
-                        self.openLocalProfilesFolder()
-                    }
-                    .buttonStyle(.link)
-                    .controlSize(.small)
-                }
+            Button(self.state.addAccountTitle) {
+                self.addAccount()
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(self.state.canAddAccount == false)
         }
     }
 
@@ -264,6 +202,65 @@ struct CodexAccountsSectionView: View {
         return Binding(
             get: { self.state.activeVisibleAccountID ?? fallbackID },
             set: { self.setActiveVisibleAccount($0) })
+    }
+}
+
+@MainActor
+struct CodexLocalProfilesSectionView: View {
+    let state: CodexAccountsSectionState
+    let saveCurrentProfile: () -> Void
+    let switchLocalProfile: (String) -> Void
+    let reloadLocalProfiles: () -> Void
+    let openLocalProfilesFolder: () -> Void
+
+    var body: some View {
+        ProviderSettingsSection(title: "Local Profiles") {
+            Text("Save and switch local Codex desktop and CLI accounts.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            if self.state.localProfiles.isEmpty {
+                Text(
+                    self.state.hasValidLiveAuth
+                        ? "No saved local Codex profiles yet. Save the current account to switch back to it later."
+                        : "No saved local Codex profiles yet. Log into Codex first to save the current account.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(self.state.localProfiles) { profile in
+                        CodexLocalProfileRowView(
+                            profile: profile,
+                            canSwitch: !self.state.localProfileActionsDisabled && !profile.isActive,
+                            onSwitch: { self.switchLocalProfile(profile.id) })
+                    }
+                }
+            }
+
+            if self.state.showsSaveCurrentProfileButton {
+                Button(self.state.saveCurrentProfileTitle) {
+                    self.saveCurrentProfile()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(self.state.localProfileActionsDisabled)
+            }
+
+            HStack(spacing: 10) {
+                Button("Reload Profiles") {
+                    self.reloadLocalProfiles()
+                }
+                .buttonStyle(.link)
+                .controlSize(.small)
+                .disabled(self.state.localProfileActionsDisabled)
+
+                Button("Open Profiles Folder") {
+                    self.openLocalProfilesFolder()
+                }
+                .buttonStyle(.link)
+                .controlSize(.small)
+            }
+        }
     }
 }
 
@@ -324,11 +321,8 @@ private struct CodexLocalProfileRowView: View {
                         .font(.subheadline.weight(.semibold))
                     if self.profile.isActive {
                         Text("Active")
-                            .font(.caption2.weight(.medium))
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(.quaternary, in: Capsule())
                     }
                 }
 

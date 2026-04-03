@@ -77,42 +77,46 @@ struct ProvidersPane: View {
                     showsSupplementarySettingsContent: self.codexAccountsSectionState(for: provider) != nil,
                     supplementarySettingsContent: {
                         if let state = self.codexAccountsSectionState(for: provider) {
-                            CodexAccountsSectionView(
-                                state: state,
-                                setActiveVisibleAccount: { visibleAccountID in
-                                    Task { @MainActor in
-                                        await self.selectCodexVisibleAccount(id: visibleAccountID)
-                                    }
-                                },
-                                reauthenticateAccount: { account in
-                                    Task { @MainActor in
-                                        await self.reauthenticateCodexAccount(account)
-                                    }
-                                },
-                                removeAccount: { account in
-                                    self.requestManagedCodexAccountRemoval(account)
-                                },
-                                addAccount: {
-                                    Task { @MainActor in
-                                        await self.addManagedCodexAccount()
-                                    }
-                                },
-                                saveCurrentProfile: {
-                                    Task { @MainActor in
-                                        await self.saveCurrentCodexProfile()
-                                    }
-                                },
-                                switchLocalProfile: { profilePath in
-                                    Task { @MainActor in
-                                        await self.switchCodexLocalProfile(profilePath: profilePath)
-                                    }
-                                },
-                                reloadLocalProfiles: {
-                                    self.reloadCodexLocalProfiles()
-                                },
-                                openLocalProfilesFolder: {
-                                    self.openCodexLocalProfilesFolder()
-                                })
+                            VStack(alignment: .leading, spacing: 0) {
+                                CodexAccountsSectionView(
+                                    state: state,
+                                    setActiveVisibleAccount: { visibleAccountID in
+                                        Task { @MainActor in
+                                            await self.selectCodexVisibleAccount(id: visibleAccountID)
+                                        }
+                                    },
+                                    reauthenticateAccount: { account in
+                                        Task { @MainActor in
+                                            await self.reauthenticateCodexAccount(account)
+                                        }
+                                    },
+                                    removeAccount: { account in
+                                        self.requestManagedCodexAccountRemoval(account)
+                                    },
+                                    addAccount: {
+                                        Task { @MainActor in
+                                            await self.addManagedCodexAccount()
+                                        }
+                                    })
+                                CodexLocalProfilesSectionView(
+                                    state: state,
+                                    saveCurrentProfile: {
+                                        Task { @MainActor in
+                                            await self.saveCurrentCodexProfile()
+                                        }
+                                    },
+                                    switchLocalProfile: { profilePath in
+                                        Task { @MainActor in
+                                            await self.switchCodexLocalProfile(profilePath: profilePath)
+                                        }
+                                    },
+                                    reloadLocalProfiles: {
+                                        self.reloadCodexLocalProfiles()
+                                    },
+                                    openLocalProfilesFolder: {
+                                        self.openCodexLocalProfilesFolder()
+                                    })
+                            }
                         }
                     })
             } else {
@@ -214,7 +218,7 @@ struct ProvidersPane: View {
 
         let localProfiles = self.codexLocalProfiles()
         return CodexAccountsSectionState(
-            visibleAccounts: self.orderedCodexVisibleAccounts(projection.visibleAccounts),
+            visibleAccounts: projection.visibleAccounts,
             activeVisibleAccountID: projection.activeVisibleAccountID,
             hasUnreadableManagedAccountStore: projection.hasUnreadableAddedAccountStore,
             isAuthenticatingManagedAccount: self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount,
@@ -647,15 +651,6 @@ struct ProvidersPane: View {
         return CodexAccountsSectionNotice(text: outcome.successMessage, tone: .secondary)
     }
 
-    private func orderedCodexVisibleAccounts(_ accounts: [CodexVisibleAccount]) -> [CodexVisibleAccount] {
-        accounts.sorted { lhs, rhs in
-            if lhs.isActive != rhs.isActive {
-                return lhs.isActive && !rhs.isActive
-            }
-            return lhs.email.localizedStandardCompare(rhs.email) == .orderedAscending
-        }
-    }
-
     private func codexLocalProfiles() -> (
         profiles: [CodexAccountsSectionState.LocalProfile],
         hasValidLiveAuth: Bool,
@@ -690,8 +685,7 @@ struct ProvidersPane: View {
                     title: email ?? profile.alias,
                     subtitle: cleanedPlan,
                     detail: showsAliasFallback ? "Saved as \(profile.alias)" : nil,
-                    isActive: profile.isActiveInCodex,
-                    isLive: false)
+                    isActive: profile.isActiveInCodex)
             }
             .sorted { lhs, rhs in
                 if lhs.isActive != rhs.isActive {
