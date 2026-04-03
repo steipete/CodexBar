@@ -124,6 +124,82 @@ struct CodexLocalProfileManagerTests {
     }
 
     @Test
+    func `save current profile rejects duplicate name before closing confirmed processes`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let profileURL = root.appendingPathComponent("profiles/plus-a.json")
+        try FileManager.default.createDirectory(
+            at: profileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        try self.writeAuthFile(to: profileURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        let runtime = TestCodexLocalProfileRuntime(
+            runningProcesses: CodexLocalProfileRunningProcesses(
+                codexAppRunning: true,
+                cliProcesses: [.init(id: 42, command: "codex")]))
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: runtime,
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        await #expect(throws: CodexLocalProfileManagerError.duplicateProfileName("plus-a")) {
+            try await manager.saveCurrentProfile(
+                named: "plus-a",
+                confirmedProcesses: runtime.runningProcessesStub)
+        }
+        #expect(runtime.closeCallCount == 0)
+    }
+
+    @Test
+    func `save current profile rejects missing live auth before closing confirmed processes`() async {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let runtime = TestCodexLocalProfileRuntime(
+            runningProcesses: CodexLocalProfileRunningProcesses(
+                codexAppRunning: true,
+                cliProcesses: [.init(id: 42, command: "codex")]))
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: runtime,
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        await #expect(throws: CodexLocalProfileManagerError.authFileMissing(authURL.path)) {
+            try await manager.saveCurrentProfile(
+                named: "plus-a",
+                confirmedProcesses: runtime.runningProcessesStub)
+        }
+        #expect(runtime.closeCallCount == 0)
+    }
+
+    @Test
+    func `save current profile rejects invalid live auth before closing confirmed processes`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        try Data("{\"broken\":true}".utf8).write(to: authURL)
+        let runtime = TestCodexLocalProfileRuntime(
+            runningProcesses: CodexLocalProfileRunningProcesses(
+                codexAppRunning: true,
+                cliProcesses: [.init(id: 42, command: "codex")]))
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: runtime,
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        await #expect(throws: CodexLocalProfileManagerError.invalidAuthFile(authURL.path)) {
+            try await manager.saveCurrentProfile(
+                named: "plus-a",
+                confirmedProcesses: runtime.runningProcessesStub)
+        }
+        #expect(runtime.closeCallCount == 0)
+    }
+
+    @Test
     func `save current profile rejects symlinked auth file`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }

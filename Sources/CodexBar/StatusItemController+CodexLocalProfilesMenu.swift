@@ -1,6 +1,12 @@
 import AppKit
 import CodexBarCore
 
+enum CodexLocalProfilesMenuMarker {
+    static let saveCurrentAction = "codexLocalProfiles.saveCurrentAction"
+    static let switchRoot = "codexLocalProfiles.switchRoot"
+    static let sectionSeparator = "codexLocalProfiles.sectionSeparator"
+}
+
 @MainActor
 extension StatusItemController {
     func addCodexLocalProfilesMenuIfNeeded(to menu: NSMenu, provider: UsageProvider) {
@@ -15,10 +21,12 @@ extension StatusItemController {
                 action: #selector(self.saveCurrentCodexProfileFromMenu(_:)),
                 keyEquivalent: "")
             saveItem.target = self
+            saveItem.representedObject = CodexLocalProfilesMenuMarker.saveCurrentAction
             menu.addItem(saveItem)
         }
 
         let profilesItem = NSMenuItem(title: "Switch Local Profile", action: nil, keyEquivalent: "")
+        profilesItem.representedObject = CodexLocalProfilesMenuMarker.switchRoot
         let submenu = NSMenu()
         submenu.autoenablesItems = false
 
@@ -58,6 +66,40 @@ extension StatusItemController {
 
         profilesItem.submenu = submenu
         menu.addItem(profilesItem)
-        menu.addItem(.separator())
+        let separator = NSMenuItem.separator()
+        separator.representedObject = CodexLocalProfilesMenuMarker.sectionSeparator
+        menu.addItem(separator)
+    }
+
+    func removeCodexLocalProfilesMenuSectionIfPresent(from menu: NSMenu, startingAt minimumIndex: Int) {
+        guard minimumIndex < menu.items.count else { return }
+        let searchRange = minimumIndex..<menu.items.count
+        guard let profilesIndex = searchRange.first(where: { index in
+            (menu.items[index].representedObject as? String) == CodexLocalProfilesMenuMarker.switchRoot
+        }) else {
+            return
+        }
+
+        let separatorSearchStart = profilesIndex + 1
+        guard separatorSearchStart < menu.items.count,
+              let separatorIndex = (separatorSearchStart..<menu.items.count).first(where: { index in
+                  (menu.items[index].representedObject as? String) == CodexLocalProfilesMenuMarker.sectionSeparator
+              })
+        else {
+            return
+        }
+
+        let sectionStart = if profilesIndex > minimumIndex,
+                              (menu.items[profilesIndex - 1].representedObject as? String) ==
+                              CodexLocalProfilesMenuMarker.saveCurrentAction
+        {
+            profilesIndex - 1
+        } else {
+            profilesIndex
+        }
+
+        for index in stride(from: separatorIndex, through: sectionStart, by: -1) {
+            menu.removeItem(at: index)
+        }
     }
 }

@@ -320,7 +320,7 @@ final class CodexLocalProfileManager: @unchecked Sendable {
         named rawName: String,
         confirmedProcesses: CodexLocalProfileRunningProcesses? = nil) async throws -> CodexLocalProfileSaveResult
     {
-        let profileName = try self.validateProfileName(rawName)
+        let savePreflight = try self.validateSaveCurrentProfilePreflight(named: rawName)
         try await self.closeConfirmedProcessesIfNeeded(confirmedProcesses)
 
         try self.ensurePrivateDirectory(self.codexDirectoryURL())
@@ -328,7 +328,8 @@ final class CodexLocalProfileManager: @unchecked Sendable {
         try self.ensurePrivateDirectory(self.backupsDirectoryURL())
         try self.validateAuthFile(at: self.authFileURL)
 
-        let destinationURL = self.profileURL(named: profileName)
+        let profileName = savePreflight.profileName
+        let destinationURL = savePreflight.destinationURL
         guard self.fileManager.fileExists(atPath: destinationURL.path) == false else {
             throw CodexLocalProfileManagerError.duplicateProfileName(profileName)
         }
@@ -426,6 +427,18 @@ final class CodexLocalProfileManager: @unchecked Sendable {
 
     private func profileURL(named name: String) -> URL {
         self.profilesDirectoryURL().appendingPathComponent("\(name).json", isDirectory: false)
+    }
+
+    private func validateSaveCurrentProfilePreflight(named rawName: String) throws
+        -> (profileName: String, destinationURL: URL)
+    {
+        let profileName = try self.validateProfileName(rawName)
+        try self.validateAuthFile(at: self.authFileURL)
+        let destinationURL = self.profileURL(named: profileName)
+        guard self.fileManager.fileExists(atPath: destinationURL.path) == false else {
+            throw CodexLocalProfileManagerError.duplicateProfileName(profileName)
+        }
+        return (profileName, destinationURL)
     }
 
     private func liveProfile() -> DiscoveredCodexProfile? {

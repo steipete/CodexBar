@@ -282,9 +282,11 @@ extension StatusItemController {
         {
             contentStartIndex += 2
         }
+        self.removeCodexLocalProfilesMenuSectionIfPresent(from: menu, startingAt: contentStartIndex)
         while menu.items.count > contentStartIndex {
             menu.removeItem(at: contentStartIndex)
         }
+        self.addCodexLocalProfilesMenuIfNeeded(to: menu, provider: currentProvider)
 
         let descriptor = MenuDescriptor.build(
             provider: provider,
