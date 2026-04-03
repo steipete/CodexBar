@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 import SwiftUI
 
@@ -22,25 +23,13 @@ struct CodexAccountsSectionNotice: Equatable {
 }
 
 struct CodexAccountsSectionState: Equatable {
-    struct LocalProfile: Identifiable, Equatable {
-        let id: String
-        let title: String
-        let subtitle: String?
-        let detail: String?
-        let isActive: Bool
-    }
-
     let visibleAccounts: [CodexVisibleAccount]
     let activeVisibleAccountID: String?
     let hasUnreadableManagedAccountStore: Bool
     let isAuthenticatingManagedAccount: Bool
     let authenticatingManagedAccountID: UUID?
     let isAuthenticatingLiveAccount: Bool
-    let isPerformingLocalProfileOperation: Bool
     let notice: CodexAccountsSectionNotice?
-    let localProfiles: [LocalProfile]
-    let hasValidLiveAuth: Bool
-    let canSaveCurrentProfile: Bool
 
     var showsActivePicker: Bool {
         self.visibleAccounts.count > 1
@@ -61,19 +50,6 @@ struct CodexAccountsSectionState: Equatable {
             return "Adding Account…"
         }
         return "Add Account"
-    }
-
-    var saveCurrentProfileTitle: String {
-        self.isPerformingLocalProfileOperation ? "Saving…" : "Save Current Account…"
-    }
-
-    var showsSaveCurrentProfileButton: Bool {
-        self.canSaveCurrentProfile
-    }
-
-    var localProfilesOnboardingText: String? {
-        guard self.localProfiles.isEmpty else { return nil }
-        return "Sign into a Codex account in the Codex app or Codex CLI, then save it here to switch later."
     }
 
     func showsLiveBadge(for account: CodexVisibleAccount) -> Bool {
@@ -109,10 +85,107 @@ struct CodexAccountsSectionState: Equatable {
         }
         return "Re-auth"
     }
+}
 
-    var localProfileActionsDisabled: Bool {
-        self.isAuthenticatingManagedAccount || self.isAuthenticatingLiveAccount || self
-            .isPerformingLocalProfileOperation
+struct CodexLocalProfilesSectionState: Equatable {
+    struct SettingsProfileRow: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let subtitle: String?
+        let detail: String?
+        let isActive: Bool
+    }
+
+    struct MenuProfileRow: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let representedPath: String
+        let isActive: Bool
+    }
+
+    let settingsProfiles: [SettingsProfileRow]
+    let menuProfiles: [MenuProfileRow]
+    let hasValidLiveAuth: Bool
+    let canSaveCurrentProfile: Bool
+    let isPerformingOperation: Bool
+    let areActionsDisabled: Bool
+
+    init(
+        presentation: CodexLocalProfilesPresentation,
+        isPerformingOperation: Bool = false,
+        areActionsDisabled: Bool = false)
+    {
+        let profiles = presentation.profiles
+        let displayIdentityCounts = Dictionary(
+            grouping: profiles,
+            by: { profile in
+                let email = profile.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+                let plan = Self.cleanedPlanName(profile.plan)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased() ?? ""
+                return "\(email)|\(plan)"
+            })
+            .mapValues(\.count)
+
+        self.settingsProfiles = profiles
+            .map { profile in
+                let cleanedPlan = Self.cleanedPlanName(profile.plan)
+                let email = profile.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let identityKey = "\(email?.lowercased() ?? "")|\(cleanedPlan?.lowercased() ?? "")"
+                let showsAliasFallback = (displayIdentityCounts[identityKey] ?? 0) > 1 && email != nil
+
+                return SettingsProfileRow(
+                    id: profile.fileURL.path,
+                    title: email ?? profile.alias,
+                    subtitle: cleanedPlan,
+                    detail: showsAliasFallback ? "Saved as \(profile.alias)" : nil,
+                    isActive: profile.isActiveInCodex)
+            }
+            .sorted { lhs, rhs in
+                if lhs.isActive != rhs.isActive {
+                    return lhs.isActive && !rhs.isActive
+                }
+                return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+            }
+
+        self.menuProfiles = profiles.map { profile in
+            MenuProfileRow(
+                id: profile.fileURL.path,
+                title: "Switch to \(profile.alias)",
+                representedPath: profile.fileURL.path,
+                isActive: profile.isActiveInCodex)
+        }
+        self.hasValidLiveAuth = presentation.hasValidLiveAuth
+        self.canSaveCurrentProfile = presentation.canSaveCurrentProfile
+        self.isPerformingOperation = isPerformingOperation
+        self.areActionsDisabled = areActionsDisabled
+    }
+
+    var saveCurrentProfileTitle: String {
+        self.isPerformingOperation ? "Saving…" : "Save Current Account…"
+    }
+
+    var showsSaveCurrentProfileButton: Bool {
+        self.canSaveCurrentProfile
+    }
+
+    var onboardingText: String? {
+        guard self.settingsProfiles.isEmpty else { return nil }
+        return "Sign into a Codex account in the Codex app or Codex CLI, then save it here to switch later."
+    }
+
+    var settingsEmptyStateText: String {
+        self.hasValidLiveAuth ? "No saved profiles yet." : "Log into Codex first to save a profile."
+    }
+
+    var menuEmptyStateTitle: String {
+        self.hasValidLiveAuth ? "No saved profiles yet" : "Log into Codex first to save a profile"
+    }
+
+    private static func cleanedPlanName(_ plan: String?) -> String? {
+        guard let plan else { return nil }
+        let cleaned = UsageFormatter.cleanPlanName(plan)
+        return cleaned.isEmpty ? plan : cleaned
     }
 }
 
@@ -220,7 +293,7 @@ struct CodexLocalProfilesSectionView: View {
         4. After saving, switch accounts from Local Profiles in Settings or Switch Local Profile in the menu bar.
         """
 
-    let state: CodexAccountsSectionState
+    let state: CodexLocalProfilesSectionState
     let saveCurrentProfile: () -> Void
     let switchLocalProfile: (String) -> Void
     let reloadLocalProfiles: () -> Void
@@ -228,7 +301,7 @@ struct CodexLocalProfilesSectionView: View {
 
     var body: some View {
         ProviderSettingsSection(title: "Local Profiles") {
-            if let onboardingText = self.state.localProfilesOnboardingText {
+            if let onboardingText = self.state.onboardingText {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(onboardingText)
                         .font(.footnote)
@@ -242,16 +315,16 @@ struct CodexLocalProfilesSectionView: View {
                 }
             }
 
-            if self.state.localProfiles.isEmpty {
-                Text(self.state.hasValidLiveAuth ? "No saved profiles yet." : "Log into Codex first to save a profile.")
+            if self.state.settingsProfiles.isEmpty {
+                Text(self.state.settingsEmptyStateText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(self.state.localProfiles) { profile in
+                    ForEach(self.state.settingsProfiles) { profile in
                         CodexLocalProfileRowView(
                             profile: profile,
-                            canSwitch: !self.state.localProfileActionsDisabled && !profile.isActive,
+                            canSwitch: !self.state.areActionsDisabled && !profile.isActive,
                             onSwitch: { self.switchLocalProfile(profile.id) })
                     }
                 }
@@ -263,7 +336,7 @@ struct CodexLocalProfilesSectionView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(self.state.localProfileActionsDisabled)
+                .disabled(self.state.areActionsDisabled)
             }
 
             HStack(spacing: 10) {
@@ -272,7 +345,7 @@ struct CodexLocalProfilesSectionView: View {
                 }
                 .buttonStyle(.link)
                 .controlSize(.small)
-                .disabled(self.state.localProfileActionsDisabled)
+                .disabled(self.state.areActionsDisabled)
 
                 Button("Open Profiles Folder") {
                     self.openLocalProfilesFolder()
@@ -329,7 +402,7 @@ private struct CodexAccountsSectionRowView: View {
 }
 
 private struct CodexLocalProfileRowView: View {
-    let profile: CodexAccountsSectionState.LocalProfile
+    let profile: CodexLocalProfilesSectionState.SettingsProfileRow
     let canSwitch: Bool
     let onSwitch: () -> Void
 

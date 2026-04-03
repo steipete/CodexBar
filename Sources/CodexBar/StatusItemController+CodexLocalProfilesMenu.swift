@@ -6,10 +6,10 @@ extension StatusItemController {
     func addCodexLocalProfilesMenuIfNeeded(to menu: NSMenu, provider: UsageProvider) {
         guard provider == .codex else { return }
 
-        let presentation = self.codexLocalProfileManager.presentation()
-        let profiles = presentation.profiles
+        let state = CodexLocalProfilesSectionState(
+            presentation: self.codexLocalProfileManager.presentation())
 
-        if presentation.canSaveCurrentProfile {
+        if state.showsSaveCurrentProfileButton {
             let saveItem = NSMenuItem(
                 title: "Save Current Account…",
                 action: #selector(self.saveCurrentCodexProfileFromMenu(_:)),
@@ -22,23 +22,20 @@ extension StatusItemController {
         let submenu = NSMenu()
         submenu.autoenablesItems = false
 
-        if profiles.isEmpty {
-            let emptyTitle = presentation.hasValidLiveAuth
-                ? "No saved profiles yet"
-                : "Log into Codex first to save a profile"
-            let emptyItem = NSMenuItem(title: emptyTitle, action: nil, keyEquivalent: "")
+        if state.menuProfiles.isEmpty {
+            let emptyItem = NSMenuItem(title: state.menuEmptyStateTitle, action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             submenu.addItem(emptyItem)
         } else {
-            for profile in profiles {
+            for profile in state.menuProfiles {
                 let item = NSMenuItem(
-                    title: "Switch to \(profile.alias)",
+                    title: profile.title,
                     action: #selector(self.switchLocalCodexProfileFromMenu(_:)),
                     keyEquivalent: "")
                 item.target = self
-                item.representedObject = profile.fileURL.path
-                item.state = profile.isActiveInCodex ? .on : .off
-                item.isEnabled = !profile.isActiveInCodex
+                item.representedObject = profile.representedPath
+                item.state = profile.isActive ? .on : .off
+                item.isEnabled = !profile.isActive
                 submenu.addItem(item)
             }
         }

@@ -253,15 +253,15 @@ struct CodexAccountsSettingsSectionTests {
             appURL: root.appendingPathComponent("Codex.app"))
 
         let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
-        let state = try #require(pane._test_codexAccountsSectionState())
+        let state = try #require(pane._test_codexLocalProfilesSectionState())
 
-        #expect(state.localProfiles.isEmpty)
+        #expect(state.settingsProfiles.isEmpty)
         #expect(state.hasValidLiveAuth == false)
         #expect(state.showsSaveCurrentProfileButton == false)
-        #expect(state.localProfileActionsDisabled == false)
+        #expect(state.areActionsDisabled == false)
         #expect(
-            state.localProfilesOnboardingText
-                == "Log into a Codex account in Codex.app first, then save it here to switch later.")
+            state.onboardingText
+                == "Sign into a Codex account in the Codex app or Codex CLI, then save it here to switch later.")
     }
 
     @Test
@@ -279,14 +279,14 @@ struct CodexAccountsSettingsSectionTests {
             appURL: root.appendingPathComponent("Codex.app"))
 
         let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
-        let state = try #require(pane._test_codexAccountsSectionState())
+        let state = try #require(pane._test_codexLocalProfilesSectionState())
 
-        #expect(state.localProfiles.isEmpty)
+        #expect(state.settingsProfiles.isEmpty)
         #expect(state.hasValidLiveAuth)
         #expect(state.showsSaveCurrentProfileButton)
         #expect(
-            state.localProfilesOnboardingText
-                == "Log into each Codex account once in Codex.app, then save it here to switch later.")
+            state.onboardingText
+                == "Sign into a Codex account in the Codex app or Codex CLI, then save it here to switch later.")
     }
 
     @Test
@@ -304,9 +304,9 @@ struct CodexAccountsSettingsSectionTests {
             appURL: root.appendingPathComponent("Codex.app"))
 
         let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
-        let state = try #require(pane._test_codexAccountsSectionState())
+        let state = try #require(pane._test_codexLocalProfilesSectionState())
 
-        #expect(state.localProfiles.isEmpty)
+        #expect(state.settingsProfiles.isEmpty)
     }
 
     @Test
@@ -331,17 +331,17 @@ struct CodexAccountsSettingsSectionTests {
             appURL: root.appendingPathComponent("Codex.app"))
 
         let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
-        let state = try #require(pane._test_codexAccountsSectionState())
-        let profile = try #require(state.localProfiles.first)
+        let state = try #require(pane._test_codexLocalProfilesSectionState())
+        let profile = try #require(state.settingsProfiles.first)
 
-        #expect(state.localProfiles.count == 1)
+        #expect(state.settingsProfiles.count == 1)
         #expect(profile.title == "plus-b@example.com")
         #expect(profile.subtitle == "Plus")
         #expect(profile.detail == nil)
         #expect(profile.isActive)
         #expect(state.hasValidLiveAuth)
         #expect(state.showsSaveCurrentProfileButton == false)
-        #expect(state.localProfilesOnboardingText == nil)
+        #expect(state.onboardingText == nil)
     }
 
     @Test
@@ -367,11 +367,11 @@ struct CodexAccountsSettingsSectionTests {
             appURL: root.appendingPathComponent("Codex.app"))
 
         let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
-        let state = try #require(pane._test_codexAccountsSectionState())
+        let state = try #require(pane._test_codexLocalProfilesSectionState())
 
-        #expect(state.localProfiles.count == 1)
+        #expect(state.settingsProfiles.count == 1)
         #expect(state.hasValidLiveAuth)
-        #expect(state.localProfiles.first?.isActive == false)
+        #expect(state.settingsProfiles.first?.isActive == false)
         #expect(state.showsSaveCurrentProfileButton)
     }
 
@@ -403,13 +403,13 @@ struct CodexAccountsSettingsSectionTests {
             appURL: root.appendingPathComponent("Codex.app"))
 
         let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
-        let state = try #require(pane._test_codexAccountsSectionState())
+        let state = try #require(pane._test_codexLocalProfilesSectionState())
 
-        #expect(state.localProfiles.count == 2)
-        #expect(state.localProfiles.allSatisfy { $0.title == "same@example.com" })
-        #expect(state.localProfiles.allSatisfy { $0.subtitle == "Plus" })
-        #expect(state.localProfiles.contains { $0.detail == "Saved as plus-a" })
-        #expect(state.localProfiles.contains { $0.detail == "Saved as plus-b" })
+        #expect(state.settingsProfiles.count == 2)
+        #expect(state.settingsProfiles.allSatisfy { $0.title == "same@example.com" })
+        #expect(state.settingsProfiles.allSatisfy { $0.subtitle == "Plus" })
+        #expect(state.settingsProfiles.contains { $0.detail == "Saved as plus-a" })
+        #expect(state.settingsProfiles.contains { $0.detail == "Saved as plus-b" })
     }
 
     private static func makeManagedCoordinator(

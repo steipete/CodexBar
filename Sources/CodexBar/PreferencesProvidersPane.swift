@@ -76,10 +76,12 @@ struct ProvidersPane: View {
                     },
                     showsSupplementarySettingsContent: self.codexAccountsSectionState(for: provider) != nil,
                     supplementarySettingsContent: {
-                        if let state = self.codexAccountsSectionState(for: provider) {
+                        if let accountsState = self.codexAccountsSectionState(for: provider),
+                           let localProfilesState = self.codexLocalProfilesSectionState(for: provider)
+                        {
                             VStack(alignment: .leading, spacing: 0) {
                                 CodexAccountsSectionView(
-                                    state: state,
+                                    state: accountsState,
                                     setActiveVisibleAccount: { visibleAccountID in
                                         Task { @MainActor in
                                             await self.selectCodexVisibleAccount(id: visibleAccountID)
@@ -99,7 +101,7 @@ struct ProvidersPane: View {
                                         }
                                     })
                                 CodexLocalProfilesSectionView(
-                                    state: state,
+                                    state: localProfilesState,
                                     saveCurrentProfile: {
                                         Task { @MainActor in
                                             await self.saveCurrentCodexProfile()
@@ -205,7 +207,6 @@ struct ProvidersPane: View {
 
     func codexAccountsSectionState(for provider: UsageProvider) -> CodexAccountsSectionState? {
         guard provider == .codex else { return nil }
-        _ = self.codexLocalProfilesRevision
         let projection = self.settings.codexVisibleAccountProjection
         let degradedNotice: CodexAccountsSectionNotice? = if projection.hasUnreadableAddedAccountStore {
             CodexAccountsSectionNotice(
@@ -216,7 +217,6 @@ struct ProvidersPane: View {
             nil
         }
 
-        let localProfiles = self.codexLocalProfiles()
         return CodexAccountsSectionState(
             visibleAccounts: projection.visibleAccounts,
             activeVisibleAccountID: projection.activeVisibleAccountID,
@@ -224,11 +224,18 @@ struct ProvidersPane: View {
             isAuthenticatingManagedAccount: self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount,
             authenticatingManagedAccountID: self.managedCodexAccountCoordinator.authenticatingManagedAccountID,
             isAuthenticatingLiveAccount: self.isAuthenticatingLiveCodexAccount,
-            isPerformingLocalProfileOperation: self.isPerformingCodexLocalProfileOperation,
-            notice: self.codexAccountsNotice ?? degradedNotice,
-            localProfiles: localProfiles.profiles,
-            hasValidLiveAuth: localProfiles.hasValidLiveAuth,
-            canSaveCurrentProfile: localProfiles.canSaveCurrentProfile)
+            notice: self.codexAccountsNotice ?? degradedNotice)
+    }
+
+    func codexLocalProfilesSectionState(for provider: UsageProvider) -> CodexLocalProfilesSectionState? {
+        guard provider == .codex else { return nil }
+        _ = self.codexLocalProfilesRevision
+        return CodexLocalProfilesSectionState(
+            presentation: self.codexLocalProfileManager.presentation(),
+            isPerformingOperation: self.isPerformingCodexLocalProfileOperation,
+            areActionsDisabled: self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount ||
+                self.isAuthenticatingLiveCodexAccount ||
+                self.isPerformingCodexLocalProfileOperation)
     }
 
     func selectCodexVisibleAccount(id: String) async {
@@ -649,55 +656,6 @@ struct ProvidersPane: View {
                 tone: .warning)
         }
         return CodexAccountsSectionNotice(text: outcome.successMessage, tone: .secondary)
-    }
-
-    private func codexLocalProfiles() -> (
-        profiles: [CodexAccountsSectionState.LocalProfile],
-        hasValidLiveAuth: Bool,
-        canSaveCurrentProfile: Bool)
-    {
-        let presentation = self.codexLocalProfileManager.presentation()
-        let profiles = presentation.profiles
-        let displayIdentityCounts = Dictionary(
-            grouping: profiles,
-            by: { profile in
-                let email = profile.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-                let plan = profile.plan
-                    .map(UsageFormatter.cleanPlanName)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .lowercased() ?? ""
-                return "\(email)|\(plan)"
-            })
-            .mapValues(\.count)
-
-        let localProfiles = profiles
-            .map { profile in
-                let cleanedPlan = profile.plan.flatMap { plan in
-                    let cleaned = UsageFormatter.cleanPlanName(plan)
-                    return cleaned.isEmpty ? plan : cleaned
-                }
-                let email = profile.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let identityKey = "\(email?.lowercased() ?? "")|\(cleanedPlan?.lowercased() ?? "")"
-                let showsAliasFallback = (displayIdentityCounts[identityKey] ?? 0) > 1 && email != nil
-
-                return CodexAccountsSectionState.LocalProfile(
-                    id: profile.fileURL.path,
-                    title: email ?? profile.alias,
-                    subtitle: cleanedPlan,
-                    detail: showsAliasFallback ? "Saved as \(profile.alias)" : nil,
-                    isActive: profile.isActiveInCodex)
-            }
-            .sorted { lhs, rhs in
-                if lhs.isActive != rhs.isActive {
-                    return lhs.isActive && !rhs.isActive
-                }
-                return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
-            }
-
-        return (
-            profiles: localProfiles,
-            hasValidLiveAuth: presentation.hasValidLiveAuth,
-            canSaveCurrentProfile: presentation.canSaveCurrentProfile)
     }
 
     private func codexLocalProfileActionCoordinator() -> CodexLocalProfileActionCoordinator {
