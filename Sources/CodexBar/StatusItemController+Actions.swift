@@ -135,19 +135,12 @@ extension StatusItemController {
     @objc func saveCurrentCodexProfileFromMenu(_: NSMenuItem) {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            guard let name = self.promptForCodexLocalProfileName() else { return }
+            let coordinator = self.codexLocalProfileActionCoordinator()
+            guard let name = coordinator.promptForSaveName() else { return }
             do {
-                let processes = try await self.codexLocalProfileManager.runningProcesses()
-                if processes.hasRunningProcesses,
-                   !self.confirmLocalProfileActionIfNeeded(processes, verb: "save the current account")
-                {
-                    return
-                }
-                _ = try await self.codexLocalProfileManager.saveCurrentProfile(
-                    named: name,
-                    allowClosingRunningProcesses: processes.hasRunningProcesses)
-                self.settings.codexActiveSource = .liveSystem
-                await self.refreshAfterLocalProfileMutation()
+                guard let outcome = try await coordinator.perform(.saveCurrent(named: name)) else { return }
+                self.refreshCodexLocalProfilesMenuState()
+                self.presentCodexLocalProfileOutcomeWarningIfNeeded(outcome)
             } catch {
                 self.presentLoginAlert(title: "Could not save Codex profile", message: error.localizedDescription)
             }
@@ -159,17 +152,15 @@ extension StatusItemController {
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                let processes = try await self.codexLocalProfileManager.runningProcesses()
-                if processes.hasRunningProcesses,
-                   !self.confirmLocalProfileActionIfNeeded(processes, verb: "switch the active Codex account")
-                {
-                    return
+                let coordinator = self.codexLocalProfileActionCoordinator()
+                guard let outcome = try await coordinator.perform(.switchToProfile(path: profilePath)) else { return }
+                if outcome.didSwitchActiveProfile {
+                    self.settings.codexActiveSource = .liveSystem
+                    await self.refreshAfterLocalProfileSwitch()
+                } else {
+                    self.refreshCodexLocalProfilesMenuState()
                 }
-                _ = try await self.codexLocalProfileManager.switchToProfile(
-                    at: profilePath,
-                    allowClosingRunningProcesses: processes.hasRunningProcesses)
-                self.settings.codexActiveSource = .liveSystem
-                await self.refreshAfterLocalProfileMutation()
+                self.presentCodexLocalProfileOutcomeWarningIfNeeded(outcome)
             } catch {
                 self.presentLoginAlert(title: "Could not switch Codex profile", message: error.localizedDescription)
             }
@@ -296,51 +287,28 @@ extension StatusItemController {
         self.presentLoginAlert(title: info.title, message: info.message)
     }
 
-    private func promptForCodexLocalProfileName() -> String? {
-        let alert = NSAlert()
-        alert.messageText = "Save Current Codex Account"
-        alert.informativeText = "Enter a name for the current live Codex account."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
-        field.placeholderString = "plus-a"
-        alert.accessoryView = field
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else { return nil }
-        return field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func codexLocalProfileActionCoordinator() -> CodexLocalProfileActionCoordinator {
+        CodexLocalProfileActionCoordinator(manager: self.codexLocalProfileManager)
     }
 
-    private func confirmLocalProfileActionIfNeeded(
-        _ processes: CodexLocalProfileRunningProcesses,
-        verb: String) -> Bool
-    {
-        let alert = NSAlert()
-        alert.messageText = "Close Codex before continuing?"
-        var details: [String] = []
-        if processes.codexAppRunning {
-            details.append("Codex.app")
-        }
-        if !processes.cliProcesses.isEmpty {
-            details
-                .append("\(processes.cliProcesses.count) codex CLI session" +
-                    (processes.cliProcesses.count == 1 ? "" : "s"))
-        }
-        alert.informativeText =
-            "CodexBar will close \(details.joined(separator: " and ")) to \(verb), then reopen Codex.app."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Continue")
-        alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn
-    }
-
-    private func refreshAfterLocalProfileMutation() async {
+    private func refreshCodexLocalProfilesMenuState() {
         self.menuContentVersion &+= 1
+        self.refreshOpenMenusIfNeeded()
+        self.applyIcon(phase: nil)
+    }
+
+    private func refreshAfterLocalProfileSwitch() async {
         await ProviderInteractionContext.$current.withValue(.userInitiated) {
             await self.store.refreshCodexAccountScopedState(allowDisabled: true)
         }
-        self.refreshOpenMenusIfNeeded()
-        self.applyIcon(phase: nil)
+        self.refreshCodexLocalProfilesMenuState()
+    }
+
+    private func presentCodexLocalProfileOutcomeWarningIfNeeded(_ outcome: CodexLocalProfileActionOutcome) {
+        guard let warning = outcome.warningMessage else { return }
+        self.presentLoginAlert(
+            title: "Codex profile switched with warning",
+            message: "\(outcome.successMessage) \(warning)")
     }
 
     private func presentManagedCodexAccountError(_ error: Error) {

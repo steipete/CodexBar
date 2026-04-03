@@ -24,6 +24,7 @@ struct CodexLocalProfileSaveResult: Equatable {
 struct CodexLocalProfileSwitchResult: Equatable {
     let profile: DiscoveredCodexProfile
     let backupURL: URL?
+    let reopenError: CodexLocalProfileManagerError?
 }
 
 enum CodexLocalProfileManagerError: LocalizedError, Equatable {
@@ -293,6 +294,7 @@ final class CodexLocalProfileManager {
         allowClosingRunningProcesses: Bool = false) async throws -> CodexLocalProfileSwitchResult
     {
         let sourceURL = URL(fileURLWithPath: rawPath, isDirectory: false).standardizedFileURL
+        try self.ensureSavedProfilePath(sourceURL)
         try self.validateAuthFile(at: sourceURL, invalidPathError: .invalidProfilePath(sourceURL.path))
 
         let processes = try await self.runningProcesses()
@@ -319,7 +321,15 @@ final class CodexLocalProfileManager {
         }
 
         try self.copyAtomically(from: sourceURL, to: self.authFileURL, permissions: 0o600)
-        try await self.runtime.reopenCodexApp(at: self.appURL)
+        let reopenError: CodexLocalProfileManagerError?
+        do {
+            try await self.runtime.reopenCodexApp(at: self.appURL)
+            reopenError = nil
+        } catch let error as CodexLocalProfileManagerError {
+            reopenError = error
+        } catch {
+            reopenError = .failedToReopenCodexApp(self.appURL.path)
+        }
 
         let activeProfile = self.profiles().first(where: { $0.isActiveInCodex && $0.fileURL == sourceURL })
             ?? CodexProfileStore.profile(
@@ -329,7 +339,10 @@ final class CodexLocalProfileManager {
         guard let activeProfile else {
             throw CodexLocalProfileManagerError.invalidProfilePath(sourceURL.path)
         }
-        return CodexLocalProfileSwitchResult(profile: activeProfile, backupURL: backupURL)
+        return CodexLocalProfileSwitchResult(
+            profile: activeProfile,
+            backupURL: backupURL,
+            reopenError: reopenError)
     }
 
     func profilesDirectoryURL() -> URL {
@@ -351,6 +364,10 @@ final class CodexLocalProfileManager {
     private func validateProfileName(_ rawName: String) throws -> String {
         let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
+            throw CodexLocalProfileManagerError.invalidProfileName
+        }
+        let reservedNames = Set(["live", "current"])
+        guard !reservedNames.contains(trimmed.lowercased()) else {
             throw CodexLocalProfileManagerError.invalidProfileName
         }
         let valid = trimmed.unicodeScalars.allSatisfy {
@@ -380,6 +397,13 @@ final class CodexLocalProfileManager {
                 throw invalidPathError
             }
             throw CodexLocalProfileManagerError.invalidAuthFile(url.path)
+        }
+    }
+
+    private func ensureSavedProfilePath(_ url: URL) throws {
+        let profilesDirectory = self.profilesDirectoryURL().standardizedFileURL
+        guard url.deletingLastPathComponent().standardizedFileURL == profilesDirectory else {
+            throw CodexLocalProfileManagerError.invalidProfilePath(url.path)
         }
     }
 

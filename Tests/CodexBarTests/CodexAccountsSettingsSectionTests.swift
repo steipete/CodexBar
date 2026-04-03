@@ -227,6 +227,26 @@ struct CodexAccountsSettingsSectionTests {
     }
 
     @Test
+    func `codex accounts section hides synthetic live profile row`() throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-local-profiles-hide-live")
+        let store = Self.makeUsageStore(settings: settings)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        try Self.writeCodexAuthFile(to: authURL, email: "live@example.com", plan: "plus", accountID: "acct-live")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: NoopCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let pane = ProvidersPane(settings: settings, store: store, codexLocalProfileManager: manager)
+        let state = try #require(pane._test_codexAccountsSectionState())
+
+        #expect(state.localProfiles.isEmpty)
+    }
+
+    @Test
     func `codex accounts section exposes active saved local profile`() throws {
         let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-local-profiles-active")
         let store = Self.makeUsageStore(settings: settings)

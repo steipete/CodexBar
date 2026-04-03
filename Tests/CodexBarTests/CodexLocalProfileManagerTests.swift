@@ -44,6 +44,26 @@ struct CodexLocalProfileManagerTests {
     }
 
     @Test
+    func `save current profile rejects reserved synthetic names`() async {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        try? self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: TestCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        await #expect(throws: CodexLocalProfileManagerError.invalidProfileName) {
+            try await manager.saveCurrentProfile(named: "Live")
+        }
+        await #expect(throws: CodexLocalProfileManagerError.invalidProfileName) {
+            try await manager.saveCurrentProfile(named: "Current")
+        }
+    }
+
+    @Test
     func `save current profile rejects duplicate names`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -172,6 +192,7 @@ struct CodexLocalProfileManagerTests {
         #expect(FileManager.default.fileExists(atPath: backupURL.path))
         #expect(result.profile.alias == "plus-b")
         #expect(runtime.reopenCallCount == 1)
+        #expect(result.reopenError == nil)
     }
 
     @Test
@@ -231,6 +252,50 @@ struct CodexLocalProfileManagerTests {
 
         #expect(runtime.closeCallCount == 1)
         #expect(runtime.reopenCallCount == 1)
+    }
+
+    @Test
+    func `switch still succeeds when reopen fails after auth swap`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let profileURL = root.appendingPathComponent("profiles/plus-b.json")
+        try FileManager.default.createDirectory(
+            at: profileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        try self.writeAuthFile(to: profileURL, email: "plus-b@example.com", plan: "plus", accountID: "acct-b")
+        let runtime = TestCodexLocalProfileRuntime(
+            reopenError: .failedToReopenCodexApp("/Applications/Codex.app"))
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: runtime,
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        let result = try await manager.switchToProfile(at: profileURL.path)
+
+        #expect(try Data(contentsOf: authURL) == Data(contentsOf: profileURL))
+        #expect(result.reopenError == .failedToReopenCodexApp("/Applications/Codex.app"))
+    }
+
+    @Test
+    func `switch rejects profiles outside saved profiles directory`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let authURL = root.appendingPathComponent("auth.json")
+        let outsideURL = root.appendingPathComponent("outside.json")
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        try self.writeAuthFile(to: outsideURL, email: "plus-b@example.com", plan: "plus", accountID: "acct-b")
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            runtime: TestCodexLocalProfileRuntime(),
+            appURL: root.appendingPathComponent("Codex.app"))
+
+        await #expect(throws: CodexLocalProfileManagerError.invalidProfilePath(outsideURL.path)) {
+            try await manager.switchToProfile(at: outsideURL.path)
+        }
     }
 
     @Test
@@ -303,11 +368,16 @@ struct CodexLocalProfileManagerTests {
 @MainActor
 private final class TestCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol {
     let runningProcessesStub: CodexLocalProfileRunningProcesses
+    let reopenError: CodexLocalProfileManagerError?
     private(set) var closeCallCount = 0
     private(set) var reopenCallCount = 0
 
-    init(runningProcesses: CodexLocalProfileRunningProcesses = .init(codexAppRunning: false, cliProcesses: [])) {
+    init(
+        runningProcesses: CodexLocalProfileRunningProcesses = .init(codexAppRunning: false, cliProcesses: []),
+        reopenError: CodexLocalProfileManagerError? = nil)
+    {
         self.runningProcessesStub = runningProcesses
+        self.reopenError = reopenError
     }
 
     func runningProcesses() async throws -> CodexLocalProfileRunningProcesses {
@@ -320,5 +390,8 @@ private final class TestCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtoc
 
     func reopenCodexApp(at _: URL) async throws {
         self.reopenCallCount += 1
+        if let reopenError {
+            throw reopenError
+        }
     }
 }

@@ -289,23 +289,14 @@ struct ProvidersPane: View {
 
     func saveCurrentCodexProfile() async {
         self.codexAccountsNotice = nil
-        guard let profileName = self.promptForCodexLocalProfileName() else { return }
+        let coordinator = self.codexLocalProfileActionCoordinator()
+        guard let profileName = coordinator.promptForSaveName() else { return }
         do {
-            let processes = try await self.codexLocalProfileManager.runningProcesses()
-            let allowClosing = processes.hasRunningProcesses
-                ? self.confirmLocalProfileActionIfNeeded(processes: processes, verb: "save the current account")
-                : false
-            if processes.hasRunningProcesses, allowClosing == false { return }
             self.isPerformingCodexLocalProfileOperation = true
             defer { self.isPerformingCodexLocalProfileOperation = false }
-            let result = try await self.codexLocalProfileManager.saveCurrentProfile(
-                named: profileName,
-                allowClosingRunningProcesses: allowClosing)
+            guard let outcome = try await coordinator.perform(.saveCurrent(named: profileName)) else { return }
             self.codexLocalProfilesRevision &+= 1
-            self.codexAccountsNotice = CodexAccountsSectionNotice(
-                text: "Saved local Codex profile '\(result.profile.alias)'.",
-                tone: .secondary)
-            await self.refreshCodexProvider()
+            self.codexAccountsNotice = self.codexAccountsNotice(for: outcome)
         } catch {
             self.codexAccountsNotice = self.codexAccountsNotice(for: error)
         }
@@ -314,22 +305,16 @@ struct ProvidersPane: View {
     func switchCodexLocalProfile(profilePath: String) async {
         self.codexAccountsNotice = nil
         do {
-            let processes = try await self.codexLocalProfileManager.runningProcesses()
-            let allowClosing = processes.hasRunningProcesses
-                ? self.confirmLocalProfileActionIfNeeded(processes: processes, verb: "switch the active Codex account")
-                : false
-            if processes.hasRunningProcesses, allowClosing == false { return }
             self.isPerformingCodexLocalProfileOperation = true
             defer { self.isPerformingCodexLocalProfileOperation = false }
-            let result = try await self.codexLocalProfileManager.switchToProfile(
-                at: profilePath,
-                allowClosingRunningProcesses: allowClosing)
-            self.settings.codexActiveSource = .liveSystem
+            let coordinator = self.codexLocalProfileActionCoordinator()
+            guard let outcome = try await coordinator.perform(.switchToProfile(path: profilePath)) else { return }
+            if outcome.didSwitchActiveProfile {
+                self.settings.codexActiveSource = .liveSystem
+                await self.refreshCodexProvider()
+            }
             self.codexLocalProfilesRevision &+= 1
-            self.codexAccountsNotice = CodexAccountsSectionNotice(
-                text: "Switched live Codex account to '\(result.profile.alias)'.",
-                tone: .secondary)
-            await self.refreshCodexProvider()
+            self.codexAccountsNotice = self.codexAccountsNotice(for: outcome)
         } catch {
             self.codexAccountsNotice = self.codexAccountsNotice(for: error)
         }
@@ -642,8 +627,17 @@ struct ProvidersPane: View {
             tone: .warning)
     }
 
+    private func codexAccountsNotice(for outcome: CodexLocalProfileActionOutcome) -> CodexAccountsSectionNotice {
+        if let warning = outcome.warningMessage {
+            return CodexAccountsSectionNotice(
+                text: "\(outcome.successMessage) \(warning)",
+                tone: .warning)
+        }
+        return CodexAccountsSectionNotice(text: outcome.successMessage, tone: .secondary)
+    }
+
     private func codexLocalProfiles() -> [CodexAccountsSectionState.LocalProfile] {
-        self.codexLocalProfileManager.profiles().map { profile in
+        self.codexLocalProfileManager.profiles().filter { $0.alias != "Live" }.map { profile in
             let detail = profile.plan.flatMap { plan in
                 let cleaned = UsageFormatter.cleanPlanName(plan)
                 return cleaned.isEmpty ? plan : cleaned
@@ -654,47 +648,12 @@ struct ProvidersPane: View {
                 subtitle: profile.accountEmail,
                 detail: detail,
                 isActive: profile.isActiveInCodex,
-                isLive: profile.alias == "Live")
+                isLive: false)
         }
     }
 
-    private func promptForCodexLocalProfileName() -> String? {
-        let alert = NSAlert()
-        alert.messageText = "Save Current Codex Account"
-        alert.informativeText = "Enter a name for the current live Codex account."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
-        field.placeholderString = "plus-a"
-        alert.accessoryView = field
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else { return nil }
-        return field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func confirmLocalProfileActionIfNeeded(
-        processes: CodexLocalProfileRunningProcesses,
-        verb: String) -> Bool
-    {
-        guard processes.hasRunningProcesses else { return false }
-        let alert = NSAlert()
-        alert.messageText = "Close Codex before continuing?"
-        var details: [String] = []
-        if processes.codexAppRunning {
-            details.append("Codex.app")
-        }
-        if !processes.cliProcesses.isEmpty {
-            details
-                .append("\(processes.cliProcesses.count) codex CLI session" +
-                    (processes.cliProcesses.count == 1 ? "" : "s"))
-        }
-        alert.informativeText =
-            "CodexBar will close \(details.joined(separator: " and ")) to \(verb), then reopen Codex.app."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Continue")
-        alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn
+    private func codexLocalProfileActionCoordinator() -> CodexLocalProfileActionCoordinator {
+        CodexLocalProfileActionCoordinator(manager: self.codexLocalProfileManager)
     }
 
     private func presentLoginAlert(title: String, message: String) {
