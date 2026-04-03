@@ -108,8 +108,9 @@ final class DefaultCodexLocalProfileRuntime: CodexLocalProfileRuntimeProtocol, @
             let pipe = Pipe()
             process.standardOutput = pipe
             try process.run()
-            process.waitUntilExit()
+            // Drain stdout before waiting so large process lists cannot deadlock on a full pipe buffer.
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
             return String(data: data, encoding: .utf8) ?? ""
         },
         waitForCLIExitProvider: @escaping @Sendable ([pid_t]) async -> Set<pid_t> = DefaultCodexLocalProfileRuntime
