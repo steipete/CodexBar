@@ -296,7 +296,7 @@ struct CodexLocalProfileManagerTests {
     private func posixPermissions(at url: URL) throws -> Int {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         let permissions = attributes[.posixPermissions] as? NSNumber
-        return Int(try #require(permissions).intValue)
+        return try Int(#require(permissions).intValue)
     }
 }
 

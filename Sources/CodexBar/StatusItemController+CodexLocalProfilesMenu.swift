@@ -15,7 +15,7 @@ extension StatusItemController {
 
         let profilesItem = NSMenuItem(title: "Switch Local Profile", action: nil, keyEquivalent: "")
         let submenu = NSMenu()
-        submenu.delegate = self
+        submenu.autoenablesItems = false
 
         let profiles = self.codexLocalProfileManager.profiles().filter { $0.alias != "Live" }
         if profiles.isEmpty {

@@ -41,6 +41,38 @@ struct StatusMenuTests {
         menu.items.compactMap { $0.representedObject as? String }
     }
 
+    private func writeAuthFile(to url: URL, email: String, plan: String, accountID: String) throws {
+        let token = Self.fakeJWT(email: email, plan: plan)
+        let payload: [String: Any] = [
+            "tokens": [
+                "access_token": "access-\(accountID)",
+                "refresh_token": "refresh-\(accountID)",
+                "id_token": token,
+                "account_id": accountID,
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        try data.write(to: url)
+    }
+
+    private static func fakeJWT(email: String, plan: String) -> String {
+        let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        let payload = (try? JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "chatgpt_plan_type": plan,
+            "https://api.openai.com/auth": ["chatgpt_plan_type": plan],
+            "https://api.openai.com/profile": ["email": email],
+        ])) ?? Data()
+        return "\(self.base64URL(header)).\(self.base64URL(payload))."
+    }
+
+    private static func base64URL(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
     @Test
     func `alibaba dashboard action follows selected region`() {
         self.disableMenuCardsForTesting()
@@ -475,6 +507,60 @@ struct StatusMenuTests {
         #expect(statusItem?.view != nil)
         #expect(statusItem?.title == statusText)
         #expect(statusItem?.view?.frame.width == 310)
+    }
+
+    @Test
+    func `codex local profiles menu stays attached submenu`() throws {
+        self.disableMenuCardsForTesting()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let authURL = root.appendingPathComponent("auth.json")
+        let profileURL = root.appendingPathComponent("profiles/plus-b.json")
+        try FileManager.default.createDirectory(
+            at: profileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try self.writeAuthFile(to: authURL, email: "plus-a@example.com", plan: "plus", accountID: "acct-a")
+        try self.writeAuthFile(to: profileURL, email: "plus-b@example.com", plan: "plus", accountID: "acct-b")
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let manager = CodexLocalProfileManager(
+            authFileURL: authURL,
+            fileManager: .default,
+            appURL: root.appendingPathComponent("Codex.app"))
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            codexLocalProfileManager: manager,
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        let switchItem = try #require(menu.items.first(where: { $0.title == "Switch Local Profile" }))
+        let submenu = try #require(switchItem.submenu)
+        #expect(submenu.delegate == nil)
+        #expect(submenu.autoenablesItems == false)
+        let titles = submenu.items.map(\.title)
+        #expect(titles.contains("Switch to plus-b"))
+        #expect(titles.contains("Reload Profiles"))
+        #expect(titles.contains("Open Profiles Folder"))
     }
 
     @Test
