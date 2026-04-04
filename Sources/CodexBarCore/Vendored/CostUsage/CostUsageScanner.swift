@@ -47,6 +47,7 @@ enum CostUsageScanner {
     struct ClaudeParseResult {
         let days: [String: [String: [Int]]]
         let parsedBytes: Int64
+        let seenKeys: Set<String>
     }
 
     static func loadDailyReport(

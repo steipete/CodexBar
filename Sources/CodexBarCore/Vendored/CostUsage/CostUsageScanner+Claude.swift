@@ -35,12 +35,15 @@ extension CostUsageScanner {
         fileURL: URL,
         range: CostUsageDayRange,
         providerFilter: ClaudeLogProviderFilter,
-        startOffset: Int64 = 0) -> ClaudeParseResult
+        startOffset: Int64 = 0,
+        existingSeenKeys: Set<String> = []) -> ClaudeParseResult
     {
         var days: [String: [String: [Int]]] = [:]
-        // Track seen message+request IDs to deduplicate streaming chunks within a JSONL file.
+        // Track seen message+request IDs to deduplicate streaming chunks.
         // Claude emits multiple lines per message with cumulative usage, so we only count once.
-        var seenKeys: Set<String> = []
+        // Uses existingSeenKeys from prior files to also deduplicate across files
+        // (e.g. subagent logs that duplicate parent session entries).
+        var seenKeys = existingSeenKeys
 
         struct ClaudeTokens: Sendable {
             let input: Int
@@ -133,7 +136,7 @@ extension CostUsageScanner {
                 add(dayKey: dayKey, model: model, tokens: tokens)
             })) ?? startOffset
 
-        return ClaudeParseResult(days: days, parsedBytes: parsedBytes)
+        return ClaudeParseResult(days: days, parsedBytes: parsedBytes, seenKeys: seenKeys)
     }
 
     private static let vertexProviderKeys: Set<String> = [
@@ -263,6 +266,9 @@ extension CostUsageScanner {
         var touched: Set<String>
         let range: CostUsageDayRange
         let providerFilter: ClaudeLogProviderFilter
+        /// Shared across all files in a scan pass to deduplicate messages
+        /// that appear in both a parent session JSONL and its subagent files.
+        var globalSeenKeys: Set<String> = []
 
         init(cache: CostUsageCache, range: CostUsageDayRange, providerFilter: ClaudeLogProviderFilter) {
             self.cache = cache
@@ -296,7 +302,9 @@ extension CostUsageScanner {
                     fileURL: url,
                     range: state.range,
                     providerFilter: state.providerFilter,
-                    startOffset: startOffset)
+                    startOffset: startOffset,
+                    existingSeenKeys: state.globalSeenKeys)
+                state.globalSeenKeys = delta.seenKeys
                 if !delta.days.isEmpty {
                     Self.applyFileDays(cache: &state.cache, fileDays: delta.days, sign: 1)
                 }
@@ -317,7 +325,9 @@ extension CostUsageScanner {
         let parsed = Self.parseClaudeFile(
             fileURL: url,
             range: state.range,
-            providerFilter: state.providerFilter)
+            providerFilter: state.providerFilter,
+            existingSeenKeys: state.globalSeenKeys)
+        state.globalSeenKeys = parsed.seenKeys
         let usage = Self.makeFileUsage(
             mtimeUnixMs: mtimeMs,
             size: size,
