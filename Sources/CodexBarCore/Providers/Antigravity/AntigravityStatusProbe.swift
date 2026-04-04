@@ -145,17 +145,29 @@ public struct AntigravityStatusSnapshot: Sendable {
         let candidates = models.filter { $0.family == family && $0.selectionPriority != nil }
         guard !candidates.isEmpty else { return nil }
         return candidates.min { lhs, rhs in
-            let lhsPriority = lhs.selectionPriority ?? Int.max
-            let rhsPriority = rhs.selectionPriority ?? Int.max
-            if lhsPriority != rhsPriority {
-                return lhsPriority < rhsPriority
-            }
             let lhsHasRemainingFraction = lhs.quota.remainingFraction != nil
             let rhsHasRemainingFraction = rhs.quota.remainingFraction != nil
             if lhsHasRemainingFraction != rhsHasRemainingFraction {
                 return lhsHasRemainingFraction && !rhsHasRemainingFraction
             }
-            return lhs.quota.remainingPercent < rhs.quota.remainingPercent
+            let lhsPriority = lhs.selectionPriority ?? Int.max
+            let rhsPriority = rhs.selectionPriority ?? Int.max
+            if lhsPriority != rhsPriority {
+                return lhsPriority < rhsPriority
+            }
+            if lhs.quota.remainingPercent != rhs.quota.remainingPercent {
+                return lhs.quota.remainingPercent < rhs.quota.remainingPercent
+            }
+            switch (lhs.quota.resetTime, rhs.quota.resetTime) {
+            case let (.some(left), .some(right)) where left != right:
+                return left < right
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            default:
+                return lhs.quota.label.localizedCaseInsensitiveCompare(rhs.quota.label) == .orderedAscending
+            }
         }?.quota
     }
 

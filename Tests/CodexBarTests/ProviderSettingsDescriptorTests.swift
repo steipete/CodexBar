@@ -59,7 +59,8 @@ struct ProviderSettingsDescriptorTests {
                         lastRunAtByID.removeValue(forKey: id)
                     }
                 },
-                requestConfirmation: { _ in })
+                requestConfirmation: { _ in },
+                runLoginFlow: {})
 
             let impl = try #require(ProviderCatalog.implementation(for: provider))
             let toggles = impl.settingsToggles(context: context)
@@ -115,7 +116,8 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
 
         let pickers = CodexProviderImplementation().settingsPickers(context: context)
         let toggles = CodexProviderImplementation().settingsToggles(context: context)
@@ -159,12 +161,13 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         #expect(pickers.contains(where: { $0.id == "claude-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
-        let optionIDs = Set(keychainPicker.options.map(\.id))
+        let optionIDs = Set(keychainPicker.options.map { $0.id })
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.never.rawValue))
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.onlyOnUserAction.rawValue))
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.always.rawValue))
@@ -208,7 +211,8 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
@@ -250,7 +254,8 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
@@ -312,7 +317,8 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
 
         let implementation = KiloProviderImplementation()
         let toggles = implementation.settingsToggles(context: context)
