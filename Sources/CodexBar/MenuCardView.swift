@@ -230,10 +230,12 @@ private struct UsageMenuCardHeaderView: View {
                 Text(self.model.providerName)
                     .font(.headline)
                     .fontWeight(.semibold)
-                Spacer()
-                Text(self.model.email)
-                    .font(.subheadline)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                if !self.model.email.isEmpty {
+                    Spacer()
+                    Text(self.model.email)
+                        .font(.subheadline)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                }
             }
             let subtitleAlignment: VerticalAlignment = self.model.subtitleStyle == .error ? .top : .firstTextBaseline
             HStack(alignment: subtitleAlignment) {
@@ -666,6 +668,7 @@ extension UsageMenuCardView.Model {
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
         let tokenCostUsageEnabled: Bool
         let showOptionalCreditsAndExtraUsage: Bool
+        let showsHeaderEmail: Bool
         let sourceLabel: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
@@ -689,6 +692,7 @@ extension UsageMenuCardView.Model {
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             tokenCostUsageEnabled: Bool,
             showOptionalCreditsAndExtraUsage: Bool,
+            showsHeaderEmail: Bool = true,
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
@@ -711,6 +715,7 @@ extension UsageMenuCardView.Model {
             self.resetTimeDisplayStyle = resetTimeDisplayStyle
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
             self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
+            self.showsHeaderEmail = showsHeaderEmail
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
@@ -754,7 +759,7 @@ extension UsageMenuCardView.Model {
         return UsageMenuCardView.Model(
             provider: input.provider,
             providerName: input.metadata.displayName,
-            email: redacted.email,
+            email: input.showsHeaderEmail ? redacted.email : "",
             subtitleText: redacted.subtitleText,
             subtitleStyle: subtitle.style,
             planText: planText,

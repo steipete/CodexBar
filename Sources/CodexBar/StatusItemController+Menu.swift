@@ -48,26 +48,6 @@ extension StatusItemController {
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
     private static let overviewRowIdentifierPrefix = "overviewRow-"
     private static let menuOpenRefreshDelay: Duration = .seconds(1.2)
-    private struct OpenAIWebMenuItems {
-        let hasUsageBreakdown: Bool
-        let hasCreditsHistory: Bool
-        let hasCostHistory: Bool
-    }
-
-    private struct TokenAccountMenuDisplay {
-        let provider: UsageProvider
-        let accounts: [ProviderTokenAccount]
-        let snapshots: [TokenAccountUsageSnapshot]
-        let activeIndex: Int
-        let showAll: Bool
-        let showSwitcher: Bool
-    }
-
-    private struct CodexAccountMenuDisplay {
-        let accounts: [CodexVisibleAccount]
-        let activeVisibleAccountID: String?
-    }
-
     private func menuCardWidth(for providers: [UsageProvider], menu: NSMenu? = nil) -> CGFloat {
         _ = menu
         return Self.menuCardBaseWidth
@@ -232,6 +212,7 @@ extension StatusItemController {
             currentProvider: currentProvider,
             selectedProvider: selectedProvider,
             menuWidth: menuWidth,
+            showsHeaderEmail: codexAccountDisplay == nil,
             tokenAccountDisplay: tokenAccountDisplay,
             openAIContext: openAIContext)
         if isOverviewSelected {
@@ -296,6 +277,7 @@ extension StatusItemController {
             currentProvider: currentProvider,
             selectedProvider: provider,
             menuWidth: menuWidth,
+            showsHeaderEmail: true,
             tokenAccountDisplay: nil,
             openAIContext: openAIContext)
         let addedOpenAIWebItems = self.addMenuCards(to: menu, context: menuContext)
@@ -308,21 +290,6 @@ extension StatusItemController {
             menu.addItem(.separator())
         }
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
-    }
-
-    private struct OpenAIWebContext {
-        let hasUsageBreakdown: Bool
-        let hasCreditsHistory: Bool
-        let hasCostHistory: Bool
-        let hasOpenAIWebMenuItems: Bool
-    }
-
-    private struct MenuCardContext {
-        let currentProvider: UsageProvider
-        let selectedProvider: UsageProvider?
-        let menuWidth: CGFloat
-        let tokenAccountDisplay: TokenAccountMenuDisplay?
-        let openAIContext: OpenAIWebContext
     }
 
     private func openAIWebContext(
@@ -436,9 +403,12 @@ extension StatusItemController {
                     self.menuCardModel(
                         for: context.currentProvider,
                         snapshotOverride: accountSnapshot.snapshot,
-                        errorOverride: accountSnapshot.error)
+                        errorOverride: accountSnapshot.error,
+                        showsHeaderEmail: context.showsHeaderEmail)
                 }
-            if cards.isEmpty, let model = self.menuCardModel(for: context.selectedProvider) {
+            if cards.isEmpty,
+               let model = self.menuCardModel(for: context.selectedProvider, showsHeaderEmail: context.showsHeaderEmail)
+            {
                 menu.addItem(self.makeMenuCardItem(
                     UsageMenuCardView(model: model, width: context.menuWidth),
                     id: "menuCard",
@@ -461,7 +431,10 @@ extension StatusItemController {
             return false
         }
 
-        guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
+        guard let model = self.menuCardModel(for: context.selectedProvider, showsHeaderEmail: context.showsHeaderEmail)
+        else {
+            return false
+        }
         if context.openAIContext.hasOpenAIWebMenuItems {
             let webItems = OpenAIWebMenuItems(
                 hasUsageBreakdown: context.openAIContext.hasUsageBreakdown,
@@ -1525,7 +1498,8 @@ extension StatusItemController {
     func menuCardModel(
         for provider: UsageProvider?,
         snapshotOverride: UsageSnapshot? = nil,
-        errorOverride: String? = nil) -> UsageMenuCardView.Model?
+        errorOverride: String? = nil,
+        showsHeaderEmail: Bool = true) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
@@ -1583,6 +1557,7 @@ extension StatusItemController {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            showsHeaderEmail: showsHeaderEmail,
             sourceLabel: sourceLabel,
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
