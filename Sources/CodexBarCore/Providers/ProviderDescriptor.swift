@@ -77,6 +77,7 @@ public enum ProviderDescriptorRegistry {
         .openrouter: OpenRouterProviderDescriptor.descriptor,
         .warp: WarpProviderDescriptor.descriptor,
         .perplexity: PerplexityProviderDescriptor.descriptor,
+        .mimo: MiMoProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

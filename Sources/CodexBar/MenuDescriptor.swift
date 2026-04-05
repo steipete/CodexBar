@@ -122,8 +122,8 @@ struct MenuDescriptor {
         if let snap = store.snapshot(for: provider) {
             let resetStyle = settings.resetTimeDisplayStyle
             if let primary = snap.primary {
-                let primaryWindow = if provider == .warp || provider == .kilo {
-                    // Warp/Kilo primary uses resetDescription for non-reset detail (e.g., "Unlimited", "X/Y credits").
+                let primaryWindow = if provider == .warp || provider == .kilo || provider == .mimo {
+                    // Warp/Kilo/MiMo primary uses resetDescription for non-reset detail (e.g., "Unlimited", "X/Y credits").
                     // Avoid rendering it as a "Resets ..." line.
                     RateWindow(
                         usedPercent: primary.usedPercent,
@@ -139,7 +139,7 @@ struct MenuDescriptor {
                     window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
-                if provider == .warp || provider == .kilo,
+                if provider == .warp || provider == .kilo || provider == .mimo,
                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !detail.isEmpty
                 {
@@ -256,7 +256,22 @@ struct MenuDescriptor {
                 entries.append(.text("Activity: \(detail)", .secondary))
             }
         } else if let loginMethodText, !loginMethodText.isEmpty {
-            entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText))", .secondary))
+            if provider == .openrouter || provider == .mimo {
+                if loginMethodText.localizedCaseInsensitiveContains("balance:") {
+                    let balanceValue = loginMethodText
+                        .replacingOccurrences(
+                            of: #"(?i)^\s*balance:\s*"#,
+                            with: "",
+                            options: [.regularExpression])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let value = balanceValue.isEmpty ? loginMethodText : balanceValue
+                    entries.append(.text("Balance: \(AccountFormatter.plan(value))", .secondary))
+                } else {
+                    entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText))", .secondary))
+                }
+            } else {
+                entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText))", .secondary))
+            }
         }
 
         if metadata.usesAccountFallback {
