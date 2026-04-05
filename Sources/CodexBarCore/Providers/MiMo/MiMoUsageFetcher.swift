@@ -68,8 +68,8 @@ public enum MiMoUsageFetcher {
         let tokenUsageURL = MiMoSettingsReader.apiURL(environment: environment).appendingPathComponent("tokenPlan/usage")
 
         async let balanceData = self.fetchAuthenticated(url: balanceURL, cookie: normalizedCookie)
-        async let tokenDetailData = self.fetchAuthenticated(url: tokenDetailURL, cookie: normalizedCookie)
-        async let tokenUsageData = self.fetchAuthenticated(url: tokenUsageURL, cookie: normalizedCookie)
+        let tokenDetailData: Data? = try? await self.fetchAuthenticated(url: tokenDetailURL, cookie: normalizedCookie)
+        let tokenUsageData: Data? = try? await self.fetchAuthenticated(url: tokenUsageURL, cookie: normalizedCookie)
 
         return try await self.parseCombinedSnapshot(
             balanceData: balanceData,
@@ -118,13 +118,23 @@ public enum MiMoUsageFetcher {
 
     static func parseCombinedSnapshot(
         balanceData: Data,
-        tokenDetailData: Data,
-        tokenUsageData: Data,
+        tokenDetailData: Data?,
+        tokenUsageData: Data?,
         now: Date = Date()) throws -> MiMoUsageSnapshot
     {
         let balanceSnapshot = try self.parseUsageSnapshot(from: balanceData, now: now)
-        let planDetail = try self.parseTokenPlanDetail(from: tokenDetailData)
-        let planUsage = try self.parseTokenPlanUsage(from: tokenUsageData)
+        let planDetail: (planCode: String?, periodEnd: Date?, expired: Bool) = {
+            guard let data = tokenDetailData, let result = try? self.parseTokenPlanDetail(from: data) else {
+                return (planCode: nil, periodEnd: nil, expired: false)
+            }
+            return result
+        }()
+        let planUsage: (used: Int, limit: Int, percent: Double) = {
+            guard let data = tokenUsageData, let result = try? self.parseTokenPlanUsage(from: data) else {
+                return (used: 0, limit: 0, percent: 0)
+            }
+            return result
+        }()
 
         return MiMoUsageSnapshot(
             balance: balanceSnapshot.balance,
