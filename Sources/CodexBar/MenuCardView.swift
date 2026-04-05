@@ -956,7 +956,7 @@ extension UsageMenuCardView.Model {
             {
                 primaryResetText = openRouterQuotaDetail
             }
-            if input.provider == .warp || input.provider == .kilo,
+            if input.provider == .warp || input.provider == .kilo || input.provider == .mimo,
                let detail = primary.resetDescription,
                !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
