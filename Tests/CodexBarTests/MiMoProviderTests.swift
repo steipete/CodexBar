@@ -174,6 +174,48 @@ struct MiMoProviderTests {
     }
 
     @Test
+    func `usage snapshot shows token plan as primary when available`() {
+        let resetDate = Date(timeIntervalSince1970: 1_778_025_599)
+        let snapshot = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            planCode: "standard",
+            planPeriodEnd: resetDate,
+            planExpired: false,
+            tokenUsed: 10_100_158,
+            tokenLimit: 200_000_000,
+            tokenPercent: 0.0505,
+            updatedAt: Date(timeIntervalSince1970: 1_742_771_200))
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary != nil)
+        #expect(usage.primary?.usedPercent == 5.05)
+        #expect(usage.primary?.resetDescription == "10,100,158 / 200,000,000 Credits")
+        #expect(usage.primary?.resetsAt == resetDate)
+        #expect(usage.loginMethod(for: .mimo) == "Standard")
+    }
+
+    @Test
+    func `usage snapshot falls back to balance when no token plan`() {
+        let snapshot = MiMoUsageSnapshot(
+            balance: 0,
+            currency: "USD",
+            planCode: nil,
+            planPeriodEnd: nil,
+            planExpired: false,
+            tokenUsed: 0,
+            tokenLimit: 0,
+            tokenPercent: 0,
+            updatedAt: Date(timeIntervalSince1970: 1_742_771_200))
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary == nil)
+        #expect(usage.loginMethod(for: .mimo) == "Balance: $0.00")
+    }
+
+    @Test
     func `parses balance payload`() throws {
         let now = Date(timeIntervalSince1970: 1_742_771_200)
         let json = """
@@ -194,6 +236,83 @@ struct MiMoProviderTests {
         #expect(snapshot.balance == 25.51)
         #expect(snapshot.currency == "USD")
         #expect(snapshot.updatedAt == now)
+    }
+
+    @Test
+    func `parses token plan detail payload`() throws {
+        let json = """
+        {
+          "code": 0,
+          "message": "",
+          "data": {
+            "planCode": "standard",
+            "currentPeriodEnd": "2026-05-04 23:59:59",
+            "expired": false
+          }
+        }
+        """
+
+        let detail = try MiMoUsageFetcher.parseTokenPlanDetail(from: Data(json.utf8))
+
+        #expect(detail.planCode == "standard")
+        #expect(detail.expired == false)
+        #expect(detail.periodEnd != nil)
+    }
+
+    @Test
+    func `parses token plan usage payload`() throws {
+        let json = """
+        {
+          "code": 0,
+          "message": "",
+          "data": {
+            "monthUsage": {
+              "percent": 0.0505,
+              "items": [
+                {
+                  "name": "month_total_token",
+                  "used": 10100158,
+                  "limit": 200000000,
+                  "percent": 0.0505
+                }
+              ]
+            }
+          }
+        }
+        """
+
+        let usage = try MiMoUsageFetcher.parseTokenPlanUsage(from: Data(json.utf8))
+
+        #expect(usage.used == 10_100_158)
+        #expect(usage.limit == 200_000_000)
+        #expect(usage.percent == 0.0505)
+    }
+
+    @Test
+    func `combined snapshot merges balance and token plan`() throws {
+        let now = Date(timeIntervalSince1970: 1_742_771_200)
+        let balanceJSON = """
+        {"code":0,"message":"","data":{"balance":"25.51","currency":"USD"}}
+        """
+        let detailJSON = """
+        {"code":0,"message":"","data":{"planCode":"standard","currentPeriodEnd":"2026-05-04 23:59:59","expired":false}}
+        """
+        let usageJSON = """
+        {"code":0,"message":"","data":{"monthUsage":{"percent":0.0505,"items":[{"name":"month_total_token","used":10100158,"limit":200000000,"percent":0.0505}]}}}
+        """
+
+        let snapshot = try MiMoUsageFetcher.parseCombinedSnapshot(
+            balanceData: Data(balanceJSON.utf8),
+            tokenDetailData: Data(detailJSON.utf8),
+            tokenUsageData: Data(usageJSON.utf8),
+            now: now)
+
+        #expect(snapshot.balance == 25.51)
+        #expect(snapshot.currency == "USD")
+        #expect(snapshot.planCode == "standard")
+        #expect(snapshot.tokenUsed == 10_100_158)
+        #expect(snapshot.tokenLimit == 200_000_000)
+        #expect(snapshot.tokenPercent == 0.0505)
     }
 
     @Test

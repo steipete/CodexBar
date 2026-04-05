@@ -63,12 +63,31 @@ public enum MiMoUsageFetcher {
             throw MiMoSettingsError.invalidCookie
         }
 
-        let url = MiMoSettingsReader.apiURL(environment: environment).appendingPathComponent("balance")
+        let balanceURL = MiMoSettingsReader.apiURL(environment: environment).appendingPathComponent("balance")
+        let tokenDetailURL = MiMoSettingsReader.apiURL(environment: environment).appendingPathComponent("tokenPlan/detail")
+        let tokenUsageURL = MiMoSettingsReader.apiURL(environment: environment).appendingPathComponent("tokenPlan/usage")
+
+        async let balanceData = self.fetchAuthenticated(url: balanceURL, cookie: normalizedCookie)
+        async let tokenDetailData = self.fetchAuthenticated(url: tokenDetailURL, cookie: normalizedCookie)
+        async let tokenUsageData = self.fetchAuthenticated(url: tokenUsageURL, cookie: normalizedCookie)
+
+        return try await self.parseCombinedSnapshot(
+            balanceData: balanceData,
+            tokenDetailData: tokenDetailData,
+            tokenUsageData: tokenUsageData,
+            now: now)
+    }
+
+    private static func fetchAuthenticated(
+        url: URL,
+        cookie: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> Data
+    {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = Self.requestTimeout
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue(normalizedCookie, forHTTPHeaderField: "Cookie")
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
         request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
         request.setValue("UTC+01:00", forHTTPHeaderField: "x-timeZone")
         request.setValue("https://platform.xiaomimimo.com", forHTTPHeaderField: "Origin")
@@ -94,12 +113,34 @@ public enum MiMoUsageFetcher {
             throw MiMoUsageError.networkError("HTTP \(httpResponse.statusCode)")
         }
 
-        return try self.parseUsageSnapshot(from: data, now: now)
+        return data
+    }
+
+    static func parseCombinedSnapshot(
+        balanceData: Data,
+        tokenDetailData: Data,
+        tokenUsageData: Data,
+        now: Date = Date()) throws -> MiMoUsageSnapshot
+    {
+        let balanceSnapshot = try self.parseUsageSnapshot(from: balanceData, now: now)
+        let planDetail = try self.parseTokenPlanDetail(from: tokenDetailData)
+        let planUsage = try self.parseTokenPlanUsage(from: tokenUsageData)
+
+        return MiMoUsageSnapshot(
+            balance: balanceSnapshot.balance,
+            currency: balanceSnapshot.currency,
+            planCode: planDetail.planCode,
+            planPeriodEnd: planDetail.periodEnd,
+            planExpired: planDetail.expired,
+            tokenUsed: planUsage.used,
+            tokenLimit: planUsage.limit,
+            tokenPercent: planUsage.percent,
+            updatedAt: now)
     }
 
     static func parseUsageSnapshot(from data: Data, now: Date = Date()) throws -> MiMoUsageSnapshot {
         let decoder = JSONDecoder()
-        let response = try decoder.decode(Response.self, from: data)
+        let response = try decoder.decode(BalanceResponse.self, from: data)
 
         guard response.code == 0 else {
             let message = response.message?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -127,14 +168,85 @@ public enum MiMoUsageFetcher {
         return MiMoUsageSnapshot(balance: balance, currency: currency, updatedAt: now)
     }
 
-    private struct Response: Decodable {
-        let code: Int
-        let message: String?
-        let data: Payload?
+    static func parseTokenPlanDetail(from data: Data) throws -> (planCode: String?, periodEnd: Date?, expired: Bool) {
+        let decoder = JSONDecoder()
+        let response = try decoder.decode(TokenPlanDetailResponse.self, from: data)
+
+        guard response.code == 0, let payload = response.data else {
+            return (planCode: nil, periodEnd: nil, expired: false)
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+
+        let periodEnd: Date?
+        if let dateStr = payload.currentPeriodEnd {
+            periodEnd = formatter.date(from: dateStr)
+        } else {
+            periodEnd = nil
+        }
+
+        return (planCode: payload.planCode, periodEnd: periodEnd, expired: payload.expired)
     }
 
-    private struct Payload: Decodable {
+    static func parseTokenPlanUsage(from data: Data) throws -> (used: Int, limit: Int, percent: Double) {
+        let decoder = JSONDecoder()
+        let response = try decoder.decode(TokenPlanUsageResponse.self, from: data)
+
+        guard response.code == 0,
+              let monthUsage = response.data?.monthUsage,
+              let item = monthUsage.items.first
+        else {
+            return (used: 0, limit: 0, percent: 0)
+        }
+
+        return (used: item.used, limit: item.limit, percent: item.percent)
+    }
+
+    private struct BalanceResponse: Decodable {
+        let code: Int
+        let message: String?
+        let data: BalancePayload?
+    }
+
+    private struct BalancePayload: Decodable {
         let balance: String
         let currency: String
+    }
+
+    private struct TokenPlanDetailResponse: Decodable {
+        let code: Int
+        let message: String?
+        let data: TokenPlanDetailPayload?
+    }
+
+    private struct TokenPlanDetailPayload: Decodable {
+        let planCode: String?
+        let currentPeriodEnd: String?
+        let expired: Bool
+    }
+
+    private struct TokenPlanUsageResponse: Decodable {
+        let code: Int
+        let message: String?
+        let data: TokenPlanUsagePayload?
+    }
+
+    private struct TokenPlanUsagePayload: Decodable {
+        let monthUsage: MonthUsage?
+    }
+
+    private struct MonthUsage: Decodable {
+        let percent: Double
+        let items: [UsageItem]
+    }
+
+    private struct UsageItem: Decodable {
+        let name: String
+        let used: Int
+        let limit: Int
+        let percent: Double
     }
 }
