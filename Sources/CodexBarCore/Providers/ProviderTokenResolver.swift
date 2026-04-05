@@ -71,6 +71,18 @@ public enum ProviderTokenResolver {
         self.perplexityResolution(environment: environment)?.token
     }
 
+    public static func bedrockAccessKeyID(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.bedrockResolution(environment: environment)?.token
+    }
+
+    public static func bedrockResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(BedrockSettingsReader.accessKeyID(environment: environment))
+    }
+
     public static func zaiResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {

@@ -31,6 +31,8 @@ public enum ProviderConfigEnvironment {
             }
         case .openrouter:
             env[OpenRouterSettingsReader.envKey] = apiKey
+        case .bedrock:
+            env[BedrockSettingsReader.apiKeyEnvKey] = apiKey
         default:
             break
         }
