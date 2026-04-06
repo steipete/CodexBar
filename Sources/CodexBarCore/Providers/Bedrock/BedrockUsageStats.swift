@@ -139,13 +139,55 @@ struct BedrockUsageFetcher: Sendable {
 
     // MARK: - Cost Explorer
 
+    /// Fetches a 30-day daily cost breakdown for the cost history chart.
+    static func fetchDailyReport(
+        credentials: BedrockAWSSigner.Credentials,
+        since: Date,
+        until: Date,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws
+        -> CostUsageDailyReport
+    {
+        let formatter = Self.dateFormatter()
+        let startDate = formatter.string(from: since)
+        let endDate = formatter.string(from: Calendar.current.date(byAdding: .day, value: 1, to: until) ?? until)
+
+        let data = try await Self.callCostExplorer(
+            startDate: startDate,
+            endDate: endDate,
+            granularity: "DAILY",
+            credentials: credentials,
+            environment: environment)
+
+        let entries = try Self.parseDailyResponse(data)
+        return CostUsageDailyReport(data: entries, summary: nil)
+    }
+
     private static func fetchMonthlyCost(
         credentials: BedrockAWSSigner.Credentials,
         region: String,
         environment: [String: String]) async throws -> Double
     {
-        // Cost Explorer is a global service; always use us-east-1 regardless of the
-        // user's Bedrock region.
+        let (startDate, endDate) = Self.currentMonthRange()
+
+        let data = try await Self.callCostExplorer(
+            startDate: startDate,
+            endDate: endDate,
+            granularity: "MONTHLY",
+            credentials: credentials,
+            environment: environment)
+
+        return try Self.parseTotalCost(data)
+    }
+
+    /// Sends a GetCostAndUsage request to the Cost Explorer API.
+    private static func callCostExplorer(
+        startDate: String,
+        endDate: String,
+        granularity: String,
+        credentials: BedrockAWSSigner.Credentials,
+        environment: [String: String]) async throws -> Data
+    {
+        // Cost Explorer is a global service; always use us-east-1.
         let ceRegion = "us-east-1"
         let baseURL: URL
         if let override = environment[BedrockSettingsReader.apiURLKey],
@@ -156,8 +198,6 @@ struct BedrockUsageFetcher: Sendable {
             baseURL = URL(string: "https://ce.\(ceRegion).amazonaws.com")!
         }
 
-        let (startDate, endDate) = Self.currentMonthRange()
-
         // Use GroupBy to get per-service costs, then filter client-side for Bedrock
         // services. AWS names them per-model (e.g. "Claude Opus 4.6 (Bedrock Edition)")
         // so exact-match filters don't work reliably.
@@ -166,7 +206,7 @@ struct BedrockUsageFetcher: Sendable {
                 "Start": startDate,
                 "End": endDate,
             ],
-            "Granularity": "MONTHLY",
+            "Granularity": granularity,
             "Metrics": ["UnblendedCost"],
             "GroupBy": [
                 ["Type": "DIMENSION", "Key": "SERVICE"],
@@ -202,18 +242,84 @@ struct BedrockUsageFetcher: Sendable {
             throw BedrockUsageError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
-        return try Self.parseCostResponse(data)
+        return data
     }
 
-    private static func parseCostResponse(_ data: Data) throws -> Double {
+    // MARK: - Response parsing
+
+    private static func parseTotalCost(_ data: Data) throws -> Double {
+        var total = 0.0
+        for (_, cost, _) in try Self.parseGroupedResults(data) {
+            total += cost
+        }
+        return total
+    }
+
+    private static func parseDailyResponse(_ data: Data) throws -> [CostUsageDailyReport.Entry] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let results = json["ResultsByTime"] as? [[String: Any]]
         else {
             throw BedrockUsageError.parseFailed("Missing ResultsByTime in Cost Explorer response")
         }
 
-        var totalCost = 0.0
+        var entries: [CostUsageDailyReport.Entry] = []
         for result in results {
+            guard let timePeriod = result["TimePeriod"] as? [String: String],
+                  let dateStr = timePeriod["Start"]
+            else { continue }
+
+            var dayCost = 0.0
+            var breakdowns: [CostUsageDailyReport.ModelBreakdown] = []
+
+            if let groups = result["Groups"] as? [[String: Any]] {
+                for group in groups {
+                    guard let keys = group["Keys"] as? [String],
+                          let serviceName = keys.first,
+                          serviceName.localizedCaseInsensitiveContains("Bedrock")
+                    else { continue }
+
+                    if let metrics = group["Metrics"] as? [String: Any],
+                       let unblended = metrics["UnblendedCost"] as? [String: Any],
+                       let amountStr = unblended["Amount"] as? String,
+                       let amount = Double(amountStr), amount > 0
+                    {
+                        dayCost += amount
+                        breakdowns.append(CostUsageDailyReport.ModelBreakdown(
+                            modelName: serviceName,
+                            costUSD: amount))
+                    }
+                }
+            }
+
+            guard dayCost > 0 else { continue }
+
+            entries.append(CostUsageDailyReport.Entry(
+                date: dateStr,
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: nil,
+                costUSD: dayCost,
+                modelsUsed: breakdowns.map(\.modelName),
+                modelBreakdowns: breakdowns.isEmpty ? nil : breakdowns))
+        }
+
+        return entries
+    }
+
+    /// Parses grouped Cost Explorer results, returning (serviceName, cost, dateStr) tuples
+    /// for Bedrock-related services only.
+    private static func parseGroupedResults(_ data: Data) throws
+        -> [(service: String, cost: Double, date: String)]
+    {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let results = json["ResultsByTime"] as? [[String: Any]]
+        else {
+            throw BedrockUsageError.parseFailed("Missing ResultsByTime in Cost Explorer response")
+        }
+
+        var items: [(service: String, cost: Double, date: String)] = []
+        for result in results {
+            let dateStr = (result["TimePeriod"] as? [String: String])?["Start"] ?? ""
             guard let groups = result["Groups"] as? [[String: Any]] else { continue }
             for group in groups {
                 guard let keys = group["Keys"] as? [String],
@@ -226,15 +332,22 @@ struct BedrockUsageFetcher: Sendable {
                    let amountStr = unblended["Amount"] as? String,
                    let amount = Double(amountStr)
                 {
-                    totalCost += amount
+                    items.append((serviceName, amount, dateStr))
                 }
             }
         }
-
-        return totalCost
+        return items
     }
 
     // MARK: - Helpers
+
+    private static func dateFormatter() -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }
 
     private static func currentMonthRange() -> (start: String, end: String) {
         let calendar = Calendar.current
@@ -242,11 +355,7 @@ struct BedrockUsageFetcher: Sendable {
         let components = calendar.dateComponents([.year, .month], from: now)
         let startOfMonth = calendar.date(from: components)!
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-
+        let formatter = Self.dateFormatter()
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: now)!
         return (formatter.string(from: startOfMonth), formatter.string(from: tomorrow))
     }
