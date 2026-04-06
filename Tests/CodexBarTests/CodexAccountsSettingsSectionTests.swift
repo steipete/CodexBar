@@ -57,6 +57,24 @@ struct CodexAccountsSettingsSectionTests {
     }
 
     @Test
+    func `single account codex settings state includes workspace display name`() throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-single-workspace")
+        let store = Self.makeUsageStore(settings: settings)
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "solo@example.com",
+            workspaceLabel: "Team Alpha",
+            workspaceAccountID: "account-live",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "account-live"))
+
+        let pane = ProvidersPane(settings: settings, store: store)
+        let state = try #require(pane._test_codexAccountsSectionState())
+
+        #expect(state.singleVisibleAccount?.displayName == "solo@example.com — Team Alpha")
+    }
+
+    @Test
     func `codex accounts section disables managed mutations when store is unreadable`() throws {
         let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-unreadable")
         let store = Self.makeUsageStore(settings: settings)

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Highlights
+- Add support for switching between system Codex accounts/profiles. No need to manually logout/login between Codex accounts. @ratulsarna
+- Add workspace attribution to codex accounts to allow for workspace labeling and same-email multi-workspace accounts.
+- Improve Codex multi-account support with canonical identity reconciliation, workspace-aware attribution, safer OpenAI dashboard ownership. Thanks @monterrr for the help!
+
+### Providers & Usage
+- Claude: fix token and cost inflation caused by cross-file double counting of subagent JSONL logs, fix streaming chunk dedup to keep the final cumulative chunk instead of the first partial one, and add `claude-sonnet-4-6` pricing. Thanks @enzonaute for the investigation!
+- Codex: reconcile live-system and managed accounts by canonical identity, preserve account-scoped usage/history/dashboard state, 
+- Codex: improve workspace-based account attribution, allow OAuth CLI fallback, and tighten OpenAI web ownership gating so quota and credits only attach to the matching account.
+- Codex: refactor the provider end to end into clearer components and better division of responsibilities.
+
+### Menu & Settings
+- Codex: add UI for switching the system-level Codex account and promoting a managed account into the live system slot.
+- Codex: hide display-only OpenAI web extras in widgets and fix buy-credits / credits-only presentation regressions.
+
 ## 0.20.0-beta.1 — 2026-04-01
 
 ### Highlights

@@ -48,19 +48,22 @@ public struct ProviderSettingsSnapshot: Sendable {
         public let manualCookieHeader: String?
         public let managedAccountStoreUnreadable: Bool
         public let managedAccountTargetUnavailable: Bool
+        public let dashboardAuthorityKnownOwners: [CodexDashboardKnownOwnerCandidate]
 
         public init(
             usageDataSource: CodexUsageDataSource,
             cookieSource: ProviderCookieSource,
             manualCookieHeader: String?,
             managedAccountStoreUnreadable: Bool = false,
-            managedAccountTargetUnavailable: Bool = false)
+            managedAccountTargetUnavailable: Bool = false,
+            dashboardAuthorityKnownOwners: [CodexDashboardKnownOwnerCandidate] = [])
         {
             self.usageDataSource = usageDataSource
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
             self.managedAccountStoreUnreadable = managedAccountStoreUnreadable
             self.managedAccountTargetUnavailable = managedAccountTargetUnavailable
+            self.dashboardAuthorityKnownOwners = dashboardAuthorityKnownOwners
         }
     }
 

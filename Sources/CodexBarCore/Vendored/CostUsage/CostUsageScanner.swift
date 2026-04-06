@@ -46,7 +46,28 @@ enum CostUsageScanner {
 
     struct ClaudeParseResult {
         let days: [String: [String: [Int]]]
+        let rows: [ClaudeUsageRow]
         let parsedBytes: Int64
+    }
+
+    enum ClaudePathRole: String, Codable, Sendable {
+        case parent
+        case subagent
+    }
+
+    struct ClaudeUsageRow: Codable, Sendable {
+        let dayKey: String
+        let model: String
+        let sessionId: String?
+        let messageId: String?
+        let requestId: String?
+        let isSidechain: Bool
+        let pathRole: ClaudePathRole
+        let input: Int
+        let cacheRead: Int
+        let cacheCreate: Int
+        let output: Int
+        let costNanos: Int
     }
 
     static func loadDailyReport(
@@ -621,7 +642,8 @@ enum CostUsageScanner {
         parsedBytes: Int64?,
         lastModel: String? = nil,
         lastTotals: CostUsageCodexTotals? = nil,
-        sessionId: String? = nil) -> CostUsageFileUsage
+        sessionId: String? = nil,
+        claudeRows: [ClaudeUsageRow]? = nil) -> CostUsageFileUsage
     {
         CostUsageFileUsage(
             mtimeUnixMs: mtimeUnixMs,
@@ -630,7 +652,8 @@ enum CostUsageScanner {
             parsedBytes: parsedBytes,
             lastModel: lastModel,
             lastTotals: lastTotals,
-            sessionId: sessionId)
+            sessionId: sessionId,
+            claudeRows: claudeRows)
     }
 
     static func mergeFileDays(

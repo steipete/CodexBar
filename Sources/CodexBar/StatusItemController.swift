@@ -16,24 +16,37 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     // Disable SwiftUI menu cards + menu refresh work in tests to avoid swiftpm-testing-helper crashes.
     static var menuCardRenderingEnabled = !SettingsStore.isRunningTests
     static var menuRefreshEnabled = !SettingsStore.isRunningTests
-    typealias Factory = (
+    typealias Factory = @MainActor (
         UsageStore,
         SettingsStore,
         AccountInfo,
         UpdaterProviding,
         PreferencesSelection,
-        ManagedCodexAccountCoordinator)
+        ManagedCodexAccountCoordinator,
+        CodexAccountPromotionCoordinator)
         -> StatusItemControlling
-    static let defaultFactory: Factory =
-        { store, settings, account, updater, selection, managedCodexAccountCoordinator in
-            StatusItemController(
-                store: store,
-                settings: settings,
-                account: account,
-                updater: updater,
-                preferencesSelection: selection,
-                managedCodexAccountCoordinator: managedCodexAccountCoordinator)
-        }
+    // swiftlint:disable:next function_parameter_count
+    static func makeDefaultController(
+        store: UsageStore,
+        settings: SettingsStore,
+        account: AccountInfo,
+        updater: UpdaterProviding,
+        selection: PreferencesSelection,
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator,
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator)
+        -> StatusItemControlling
+    {
+        StatusItemController(
+            store: store,
+            settings: settings,
+            account: account,
+            updater: updater,
+            preferencesSelection: selection,
+            managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+            codexAccountPromotionCoordinator: codexAccountPromotionCoordinator)
+    }
+
+    static let defaultFactory: Factory = StatusItemController.makeDefaultController
 
     static var factory: Factory = StatusItemController.defaultFactory
 
@@ -42,6 +55,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let account: AccountInfo
     let updater: UpdaterProviding
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     private let statusBar: NSStatusBar
     var statusItem: NSStatusItem
     var statusItems: [UsageProvider: NSStatusItem] = [:]
@@ -57,6 +71,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     #if DEBUG
     var _test_openMenuRefreshYieldOverride: (@MainActor () async -> Void)?
     var _test_openMenuRebuildObserver: (@MainActor (NSMenu) -> Void)?
+    var _test_codexAmbientLoginRunnerOverride: (@MainActor (TimeInterval) async -> CodexLoginRunner.Result)?
     #endif
     var blinkTask: Task<Void, Never>?
     var loginTask: Task<Void, Never>? {
@@ -135,11 +150,50 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     func menuBarMetricWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
-        MenuBarMetricWindowResolver.rateWindow(
+        if provider == .codex {
+            return self.codexMenuBarMetricWindow(snapshot: snapshot)
+        }
+        return MenuBarMetricWindowResolver.rateWindow(
             preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot),
             provider: provider,
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
+    }
+
+    private func codexMenuBarMetricWindow(snapshot: UsageSnapshot?) -> RateWindow? {
+        guard let snapshot else { return nil }
+        let projection = CodexConsumerProjection.make(
+            surface: .menuBar,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: self.store.credits,
+                rawCreditsError: self.store.lastCreditsError,
+                liveDashboard: self.store.openAIDashboard,
+                rawDashboardError: self.store.lastOpenAIDashboardError,
+                dashboardAttachmentAuthorized: self.store.openAIDashboardAttachmentAuthorized,
+                dashboardRequiresLogin: self.store.openAIDashboardRequiresLogin,
+                now: snapshot.updatedAt))
+        let lanes = projection.visibleRateLanes
+        let first = lanes.first.flatMap { projection.rateWindow(for: $0) }
+        let second = lanes.dropFirst().first.flatMap { projection.rateWindow(for: $0) }
+        let preference = self.settings.menuBarMetricPreference(for: .codex, snapshot: snapshot)
+
+        switch preference {
+        case .secondary, .tertiary:
+            return second ?? first
+        case .average:
+            guard self.settings.menuBarMetricSupportsAverage(for: .codex),
+                  let primary = first,
+                  let secondary = second
+            else {
+                return first
+            }
+            let usedPercent = (primary.usedPercent + secondary.usedPercent) / 2
+            return RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        case .automatic, .primary:
+            return first
+        }
     }
 
     init(
@@ -149,6 +203,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         updater: UpdaterProviding,
         preferencesSelection: PreferencesSelection,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         statusBar: NSStatusBar = .system)
     {
         if SettingsStore.isRunningTests {
@@ -160,6 +215,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.updater = updater
         self.preferencesSelection = preferencesSelection
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+        self.codexAccountPromotionCoordinator = codexAccountPromotionCoordinator
+            ?? CodexAccountPromotionCoordinator(
+                settingsStore: settings,
+                usageStore: store,
+                managedAccountCoordinator: managedCodexAccountCoordinator)
         self.lastConfigRevision = settings.configRevision
         self.lastProviderOrder = settings.providerOrder
         self.lastMergeIcons = settings.mergeIcons
@@ -208,6 +268,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             updater: updater,
             preferencesSelection: preferencesSelection,
             managedCodexAccountCoordinator: ManagedCodexAccountCoordinator(),
+            codexAccountPromotionCoordinator: nil,
             statusBar: statusBar)
     }
 
@@ -292,6 +353,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         withObservationTracking {
             _ = self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount
             _ = self.managedCodexAccountCoordinator.authenticatingManagedAccountID
+            _ = self.managedCodexAccountCoordinator.isRemovingManagedAccount
+            _ = self.managedCodexAccountCoordinator.removingManagedAccountID
+            _ = self.codexAccountPromotionCoordinator.isAuthenticatingLiveAccount
+            _ = self.codexAccountPromotionCoordinator.isPromotingSystemAccount
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }

@@ -11,7 +11,7 @@ public protocol ManagedCodexAccountStoring: Sendable {
 }
 
 public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @unchecked Sendable {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
 
     private let fileURL: URL
     private let fileManager: FileManager
@@ -29,10 +29,13 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
         let data = try Data(contentsOf: self.fileURL)
         let decoder = JSONDecoder()
         let accounts = try decoder.decode(ManagedCodexAccountSet.self, from: data)
-        guard accounts.version == Self.currentVersion else {
+        guard (1...Self.currentVersion).contains(accounts.version) else {
             throw FileManagedCodexAccountStoreError.unsupportedVersion(accounts.version)
         }
-        return accounts
+        if accounts.version == Self.currentVersion {
+            return ManagedCodexAccountSet(version: Self.currentVersion, accounts: accounts.accounts)
+        }
+        return self.migrateVersion1Accounts(accounts)
     }
 
     public func storeAccounts(_ accounts: ManagedCodexAccountSet) throws {
@@ -66,6 +69,37 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
 
     private static func emptyAccountSet() -> ManagedCodexAccountSet {
         ManagedCodexAccountSet(version: self.currentVersion, accounts: [])
+    }
+
+    private func migrateVersion1Accounts(_ accounts: ManagedCodexAccountSet) -> ManagedCodexAccountSet {
+        let migratedAccounts = accounts.accounts.map { account in
+            let hydratedProviderAccountID = self.hydrateProviderAccountID(for: account)
+            return ManagedCodexAccount(
+                id: account.id,
+                email: account.email,
+                providerAccountID: hydratedProviderAccountID,
+                workspaceLabel: account.workspaceLabel,
+                workspaceAccountID: account.workspaceAccountID,
+                managedHomePath: account.managedHomePath,
+                createdAt: account.createdAt,
+                updatedAt: account.updatedAt,
+                lastAuthenticatedAt: account.lastAuthenticatedAt)
+        }
+        return ManagedCodexAccountSet(version: Self.currentVersion, accounts: migratedAccounts)
+    }
+
+    private func hydrateProviderAccountID(for account: ManagedCodexAccount) -> String? {
+        guard let credentials = try? CodexOAuthCredentialsStore.load(
+            env: ["CODEX_HOME": account.managedHomePath])
+        else {
+            return nil
+        }
+        let payload = credentials.idToken.flatMap(UsageFetcher.parseJWT)
+        let authDict = payload?["https://api.openai.com/auth"] as? [String: Any]
+        let providerAccountID = credentials.accountId
+            ?? (authDict?["chatgpt_account_id"] as? String)
+            ?? (payload?["chatgpt_account_id"] as? String)
+        return ManagedCodexAccount.normalizeProviderAccountID(providerAccountID)
     }
 
     public static func defaultURL() -> URL {

@@ -51,7 +51,8 @@ public struct MiniMaxUsageFetcher: Sendable {
     public static func fetchUsage(
         apiToken: String,
         region: MiniMaxAPIRegion = .global,
-        now: Date = Date()) async throws -> MiniMaxUsageSnapshot
+        now: Date = Date(),
+        session: URLSession = .shared) async throws -> MiniMaxUsageSnapshot
     {
         let cleaned = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else {
@@ -62,16 +63,20 @@ public struct MiniMaxUsageFetcher: Sendable {
         // user has no persisted region and we default to `.global`, retry the China endpoint when the global host
         // rejects the token so upgrades don't regress existing setups.
         if region != .global {
-            return try await self.fetchUsageOnce(apiToken: cleaned, region: region, now: now)
+            return try await self.fetchUsageOnce(apiToken: cleaned, region: region, now: now, session: session)
         }
 
         do {
-            return try await self.fetchUsageOnce(apiToken: cleaned, region: .global, now: now)
+            return try await self.fetchUsageOnce(apiToken: cleaned, region: .global, now: now, session: session)
         } catch let error as MiniMaxUsageError {
             guard case .invalidCredentials = error else { throw error }
             Self.log.debug("MiniMax API token rejected for global host, retrying China mainland host")
             do {
-                return try await self.fetchUsageOnce(apiToken: cleaned, region: .chinaMainland, now: now)
+                return try await self.fetchUsageOnce(
+                    apiToken: cleaned,
+                    region: .chinaMainland,
+                    now: now,
+                    session: session)
             } catch {
                 // Preserve the original invalid-credentials error so the fetch pipeline can fall back to web.
                 Self.log.debug("MiniMax China mainland retry failed, preserving global invalidCredentials")
@@ -83,7 +88,8 @@ public struct MiniMaxUsageFetcher: Sendable {
     private static func fetchUsageOnce(
         apiToken: String,
         region: MiniMaxAPIRegion,
-        now: Date) async throws -> MiniMaxUsageSnapshot
+        now: Date,
+        session: URLSession) async throws -> MiniMaxUsageSnapshot
     {
         var request = URLRequest(url: region.apiRemainsURL)
         request.httpMethod = "GET"
@@ -92,7 +98,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("CodexBar", forHTTPHeaderField: "MM-API-Source")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MiniMaxUsageError.networkError("Invalid response")
         }

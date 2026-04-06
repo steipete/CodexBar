@@ -585,10 +585,14 @@ public struct UsageFetcher: Sendable {
             loginMethod: account?.account.flatMap { details in
                 if case let .chatgpt(_, plan) = details { plan } else { nil }
             })
-        return try Self.makeCodexUsageSnapshot(
+        guard let state = CodexReconciledState.fromCLI(
             primary: Self.makeWindow(from: limits.primary),
             secondary: Self.makeWindow(from: limits.secondary),
             identity: identity)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
     }
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
@@ -596,7 +600,7 @@ public struct UsageFetcher: Sendable {
             keepCLISessionsAlive: keepCLISessionsAlive,
             environment: self.environment)
             .fetch()
-        return try Self.makeCodexUsageSnapshot(
+        guard let state = CodexReconciledState.fromCLI(
             primary: Self.makeTTYWindow(
                 percentLeft: status.fiveHourPercentLeft,
                 windowMinutes: 300,
@@ -608,6 +612,10 @@ public struct UsageFetcher: Sendable {
                 resetsAt: status.weeklyResetsAt,
                 resetDescription: status.weeklyResetDescription),
             identity: nil)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
     }
 
     public func loadLatestCredits(keepCLISessionsAlive: Bool = false) async throws -> CreditsSnapshot {
@@ -718,23 +726,6 @@ public struct UsageFetcher: Sendable {
             resetDescription: resetDescription)
     }
 
-    private static func makeCodexUsageSnapshot(
-        primary: RateWindow?,
-        secondary: RateWindow?,
-        identity: ProviderIdentitySnapshot?) throws -> UsageSnapshot
-    {
-        let normalized = CodexRateWindowNormalizer.normalize(primary: primary, secondary: secondary)
-        guard normalized.primary != nil || normalized.secondary != nil else {
-            throw UsageError.noRateLimitsFound
-        }
-        return UsageSnapshot(
-            primary: normalized.primary,
-            secondary: normalized.secondary,
-            tertiary: nil,
-            updatedAt: Date(),
-            identity: identity)
-    }
-
     private static func parseCredits(_ balance: String?) -> Double {
         guard let balance, let val = Double(balance) else { return 0 }
         return val
@@ -770,14 +761,18 @@ extension UsageFetcher {
         primary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?,
         secondary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?) throws -> UsageSnapshot
     {
-        try self.makeCodexUsageSnapshot(
+        guard let state = CodexReconciledState.fromCLI(
             primary: primary.map(self.makeTestingWindow),
             secondary: secondary.map(self.makeTestingWindow),
             identity: nil)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
     }
 
     static func _mapCodexStatusForTesting(_ status: CodexStatusSnapshot) throws -> UsageSnapshot {
-        try self.makeCodexUsageSnapshot(
+        guard let state = CodexReconciledState.fromCLI(
             primary: self.makeTTYWindow(
                 percentLeft: status.fiveHourPercentLeft,
                 windowMinutes: 300,
@@ -789,6 +784,10 @@ extension UsageFetcher {
                 resetsAt: status.weeklyResetsAt,
                 resetDescription: status.weeklyResetDescription),
             identity: nil)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
     }
 
     private static func makeTestingWindow(

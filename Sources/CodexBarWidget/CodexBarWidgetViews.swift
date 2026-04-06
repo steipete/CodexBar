@@ -461,30 +461,23 @@ struct WidgetUsageRow: Identifiable, Equatable {
     let percentLeft: Double?
 
     static func rows(for entry: WidgetSnapshot.ProviderEntry) -> [WidgetUsageRow] {
-        let metadata = ProviderDefaults.metadata[entry.provider]
-        let session = WidgetUsageRow(
-            id: "primary",
-            title: metadata?.sessionLabel ?? "Session",
-            percentLeft: entry.primary?.remainingPercent)
-        let weekly = WidgetUsageRow(
-            id: "secondary",
-            title: metadata?.weeklyLabel ?? "Weekly",
-            percentLeft: entry.secondary?.remainingPercent)
-
-        if entry.provider == .codex {
-            return [session, weekly].filter { row in
-                switch row.id {
-                case "primary":
-                    entry.primary != nil
-                case "secondary":
-                    entry.secondary != nil
-                default:
-                    true
-                }
+        if let usageRows = entry.usageRows {
+            return usageRows.map { row in
+                WidgetUsageRow(id: row.id, title: row.title, percentLeft: row.percentLeft)
             }
         }
 
-        return [session, weekly]
+        let metadata = ProviderDefaults.metadata[entry.provider]
+        return [
+            WidgetUsageRow(
+                id: "primary",
+                title: metadata?.sessionLabel ?? "Session",
+                percentLeft: entry.primary?.remainingPercent),
+            WidgetUsageRow(
+                id: "secondary",
+                title: metadata?.weeklyLabel ?? "Weekly",
+                percentLeft: entry.secondary?.remainingPercent),
+        ].filter { $0.percentLeft != nil }
     }
 }
 

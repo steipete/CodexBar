@@ -30,6 +30,44 @@ struct StatusMenuTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
     }
 
+    private func makeCodexStore(settings: SettingsStore, dashboardAuthorized: Bool) -> UsageStore {
+        let now = Date()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 22,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(1800),
+                    resetDescription: nil),
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: now,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "codex@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "Plus Plan")),
+            provider: .codex)
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "other@example.com",
+            codeReviewRemainingPercent: 88,
+            codeReviewLimit: RateWindow(
+                usedPercent: 12,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            updatedAt: now)
+        store.openAIDashboardAttachmentAuthorized = dashboardAuthorized
+        store.openAIDashboardRequiresLogin = false
+        return store
+    }
+
     private func switcherButtons(in menu: NSMenu) -> [NSButton] {
         guard let switcherView = menu.items.first?.view as? ProviderSwitcherView else { return [] }
         return switcherView.subviews
@@ -214,6 +252,53 @@ struct StatusMenuTests {
         controller.refreshOpenMenusIfNeeded()
 
         #expect(hasOpenAIWebSubmenus(menu) == false)
+    }
+
+    @Test
+    func `display only dashboard does not show code review in status menu card`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let fetcher = UsageFetcher()
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let model = try #require(controller.menuCardModel(for: .codex))
+        #expect(model.metrics.contains { $0.id == "code-review" } == false)
+    }
+
+    @Test
+    func `display only dashboard does not show code review in providers pane`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let model = pane._test_menuCardModel(for: .codex)
+        #expect(model.metrics.contains { $0.id == "code-review" } == false)
+    }
+
+    @Test
+    func `attached dashboard still shows code review in providers pane`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: true)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let model = pane._test_menuCardModel(for: .codex)
+        #expect(model.metrics.contains { $0.id == "code-review" && $0.percent == 88 })
     }
 
     @Test
@@ -659,6 +744,8 @@ struct StatusMenuTests {
             usageBreakdown: breakdown,
             creditsPurchaseURL: nil,
             updatedAt: Date())
+        store.openAIDashboardAttachmentAuthorized = true
+        store.openAIDashboardRequiresLogin = false
 
         let controller = StatusItemController(
             store: store,
@@ -712,6 +799,8 @@ struct StatusMenuTests {
             usageBreakdown: [],
             creditsPurchaseURL: nil,
             updatedAt: Date())
+        store.openAIDashboardAttachmentAuthorized = true
+        store.openAIDashboardRequiresLogin = false
         store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 0.12,

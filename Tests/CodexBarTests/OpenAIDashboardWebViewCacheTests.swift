@@ -99,17 +99,10 @@ struct OpenAIDashboardWebViewCacheTests {
     // MARK: - Idle Timeout / Pruning Tests
 
     @Test
-    func `WebView should be pruned after idle timeout`() async throws {
+    func `WebView should be pruned after idle timeout`() {
         let cache = OpenAIDashboardWebViewCache()
         let store = WKWebsiteDataStore.nonPersistent()
-        let url = try #require(URL(string: "about:blank"))
-
-        // Acquire and release
-        let lease = try await cache.acquire(
-            websiteDataStore: store,
-            usageURL: url,
-            logger: nil)
-        lease.release()
+        cache.cacheEntryForTesting(websiteDataStore: store)
 
         #expect(cache.hasCachedEntry(for: store), "Should be cached immediately after release")
 
@@ -122,23 +115,17 @@ struct OpenAIDashboardWebViewCacheTests {
     }
 
     @Test
-    func `Recently used WebView should not be pruned`() async throws {
+    func `Recently used WebView should not be pruned`() {
         let cache = OpenAIDashboardWebViewCache()
         let store = WKWebsiteDataStore.nonPersistent()
-        let url = try #require(URL(string: "about:blank"))
-
-        // Acquire and release
-        let lease = try await cache.acquire(
-            websiteDataStore: store,
-            usageURL: url,
-            logger: nil)
-        lease.release()
+        cache.cacheEntryForTesting(websiteDataStore: store)
 
         // Simulate time passing comfortably within the configured idle timeout.
         let nearFutureTime = Date().addingTimeInterval(max(1, cache.idleTimeoutForTesting / 2))
         cache.pruneForTesting(now: nearFutureTime)
 
         #expect(cache.hasCachedEntry(for: store), "Should still be cached within idle timeout")
+        cache.clearAllForTesting()
     }
 
     // MARK: - Eviction Tests

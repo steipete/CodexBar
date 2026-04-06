@@ -397,6 +397,62 @@ struct CodexManagedRoutingTests {
     }
 
     @Test
+    func `codex settings snapshot keeps unreadable managed store fail closed when live account is present`() {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-unreadable-store-live-present")
+        settings._test_unreadableManagedCodexAccountStore = true
+        settings.codexActiveSource = .managedAccount(id: UUID())
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/example/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-live"))
+        defer {
+            settings._test_unreadableManagedCodexAccountStore = false
+            settings._test_liveSystemCodexAccount = nil
+        }
+
+        let snapshot = settings.codexSettingsSnapshot(tokenOverride: nil)
+
+        #expect(snapshot.managedAccountStoreUnreadable == true)
+        #expect(snapshot.managedAccountTargetUnavailable == false)
+    }
+
+    @Test
+    func `codex settings snapshot keeps missing managed target fail closed when live account is present`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-missing-managed-live-present")
+        let storedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "stored@example.com",
+            managedHomePath: "/tmp/stored-managed-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-live-present-\(UUID().uuidString).json")
+        let store = FileManagedCodexAccountStore(fileURL: storeURL)
+        try store.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [storedAccount]))
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .managedAccount(id: UUID())
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/example/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-live"))
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        let snapshot = settings.codexSettingsSnapshot(tokenOverride: nil)
+
+        #expect(snapshot.managedAccountStoreUnreadable == false)
+        #expect(snapshot.managedAccountTargetUnavailable == true)
+    }
+
+    @Test
     func `provider registry ignores debug managed home override without explicit managed source`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-debug-home-override")
         let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
