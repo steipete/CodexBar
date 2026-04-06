@@ -1162,6 +1162,10 @@ extension UsageStore {
         do {
             let fetcher = self.costUsageFetcher
             let timeoutSeconds = self.tokenFetchTimeout
+            let providerEnvironment = ProviderConfigEnvironment.applyAPIKeyOverride(
+                base: ProcessInfo.processInfo.environment,
+                provider: provider,
+                config: self.settings.providerConfig(for: provider))
             // CostUsageFetcher scans local Codex session logs from this machine. That data is
             // intentionally presented as provider-level local telemetry rather than managed-account
             // remote state, so managed Codex account selection does not retarget this fetch.
@@ -1171,6 +1175,7 @@ extension UsageStore {
                 group.addTask(priority: .utility) {
                     try await fetcher.loadTokenSnapshot(
                         provider: provider,
+                        environment: providerEnvironment,
                         now: now,
                         forceRefresh: force,
                         allowVertexClaudeFallback: !self.isEnabled(.claude))
