@@ -26,6 +26,22 @@ public struct CostUsageFetcher: Sendable {
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false) async throws -> CostUsageTokenSnapshot
     {
+        try await Self.loadTokenSnapshot(
+            provider: provider,
+            now: now,
+            forceRefresh: forceRefresh,
+            allowVertexClaudeFallback: allowVertexClaudeFallback)
+    }
+
+    static func loadTokenSnapshot(
+        provider: UsageProvider,
+        now: Date = Date(),
+        forceRefresh: Bool = false,
+        allowVertexClaudeFallback: Bool = false,
+        scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil,
+        piScannerOptions overridePiScannerOptions: PiSessionCostScanner
+            .Options? = nil) async throws -> CostUsageTokenSnapshot
+    {
         guard provider == .codex || provider == .claude || provider == .vertexai else {
             throw CostUsageError.unsupportedProvider(provider)
         }
@@ -34,7 +50,7 @@ public struct CostUsageFetcher: Sendable {
         // Rolling window: last 30 days (inclusive). Use -29 for inclusive boundaries.
         let since = Calendar.current.date(byAdding: .day, value: -29, to: now) ?? now
 
-        var options = CostUsageScanner.Options()
+        var options = overrideScannerOptions ?? CostUsageScanner.Options()
         if provider == .vertexai {
             options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
         } else if provider == .claude {
@@ -64,6 +80,24 @@ public struct CostUsageFetcher: Sendable {
                 until: until,
                 now: now,
                 options: fallback)
+        }
+
+        if provider == .codex || provider == .claude {
+            var piOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options()
+            if piOptions.cacheRoot == nil {
+                piOptions.cacheRoot = options.cacheRoot
+            }
+            if forceRefresh {
+                piOptions.refreshMinIntervalSeconds = 0
+                piOptions.forceRescan = true
+            }
+            let piReport = PiSessionCostScanner.loadDailyReport(
+                provider: provider,
+                since: since,
+                until: until,
+                now: now,
+                options: piOptions)
+            daily = CostUsageDailyReport.merged([daily, piReport])
         }
 
         return Self.tokenSnapshot(from: daily, now: now)
