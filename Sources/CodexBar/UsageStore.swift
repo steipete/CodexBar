@@ -825,7 +825,7 @@ extension UsageStore {
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .jetbrains, .perplexity:
+                     .kimik2, .jetbrains, .perplexity, .bedrock:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
@@ -1117,7 +1117,7 @@ extension UsageStore {
     }
 
     private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
-        guard provider == .codex || provider == .claude || provider == .vertexai else {
+        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
@@ -1162,6 +1162,10 @@ extension UsageStore {
         do {
             let fetcher = self.costUsageFetcher
             let timeoutSeconds = self.tokenFetchTimeout
+            let providerEnvironment = ProviderConfigEnvironment.applyAPIKeyOverride(
+                base: ProcessInfo.processInfo.environment,
+                provider: provider,
+                config: self.settings.providerConfig(for: provider))
             // CostUsageFetcher scans local Codex session logs from this machine. That data is
             // intentionally presented as provider-level local telemetry rather than managed-account
             // remote state, so managed Codex account selection does not retarget this fetch.
@@ -1171,6 +1175,7 @@ extension UsageStore {
                 group.addTask(priority: .utility) {
                     try await fetcher.loadTokenSnapshot(
                         provider: provider,
+                        environment: providerEnvironment,
                         now: now,
                         forceRefresh: force,
                         allowVertexClaudeFallback: !self.isEnabled(.claude))

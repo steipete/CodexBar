@@ -1,5 +1,6 @@
 public enum LogCategories {
     public static let amp = "amp"
+    public static let bedrockUsage = "bedrock-usage"
     public static let antigravity = "antigravity"
     public static let app = "app"
     public static let auggieCLI = "auggie-cli"

@@ -1308,7 +1308,7 @@ extension UsageMenuCardView.Model {
         snapshot: CostUsageTokenSnapshot?,
         error: String?) -> TokenUsageSection?
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
+        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else { return nil }
         guard enabled else { return nil }
         guard let snapshot else { return nil }
 

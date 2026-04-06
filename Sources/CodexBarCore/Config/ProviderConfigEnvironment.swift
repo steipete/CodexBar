@@ -6,6 +6,22 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]
     {
+        // Bedrock uses multiple independent credential fields, not just a single API key.
+        // Apply each field from config when present, regardless of the others.
+        if provider == .bedrock {
+            var env = base
+            if let accessKey = config?.sanitizedAPIKey, !accessKey.isEmpty {
+                env[BedrockSettingsReader.accessKeyIDKey] = accessKey
+            }
+            if let secret = config?.sanitizedCookieHeader, !secret.isEmpty {
+                env[BedrockSettingsReader.secretAccessKeyKey] = secret
+            }
+            if let region = config?.region, !region.isEmpty {
+                env[BedrockSettingsReader.regionKeys[0]] = region
+            }
+            return env
+        }
+
         guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
         switch provider {
