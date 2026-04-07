@@ -10,6 +10,7 @@ extension UsageStore {
             "claudeCookieSource": self.settings.claudeCookieSource.rawValue,
             "cursorCookieSource": self.settings.cursorCookieSource.rawValue,
             "opencodeCookieSource": self.settings.opencodeCookieSource.rawValue,
+            "opencodegoCookieSource": self.settings.opencodegoCookieSource.rawValue,
             "factoryCookieSource": self.settings.factoryCookieSource.rawValue,
             "minimaxCookieSource": self.settings.minimaxCookieSource.rawValue,
             "kimiCookieSource": self.settings.kimiCookieSource.rawValue,

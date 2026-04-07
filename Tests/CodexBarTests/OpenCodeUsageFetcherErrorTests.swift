@@ -4,13 +4,15 @@ import Testing
 
 @Suite(.serialized)
 struct OpenCodeUsageFetcherErrorTests {
+    private func makeSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [OpenCodeStubURLProtocol.self]
+        return URLSession(configuration: config)
+    }
+
     @Test
     func `extracts api error from uppercase HTML title`() async throws {
-        let registered = URLProtocol.registerClass(OpenCodeStubURLProtocol.self)
         defer {
-            if registered {
-                URLProtocol.unregisterClass(OpenCodeStubURLProtocol.self)
-            }
             OpenCodeStubURLProtocol.handler = nil
         }
 
@@ -24,7 +26,8 @@ struct OpenCodeUsageFetcherErrorTests {
             _ = try await OpenCodeUsageFetcher.fetchUsage(
                 cookieHeader: "auth=test",
                 timeout: 2,
-                workspaceIDOverride: "wrk_TEST123")
+                workspaceIDOverride: "wrk_TEST123",
+                session: self.makeSession())
             Issue.record("Expected OpenCodeUsageError.apiError")
         } catch let error as OpenCodeUsageError {
             switch error {
@@ -39,11 +42,7 @@ struct OpenCodeUsageFetcherErrorTests {
 
     @Test
     func `extracts api error from detail field`() async throws {
-        let registered = URLProtocol.registerClass(OpenCodeStubURLProtocol.self)
         defer {
-            if registered {
-                URLProtocol.unregisterClass(OpenCodeStubURLProtocol.self)
-            }
             OpenCodeStubURLProtocol.handler = nil
         }
 
@@ -57,7 +56,8 @@ struct OpenCodeUsageFetcherErrorTests {
             _ = try await OpenCodeUsageFetcher.fetchUsage(
                 cookieHeader: "auth=test",
                 timeout: 2,
-                workspaceIDOverride: "wrk_TEST123")
+                workspaceIDOverride: "wrk_TEST123",
+                session: self.makeSession())
             Issue.record("Expected OpenCodeUsageError.apiError")
         } catch let error as OpenCodeUsageError {
             switch error {
@@ -72,11 +72,7 @@ struct OpenCodeUsageFetcherErrorTests {
 
     @Test
     func `subscription get null skips post and returns graceful error`() async throws {
-        let registered = URLProtocol.registerClass(OpenCodeStubURLProtocol.self)
         defer {
-            if registered {
-                URLProtocol.unregisterClass(OpenCodeStubURLProtocol.self)
-            }
             OpenCodeStubURLProtocol.handler = nil
         }
 
@@ -103,7 +99,8 @@ struct OpenCodeUsageFetcherErrorTests {
             _ = try await OpenCodeUsageFetcher.fetchUsage(
                 cookieHeader: "auth=test",
                 timeout: 2,
-                workspaceIDOverride: "wrk_TEST123")
+                workspaceIDOverride: "wrk_TEST123",
+                session: self.makeSession())
             Issue.record("Expected OpenCodeUsageError.apiError")
         } catch let error as OpenCodeUsageError {
             switch error {
@@ -124,11 +121,7 @@ struct OpenCodeUsageFetcherErrorTests {
 
     @Test
     func `subscription get payload does not fallback to post`() async throws {
-        let registered = URLProtocol.registerClass(OpenCodeStubURLProtocol.self)
         defer {
-            if registered {
-                URLProtocol.unregisterClass(OpenCodeStubURLProtocol.self)
-            }
             OpenCodeStubURLProtocol.handler = nil
         }
 
@@ -149,7 +142,8 @@ struct OpenCodeUsageFetcherErrorTests {
         let snapshot = try await OpenCodeUsageFetcher.fetchUsage(
             cookieHeader: "auth=test",
             timeout: 2,
-            workspaceIDOverride: "wrk_TEST123")
+            workspaceIDOverride: "wrk_TEST123",
+            session: self.makeSession())
 
         #expect(snapshot.rollingUsagePercent == 17)
         #expect(snapshot.weeklyUsagePercent == 75)
@@ -158,11 +152,7 @@ struct OpenCodeUsageFetcherErrorTests {
 
     @Test
     func `subscription get missing fields falls back to post`() async throws {
-        let registered = URLProtocol.registerClass(OpenCodeStubURLProtocol.self)
         defer {
-            if registered {
-                URLProtocol.unregisterClass(OpenCodeStubURLProtocol.self)
-            }
             OpenCodeStubURLProtocol.handler = nil
         }
 
@@ -195,11 +185,41 @@ struct OpenCodeUsageFetcherErrorTests {
         let snapshot = try await OpenCodeUsageFetcher.fetchUsage(
             cookieHeader: "auth=test",
             timeout: 2,
-            workspaceIDOverride: "wrk_TEST123")
+            workspaceIDOverride: "wrk_TEST123",
+            session: self.makeSession())
 
         #expect(snapshot.rollingUsagePercent == 22)
         #expect(snapshot.weeklyUsagePercent == 44)
         #expect(methods == ["GET", "POST"])
+    }
+
+    @Test
+    func `fetcher sends only auth cookie to opencode host`() async throws {
+        defer {
+            OpenCodeStubURLProtocol.handler = nil
+        }
+
+        var observedCookie: String?
+        OpenCodeStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            observedCookie = request.value(forHTTPHeaderField: "Cookie")
+
+            let body = """
+            {
+              "rollingUsage": { "usagePercent": 17, "resetInSec": 600 },
+              "weeklyUsage": { "usagePercent": 75, "resetInSec": 7200 }
+            }
+            """
+            return Self.makeResponse(url: url, body: body, statusCode: 200, contentType: "application/json")
+        }
+
+        _ = try await OpenCodeUsageFetcher.fetchUsage(
+            cookieHeader: "provider=google; auth=test",
+            timeout: 2,
+            workspaceIDOverride: "wrk_TEST123",
+            session: self.makeSession())
+
+        #expect(observedCookie == "auth=test")
     }
 
     private static func makeResponse(

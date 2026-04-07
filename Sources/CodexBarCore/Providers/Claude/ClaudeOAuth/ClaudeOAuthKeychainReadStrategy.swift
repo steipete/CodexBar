@@ -16,12 +16,10 @@ public enum ClaudeOAuthKeychainReadStrategyPreference {
         #if DEBUG
         if let taskOverride { return taskOverride }
         #endif
-        if let raw = userDefaults.string(forKey: self.userDefaultsKey),
-           let strategy = ClaudeOAuthKeychainReadStrategy(rawValue: raw)
-        {
-            return strategy
+        if let raw = userDefaults.string(forKey: self.userDefaultsKey) {
+            return ClaudeOAuthKeychainReadStrategy(rawValue: raw) ?? .securityFramework
         }
-        return .securityFramework
+        return .securityCLIExperimental
     }
 
     #if DEBUG

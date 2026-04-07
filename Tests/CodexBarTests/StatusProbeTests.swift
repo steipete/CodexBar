@@ -54,6 +54,19 @@ struct StatusProbeTests {
     }
 
     @Test
+    func `parse codex status with weekly only line`() throws {
+        let sample = """
+        Model: gpt
+        Credits: 980 credits
+        Weekly limit: [##] 25% left
+        """
+        let snap = try CodexStatusProbe.parse(text: sample)
+        #expect(snap.credits == 980)
+        #expect(snap.fiveHourPercentLeft == nil)
+        #expect(snap.weeklyPercentLeft == 25)
+    }
+
+    @Test
     func `parse claude status`() throws {
         let sample = """
         Settings: Status   Config   Usage (tab to cycle)

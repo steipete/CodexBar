@@ -1,6 +1,20 @@
 import Foundation
 
 public enum CookieHeaderCache {
+    public enum Scope: Sendable, Equatable {
+        case managedAccount(UUID)
+        case managedStoreUnreadable
+
+        fileprivate var keychainIdentifier: String {
+            switch self {
+            case let .managedAccount(accountID):
+                "managed.\(accountID.uuidString.lowercased())"
+            case .managedStoreUnreadable:
+                "managed-store-unreadable"
+            }
+        }
+    }
+
     public struct Entry: Codable, Sendable {
         public let cookieHeader: String
         public let storedAt: Date
@@ -16,8 +30,8 @@ public enum CookieHeaderCache {
     private static let log = CodexBarLog.logger(LogCategories.cookieCache)
     private nonisolated(unsafe) static var legacyBaseURLOverride: URL?
 
-    public static func load(provider: UsageProvider) -> Entry? {
-        let key = KeychainCacheStore.Key.cookie(provider: provider)
+    public static func load(provider: UsageProvider, scope: Scope? = nil) -> Entry? {
+        let key = self.key(for: provider, scope: scope)
         switch KeychainCacheStore.load(key: key, as: Entry.self) {
         case let .found(entry):
             self.log.debug("Cookie cache hit", metadata: ["provider": provider.rawValue])
@@ -29,6 +43,7 @@ public enum CookieHeaderCache {
             self.log.debug("Cookie cache miss", metadata: ["provider": provider.rawValue])
         }
 
+        guard scope == nil else { return nil }
         guard let legacy = self.loadLegacyEntry(for: provider) else { return nil }
         KeychainCacheStore.store(key: key, entry: legacy)
         self.removeLegacyEntry(for: provider)
@@ -38,26 +53,31 @@ public enum CookieHeaderCache {
 
     public static func store(
         provider: UsageProvider,
+        scope: Scope? = nil,
         cookieHeader: String,
         sourceLabel: String,
         now: Date = Date())
     {
         let trimmed = cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let normalized = CookieHeaderNormalizer.normalize(trimmed), !normalized.isEmpty else {
-            self.clear(provider: provider)
+            self.clear(provider: provider, scope: scope)
             return
         }
         let entry = Entry(cookieHeader: normalized, storedAt: now, sourceLabel: sourceLabel)
-        let key = KeychainCacheStore.Key.cookie(provider: provider)
+        let key = self.key(for: provider, scope: scope)
         KeychainCacheStore.store(key: key, entry: entry)
-        self.removeLegacyEntry(for: provider)
+        if scope == nil {
+            self.removeLegacyEntry(for: provider)
+        }
         self.log.debug("Cookie cache stored", metadata: ["provider": provider.rawValue, "source": sourceLabel])
     }
 
-    public static func clear(provider: UsageProvider) {
-        let key = KeychainCacheStore.Key.cookie(provider: provider)
+    public static func clear(provider: UsageProvider, scope: Scope? = nil) {
+        let key = self.key(for: provider, scope: scope)
         KeychainCacheStore.clear(key: key)
-        self.removeLegacyEntry(for: provider)
+        if scope == nil {
+            self.removeLegacyEntry(for: provider)
+        }
         self.log.debug("Cookie cache cleared", metadata: ["provider": provider.rawValue])
     }
 
@@ -109,5 +129,9 @@ public enum CookieHeaderCache {
             ?? fm.temporaryDirectory
         return base.appendingPathComponent("CodexBar", isDirectory: true)
             .appendingPathComponent("\(provider.rawValue)-cookie.json")
+    }
+
+    private static func key(for provider: UsageProvider, scope: Scope?) -> KeychainCacheStore.Key {
+        KeychainCacheStore.Key.cookie(provider: provider, scopeIdentifier: scope?.keychainIdentifier)
     }
 }

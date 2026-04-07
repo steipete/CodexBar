@@ -99,17 +99,10 @@ struct OpenAIDashboardWebViewCacheTests {
     // MARK: - Idle Timeout / Pruning Tests
 
     @Test
-    func `WebView should be pruned after idle timeout`() async throws {
+    func `WebView should be pruned after idle timeout`() {
         let cache = OpenAIDashboardWebViewCache()
         let store = WKWebsiteDataStore.nonPersistent()
-        let url = try #require(URL(string: "about:blank"))
-
-        // Acquire and release
-        let lease = try await cache.acquire(
-            websiteDataStore: store,
-            usageURL: url,
-            logger: nil)
-        lease.release()
+        cache.cacheEntryForTesting(websiteDataStore: store)
 
         #expect(cache.hasCachedEntry(for: store), "Should be cached immediately after release")
 
@@ -122,23 +115,17 @@ struct OpenAIDashboardWebViewCacheTests {
     }
 
     @Test
-    func `Recently used WebView should not be pruned`() async throws {
+    func `Recently used WebView should not be pruned`() {
         let cache = OpenAIDashboardWebViewCache()
         let store = WKWebsiteDataStore.nonPersistent()
-        let url = try #require(URL(string: "about:blank"))
-
-        // Acquire and release
-        let lease = try await cache.acquire(
-            websiteDataStore: store,
-            usageURL: url,
-            logger: nil)
-        lease.release()
+        cache.cacheEntryForTesting(websiteDataStore: store)
 
         // Simulate time passing within idle timeout (5 minutes)
         let nearFutureTime = Date().addingTimeInterval(5 * 60)
         cache.pruneForTesting(now: nearFutureTime)
 
         #expect(cache.hasCachedEntry(for: store), "Should still be cached within idle timeout")
+        cache.clearAllForTesting()
     }
 
     // MARK: - Eviction Tests
@@ -165,6 +152,27 @@ struct OpenAIDashboardWebViewCacheTests {
         #expect(cache.hasCachedEntry(for: store2), "Second store should still be cached")
         #expect(cache.entryCount == 1, "Should have one cached entry remaining")
 
+        cache.clearAllForTesting()
+    }
+
+    @Test
+    func `Evicted WebView should not be reused on next acquire`() async throws {
+        let cache = OpenAIDashboardWebViewCache()
+        let store = WKWebsiteDataStore.nonPersistent()
+        let url = try #require(URL(string: "about:blank"))
+
+        let lease1 = try await cache.acquire(websiteDataStore: store, usageURL: url, logger: nil)
+        let webView1 = lease1.webView
+        lease1.release()
+
+        cache.evict(websiteDataStore: store)
+
+        let lease2 = try await cache.acquire(websiteDataStore: store, usageURL: url, logger: nil)
+        let webView2 = lease2.webView
+
+        #expect(webView1 !== webView2, "Acquire after eviction should create a fresh WebView")
+
+        lease2.release()
         cache.clearAllForTesting()
     }
 

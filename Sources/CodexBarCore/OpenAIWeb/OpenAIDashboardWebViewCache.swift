@@ -50,6 +50,29 @@ final class OpenAIDashboardWebViewCache {
         self.prune(now: now)
     }
 
+    /// Seed a cached entry without navigating a real page (for test stability).
+    @discardableResult
+    func cacheEntryForTesting(
+        websiteDataStore: WKWebsiteDataStore,
+        lastUsedAt: Date = Date(),
+        isBusy: Bool = false) -> WKWebView
+    {
+        let key = ObjectIdentifier(websiteDataStore)
+        if let existing = self.entries.removeValue(forKey: key) {
+            existing.host.close()
+        }
+
+        let (webView, host) = self.makeWebView(websiteDataStore: websiteDataStore)
+        let entry = Entry(webView: webView, host: host, lastUsedAt: lastUsedAt, isBusy: isBusy)
+        self.entries[key] = entry
+        if isBusy {
+            host.show()
+        } else {
+            host.hide()
+        }
+        return webView
+    }
+
     /// Clear all cached entries (for test isolation).
     func clearAllForTesting() {
         for (_, entry) in self.entries {
@@ -65,6 +88,22 @@ final class OpenAIDashboardWebViewCache {
         logger: ((String) -> Void)?,
         navigationTimeout: TimeInterval = 15) async throws -> OpenAIDashboardWebViewLease
     {
+        let deadline = Date().addingTimeInterval(max(navigationTimeout, 1))
+        return try await self.acquire(
+            websiteDataStore: websiteDataStore,
+            usageURL: usageURL,
+            logger: logger,
+            deadline: deadline,
+            allowTimeoutRetry: true)
+    }
+
+    private func acquire(
+        websiteDataStore: WKWebsiteDataStore,
+        usageURL: URL,
+        logger: ((String) -> Void)?,
+        deadline: Date,
+        allowTimeoutRetry: Bool) async throws -> OpenAIDashboardWebViewLease
+    {
         let now = Date()
         self.prune(now: now)
 
@@ -72,6 +111,7 @@ final class OpenAIDashboardWebViewCache {
             logger?("[webview] \(message)")
         }
         let key = ObjectIdentifier(websiteDataStore)
+        let remainingTimeout = max(0.5, deadline.timeIntervalSince(now))
 
         if let entry = self.entries[key] {
             if entry.isBusy {
@@ -79,8 +119,17 @@ final class OpenAIDashboardWebViewCache {
                 let (webView, host) = self.makeWebView(websiteDataStore: websiteDataStore)
                 host.show()
                 do {
-                    try await self.prepareWebView(webView, usageURL: usageURL, timeout: navigationTimeout)
+                    try await self.prepareWebView(webView, usageURL: usageURL, timeout: remainingTimeout)
                 } catch {
+                    if allowTimeoutRetry, Self.isPrepareTimeout(error) {
+                        host.close()
+                        log("Temporary OpenAI WebView timed out; retrying with a fresh WebView.")
+                        return try await self.acquireTemporaryWebView(
+                            websiteDataStore: websiteDataStore,
+                            usageURL: usageURL,
+                            log: log,
+                            deadline: deadline)
+                    }
                     host.close()
                     throw error
                 }
@@ -94,8 +143,21 @@ final class OpenAIDashboardWebViewCache {
             entry.lastUsedAt = now
             entry.host.show()
             do {
-                try await self.prepareWebView(entry.webView, usageURL: usageURL, timeout: navigationTimeout)
+                try await self.prepareWebView(entry.webView, usageURL: usageURL, timeout: remainingTimeout)
             } catch {
+                if allowTimeoutRetry, Self.isPrepareTimeout(error) {
+                    entry.isBusy = false
+                    entry.lastUsedAt = Date()
+                    entry.host.close()
+                    self.entries.removeValue(forKey: key)
+                    log("Cached OpenAI WebView timed out; recreating it.")
+                    return try await self.acquire(
+                        websiteDataStore: websiteDataStore,
+                        usageURL: usageURL,
+                        logger: logger,
+                        deadline: deadline,
+                        allowTimeoutRetry: false)
+                }
                 entry.isBusy = false
                 entry.lastUsedAt = Date()
                 entry.host.close()
@@ -125,8 +187,19 @@ final class OpenAIDashboardWebViewCache {
         host.show()
 
         do {
-            try await self.prepareWebView(webView, usageURL: usageURL, timeout: navigationTimeout)
+            try await self.prepareWebView(webView, usageURL: usageURL, timeout: remainingTimeout)
         } catch {
+            if allowTimeoutRetry, Self.isPrepareTimeout(error) {
+                self.entries.removeValue(forKey: key)
+                host.close()
+                log("OpenAI WebView timed out during prepare; retrying once.")
+                return try await self.acquire(
+                    websiteDataStore: websiteDataStore,
+                    usageURL: usageURL,
+                    logger: logger,
+                    deadline: deadline,
+                    allowTimeoutRetry: false)
+            }
             self.entries.removeValue(forKey: key)
             host.close()
             Self.log.warning("OpenAI webview prepare failed")
@@ -188,6 +261,32 @@ final class OpenAIDashboardWebViewCache {
             delegate.armTimeout(seconds: timeout)
             _ = webView.load(URLRequest(url: usageURL))
         }
+    }
+
+    private func acquireTemporaryWebView(
+        websiteDataStore: WKWebsiteDataStore,
+        usageURL: URL,
+        log: @escaping (String) -> Void,
+        deadline: Date) async throws -> OpenAIDashboardWebViewLease
+    {
+        let remainingTimeout = max(0.5, deadline.timeIntervalSinceNow)
+        let (webView, host) = self.makeWebView(websiteDataStore: websiteDataStore)
+        host.show()
+        do {
+            try await self.prepareWebView(webView, usageURL: usageURL, timeout: remainingTimeout)
+        } catch {
+            host.close()
+            throw error
+        }
+        return OpenAIDashboardWebViewLease(
+            webView: webView,
+            log: log,
+            release: { host.close() })
+    }
+
+    private static func isPrepareTimeout(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut
     }
 }
 

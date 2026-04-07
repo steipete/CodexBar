@@ -146,20 +146,27 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
     }
 
-    private static func currentClaudeOAuthKeychainPromptPolicy() -> ClaudeOAuthKeychainPromptPolicy {
-        let isApplicable = ClaudeOAuthKeychainPromptPreference.isApplicable()
+    private static func currentClaudeOAuthInteractivePromptPolicy() -> ClaudeOAuthKeychainPromptPolicy {
         let policy = ClaudeOAuthKeychainPromptPolicy(
-            mode: ClaudeOAuthKeychainPromptPreference.current(),
-            isApplicable: isApplicable,
+            mode: ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode(),
+            isApplicable: true,
             interaction: ProviderInteractionContext.current)
 
-        // User actions should be able to immediately retry a repair after a background cooldown was recorded.
-        if policy.isApplicable, policy.interaction == .userInitiated {
+        // User actions should be able to immediately retry a Security.framework fallback repair after a background
+        // cooldown was recorded, even when /usr/bin/security is the primary reader.
+        if policy.interaction == .userInitiated {
             if ClaudeOAuthKeychainAccessGate.clearDenied() {
                 Self.log.info("Claude OAuth keychain cooldown cleared by user action")
             }
         }
         return policy
+    }
+
+    private static func currentClaudeOAuthDelegatedRefreshPolicy() -> ClaudeOAuthKeychainPromptPolicy {
+        ClaudeOAuthKeychainPromptPolicy(
+            mode: ClaudeOAuthKeychainPromptPreference.current(),
+            isApplicable: ClaudeOAuthKeychainPromptPreference.isApplicable(),
+            interaction: ProviderInteractionContext.current)
     }
 
     private static func assertDelegatedRefreshAllowedInCurrentInteraction(
@@ -228,7 +235,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
         func load(allowDelegatedRetry: Bool) async throws -> ClaudeUsageSnapshot {
             do {
-                let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthKeychainPromptPolicy()
+                let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthInteractivePromptPolicy()
 
                 #if DEBUG
                 let hasCache = ClaudeUsageFetcher.hasCachedCredentialsOverride
@@ -288,10 +295,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             policy: ClaudeOAuthKeychainPromptPolicy,
             hasCache: Bool) -> Bool
         {
-            guard policy.isApplicable else { return false }
             guard self.fetcher.allowStartupBootstrapPrompt else { return false }
             guard !hasCache else { return false }
-            guard policy.mode == .onlyOnUserAction else { return false }
+            guard ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode() == .onlyOnUserAction else {
+                return false
+            }
             guard policy.interaction == .background else { return false }
             return ProviderRefreshContext.current == .startup
         }
@@ -305,7 +313,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
             try Task.checkCancellation()
 
-            let delegatedPromptPolicy = ClaudeUsageFetcher.currentClaudeOAuthKeychainPromptPolicy()
+            let delegatedPromptPolicy = ClaudeUsageFetcher.currentClaudeOAuthDelegatedRefreshPolicy()
             try ClaudeUsageFetcher.assertDelegatedRefreshAllowedInCurrentInteraction(
                 policy: delegatedPromptPolicy,
                 allowBackgroundDelegatedRefresh: self.fetcher.allowBackgroundDelegatedRefresh)
@@ -337,7 +345,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 let didSyncSilently = delegatedOutcome == .attemptedSucceeded
                     && ClaudeOAuthCredentialsStore.syncFromClaudeKeychainWithoutPrompt(now: Date())
 
-                let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthKeychainPromptPolicy()
+                let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthInteractivePromptPolicy()
                 ClaudeUsageFetcher.logDeferredBackgroundDelegatedRecoveryIfNeeded(
                     delegatedOutcome: delegatedOutcome,
                     didSyncSilently: didSyncSilently,

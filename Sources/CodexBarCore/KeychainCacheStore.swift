@@ -244,8 +244,13 @@ public enum KeychainCacheStore {
 }
 
 extension KeychainCacheStore.Key {
-    public static func cookie(provider: UsageProvider) -> Self {
-        Self(category: "cookie", identifier: provider.rawValue)
+    public static func cookie(provider: UsageProvider, scopeIdentifier: String? = nil) -> Self {
+        let identifier: String = if let scopeIdentifier, !scopeIdentifier.isEmpty {
+            "\(provider.rawValue).\(scopeIdentifier)"
+        } else {
+            provider.rawValue
+        }
+        return Self(category: "cookie", identifier: identifier)
     }
 
     public static func oauth(provider: UsageProvider) -> Self {

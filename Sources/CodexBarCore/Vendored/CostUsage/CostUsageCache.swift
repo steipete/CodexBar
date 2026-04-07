@@ -5,6 +5,8 @@ enum CostUsageCacheIO {
         switch provider {
         case .codex:
             2
+        case .claude, .vertexai:
+            2
         default:
             1
         }
@@ -75,6 +77,7 @@ struct CostUsageFileUsage: Codable {
     var lastModel: String?
     var lastTotals: CostUsageCodexTotals?
     var sessionId: String?
+    var claudeRows: [CostUsageScanner.ClaudeUsageRow]?
 }
 
 struct CostUsageCodexTotals: Codable {

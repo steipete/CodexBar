@@ -16,6 +16,8 @@ struct ProviderMenuActionContext {
     let store: UsageStore
     let settings: SettingsStore
     let account: AccountInfo
+    let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?
+    let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?
 }
 
 struct ProviderMenuLoginContext {

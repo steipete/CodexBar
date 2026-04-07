@@ -86,21 +86,25 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
             createdAt: 1,
             persistentRefHash: "ref1"))
         let start = Date(timeIntervalSince1970: 10000)
-        let (first, second) = await self.withCoordinatorOverrides(
-            cliAvailable: true,
-            touchAuthPath: { _, _ in
-                box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
-                    modifiedAt: 2,
-                    createdAt: 2,
-                    persistentRefHash: "ref2")
-            },
-            keychainFingerprint: { box.fingerprint },
-            operation: {
-                let first = await ClaudeOAuthDelegatedRefreshCoordinator.attempt(now: start, timeout: 0.1)
-                let second = await ClaudeOAuthDelegatedRefreshCoordinator
-                    .attempt(now: start.addingTimeInterval(30), timeout: 0.1)
-                return (first, second)
-            })
+        let (first, second) = await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+            .securityFramework)
+        {
+            await self.withCoordinatorOverrides(
+                cliAvailable: true,
+                touchAuthPath: { _, _ in
+                    box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                        modifiedAt: 2,
+                        createdAt: 2,
+                        persistentRefHash: "ref2")
+                },
+                keychainFingerprint: { box.fingerprint },
+                operation: {
+                    let first = await ClaudeOAuthDelegatedRefreshCoordinator.attempt(now: start, timeout: 0.1)
+                    let second = await ClaudeOAuthDelegatedRefreshCoordinator
+                        .attempt(now: start.addingTimeInterval(30), timeout: 0.1)
+                    return (first, second)
+                })
+        }
 
         #expect(first == .attemptedSucceeded)
         #expect(second == .skippedByCooldown)
@@ -135,20 +139,24 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
             modifiedAt: 10,
             createdAt: 10,
             persistentRefHash: "refA"))
-        let outcome = await self.withCoordinatorOverrides(
-            cliAvailable: true,
-            touchAuthPath: { _, _ in
-                box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
-                    modifiedAt: 11,
-                    createdAt: 11,
-                    persistentRefHash: "refB")
-            },
-            keychainFingerprint: { box.fingerprint },
-            operation: {
-                await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
-                    now: Date(timeIntervalSince1970: 30000),
-                    timeout: 0.1)
-            })
+        let outcome = await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+            .securityFramework)
+        {
+            await self.withCoordinatorOverrides(
+                cliAvailable: true,
+                touchAuthPath: { _, _ in
+                    box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                        modifiedAt: 11,
+                        createdAt: 11,
+                        persistentRefHash: "refB")
+                },
+                keychainFingerprint: { box.fingerprint },
+                operation: {
+                    await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                        now: Date(timeIntervalSince1970: 30000),
+                        timeout: 0.1)
+                })
+        }
 
         #expect(outcome == .attemptedSucceeded)
     }
@@ -289,33 +297,35 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
             createdAt: 1,
             persistentRefHash: "ref1"))
         let now = Date(timeIntervalSince1970: 50000)
-        let outcomes = await self.withCoordinatorOverrides(
-            isolateState: false,
-            cliAvailable: true,
-            touchAuthPath: { _, _ in
-                counter.increment()
-                await gate.markStarted()
-                await gate.waitRelease()
-                box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
-                    modifiedAt: 2,
-                    createdAt: 2,
-                    persistentRefHash: "ref2")
-            },
-            keychainFingerprint: { box.fingerprint },
-            operation: {
-                let first = Task {
-                    await ClaudeOAuthDelegatedRefreshCoordinator.attempt(now: now, timeout: 2)
-                }
-                await gate.waitStarted()
-                let second = Task {
-                    await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
-                        now: now.addingTimeInterval(30),
-                        timeout: 2)
-                }
+        let outcomes = await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+            await self.withCoordinatorOverrides(
+                isolateState: false,
+                cliAvailable: true,
+                touchAuthPath: { _, _ in
+                    counter.increment()
+                    await gate.markStarted()
+                    await gate.waitRelease()
+                    box.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                        modifiedAt: 2,
+                        createdAt: 2,
+                        persistentRefHash: "ref2")
+                },
+                keychainFingerprint: { box.fingerprint },
+                operation: {
+                    let first = Task {
+                        await ClaudeOAuthDelegatedRefreshCoordinator.attempt(now: now, timeout: 2)
+                    }
+                    await gate.waitStarted()
+                    let second = Task {
+                        await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                            now: now.addingTimeInterval(30),
+                            timeout: 2)
+                    }
 
-                await gate.release()
-                return await [first.value, second.value]
-            })
+                    await gate.release()
+                    return await [first.value, second.value]
+                })
+        }
 
         #expect(outcomes.allSatisfy { $0 == .attemptedSucceeded })
         #expect(counter.count == 1)

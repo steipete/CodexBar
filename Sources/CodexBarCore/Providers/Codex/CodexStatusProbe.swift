@@ -59,21 +59,24 @@ public struct CodexStatusProbe {
     public var codexBinary: String = "codex"
     public var timeout: TimeInterval = Self.defaultTimeoutSeconds
     public var keepCLISessionsAlive: Bool = false
+    public var environment: [String: String] = ProcessInfo.processInfo.environment
 
     public init() {}
 
     public init(
         codexBinary: String = "codex",
         timeout: TimeInterval = 8.0,
-        keepCLISessionsAlive: Bool = false)
+        keepCLISessionsAlive: Bool = false,
+        environment: [String: String] = ProcessInfo.processInfo.environment)
     {
         self.codexBinary = codexBinary
         self.timeout = timeout
         self.keepCLISessionsAlive = keepCLISessionsAlive
+        self.environment = environment
     }
 
     public func fetch() async throws -> CodexStatusSnapshot {
-        let env = ProcessInfo.processInfo.environment
+        let env = self.environment
         let resolved = BinaryLocator.resolveCodexBinary(env: env, loginPATH: LoginShellPathCache.shared.current)
             ?? self.codexBinary
         guard FileManager.default.isExecutableFile(atPath: resolved) || TTYCommandRunner.which(resolved) != nil else {
@@ -200,7 +203,8 @@ public struct CodexStatusProbe {
                     binary: binary,
                     timeout: timeout,
                     rows: rows,
-                    cols: cols)
+                    cols: cols,
+                    environment: self.environment)
             } catch CodexCLISession.SessionError.processExited {
                 throw CodexStatusProbeError.timedOut
             } catch CodexCLISession.SessionError.timedOut {
@@ -218,7 +222,8 @@ public struct CodexStatusProbe {
                     rows: rows,
                     cols: cols,
                     timeout: timeout,
-                    extraArgs: ["-s", "read-only", "-a", "untrusted"]))
+                    extraArgs: ["-s", "read-only", "-a", "untrusted"],
+                    baseEnvironment: self.environment))
             text = result.text
         }
         return try Self.parse(text: text)

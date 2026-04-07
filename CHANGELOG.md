@@ -1,12 +1,40 @@
 # Changelog
 
-## 0.20.0 — 2026-03-30
+## 0.20 — 2026-04-07
 
 ### Highlights
+- Add support for switching between system Codex accounts/profiles. No need to manually logout/login between Codex accounts. @ratulsarna
+- Add workspace attribution to codex accounts to allow for workspace labeling and same-email multi-workspace accounts.
+- Improve Codex multi-account support with canonical identity reconciliation, workspace-aware attribution, safer OpenAI dashboard ownership. Thanks @monterrr for the help!
+- Add OpenCode Go as a separate provider with 5-hour, weekly, and monthly web usage tracking, widget integration, and browser-cookie support.
+
+### Providers & Usage
+- Claude: fix token and cost inflation caused by cross-file double counting of subagent JSONL logs, fix streaming chunk dedup to keep the final cumulative chunk instead of the first partial one, and add `claude-sonnet-4-6` pricing. Thanks @enzonaute for the investigation!
+- Codex: reconcile live-system and managed accounts by canonical identity, preserve account-scoped usage/history/dashboard state, 
+- Codex: improve workspace-based account attribution, allow OAuth CLI fallback, and tighten OpenAI web ownership gating so quota and credits only attach to the matching account.
+- Codex: refactor the provider end to end into clearer components and better division of responsibilities.
+- OpenCode: preserve product separation between Zen and Go, improve null/unsupported usage handling, and harden cookie/domain behavior for authenticated web fetches.
+- OpenCode Go: add a dedicated provider, parse live authenticated workspace Go usage from the web app, keep monthly optional and honor workspace env overrides.
+- Cost history: merge supported pi session usage into Codex/Claude provider history (#653). Thanks @ngutman!
+
+### Menu & Settings
+- Codex: add UI for switching the system-level Codex account and promoting a managed account into the live system slot.
+- Codex: hide display-only OpenAI web extras in widgets and fix buy-credits / credits-only presentation regressions.
+- Claude: enable “Avoid Keychain prompts” by default, remove the experimental label, and preserve user-action cooldown clearing plus startup bootstrap when Security.framework fallback is still needed.
+
+## 0.20.0-beta.1 — 2026-04-01
+
+### Highlights
+- Add basic multi-account support to Codex. Thanks @monterrr and @Rag30 for the initial effort and ideas!
 - Add Perplexity provider with recurring, bonus, and purchased-credit tracking; plan detection (Pro/Max); and browser-cookie auto-import with manual-cookie fallback (#449). Thanks @BeelixGit!
 
 ### Providers & Usage
+- Add the foundation for multi-account support to Codex and basic UX for adding and switching accounts. @ratulsarna
+- Codex: normalize weekly-only rate limits across OAuth and CLI/RPC so free-plan accounts render as Weekly instead of a fake Session, preserve unknown single-window payloads in the primary lane, hide the empty Session lane in widgets, and accept weekly-only Codex CLI `/status`/RPC data without failing. @ratulsarna
 - Perplexity: add provider support with credit tracking for recurring (monthly), bonus (promotional), and purchased on-demand credits; plan detection (Pro/Max); and browser-cookie auto-import with manual-cookie fallback (#449). Thanks @BeelixGit!
+
+### Menu & Settings
+- Fix alignment of menu chart hover coordinates on macOS. Thanks @cuidong233!
 
 ## 0.19.0 — 2026-03-23
 ### Highlights

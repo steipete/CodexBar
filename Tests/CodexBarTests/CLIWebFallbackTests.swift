@@ -63,6 +63,54 @@ struct CLIWebFallbackTests {
     }
 
     @Test
+    func `codex display only falls back in auto`() {
+        let strategy = CodexWebDashboardStrategy()
+        let decision = self.makeCodexDisplayOnlyDecision()
+
+        #expect(strategy.shouldFallback(
+            on: CodexDashboardPolicyError.displayOnly(decision),
+            context: self.makeContext(sourceMode: .auto)))
+    }
+
+    @Test
+    func `codex display only does not fall back in explicit web`() {
+        let strategy = CodexWebDashboardStrategy()
+        let decision = self.makeCodexDisplayOnlyDecision()
+
+        #expect(!strategy.shouldFallback(
+            on: CodexDashboardPolicyError.displayOnly(decision),
+            context: self.makeContext(sourceMode: .web)))
+    }
+
+    @Test
+    func `codex web strategy is unavailable when managed account store is unreadable`() async {
+        let context = self.makeContext(settings: ProviderSettingsSnapshot.make(
+            codex: .init(
+                usageDataSource: .auto,
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                managedAccountStoreUnreadable: true)))
+        let strategy = CodexWebDashboardStrategy()
+        let available = await strategy.isAvailable(context)
+
+        #expect(!available)
+    }
+
+    @Test
+    func `codex web strategy is unavailable when selected managed target is unavailable`() async {
+        let context = self.makeContext(settings: ProviderSettingsSnapshot.make(
+            codex: .init(
+                usageDataSource: .auto,
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                managedAccountTargetUnavailable: true)))
+        let strategy = CodexWebDashboardStrategy()
+        let available = await strategy.isAvailable(context)
+
+        #expect(!available)
+    }
+
+    @Test
     func `claude falls back when no session key`() {
         let context = self.makeContext()
         let strategy = ClaudeWebFetchStrategy(browserDetection: BrowserDetection(cacheTTL: 0))
@@ -98,5 +146,27 @@ struct CLIWebFallbackTests {
         let error = ClaudeWebAPIFetcher.FetchError.unauthorized
         #expect(strategy.shouldFallback(on: error, context: self.makeContext(runtime: .cli, sourceMode: .auto)))
         #expect(!strategy.shouldFallback(on: error, context: self.makeContext(runtime: .app, sourceMode: .auto)))
+    }
+
+    private func makeCodexDisplayOnlyDecision() -> CodexDashboardAuthorityDecision {
+        CodexDashboardAuthority.evaluate(
+            CodexDashboardAuthorityInput(
+                sourceKind: .liveWeb,
+                proof: CodexDashboardOwnershipProofContext(
+                    currentIdentity: .emailOnly(normalizedEmail: "shared@example.com"),
+                    expectedScopedEmail: nil,
+                    trustedCurrentUsageEmail: nil,
+                    dashboardSignedInEmail: "shared@example.com",
+                    knownOwners: [
+                        CodexDashboardKnownOwnerCandidate(
+                            identity: .providerAccount(id: "acct-alpha"),
+                            normalizedEmail: "shared@example.com"),
+                        CodexDashboardKnownOwnerCandidate(
+                            identity: .providerAccount(id: "acct-beta"),
+                            normalizedEmail: "shared@example.com"),
+                    ]),
+                routing: CodexDashboardRoutingHints(
+                    targetEmail: "shared@example.com",
+                    lastKnownDashboardRoutingEmail: nil)))
     }
 }

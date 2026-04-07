@@ -46,7 +46,28 @@ enum CostUsageScanner {
 
     struct ClaudeParseResult {
         let days: [String: [String: [Int]]]
+        let rows: [ClaudeUsageRow]
         let parsedBytes: Int64
+    }
+
+    enum ClaudePathRole: String, Codable, Sendable {
+        case parent
+        case subagent
+    }
+
+    struct ClaudeUsageRow: Codable, Sendable {
+        let dayKey: String
+        let model: String
+        let sessionId: String?
+        let messageId: String?
+        let requestId: String?
+        let isSidechain: Bool
+        let pathRole: ClaudePathRole
+        let input: Int
+        let cacheRead: Int
+        let cacheCreate: Int
+        let output: Int
+        let costNanos: Int
     }
 
     static func loadDailyReport(
@@ -70,8 +91,8 @@ enum CostUsageScanner {
                 filtered.claudeLogProviderFilter = .vertexAIOnly
             }
             return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
-        case .zai, .gemini, .antigravity, .cursor, .opencode, .alibaba, .factory, .copilot, .minimax, .kilo,
-             .kiro, .kimi,
+        case .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba, .factory, .copilot,
+             .minimax, .kilo, .kiro, .kimi,
              .kimik2, .augment, .jetbrains, .amp, .ollama, .synthetic, .openrouter, .warp, .perplexity:
             return emptyReport
         }
@@ -621,7 +642,8 @@ enum CostUsageScanner {
         parsedBytes: Int64?,
         lastModel: String? = nil,
         lastTotals: CostUsageCodexTotals? = nil,
-        sessionId: String? = nil) -> CostUsageFileUsage
+        sessionId: String? = nil,
+        claudeRows: [ClaudeUsageRow]? = nil) -> CostUsageFileUsage
     {
         CostUsageFileUsage(
             mtimeUnixMs: mtimeUnixMs,
@@ -630,7 +652,8 @@ enum CostUsageScanner {
             parsedBytes: parsedBytes,
             lastModel: lastModel,
             lastTotals: lastTotals,
-            sessionId: sessionId)
+            sessionId: sessionId,
+            claudeRows: claudeRows)
     }
 
     static func mergeFileDays(
