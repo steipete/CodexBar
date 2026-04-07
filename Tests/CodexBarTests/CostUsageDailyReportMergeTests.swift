@@ -107,4 +107,39 @@ struct CostUsageDailyReportMergeTests {
         #expect(merged.summary?.totalTokens == 70)
         #expect(abs((merged.summary?.totalCostUSD ?? 0) - 0.70) < 0.000001)
     }
+
+    @Test
+    func `merged report includes derived totals when another same day entry has explicit total`() {
+        let explicit = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-04",
+                    inputTokens: 70,
+                    outputTokens: 30,
+                    totalTokens: 100,
+                    costUSD: 1.0,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: nil),
+            ],
+            summary: nil)
+        let derived = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-04",
+                    inputTokens: 10,
+                    outputTokens: 5,
+                    cacheReadTokens: 3,
+                    cacheCreationTokens: 2,
+                    totalTokens: nil,
+                    costUSD: 0.25,
+                    modelsUsed: ["gpt-5.3-codex"],
+                    modelBreakdowns: nil),
+            ],
+            summary: nil)
+
+        let merged = CostUsageDailyReport.merged([explicit, derived])
+        #expect(merged.data.first?.totalTokens == 120)
+        #expect(merged.summary?.totalTokens == 120)
+        #expect(abs((merged.data.first?.costUSD ?? 0) - 1.25) < 0.000001)
+    }
 }

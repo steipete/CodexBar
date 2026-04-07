@@ -272,12 +272,17 @@ extension CostUsageDailyReport {
         var sawOutputTokens = false
         var totalTokens: Int = 0
         var sawTotalTokens = false
+        var derivedTotalTokensWithoutExplicitTotal: Int = 0
         var costUSD: Double = 0
         var sawCost = false
         var modelsUsed: Set<String> = []
         var breakdowns: [String: BreakdownAccumulator] = [:]
 
         mutating func add(_ entry: Entry) {
+            let entryDerivedTotalTokens = (entry.inputTokens ?? 0)
+                + (entry.cacheReadTokens ?? 0)
+                + (entry.cacheCreationTokens ?? 0)
+                + (entry.outputTokens ?? 0)
             if let inputTokens = entry.inputTokens {
                 self.inputTokens += inputTokens
                 self.sawInputTokens = true
@@ -297,6 +302,8 @@ extension CostUsageDailyReport {
             if let totalTokens = entry.totalTokens {
                 self.totalTokens += totalTokens
                 self.sawTotalTokens = true
+            } else if entryDerivedTotalTokens > 0 {
+                self.derivedTotalTokensWithoutExplicitTotal += entryDerivedTotalTokens
             }
             if let costUSD = entry.costUSD {
                 self.costUSD += costUSD
@@ -321,7 +328,7 @@ extension CostUsageDailyReport {
                 + self.cacheCreationTokens
                 + self.outputTokens
             let totalTokens: Int? = if self.sawTotalTokens {
-                self.totalTokens
+                self.totalTokens + self.derivedTotalTokensWithoutExplicitTotal
             } else if derivedTotalTokens > 0 {
                 derivedTotalTokens
             } else {

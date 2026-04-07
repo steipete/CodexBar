@@ -12,6 +12,7 @@
 - Codex: reconcile live-system and managed accounts by canonical identity, preserve account-scoped usage/history/dashboard state, 
 - Codex: improve workspace-based account attribution, allow OAuth CLI fallback, and tighten OpenAI web ownership gating so quota and credits only attach to the matching account.
 - Codex: refactor the provider end to end into clearer components and better division of responsibilities.
+- Cost history: merge supported pi session usage into Codex/Claude provider history (#653). Thanks @ngutman!
 
 ### Menu & Settings
 - Codex: add UI for switching the system-level Codex account and promoting a managed account into the live system slot.

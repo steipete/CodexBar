@@ -418,4 +418,69 @@ struct PiSessionCostScannerTests {
         #expect(report.data.first?.totalTokens == 99)
         #expect(abs((report.data.first?.costUSD ?? 0) - (expectedCost ?? 0)) < 0.000001)
     }
+
+    @Test
+    func `pi scanner reparses unchanged cached file when scan window expands`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let oldDay = try env.makeLocalNoon(year: 2026, month: 4, day: 2)
+        let newDay = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let oldAssistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: oldDay),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "gpt-5.4",
+                "timestamp": Int(oldDay.timeIntervalSince1970 * 1000),
+                "usage": [
+                    "input": 10,
+                    "output": 5,
+                    "totalTokens": 15,
+                ],
+            ],
+        ]
+        let newAssistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: newDay),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "gpt-5.4",
+                "timestamp": Int(newDay.timeIntervalSince1970 * 1000),
+                "usage": [
+                    "input": 20,
+                    "output": 10,
+                    "totalTokens": 30,
+                ],
+            ],
+        ]
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-04-08T10-00-00-000Z_test.jsonl",
+            contents: env.jsonl([oldAssistant, newAssistant]))
+
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 3600)
+        let narrowReport = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: newDay,
+            until: newDay,
+            now: newDay,
+            options: options)
+        #expect(narrowReport.data.map(\.date) == ["2026-04-08"])
+        #expect(narrowReport.data.first?.totalTokens == 30)
+
+        let expandedReport = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: oldDay,
+            until: newDay,
+            now: newDay.addingTimeInterval(1),
+            options: options)
+        #expect(expandedReport.data.map(\.date) == ["2026-04-02", "2026-04-08"])
+        #expect(expandedReport.summary?.totalTokens == 45)
+    }
 }

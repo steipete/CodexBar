@@ -67,7 +67,7 @@ enum PiSessionCostScanner {
                 self.scanPiSessionFile(
                     fileURL: fileURL,
                     range: range,
-                    forceRescan: options.forceRescan,
+                    forceRescan: options.forceRescan || windowExpanded,
                     cache: &cache)
             }
 
