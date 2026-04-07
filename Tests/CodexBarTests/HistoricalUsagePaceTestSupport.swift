@@ -123,6 +123,23 @@ extension HistoricalUsagePaceTests {
         try data.write(to: fileURL, options: .atomic)
     }
 
+    static func writeHistoricalRecords(_ records: [HistoricalUsageRecord], to fileURL: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
+        let lines = try records.map { record -> String in
+            let data = try encoder.encode(record)
+            guard let line = String(bytes: data, encoding: .utf8) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            return line
+        }
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try (lines.joined(separator: "\n") + "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+    }
+
     static func recordDedupKeyCount(_ records: [HistoricalUsageRecord]) -> Int {
         struct Key: Hashable {
             let resetsAt: Date

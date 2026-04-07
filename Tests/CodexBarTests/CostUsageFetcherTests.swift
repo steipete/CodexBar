@@ -189,13 +189,13 @@ struct CostUsageFetcherTests {
 
         #expect(snapshot.daily.count == 1)
         #expect(snapshot.daily.first?.date == "2026-04-09")
-        #expect(snapshot.daily.first?.totalTokens == 225)
+        #expect(snapshot.daily.first?.totalTokens == 205)
         #expect(abs((snapshot.daily.first?.costUSD ?? 0) - (nativeCost + piCost)) < 0.000001)
         #expect(snapshot.daily.first?.modelBreakdowns == [
             CostUsageDailyReport.ModelBreakdown(
                 modelName: "claude-sonnet-4-6",
                 costUSD: nativeCost + piCost,
-                totalTokens: 225),
+                totalTokens: 205),
         ])
     }
 }

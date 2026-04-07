@@ -264,7 +264,26 @@ extension HistoricalUsagePaceTests {
         let legacyEmailHash = CodexHistoryOwnership.legacyEmailHash(normalizedEmail: normalizedEmail)
         let canonicalEmailHashKey = CodexHistoryOwnership.canonicalEmailHashKey(for: normalizedEmail)
         let providerAccountKey = try #require(CodexHistoryOwnership.canonicalKey(for: .providerAccount(id: "acct-123")))
-        let expectedResetAt = try #require(formatter.date(from: "2026-02-17T05:37:00Z"))
+        let fixtureResetAt = try #require(formatter.date(from: "2026-02-17T05:37:00Z"))
+        let weekSeconds = TimeInterval(7 * 24 * 60 * 60)
+        let weeksToShift = max(0, Int(ceil(Date().timeIntervalSince(fixtureResetAt) / weekSeconds)))
+        let dateShift = TimeInterval(weeksToShift) * weekSeconds
+        let records = try Self.readHistoricalRecords(from: fileURL)
+        try Self.writeHistoricalRecords(
+            records.map { record in
+                HistoricalUsageRecord(
+                    v: record.v,
+                    provider: record.provider,
+                    windowKind: record.windowKind,
+                    source: record.source,
+                    accountKey: record.accountKey,
+                    sampledAt: record.sampledAt.addingTimeInterval(dateShift),
+                    usedPercent: record.usedPercent,
+                    resetsAt: record.resetsAt.addingTimeInterval(dateShift),
+                    windowMinutes: record.windowMinutes)
+            },
+            to: fileURL)
+        let expectedResetAt = fixtureResetAt.addingTimeInterval(dateShift)
 
         let dataset = await store.loadCodexDataset(
             canonicalAccountKey: providerAccountKey,
