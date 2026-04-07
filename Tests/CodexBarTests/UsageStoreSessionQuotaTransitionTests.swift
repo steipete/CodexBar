@@ -12,6 +12,8 @@ struct UsageStoreSessionQuotaTransitionTests {
         func post(transition: SessionQuotaTransition, provider: UsageProvider, badge _: NSNumber?) {
             self.posts.append((transition: transition, provider: provider))
         }
+
+        func postResetWarning(idPrefix _: String, title _: String, body _: String) {}
     }
 
     @Test
