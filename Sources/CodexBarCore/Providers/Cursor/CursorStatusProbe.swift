@@ -807,11 +807,8 @@ public struct CursorStatusProbe: Sendable {
     }
 
     private func fetchWithCookieHeader(_ cookieHeader: String) async throws -> CursorStatusSnapshot {
-        async let usageSummaryTask = self.fetchUsageSummary(cookieHeader: cookieHeader)
-        async let userInfoTask = self.fetchUserInfo(cookieHeader: cookieHeader)
-
-        let (usageSummary, rawJSON) = try await usageSummaryTask
-        let userInfo = try? await userInfoTask
+        let (usageSummary, rawJSON) = try await self.fetchUsageSummary(cookieHeader: cookieHeader)
+        let userInfo = try? await self.fetchUserInfo(cookieHeader: cookieHeader)
 
         // Fetch legacy request usage only if user has a sub ID.
         // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
