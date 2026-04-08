@@ -204,7 +204,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         preferencesSelection: PreferencesSelection,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
-        statusBar: NSStatusBar = .system)
+        statusBar: NSStatusBar = .system,
+        observeProviderConfigNotifications: Bool = !SettingsStore.isRunningTests)
     {
         if SettingsStore.isRunningTests {
             _ = NSApplication.shared
@@ -246,11 +247,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             selector: #selector(self.handleDebugBlinkNotification),
             name: .codexbarDebugBlinkNow,
             object: nil)
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(self.handleProviderConfigDidChange),
-            name: .codexbarProviderConfigDidChange,
-            object: nil)
+        if observeProviderConfigNotifications {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.handleProviderConfigDidChange),
+                name: .codexbarProviderConfigDidChange,
+                object: nil)
+        }
     }
 
     convenience init(
@@ -259,7 +262,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         account: AccountInfo,
         updater: UpdaterProviding,
         preferencesSelection: PreferencesSelection,
-        statusBar: NSStatusBar = .system)
+        statusBar: NSStatusBar = .system,
+        observeProviderConfigNotifications: Bool = !SettingsStore.isRunningTests)
     {
         self.init(
             store: store,
@@ -269,7 +273,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             preferencesSelection: preferencesSelection,
             managedCodexAccountCoordinator: ManagedCodexAccountCoordinator(),
             codexAccountPromotionCoordinator: nil,
-            statusBar: statusBar)
+            statusBar: statusBar,
+            observeProviderConfigNotifications: observeProviderConfigNotifications)
     }
 
     private func wireBindings() {
