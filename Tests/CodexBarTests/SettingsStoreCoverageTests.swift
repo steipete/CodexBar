@@ -47,7 +47,7 @@ struct SettingsStoreCoverageTests {
         #expect(settings.menuBarMetricSupportsAverage(for: .gemini))
 
         settings.setMenuBarMetricPreference(.secondary, for: .zai)
-        #expect(settings.menuBarMetricPreference(for: .zai) == .primary)
+        #expect(settings.menuBarMetricPreference(for: .zai) == .secondary)
 
         settings.menuBarDisplayMode = .pace
         #expect(settings.menuBarDisplayMode == .pace)

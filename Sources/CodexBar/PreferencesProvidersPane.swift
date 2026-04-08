@@ -440,7 +440,6 @@ struct ProvidersPane: View {
     }
 
     func menuBarMetricPicker(for provider: UsageProvider) -> ProviderSettingsPickerDescriptor? {
-        if provider == .zai { return nil }
         let options: [ProviderSettingsPickerOption]
         if provider == .openrouter {
             options = [
