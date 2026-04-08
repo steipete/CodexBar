@@ -147,7 +147,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         return ids[0]
     }
 
-    private static func normalizeWorkspaceID(_ raw: String?) -> String? {
+    static func normalizeWorkspaceID(_ raw: String?) -> String? {
         guard let raw else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("wrk_"), trimmed.count > 4 {
