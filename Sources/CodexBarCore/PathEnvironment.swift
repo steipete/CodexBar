@@ -61,10 +61,10 @@ public enum BinaryLocator {
     /// Covers the macOS Terminal installer (cmux.app), ~/.claude/bin, and Homebrew.
     static func claudeWellKnownPaths(home: String) -> [String] {
         [
-            "/Applications/cmux.app/Contents/Resources/bin/claude",
             "\(home)/.claude/bin/claude",
-            "/usr/local/bin/claude",
             "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+            "/Applications/cmux.app/Contents/Resources/bin/claude",
         ]
     }
 
