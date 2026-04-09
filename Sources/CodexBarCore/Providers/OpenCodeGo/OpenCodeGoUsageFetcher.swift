@@ -676,7 +676,11 @@ public struct OpenCodeGoUsageFetcher: Sendable {
 
     private static func looksSignedOut(text: String) -> Bool {
         let lower = text.lowercased()
-        return lower.contains("login") || lower.contains("sign in") || lower.contains("auth/authorize")
+        return lower.contains("login") ||
+            lower.contains("sign in") ||
+            lower.contains("auth/authorize") ||
+            lower.contains("not associated with an account") ||
+            lower.contains("actor of type \"public\"")
     }
 
     private static func extractServerErrorMessage(from text: String) -> String? {

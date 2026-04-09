@@ -11,6 +11,7 @@
 - z.ai: preserve both weekly and 5-hour token quotas, keep the existing 2-limit behavior unchanged, and render the 5-hour quota as a tertiary row in provider snapshots and CLI/menu cards (#662). Credit to @takumi3488 for the original fix and investigation.
 - Cursor: fix the usage fetch path so failed or cancelled requests no longer crash, and add Linux build and regression test coverage fixes (#663).
 - Claude: preserve normal CLI fallback precedence across well-known install paths so Finder-launched apps prefer `~/.claude/bin/claude`, then Homebrew, before the bundled `cmux.app` binary when shell-based resolution is unavailable.
+- OpenCode / OpenCode Go: treat serialized `_server` auth/account-context failures as invalid credentials so cached browser cookies are cleared and retried instead of surfacing a misleading HTTP 500.
 
 ### Menu & Settings
 - z.ai: fix menu bar selection when both weekly and 5-hour quotas are present (#662).

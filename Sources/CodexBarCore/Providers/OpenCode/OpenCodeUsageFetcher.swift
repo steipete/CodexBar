@@ -441,7 +441,12 @@ public struct OpenCodeUsageFetcher: Sendable {
 
     private static func looksSignedOut(text: String) -> Bool {
         let lower = text.lowercased()
-        if lower.contains("login") || lower.contains("sign in") || lower.contains("auth/authorize") {
+        if lower.contains("login") ||
+            lower.contains("sign in") ||
+            lower.contains("auth/authorize") ||
+            lower.contains("not associated with an account") ||
+            lower.contains("actor of type \"public\"")
+        {
             return true
         }
         return false

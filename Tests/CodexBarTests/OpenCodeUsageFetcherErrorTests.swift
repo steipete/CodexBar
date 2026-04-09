@@ -151,6 +151,47 @@ struct OpenCodeUsageFetcherErrorTests {
     }
 
     @Test
+    func `workspace get public actor error is treated as invalid credentials without post retry`() async throws {
+        defer {
+            OpenCodeStubURLProtocol.handler = nil
+        }
+
+        var methods: [String] = []
+        OpenCodeStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            methods.append(request.httpMethod ?? "GET")
+            let body = [
+                #";0x00000263;((self.$R=self.$R||{})["server-fn:test"]=[],"#,
+                #"($R=>$R[0]=Object.assign(new Error("actor of type \"public\" is not associated with an account"),"#,
+                #"{stack:"Error: actor of type \"public\" is not associated with an account"}))"#,
+                #"($R["server-fn:test"]))"#,
+            ].joined()
+            return Self.makeResponse(
+                url: url,
+                body: body,
+                statusCode: 200,
+                contentType: "text/javascript")
+        }
+
+        do {
+            _ = try await OpenCodeUsageFetcher.fetchUsage(
+                cookieHeader: "auth=test",
+                timeout: 2,
+                session: self.makeSession())
+            Issue.record("Expected OpenCodeUsageError.invalidCredentials")
+        } catch let error as OpenCodeUsageError {
+            switch error {
+            case .invalidCredentials:
+                break
+            default:
+                Issue.record("Expected invalidCredentials, got: \(error)")
+            }
+        }
+
+        #expect(methods == ["GET"])
+    }
+
+    @Test
     func `subscription get missing fields falls back to post`() async throws {
         defer {
             OpenCodeStubURLProtocol.handler = nil
