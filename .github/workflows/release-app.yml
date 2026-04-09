@@ -164,7 +164,10 @@ jobs:
       - name: Install Python signing dependency
         if: ${{ steps.mode.outputs.release_enabled == 'true' }}
         shell: bash
-        run: python3 -m pip install --user cryptography
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/appcast-venv"
+          "$RUNNER_TEMP/appcast-venv/bin/python" -m pip install cryptography
 
       - name: Generate and validate appcast
         if: ${{ steps.mode.outputs.release_enabled == 'true' }}
@@ -176,6 +179,7 @@ jobs:
           VERSION="${{ steps.mode.outputs.version }}"
           printf '%s\n' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle-private-key.txt"
           export SPARKLE_PRIVATE_KEY_FILE="$RUNNER_TEMP/sparkle-private-key.txt"
+          export PATH="$RUNNER_TEMP/appcast-venv/bin:$PATH"
           ./Scripts/make_appcast.sh "CodexBar-${VERSION}.zip"
           xmllint --noout appcast.xml
 
