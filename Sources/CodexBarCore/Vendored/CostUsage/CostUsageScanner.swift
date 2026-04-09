@@ -1,6 +1,8 @@
 import Foundation
 
 enum CostUsageScanner {
+    private static let log = CodexBarLog.logger(LogCategories.tokenCost)
+
     enum ClaudeLogProviderFilter {
         case all
         case vertexAIOnly
@@ -37,11 +39,121 @@ enum CostUsageScanner {
         let lastModel: String?
         let lastTotals: CostUsageCodexTotals?
         let sessionId: String?
+        let forkedFromId: String?
     }
 
     private struct CodexScanState {
         var seenSessionIds: Set<String> = []
         var seenFileIds: Set<String> = []
+    }
+
+    private struct CodexTimestampedTotals {
+        let timestamp: String
+        let date: Date?
+        let totals: CostUsageCodexTotals
+    }
+
+    private final class CodexSessionFileIndex {
+        private let files: [URL]
+        private var nextUnindexedFile = 0
+        private var fileURLBySessionId: [String: URL] = [:]
+        private var missingSessionIds: Set<String> = []
+
+        init(files: [URL]) {
+            self.files = files
+        }
+
+        func remember(fileURL: URL, sessionId: String?) {
+            guard let sessionId, !sessionId.isEmpty else { return }
+            self.fileURLBySessionId[sessionId] = fileURL
+        }
+
+        func fileURL(for sessionId: String) -> URL? {
+            if let cached = self.fileURLBySessionId[sessionId] {
+                return cached
+            }
+            if self.missingSessionIds.contains(sessionId) {
+                return nil
+            }
+
+            while self.nextUnindexedFile < self.files.count {
+                let fileURL = self.files[self.nextUnindexedFile]
+                self.nextUnindexedFile += 1
+                guard let indexedSessionId = CostUsageScanner.parseCodexSessionIdentifier(fileURL: fileURL) else {
+                    continue
+                }
+                self.fileURLBySessionId[indexedSessionId] = fileURL
+                if indexedSessionId == sessionId {
+                    return fileURL
+                }
+            }
+
+            self.missingSessionIds.insert(sessionId)
+            return nil
+        }
+    }
+
+    private final class CodexInheritedTotalsResolver {
+        private let fileIndex: CodexSessionFileIndex
+        private var snapshotsBySessionId: [String: [CodexTimestampedTotals]] = [:]
+
+        init(fileIndex: CodexSessionFileIndex) {
+            self.fileIndex = fileIndex
+        }
+
+        func inheritedTotals(for sessionId: String, atOrBefore cutoffTimestamp: String) -> CostUsageCodexTotals? {
+            guard !cutoffTimestamp.isEmpty else { return nil }
+            let cutoffDate = CostUsageScanner.dateFromTimestamp(cutoffTimestamp)
+            if cutoffDate == nil {
+                CostUsageScanner.log.warning(
+                    "Codex cost usage could not parse fork timestamp; falling back to lexical comparison",
+                    metadata: ["sessionId": sessionId, "timestamp": cutoffTimestamp])
+            }
+            let snapshots = self.snapshots(for: sessionId)
+            var inherited: CostUsageCodexTotals?
+            for snapshot in snapshots {
+                let isAtOrBefore: Bool
+                if let snapshotDate = snapshot.date, let cutoffDate {
+                    isAtOrBefore = snapshotDate <= cutoffDate
+                } else {
+                    isAtOrBefore = snapshot.timestamp <= cutoffTimestamp
+                }
+                if isAtOrBefore {
+                    inherited = snapshot.totals
+                }
+            }
+            return inherited
+        }
+
+        private func snapshots(for sessionId: String) -> [CodexTimestampedTotals] {
+            if let cached = self.snapshotsBySessionId[sessionId] {
+                return cached
+            }
+            guard let fileURL = self.fileIndex.fileURL(for: sessionId) else {
+                CostUsageScanner.log.warning(
+                    "Codex cost usage parent session file not found",
+                    metadata: ["sessionId": sessionId])
+                return []
+            }
+            let parsed = CostUsageScanner.parseCodexTokenSnapshots(fileURL: fileURL)
+            guard let parsedSessionId = parsed.sessionId else {
+                CostUsageScanner.log.warning(
+                    "Codex cost usage parent session missing session metadata",
+                    metadata: ["sessionId": sessionId, "path": fileURL.path])
+                return []
+            }
+            if parsedSessionId != sessionId {
+                CostUsageScanner.log.warning(
+                    "Codex cost usage parent session resolved to mismatched session id",
+                    metadata: [
+                        "requestedSessionId": sessionId,
+                        "resolvedSessionId": parsedSessionId,
+                        "path": fileURL.path,
+                    ])
+            }
+            self.snapshotsBySessionId[parsedSessionId] = parsed.snapshots
+            return self.snapshotsBySessionId[sessionId] ?? []
+        }
     }
 
     struct ClaudeParseResult {
@@ -157,15 +269,21 @@ enum CostUsageScanner {
             .appendingPathComponent("archived_sessions", isDirectory: true)
     }
 
-    private static func listCodexSessionFiles(root: URL, scanSinceKey: String, scanUntilKey: String) -> [URL] {
+    private static func listCodexSessionFiles(
+        root: URL,
+        scanSinceKey: String,
+        scanUntilKey: String,
+        includeRecursive: Bool
+    ) -> [URL] {
         let partitioned = self.listCodexSessionFilesByDatePartition(
             root: root,
             scanSinceKey: scanSinceKey,
             scanUntilKey: scanUntilKey)
         let flat = self.listCodexSessionFilesFlat(root: root, scanSinceKey: scanSinceKey, scanUntilKey: scanUntilKey)
+        let recursive = includeRecursive ? self.listCodexSessionFilesRecursive(root: root) : []
         var seen: Set<String> = []
         var out: [URL] = []
-        for item in partitioned + flat where !seen.contains(item.path) {
+        for item in partitioned + flat + recursive where !seen.contains(item.path) {
             seen.insert(item.path)
             out.append(item)
         }
@@ -228,6 +346,22 @@ enum CostUsageScanner {
         return out
     }
 
+    private static func listCodexSessionFilesRecursive(root: URL) -> [URL] {
+        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants])
+        else { return [] }
+
+        var out: [URL] = []
+        while let item = enumerator.nextObject() as? URL {
+            guard item.pathExtension.lowercased() == "jsonl" else { continue }
+            out.append(item)
+        }
+        return out
+    }
+
     private static let codexFilenameDateRegex = try? NSRegularExpression(pattern: "(\\d{4}-\\d{2}-\\d{2})")
 
     private static func dayKeyFromFilename(_ filename: String) -> String? {
@@ -247,16 +381,156 @@ enum CostUsageScanner {
         return String(describing: identifier)
     }
 
+    private static func parseCodexSessionIdentifier(fileURL: URL) -> String? {
+        let handle: FileHandle
+        do {
+            handle = try FileHandle(forReadingFrom: fileURL)
+        } catch {
+            self.log.warning(
+                "Codex cost usage failed to open session file for session id parsing",
+                metadata: ["path": fileURL.path, "error": error.localizedDescription])
+            return nil
+        }
+        defer { try? handle.close() }
+
+        var buffer = Data()
+        let newline = Data([0x0A])
+
+        func parseSessionIdentifier(from lineData: Data) -> String? {
+            guard !lineData.isEmpty else { return nil }
+            guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any] else { return nil }
+            guard obj["type"] as? String == "session_meta" else { return nil }
+            let payload = obj["payload"] as? [String: Any]
+            return payload?["session_id"] as? String
+                ?? payload?["sessionId"] as? String
+                ?? payload?["id"] as? String
+                ?? obj["session_id"] as? String
+                ?? obj["sessionId"] as? String
+                ?? obj["id"] as? String
+        }
+
+        do {
+            while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                buffer.append(chunk)
+                while let newlineRange = buffer.range(of: newline) {
+                    let lineData = buffer.subdata(in: 0..<newlineRange.lowerBound)
+                    buffer.removeSubrange(0..<newlineRange.upperBound)
+                    if let sessionId = parseSessionIdentifier(from: lineData) {
+                        return sessionId
+                    }
+                }
+            }
+        } catch {
+            self.log.warning(
+                "Codex cost usage failed while reading session file for session id parsing",
+                metadata: ["path": fileURL.path, "error": error.localizedDescription])
+            return nil
+        }
+
+        if let sessionId = parseSessionIdentifier(from: buffer) {
+            return sessionId
+        }
+        return nil
+    }
+
+    private static func parseCodexTokenSnapshots(fileURL: URL) -> (
+        sessionId: String?,
+        snapshots: [CodexTimestampedTotals]
+    ) {
+        var sessionId: String?
+        var previousTotals: CostUsageCodexTotals?
+        var snapshots: [CodexTimestampedTotals] = []
+        var warnedAboutUnparsedTimestamp = false
+
+        func parsedSnapshotDate(timestamp: String) -> Date? {
+            let date = Self.dateFromTimestamp(timestamp)
+            if date == nil, !warnedAboutUnparsedTimestamp {
+                warnedAboutUnparsedTimestamp = true
+                self.log.warning(
+                    "Codex cost usage could not parse parent token snapshot timestamp; falling back to lexical comparison",
+                    metadata: ["path": fileURL.path, "timestamp": timestamp])
+            }
+            return date
+        }
+
+        do {
+            _ = try CostUsageJsonl.scan(
+                fileURL: fileURL,
+                maxLineBytes: 512 * 1024,
+                prefixBytes: 512 * 1024,
+                onLine: { line in
+                    guard !line.bytes.isEmpty, !line.wasTruncated else { return }
+                    guard let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any] else { return }
+
+                    if obj["type"] as? String == "session_meta" {
+                        let payload = obj["payload"] as? [String: Any]
+                        if sessionId == nil {
+                            sessionId = payload?["session_id"] as? String
+                                ?? payload?["sessionId"] as? String
+                                ?? payload?["id"] as? String
+                                ?? obj["session_id"] as? String
+                                ?? obj["sessionId"] as? String
+                                ?? obj["id"] as? String
+                        }
+                        return
+                    }
+
+                    guard obj["type"] as? String == "event_msg" else { return }
+                    guard let payload = obj["payload"] as? [String: Any] else { return }
+                    guard payload["type"] as? String == "token_count" else { return }
+                    guard let info = payload["info"] as? [String: Any] else { return }
+                    guard let timestamp = obj["timestamp"] as? String else { return }
+
+                    func toInt(_ value: Any?) -> Int {
+                        if let number = value as? NSNumber { return number.intValue }
+                        return 0
+                    }
+
+                    if let total = info["total_token_usage"] as? [String: Any] {
+                        let next = CostUsageCodexTotals(
+                            input: toInt(total["input_tokens"]),
+                            cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
+                            output: toInt(total["output_tokens"]))
+                        previousTotals = next
+                        snapshots.append(CodexTimestampedTotals(
+                            timestamp: timestamp,
+                            date: parsedSnapshotDate(timestamp: timestamp),
+                            totals: next))
+                    } else if let last = info["last_token_usage"] as? [String: Any] {
+                        let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                        let next = CostUsageCodexTotals(
+                            input: base.input + toInt(last["input_tokens"]),
+                            cached: base.cached + toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"]),
+                            output: base.output + toInt(last["output_tokens"]))
+                        previousTotals = next
+                        snapshots.append(CodexTimestampedTotals(
+                            timestamp: timestamp,
+                            date: parsedSnapshotDate(timestamp: timestamp),
+                            totals: next))
+                    }
+                })
+        } catch {
+            self.log.warning(
+                "Codex cost usage failed while scanning parent token snapshots",
+                metadata: ["path": fileURL.path, "error": error.localizedDescription])
+        }
+
+        return (sessionId, snapshots)
+    }
+
     static func parseCodexFile(
         fileURL: URL,
         range: CostUsageDayRange,
         startOffset: Int64 = 0,
         initialModel: String? = nil,
-        initialTotals: CostUsageCodexTotals? = nil) -> CodexParseResult
+        initialTotals: CostUsageCodexTotals? = nil,
+        inheritedTotalsResolver: ((String, String) -> CostUsageCodexTotals?)? = nil) -> CodexParseResult
     {
         var currentModel = initialModel
         var previousTotals = initialTotals
         var sessionId: String?
+        var forkedFromId: String?
+        var inheritedTotals: CostUsageCodexTotals?
 
         var days: [String: [String: [Int]]] = [:]
 
@@ -277,12 +551,14 @@ enum CostUsageScanner {
         let maxLineBytes = 256 * 1024
         let prefixBytes = 32 * 1024
 
-        let parsedBytes = (try? CostUsageJsonl.scan(
-            fileURL: fileURL,
-            offset: startOffset,
-            maxLineBytes: maxLineBytes,
-            prefixBytes: prefixBytes,
-            onLine: { line in
+        let parsedBytes: Int64
+        do {
+            parsedBytes = try CostUsageJsonl.scan(
+                fileURL: fileURL,
+                offset: startOffset,
+                maxLineBytes: maxLineBytes,
+                prefixBytes: prefixBytes,
+                onLine: { line in
                 guard !line.bytes.isEmpty else { return }
                 guard !line.wasTruncated else { return }
 
@@ -302,14 +578,26 @@ enum CostUsageScanner {
                 else { return }
 
                 if type == "session_meta" {
+                    let payload = obj["payload"] as? [String: Any]
                     if sessionId == nil {
-                        let payload = obj["payload"] as? [String: Any]
                         sessionId = payload?["session_id"] as? String
                             ?? payload?["sessionId"] as? String
                             ?? payload?["id"] as? String
                             ?? obj["session_id"] as? String
                             ?? obj["sessionId"] as? String
                             ?? obj["id"] as? String
+                    }
+                    if forkedFromId == nil {
+                        forkedFromId = payload?["forked_from_id"] as? String
+                            ?? payload?["forkedFromId"] as? String
+                            ?? payload?["parent_session_id"] as? String
+                            ?? payload?["parentSessionId"] as? String
+                    }
+                    if inheritedTotals == nil, let forkedFromId {
+                        let forkedAt = payload?["timestamp"] as? String
+                            ?? obj["timestamp"] as? String
+                            ?? ""
+                        inheritedTotals = inheritedTotalsResolver?(forkedFromId, forkedAt)
                     }
                     return
                 }
@@ -352,19 +640,35 @@ enum CostUsageScanner {
                 var deltaOutput = 0
 
                 if let total {
-                    let input = toInt(total["input_tokens"])
-                    let cached = toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"])
-                    let output = toInt(total["output_tokens"])
+                    let rawTotals = CostUsageCodexTotals(
+                        input: toInt(total["input_tokens"]),
+                        cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
+                        output: toInt(total["output_tokens"]))
 
-                    let prev = previousTotals
-                    deltaInput = max(0, input - (prev?.input ?? 0))
-                    deltaCached = max(0, cached - (prev?.cached ?? 0))
-                    deltaOutput = max(0, output - (prev?.output ?? 0))
-                    previousTotals = CostUsageCodexTotals(input: input, cached: cached, output: output)
+                    let currentTotals: CostUsageCodexTotals
+                    if let inheritedTotals {
+                        currentTotals = CostUsageCodexTotals(
+                            input: max(0, rawTotals.input - inheritedTotals.input),
+                            cached: max(0, rawTotals.cached - inheritedTotals.cached),
+                            output: max(0, rawTotals.output - inheritedTotals.output))
+                    } else {
+                        currentTotals = rawTotals
+                    }
+
+                    let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                    deltaInput = max(0, currentTotals.input - prev.input)
+                    deltaCached = max(0, currentTotals.cached - prev.cached)
+                    deltaOutput = max(0, currentTotals.output - prev.output)
+                    previousTotals = currentTotals
                 } else if let last {
                     deltaInput = max(0, toInt(last["input_tokens"]))
                     deltaCached = max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"]))
                     deltaOutput = max(0, toInt(last["output_tokens"]))
+                    let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                    previousTotals = CostUsageCodexTotals(
+                        input: prev.input + deltaInput,
+                        cached: prev.cached + deltaCached,
+                        output: prev.output + deltaOutput)
                 } else {
                     return
                 }
@@ -372,21 +676,30 @@ enum CostUsageScanner {
                 if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
                 let cachedClamp = min(deltaCached, deltaInput)
                 add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
-            })) ?? startOffset
+            })
+        } catch {
+            self.log.warning(
+                "Codex cost usage failed while scanning session file",
+                metadata: ["path": fileURL.path, "error": error.localizedDescription])
+            parsedBytes = startOffset
+        }
 
         return CodexParseResult(
             days: days,
             parsedBytes: parsedBytes,
             lastModel: currentModel,
             lastTotals: previousTotals,
-            sessionId: sessionId)
+            sessionId: sessionId,
+            forkedFromId: forkedFromId)
     }
 
     private static func scanCodexFile(
         fileURL: URL,
         range: CostUsageDayRange,
         cache: inout CostUsageCache,
-        state: inout CodexScanState)
+        state: inout CodexScanState,
+        fileIndex: CodexSessionFileIndex,
+        inheritedResolver: CodexInheritedTotalsResolver)
     {
         let path = fileURL.path
         let attrs = (try? FileManager.default.attributesOfItem(atPath: path)) ?? [:]
@@ -432,6 +745,7 @@ enum CostUsageScanner {
             let startOffset = cached.parsedBytes ?? cached.size
             let canIncremental = size > cached.size && startOffset > 0 && startOffset <= size
                 && cached.lastTotals != nil
+                && cached.forkedFromId == nil
             if canIncremental {
                 let delta = Self.parseCodexFile(
                     fileURL: fileURL,
@@ -458,9 +772,11 @@ enum CostUsageScanner {
                     parsedBytes: delta.parsedBytes,
                     lastModel: delta.lastModel,
                     lastTotals: delta.lastTotals,
-                    sessionId: sessionId)
+                    sessionId: sessionId,
+                    forkedFromId: delta.forkedFromId ?? cached.forkedFromId)
                 if let sessionId {
                     state.seenSessionIds.insert(sessionId)
+                    fileIndex.remember(fileURL: fileURL, sessionId: sessionId)
                 }
                 if let fileId {
                     state.seenFileIds.insert(fileId)
@@ -473,7 +789,10 @@ enum CostUsageScanner {
             Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
         }
 
-        let parsed = Self.parseCodexFile(fileURL: fileURL, range: range)
+        let parsed = Self.parseCodexFile(
+            fileURL: fileURL,
+            range: range,
+            inheritedTotalsResolver: inheritedResolver.inheritedTotals(for:atOrBefore:))
         let sessionId = parsed.sessionId ?? cached?.sessionId
         if let sessionId, state.seenSessionIds.contains(sessionId) {
             cache.files.removeValue(forKey: path)
@@ -487,11 +806,13 @@ enum CostUsageScanner {
             parsedBytes: parsed.parsedBytes,
             lastModel: parsed.lastModel,
             lastTotals: parsed.lastTotals,
-            sessionId: sessionId)
+            sessionId: sessionId,
+            forkedFromId: parsed.forkedFromId)
         cache.files[path] = usage
         Self.applyFileDays(cache: &cache, fileDays: usage.days, sign: 1)
         if let sessionId {
             state.seenSessionIds.insert(sessionId)
+            fileIndex.remember(fileURL: fileURL, sessionId: sessionId)
         }
         if let fileId {
             state.seenFileIds.insert(fileId)
@@ -503,34 +824,43 @@ enum CostUsageScanner {
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
 
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
-        let shouldRefresh = refreshMs == 0 || cache.lastScanUnixMs == 0 || nowMs - cache.lastScanUnixMs > refreshMs
-
-        let roots = self.codexSessionsRoots(options: options)
-        var seenPaths: Set<String> = []
-        var files: [URL] = []
-        for root in roots {
-            let rootFiles = Self.listCodexSessionFiles(
-                root: root,
-                scanSinceKey: range.scanSinceKey,
-                scanUntilKey: range.scanUntilKey)
-            for fileURL in rootFiles.sorted(by: { $0.path < $1.path }) where !seenPaths.contains(fileURL.path) {
-                seenPaths.insert(fileURL.path)
-                files.append(fileURL)
-            }
-        }
-        let filePathsInScan = Set(files.map(\.path))
+        let shouldRefresh = options.forceRescan
+            || refreshMs == 0
+            || cache.lastScanUnixMs == 0
+            || nowMs - cache.lastScanUnixMs > refreshMs
 
         if shouldRefresh {
             if options.forceRescan {
                 cache = CostUsageCache()
             }
+
+            let roots = self.codexSessionsRoots(options: options)
+            var seenPaths: Set<String> = []
+            var files: [URL] = []
+            for root in roots {
+                let rootFiles = Self.listCodexSessionFiles(
+                    root: root,
+                    scanSinceKey: range.scanSinceKey,
+                    scanUntilKey: range.scanUntilKey,
+                    includeRecursive: true)
+                for fileURL in rootFiles.sorted(by: { $0.path < $1.path }) where !seenPaths.contains(fileURL.path) {
+                    seenPaths.insert(fileURL.path)
+                    files.append(fileURL)
+                }
+            }
+            let filePathsInScan = Set(files.map(\.path))
+
             var scanState = CodexScanState()
+            let fileIndex = CodexSessionFileIndex(files: files)
+            let inheritedResolver = CodexInheritedTotalsResolver(fileIndex: fileIndex)
             for fileURL in files {
                 Self.scanCodexFile(
                     fileURL: fileURL,
                     range: range,
                     cache: &cache,
-                    state: &scanState)
+                    state: &scanState,
+                    fileIndex: fileIndex,
+                    inheritedResolver: inheritedResolver)
             }
 
             for key in cache.files.keys where !filePathsInScan.contains(key) {
@@ -643,6 +973,7 @@ enum CostUsageScanner {
         lastModel: String? = nil,
         lastTotals: CostUsageCodexTotals? = nil,
         sessionId: String? = nil,
+        forkedFromId: String? = nil,
         claudeRows: [ClaudeUsageRow]? = nil) -> CostUsageFileUsage
     {
         CostUsageFileUsage(
@@ -653,6 +984,7 @@ enum CostUsageScanner {
             lastModel: lastModel,
             lastTotals: lastTotals,
             sessionId: sessionId,
+            forkedFromId: forkedFromId,
             claudeRows: claudeRows)
     }
 
