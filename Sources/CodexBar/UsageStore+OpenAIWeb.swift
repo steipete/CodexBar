@@ -31,6 +31,15 @@ extension UsageStore {
     private static let openAIWebRefreshMultiplier: TimeInterval = 5
     private static let openAIWebPrimaryFetchTimeout: TimeInterval = 15
     private static let openAIWebRetryFetchTimeout: TimeInterval = 8
+    private static let openAIWebPostImportFetchTimeout: TimeInterval = 25
+
+    static func openAIWebDashboardFetchTimeout(didImportCookies: Bool) -> TimeInterval {
+        didImportCookies ? self.openAIWebPostImportFetchTimeout : self.openAIWebPrimaryFetchTimeout
+    }
+
+    static func openAIWebRetryDashboardFetchTimeout(afterCookieImport: Bool) -> TimeInterval {
+        afterCookieImport ? self.openAIWebPostImportFetchTimeout : self.openAIWebRetryFetchTimeout
+    }
 
     private func openAIWebRefreshIntervalSeconds() -> TimeInterval {
         let base = max(self.settings.refreshFrequency.seconds ?? 0, 120)
@@ -415,12 +424,14 @@ extension UsageStore {
             // Strategy:
             // - Try the existing per-email WebKit cookie store first (fast; avoids Keychain prompts).
             // - On login-required or account mismatch, import cookies from the configured browser order and retry once.
+            var didImportCookiesForRefresh = false
             if self.openAIWebAccountDidChange, let targetEmail = context.targetEmail, !targetEmail.isEmpty {
                 // On account switches, proactively re-import cookies so we don't show stale data from the previous
                 // user.
                 let imported = await self.importOpenAIDashboardCookiesIfNeeded(
                     targetEmail: targetEmail,
                     force: true)
+                didImportCookiesForRefresh = true
                 latestCookieImportStatus = self.currentOpenAIDashboardCookieImportStatus()
                 if await self.abortOpenAIDashboardRetryAfterImportFailure(
                     importedEmail: imported,
@@ -441,7 +452,7 @@ extension UsageStore {
             var dash = try await self.loadLatestOpenAIDashboard(
                 accountEmail: effectiveEmail,
                 logger: log,
-                timeout: Self.openAIWebPrimaryFetchTimeout)
+                timeout: Self.openAIWebDashboardFetchTimeout(didImportCookies: didImportCookiesForRefresh))
 
             if self.dashboardEmailMismatch(expected: normalized, actual: dash.signedInEmail) {
                 if let imported = await self.importOpenAIDashboardCookiesIfNeeded(
@@ -454,7 +465,7 @@ extension UsageStore {
                 dash = try await self.loadLatestOpenAIDashboard(
                     accountEmail: effectiveEmail,
                     logger: log,
-                    timeout: Self.openAIWebRetryFetchTimeout)
+                    timeout: Self.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true))
             }
 
             await self.applyOpenAIDashboard(
@@ -515,7 +526,7 @@ extension UsageStore {
             let dash = try await self.loadLatestOpenAIDashboard(
                 accountEmail: effectiveEmail,
                 logger: logger,
-                timeout: Self.openAIWebRetryFetchTimeout)
+                timeout: Self.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true))
             await self.applyOpenAIDashboard(
                 dash,
                 targetEmail: effectiveEmail,
@@ -574,7 +585,7 @@ extension UsageStore {
             let dash = try await self.loadLatestOpenAIDashboard(
                 accountEmail: effectiveEmail,
                 logger: logger,
-                timeout: Self.openAIWebRetryFetchTimeout)
+                timeout: Self.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true))
             await self.applyOpenAIDashboard(
                 dash,
                 targetEmail: effectiveEmail,

@@ -222,6 +222,12 @@ struct CodexManagedOpenAIWebRefreshTests {
         #expect(store.lastOpenAIDashboardError == ManagedDashboardTestError.networkTimeout.localizedDescription)
     }
 
+    @Test
+    func `post import retry timeout exceeds normal retry timeout`() {
+        #expect(UsageStore.openAIWebRetryDashboardFetchTimeout(afterCookieImport: false) == 8)
+        #expect(UsageStore.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true) == 25)
+    }
+
     private func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
