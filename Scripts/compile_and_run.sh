@@ -20,6 +20,14 @@ SIGNING_MODE="${CODEXBAR_SIGNING:-}"
 log()  { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
+delete_keychain_service_items() {
+  local service="$1"
+  security delete-generic-password -s "${service}" >/dev/null 2>&1 || true
+  while security delete-generic-password -s "${service}" >/dev/null 2>&1; do
+    :
+  done
+}
+
 has_signing_identity() {
   local identity="${1:-}"
   if [[ -z "${identity}" ]]; then
@@ -180,12 +188,11 @@ kill_claude_probes
 # 2.5) Delete keychain entries to avoid permission prompts with adhoc signing
 # (adhoc signature changes on every build, making old keychain entries inaccessible)
 if [[ "${SIGNING_MODE:-adhoc}" == "adhoc" ]]; then
-  log "==> Clearing keychain entries (adhoc signing)"
-  security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null || true
-  # Clear all keychain items for the app to avoid multiple prompts
-  while security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null; do
-    :
-  done
+  log "==> Clearing CodexBar keychain entries (adhoc signing)"
+  # Clear both the legacy keychain store and the current cache service. Leaving CodexBar-owned caches behind causes
+  # fresh adhoc-signed builds to re-open stale ACLs and repeatedly prompt for keychain access/password approval.
+  delete_keychain_service_items "com.steipete.CodexBar"
+  delete_keychain_service_items "com.steipete.codexbar.cache"
 fi
 
 # 3) Package (release build happens inside package_app.sh).

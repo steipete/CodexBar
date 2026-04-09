@@ -15,6 +15,9 @@ When developing CodexBar, you may see frequent keychain permission prompts like:
 > **CodexBar wants to access key "Claude Code-credentials" in your keychain.**
 
 This happens because each rebuild creates a new code signature, and macOS treats it as a "different" app.
+That can affect both CodexBar-owned entries (`com.steipete.CodexBar`, `com.steipete.codexbar.cache`) and
+third-party items such as `Claude Code-credentials`, so an ad-hoc-signed rebuild can keep re-triggering
+password/keychain approval dialogs even after you previously chose **Always Allow**.
 
 ### Quick Fix (Temporary)
 
@@ -100,6 +103,11 @@ This script:
 4. Packages the app with `./Scripts/package_app.sh`
 5. Launches `CodexBar.app`
 6. Verifies it stays running
+
+When the script falls back to ad-hoc signing, it also clears CodexBar-owned keychain services before relaunching so
+the new build does not inherit stale ACLs from the previous app identity.
+This reduces repeat prompts for CodexBar-managed cache entries, but third-party keychain items still need stable
+signing if you want macOS to remember **Always Allow** across rebuilds.
 
 ### Quick Build (No Tests)
 
