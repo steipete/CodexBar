@@ -74,6 +74,7 @@ public enum ProviderDescriptorRegistry {
         .kimik2: KimiK2ProviderDescriptor.descriptor,
         .amp: AmpProviderDescriptor.descriptor,
         .ollama: OllamaProviderDescriptor.descriptor,
+        .rovodev: RovoDevProviderDescriptor.descriptor,
         .synthetic: SyntheticProviderDescriptor.descriptor,
         .openrouter: OpenRouterProviderDescriptor.descriptor,
         .warp: WarpProviderDescriptor.descriptor,

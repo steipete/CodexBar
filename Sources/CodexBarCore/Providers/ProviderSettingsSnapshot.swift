@@ -19,6 +19,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         augment: AugmentProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
         ollama: OllamaProviderSettings? = nil,
+        rovodev: RovoDevProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
@@ -40,6 +41,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             augment: augment,
             amp: amp,
             ollama: ollama,
+            rovodev: rovodev,
             jetbrains: jetbrains,
             perplexity: perplexity)
     }
@@ -222,6 +224,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct RovoDevProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct PerplexityProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -249,6 +261,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let augment: AugmentProviderSettings?
     public let amp: AmpProviderSettings?
     public let ollama: OllamaProviderSettings?
+    public let rovodev: RovoDevProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
     public let perplexity: PerplexityProviderSettings?
 
@@ -274,6 +287,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         augment: AugmentProviderSettings?,
         amp: AmpProviderSettings?,
         ollama: OllamaProviderSettings?,
+        rovodev: RovoDevProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil)
     {
@@ -294,6 +308,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.augment = augment
         self.amp = amp
         self.ollama = ollama
+        self.rovodev = rovodev
         self.jetbrains = jetbrains
         self.perplexity = perplexity
     }
@@ -315,6 +330,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
+    case rovodev(ProviderSettingsSnapshot.RovoDevProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
 }
@@ -337,6 +353,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
+    public var rovodev: ProviderSettingsSnapshot.RovoDevProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
 
@@ -362,6 +379,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .augment(value): self.augment = value
         case let .amp(value): self.amp = value
         case let .ollama(value): self.ollama = value
+        case let .rovodev(value): self.rovodev = value
         case let .jetbrains(value): self.jetbrains = value
         case let .perplexity(value): self.perplexity = value
         }
@@ -386,6 +404,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             augment: self.augment,
             amp: self.amp,
             ollama: self.ollama,
+            rovodev: self.rovodev,
             jetbrains: self.jetbrains,
             perplexity: self.perplexity)
     }

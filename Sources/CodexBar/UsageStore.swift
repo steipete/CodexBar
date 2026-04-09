@@ -824,6 +824,8 @@ extension UsageStore {
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                case .rovodev:
+                    return await Self.debugRovoDevLog(browserDetection: browserDetection)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .jetbrains, .perplexity:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
@@ -1031,6 +1033,13 @@ extension UsageStore {
             return await fetcher.debugRawProbe(
                 cookieHeaderOverride: manualHeader,
                 manualCookieMode: ollamaCookieSource == .manual)
+        }
+    }
+
+    private static func debugRovoDevLog(browserDetection: BrowserDetection) async -> String {
+        await runWithTimeout(seconds: 15) {
+            let fetcher = RovoDevUsageFetcher(browserDetection: browserDetection)
+            return await fetcher.debugRawProbe()
         }
     }
 

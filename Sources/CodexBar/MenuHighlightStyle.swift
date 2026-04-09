@@ -1,7 +1,14 @@
 import SwiftUI
 
 extension EnvironmentValues {
-    @Entry var menuItemHighlighted: Bool = false
+    // Manual expansion of @Entry (SwiftUIMacros plugin not available in CLI builds)
+    private struct __Key_menuItemHighlighted: EnvironmentKey {
+        static let defaultValue: Bool = false
+    }
+    var menuItemHighlighted: Bool {
+        get { self[__Key_menuItemHighlighted.self] }
+        set { self[__Key_menuItemHighlighted.self] = newValue }
+    }
 }
 
 enum MenuHighlightStyle {

@@ -34,6 +34,7 @@ enum ProviderImplementationRegistry {
         case .kimik2: KimiK2ProviderImplementation()
         case .amp: AmpProviderImplementation()
         case .ollama: OllamaProviderImplementation()
+        case .rovodev: RovoDevProviderImplementation()
         case .synthetic: SyntheticProviderImplementation()
         case .openrouter: OpenRouterProviderImplementation()
         case .warp: WarpProviderImplementation()
