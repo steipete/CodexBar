@@ -4,6 +4,7 @@ private struct MenuItemHighlightedKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+// swiftformat:disable:next environmentEntry
 extension EnvironmentValues {
     var menuItemHighlighted: Bool {
         get { self[MenuItemHighlightedKey.self] }
