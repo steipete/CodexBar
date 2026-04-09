@@ -10,6 +10,7 @@
 - `SUFeedURL` 必须指向 fork 的 `appcast.xml`。
 - `SUPublicEDKey` 必须与当前 Sparkle 私钥配对。
 - `CodexbarApp.swift` 里保留了 Sparkle 可用性判断；改更新逻辑时优先在现有结构上修，不要绕开。
+- 应用内没有 stable/beta 切换；所有用户统一走一个 Sparkle 通道。
 - 兼容迁移策略是：
   - 新身份写入 `com.shawnrn.codexbar*`
   - 旧身份 `com.steipete.codexbar*` 仅作读取/迁移 fallback
@@ -24,8 +25,9 @@
   - `en.lproj/Localizable.strings` 是唯一源
   - 缺失中文 key 自动补英文 fallback，并带 TODO 注释
 - `release-app.yml`：
-  - `main` 上 prerelease 自动发 beta
-  - stable 仅手动触发
+  - 单一发布通道
+  - `main` 上 prerelease 版本自动发 GitHub prerelease
+  - 其他版本可手动触发正式发布
   - 发布后回写 `appcast.xml`
 
 ## 本机打包现实约束

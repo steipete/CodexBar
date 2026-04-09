@@ -7,15 +7,6 @@ on:
     paths-ignore:
       - "appcast.xml"
   workflow_dispatch:
-    inputs:
-      channel:
-        description: "Release channel"
-        required: true
-        default: beta
-        type: choice
-        options:
-          - beta
-          - stable
 
 permissions:
   contents: write
@@ -57,26 +48,14 @@ jobs:
           set -euo pipefail
           source version.env
 
-          CHANNEL="${{ inputs.channel }}"
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            if [[ "$MARKETING_VERSION" =~ (beta|alpha|rc|pre|dev) ]]; then
-              CHANNEL="beta"
-            else
-              echo "release_enabled=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
+          if [[ "${{ github.event_name }}" == "push" && ! "$MARKETING_VERSION" =~ (beta|alpha|rc|pre|dev) ]]; then
+            echo "release_enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-          if [[ "$CHANNEL" == "stable" && "$MARKETING_VERSION" =~ (beta|alpha|rc|pre|dev) ]]; then
-            echo "Stable releases require a non-prerelease MARKETING_VERSION." >&2
-            exit 1
-          fi
-
-          if [[ "$CHANNEL" == "beta" ]]; then
-            echo "sparkle_channel=beta" >> "$GITHUB_OUTPUT"
+          if [[ "$MARKETING_VERSION" =~ (beta|alpha|rc|pre|dev) ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
-            echo "sparkle_channel=" >> "$GITHUB_OUTPUT"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -190,8 +169,6 @@ jobs:
       - name: Generate and validate appcast
         if: ${{ steps.mode.outputs.release_enabled == 'true' }}
         shell: bash
-        env:
-          SPARKLE_CHANNEL: ${{ steps.mode.outputs.sparkle_channel }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.mode.outputs.version }}"

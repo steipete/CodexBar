@@ -2,7 +2,7 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>CodexBar</title>
-        <item sparkle:channel="beta">
+        <item>
             <title>0.18.0-beta.3</title>
             <pubDate>Fri, 13 Feb 2026 18:57:54 +0100</pubDate>
             <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>
@@ -64,7 +64,7 @@
 ]]></description>
             <enclosure url="https://github.com/ShawnRn/CodexBar/releases/download/v0.18.0-beta.3/CodexBar-0.18.0-beta.3.zip" length="23436028" type="application/octet-stream" sparkle:edSignature="mb72DHg5xz+AY/DrCDPhpkWaRa24NwcYXnW5lKuYBzlF5kMAsqTZGaG82KWPY8su8J5bJ5wtOMjVdzPCJWjvAw=="/>
         </item>
-        <item sparkle:channel="beta">
+        <item>
             <title>0.18.0-beta.2</title>
             <pubDate>Wed, 21 Jan 2026 08:42:37 +0000</pubDate>
             <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>
@@ -96,7 +96,7 @@
 ]]></description>
             <enclosure url="https://github.com/ShawnRn/CodexBar/releases/download/v0.18.0-beta.2/CodexBar-0.18.0-beta.2.zip" length="22498811" type="application/octet-stream" sparkle:edSignature="Zcy1PnvfyNQnpFvuydwnIQ+lUh1wGF46p92MyVeVAa/z441erCIHZ9bKH4QDlc9cB/QsTkYfk3CvE0lHTu5CCA=="/>
         </item>
-        <item sparkle:channel="beta">
+        <item>
             <title>0.18.0-beta.1</title>
             <pubDate>Sun, 18 Jan 2026 23:09:38 +0000</pubDate>
             <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>

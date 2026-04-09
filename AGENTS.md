@@ -63,9 +63,9 @@
   - `ci.yml`：常规校验，包含 l10n drift 检查。
   - `upstream-sync.yml`：定时/手动同步 `steipete/CodexBar` 到机器人分支并生成 PR；`quotio` 仅开 issue 供审查。
   - `l10n-sync.yml`：从 `en.lproj/Localizable.strings` 同步 `zh-Hans`。
-  - `release-app.yml`：`main` 上 prerelease 版本自动发 beta；stable 通过手动触发晋升。
+  - `release-app.yml`：单一发布通道；`main` 上 prerelease 版本会自动发 prerelease，其他版本可手动触发正式发布。
 - 发布 workflow 依赖这些 secrets：`SPARKLE_PRIVATE_KEY`、`APP_STORE_CONNECT_KEY_ID`、`APP_STORE_CONNECT_ISSUER_ID`、`APP_STORE_CONNECT_PRIVATE_KEY`，以及签名证书相关 secrets。
-- `SUPublicEDKey`、`SUFeedURL`、GitHub release 链接若不一致，会直接影响应用内“检查更新”。
+- 应用内不再暴露 stable/beta 切换；`SUPublicEDKey`、`SUFeedURL`、GitHub release 链接若不一致，会直接影响“检查更新”。
 
 ### 本地环境已知事项
 - 当前环境可能缺少 `pnpm`（表现为 `pnpm: command not found`）；若遇到该问题，需先安装/配置后再执行 `pnpm check`。
