@@ -58,7 +58,9 @@ ZIP_SIZE=$(stat -f%z "$ZIP")
 DOWNLOAD_URL="${DOWNLOAD_URL_PREFIX}${ZIP_NAME}"
 PUB_DATE=$(date -R)
 SIGNATURE_BIN="$WORK_DIR/${ZIP_BASE}.sig"
-openssl pkeyutl -sign -rawin -inkey "$PRIVATE_KEY_FILE" -in "$ZIP" -out "$SIGNATURE_BIN"
+if ! openssl pkeyutl -sign -inkey "$PRIVATE_KEY_FILE" -in "$ZIP" -out "$SIGNATURE_BIN" 2>/dev/null; then
+  openssl pkeyutl -sign -rawin -inkey "$PRIVATE_KEY_FILE" -in "$ZIP" -out "$SIGNATURE_BIN"
+fi
 ED_SIGNATURE=$(openssl base64 -A < "$SIGNATURE_BIN")
 
 if [[ ! -f "$ROOT/appcast.xml" ]]; then
