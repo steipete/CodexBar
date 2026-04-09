@@ -35,7 +35,7 @@ struct ProviderSidebarListView: View {
         .scrollContentBackground(.hidden)
         .background(
             RoundedRectangle(cornerRadius: ProviderSettingsMetrics.sidebarCornerRadius, style: .continuous)
-                .fill(.regularMaterial))
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8)))
         .overlay(
             RoundedRectangle(cornerRadius: ProviderSettingsMetrics.sidebarCornerRadius, style: .continuous)
                 .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1))
