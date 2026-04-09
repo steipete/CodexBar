@@ -5,6 +5,7 @@
 ### Highlights
 - z.ai: preserve weekly and 5-hour token quotas together, surface the 5-hour lane correctly across the menu/menu bar, and add regression coverage (#662). Thanks to @takumi3488 for the original fix and investigation.
 - Cursor: fix a crash in the usage fetch path and add regression coverage (#663). Thanks @anirudhvee for the report and validation!
+- Menu bar: fix missing icons on affected macOS 26 systems by avoiding RenderBox-triggering SwiftUI effects (#677). Thanks @andrzejchm!
 - Claude: preserve normal CLI fallback precedence across well-known install paths so Finder-launched apps still prefer user-managed and native Homebrew binaries when multiple installs exist.
 
 ### Providers & Usage
@@ -14,6 +15,7 @@
 - OpenCode / OpenCode Go: treat serialized `_server` auth/account-context failures as invalid credentials so cached browser cookies are cleared and retried instead of surfacing a misleading HTTP 500.
 
 ### Menu & Settings
+- Menu bar: fix missing icons on affected macOS 26 systems by replacing RenderBox-triggering material/offscreen SwiftUI effects in the provider sidebar and highlighted progress bar (#677). Thanks @andrzejchm!
 - z.ai: fix menu bar selection when both weekly and 5-hour quotas are present (#662).
 
 ## 0.20 — 2026-04-07
