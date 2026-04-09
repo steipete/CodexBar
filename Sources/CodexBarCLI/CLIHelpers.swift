@@ -123,10 +123,7 @@ extension CodexBarCLI {
     }
 
     static func resetTimeDisplayStyleFromDefaults() -> ResetTimeDisplayStyle {
-        let domains = [
-            "com.steipete.codexbar",
-            "com.steipete.codexbar.debug",
-        ]
+        let domains = AppIdentity.userDefaultsDomains(for: Bundle.main.bundleIdentifier)
         for domain in domains {
             if let value = UserDefaults(suiteName: domain)?.object(forKey: "resetTimesShowAbsolute") as? Bool {
                 return value ? .absolute : .countdown

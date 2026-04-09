@@ -8,6 +8,7 @@ cd "$ROOT"
 
 # Load version info
 source "$ROOT/version.env"
+source "$ROOT/Scripts/release_config.sh"
 
 # Clean build only when explicitly requested (slower).
 if [[ "${CODEXBAR_FORCE_CLEAN:-0}" == "1" ]]; then
@@ -108,8 +109,16 @@ for ARCH in "${ARCH_LIST[@]}"; do
   swift build -c "$CONF" --arch "$ARCH"
 done
 
-APP="$ROOT/CodexBar.app"
-rm -rf "$APP"
+FINAL_APP="$ROOT/CodexBar.app"
+STAGING_DIR=""
+if [[ "$ROOT" == *"/Mobile Documents/"* ]]; then
+  STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/codexbar-package.XXXXXX")"
+  APP="$STAGING_DIR/CodexBar.app"
+else
+  APP="$FINAL_APP"
+fi
+
+rm -rf "$APP" "$FINAL_APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 mkdir -p "$APP/Contents/Helpers" "$APP/Contents/PlugIns"
 
@@ -120,12 +129,12 @@ if [[ -f "$ICON_SOURCE" ]]; then
   iconutil --convert icns --output "$ICON_TARGET" "$ICON_SOURCE"
 fi
 
-BUNDLE_ID="com.steipete.codexbar"
-FEED_URL="https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml"
+BUNDLE_ID="$CODEXBAR_BUNDLE_ID"
+FEED_URL="$CODEXBAR_APPCAST_URL"
 AUTO_CHECKS=true
 LOWER_CONF=$(printf "%s" "$CONF" | tr '[:upper:]' '[:lower:]')
 if [[ "$LOWER_CONF" == "debug" ]]; then
-  BUNDLE_ID="com.steipete.codexbar.debug"
+  BUNDLE_ID="$CODEXBAR_DEBUG_BUNDLE_ID"
   FEED_URL=""
   AUTO_CHECKS=false
 fi
@@ -134,9 +143,9 @@ if [[ "$SIGNING_MODE" == "adhoc" ]]; then
   AUTO_CHECKS=false
 fi
 WIDGET_BUNDLE_ID="${BUNDLE_ID}.widget"
-APP_GROUP_ID="group.com.steipete.codexbar"
+APP_GROUP_ID="$CODEXBAR_APP_GROUP_ID"
 if [[ "$BUNDLE_ID" == *".debug"* ]]; then
-  APP_GROUP_ID="group.com.steipete.codexbar.debug"
+  APP_GROUP_ID="$CODEXBAR_DEBUG_APP_GROUP_ID"
 fi
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"
@@ -193,7 +202,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleIconFile</key><string>Icon</string>
     <key>NSHumanReadableCopyright</key><string>© 2025 Peter Steinberger. MIT License.</string>
     <key>SUFeedURL</key><string>${FEED_URL}</string>
-    <key>SUPublicEDKey</key><string>AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=</string>
+    <key>SUPublicEDKey</key><string>${CODEXBAR_PUBLIC_ED_KEY}</string>
     <key>SUEnableAutomaticChecks</key><${AUTO_CHECKS}/>
     <key>CodexBuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>CodexGitCommit</key><string>${GIT_COMMIT}</string>
@@ -304,11 +313,14 @@ PLIST
 fi
 # Embed Sparkle.framework
 if [[ -d ".build/$CONF/Sparkle.framework" ]]; then
-  cp -R ".build/$CONF/Sparkle.framework" "$APP/Contents/Frameworks/"
+  rm -rf "$APP/Contents/Frameworks/Sparkle.framework"
+  ditto --noextattr --noqtn ".build/$CONF/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
   chmod -R a+rX "$APP/Contents/Frameworks/Sparkle.framework"
   install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/CodexBar"
   # Re-sign Sparkle and all nested components with Developer ID + timestamp
   SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+  xattr -cr "$SPARKLE"
+  find "$SPARKLE" -name '._*' -delete
 if [[ "$SIGNING_MODE" == "adhoc" ]]; then
   CODESIGN_ID="-"
   CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
@@ -395,5 +407,12 @@ fi
 codesign "${CODESIGN_ARGS[@]}" \
   --entitlements "$APP_ENTITLEMENTS" \
   "$APP"
+
+if [[ -n "$STAGING_DIR" ]]; then
+  ditto --noextattr --noqtn "$APP" "$FINAL_APP"
+  xattr -cr "$FINAL_APP"
+  find "$FINAL_APP" -name '._*' -delete
+  APP="$FINAL_APP"
+fi
 
 echo "Created $APP"

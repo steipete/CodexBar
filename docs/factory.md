@@ -13,7 +13,7 @@ Factory (displayed as "Droid") is web-based. We authenticate via cookies or Work
 ## Data sources + fallback order
 
 Fetch attempts run in this exact order:
-1) **Cached cookie header** (Keychain cache `com.steipete.codexbar.cache`, account `cookie.factory`).
+1) **Cached cookie header** (Keychain cache `com.shawnrn.codexbar.cache`, account `cookie.factory`).
 2) **Stored session** (`~/Library/Application Support/CodexBar/factory-session.json`).
 3) **Stored bearer token** (same session file).
 4) **Stored WorkOS refresh token** (same session file).

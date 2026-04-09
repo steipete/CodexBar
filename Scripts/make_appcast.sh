@@ -2,9 +2,10 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+source "$ROOT/Scripts/release_config.sh"
 ZIP=${1:?
 "Usage: $0 CodexBar-<ver>.zip"}
-FEED_URL=${2:-"https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml"}
+FEED_URL=${2:-"$CODEXBAR_APPCAST_URL"}
 PRIVATE_KEY_FILE=${SPARKLE_PRIVATE_KEY_FILE:-}
 SPARKLE_CHANNEL=${SPARKLE_CHANNEL:-}
 if [[ -z "$PRIVATE_KEY_FILE" ]]; then
@@ -47,7 +48,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-DOWNLOAD_URL_PREFIX=${SPARKLE_DOWNLOAD_URL_PREFIX:-"https://github.com/steipete/CodexBar/releases/download/v${VERSION}/"}
+DOWNLOAD_URL_PREFIX=${SPARKLE_DOWNLOAD_URL_PREFIX:-"${CODEXBAR_RELEASES_URL}/download/v${VERSION}/"}
 
 # Sparkle provides generate_appcast; ensure it's on PATH (via SwiftPM build of Sparkle's bin) or Xcode dmg
 if ! command -v generate_appcast >/dev/null; then

@@ -12,7 +12,7 @@ final class FileLogSink: @unchecked Sendable {
             .appendingPathComponent("CodexBar.log")
     }()
 
-    private let queue = DispatchQueue(label: "com.steipete.codexbar.filelog", qos: .utility)
+    private let queue = DispatchQueue(label: "\(AppIdentity.logSubsystem).filelog", qos: .utility)
     private let fileManager: FileManager
     private var isEnabled = false
     private var fileHandle: FileHandle?

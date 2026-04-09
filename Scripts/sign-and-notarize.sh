@@ -2,9 +2,10 @@
 set -euo pipefail
 
 APP_NAME="CodexBar"
-APP_IDENTITY="Developer ID Application: Peter Steinberger (Y5PE65HELJ)"
+APP_IDENTITY="${APP_IDENTITY:-Developer ID Application: shawnrain@foxmail.com (ZQG28N5AK8)}"
 APP_BUNDLE="CodexBar.app"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+source "$ROOT/Scripts/release_config.sh"
 source "$ROOT/version.env"
 ZIP_NAME="${APP_NAME}-${MARKETING_VERSION}.zip"
 DSYM_ZIP="${APP_NAME}-${MARKETING_VERSION}.dSYM.zip"

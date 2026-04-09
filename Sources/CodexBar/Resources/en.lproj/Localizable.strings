@@ -361,6 +361,8 @@
 "Force animation on next refresh" = "Force animation on next refresh";
 "Gemini CLI not found" = "Gemini CLI not found";
 "GitHub" = "GitHub";
+"Download" = "Download";
+"Changelog" = "Changelog";
 "GitHub Copilot Login" = "GitHub Copilot Login";
 "Inject a fake error message into the menu card for layout testing." = "Inject a fake error message into the menu card for layout testing.";
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again.";

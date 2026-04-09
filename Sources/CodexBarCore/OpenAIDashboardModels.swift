@@ -173,15 +173,18 @@ public struct OpenAIDashboardCache: Codable, Equatable, Sendable {
 
 public enum OpenAIDashboardCacheStore {
     public static func load() -> OpenAIDashboardCache? {
-        guard let url = self.cacheURL else { return nil }
-        guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(OpenAIDashboardCache.self, from: data)
+        for url in self.cacheURLs {
+            guard let data = try? Data(contentsOf: url),
+                  let cache = try? decoder.decode(OpenAIDashboardCache.self, from: data) else { continue }
+            return cache
+        }
+        return nil
     }
 
     public static func save(_ cache: OpenAIDashboardCache) {
-        guard let url = self.cacheURL else { return }
+        guard let url = self.cacheURLs.first else { return }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),
@@ -196,15 +199,18 @@ public enum OpenAIDashboardCacheStore {
     }
 
     public static func clear() {
-        guard let url = self.cacheURL else { return }
-        try? FileManager.default.removeItem(at: url)
+        for url in self.cacheURLs {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
-    private static var cacheURL: URL? {
+    private static var cacheURLs: [URL] {
         guard let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return nil
+            return []
         }
-        let dir = root.appendingPathComponent("com.steipete.codexbar", isDirectory: true)
-        return dir.appendingPathComponent("openai-dashboard.json")
+        return AppIdentity.applicationSupportDirectories().map { directoryName in
+            let dir = root.appendingPathComponent(directoryName, isDirectory: true)
+            return dir.appendingPathComponent("openai-dashboard.json")
+        }
     }
 }

@@ -5,7 +5,7 @@
         <item sparkle:channel="beta">
             <title>0.18.0-beta.3</title>
             <pubDate>Fri, 13 Feb 2026 18:57:54 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>
             <sparkle:version>51</sparkle:version>
             <sparkle:shortVersionString>0.18.0-beta.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
@@ -60,14 +60,14 @@
 <li>Update docs for Claude data fetch behavior and keychain troubleshooting notes.</li>
 <li>Update MIT license year.</li>
 </ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+<p><a href="https://github.com/ShawnRn/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.18.0-beta.3/CodexBar-0.18.0-beta.3.zip" length="23436028" type="application/octet-stream" sparkle:edSignature="mb72DHg5xz+AY/DrCDPhpkWaRa24NwcYXnW5lKuYBzlF5kMAsqTZGaG82KWPY8su8J5bJ5wtOMjVdzPCJWjvAw=="/>
+            <enclosure url="https://github.com/ShawnRn/CodexBar/releases/download/v0.18.0-beta.3/CodexBar-0.18.0-beta.3.zip" length="23436028" type="application/octet-stream" sparkle:edSignature="mb72DHg5xz+AY/DrCDPhpkWaRa24NwcYXnW5lKuYBzlF5kMAsqTZGaG82KWPY8su8J5bJ5wtOMjVdzPCJWjvAw=="/>
         </item>
         <item sparkle:channel="beta">
             <title>0.18.0-beta.2</title>
             <pubDate>Wed, 21 Jan 2026 08:42:37 +0000</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>
             <sparkle:version>50</sparkle:version>
             <sparkle:shortVersionString>0.18.0-beta.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
@@ -92,14 +92,14 @@
 <li>Debug: add a button to reset CLI probe sessions.</li>
 <li>App icon: use the classic icon on macOS 15 and earlier while keeping Liquid Glass for macOS 26+ (#178). Thanks @zerone0x!</li>
 </ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+<p><a href="https://github.com/ShawnRn/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.18.0-beta.2/CodexBar-0.18.0-beta.2.zip" length="22498811" type="application/octet-stream" sparkle:edSignature="Zcy1PnvfyNQnpFvuydwnIQ+lUh1wGF46p92MyVeVAa/z441erCIHZ9bKH4QDlc9cB/QsTkYfk3CvE0lHTu5CCA=="/>
+            <enclosure url="https://github.com/ShawnRn/CodexBar/releases/download/v0.18.0-beta.2/CodexBar-0.18.0-beta.2.zip" length="22498811" type="application/octet-stream" sparkle:edSignature="Zcy1PnvfyNQnpFvuydwnIQ+lUh1wGF46p92MyVeVAa/z441erCIHZ9bKH4QDlc9cB/QsTkYfk3CvE0lHTu5CCA=="/>
         </item>
         <item sparkle:channel="beta">
             <title>0.18.0-beta.1</title>
             <pubDate>Sun, 18 Jan 2026 23:09:38 +0000</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>
             <sparkle:version>49</sparkle:version>
             <sparkle:shortVersionString>0.18.0-beta.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
@@ -206,14 +206,14 @@
 <li>Tests: cover config validation and JSON-only CLI errors.</li>
 <li>Build: stabilize Swift test runtime.</li>
 </ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+<p><a href="https://github.com/ShawnRn/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.18.0-beta.1/CodexBar-0.18.0-beta.1.zip" length="18538687" type="application/octet-stream" sparkle:edSignature="gXM4bz3B7CNXqWKpISJIWkZTCIGN98xowWYB5Qzgi0KL8UdhreIxdqthJ+Q/+ZbC9LG9ubNgth4y10zDfUPGBQ=="/>
+            <enclosure url="https://github.com/ShawnRn/CodexBar/releases/download/v0.18.0-beta.1/CodexBar-0.18.0-beta.1.zip" length="18538687" type="application/octet-stream" sparkle:edSignature="gXM4bz3B7CNXqWKpISJIWkZTCIGN98xowWYB5Qzgi0KL8UdhreIxdqthJ+Q/+ZbC9LG9ubNgth4y10zDfUPGBQ=="/>
         </item>
         <item>
             <title>0.17.0</title>
             <pubDate>Wed, 31 Dec 2025 23:12:24 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>
             <sparkle:version>48</sparkle:version>
             <sparkle:shortVersionString>0.17.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
@@ -227,14 +227,14 @@
 <li>Charts: align hover selection bands with visible bars in credits + usage breakdown history.</li>
 <li>About: fix website link in the About panel. Thanks @felipeorlando!</li>
 </ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+<p><a href="https://github.com/ShawnRn/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.17.0/CodexBar-0.17.0.zip" length="14296774" type="application/octet-stream" sparkle:edSignature="8n//nfQb9cz3hyoc/4+eitFvGl/FJrruUS99aIfqHwgtXhi1V4he9dKh7zKNt78mcP6raJGg+Ha5yHgglfSTDQ=="/>
+            <enclosure url="https://github.com/ShawnRn/CodexBar/releases/download/v0.17.0/CodexBar-0.17.0.zip" length="14296774" type="application/octet-stream" sparkle:edSignature="8n//nfQb9cz3hyoc/4+eitFvGl/FJrruUS99aIfqHwgtXhi1V4he9dKh7zKNt78mcP6raJGg+Ha5yHgglfSTDQ=="/>
         </item>
         <item>
             <title>0.14.0</title>
             <pubDate>Thu, 25 Dec 2025 03:56:15 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>
             <sparkle:version>41</sparkle:version>
             <sparkle:shortVersionString>0.14.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
@@ -249,27 +249,27 @@
 <li>OpenAI web: fix dashboard ghost overlay on desktop (WebKit keepalive window).</li>
 <li>Debug: add a debug-lldb build mode for troubleshooting.</li>
 </ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+<p><a href="https://github.com/ShawnRn/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.14.0/CodexBar-0.14.0.zip" length="5382347" type="application/octet-stream" sparkle:edSignature="qhj8jnqH/eOXEP2plbZyTb8w1x0Afcpix0kC+pzMh5jX9Lkf3Yg2Bvd6/vsKdhOObEwJjQZRb/RKiSBx55J3DA=="/>
+            <enclosure url="https://github.com/ShawnRn/CodexBar/releases/download/v0.14.0/CodexBar-0.14.0.zip" length="5382347" type="application/octet-stream" sparkle:edSignature="qhj8jnqH/eOXEP2plbZyTb8w1x0Afcpix0kC+pzMh5jX9Lkf3Yg2Bvd6/vsKdhOObEwJjQZRb/RKiSBx55J3DA=="/>
         </item>
         <item>
             <title>0.13.0</title>
             <pubDate>Wed, 24 Dec 2025 01:53:35 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>
             <sparkle:version>40</sparkle:version>
             <sparkle:shortVersionString>0.13.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.13.0/CodexBar-0.13.0.zip" length="5099083" type="application/octet-stream" sparkle:edSignature="EmhEmcTFQEpuQG6vZ288l9j278VjnpQdQcmZnU1JDvzERVTtnIg+8RDlsHV9niwejaOBPX6mvXST3vNJHpwADA=="/>
+            <enclosure url="https://github.com/ShawnRn/CodexBar/releases/download/v0.13.0/CodexBar-0.13.0.zip" length="5099083" type="application/octet-stream" sparkle:edSignature="EmhEmcTFQEpuQG6vZ288l9j278VjnpQdQcmZnU1JDvzERVTtnIg+8RDlsHV9niwejaOBPX6mvXST3vNJHpwADA=="/>
         </item>
         <item>
             <title>0.12.0</title>
             <pubDate>Tue, 23 Dec 2025 04:39:05 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <link>https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml</link>
             <sparkle:version>39</sparkle:version>
             <sparkle:shortVersionString>0.12.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.12.0/CodexBar-0.12.0.zip" length="4888386" type="application/octet-stream" sparkle:edSignature="tQMHO/RNAbvwRHXYnLAkNV2ksiV722qR8fEYzcbipgetacfPnwnLJ0Pe/lAiZ03PBmj3BkisHb74GosUlSV+DQ=="/>
+            <enclosure url="https://github.com/ShawnRn/CodexBar/releases/download/v0.12.0/CodexBar-0.12.0.zip" length="4888386" type="application/octet-stream" sparkle:edSignature="tQMHO/RNAbvwRHXYnLAkNV2ksiV722qR8fEYzcbipgetacfPnwnLJ0Pe/lAiZ03PBmj3BkisHb74GosUlSV+DQ=="/>
         </item>
     </channel>
 </rss>

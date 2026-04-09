@@ -44,7 +44,8 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                 id: "openrouter-api-key",
                 title: L10n.tr("API key"),
                 subtitle: L10n.tr(
-                    "Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys and set a key spending limit there to enable API key quota tracking."),
+                    "Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys and "
+                        + "set a key spending limit there to enable API key quota tracking."),
                 kind: .secure,
                 placeholder: L10n.tr("sk-or-v1-..."),
                 binding: context.stringBinding(\.openRouterAPIToken),

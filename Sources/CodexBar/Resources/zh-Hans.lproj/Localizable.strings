@@ -361,6 +361,8 @@
 "Force animation on next refresh" = "下次刷新强制动画";
 "Gemini CLI not found" = "未找到 Gemini CLI";
 "GitHub" = "GitHub";
+"Download" = "Download";
+"Changelog" = "Changelog";
 "GitHub Copilot Login" = "GitHub Copilot 登录";
 "Inject a fake error message into the menu card for layout testing." = "向菜单卡片注入模拟错误信息以测试布局。";
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "请安装 Claude CLI（npm i -g @anthropic-ai/claude-code）后重试。";

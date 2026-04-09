@@ -267,16 +267,20 @@ struct ProvidersPane: View {
         let options: [ProviderSettingsPickerOption]
         if provider == .openrouter {
             options = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L10n.tr("Automatic")),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.automatic.rawValue,
+                    title: L10n.tr("Automatic")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
-                    title: "\(L10n.tr("Primary")) (\(L10n.tr("API key limit")))")
+                    title: "\(L10n.tr("Primary")) (\(L10n.tr("API key limit")))"),
             ]
         } else {
             let metadata = self.store.metadata(for: provider)
             let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
             var metricOptions: [ProviderSettingsPickerOption] = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L10n.tr("Automatic")),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.automatic.rawValue,
+                    title: L10n.tr("Automatic")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
                     title: "\(L10n.tr("Primary")) (\(L10n.tr(metadata.sessionLabel)))"),

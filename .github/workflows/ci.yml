@@ -35,6 +35,9 @@ jobs:
       - name: Lint
         run: ./Scripts/lint.sh lint
 
+      - name: Verify localization sync
+        run: python3 Scripts/sync_localizable.py --check
+
       - name: Swift Test
         run: swift test --no-parallel
 

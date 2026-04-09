@@ -25,7 +25,7 @@ public enum KeychainCacheStore {
     }
 
     private static let log = CodexBarLog.logger(LogCategories.keychainCache)
-    private static let cacheService = "com.steipete.codexbar.cache"
+    private static let cacheService = AppIdentity.keychainCacheService
     private static let cacheLabel = "CodexBar Cache"
     private nonisolated(unsafe) static var globalServiceOverride: String?
     @TaskLocal private static var serviceOverride: String?
@@ -42,38 +42,57 @@ public enum KeychainCacheStore {
         key: Key,
         as type: Entry.Type = Entry.self) -> LoadResult<Entry>
     {
-        if let testResult = loadFromTestStore(key: key, as: type) {
-            return testResult
+        let services = [self.serviceName] + AppIdentity.keychainCacheServices().filter { $0 != self.serviceName }
+        for service in services {
+            if let testResult = loadFromTestStore(key: key, as: type, service: service) {
+                switch testResult {
+                case let .found(entry):
+                    if service != self.serviceName {
+                        self.store(key: key, entry: entry)
+                    }
+                    return .found(entry)
+                case .invalid:
+                    return .invalid
+                case .missing:
+                    continue
+                }
+            }
         }
         #if os(macOS)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: self.serviceName,
-            kSecAttrAccount as String: key.account,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecReturnData as String: true,
-        ]
+        for service in services {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: key.account,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                kSecReturnData as String: true,
+            ]
 
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        switch status {
-        case errSecSuccess:
-            guard let data = result as? Data, !data.isEmpty else {
-                self.log.error("Keychain cache item was empty (\(key.account))")
+            var result: AnyObject?
+            let status = SecItemCopyMatching(query as CFDictionary, &result)
+            switch status {
+            case errSecSuccess:
+                guard let data = result as? Data, !data.isEmpty else {
+                    self.log.error("Keychain cache item was empty (\(key.account))")
+                    return .invalid
+                }
+                let decoder = Self.makeDecoder()
+                guard let decoded = try? decoder.decode(Entry.self, from: data) else {
+                    self.log.error("Failed to decode keychain cache (\(key.account))")
+                    return .invalid
+                }
+                if service != self.serviceName {
+                    self.store(key: key, entry: decoded)
+                }
+                return .found(decoded)
+            case errSecItemNotFound:
+                continue
+            default:
+                self.log.error("Keychain cache read failed (\(key.account)): \(status)")
                 return .invalid
             }
-            let decoder = Self.makeDecoder()
-            guard let decoded = try? decoder.decode(Entry.self, from: data) else {
-                self.log.error("Failed to decode keychain cache (\(key.account))")
-                return .invalid
-            }
-            return .found(decoded)
-        case errSecItemNotFound:
-            return .missing
-        default:
-            self.log.error("Keychain cache read failed (\(key.account)): \(status)")
-            return .invalid
         }
+        return .missing
         #else
         return .missing
         #endif
@@ -193,12 +212,13 @@ public enum KeychainCacheStore {
 
     private static func loadFromTestStore<Entry: Codable>(
         key: Key,
-        as type: Entry.Type) -> LoadResult<Entry>?
+        as type: Entry.Type,
+        service: String) -> LoadResult<Entry>?
     {
         self.testStoreLock.lock()
         defer { self.testStoreLock.unlock() }
         guard let store = self.testStore else { return nil }
-        let testKey = TestStoreKey(service: self.serviceName, account: key.account)
+        let testKey = TestStoreKey(service: service, account: key.account)
         guard let data = store[testKey] else { return .missing }
         let decoder = Self.makeDecoder()
         guard let decoded = try? decoder.decode(Entry.self, from: data) else {

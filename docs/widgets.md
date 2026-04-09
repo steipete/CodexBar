@@ -31,18 +31,18 @@ ls -la "$WAPPEX" "$WAPPEX/Contents" "$WAPPEX/Contents/MacOS"
 ### 2) PlugInKit registration (pkd)
 ```
 pluginkit -m -p com.apple.widgetkit-extension -v | grep -i codexbar || true
-pluginkit -m -p com.apple.widgetkit-extension -i com.steipete.codexbar.widget -vv
+pluginkit -m -p com.apple.widgetkit-extension -i com.shawnrn.codexbar.widget -vv
 ```
 Notes:
 - `+` = elected to use, `-` = ignored (PlugInKit elections).
 - If missing or ignored, force-add and re-elect:
 ```
 pluginkit -a "$WAPPEX"
-pluginkit -e use -p com.apple.widgetkit-extension -i com.steipete.codexbar.widget
+pluginkit -e use -p com.apple.widgetkit-extension -i com.shawnrn.codexbar.widget
 ```
 - Check for duplicates (old installs or version precedence):
 ```
-pluginkit -m -D -p com.apple.widgetkit-extension -i com.steipete.codexbar.widget -vv
+pluginkit -m -D -p com.apple.widgetkit-extension -i com.shawnrn.codexbar.widget -vv
 ```
 If multiple paths appear, delete older installs and bump `CFBundleVersion`.
 
@@ -68,7 +68,7 @@ log stream --style compact --predicate '(process == "pkd" OR process == "chronod
 ```
 
 ### 6) Packaging sanity checks
-- Widget bundle id should be `com.steipete.codexbar.widget`.
+- Widget bundle id should be `com.shawnrn.codexbar.widget`.
 - `NSExtensionPointIdentifier` must be `com.apple.widgetkit-extension`.
 - Bundle folder name should match: `CodexBarWidget.appex`.
 

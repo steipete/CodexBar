@@ -99,13 +99,16 @@ public struct WidgetSnapshot: Codable, Sendable {
 }
 
 public enum WidgetSnapshotStore {
-    public static let appGroupID = "group.com.steipete.codexbar"
+    public static let appGroupID = AppIdentity.appGroupID
     private static let filename = "widget-snapshot.json"
 
     public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetSnapshot? {
-        guard let url = self.snapshotURL(bundleID: bundleID) else { return nil }
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? self.decoder.decode(WidgetSnapshot.self, from: data)
+        for url in self.snapshotURLs(bundleID: bundleID) {
+            guard let data = try? Data(contentsOf: url),
+                  let snapshot = try? self.decoder.decode(WidgetSnapshot.self, from: data) else { continue }
+            return snapshot
+        }
+        return nil
     }
 
     public static func save(_ snapshot: WidgetSnapshot, bundleID: String? = Bundle.main.bundleIdentifier) {
@@ -119,31 +122,37 @@ public enum WidgetSnapshotStore {
     }
 
     private static func snapshotURL(bundleID: String?) -> URL? {
+        self.snapshotURLs(bundleID: bundleID).first
+    }
+
+    private static func snapshotURLs(bundleID: String?) -> [URL] {
         let fm = FileManager.default
-        let groupID = self.groupID(for: bundleID)
+        let groupIDs = self.groupIDs(for: bundleID)
         #if os(macOS)
-        if let groupID, let container = fm.containerURL(forSecurityApplicationGroupIdentifier: groupID) {
-            return container.appendingPathComponent(self.filename, isDirectory: false)
+        let groupContainers = groupIDs.compactMap { groupID in
+            fm.containerURL(forSecurityApplicationGroupIdentifier: groupID)?
+                .appendingPathComponent(self.filename, isDirectory: false)
         }
+        if !groupContainers.isEmpty { return groupContainers }
         #endif
 
         let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fm.temporaryDirectory
-        let dir = base.appendingPathComponent("CodexBar", isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent(self.filename, isDirectory: false)
+        let directories = AppIdentity.applicationSupportDirectories().map { directoryName in
+            base.appendingPathComponent(directoryName, isDirectory: true)
+        }
+        if let preferredDirectory = directories.first {
+            try? fm.createDirectory(at: preferredDirectory, withIntermediateDirectories: true)
+        }
+        return directories.map { $0.appendingPathComponent(self.filename, isDirectory: false) }
     }
 
     public static func appGroupID(for bundleID: String?) -> String? {
-        self.groupID(for: bundleID)
+        self.groupIDs(for: bundleID).first
     }
 
-    private static func groupID(for bundleID: String?) -> String? {
-        guard let bundleID, !bundleID.isEmpty else { return self.appGroupID }
-        if bundleID.contains(".debug") {
-            return "group.com.steipete.codexbar.debug"
-        }
-        return self.appGroupID
+    private static func groupIDs(for bundleID: String?) -> [String] {
+        AppIdentity.appGroupIDs(for: bundleID)
     }
 
     private static var encoder: JSONEncoder {

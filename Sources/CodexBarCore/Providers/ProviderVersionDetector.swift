@@ -35,6 +35,10 @@ public enum ProviderVersionDetector {
         let out = Pipe()
         proc.standardOutput = out
         proc.standardError = Pipe()
+        let exitSemaphore = DispatchSemaphore(value: 0)
+        proc.terminationHandler = { _ in
+            exitSemaphore.signal()
+        }
 
         do {
             try proc.run()
@@ -42,22 +46,16 @@ public enum ProviderVersionDetector {
             return nil
         }
 
-        let deadline = Date().addingTimeInterval(2.0)
-        while proc.isRunning, Date() < deadline {
-            usleep(50000)
-        }
-        if proc.isRunning {
+        if exitSemaphore.wait(timeout: .now() + 2.0) == .timedOut, proc.isRunning {
             proc.terminate()
-            let killDeadline = Date().addingTimeInterval(0.5)
-            while proc.isRunning, Date() < killDeadline {
-                usleep(20000)
-            }
-            if proc.isRunning {
+            if exitSemaphore.wait(timeout: .now() + 0.5) == .timedOut, proc.isRunning {
                 kill(proc.processIdentifier, SIGKILL)
+                _ = exitSemaphore.wait(timeout: .now() + 0.5)
             }
         }
 
         let data = out.fileHandleForReading.readDataToEndOfFile()
+        guard !proc.isRunning else { return nil }
         guard proc.terminationStatus == 0,
               let text = String(data: data, encoding: .utf8)?
                   .split(whereSeparator: \.isNewline).first

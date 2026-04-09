@@ -61,7 +61,7 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class SettingsStore {
-    static let sharedDefaults = UserDefaults(suiteName: "group.com.steipete.codexbar")
+    static let sharedDefaults = UserDefaults(suiteName: AppIdentity.appGroupID)
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
         if env["XCTestConfigurationFilePath"] != nil { return true }

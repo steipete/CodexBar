@@ -1,0 +1,51 @@
+name: L10n Sync
+
+on:
+  pull_request:
+    paths:
+      - "Sources/CodexBar/Resources/**/*.strings"
+      - "Scripts/sync_localizable.py"
+  push:
+    branches:
+      - main
+    paths:
+      - "Sources/CodexBar/Resources/**/*.strings"
+      - "Scripts/sync_localizable.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate zh-Hans localization sync
+        run: python3 Scripts/sync_localizable.py --check
+
+  sync:
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Synchronize zh-Hans localization
+        run: python3 Scripts/sync_localizable.py
+
+      - name: Commit synchronized localization
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Sources/CodexBar/Resources/zh-Hans.lproj/Localizable.strings; then
+            echo "No localization updates needed"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Sources/CodexBar/Resources/zh-Hans.lproj/Localizable.strings
+          git commit -m "l10n: sync zh-Hans strings"
+          git push

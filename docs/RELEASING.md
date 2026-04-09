@@ -59,7 +59,7 @@ After notarization:
 ```
 SPARKLE_PRIVATE_KEY_FILE=/path/to/ed25519-priv.key \
 ./Scripts/make_appcast.sh CodexBar-0.1.0.zip \
-  https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml
+  https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml
 Generates HTML release notes from `CHANGELOG.md` (via `Scripts/changelog-to-html.sh`) and embeds them into the appcast entry.
 ```
 Uploads not handled automatically—commit/publish appcast + zip to the feed location (GitHub Releases/raw URL).
@@ -88,7 +88,7 @@ After publishing the GitHub release, update the tap cask + Linux CLI formula (se
   - Sparkle ed25519 private key path: `/Users/steipete/Library/CloudStorage/Dropbox/Backup/Sparkle/sparkle-private-key-KEEP-SECURE.txt` (primary) and `/Users/steipete/Library/CloudStorage/Dropbox/Backup/Sparkle-VibeTunnel/sparkle-private-key-KEEP-SECURE.txt` (older backup)
   - Upload the dSYM archive alongside the app zip on the GitHub release; the release script now automates this and will fail if it’s missing.
   - After publishing the release, run `Scripts/check-release-assets.sh <tag>` to confirm both the app zip and dSYM zip are present on GitHub.
-  - Generate the appcast + HTML release notes: `./Scripts/make_appcast.sh CodexBar-<ver>.zip https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml`
+  - Generate the appcast + HTML release notes: `./Scripts/make_appcast.sh CodexBar-<ver>.zip https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml`
   - Beta channel: prefix the command with `SPARKLE_CHANNEL=beta` to tag the entry.
   - Verify the enclosure signature + size: `SPARKLE_PRIVATE_KEY_FILE=... ./Scripts/verify_appcast.sh <ver>`
 - [ ] Upload zip + appcast to feed; publish tag + GitHub release so Sparkle URL is live (avoid 404)

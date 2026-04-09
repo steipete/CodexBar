@@ -37,6 +37,54 @@ public struct SubprocessResult: Sendable {
 public enum SubprocessRunner {
     private static let log = CodexBarLog.logger(LogCategories.subprocess)
 
+    private final class DataBuffer: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage = Data()
+
+        func append(_ data: Data) {
+            guard !data.isEmpty else { return }
+            self.lock.lock()
+            self.storage.append(data)
+            self.lock.unlock()
+        }
+
+        func data() -> Data {
+            self.lock.lock()
+            let snapshot = self.storage
+            self.lock.unlock()
+            return snapshot
+        }
+    }
+
+    private final class ExitState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var code: Int32?
+
+        func set(_ code: Int32) {
+            self.lock.lock()
+            self.code = code
+            self.lock.unlock()
+        }
+
+        func get() -> Int32? {
+            self.lock.lock()
+            let value = self.code
+            self.lock.unlock()
+            return value
+        }
+    }
+
+    private static func waitForSemaphore(
+        _ semaphore: DispatchSemaphore,
+        timeout: TimeInterval) async -> DispatchTimeoutResult
+    {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: semaphore.wait(timeout: .now() + timeout))
+            }
+        }
+    }
+
     public static func run(
         binary: String,
         arguments: [String],
@@ -64,19 +112,37 @@ public enum SubprocessRunner {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
         process.standardInput = nil
+        let stdoutBuffer = DataBuffer()
+        let stderrBuffer = DataBuffer()
+        let exitState = ExitState()
+        let exitSemaphore = DispatchSemaphore(value: 0)
 
-        let stdoutTask = Task<Data, Never> {
-            stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                return
+            }
+            stdoutBuffer.append(data)
         }
-        let stderrTask = Task<Data, Never> {
-            stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                return
+            }
+            stderrBuffer.append(data)
+        }
+        process.terminationHandler = { process in
+            exitState.set(process.terminationStatus)
+            exitSemaphore.signal()
         }
 
         do {
             try process.run()
         } catch {
-            stdoutTask.cancel()
-            stderrTask.cancel()
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
             stdoutPipe.fileHandleForReading.closeFile()
             stderrPipe.fileHandleForReading.closeFile()
             throw SubprocessRunnerError.launchFailed(error.localizedDescription)
@@ -88,25 +154,21 @@ public enum SubprocessRunner {
             processGroup = pid
         }
 
-        let exitCodeTask = Task<Int32, Never> {
-            process.waitUntilExit()
-            return process.terminationStatus
-        }
-
         do {
-            let exitCode = try await withThrowingTaskGroup(of: Int32.self) { group in
-                group.addTask { await exitCodeTask.value }
-                group.addTask {
-                    try await Task.sleep(for: .seconds(timeout))
-                    throw SubprocessRunnerError.timedOut(label)
-                }
-                let code = try await group.next()!
-                group.cancelAll()
-                return code
+            let waitResult = await Self.waitForSemaphore(exitSemaphore, timeout: timeout)
+
+            guard waitResult == .success, let exitCode = exitState.get() else {
+                throw SubprocessRunnerError.timedOut(label)
             }
 
-            let stdoutData = await stdoutTask.value
-            let stderrData = await stderrTask.value
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
+            stdoutBuffer.append(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+            stderrBuffer.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
+            stdoutPipe.fileHandleForReading.closeFile()
+            stderrPipe.fileHandleForReading.closeFile()
+            let stdoutData = stdoutBuffer.data()
+            let stderrData = stderrBuffer.data()
             let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
             let stderr = String(data: stderrData, encoding: .utf8) ?? ""
 
@@ -157,10 +219,15 @@ public enum SubprocessRunner {
                     }
                     kill(process.processIdentifier, SIGKILL)
                 }
+                let cleanupResult = await Self.waitForSemaphore(exitSemaphore, timeout: 0.5)
+                if cleanupResult == .success, process.isRunning == false {
+                    exitState.set(process.terminationStatus)
+                }
             }
-            exitCodeTask.cancel()
-            stdoutTask.cancel()
-            stderrTask.cancel()
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
+            stdoutBuffer.append(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+            stderrBuffer.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
             stdoutPipe.fileHandleForReading.closeFile()
             stderrPipe.fileHandleForReading.closeFile()
             throw error

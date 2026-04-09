@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+source "$ROOT/version.env"
+
+export CODEXBAR_GITHUB_OWNER="${CODEXBAR_GITHUB_OWNER:-ShawnRn}"
+export CODEXBAR_GITHUB_REPO="${CODEXBAR_GITHUB_REPO:-CodexBar}"
+export CODEXBAR_REPOSITORY_URL="${CODEXBAR_REPOSITORY_URL:-https://github.com/${CODEXBAR_GITHUB_OWNER}/${CODEXBAR_GITHUB_REPO}}"
+export CODEXBAR_RELEASES_URL="${CODEXBAR_RELEASES_URL:-${CODEXBAR_REPOSITORY_URL}/releases}"
+export CODEXBAR_APPCAST_URL="${CODEXBAR_APPCAST_URL:-https://raw.githubusercontent.com/${CODEXBAR_GITHUB_OWNER}/${CODEXBAR_GITHUB_REPO}/main/appcast.xml}"
+export CODEXBAR_CHANGELOG_URL="${CODEXBAR_CHANGELOG_URL:-${CODEXBAR_REPOSITORY_URL}/blob/main/CHANGELOG.md}"
+export CODEXBAR_PUBLIC_ED_KEY="${CODEXBAR_PUBLIC_ED_KEY:-bjptNX8PlJbdwtszqi3/BAHV4TYyZ3UuV1EMANJ+GaY=}"
+export CODEXBAR_BUNDLE_ID="${CODEXBAR_BUNDLE_ID:-com.shawnrn.codexbar}"
+export CODEXBAR_DEBUG_BUNDLE_ID="${CODEXBAR_DEBUG_BUNDLE_ID:-com.shawnrn.codexbar.debug}"
+export CODEXBAR_APP_GROUP_ID="${CODEXBAR_APP_GROUP_ID:-group.com.shawnrn.codexbar}"
+export CODEXBAR_DEBUG_APP_GROUP_ID="${CODEXBAR_DEBUG_APP_GROUP_ID:-group.com.shawnrn.codexbar.debug}"
+export CODEXBAR_KEYCHAIN_CACHE_SERVICE="${CODEXBAR_KEYCHAIN_CACHE_SERVICE:-com.shawnrn.codexbar.cache}"

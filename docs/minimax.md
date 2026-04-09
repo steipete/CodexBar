@@ -18,7 +18,7 @@ either a Bearer API token or a session cookie header.
    - When present, MiniMax uses the API token and ignores cookies entirely.
 
 2) **Cached cookie header** (automatic, only when no API token)
-   - Keychain cache: `com.steipete.codexbar.cache` (account `cookie.minimax`).
+   - Keychain cache: `com.shawnrn.codexbar.cache` (account `cookie.minimax`).
 
 3) **Browser cookie import** (automatic)
    - Cookie order from provider metadata (default: Safari → Chrome → Firefox).

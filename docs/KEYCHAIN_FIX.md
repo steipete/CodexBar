@@ -14,7 +14,7 @@ still in place, but the architecture has changed:
 
 - Provider settings and manual secrets are now persisted in `~/.codexbar/config.json`.
 - Legacy keychain stores are still present mainly to migrate old installs, then clear old items.
-- Keychain is still used for runtime cache entries (for example `com.steipete.codexbar.cache`) and Claude OAuth
+- Keychain is still used for runtime cache entries (for example `com.shawnrn.codexbar.cache`) and Claude OAuth
   bootstrap reads from Claude CLI keychain (`Claude Code-credentials`).
 
 ## Then vs now
@@ -22,7 +22,7 @@ still in place, but the architecture has changed:
 | Previous statement in this doc | Current behavior |
 | --- | --- |
 | CodexBar stores provider credentials only in keychain | Manual/provider settings are config-file backed (`~/.codexbar/config.json`), while keychain is still used for runtime caches and Claude OAuth bootstrap fallback. |
-| `ClaudeOAuthCredentials.swift` migrated CodexBar-owned Claude OAuth keychain items | Claude OAuth primary source is Claude CLI keychain service (`Claude Code-credentials`), with CodexBar cache in `com.steipete.codexbar.cache` (`oauth.claude`). |
+| `ClaudeOAuthCredentials.swift` migrated CodexBar-owned Claude OAuth keychain items | Claude OAuth primary source is Claude CLI keychain service (`Claude Code-credentials`), with CodexBar cache in `com.shawnrn.codexbar.cache` (`oauth.claude`). |
 | Migration runs in `CodexBarApp.init()` | Migration runs in `HiddenWindowView` `.task` via detached task (`KeychainMigration.migrateIfNeeded()`). |
 | Post-migration prompts should be zero in all Claude paths | Legacy-store prompts are reduced; Claude OAuth bootstrap can still prompt when reading Claude CLI keychain, with cooldown + no-UI probes to prevent storms. |
 | Log category is `KeychainMigration` | Category is `keychain-migration` (kebab-case). |
@@ -43,7 +43,7 @@ still in place, but the architecture has changed:
 Load order for credentials:
 1. Environment override (`CODEXBAR_CLAUDE_OAUTH_TOKEN`, scopes env key).
 2. In-memory cache.
-3. CodexBar keychain cache (`com.steipete.codexbar.cache`, account `oauth.claude`).
+3. CodexBar keychain cache (`com.shawnrn.codexbar.cache`, account `oauth.claude`).
 4. `~/.claude/.credentials.json`.
 5. Claude CLI keychain service: `Claude Code-credentials` (promptable fallback).
 
@@ -57,7 +57,7 @@ Prompt mitigation:
   and can update cached OAuth data when the token changes.
 
 ### Why two Claude keychain prompts can still happen on startup
-When CodexBar does not have usable OAuth credentials in its own cache (`com.steipete.codexbar.cache` / `oauth.claude`),
+When CodexBar does not have usable OAuth credentials in its own cache (`com.shawnrn.codexbar.cache` / `oauth.claude`),
 bootstrap falls through to Claude CLI keychain reads.
 
 Current flow can perform up to two interactive reads in one bootstrap call:
@@ -77,7 +77,7 @@ This is OS/keychain ACL behavior, not a `ThisDeviceOnly` migration issue.
 ### 3. Claude web cookie cache
 `Sources/CodexBarCore/CookieHeaderCache.swift` and `Sources/CodexBarCore/KeychainCacheStore.swift`
 
-- Browser-imported Claude session cookies are cached in keychain service `com.steipete.codexbar.cache`.
+- Browser-imported Claude session cookies are cached in keychain service `com.shawnrn.codexbar.cache`.
 - Account key is `cookie.claude`.
 - Cache writes use `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
 
@@ -85,7 +85,7 @@ This is OS/keychain ACL behavior, not a `ThisDeviceOnly` migration issue.
 
 - Legacy store implementations (`CookieHeaderStore`, token stores, MiniMax stores) still write using
   `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
-- Keychain cache store (`com.steipete.codexbar.cache`) also writes with `ThisDeviceOnly`.
+- Keychain cache store (`com.shawnrn.codexbar.cache`) also writes with `ThisDeviceOnly`.
 
 ## Disable keychain access behavior
 
@@ -100,22 +100,22 @@ Effects:
 
 ### Check legacy migration flag
 ```bash
-defaults read com.steipete.codexbar KeychainMigrationV1Completed
+defaults read com.shawnrn.codexbar KeychainMigrationV1Completed
 ```
 
 ### Check Claude OAuth keychain cooldown
 ```bash
-defaults read com.steipete.codexbar claudeOAuthKeychainDeniedUntil
+defaults read com.shawnrn.codexbar claudeOAuthKeychainDeniedUntil
 ```
 
 ### Inspect keychain-related logs
 ```bash
-log show --predicate 'subsystem == "com.steipete.codexbar" && (category == "keychain-migration" || category == "keychain-preflight" || category == "keychain-prompt" || category == "keychain-cache" || category == "claude-usage" || category == "cookie-cache")' --last 10m
+log show --predicate 'subsystem == "com.shawnrn.codexbar" && (category == "keychain-migration" || category == "keychain-preflight" || category == "keychain-prompt" || category == "keychain-cache" || category == "claude-usage" || category == "cookie-cache")' --last 10m
 ```
 
 ### Reset migration for local testing
 ```bash
-defaults delete com.steipete.codexbar KeychainMigrationV1Completed
+defaults delete com.shawnrn.codexbar KeychainMigrationV1Completed
 ./Scripts/compile_and_run.sh
 ```
 

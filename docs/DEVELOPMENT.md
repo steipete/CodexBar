@@ -47,7 +47,7 @@ You'll see **one keychain prompt per stored credential** on the first launch. Th
 
 ### Reset Migration (Testing)
 ```bash
-defaults delete com.steipete.codexbar KeychainMigrationV1Completed
+defaults delete com.shawnrn.codexbar KeychainMigrationV1Completed
 ```
 
 ## Auto-Refresh for Augment Cookies
@@ -114,7 +114,7 @@ export CODEXBAR_LOG_LEVEL=debug
 ./Scripts/compile_and_run.sh
 
 # Check logs in Console.app
-# Filter: subsystem:com.steipete.codexbar category:augment-cookie
+# Filter: subsystem:com.shawnrn.codexbar category:augment-cookie
 ```
 
 ### Run Tests Only
@@ -158,7 +158,7 @@ ls -lt ~/Library/Logs/DiagnosticReports/CodexBar* | head -5
 ### Keychain Prompts Keep Appearing
 ```bash
 # Verify migration completed
-defaults read com.steipete.codexbar KeychainMigrationV1Completed
+defaults read com.shawnrn.codexbar KeychainMigrationV1Completed
 # Should output: 1
 
 # Check migration logs

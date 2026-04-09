@@ -18,8 +18,10 @@ struct CodexBarApp: App {
         let env = ProcessInfo.processInfo.environment
         let storedLevel = CodexBarLog.parseLevel(UserDefaults.standard.string(forKey: "debugLogLevel")) ?? .verbose
         let level = CodexBarLog.parseLevel(env["CODEXBAR_LOG_LEVEL"]) ?? storedLevel
+        AppIdentityMigration.migrateUserDefaults()
+        AppIdentityMigration.migrateSharedDefaults()
         CodexBarLog.bootstrapIfNeeded(.init(
-            destination: .oslog(subsystem: "com.steipete.codexbar"),
+            destination: .oslog(subsystem: AppIdentity.logSubsystem),
             level: level,
             json: false))
 
@@ -220,6 +222,17 @@ private func isDeveloperIDSigned(bundleURL: URL) -> Bool {
     return false
 }
 
+private func hasValidSparkleConfiguration(bundle: Bundle = .main) -> Bool {
+    guard let feedURL = bundle.object(forInfoDictionaryKey: "SUFeedURL") as? String,
+          !feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+          let publicKey = bundle.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
+          !publicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+        return false
+    }
+    return true
+}
+
 @MainActor
 private func makeUpdaterController() -> UpdaterProviding {
     let bundleURL = Bundle.main.bundleURL
@@ -230,10 +243,13 @@ private func makeUpdaterController() -> UpdaterProviding {
 
     if InstallOrigin.isHomebrewCask(appBundleURL: bundleURL) {
         return DisabledUpdaterController(
-            unavailableReason: "Updates managed by Homebrew. Run: brew upgrade --cask steipete/tap/codexbar")
+            unavailableReason: "Updates managed by Homebrew. Run: brew upgrade --cask codexbar")
     }
 
     guard isDeveloperIDSigned(bundleURL: bundleURL) else {
+        return DisabledUpdaterController(unavailableReason: "Updates unavailable in this build.")
+    }
+    guard hasValidSparkleConfiguration() else {
         return DisabledUpdaterController(unavailableReason: "Updates unavailable in this build.")
     }
 

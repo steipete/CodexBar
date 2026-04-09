@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 import SwiftUI
 
 @MainActor
@@ -67,10 +68,9 @@ struct AboutPane: View {
                 AboutLinkRow(
                     icon: "chevron.left.slash.chevron.right",
                     title: L10n.tr("GitHub"),
-                    url: "https://github.com/steipete/CodexBar")
-                AboutLinkRow(icon: "globe", title: L10n.tr("Website"), url: "https://steipete.me")
-                AboutLinkRow(icon: "bird", title: L10n.tr("Twitter"), url: "https://twitter.com/steipete")
-                AboutLinkRow(icon: "envelope", title: L10n.tr("Email"), url: "mailto:peter@steipete.me")
+                    url: ReleaseConfig.repositoryURL)
+                AboutLinkRow(icon: "arrow.down.circle", title: L10n.tr("Download"), url: ReleaseConfig.releasesURL)
+                AboutLinkRow(icon: "doc.text", title: L10n.tr("Changelog"), url: ReleaseConfig.changelogURL)
             }
             .padding(.top, 8)
             .frame(maxWidth: .infinity)
@@ -147,7 +147,7 @@ struct AboutPane: View {
     }
 
     private func openProjectHome() {
-        guard let url = URL(string: "https://github.com/steipete/CodexBar") else { return }
+        guard let url = URL(string: ReleaseConfig.repositoryURL) else { return }
         NSWorkspace.shared.open(url)
     }
 }
