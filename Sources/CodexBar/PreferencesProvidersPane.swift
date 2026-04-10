@@ -543,13 +543,13 @@ struct ProvidersPane: View {
             tokenError = nil
         }
 
+        // Abacus uses primary for monthly credits (no secondary window)
+        let paceWindow = provider == .abacus ? snapshot?.primary : snapshot?.secondary
         let weeklyPace = if let codexProjection,
                             let weekly = codexProjection.rateWindow(for: .weekly)
         {
             self.store.weeklyPace(provider: provider, window: weekly, now: now)
         } else {
-            // Abacus uses primary for monthly credits (no secondary window)
-            let paceWindow = provider == .abacus ? snapshot?.primary : snapshot?.secondary
             paceWindow.flatMap { window in
                 self.store.weeklyPace(provider: provider, window: window, now: now)
             }

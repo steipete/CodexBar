@@ -1339,13 +1339,13 @@ extension StatusItemController {
 
         let sourceLabel = snapshotOverride == nil ? self.store.sourceLabel(for: target) : nil
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
+        // Abacus uses primary for monthly credits (no secondary window)
+        let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
         let weeklyPace = if let codexProjection,
                             let weekly = codexProjection.rateWindow(for: .weekly)
         {
             self.store.weeklyPace(provider: target, window: weekly, now: now)
         } else {
-            // Abacus uses primary for monthly credits (no secondary window)
-            let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
             paceWindow.flatMap { window in
                 self.store.weeklyPace(provider: target, window: window, now: now)
             }
