@@ -67,7 +67,7 @@ Recognized cookie names:
 - `session`, `web_rpc_proxy_session` (Augment-specific)
 
 Cached cookies:
-- Keychain cache `com.steipete.codexbar.cache` (account `cookie.augment`, source + timestamp). Reused before re-importing
+- Keychain cache `com.shawnrn.codexbar.cache` (account `cookie.augment`, source + timestamp). Reused before re-importing
   from browsers.
 
 ### Auggie CLI Integration

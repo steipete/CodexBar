@@ -52,16 +52,16 @@ struct AugmentProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.augmentCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from the Augment dashboard.",
-                off: "Augment cookies are disabled.")
+                auto: L10n.tr("Automatic imports browser cookies."),
+                manual: L10n.tr("Paste a Cookie header or cURL capture from the Augment dashboard."),
+                off: L10n.tr("Augment cookies are disabled."))
         }
 
         return [
             ProviderSettingsPickerDescriptor(
                 id: "augment-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
+                title: L10n.tr("Cookie source"),
+                subtitle: L10n.tr("Automatic imports browser cookies."),
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
@@ -70,7 +70,7 @@ struct AugmentProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard let entry = CookieHeaderCache.load(provider: .augment) else { return nil }
                     let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
+                    return L10n.format("Cached: %@ • %@", entry.sourceLabel, when)
                 }),
         ]
     }
@@ -83,14 +83,14 @@ struct AugmentProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry]) {
-        entries.append(.action("Refresh Session", .refreshAugmentSession))
+        entries.append(.action(L10n.tr("Refresh Session"), .refreshAugmentSession))
 
         if let error = context.store.error(for: .augment) {
             if error.contains("session has expired") ||
                 error.contains("No Augment session cookie found")
             {
                 entries.append(.action(
-                    "Open Augment (Log Out & Back In)",
+                    L10n.tr("Open Augment (Log Out & Back In)"),
                     .loginToProvider(url: "https://app.augmentcode.com")))
             }
         }

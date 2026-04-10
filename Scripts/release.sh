@@ -5,12 +5,13 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
 source "$ROOT/version.env"
+source "$ROOT/Scripts/release_config.sh"
 source "$HOME/Projects/agent-scripts/release/sparkle_lib.sh"
 
 APPCAST="$ROOT/appcast.xml"
 APP_NAME="CodexBar"
 ARTIFACT_PREFIX="CodexBar-"
-BUNDLE_ID="com.steipete.codexbar"
+BUNDLE_ID="$CODEXBAR_BUNDLE_ID"
 TAG="v${MARKETING_VERSION}"
 
 err() { echo "ERROR: $*" >&2; exit 1; }
@@ -47,7 +48,7 @@ gh release create "$TAG" ${APP_NAME}-${MARKETING_VERSION}.zip ${APP_NAME}-${MARK
 SPARKLE_PRIVATE_KEY_FILE="$KEY_FILE" \
   "$ROOT/Scripts/make_appcast.sh" \
   "${APP_NAME}-${MARKETING_VERSION}.zip" \
-  "https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml"
+  "$CODEXBAR_APPCAST_URL"
 
 verify_appcast_entry "$APPCAST" "$MARKETING_VERSION" "$KEY_FILE"
 

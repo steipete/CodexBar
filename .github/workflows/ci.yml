@@ -8,6 +8,7 @@ on:
 jobs:
   lint-build-test:
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
 
@@ -35,10 +36,14 @@ jobs:
       - name: Lint
         run: ./Scripts/lint.sh lint
 
+      - name: Verify localization sync
+        run: python3 Scripts/sync_localizable.py --check
+
       - name: Swift Test
         run: swift test --no-parallel
 
   build-linux-cli:
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

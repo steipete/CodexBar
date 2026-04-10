@@ -1,0 +1,199 @@
+name: Upstream Sync
+
+on:
+  schedule:
+    - cron: "0 9 * * 1,4"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which source to process"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - upstream
+          - quotio
+
+permissions:
+  contents: write
+
+jobs:
+  upstream-sync:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'upstream' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/steipete/CodexBar.git || true
+          git fetch origin "${{ github.event.repository.default_branch }}"
+          git fetch upstream main
+
+      - name: Merge upstream into default branch
+        id: sync
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          git checkout -B "$DEFAULT_BRANCH" "origin/${DEFAULT_BRANCH}"
+
+          COMMITS=$(git log --reverse --pretty=format:'- %h %s' "origin/${DEFAULT_BRANCH}..upstream/main" --no-merges || true)
+          if [[ -z "$COMMITS" ]]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          printf "%s\n" "$COMMITS" > /tmp/upstream-commits.md
+          git diff --name-only "origin/${DEFAULT_BRANCH}..upstream/main" > /tmp/upstream-files.txt
+          awk -F/ '/^Sources\/CodexBar(Core)?\/Providers\// {print $4}' /tmp/upstream-files.txt | sort -u | sed '/^$/d' > /tmp/upstream-providers.txt
+
+          if ! git merge --no-ff --no-edit upstream/main; then
+            CONFLICTS=$(git diff --name-only --diff-filter=U | sed 's/^/- /' || true)
+            git merge --abort || true
+            {
+              echo "has_changes=true"
+              echo "merge_conflict=true"
+              echo "conflicts<<EOF"
+              printf "%s\n" "${CONFLICTS:-"- Merge conflict details unavailable"}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --quiet "origin/${DEFAULT_BRANCH}...HEAD"; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git push origin "HEAD:${DEFAULT_BRANCH}"
+
+          {
+            echo "has_changes=true"
+            echo "merge_conflict=false"
+            echo "commits<<EOF"
+            cat /tmp/upstream-commits.md
+            echo "EOF"
+            echo "providers<<EOF"
+            if [[ -s /tmp/upstream-providers.txt ]]; then
+              sed 's/^/- /' /tmp/upstream-providers.txt
+            else
+              echo "- None"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summarize successful upstream sync
+        if: ${{ steps.sync.outputs.has_changes == 'true' && steps.sync.outputs.merge_conflict == 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Upstream sync merged into \`${{ github.event.repository.default_branch }}\`
+
+          ## Incoming commits
+          ${{ steps.sync.outputs.commits }}
+
+          ## Affected providers
+          ${{ steps.sync.outputs.providers }}
+          EOF
+
+      - name: Report merge conflicts
+        if: ${{ steps.sync.outputs.has_changes == 'true' && steps.sync.outputs.merge_conflict == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Upstream sync conflict
+
+          Automated upstream sync hit merge conflicts while merging \`upstream/main\` into \`${{ github.event.repository.default_branch }}\`.
+
+          ## Conflicted files
+          ${{ steps.sync.outputs.conflicts }}
+          EOF
+          exit 1
+
+  quotio-monitor:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'quotio' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch quotio
+        id: fetch-quotio
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REMOTE_URL="https://github.com/nguyenphutrong/quotio.git"
+          DEFAULT_BRANCH="$(
+            git ls-remote --symref "$REMOTE_URL" HEAD \
+              | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2; exit }'
+          )"
+          if [[ -z "$DEFAULT_BRANCH" ]]; then
+            DEFAULT_BRANCH="master"
+          fi
+
+          git remote add quotio "$REMOTE_URL" || true
+          if git fetch quotio "$DEFAULT_BRANCH"; then
+            echo "branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Summarize quotio activity
+        id: quotio
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ steps.fetch-quotio.outputs.available }}" != "true" ]]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BRANCH="${{ steps.fetch-quotio.outputs.branch }}"
+          COMMITS=$(git log --pretty=format:'- %h %s' --since="7 days ago" "quotio/${BRANCH}" || true)
+          if [[ -z "$COMMITS" ]]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "has_changes=true"
+            echo "branch=$BRANCH"
+            echo "commits<<EOF"
+            printf "%s\n" "$COMMITS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summarize quotio review activity
+        if: ${{ steps.quotio.outputs.has_changes == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Quotio changes to review
+
+          Recent commits detected in \`nguyenphutrong/quotio\` on \`${{ steps.quotio.outputs.branch }}\` during the last 7 days.
+
+          ## Recent commits
+          ${{ steps.quotio.outputs.commits }}
+          EOF

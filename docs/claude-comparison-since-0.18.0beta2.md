@@ -70,7 +70,7 @@ flowchart TD
 flowchart TD
     A["load(...)"] --> B["Environment token (CODEXBAR_CLAUDE_OAUTH_TOKEN)"]
     B -->|miss| C["Memory cache (valid + unexpired)"]
-    C -->|miss| D["CodexBar keychain cache: com.steipete.codexbar.cache/oauth.claude"]
+    C -->|miss| D["CodexBar keychain cache: com.shawnrn.codexbar.cache/oauth.claude"]
     D -->|miss| E["~/.claude/.credentials.json"]
     E -->|miss| F{"allowKeychainPrompt && prompt gate open?"}
     F -- "yes" --> G["Claude keychain service: Claude Code-credentials (promptable fallback)"]

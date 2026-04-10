@@ -16,6 +16,7 @@ RUN_TESTS=0
 DEBUG_LLDB=0
 RELEASE_ARCHES=""
 SIGNING_MODE="${CODEXBAR_SIGNING:-}"
+CLEAR_KEYCHAIN_ON_ADHOC="${CODEXBAR_CLEAR_KEYCHAIN_ON_ADHOC:-0}"
 
 log()  { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -45,6 +46,7 @@ resolve_signing_mode() {
 
   local candidate=""
   for candidate in \
+    "Apple Development: shawnrain@foxmail.com (ZQG28N5AK8)" \
     "Developer ID Application: Peter Steinberger (Y5PE65HELJ)" \
     "CodexBar Development"
   do
@@ -179,7 +181,7 @@ kill_claude_probes
 
 # 2.5) Delete keychain entries to avoid permission prompts with adhoc signing
 # (adhoc signature changes on every build, making old keychain entries inaccessible)
-if [[ "${SIGNING_MODE:-adhoc}" == "adhoc" ]]; then
+if [[ "${SIGNING_MODE:-adhoc}" == "adhoc" && "${CLEAR_KEYCHAIN_ON_ADHOC}" == "1" ]]; then
   log "==> Clearing keychain entries (adhoc signing)"
   security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null || true
   # Clear all keychain items for the app to avoid multiple prompts

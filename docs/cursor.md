@@ -14,7 +14,7 @@ Cursor is web-only. Usage is fetched via browser cookies or a stored WebKit sess
 
 1) **Cached cookie header** (preferred)
    - Stored after successful browser import.
-   - Keychain cache: `com.steipete.codexbar.cache` (account `cookie.cursor`).
+   - Keychain cache: `com.shawnrn.codexbar.cache` (account `cookie.cursor`).
 
 2) **Browser cookie import**
    - Cookie order from provider metadata (default: Safari → Chrome → Firefox).

@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 import SwiftUI
 
 @MainActor
@@ -6,8 +7,6 @@ struct AboutPane: View {
     let updater: UpdaterProviding
     @State private var iconHover = false
     @AppStorage("autoUpdateEnabled") private var autoUpdateEnabled: Bool = true
-    @AppStorage(UpdateChannel.userDefaultsKey)
-    private var updateChannelRaw: String = UpdateChannel.defaultChannel.rawValue
     @State private var didLoadUpdaterState = false
 
     private var versionString: String {
@@ -49,16 +48,16 @@ struct AboutPane: View {
             }
 
             VStack(spacing: 2) {
-                Text("CodexBar")
+                Text(L10n.tr("CodexBar"))
                     .font(.title3).bold()
-                Text("Version \(self.versionString)")
+                Text(L10n.format("Version %@", self.versionString))
                     .foregroundStyle(.secondary)
                 if let buildTimestamp {
-                    Text("Built \(buildTimestamp)")
+                    Text(L10n.format("Built %@", buildTimestamp))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                Text("May your tokens never run out—keep agent limits in view.")
+                Text(L10n.tr("May your tokens never run out—keep agent limits in view."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -66,11 +65,10 @@ struct AboutPane: View {
             VStack(alignment: .center, spacing: 10) {
                 AboutLinkRow(
                     icon: "chevron.left.slash.chevron.right",
-                    title: "GitHub",
-                    url: "https://github.com/steipete/CodexBar")
-                AboutLinkRow(icon: "globe", title: "Website", url: "https://steipete.me")
-                AboutLinkRow(icon: "bird", title: "Twitter", url: "https://twitter.com/steipete")
-                AboutLinkRow(icon: "envelope", title: "Email", url: "mailto:peter@steipete.me")
+                    title: L10n.tr("GitHub"),
+                    url: ReleaseConfig.repositoryURL)
+                AboutLinkRow(icon: "arrow.down.circle", title: L10n.tr("Download"), url: ReleaseConfig.releasesURL)
+                AboutLinkRow(icon: "doc.text", title: L10n.tr("Changelog"), url: ReleaseConfig.changelogURL)
             }
             .padding(.top, 8)
             .frame(maxWidth: .infinity)
@@ -80,36 +78,22 @@ struct AboutPane: View {
 
             if self.updater.isAvailable {
                 VStack(spacing: 10) {
-                    Toggle("Check for updates automatically", isOn: self.$autoUpdateEnabled)
+                    Toggle(L10n.tr("Check for updates automatically"), isOn: self.$autoUpdateEnabled)
                         .toggleStyle(.checkbox)
                         .frame(maxWidth: .infinity, alignment: .center)
-                    VStack(spacing: 6) {
-                        HStack(spacing: 12) {
-                            Text("Update Channel")
-                            Spacer()
-                            Picker("", selection: self.updateChannelBinding) {
-                                ForEach(UpdateChannel.allCases) { channel in
-                                    Text(channel.displayName).tag(channel)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                        }
+                    Text(UpdateChannel.description)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                         .frame(maxWidth: 280)
-                        Text(self.updateChannel.description)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: 280)
-                    }
-                    Button("Check for Updates…") { self.updater.checkForUpdates(nil) }
+                    Button(L10n.tr("Check for Updates…")) { self.updater.checkForUpdates(nil) }
                 }
             } else {
-                Text(self.updater.unavailableReason ?? "Updates unavailable in this build.")
+                Text(self.updater.unavailableReason ?? L10n.tr("Updates unavailable in this build."))
                     .foregroundStyle(.secondary)
             }
 
-            Text("© 2026 Peter Steinberger. MIT License.")
+            Text(L10n.tr("© 2026 Peter Steinberger. MIT License."))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
@@ -133,21 +117,8 @@ struct AboutPane: View {
         }
     }
 
-    private var updateChannel: UpdateChannel {
-        UpdateChannel(rawValue: self.updateChannelRaw) ?? .stable
-    }
-
-    private var updateChannelBinding: Binding<UpdateChannel> {
-        Binding(
-            get: { self.updateChannel },
-            set: { newValue in
-                self.updateChannelRaw = newValue.rawValue
-                self.updater.checkForUpdates(nil)
-            })
-    }
-
     private func openProjectHome() {
-        guard let url = URL(string: "https://github.com/steipete/CodexBar") else { return }
+        guard let url = URL(string: ReleaseConfig.repositoryURL) else { return }
         NSWorkspace.shared.open(url)
     }
 }

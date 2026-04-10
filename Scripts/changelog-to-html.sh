@@ -3,13 +3,14 @@ set -euo pipefail
 
 VERSION=${1:-}
 CHANGELOG_FILE=${2:-}
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "$SCRIPT_DIR/release_config.sh"
 
 if [[ -z "$VERSION" ]]; then
   echo "Usage: $0 <version> [changelog_file]" >&2
   exit 1
 fi
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 if [[ -z "$CHANGELOG_FILE" ]]; then
   if [[ -f "$SCRIPT_DIR/../CHANGELOG.md" ]]; then
     CHANGELOG_FILE="$SCRIPT_DIR/../CHANGELOG.md"
@@ -57,7 +58,7 @@ version_content=$(extract_version_section "$VERSION" "$CHANGELOG_FILE")
 if [[ -z "$version_content" ]]; then
   echo "<h2>CodexBar $VERSION</h2>"
   echo "<p>Latest CodexBar update.</p>"
-  echo "<p><a href=\"https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md\">View full changelog</a></p>"
+  echo "<p><a href=\"${CODEXBAR_CHANGELOG_URL}\">View full changelog</a></p>"
   exit 0
 fi
 
@@ -86,4 +87,4 @@ if [[ "$in_list" == true ]]; then
   echo "</ul>"
 fi
 
-echo "<p><a href=\"https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md\">View full changelog</a></p>"
+echo "<p><a href=\"${CODEXBAR_CHANGELOG_URL}\">View full changelog</a></p>"

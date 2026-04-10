@@ -1,0 +1,207 @@
+name: Release App
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "appcast.xml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+      HAS_SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in /Applications/Xcode_26.1.1.app /Applications/Xcode_26.1.app /Applications/Xcode.app; do
+            if [[ -d "$candidate" ]]; then
+              sudo xcode-select -s "${candidate}/Contents/Developer"
+              break
+            fi
+          done
+          xcodebuild -version
+
+      - name: Install pnpm
+        run: corepack enable
+
+      - name: Resolve release mode
+        id: mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          source version.env
+
+          if [[ "${{ github.event_name }}" == "push" && ! "$MARKETING_VERSION" =~ (beta|alpha|rc|pre|dev) ]]; then
+            echo "release_enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$MARKETING_VERSION" =~ (beta|alpha|rc|pre|dev) ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "release_enabled=true" >> "$GITHUB_OUTPUT"
+          echo "version=$MARKETING_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$MARKETING_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Stop when release is disabled
+        if: ${{ steps.mode.outputs.release_enabled != 'true' }}
+        run: echo "Skipping release for this push."
+
+      - name: Require Sparkle signing key for app-updatable releases
+        if: ${{ steps.mode.outputs.release_enabled == 'true' && env.HAS_SPARKLE_PRIVATE_KEY != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SPARKLE_PRIVATE_KEY secret is required so release-app can regenerate appcast.xml." >&2
+          echo "Without appcast.xml, Sparkle clients cannot discover this update in-app." >&2
+          exit 1
+
+      - name: Install lint tools
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        run: ./Scripts/install_lint_tools.sh
+
+      - name: Run checks
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./Scripts/lint.sh lint
+          python3 Scripts/sync_localizable.py --check
+          pnpm check
+          swift test --filter UpdateChannelTests --no-parallel
+
+      - name: Package release artifacts
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.mode.outputs.version }}"
+          CODEXBAR_SIGNING=adhoc CODEXBAR_ENABLE_SPARKLE_UPDATES=1 ./Scripts/package_app.sh release
+          ditto --norsrc -c -k --keepParent CodexBar.app "CodexBar-${VERSION}.zip"
+
+          DSYM_PATH=".build/arm64-apple-macosx/release/CodexBar.dSYM"
+          if [[ ! -d "$DSYM_PATH" ]]; then
+            DSYM_PATH=".build/release/CodexBar.dSYM"
+          fi
+          test -d "$DSYM_PATH"
+          ditto --norsrc -c -k --keepParent "$DSYM_PATH" "CodexBar-${VERSION}.dSYM.zip"
+
+      - name: Extract release notes
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.mode.outputs.version }}"
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          awk -v version="$VERSION" '
+            BEGIN { found=0 }
+            /^## / {
+              if ($0 ~ "^##[[:space:]]+" version "([[:space:]].*|$)") { found=1; next }
+              if (found) { exit }
+            }
+            found { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+          [[ -s "$NOTES_FILE" ]] || echo "CodexBar ${VERSION}" > "$NOTES_FILE"
+          echo "path=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update GitHub Release
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.mode.outputs.tag }}"
+          VERSION="${{ steps.mode.outputs.version }}"
+          PRERELEASE="${{ steps.mode.outputs.prerelease }}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --title "CodexBar ${VERSION}" \
+              --notes-file "${{ steps.notes.outputs.path }}" \
+              $([[ "$PRERELEASE" == "true" ]] && echo "--prerelease" || echo "--latest")
+          else
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "CodexBar ${VERSION}" \
+              --notes-file "${{ steps.notes.outputs.path }}" \
+              $([[ "$PRERELEASE" == "true" ]] && echo "--prerelease" || echo "--latest")
+          fi
+
+      - name: Upload release assets
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.mode.outputs.version }}"
+          TAG="${{ steps.mode.outputs.tag }}"
+          gh release upload "$TAG" \
+            "CodexBar-${VERSION}.zip" \
+            "CodexBar-${VERSION}.dSYM.zip" \
+            --clobber
+
+      - name: Install Python signing dependency
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/appcast-venv"
+          "$RUNNER_TEMP/appcast-venv/bin/python" -m pip install cryptography
+
+      - name: Generate and validate appcast
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        shell: bash
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.mode.outputs.version }}"
+          printf '%s\n' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle-private-key.txt"
+          export SPARKLE_PRIVATE_KEY_FILE="$RUNNER_TEMP/sparkle-private-key.txt"
+          export PATH="$RUNNER_TEMP/appcast-venv/bin:$PATH"
+          ./Scripts/make_appcast.sh "CodexBar-${VERSION}.zip"
+          xmllint --noout appcast.xml
+
+      - name: Upload appcast asset
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.mode.outputs.tag }}" appcast.xml --clobber
+
+      - name: Commit appcast
+        if: ${{ steps.mode.outputs.release_enabled == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- appcast.xml; then
+            echo "appcast.xml unchanged"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "docs: update appcast for ${{ steps.mode.outputs.tag }}"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"

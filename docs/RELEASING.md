@@ -15,19 +15,19 @@ SwiftPM-only; package/sign/notarize manually (no Xcode project). Sparkle feed is
 ## Expectations
 - When someone says “release CodexBar”, do the entire end-to-end flow: bump versions/CHANGELOG, build, sign and notarize, upload the zip to the GitHub release, generate/update the appcast with the new signature, publish the tag/release, and verify the enclosure URL responds with 200/OK and installs via Sparkle (no 404s or stale feeds).
 
-### Release automation notes (Scripts/release.sh)
+### Release automation notes
 - Always forces a fresh build/notarization (no cached artifacts) before publishing.
 - Fails fast if: git tree is dirty, the top changelog section is still “Unreleased” or mismatched, the target version already exists in the appcast, or the build number is not greater than the latest appcast entry.
 - Sparkle key probe runs up front; appcast entry + signature verified automatically after generation.
 - Release notes are extracted directly from the current changelog section and passed to the GitHub release (no manual notes flag needed).
 - Sparkle appcast notes are generated as HTML from the same changelog section and embedded into the appcast entry.
-- Requires tools/env on PATH: `swiftformat`, `swiftlint`, `swift`, `sign_update`, `generate_appcast`, `gh`, `python3`, `zip`, `curl`, plus `APP_STORE_CONNECT_*` and `SPARKLE_PRIVATE_KEY_FILE`.
+- Requires tools/env on PATH: `swiftformat`, `swiftlint`, `swift`, `openssl`, `gh`, `python3`, `zip`, `curl`, plus `APP_STORE_CONNECT_*` and `SPARKLE_PRIVATE_KEY_FILE` (or GitHub repo secret `SPARKLE_PRIVATE_KEY` for Actions).
 
 ## Prereqs
 - Xcode 26+ installed at `/Applications/Xcode.app` (for ictool/iconutil and SDKs).
 - Developer ID Application cert installed: `Developer ID Application: Peter Steinberger (Y5PE65HELJ)`.
 - ASC API creds in env: `APP_STORE_CONNECT_API_KEY_P8`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`.
-- Sparkle keys: public key already in Info.plist; private key path set via `SPARKLE_PRIVATE_KEY_FILE` when generating appcast.
+- Sparkle keys: public key is sourced from `Scripts/release_config.sh` / `Sources/CodexBarCore/AppIdentity.swift`; private key path is provided via `SPARKLE_PRIVATE_KEY_FILE` when generating appcast locally, or `SPARKLE_PRIVATE_KEY` repo secret in GitHub Actions.
 - Ensure shell has release env vars loaded (usually `source ~/.profile`) before running `Scripts/release.sh`.
 
 ## Icon (glass .icon → .icns)
@@ -59,18 +59,16 @@ After notarization:
 ```
 SPARKLE_PRIVATE_KEY_FILE=/path/to/ed25519-priv.key \
 ./Scripts/make_appcast.sh CodexBar-0.1.0.zip \
-  https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml
+  https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml
 Generates HTML release notes from `CHANGELOG.md` (via `Scripts/changelog-to-html.sh`) and embeds them into the appcast entry.
 ```
-Uploads not handled automatically—commit/publish appcast + zip to the feed location (GitHub Releases/raw URL).
+`Scripts/make_appcast.sh` now signs the zip with `openssl` and writes a real CDATA release-notes block into `appcast.xml`.
+If the zip filename contains a prerelease suffix, version inference is automatic (`CodexBar-0.18.0-beta.4.zip` works).
+Uploads are handled automatically by `.github/workflows/release-app.yml` when `main` changes and `SPARKLE_PRIVATE_KEY` is configured.
 
 ## Tag & release
-```
-git tag v<version>
-./Scripts/make_appcast.sh ...
-# upload zip + appcast to Releases
-# then create GitHub release (gh release create v<version> ...)
-```
+Primary path: push/merge to `main` and let `.github/workflows/release-app.yml` package the app, upload the zip + dSYM + appcast, and commit the updated `appcast.xml`.
+Manual fallback: create/edit the GitHub release with `gh release create/edit`, upload the zip/dSYM/appcast assets, then commit and push the updated `appcast.xml`.
 
 ## Homebrew (Cask)
 CodexBar ships a Homebrew **Cask** in `../homebrew-tap`. When installed via Homebrew, CodexBar disables Sparkle and the app
@@ -85,11 +83,10 @@ After publishing the GitHub release, update the tap cask + Linux CLI formula (se
 - [ ] `./Scripts/build_icon.sh` if icon changed
 - [ ] `./Scripts/sign-and-notarize.sh`
 - [ ] Generate Sparkle appcast with private key
-  - Sparkle ed25519 private key path: `/Users/steipete/Library/CloudStorage/Dropbox/Backup/Sparkle/sparkle-private-key-KEEP-SECURE.txt` (primary) and `/Users/steipete/Library/CloudStorage/Dropbox/Backup/Sparkle-VibeTunnel/sparkle-private-key-KEEP-SECURE.txt` (older backup)
+  - Local: `SPARKLE_PRIVATE_KEY_FILE=... ./Scripts/make_appcast.sh CodexBar-<ver>.zip https://raw.githubusercontent.com/ShawnRn/CodexBar/main/appcast.xml`
+  - CI: ensure repo secret `SPARKLE_PRIVATE_KEY` exists before expecting `release-app.yml` to succeed
   - Upload the dSYM archive alongside the app zip on the GitHub release; the release script now automates this and will fail if it’s missing.
   - After publishing the release, run `Scripts/check-release-assets.sh <tag>` to confirm both the app zip and dSYM zip are present on GitHub.
-  - Generate the appcast + HTML release notes: `./Scripts/make_appcast.sh CodexBar-<ver>.zip https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml`
-  - Beta channel: prefix the command with `SPARKLE_CHANNEL=beta` to tag the entry.
   - Verify the enclosure signature + size: `SPARKLE_PRIVATE_KEY_FILE=... ./Scripts/verify_appcast.sh <ver>`
 - [ ] Upload zip + appcast to feed; publish tag + GitHub release so Sparkle URL is live (avoid 404)
 - [ ] Homebrew tap: update `../homebrew-tap/Casks/codexbar.rb` (url + sha256) and `../homebrew-tap/Formula/codexbar.rb` (Linux CLI tarball urls + sha256), then verify:
@@ -105,7 +102,7 @@ After publishing the GitHub release, update the tap cask + Linux CLI formula (se
 - [ ] Verify on GitHub Releases: assets present (zip, appcast), release notes match changelog, version/tag correct
 - [ ] Open the appcast URL in browser to confirm the new entry is visible and enclosure URL is reachable
 - [ ] Manually visit the enclosure URL (curl -I) to ensure 200/OK (no 404) after publishing assets/release
-- [ ] Ensure `sparkle:edSignature` is present for the enclosure in appcast (generated by `generate_appcast` with the ed25519 key)
+- [ ] Ensure `sparkle:edSignature` is present for the enclosure in appcast (generated by `Scripts/make_appcast.sh` with the ed25519 key)
 - [ ] When creating the GitHub release, paste the CHANGELOG entry as Markdown list (one `-` per line, blank line between sections); visually confirm bullets render correctly after publishing
 - [ ] Keep a previous signed build in `/Applications/CodexBar.app` to test Sparkle delta/full update to the new release
 - [ ] Manual Gatekeeper sanity: after packaging, `find CodexBar.app -name '._*'` is empty, `spctl --assess --type execute --verbose CodexBar.app` and `codesign --verify --deep --strict --verbose CodexBar.app` succeed

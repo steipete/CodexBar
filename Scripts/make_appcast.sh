@@ -2,13 +2,17 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+source "$ROOT/Scripts/release_config.sh"
 ZIP=${1:?
 "Usage: $0 CodexBar-<ver>.zip"}
-FEED_URL=${2:-"https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml"}
+FEED_URL=${2:-"$CODEXBAR_APPCAST_URL"}
 PRIVATE_KEY_FILE=${SPARKLE_PRIVATE_KEY_FILE:-}
-SPARKLE_CHANNEL=${SPARKLE_CHANNEL:-}
 if [[ -z "$PRIVATE_KEY_FILE" ]]; then
-  echo "Set SPARKLE_PRIVATE_KEY_FILE to your ed25519 private key (Sparkle)." >&2
+  echo "Set SPARKLE_PRIVATE_KEY_FILE to your ed25519 private key PEM file." >&2
+  exit 1
+fi
+if [[ ! -f "$PRIVATE_KEY_FILE" ]]; then
+  echo "Private key file not found: $PRIVATE_KEY_FILE" >&2
   exit 1
 fi
 if [[ ! -f "$ZIP" ]]; then
@@ -21,7 +25,7 @@ ZIP_NAME=$(basename "$ZIP")
 ZIP_BASE="${ZIP_NAME%.zip}"
 VERSION=${SPARKLE_RELEASE_VERSION:-}
 if [[ -z "$VERSION" ]]; then
-  if [[ "$ZIP_NAME" =~ ^CodexBar-([0-9]+(\.[0-9]+){1,2}([-.][^.]*)?)\.zip$ ]]; then
+  if [[ "$ZIP_NAME" =~ ^CodexBar-(.+)\.zip$ ]]; then
     VERSION="${BASH_REMATCH[1]}"
   else
     echo "Could not infer version from $ZIP_NAME; set SPARKLE_RELEASE_VERSION." >&2
@@ -47,62 +51,112 @@ cleanup() {
 }
 trap cleanup EXIT
 
-DOWNLOAD_URL_PREFIX=${SPARKLE_DOWNLOAD_URL_PREFIX:-"https://github.com/steipete/CodexBar/releases/download/v${VERSION}/"}
-
-# Sparkle provides generate_appcast; ensure it's on PATH (via SwiftPM build of Sparkle's bin) or Xcode dmg
-if ! command -v generate_appcast >/dev/null; then
-  echo "generate_appcast not found in PATH. Install Sparkle tools (see Sparkle docs)." >&2
-  exit 1
-fi
-
+DOWNLOAD_URL_PREFIX=${SPARKLE_DOWNLOAD_URL_PREFIX:-"${CODEXBAR_RELEASES_URL}/download/v${VERSION}/"}
 WORK_DIR=$(mktemp -d /tmp/codexbar-appcast.XXXXXX)
 
-cp "$ROOT/appcast.xml" "$WORK_DIR/appcast.xml"
-cp "$ZIP" "$WORK_DIR/$ZIP_NAME"
-cp "$NOTES_HTML" "$WORK_DIR/$ZIP_BASE.html"
-
-pushd "$WORK_DIR" >/dev/null
-generate_appcast \
-  --ed-key-file "$PRIVATE_KEY_FILE" \
-  --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
-  --embed-release-notes \
-  --link "$FEED_URL" \
-  "$WORK_DIR"
-popd >/dev/null
-
-if [[ -n "$SPARKLE_CHANNEL" ]]; then
-  python3 - "$WORK_DIR/appcast.xml" "$VERSION" "$SPARKLE_CHANNEL" <<'PY'
-import re
+ZIP_SIZE=$(stat -f%z "$ZIP")
+DOWNLOAD_URL="${DOWNLOAD_URL_PREFIX}${ZIP_NAME}"
+PUB_DATE=$(date -R)
+SIGNATURE_BIN="$WORK_DIR/${ZIP_BASE}.sig"
+if python3 - "$PRIVATE_KEY_FILE" "$ZIP" "$SIGNATURE_BIN" <<'PY' 2>/dev/null
 import sys
 
-path, version, channel = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path, "r", encoding="utf-8") as handle:
-    lines = handle.read().splitlines()
-
-target = f"<sparkle:shortVersionString>{version}</sparkle:shortVersionString>"
 try:
-    index = next(i for i, line in enumerate(lines) if target in line)
-except StopIteration as exc:
-    raise SystemExit(f"Could not find {target} in {path}") from exc
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+except ModuleNotFoundError:
+    raise SystemExit(1)
 
-for j in range(index, -1, -1):
-    if "<item" in lines[j]:
-        line = lines[j]
-        if "sparkle:channel" in line:
-            line = re.sub(r'sparkle:channel="[^"]*"', f'sparkle:channel="{channel}"', line)
-        else:
-            line = line.replace("<item", f'<item sparkle:channel="{channel}"', 1)
-        lines[j] = line
-        break
-else:
-    raise SystemExit(f"Could not find <item> for version {version} in {path}")
-
-with open(path, "w", encoding="utf-8") as handle:
-    handle.write("\n".join(lines) + "\n")
+private_key_path, zip_path, signature_path = sys.argv[1:]
+with open(private_key_path, "rb") as fh:
+    private_key = load_pem_private_key(fh.read(), password=None)
+with open(zip_path, "rb") as fh:
+    payload = fh.read()
+signature = private_key.sign(payload)
+with open(signature_path, "wb") as fh:
+    fh.write(signature)
 PY
-  echo "Tagged ${VERSION} with sparkle:channel=\"${SPARKLE_CHANNEL}\""
+then
+  :
+elif ! openssl pkeyutl -sign -inkey "$PRIVATE_KEY_FILE" -in "$ZIP" -out "$SIGNATURE_BIN" 2>/dev/null; then
+  openssl pkeyutl -sign -rawin -inkey "$PRIVATE_KEY_FILE" -in "$ZIP" -out "$SIGNATURE_BIN"
+fi
+ED_SIGNATURE=$(openssl base64 -A < "$SIGNATURE_BIN")
+
+if [[ ! -f "$ROOT/appcast.xml" ]]; then
+  cat <<EOF > "$ROOT/appcast.xml"
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>CodexBar</title>
+    </channel>
+</rss>
+EOF
 fi
 
-cp "$WORK_DIR/appcast.xml" "$ROOT/appcast.xml"
+DESCRIPTION_HTML=$(cat "$NOTES_HTML")
+python3 - "$ROOT/appcast.xml" "$BUILD_NUMBER" "$VERSION" "$PUB_DATE" "$FEED_URL" "$DOWNLOAD_URL" "$ZIP_SIZE" "$ED_SIGNATURE" "$DESCRIPTION_HTML" <<'PY'
+import sys
+from xml.dom import Node, minidom
+
+appcast_path, build_number, version, pub_date, feed_url, download_url, zip_size, signature, description_html = sys.argv[1:]
+sparkle_ns = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+
+document = minidom.parse(appcast_path)
+rss = document.documentElement
+if rss.tagName != "rss":
+    raise SystemExit("appcast.xml missing rss root element")
+if not rss.hasAttribute("xmlns:sparkle"):
+    rss.setAttribute("xmlns:sparkle", sparkle_ns)
+
+channels = [node for node in rss.childNodes if node.nodeType == Node.ELEMENT_NODE and node.tagName == "channel"]
+if not channels:
+    raise SystemExit("appcast.xml missing channel element")
+channel = channels[0]
+
+for item in [node for node in channel.childNodes if node.nodeType == Node.ELEMENT_NODE and node.tagName == "item"]:
+    versions = [
+        child for child in item.childNodes
+        if child.nodeType == Node.ELEMENT_NODE and child.tagName == "sparkle:version"
+    ]
+    if any((child.firstChild and child.firstChild.nodeValue == build_number) for child in versions):
+        channel.removeChild(item)
+
+item = document.createElement("item")
+
+def append_text(parent, tag, value):
+    element = document.createElement(tag)
+    element.appendChild(document.createTextNode(value))
+    parent.appendChild(element)
+    return element
+
+append_text(item, "title", version)
+append_text(item, "pubDate", pub_date)
+append_text(item, "link", feed_url)
+append_text(item, "sparkle:version", build_number)
+append_text(item, "sparkle:shortVersionString", version)
+append_text(item, "sparkle:minimumSystemVersion", "14.0")
+
+description = document.createElement("description")
+description.appendChild(document.createCDATASection(description_html))
+item.appendChild(description)
+
+enclosure = document.createElement("enclosure")
+enclosure.setAttribute("url", download_url)
+enclosure.setAttribute("length", zip_size)
+enclosure.setAttribute("type", "application/octet-stream")
+enclosure.setAttribute("sparkle:edSignature", signature)
+item.appendChild(enclosure)
+
+title_node = next(
+    (node for node in channel.childNodes if node.nodeType == Node.ELEMENT_NODE and node.tagName == "title"),
+    None,
+)
+insert_before = title_node.nextSibling if title_node is not None else channel.firstChild
+channel.insertBefore(item, insert_before)
+
+pretty = document.toprettyxml(indent="    ", encoding="utf-8")
+with open(appcast_path, "wb") as fh:
+    fh.write(pretty)
+PY
 
 echo "Appcast generated (appcast.xml). Upload alongside $ZIP at $FEED_URL"

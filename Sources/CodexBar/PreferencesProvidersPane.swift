@@ -107,7 +107,7 @@ struct ProvidersPane: View {
                         }
                     })
             } else {
-                Text("Select a provider")
+                Text(L10n.tr("Select a provider"))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
@@ -135,7 +135,7 @@ struct ProvidersPane: View {
                         active.onConfirm()
                         self.activeConfirmation = nil
                     }
-                    Button("Cancel", role: .cancel) { self.activeConfirmation = nil }
+                    Button(L10n.tr("Cancel"), role: .cancel) { self.activeConfirmation = nil }
                 }
             },
             message: {
@@ -172,9 +172,9 @@ struct ProvidersPane: View {
             let relative = snapshot.updatedAt.relativeDescription()
             usageText = relative
         } else if self.store.isStale(provider: provider) {
-            usageText = "last fetch failed"
+            usageText = L10n.tr("last fetch failed")
         } else {
-            usageText = "usage not fetched yet"
+            usageText = L10n.tr("usage not fetched yet")
         }
 
         let presentationContext = ProviderPresentationContext(
@@ -443,10 +443,12 @@ struct ProvidersPane: View {
         let options: [ProviderSettingsPickerOption]
         if provider == .openrouter {
             options = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.automatic.rawValue,
+                    title: L10n.tr("Automatic")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
-                    title: "Primary (API key limit)"),
+                    title: "\(L10n.tr("Primary")) (\(L10n.tr("API key limit")))"),
             ]
         } else {
             let metadata = self.store.metadata(for: provider)
@@ -454,13 +456,15 @@ struct ProvidersPane: View {
             let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
             let supportsTertiary = self.settings.menuBarMetricSupportsTertiary(for: provider, snapshot: snapshot)
             var metricOptions: [ProviderSettingsPickerOption] = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.automatic.rawValue,
+                    title: L10n.tr("Automatic")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
-                    title: "Primary (\(metadata.sessionLabel))"),
+                    title: "\(L10n.tr("Primary")) (\(L10n.tr(metadata.sessionLabel)))"),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.secondary.rawValue,
-                    title: "Secondary (\(metadata.weeklyLabel))"),
+                    title: "\(L10n.tr("Secondary")) (\(L10n.tr(metadata.weeklyLabel)))"),
             ]
             if supportsTertiary {
                 let tertiaryTitle = metadata.opusLabel ?? MenuBarMetricPreference.tertiary.label
@@ -471,14 +475,14 @@ struct ProvidersPane: View {
             if supportsAverage {
                 metricOptions.append(ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.average.rawValue,
-                    title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
+                    title: "\(L10n.tr("Average")) (\(L10n.tr(metadata.sessionLabel)) + \(L10n.tr(metadata.weeklyLabel)))"))
             }
             options = metricOptions
         }
         return ProviderSettingsPickerDescriptor(
             id: "menuBarMetric",
-            title: "Menu bar metric",
-            subtitle: "Choose which window drives the menu bar percent.",
+            title: L10n.tr("Menu bar metric"),
+            subtitle: L10n.tr("Choose which window drives the menu bar percent."),
             binding: Binding(
                 get: {
                     self.settings

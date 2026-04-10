@@ -17,15 +17,15 @@ struct KimiK2ProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "kimi-k2-api-token",
-                title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai.",
+                title: L10n.tr("API key"),
+                subtitle: L10n.tr("Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai."),
                 kind: .secure,
-                placeholder: "Paste API key…",
+                placeholder: L10n.tr("Paste API key..."),
                 binding: context.stringBinding(\.kimiK2APIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "kimi-k2-open-api-keys",
-                        title: "Open API Keys",
+                        title: L10n.tr("Open API Keys"),
                         style: .link,
                         isVisible: nil,
                         perform: {

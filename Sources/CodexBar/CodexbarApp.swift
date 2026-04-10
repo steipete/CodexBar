@@ -20,8 +20,10 @@ struct CodexBarApp: App {
         let env = ProcessInfo.processInfo.environment
         let storedLevel = CodexBarLog.parseLevel(UserDefaults.standard.string(forKey: "debugLogLevel")) ?? .verbose
         let level = CodexBarLog.parseLevel(env["CODEXBAR_LOG_LEVEL"]) ?? storedLevel
+        AppIdentityMigration.migrateUserDefaults()
+        AppIdentityMigration.migrateSharedDefaults()
         CodexBarLog.bootstrapIfNeeded(.init(
-            destination: .oslog(subsystem: "com.steipete.codexbar"),
+            destination: .oslog(subsystem: AppIdentity.logSubsystem),
             level: level,
             json: false))
 
@@ -216,25 +218,19 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
     }
 
     nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
-        UpdateChannel.current.allowedSparkleChannels
+        UpdateChannel.allowedSparkleChannels
     }
 }
 
-private func isDeveloperIDSigned(bundleURL: URL) -> Bool {
-    var staticCode: SecStaticCode?
-    guard SecStaticCodeCreateWithPath(bundleURL as CFURL, SecCSFlags(), &staticCode) == errSecSuccess,
-          let code = staticCode else { return false }
-
-    var infoCF: CFDictionary?
-    guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &infoCF) == errSecSuccess,
-          let info = infoCF as? [String: Any],
-          let certs = info[kSecCodeInfoCertificates as String] as? [SecCertificate],
-          let leaf = certs.first else { return false }
-
-    if let summary = SecCertificateCopySubjectSummary(leaf) as String? {
-        return summary.hasPrefix("Developer ID Application:")
+private func hasValidSparkleConfiguration(bundle: Bundle = .main) -> Bool {
+    guard let feedURL = bundle.object(forInfoDictionaryKey: "SUFeedURL") as? String,
+          !feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+          let publicKey = bundle.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
+          !publicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+        return false
     }
-    return false
+    return true
 }
 
 @MainActor
@@ -247,10 +243,10 @@ private func makeUpdaterController() -> UpdaterProviding {
 
     if InstallOrigin.isHomebrewCask(appBundleURL: bundleURL) {
         return DisabledUpdaterController(
-            unavailableReason: "Updates managed by Homebrew. Run: brew upgrade --cask steipete/tap/codexbar")
+            unavailableReason: "Updates managed by Homebrew. Run: brew upgrade --cask codexbar")
     }
 
-    guard isDeveloperIDSigned(bundleURL: bundleURL) else {
+    guard hasValidSparkleConfiguration() else {
         return DisabledUpdaterController(unavailableReason: "Updates unavailable in this build.")
     }
 
