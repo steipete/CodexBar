@@ -585,10 +585,14 @@ public struct UsageFetcher: Sendable {
             loginMethod: account?.account.flatMap { details in
                 if case let .chatgpt(_, plan) = details { plan } else { nil }
             })
-        return try Self.makeCodexUsageSnapshot(
+        guard let state = CodexReconciledState.fromCLI(
             primary: Self.makeWindow(from: limits.primary),
             secondary: Self.makeWindow(from: limits.secondary),
             identity: identity)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
     }
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
@@ -596,7 +600,7 @@ public struct UsageFetcher: Sendable {
             keepCLISessionsAlive: keepCLISessionsAlive,
             environment: self.environment)
             .fetch()
-        return try Self.makeCodexUsageSnapshot(
+        guard let state = CodexReconciledState.fromCLI(
             primary: Self.makeTTYWindow(
                 percentLeft: status.fiveHourPercentLeft,
                 windowMinutes: 300,
@@ -608,6 +612,10 @@ public struct UsageFetcher: Sendable {
                 resetsAt: status.weeklyResetsAt,
                 resetDescription: status.weeklyResetDescription),
             identity: nil)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
     }
 
     public func loadLatestCredits(keepCLISessionsAlive: Bool = false) async throws -> CreditsSnapshot {
@@ -665,28 +673,30 @@ public struct UsageFetcher: Sendable {
     }
 
     public func loadAccountInfo() -> AccountInfo {
-        // Keep using auth.json for quick startup (non-blocking, no RPC spin-up required).
-        guard let credentials = try? CodexOAuthCredentialsStore.load(env: self.environment),
-              let idToken = credentials.idToken,
-              !idToken.isEmpty
-        else {
-            return AccountInfo(email: nil, plan: nil)
+        let account = self.loadAuthBackedCodexAccount()
+        return AccountInfo(email: account.email, plan: account.plan)
+    }
+
+    public func loadAuthBackedCodexAccount() -> CodexAuthBackedAccount {
+        guard let credentials = try? CodexOAuthCredentialsStore.load(env: self.environment) else {
+            return CodexAuthBackedAccount(identity: .unresolved, email: nil, plan: nil)
         }
 
-        guard let payload = UsageFetcher.parseJWT(idToken) else {
-            return AccountInfo(email: nil, plan: nil)
-        }
+        let payload = credentials.idToken.flatMap(Self.parseJWT)
+        let authDict = payload?["https://api.openai.com/auth"] as? [String: Any]
+        let profileDict = payload?["https://api.openai.com/profile"] as? [String: Any]
 
-        let authDict = payload["https://api.openai.com/auth"] as? [String: Any]
-        let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
+        let email = Self.normalizedCodexAccountField(
+            (payload?["email"] as? String) ?? (profileDict?["email"] as? String))
+        let plan = Self.normalizedCodexAccountField(
+            (authDict?["chatgpt_plan_type"] as? String) ?? (payload?["chatgpt_plan_type"] as? String))
+        let accountId = Self.normalizedCodexAccountField(
+            credentials.accountId
+                ?? (authDict?["chatgpt_account_id"] as? String)
+                ?? (payload?["chatgpt_account_id"] as? String))
+        let identity = CodexIdentityResolver.resolve(accountId: accountId, email: email)
 
-        let plan = (authDict?["chatgpt_plan_type"] as? String)
-            ?? (payload["chatgpt_plan_type"] as? String)
-
-        let email = (payload["email"] as? String)
-            ?? (profileDict?["email"] as? String)
-
-        return AccountInfo(email: email, plan: plan)
+        return CodexAuthBackedAccount(identity: identity, email: email, plan: plan)
     }
 
     // MARK: - Helpers
@@ -716,26 +726,16 @@ public struct UsageFetcher: Sendable {
             resetDescription: resetDescription)
     }
 
-    private static func makeCodexUsageSnapshot(
-        primary: RateWindow?,
-        secondary: RateWindow?,
-        identity: ProviderIdentitySnapshot?) throws -> UsageSnapshot
-    {
-        let normalized = CodexRateWindowNormalizer.normalize(primary: primary, secondary: secondary)
-        guard normalized.primary != nil || normalized.secondary != nil else {
-            throw UsageError.noRateLimitsFound
-        }
-        return UsageSnapshot(
-            primary: normalized.primary,
-            secondary: normalized.secondary,
-            tertiary: nil,
-            updatedAt: Date(),
-            identity: identity)
-    }
-
     private static func parseCredits(_ balance: String?) -> Double {
         guard let balance, let val = Double(balance) else { return 0 }
         return val
+    }
+
+    private static func normalizedCodexAccountField(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 
     public static func parseJWT(_ token: String) -> [String: Any]? {
@@ -761,14 +761,18 @@ extension UsageFetcher {
         primary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?,
         secondary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?) throws -> UsageSnapshot
     {
-        try self.makeCodexUsageSnapshot(
+        guard let state = CodexReconciledState.fromCLI(
             primary: primary.map(self.makeTestingWindow),
             secondary: secondary.map(self.makeTestingWindow),
             identity: nil)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
     }
 
     static func _mapCodexStatusForTesting(_ status: CodexStatusSnapshot) throws -> UsageSnapshot {
-        try self.makeCodexUsageSnapshot(
+        guard let state = CodexReconciledState.fromCLI(
             primary: self.makeTTYWindow(
                 percentLeft: status.fiveHourPercentLeft,
                 windowMinutes: 300,
@@ -780,6 +784,10 @@ extension UsageFetcher {
                 resetsAt: status.weeklyResetsAt,
                 resetDescription: status.weeklyResetDescription),
             identity: nil)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
     }
 
     private static func makeTestingWindow(

@@ -156,4 +156,50 @@ struct OpenAIDashboardParserTests {
         let snapshot = try decoder.decode(OpenAIDashboardSnapshot.self, from: Data(json.utf8))
         #expect(snapshot.usageBreakdown.isEmpty)
     }
+
+    @Test
+    func `weekly only dashboard usage projects into secondary slot`() {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondaryLimit: nil,
+            creditsRemaining: nil,
+            accountPlan: "pro",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let usage = snapshot.toUsageSnapshot(provider: .codex)
+
+        #expect(usage?.primary == nil)
+        #expect(usage?.secondary?.usedPercent == 25)
+        #expect(usage?.secondary?.windowMinutes == 10080)
+        #expect(usage?.identity?.providerID == .codex)
+        #expect(usage?.identity?.accountEmail == "user@example.com")
+    }
+
+    @Test
+    func `dashboard usage projection returns nil when all limits are absent`() {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: nil,
+            secondaryLimit: nil,
+            creditsRemaining: nil,
+            accountPlan: "pro",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        #expect(snapshot.toUsageSnapshot(provider: .codex) == nil)
+    }
 }

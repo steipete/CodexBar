@@ -36,6 +36,7 @@ extension SettingsStore {
         _ = self.claudeCookieSource
         _ = self.cursorCookieSource
         _ = self.opencodeCookieSource
+        _ = self.opencodegoCookieSource
         _ = self.factoryCookieSource
         _ = self.minimaxCookieSource
         _ = self.minimaxAPIRegion
@@ -54,6 +55,8 @@ extension SettingsStore {
         _ = self.cursorCookieHeader
         _ = self.opencodeCookieHeader
         _ = self.opencodeWorkspaceID
+        _ = self.opencodegoCookieHeader
+        _ = self.opencodegoWorkspaceID
         _ = self.factoryCookieHeader
         _ = self.minimaxCookieHeader
         _ = self.minimaxAPIToken

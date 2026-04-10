@@ -79,7 +79,7 @@ public enum FactoryCookieImporter {
         let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
         let cookieDomains = ["factory.ai", "app.factory.ai", "auth.factory.ai"]
         let query = BrowserCookieQuery(domains: cookieDomains)
-        let sources = try Self.cookieClient.records(
+        let sources = try Self.cookieClient.codexBarRecords(
             matching: query,
             in: browserSource,
             logger: log)
@@ -818,7 +818,7 @@ public struct FactoryStatusProbe: Sendable {
         for browserSource in sources {
             do {
                 let query = BrowserCookieQuery(domains: ["workos.com"])
-                let sources = try BrowserCookieClient().records(
+                let sources = try BrowserCookieClient().codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)

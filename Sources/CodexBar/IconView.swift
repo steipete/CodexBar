@@ -2,6 +2,26 @@ import CodexBarCore
 import SwiftUI
 
 enum IconRemainingResolver {
+    private static func codexProjection(snapshot: UsageSnapshot) -> CodexConsumerProjection {
+        CodexConsumerProjection.make(
+            surface: .menuBar,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: snapshot.updatedAt))
+    }
+
+    private static func codexVisibleWindows(snapshot: UsageSnapshot) -> [RateWindow] {
+        let projection = self.codexProjection(snapshot: snapshot)
+        return projection.visibleRateLanes.compactMap { projection.rateWindow(for: $0) }
+    }
+
     static func resolvedWindows(
         snapshot: UsageSnapshot,
         style: IconStyle)
@@ -20,7 +40,7 @@ enum IconRemainingResolver {
                 secondary: windows.dropFirst().first)
         }
         if style == .codex {
-            let windows = [snapshot.primary, snapshot.secondary].compactMap(\.self)
+            let windows = self.codexVisibleWindows(snapshot: snapshot)
             return (
                 primary: windows.first,
                 secondary: windows.dropFirst().first)
@@ -48,7 +68,7 @@ enum IconRemainingResolver {
                 secondary: windows.dropFirst().first?.remainingPercent)
         }
         if style == .codex {
-            let windows = [snapshot.primary, snapshot.secondary].compactMap(\.self)
+            let windows = self.codexVisibleWindows(snapshot: snapshot)
             return (
                 primary: windows.first?.remainingPercent,
                 secondary: windows.dropFirst().first?.remainingPercent)

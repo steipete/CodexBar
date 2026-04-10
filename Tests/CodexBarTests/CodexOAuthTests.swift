@@ -111,7 +111,8 @@ struct CodexOAuthTests {
             idToken: nil,
             accountId: nil,
             lastRefresh: Date())
-        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let mapped = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let snapshot = try #require(mapped)
         #expect(snapshot.primary?.usedPercent == 22)
         #expect(snapshot.primary?.windowMinutes == 300)
         #expect(snapshot.secondary?.usedPercent == 43)
@@ -141,7 +142,8 @@ struct CodexOAuthTests {
             idToken: nil,
             accountId: nil,
             lastRefresh: Date())
-        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let mapped = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let snapshot = try #require(mapped)
         #expect(snapshot.primary == nil)
         #expect(snapshot.secondary?.usedPercent == 0)
         #expect(snapshot.secondary?.windowMinutes == 10080)
@@ -167,7 +169,8 @@ struct CodexOAuthTests {
             idToken: nil,
             accountId: nil,
             lastRefresh: Date())
-        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let mapped = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let snapshot = try #require(mapped)
         #expect(snapshot.primary?.usedPercent == 9)
         #expect(snapshot.primary?.windowMinutes == 300)
         #expect(snapshot.secondary == nil)
@@ -193,7 +196,8 @@ struct CodexOAuthTests {
             idToken: nil,
             accountId: nil,
             lastRefresh: Date())
-        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let mapped = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let snapshot = try #require(mapped)
         #expect(snapshot.primary?.usedPercent == 17)
         #expect(snapshot.primary?.windowMinutes == 540)
         #expect(snapshot.secondary == nil)
@@ -219,7 +223,8 @@ struct CodexOAuthTests {
             idToken: nil,
             accountId: nil,
             lastRefresh: Date())
-        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let mapped = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let snapshot = try #require(mapped)
         #expect(snapshot.primary?.usedPercent == 17)
         #expect(snapshot.primary?.windowMinutes == 540)
         #expect(snapshot.secondary == nil)
@@ -249,11 +254,92 @@ struct CodexOAuthTests {
             idToken: nil,
             accountId: nil,
             lastRefresh: Date())
-        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let mapped = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        let snapshot = try #require(mapped)
         #expect(snapshot.primary?.usedPercent == 17)
         #expect(snapshot.primary?.windowMinutes == 540)
         #expect(snapshot.secondary?.usedPercent == 43)
         #expect(snapshot.secondary?.windowMinutes == 10080)
+    }
+
+    @Test
+    func `returns nil when O auth usage has no windows`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": null,
+            "secondary_window": null
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        #expect(snapshot == nil)
+    }
+
+    @Test
+    func `credits only O auth payload still returns credits result`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": null,
+            "secondary_window": null
+          },
+          "credits": {
+            "has_credits": true,
+            "unlimited": false,
+            "balance": "14.5"
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(Data(json.utf8), credentials: creds)
+
+        #expect(result.usage.primary == nil)
+        #expect(result.usage.secondary == nil)
+        #expect(result.credits?.remaining == 14.5)
+        #expect(result.sourceLabel == "oauth")
+    }
+
+    @Test
+    func `credits only O auth payload falls back in auto mode`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": null,
+            "secondary_window": null
+          },
+          "credits": {
+            "has_credits": true,
+            "unlimited": false,
+            "balance": "14.5"
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+
+        #expect(throws: UsageError.noRateLimitsFound) {
+            _ = try CodexOAuthFetchStrategy._mapResultForTesting(
+                Data(json.utf8),
+                credentials: creds,
+                sourceMode: .auto)
+        }
     }
 
     @Test

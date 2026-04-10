@@ -71,6 +71,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
     private let browserDetection: BrowserDetection
 
+    nonisolated static func shouldTrustVerifiedSession(afterPersistFailure error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut
+    }
+
     private struct ImportDiagnostics {
         var mismatches: [FoundAccount] = []
         var foundAnyCookies: Bool = false
@@ -213,9 +218,17 @@ public struct OpenAIDashboardBrowserCookieImporter {
             log: log)
         {
         case let .match(_, signedInEmail):
-            return try await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log)
+            return try await self.persistVerifiedCandidate(
+                candidate: candidate,
+                targetEmail: signedInEmail,
+                verifiedSignedInEmail: signedInEmail,
+                logger: log)
         case let .loggedIn(_, signedInEmail):
-            return try await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log)
+            return try await self.persistVerifiedCandidate(
+                candidate: candidate,
+                targetEmail: signedInEmail,
+                verifiedSignedInEmail: signedInEmail,
+                logger: log)
         case let .mismatch(_, signedInEmail):
             throw ImportError.noMatchingAccount(found: [FoundAccount(sourceLabel: "Manual", email: signedInEmail)])
         case .unknown:
@@ -236,7 +249,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         // Safari first: avoids touching Keychain ("Chrome Safe Storage") when Safari already matches.
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let sources = try Self.cookieClient.records(
+            let sources = try Self.cookieClient.codexBarRecords(
                 matching: query,
                 in: .safari,
                 logger: log)
@@ -285,7 +298,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         // Chrome fallback: may trigger Keychain prompt. Only do this if Safari didn't match.
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let chromeSources = try Self.cookieClient.records(
+            let chromeSources = try Self.cookieClient.codexBarRecords(
                 matching: query,
                 in: .chrome)
             for source in chromeSources {
@@ -328,7 +341,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         // Firefox fallback: no Keychain, but still only after Safari/Chrome.
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let firefoxSources = try Self.cookieClient.records(
+            let firefoxSources = try Self.cookieClient.codexBarRecords(
                 matching: query,
                 in: .firefox)
             for source in firefoxSources {
@@ -405,7 +418,12 @@ public struct OpenAIDashboardBrowserCookieImporter {
         case let .match(candidate, signedInEmail):
             log("Selected \(candidate.label) (matches Codex: \(signedInEmail))")
             guard let targetEmail = context.targetEmail else { return nil }
-            if let result = try? await self.persist(candidate: candidate, targetEmail: targetEmail, logger: log) {
+            if let result = try? await self.persistVerifiedCandidate(
+                candidate: candidate,
+                targetEmail: targetEmail,
+                verifiedSignedInEmail: signedInEmail,
+                logger: log)
+            {
                 self.cacheCookies(candidate: candidate, scope: context.cacheScope)
                 return result
             }
@@ -419,7 +437,12 @@ public struct OpenAIDashboardBrowserCookieImporter {
             return nil
         case let .loggedIn(candidate, signedInEmail):
             log("Selected \(candidate.label) (signed in: \(signedInEmail))")
-            if let result = try? await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log) {
+            if let result = try? await self.persistVerifiedCandidate(
+                candidate: candidate,
+                targetEmail: signedInEmail,
+                verifiedSignedInEmail: signedInEmail,
+                logger: log)
+            {
                 self.cacheCookies(candidate: candidate, scope: context.cacheScope)
                 return result
             }
@@ -586,6 +609,31 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
         }
         return nil
+    }
+
+    private func persistVerifiedCandidate(
+        candidate: Candidate,
+        targetEmail: String,
+        verifiedSignedInEmail: String,
+        logger: @escaping (String) -> Void) async throws -> ImportResult
+    {
+        do {
+            return try await self.persist(candidate: candidate, targetEmail: targetEmail, logger: logger)
+        } catch {
+            guard Self.shouldTrustVerifiedSession(afterPersistFailure: error) else {
+                throw error
+            }
+
+            let signedInEmail = verifiedSignedInEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+            logger(
+                "Persistent validation timed out after session verification; " +
+                    "keeping \(candidate.label) cookies for \(signedInEmail).")
+            return ImportResult(
+                sourceLabel: candidate.label,
+                cookieCount: candidate.cookies.count,
+                signedInEmail: signedInEmail,
+                matchesCodexEmail: signedInEmail.lowercased() == targetEmail.lowercased())
+        }
     }
 
     private func persist(

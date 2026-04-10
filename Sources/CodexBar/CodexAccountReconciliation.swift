@@ -1,18 +1,68 @@
 import CodexBarCore
 import Foundation
 
-struct CodexVisibleAccount: Equatable, Sendable, Identifiable {
+struct CodexVisibleAccount: Equatable, Identifiable {
     let id: String
     let email: String
+    let workspaceLabel: String?
+    let workspaceAccountID: String?
     let storedAccountID: UUID?
     let selectionSource: CodexActiveSource
     let isActive: Bool
     let isLive: Bool
     let canReauthenticate: Bool
     let canRemove: Bool
+
+    init(
+        id: String,
+        email: String,
+        workspaceLabel: String? = nil,
+        workspaceAccountID: String? = nil,
+        storedAccountID: UUID?,
+        selectionSource: CodexActiveSource,
+        isActive: Bool,
+        isLive: Bool,
+        canReauthenticate: Bool,
+        canRemove: Bool)
+    {
+        self.id = id
+        self.email = email
+        self.workspaceLabel = Self.normalizeWorkspaceLabel(workspaceLabel)
+        self.workspaceAccountID = workspaceAccountID
+        self.storedAccountID = storedAccountID
+        self.selectionSource = selectionSource
+        self.isActive = isActive
+        self.isLive = isLive
+        self.canReauthenticate = canReauthenticate
+        self.canRemove = canRemove
+    }
+
+    var displayName: String {
+        guard let workspaceLabel else { return self.email }
+        return "\(self.email) — \(workspaceLabel)"
+    }
+
+    var menuDisplayName: String {
+        guard let menuWorkspaceLabel else { return self.email }
+        return "\(self.email) — \(menuWorkspaceLabel)"
+    }
+
+    var menuWorkspaceLabel: String? {
+        guard let workspaceLabel, workspaceLabel.compare("Personal", options: [.caseInsensitive]) != .orderedSame else {
+            return nil
+        }
+        return workspaceLabel
+    }
+
+    private static func normalizeWorkspaceLabel(_ workspaceLabel: String?) -> String? {
+        guard let trimmed = workspaceLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
 }
 
-struct CodexVisibleAccountProjection: Equatable, Sendable {
+struct CodexVisibleAccountProjection: Equatable {
     let visibleAccounts: [CodexVisibleAccount]
     let activeVisibleAccountID: String?
     let liveVisibleAccountID: String?
@@ -23,209 +73,95 @@ struct CodexVisibleAccountProjection: Equatable, Sendable {
     }
 }
 
-struct CodexResolvedActiveSource: Equatable, Sendable {
-    let persistedSource: CodexActiveSource
-    let resolvedSource: CodexActiveSource
-
-    var requiresPersistenceCorrection: Bool {
-        self.persistedSource != self.resolvedSource
-    }
-}
-
-enum CodexActiveSourceResolver {
-    static func resolve(from snapshot: CodexAccountReconciliationSnapshot) -> CodexResolvedActiveSource {
-        let persistedSource = snapshot.activeSource
-        let resolvedSource: CodexActiveSource = switch persistedSource {
-        case .liveSystem:
-            .liveSystem
-        case let .managedAccount(id):
-            if let activeStoredAccount = snapshot.activeStoredAccount {
-                self.matchesLiveSystemAccountEmail(
-                    storedAccount: activeStoredAccount,
-                    liveSystemAccount: snapshot.liveSystemAccount) ? .liveSystem : .managedAccount(id: id)
-            } else {
-                snapshot.liveSystemAccount != nil ? .liveSystem : .managedAccount(id: id)
-            }
-        }
-
-        return CodexResolvedActiveSource(
-            persistedSource: persistedSource,
-            resolvedSource: resolvedSource)
-    }
-
-    private static func matchesLiveSystemAccountEmail(
-        storedAccount: ManagedCodexAccount,
-        liveSystemAccount: ObservedSystemCodexAccount?) -> Bool
-    {
-        guard let liveSystemAccount else { return false }
-        return Self.normalizeEmail(storedAccount.email) == Self.normalizeEmail(liveSystemAccount.email)
-    }
-
-    private static func normalizeEmail(_ email: String) -> String {
-        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-}
-
-struct CodexAccountReconciliationSnapshot: Equatable, Sendable {
-    let storedAccounts: [ManagedCodexAccount]
-    let activeStoredAccount: ManagedCodexAccount?
-    let liveSystemAccount: ObservedSystemCodexAccount?
-    let matchingStoredAccountForLiveSystemAccount: ManagedCodexAccount?
-    let activeSource: CodexActiveSource
-    let hasUnreadableAddedAccountStore: Bool
-
-    static func == (lhs: CodexAccountReconciliationSnapshot, rhs: CodexAccountReconciliationSnapshot) -> Bool {
-        lhs.storedAccounts.map(AccountIdentity.init) == rhs.storedAccounts.map(AccountIdentity.init)
-            && lhs.activeStoredAccount.map(AccountIdentity.init) == rhs.activeStoredAccount.map(AccountIdentity.init)
-            && lhs.liveSystemAccount == rhs.liveSystemAccount
-            && lhs.matchingStoredAccountForLiveSystemAccount.map(AccountIdentity.init)
-            == rhs.matchingStoredAccountForLiveSystemAccount.map(AccountIdentity.init)
-            && lhs.activeSource == rhs.activeSource
-            && lhs.hasUnreadableAddedAccountStore == rhs.hasUnreadableAddedAccountStore
-    }
-}
-
-struct DefaultCodexAccountReconciler {
-    let storeLoader: @Sendable () throws -> ManagedCodexAccountSet
-    let systemObserver: any CodexSystemAccountObserving
-    let activeSource: CodexActiveSource
-
-    init(
-        storeLoader: @escaping @Sendable () throws -> ManagedCodexAccountSet = {
-            try FileManagedCodexAccountStore().loadAccounts()
-        },
-        systemObserver: any CodexSystemAccountObserving = DefaultCodexSystemAccountObserver(),
-        activeSource: CodexActiveSource = .liveSystem)
-    {
-        self.storeLoader = storeLoader
-        self.systemObserver = systemObserver
-        self.activeSource = activeSource
-    }
-
-    func loadSnapshot(environment: [String: String]) -> CodexAccountReconciliationSnapshot {
-        let liveSystemAccount = self.loadLiveSystemAccount(environment: environment)
-
-        do {
-            let accounts = try self.storeLoader()
-            let activeStoredAccount: ManagedCodexAccount? = switch self.activeSource {
-            case let .managedAccount(id):
-                accounts.account(id: id)
-            case .liveSystem:
-                nil
-            }
-            let matchingStoredAccountForLiveSystemAccount = liveSystemAccount.flatMap {
-                accounts.account(email: $0.email)
-            }
-
-            return CodexAccountReconciliationSnapshot(
-                storedAccounts: accounts.accounts,
-                activeStoredAccount: activeStoredAccount,
-                liveSystemAccount: liveSystemAccount,
-                matchingStoredAccountForLiveSystemAccount: matchingStoredAccountForLiveSystemAccount,
-                activeSource: self.activeSource,
-                hasUnreadableAddedAccountStore: false)
-        } catch {
-            return CodexAccountReconciliationSnapshot(
-                storedAccounts: [],
-                activeStoredAccount: nil,
-                liveSystemAccount: liveSystemAccount,
-                matchingStoredAccountForLiveSystemAccount: nil,
-                activeSource: self.activeSource,
-                hasUnreadableAddedAccountStore: true)
-        }
-    }
-
-    func loadVisibleAccounts(environment: [String: String]) -> CodexVisibleAccountProjection {
-        CodexVisibleAccountProjection.make(from: self.loadSnapshot(environment: environment))
-    }
-
-    private func loadLiveSystemAccount(environment: [String: String]) -> ObservedSystemCodexAccount? {
-        do {
-            guard let account = try self.systemObserver.loadSystemAccount(environment: environment) else {
-                return nil
-            }
-            let normalizedEmail = Self.normalizeEmail(account.email)
-            guard !normalizedEmail.isEmpty else {
-                return nil
-            }
-            return ObservedSystemCodexAccount(
-                email: normalizedEmail,
-                codexHomePath: account.codexHomePath,
-                observedAt: account.observedAt)
-        } catch {
-            return nil
-        }
-    }
-
-    private static func normalizeEmail(_ email: String) -> String {
-        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+extension DefaultCodexAccountReconciler {
+    func loadVisibleAccounts() -> CodexVisibleAccountProjection {
+        CodexVisibleAccountProjection.make(from: self.loadSnapshot())
     }
 }
 
 extension CodexVisibleAccountProjection {
     static func make(from snapshot: CodexAccountReconciliationSnapshot) -> CodexVisibleAccountProjection {
         let resolvedActiveSource = CodexActiveSourceResolver.resolve(from: snapshot).resolvedSource
-        var visibleByEmail: [String: CodexVisibleAccount] = [:]
+        var drafts: [VisibleAccountDraft] = []
 
         for storedAccount in snapshot.storedAccounts {
-            let normalizedEmail = Self.normalizeVisibleEmail(storedAccount.email)
-            visibleByEmail[normalizedEmail] = CodexVisibleAccount(
-                id: normalizedEmail,
+            let normalizedEmail = snapshot.runtimeEmail(for: storedAccount)
+            drafts.append(VisibleAccountDraft(
                 email: normalizedEmail,
+                workspaceLabel: Self.normalizeWorkspaceLabel(storedAccount.workspaceLabel),
+                workspaceAccountID: storedAccount.workspaceAccountID,
                 storedAccountID: storedAccount.id,
                 selectionSource: .managedAccount(id: storedAccount.id),
-                isActive: false,
                 isLive: false,
                 canReauthenticate: true,
-                canRemove: true)
+                canRemove: true,
+                identity: snapshot.runtimeIdentity(for: storedAccount)))
         }
 
         if let liveSystemAccount = snapshot.liveSystemAccount {
             let normalizedEmail = Self.normalizeVisibleEmail(liveSystemAccount.email)
-            if let existing = visibleByEmail[normalizedEmail] {
-                visibleByEmail[normalizedEmail] = CodexVisibleAccount(
-                    id: existing.id,
-                    email: existing.email,
-                    storedAccountID: existing.storedAccountID,
+            let liveIdentity = snapshot.runtimeIdentity(for: liveSystemAccount)
+            if let existingIndex = drafts.firstIndex(where: { draft in
+                CodexIdentityMatcher.matches(draft.identity, liveIdentity)
+            }) {
+                let existingDraft = drafts[existingIndex]
+                let liveWorkspaceLabel = Self.normalizeWorkspaceLabel(liveSystemAccount.workspaceLabel)
+                drafts[existingIndex] = VisibleAccountDraft(
+                    email: existingDraft.email,
+                    workspaceLabel: liveWorkspaceLabel ?? existingDraft.workspaceLabel,
+                    workspaceAccountID: liveSystemAccount.workspaceAccountID ?? existingDraft.workspaceAccountID,
+                    storedAccountID: existingDraft.storedAccountID,
                     selectionSource: .liveSystem,
-                    isActive: existing.isActive,
                     isLive: true,
-                    canReauthenticate: existing.canReauthenticate,
-                    canRemove: existing.canRemove)
+                    canReauthenticate: existingDraft.canReauthenticate,
+                    canRemove: existingDraft.canRemove,
+                    identity: liveIdentity)
             } else {
-                visibleByEmail[normalizedEmail] = CodexVisibleAccount(
-                    id: normalizedEmail,
+                drafts.append(VisibleAccountDraft(
                     email: normalizedEmail,
+                    workspaceLabel: Self.normalizeWorkspaceLabel(liveSystemAccount.workspaceLabel),
+                    workspaceAccountID: liveSystemAccount.workspaceAccountID,
                     storedAccountID: nil,
                     selectionSource: .liveSystem,
-                    isActive: false,
                     isLive: true,
                     canReauthenticate: true,
-                    canRemove: false)
+                    canRemove: false,
+                    identity: liveIdentity))
             }
         }
 
-        let activeEmail: String? = switch resolvedActiveSource {
-        case let .managedAccount(id):
-            snapshot.storedAccounts.first { $0.id == id }.map { Self.normalizeVisibleEmail($0.email) }
-        case .liveSystem:
-            snapshot.liveSystemAccount.map { Self.normalizeVisibleEmail($0.email) }
-        }
+        let groupedByEmail = Dictionary(grouping: drafts.indices, by: { drafts[$0].email })
+        let visibleAccounts = drafts.map { draft in
+            let id = Self.visibleAccountID(for: draft, emailGroupSize: groupedByEmail[draft.email]?.count ?? 0)
+            let isActive = switch resolvedActiveSource {
+            case .liveSystem:
+                draft.selectionSource == .liveSystem
+            case let .managedAccount(id):
+                draft.selectionSource == .managedAccount(id: id)
+            }
 
-        if let activeEmail, let current = visibleByEmail[activeEmail] {
-            visibleByEmail[activeEmail] = CodexVisibleAccount(
-                id: current.id,
-                email: current.email,
-                storedAccountID: current.storedAccountID,
-                selectionSource: current.selectionSource,
-                isActive: true,
-                isLive: current.isLive,
-                canReauthenticate: current.canReauthenticate,
-                canRemove: current.canRemove)
-        }
-
-        let visibleAccounts = visibleByEmail.values.sorted { lhs, rhs in
-            lhs.email < rhs.email
+            return CodexVisibleAccount(
+                id: id,
+                email: draft.email,
+                workspaceLabel: draft.workspaceLabel,
+                workspaceAccountID: draft.workspaceAccountID,
+                storedAccountID: draft.storedAccountID,
+                selectionSource: draft.selectionSource,
+                isActive: isActive,
+                isLive: draft.isLive,
+                canReauthenticate: draft.canReauthenticate,
+                canRemove: draft.canRemove)
+        }.sorted { lhs, rhs in
+            if lhs.email != rhs.email {
+                return lhs.email < rhs.email
+            }
+            if lhs.isLive != rhs.isLive {
+                return lhs.isLive && !rhs.isLive
+            }
+            if lhs.displayName != rhs.displayName {
+                return lhs.displayName < rhs.displayName
+            }
+            return lhs.id < rhs.id
         }
 
         return CodexVisibleAccountProjection(
@@ -238,22 +174,34 @@ extension CodexVisibleAccountProjection {
     private static func normalizeVisibleEmail(_ email: String) -> String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
+
+    private static func normalizeWorkspaceLabel(_ workspaceLabel: String?) -> String? {
+        guard let trimmed = workspaceLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func visibleAccountID(for draft: VisibleAccountDraft, emailGroupSize: Int) -> String {
+        guard emailGroupSize > 1 else { return draft.email }
+
+        switch draft.selectionSource {
+        case .liveSystem:
+            return "live:\(CodexIdentityMatcher.selectionKey(for: draft.identity, fallbackEmail: draft.email))"
+        case let .managedAccount(id):
+            return "managed:\(id.uuidString.lowercased())"
+        }
+    }
 }
 
-private struct AccountIdentity: Equatable {
-    let id: UUID
+private struct VisibleAccountDraft {
     let email: String
-    let managedHomePath: String
-    let createdAt: TimeInterval
-    let updatedAt: TimeInterval
-    let lastAuthenticatedAt: TimeInterval?
-
-    init(_ account: ManagedCodexAccount) {
-        self.id = account.id
-        self.email = account.email
-        self.managedHomePath = account.managedHomePath
-        self.createdAt = account.createdAt
-        self.updatedAt = account.updatedAt
-        self.lastAuthenticatedAt = account.lastAuthenticatedAt
-    }
+    let workspaceLabel: String?
+    let workspaceAccountID: String?
+    let storedAccountID: UUID?
+    let selectionSource: CodexActiveSource
+    let isLive: Bool
+    let canReauthenticate: Bool
+    let canRemove: Bool
+    let identity: CodexIdentity
 }

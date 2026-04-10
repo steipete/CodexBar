@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct CursorStatusProbeTests {
     // MARK: - Usage Summary Parsing
 
@@ -871,4 +872,188 @@ struct CursorStatusProbeTests {
         let cookie = HTTPCookie(properties: cookieProps)!
         return CursorCookieImporter.SessionInfo(cookies: [cookie], sourceLabel: sourceLabel)
     }
+}
+
+private func makeCursorStatusProbeSession() -> URLSession {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [CursorStatusProbeStubURLProtocol.self]
+    return URLSession(configuration: config)
+}
+
+private func makeCursorStatusProbeResponse(
+    url: URL,
+    body: String,
+    statusCode: Int,
+    contentType: String = "application/json") -> (HTTPURLResponse, Data)
+{
+    let response = HTTPURLResponse(
+        url: url,
+        statusCode: statusCode,
+        httpVersion: nil,
+        headerFields: ["Content-Type": contentType])!
+    return (response, Data(body.utf8))
+}
+
+extension CursorStatusProbeTests {
+    @Test
+    func `fetch ignores user info failure when usage summary succeeds`() async throws {
+        defer {
+            CursorStatusProbeStubURLProtocol.reset()
+        }
+        CursorStatusProbeStubURLProtocol.reset()
+
+        CursorStatusProbeStubURLProtocol.setHandler { request in
+            let requestURL = try #require(request.url)
+
+            switch requestURL.path {
+            case "/api/usage-summary":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: """
+                    {
+                      "membershipType": "pro",
+                      "individualUsage": {
+                        "plan": {
+                          "used": 1500,
+                          "limit": 5000,
+                          "totalPercentUsed": 30.0
+                        }
+                      }
+                    }
+                    """,
+                    statusCode: 200)
+            case "/api/auth/me":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: #"{"error":"nope"}"#,
+                    statusCode: 500)
+            default:
+                throw URLError(.badURL)
+            }
+        }
+
+        let baseURL = try #require(URL(string: "https://cursor.test"))
+        let snapshot = try await CursorStatusProbe(
+            baseURL: baseURL,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            urlSession: makeCursorStatusProbeSession()).fetchWithManualCookies("auth=test")
+
+        #expect(snapshot.planPercentUsed == 30.0)
+        #expect(snapshot.accountEmail == nil)
+        #expect(CursorStatusProbeStubURLProtocol.requestCount == 2)
+    }
+
+    @Test
+    func `fetch fails cleanly when usage summary fails`() async {
+        defer {
+            CursorStatusProbeStubURLProtocol.reset()
+        }
+        CursorStatusProbeStubURLProtocol.reset()
+
+        CursorStatusProbeStubURLProtocol.setHandler { request in
+            let requestURL = try #require(request.url)
+
+            switch requestURL.path {
+            case "/api/usage-summary":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: #"{"error":"denied"}"#,
+                    statusCode: 500)
+            case "/api/auth/me":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: """
+                    {
+                      "email": "user@example.com",
+                      "email_verified": true,
+                      "name": "Test User",
+                      "sub": "auth0|12345"
+                    }
+                    """,
+                    statusCode: 200)
+            default:
+                throw URLError(.badURL)
+            }
+        }
+
+        do {
+            let baseURL = try #require(URL(string: "https://cursor.test"))
+            _ = try await CursorStatusProbe(
+                baseURL: baseURL,
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                urlSession: makeCursorStatusProbeSession()).fetchWithManualCookies("auth=test")
+            Issue.record("Expected usage summary failure to be surfaced")
+        } catch let error as CursorStatusProbeError {
+            guard case let .networkError(message) = error else {
+                Issue.record("Expected networkError, got: \(error)")
+                return
+            }
+            #expect(message == "HTTP 500")
+            #expect(CursorStatusProbeStubURLProtocol.requestPaths.contains("/api/usage-summary"))
+        } catch {
+            Issue.record("Expected CursorStatusProbeError, got: \(error)")
+        }
+    }
+}
+
+final class CursorStatusProbeStubURLProtocol: URLProtocol {
+    private struct State {
+        var requests: [URLRequest] = []
+        var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+    }
+
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var state = State()
+
+    static func setHandler(_ handler: @escaping @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)) {
+        self.lock.lock()
+        self.state.handler = handler
+        self.lock.unlock()
+    }
+
+    static func reset() {
+        self.lock.lock()
+        self.state = State()
+        self.lock.unlock()
+    }
+
+    static var requestCount: Int {
+        lock.lock()
+        defer { Self.lock.unlock() }
+        return state.requests.count
+    }
+
+    static var requestPaths: [String] {
+        lock.lock()
+        defer { Self.lock.unlock() }
+        return state.requests.compactMap { $0.url?.path }
+    }
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+        Self.lock.lock()
+        Self.state.requests.append(self.request)
+        handler = Self.state.handler
+        Self.lock.unlock()
+
+        do {
+            let handler = try #require(handler)
+            let (response, data) = try handler(self.request)
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: data)
+            self.client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            self.client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }

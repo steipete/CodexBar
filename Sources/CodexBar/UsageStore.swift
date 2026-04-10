@@ -66,11 +66,22 @@ extension UsageStore {
             }
         }
     }
+
+    var attachedOpenAIDashboardSnapshot: OpenAIDashboardSnapshot? {
+        guard self.openAIDashboardAttachmentAuthorized else { return nil }
+        return self.openAIDashboard
+    }
 }
 
 @MainActor
 @Observable
 final class UsageStore {
+    enum CodexCreditsSource {
+        case none
+        case api
+        case dashboardWeb
+    }
+
     enum StartupBehavior {
         case automatic
         case full
@@ -120,8 +131,11 @@ final class UsageStore {
     var historicalPaceRevision: Int = 0
     @ObservationIgnored var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored var lastCreditsSnapshotAccountKey: String?
+    @ObservationIgnored var lastCreditsSource: CodexCreditsSource = .none
     @ObservationIgnored var creditsFailureStreak: Int = 0
+    @ObservationIgnored var openAIDashboardAttachmentAuthorized: Bool = false
     @ObservationIgnored var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
+    @ObservationIgnored var lastOpenAIDashboardAttachmentAuthorized: Bool = false
     @ObservationIgnored var lastOpenAIDashboardTargetEmail: String?
     @ObservationIgnored var lastOpenAIDashboardCookieImportAttemptAt: Date?
     @ObservationIgnored var lastOpenAIDashboardCookieImportEmail: String?
@@ -811,7 +825,7 @@ extension UsageStore {
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-                case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
+                case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .jetbrains, .mimo, .perplexity:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }

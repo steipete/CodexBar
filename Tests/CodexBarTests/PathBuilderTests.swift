@@ -211,6 +211,93 @@ struct PathBuilderTests {
     }
 
     @Test
+    func `resolves claude from well-known cmux path when shell lookups fail`() {
+        let cmuxPath = "/Applications/cmux.app/Contents/Resources/bin/claude"
+        let fm = MockFileManager(executables: [cmuxPath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == cmuxPath)
+    }
+
+    @Test
+    func `resolves claude from well-known home dir path`() {
+        let homePath = "/Users/test/.claude/bin/claude"
+        let fm = MockFileManager(executables: [homePath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == homePath)
+    }
+
+    @Test
+    func `prefers user managed well-known path over cmux path`() {
+        let homePath = "/Users/test/.claude/bin/claude"
+        let cmuxPath = "/Applications/cmux.app/Contents/Resources/bin/claude"
+        let fm = MockFileManager(executables: [homePath, cmuxPath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == homePath)
+    }
+
+    @Test
+    func `prefers homebrew arm path over usr local fallback`() {
+        let fm = MockFileManager(executables: [
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+        ])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == "/opt/homebrew/bin/claude")
+    }
+
+    @Test
+    func `prefers shell PATH over well-known paths`() {
+        let shellPath = "/custom/bin/claude"
+        let cmuxPath = "/Applications/cmux.app/Contents/Resources/bin/claude"
+        let fm = MockFileManager(executables: [shellPath, cmuxPath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in shellPath }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == shellPath)
+    }
+
+    @Test
     func `skips alias when command V resolves`() {
         let path = "/shell/bin/claude"
         let fm = MockFileManager(executables: [path])

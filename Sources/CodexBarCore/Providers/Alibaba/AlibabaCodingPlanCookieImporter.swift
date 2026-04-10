@@ -82,7 +82,7 @@ public enum AlibabaCodingPlanCookieImporter {
             do {
                 log("Checking \(browserSource.displayName)")
                 let query = BrowserCookieQuery(domains: self.cookieDomains)
-                let sources = try Self.cookieClient.records(
+                let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)

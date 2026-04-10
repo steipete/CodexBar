@@ -1,17 +1,46 @@
 # Changelog
 
-## 0.20.0 — 2026-03-30
+## 0.21 — Unreleased
 
 ### Highlights
-- Add basic multi-account support to Codex. Thanks @monterrr and @Rag30 for the initial effort and ideas!
-- Add Perplexity provider with recurring, bonus, and purchased-credit tracking; plan detection (Pro/Max); and browser-cookie auto-import with manual-cookie fallback (#449). Thanks @BeelixGit!
+- z.ai: preserve weekly and 5-hour token quotas together, surface the 5-hour lane correctly across the menu/menu bar, and add regression coverage (#662). Thanks to @takumi3488 for the original fix and investigation.
+- Cursor: fix a crash in the usage fetch path and add regression coverage (#663). Thanks @anirudhvee for the report and validation!
+- Menu bar: fix missing icons on affected macOS 26 systems by avoiding RenderBox-triggering SwiftUI effects (#677). Thanks @andrzejchm!
+- Claude: preserve normal CLI fallback precedence across well-known install paths so Finder-launched apps still prefer user-managed and native Homebrew binaries when multiple installs exist.
 
 ### Providers & Usage
-- Add the foundation for multi-account support to Codex and basic UX for adding and switching accounts. @ratulsarna
-- Codex: normalize weekly-only rate limits across OAuth and CLI/RPC so free-plan accounts render as Weekly instead of a fake Session, preserve unknown single-window payloads in the primary lane, hide the empty Session lane in widgets, and accept weekly-only Codex CLI `/status`/RPC data without failing. @ratulsarna
-- Perplexity: add provider support with credit tracking for recurring (monthly), bonus (promotional), and purchased on-demand credits; plan detection (Pro/Max); and browser-cookie auto-import with manual-cookie fallback (#449). Thanks @BeelixGit!
+- z.ai: preserve both weekly and 5-hour token quotas, keep the existing 2-limit behavior unchanged, and render the 5-hour quota as a tertiary row in provider snapshots and CLI/menu cards (#662). Credit to @takumi3488 for the original fix and investigation.
+- Cursor: fix the usage fetch path so failed or cancelled requests no longer crash, and add Linux build and regression test coverage fixes (#663).
+- Claude: preserve normal CLI fallback precedence across well-known install paths so Finder-launched apps prefer `~/.claude/bin/claude`, then Homebrew, before the bundled `cmux.app` binary when shell-based resolution is unavailable.
+- OpenCode / OpenCode Go: treat serialized `_server` auth/account-context failures as invalid credentials so cached browser cookies are cleared and retried instead of surfacing a misleading HTTP 500.
 
 ### Menu & Settings
+- Menu bar: fix missing icons on affected macOS 26 systems by replacing RenderBox-triggering material/offscreen SwiftUI effects in the provider sidebar and highlighted progress bar (#677). Thanks @andrzejchm!
+- z.ai: fix menu bar selection when both weekly and 5-hour quotas are present (#662).
+
+## 0.20 — 2026-04-07
+
+### Highlights
+- Codex: switch between system accounts/profiles without manually logging out and back in. @ratulsarna
+- Add Perplexity provider support with recurring, bonus, and purchased-credit tracking, Pro/Max plan detection, browser-cookie auto-import, and manual-cookie fallback (#449). Thanks @BeelixGit!
+- Add OpenCode Go as a separate provider with 5-hour, weekly, and monthly web usage tracking, widget integration, and browser-cookie support.
+- Claude: fix token and cost inflation caused by cross-file double counting of subagent JSONL logs, fix streaming chunk deduplication, and add `claude-sonnet-4-6` pricing. Thanks @enzonaute for the investigation!
+- Cost history: merge supported pi session usage into Codex/Claude provider history (#653). Thanks @ngutman!
+
+### Providers & Usage
+- Perplexity: add recurring, bonus, and purchased-credit tracking; plan detection for Pro/Max; browser-cookie auto-import; and manual-cookie fallback (#449). Thanks @BeelixGit!
+- OpenCode Go: add a dedicated provider, parse live authenticated workspace Go usage from the web app, keep monthly optional and honor workspace env overrides.
+- Codex: add workspace attribution for account labels and same-email multi-workspace accounts.
+- Codex: reconcile live-system and managed accounts by canonical identity, preserve account-scoped usage/history/dashboard state, allow OAuth CLI fallback, and tighten OpenAI web ownership gating so quota and credits only attach to the matching account. Thanks @monterrr and @Rag30 for the initial effort and ideas!
+- Codex: normalize weekly-only rate limits across OAuth and CLI/RPC so free-plan accounts render as Weekly instead of a fake Session, preserve unknown single-window payloads in the primary lane, hide the empty Session lane in widgets, and accept weekly-only Codex CLI `/status`/RPC data without failing. @ratulsarna
+- Codex: refactor the provider end to end into clearer components and better division of responsibilities.
+- OpenCode: preserve product separation between Zen and Go, improve null/unsupported usage handling, and harden cookie/domain behavior for authenticated web fetches.
+- Cost history: merge supported pi session usage into Codex/Claude provider history (#653). Thanks @ngutman!
+
+### Menu & Settings
+- Codex: add UI for switching the system-level Codex account and promoting a managed account into the live system slot.
+- Codex: hide display-only OpenAI web extras in widgets and fix buy-credits / credits-only presentation regressions.
+- Claude: enable “Avoid Keychain prompts” by default, remove the experimental label, and preserve user-action cooldown clearing plus startup bootstrap when Security.framework fallback is still needed.
 - Fix alignment of menu chart hover coordinates on macOS. Thanks @cuidong233!
 
 ## 0.19.0 — 2026-03-23

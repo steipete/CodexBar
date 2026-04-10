@@ -101,17 +101,23 @@ Usage source picker:
 
 ## Cost usage (local log scan)
 - Source roots:
-  - `$CLAUDE_CONFIG_DIR` (comma-separated), each root uses `<root>/projects`.
-  - Fallback roots:
-    - `~/.config/claude/projects`
-    - `~/.claude/projects`
-- Files: `**/*.jsonl` under the project roots.
+  - Native Claude logs:
+    - `$CLAUDE_CONFIG_DIR` (comma-separated), each root uses `<root>/projects`.
+    - Fallback roots:
+      - `~/.config/claude/projects`
+      - `~/.claude/projects`
+  - Supported pi sessions:
+    - `~/.pi/agent/sessions/**/*.jsonl`
+- Files: `**/*.jsonl` under the native project roots plus supported pi session files.
 - Parsing:
-  - Lines with `type: "assistant"` and `message.usage`.
+  - Native Claude logs parse lines with `type: "assistant"` and `message.usage`.
   - Uses per-model token counts (input, cache read/create, output).
   - Deduplicates streaming chunks by `message.id + requestId` (usage is cumulative per chunk).
+  - pi sessions attribute `anthropic` assistant usage to Claude and bucket it by assistant-turn timestamp, so a single pi
+    session can contribute to multiple models/days.
 - Cache:
-  - `~/Library/Caches/CodexBar/cost-usage/claude-v1.json`
+  - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v2.json`
+  - pi session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v1.json`
 
 ## Key files
 - OAuth: `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/*`
@@ -119,4 +125,6 @@ Usage source picker:
 - CLI PTY: `Sources/CodexBarCore/Providers/Claude/ClaudeStatusProbe.swift`,
   `Sources/CodexBarCore/Providers/Claude/ClaudeCLISession.swift`
 - Cost usage: `Sources/CodexBarCore/CostUsageFetcher.swift`,
+  `Sources/CodexBarCore/PiSessionCostScanner.swift`,
+  `Sources/CodexBarCore/PiSessionCostCache.swift`,
   `Sources/CodexBarCore/Vendored/CostUsage/*`

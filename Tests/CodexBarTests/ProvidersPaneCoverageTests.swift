@@ -63,6 +63,41 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `zai menu bar metric picker omits tertiary lane when snapshot has no 5-hour metric`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-zai-no-tertiary-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .zai)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(ids == [
+            MenuBarMetricPreference.automatic.rawValue,
+            MenuBarMetricPreference.primary.rawValue,
+            MenuBarMetricPreference.secondary.rawValue,
+        ])
+    }
+
+    @Test
+    func `zai menu bar metric picker includes tertiary 5-hour lane when snapshot has it`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-zai-tertiary-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 34, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                tertiary: RateWindow(usedPercent: 56, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                updatedAt: Date()),
+            provider: .zai)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .zai)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(ids.contains(MenuBarMetricPreference.tertiary.rawValue))
+        let tertiaryOption = picker?.options.first { $0.id == MenuBarMetricPreference.tertiary.rawValue }
+        #expect(tertiaryOption?.title == "Tertiary (5-hour)")
+    }
+
+    @Test
     func `gemini menu bar metric picker omits tertiary lane`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-gemini-no-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)
@@ -87,6 +122,36 @@ struct ProvidersPaneCoverageTests {
 
         #expect(row?.label == "Plan")
         #expect(row?.value == "Pro")
+    }
+
+    @Test
+    func `opencode manual cookie source hides cached browser trailing text`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-opencode-manual")
+        let store = Self.makeUsageStore(settings: settings)
+        settings.opencodeCookieSource = .manual
+        CookieHeaderCache.store(provider: .opencode, cookieHeader: "auth=cache", sourceLabel: "Chrome")
+        defer { CookieHeaderCache.clear(provider: .opencode) }
+
+        let pane = ProvidersPane(settings: settings, store: store)
+        let picker = pane._test_settingsPickers(for: .opencode).first { $0.id == "opencode-cookie-source" }
+
+        #expect(picker?.dynamicSubtitle?() == "Paste a Cookie header captured from the billing page.")
+        #expect(picker?.trailingText?() == nil)
+    }
+
+    @Test
+    func `opencode go manual cookie source hides cached browser trailing text`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-opencodego-manual")
+        let store = Self.makeUsageStore(settings: settings)
+        settings.opencodegoCookieSource = .manual
+        CookieHeaderCache.store(provider: .opencodego, cookieHeader: "auth=cache", sourceLabel: "Chrome")
+        defer { CookieHeaderCache.clear(provider: .opencodego) }
+
+        let pane = ProvidersPane(settings: settings, store: store)
+        let picker = pane._test_settingsPickers(for: .opencodego).first { $0.id == "opencodego-cookie-source" }
+
+        #expect(picker?.dynamicSubtitle?() == "Paste a Cookie header captured from the billing page.")
+        #expect(picker?.trailingText?() == nil)
     }
 
     @Test

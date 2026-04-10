@@ -33,7 +33,7 @@ extension StatusItemController {
     }
 
     private func makeUsageHistorySubmenu(provider: UsageProvider) -> NSMenu? {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard self.store.supportsPlanUtilizationHistory(for: provider) else { return nil }
         guard !self.store.shouldHidePlanUtilizationMenuItem(for: provider) else { return nil }
         let width: CGFloat = 310
         let submenu = NSMenu()

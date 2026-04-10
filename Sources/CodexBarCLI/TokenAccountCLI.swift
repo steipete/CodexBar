@@ -80,13 +80,7 @@ struct TokenAccountCLIContext {
 
         switch provider {
         case .codex:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                codex: ProviderSettingsSnapshot.CodexProviderSettings(
-                    usageDataSource: .auto,
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
+            return self.makeSnapshot(codex: self.makeCodexSettingsSnapshot(account: account))
         case .claude:
             let routing = self.claudeCredentialRouting(account: account, config: config)
             let claudeSource: ClaudeUsageDataSource = routing.isOAuth ? .oauth : .auto
@@ -111,6 +105,14 @@ struct TokenAccountCLIContext {
             let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader,
+                    workspaceID: config?.workspaceID))
+        case .opencodego:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader,
                     workspaceID: config?.workspaceID))
@@ -201,6 +203,7 @@ struct TokenAccountCLIContext {
         claude: ProviderSettingsSnapshot.ClaudeProviderSettings? = nil,
         cursor: ProviderSettingsSnapshot.CursorProviderSettings? = nil,
         opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
+        opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
         alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings? = nil,
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
@@ -219,6 +222,7 @@ struct TokenAccountCLIContext {
             claude: claude,
             cursor: cursor,
             opencode: opencode,
+            opencodego: opencodego,
             alibaba: alibaba,
             factory: factory,
             minimax: minimax,
@@ -231,6 +235,20 @@ struct TokenAccountCLIContext {
             jetbrains: jetbrains,
             mimo: mimo,
             perplexity: perplexity)
+    }
+
+    private func makeCodexSettingsSnapshot(account: ProviderTokenAccount?) ->
+        ProviderSettingsSnapshot.CodexProviderSettings
+    {
+        let config = self.providerConfig(for: .codex)
+        let reconciliationSnapshot = self.codexAccountReconciler().loadSnapshot()
+        let resolvedActiveSource = CodexActiveSourceResolver.resolve(from: reconciliationSnapshot)
+        return CodexProviderSettingsBuilder.make(input: CodexProviderSettingsBuilderInput(
+            usageDataSource: .auto,
+            cookieSource: self.cookieSource(provider: .codex, account: account, config: config),
+            manualCookieHeader: self.manualCookieHeader(provider: .codex, account: account, config: config),
+            reconciliationSnapshot: reconciliationSnapshot,
+            resolvedActiveSource: resolvedActiveSource))
     }
 
     func environment(
@@ -293,6 +311,15 @@ struct TokenAccountCLIContext {
 
     private func providerConfig(for provider: UsageProvider) -> ProviderConfig? {
         self.config.providerConfig(for: provider)
+    }
+
+    private func codexAccountReconciler() -> DefaultCodexAccountReconciler {
+        DefaultCodexAccountReconciler(
+            activeSource: self.providerConfig(for: .codex)?.codexActiveSource ?? .liveSystem,
+            baseEnvironment: ProcessInfo.processInfo.environment,
+            managedEnvironmentBuilder: { environment, account in
+                CodexHomeScope.scopedEnvironment(base: environment, codexHome: account.managedHomePath)
+            })
     }
 
     private func manualCookieHeader(

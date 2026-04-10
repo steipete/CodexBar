@@ -2,7 +2,7 @@ import CodexBarCore
 import Foundation
 import Observation
 
-enum ManagedCodexAccountCoordinatorError: Error, Equatable, Sendable {
+enum ManagedCodexAccountCoordinatorError: Error, Equatable {
     case authenticationInProgress
 }
 
@@ -12,7 +12,13 @@ final class ManagedCodexAccountCoordinator {
     let service: ManagedCodexAccountService
     private(set) var isAuthenticatingManagedAccount: Bool = false
     private(set) var authenticatingManagedAccountID: UUID?
+    private(set) var isRemovingManagedAccount: Bool = false
+    private(set) var removingManagedAccountID: UUID?
     var onManagedAccountsDidChange: (@MainActor () -> Void)?
+
+    var hasConflictingManagedAccountOperationInFlight: Bool {
+        self.isAuthenticatingManagedAccount || self.isRemovingManagedAccount
+    }
 
     init(service: ManagedCodexAccountService = ManagedCodexAccountService()) {
         self.service = service
@@ -42,6 +48,13 @@ final class ManagedCodexAccountCoordinator {
     }
 
     func removeManagedAccount(id: UUID) async throws {
+        self.isRemovingManagedAccount = true
+        self.removingManagedAccountID = id
+        defer {
+            self.isRemovingManagedAccount = false
+            self.removingManagedAccountID = nil
+        }
+
         try await self.service.removeManagedAccount(id: id)
         self.onManagedAccountsDidChange?()
     }

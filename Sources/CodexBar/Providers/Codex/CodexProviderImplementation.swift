@@ -199,6 +199,32 @@ struct CodexProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry]) {
+        let projection = context.settings.codexVisibleAccountProjection
+        guard !projection.visibleAccounts.isEmpty else { return }
+
+        let isInteractionBlocked = context.codexAccountPromotionCoordinator?.isInteractionBlocked() ?? false
+
+        let submenuItems = projection.visibleAccounts.map { account in
+            let isChecked = account.id == projection.liveVisibleAccountID
+            let isEnabled = !isInteractionBlocked &&
+                !isChecked &&
+                account.storedAccountID != nil
+            let action = account.storedAccountID.map(MenuDescriptor.MenuAction.requestCodexSystemPromotion)
+            return MenuDescriptor.SubmenuItem(
+                title: account.displayName,
+                action: action,
+                isEnabled: isEnabled,
+                isChecked: isChecked)
+        }
+
+        entries.append(.submenu(
+            "System Account",
+            MenuDescriptor.MenuActionSystemImage.systemAccount.rawValue,
+            submenuItems))
+    }
+
+    @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         await context.controller.runCodexLoginFlow()
         return true

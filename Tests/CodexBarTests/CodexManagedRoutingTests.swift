@@ -144,6 +144,52 @@ struct CodexManagedRoutingTests {
     }
 
     @Test
+    func `provider registry keeps managed routing when same email rows differ by identity strength`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-same-email-split-by-identity")
+        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        let liveHomePath = "/tmp/system-remote-home"
+        defer { try? FileManager.default.removeItem(at: managedHome) }
+
+        try self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "person@example.com",
+            plan: "pro",
+            accountId: "account-managed")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "person@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let liveSystemAccount = ObservedSystemCodexAccount(
+            email: "PERSON@example.com",
+            codexHomePath: liveHomePath,
+            observedAt: Date(),
+            identity: .emailOnly(normalizedEmail: "person@example.com"))
+
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings._test_liveSystemCodexAccount = liveSystemAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer {
+            settings._test_activeManagedCodexAccount = nil
+            settings._test_liveSystemCodexAccount = nil
+        }
+
+        let env = ProviderRegistry.makeEnvironment(
+            base: ["CODEX_HOME": liveHomePath],
+            provider: .codex,
+            settings: settings,
+            tokenOverride: nil)
+
+        #expect(settings.codexResolvedActiveSource == .managedAccount(id: managedAccount.id))
+        #expect(env["CODEX_HOME"] == managedHome.path)
+        #expect(env["CODEX_HOME"] != liveHomePath)
+    }
+
+    @Test
     func `persisted managed source corrects to live system when selected row collapses with live account`() {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-same-email-persist-correction")
         let managedAccount = ManagedCodexAccount(
@@ -351,6 +397,62 @@ struct CodexManagedRoutingTests {
     }
 
     @Test
+    func `codex settings snapshot keeps unreadable managed store fail closed when live account is present`() {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-unreadable-store-live-present")
+        settings._test_unreadableManagedCodexAccountStore = true
+        settings.codexActiveSource = .managedAccount(id: UUID())
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/example/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-live"))
+        defer {
+            settings._test_unreadableManagedCodexAccountStore = false
+            settings._test_liveSystemCodexAccount = nil
+        }
+
+        let snapshot = settings.codexSettingsSnapshot(tokenOverride: nil)
+
+        #expect(snapshot.managedAccountStoreUnreadable == true)
+        #expect(snapshot.managedAccountTargetUnavailable == false)
+    }
+
+    @Test
+    func `codex settings snapshot keeps missing managed target fail closed when live account is present`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-missing-managed-live-present")
+        let storedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "stored@example.com",
+            managedHomePath: "/tmp/stored-managed-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-live-present-\(UUID().uuidString).json")
+        let store = FileManagedCodexAccountStore(fileURL: storeURL)
+        try store.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [storedAccount]))
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .managedAccount(id: UUID())
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/example/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-live"))
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        let snapshot = settings.codexSettingsSnapshot(tokenOverride: nil)
+
+        #expect(snapshot.managedAccountStoreUnreadable == false)
+        #expect(snapshot.managedAccountTargetUnavailable == true)
+    }
+
+    @Test
     func `provider registry ignores debug managed home override without explicit managed source`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-debug-home-override")
         let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -456,6 +558,26 @@ struct CodexManagedRoutingTests {
     }
 
     @Test
+    func `default managed codex identity reader preserves provider account from scoped auth`() throws {
+        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: managedHome) }
+        try self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "managed@example.com",
+            plan: "pro",
+            accountId: "managed-account-id")
+
+        let reader = DefaultManagedCodexIdentityReader()
+        let account = try reader.loadAccountIdentity(homePath: managedHome.path)
+
+        #expect(account.email == "managed@example.com")
+        #expect(account.plan == "pro")
+        #expect(account.identity == .providerAccount(id: "managed-account-id"))
+    }
+
+    @Test
     func `codex O auth strategy availability reads auth from context env`() async throws {
         let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString,
@@ -553,24 +675,38 @@ struct CodexManagedRoutingTests {
             tokenAccountStore: InMemoryTokenAccountStore())
     }
 
-    private func writeCodexAuthFile(homeURL: URL, email: String, plan: String) throws {
+    private func writeCodexAuthFile(
+        homeURL: URL,
+        email: String,
+        plan: String,
+        accountId: String? = nil) throws
+    {
         try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
-        let auth = [
-            "tokens": [
-                "accessToken": "access-token",
-                "refreshToken": "refresh-token",
-                "idToken": Self.fakeJWT(email: email, plan: plan),
-            ],
+        var tokens: [String: Any] = [
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "idToken": Self.fakeJWT(email: email, plan: plan, accountId: accountId),
         ]
+        if let accountId {
+            tokens["accountId"] = accountId
+        }
+        let auth = ["tokens": tokens]
         let data = try JSONSerialization.data(withJSONObject: auth)
         try data.write(to: homeURL.appendingPathComponent("auth.json"))
     }
 
-    private static func fakeJWT(email: String, plan: String) -> String {
+    private static func fakeJWT(email: String, plan: String, accountId: String? = nil) -> String {
         let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        var authClaims: [String: Any] = [
+            "chatgpt_plan_type": plan,
+        ]
+        if let accountId {
+            authClaims["chatgpt_account_id"] = accountId
+        }
         let payload = (try? JSONSerialization.data(withJSONObject: [
             "email": email,
             "chatgpt_plan_type": plan,
+            "https://api.openai.com/auth": authClaims,
         ])) ?? Data()
 
         func base64URL(_ data: Data) -> String {

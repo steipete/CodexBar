@@ -9,8 +9,18 @@ struct SettingsStoreAdditionalTests {
     func `menu bar metric preference handles zai and average`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-metric")
 
+        #expect(settings.menuBarMetricPreference(for: .zai) == .automatic)
+
         settings.setMenuBarMetricPreference(.average, for: .zai)
-        #expect(settings.menuBarMetricPreference(for: .zai) == .primary)
+        #expect(settings.menuBarMetricPreference(for: .zai) == .automatic)
+
+        settings.setMenuBarMetricPreference(.secondary, for: .zai)
+        #expect(settings.menuBarMetricPreference(for: .zai) == .secondary)
+
+        settings.setMenuBarMetricPreference(.tertiary, for: .zai)
+        #expect(settings.menuBarMetricPreference(for: .zai) == .tertiary)
+        #expect(settings.menuBarMetricPreference(for: .zai, snapshot: nil) == .automatic)
+        #expect(settings.menuBarMetricSupportsTertiary(for: .zai, snapshot: nil) == false)
 
         settings.setMenuBarMetricPreference(.average, for: .codex)
         #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)

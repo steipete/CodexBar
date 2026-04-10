@@ -6,14 +6,11 @@ import Testing
 struct MiniMaxAPITokenFetchTests {
     @Test
     func `retries china host when global rejects token`() async throws {
-        let registered = URLProtocol.registerClass(MiniMaxAPITokenStubURLProtocol.self)
         defer {
-            if registered {
-                URLProtocol.unregisterClass(MiniMaxAPITokenStubURLProtocol.self)
-            }
             MiniMaxAPITokenStubURLProtocol.handler = nil
             MiniMaxAPITokenStubURLProtocol.requests = []
         }
+        MiniMaxAPITokenStubURLProtocol.requests = []
 
         MiniMaxAPITokenStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
@@ -45,7 +42,11 @@ struct MiniMaxAPITokenFetchTests {
         }
 
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(apiToken: "sk-cp-test", region: .global, now: now)
+        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
+            apiToken: "sk-cp-test",
+            region: .global,
+            now: now,
+            session: Self.makeSession())
 
         #expect(snapshot.planName == "Max")
         #expect(MiniMaxAPITokenStubURLProtocol.requests.count == 2)
@@ -55,14 +56,11 @@ struct MiniMaxAPITokenFetchTests {
 
     @Test
     func `preserves invalid credentials when china retry fails transport`() async throws {
-        let registered = URLProtocol.registerClass(MiniMaxAPITokenStubURLProtocol.self)
         defer {
-            if registered {
-                URLProtocol.unregisterClass(MiniMaxAPITokenStubURLProtocol.self)
-            }
             MiniMaxAPITokenStubURLProtocol.handler = nil
             MiniMaxAPITokenStubURLProtocol.requests = []
         }
+        MiniMaxAPITokenStubURLProtocol.requests = []
 
         MiniMaxAPITokenStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
@@ -78,7 +76,11 @@ struct MiniMaxAPITokenFetchTests {
 
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         await #expect(throws: MiniMaxUsageError.invalidCredentials) {
-            _ = try await MiniMaxUsageFetcher.fetchUsage(apiToken: "sk-cp-test", region: .global, now: now)
+            _ = try await MiniMaxUsageFetcher.fetchUsage(
+                apiToken: "sk-cp-test",
+                region: .global,
+                now: now,
+                session: Self.makeSession())
         }
 
         #expect(MiniMaxAPITokenStubURLProtocol.requests.count == 2)
@@ -88,14 +90,11 @@ struct MiniMaxAPITokenFetchTests {
 
     @Test
     func `does not retry when region is china mainland`() async throws {
-        let registered = URLProtocol.registerClass(MiniMaxAPITokenStubURLProtocol.self)
         defer {
-            if registered {
-                URLProtocol.unregisterClass(MiniMaxAPITokenStubURLProtocol.self)
-            }
             MiniMaxAPITokenStubURLProtocol.handler = nil
             MiniMaxAPITokenStubURLProtocol.requests = []
         }
+        MiniMaxAPITokenStubURLProtocol.requests = []
 
         MiniMaxAPITokenStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
@@ -124,10 +123,20 @@ struct MiniMaxAPITokenFetchTests {
         }
 
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        _ = try await MiniMaxUsageFetcher.fetchUsage(apiToken: "sk-cp-test", region: .chinaMainland, now: now)
+        _ = try await MiniMaxUsageFetcher.fetchUsage(
+            apiToken: "sk-cp-test",
+            region: .chinaMainland,
+            now: now,
+            session: Self.makeSession())
 
         #expect(MiniMaxAPITokenStubURLProtocol.requests.count == 1)
         #expect(MiniMaxAPITokenStubURLProtocol.requests.first?.url?.host == "api.minimaxi.com")
+    }
+
+    private static func makeSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MiniMaxAPITokenStubURLProtocol.self]
+        return URLSession(configuration: config)
     }
 
     private static func makeResponse(

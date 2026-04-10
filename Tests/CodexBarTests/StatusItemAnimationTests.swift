@@ -3,6 +3,7 @@ import CodexBarCore
 import Testing
 @testable import CodexBar
 
+@Suite(.serialized)
 @MainActor
 struct StatusItemAnimationTests {
     private func maxAlpha(in rep: NSBitmapImageRep) -> CGFloat {
