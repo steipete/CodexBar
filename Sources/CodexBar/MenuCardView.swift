@@ -950,6 +950,23 @@ extension UsageMenuCardView.Model {
                 input: input,
                 projection: codexProjection,
                 percentStyle: percentStyle))
+        } else if input.provider == .copilot {
+            let copilotWindow = snapshot.primary ?? snapshot.secondary
+            if let copilotWindow {
+                let paceDetail = Self.weeklyPaceDetail(
+                    window: copilotWindow,
+                    now: input.now,
+                    pace: input.weeklyPace,
+                    showUsed: input.usageBarsShowUsed)
+                metrics.append(Self.primaryMetric(
+                    input: input,
+                    primary: copilotWindow,
+                    percentStyle: percentStyle,
+                    zaiTokenDetail: zaiTokenDetail,
+                    openRouterQuotaDetail: openRouterQuotaDetail,
+                    titleOverride: input.metadata.sessionLabel,
+                    paceDetail: paceDetail))
+            }
         } else if let primary = snapshot.primary {
             metrics.append(Self.primaryMetric(
                 input: input,
@@ -958,7 +975,7 @@ extension UsageMenuCardView.Model {
                 zaiTokenDetail: zaiTokenDetail,
                 openRouterQuotaDetail: openRouterQuotaDetail))
         }
-        if input.provider != .codex, let weekly = snapshot.secondary {
+        if input.provider != .codex, input.provider != .copilot, let weekly = snapshot.secondary {
             metrics.append(Self.secondaryMetric(
                 input: input,
                 weekly: weekly,
@@ -1033,7 +1050,9 @@ extension UsageMenuCardView.Model {
         primary: RateWindow,
         percentStyle: PercentStyle,
         zaiTokenDetail: String?,
-        openRouterQuotaDetail: String?) -> Metric
+        openRouterQuotaDetail: String?,
+        titleOverride: String? = nil,
+        paceDetail: PaceDetail? = nil) -> Metric
     {
         var primaryDetailText: String? = input.provider == .zai ? zaiTokenDetail : nil
         var primaryResetText = Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now)
@@ -1059,16 +1078,16 @@ extension UsageMenuCardView.Model {
         }
         return Metric(
             id: "primary",
-            title: input.metadata.sessionLabel,
+            title: titleOverride ?? input.metadata.sessionLabel,
             percent: Self.clamped(
                 input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
             percentStyle: percentStyle,
             resetText: primaryResetText,
             detailText: primaryDetailText,
-            detailLeftText: nil,
-            detailRightText: nil,
-            pacePercent: nil,
-            paceOnTop: true)
+            detailLeftText: paceDetail?.leftLabel,
+            detailRightText: paceDetail?.rightLabel,
+            pacePercent: paceDetail?.pacePercent,
+            paceOnTop: paceDetail?.paceOnTop ?? true)
     }
 
     private static func secondaryMetric(
@@ -1278,7 +1297,7 @@ extension UsageMenuCardView.Model {
         let actualPercent = showUsed ? actualUsed : (100 - actualUsed)
         if expectedPercent.isFinite == false || actualPercent.isFinite == false { return nil }
         let paceOnTop = actualUsed <= expectedUsed
-        let pacePercent: Double? = if detail.stage == .onTrack { nil } else { expectedPercent }
+        let pacePercent: Double? = if detail.stage == UsagePace.Stage.onTrack { nil } else { expectedPercent }
         return PaceDetail(
             leftLabel: detail.leftLabel,
             rightLabel: detail.rightLabel,

@@ -347,8 +347,8 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
-    func `Copilot menu includes weekly pace summary when reset window is known`() {
-        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-copilot-weekly-pace")
+    func `Copilot menu shows a single premium row with pace summary`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-copilot-monthly-pace")
         settings.statusChecksEnabled = false
 
         let now = Date()
@@ -387,7 +387,8 @@ struct CodexPresentationCharacterizationTests {
             includeContextualActions: false)
 
         let lines = self.textLines(from: descriptor)
-        #expect(lines.contains(where: { $0.hasPrefix("Chat:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("Premium:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("Chat:") }) == false)
         #expect(lines.contains(where: { $0.hasPrefix("Pace:") && $0.contains("reserve") }))
     }
 

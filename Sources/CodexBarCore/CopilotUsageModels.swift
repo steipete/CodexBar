@@ -215,8 +215,8 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     public let quotaResetDate: String?
 
     public var quotaWindow: QuotaWindow? {
-        guard let assignedAt = Self.parseQuotaDate(self.assignedDate),
-              let resetsAt = Self.parseQuotaDate(self.quotaResetDate),
+        guard let resetsAt = Self.parseQuotaDate(self.quotaResetDate),
+              let assignedAt = Self.calendarMonthStart(for: resetsAt),
               resetsAt > assignedAt
         else {
             return nil
@@ -332,8 +332,15 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone.current
+        formatter.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.date(from: value)
+    }
+
+    private static func calendarMonthStart(for resetDate: Date) -> Date? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let resetMonth = calendar.dateInterval(of: .month, for: resetDate)?.start
+        return calendar.date(byAdding: .month, value: -1, to: resetMonth ?? resetDate)
     }
 }

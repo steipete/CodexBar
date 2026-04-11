@@ -535,14 +535,18 @@ struct ProvidersPane: View {
             tokenError = nil
         }
 
-        let weeklyPace = if let codexProjection,
-                            let weekly = codexProjection.rateWindow(for: .weekly)
+        let weeklyPace: UsagePace? = if let codexProjection,
+                                        let weekly = codexProjection.rateWindow(for: .weekly)
         {
             self.store.weeklyPace(provider: provider, window: weekly, now: now)
+        } else if provider == .copilot,
+                  let window = snapshot?.primary ?? snapshot?.secondary
+        {
+            self.store.weeklyPace(provider: provider, window: window, now: now)
+        } else if let window = snapshot?.secondary {
+            self.store.weeklyPace(provider: provider, window: window, now: now)
         } else {
-            snapshot?.secondary.flatMap { window in
-                self.store.weeklyPace(provider: provider, window: window, now: now)
-            }
+            nil
         }
         let input = UsageMenuCardView.Model.Input(
             provider: provider,

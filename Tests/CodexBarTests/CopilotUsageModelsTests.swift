@@ -36,12 +36,12 @@ struct CopilotUsageModelsTests {
     }
 
     @Test
-    func `builds quota window from assigned and reset dates`() throws {
+    func `builds calendar month quota window from reset date`() throws {
         let response = try Self.decodeFixture(
             """
             {
               "copilot_plan": "free",
-              "assigned_date": "2025-01-01",
+              "assigned_date": "2025-01-12",
               "quota_reset_date": "2025-02-01",
               "quota_snapshots": {
                 "chat": {
@@ -55,8 +55,46 @@ struct CopilotUsageModelsTests {
             """)
 
         let quotaWindow = try #require(response.quotaWindow)
+        let utc = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let calendar = Calendar(identifier: .gregorian)
         #expect(quotaWindow.windowMinutes == 31 * 24 * 60)
-        #expect(quotaWindow.resetsAt > quotaWindow.assignedAt)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.assignedAt).year == 2025)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.assignedAt).month == 1)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.assignedAt).day == 1)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.resetsAt).year == 2025)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.resetsAt).month == 2)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.resetsAt).day == 1)
+    }
+
+    @Test
+    func `ignores assigned date when reset date indicates calendar month cycle`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "individual_pro",
+              "assigned_date": "2026-03-22T16:03:34-07:00",
+              "quota_reset_date": "2026-05-01",
+              "quota_snapshots": {
+                "premium_interactions": {
+                  "entitlement": 1500,
+                  "remaining": 1139,
+                  "percent_remaining": 75.9,
+                  "quota_id": "premium_interactions"
+                }
+              }
+            }
+            """)
+
+        let quotaWindow = try #require(response.quotaWindow)
+        let utc = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let calendar = Calendar(identifier: .gregorian)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.assignedAt).year == 2026)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.assignedAt).month == 4)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.assignedAt).day == 1)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.resetsAt).year == 2026)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.resetsAt).month == 5)
+        #expect(calendar.dateComponents(in: utc, from: quotaWindow.resetsAt).day == 1)
+        #expect(quotaWindow.windowMinutes == 30 * 24 * 60)
     }
 
     @Test

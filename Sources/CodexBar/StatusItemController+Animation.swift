@@ -484,7 +484,13 @@ extension StatusItemController {
         case .percent:
             pace = nil
         case .pace, .both:
-            let weeklyWindow = codexProjection?.rateWindow(for: .weekly) ?? snapshot?.secondary
+            let weeklyWindow = if let codexWeekly = codexProjection?.rateWindow(for: .weekly) {
+                codexWeekly
+            } else if provider == .copilot {
+                snapshot?.primary ?? snapshot?.secondary
+            } else {
+                snapshot?.secondary
+            }
             pace = weeklyWindow.flatMap { window in
                 self.store.weeklyPace(provider: provider, window: window, now: now)
             }

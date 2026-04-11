@@ -163,6 +163,12 @@ struct MenuDescriptor {
                     window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
+                if provider == .copilot,
+                   let pace = store.weeklyPace(provider: provider, window: primary)
+                {
+                    let paceSummary = UsagePaceText.weeklySummary(pace: pace)
+                    entries.append(.text(paceSummary, .secondary))
+                }
                 if provider == .warp || provider == .kilo,
                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !detail.isEmpty
@@ -170,7 +176,7 @@ struct MenuDescriptor {
                     entries.append(.text(detail, .secondary))
                 }
             }
-            if let weekly = snap.secondary {
+            if provider != .copilot, let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
                     guard provider == .warp || provider == .kilo || provider == .perplexity else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -194,6 +200,17 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(detail, .secondary))
                 }
+                if let pace = store.weeklyPace(provider: provider, window: weekly) {
+                    let paceSummary = UsagePaceText.weeklySummary(pace: pace)
+                    entries.append(.text(paceSummary, .secondary))
+                }
+            } else if provider == .copilot, snap.primary == nil, let weekly = snap.secondary {
+                Self.appendRateWindow(
+                    entries: &entries,
+                    title: meta.sessionLabel,
+                    window: weekly,
+                    resetStyle: resetStyle,
+                    showUsed: settings.usageBarsShowUsed)
                 if let pace = store.weeklyPace(provider: provider, window: weekly) {
                     let paceSummary = UsagePaceText.weeklySummary(pace: pace)
                     entries.append(.text(paceSummary, .secondary))

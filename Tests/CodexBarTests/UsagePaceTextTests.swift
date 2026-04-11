@@ -52,6 +52,51 @@ struct UsagePaceTextTests {
     }
 
     @Test
+    func `pace summary uses deficit reserve wording for monthly windows too`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let pace = UsagePace(
+            stage: .farBehind,
+            deltaPercent: -49,
+            expectedUsedPercent: 49,
+            actualUsedPercent: 0,
+            etaSeconds: nil,
+            willLastToReset: true,
+            runOutProbability: nil)
+
+        let summary = UsagePaceText.weeklySummary(pace: pace, now: now)
+
+        #expect(summary == "Pace: 49% in reserve · Lasts until reset")
+    }
+
+    @Test
+    func `calendar month premium pace rounds to expected reserve`() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let utc = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let now = try #require(calendar.date(from: DateComponents(
+            timeZone: utc,
+            year: 2026,
+            month: 4,
+            day: 10,
+            hour: 20)))
+        let resetAt = try #require(calendar.date(from: DateComponents(
+            timeZone: utc,
+            year: 2026,
+            month: 5,
+            day: 1,
+            hour: 0)))
+        let window = RateWindow(
+            usedPercent: 24.1,
+            windowMinutes: 30 * 24 * 60,
+            resetsAt: resetAt,
+            resetDescription: nil)
+        let pace = try #require(UsagePace.weekly(window: window, now: now))
+
+        let summary = UsagePaceText.weeklySummary(pace: pace, now: now)
+
+        #expect(summary == "Pace: 9% in reserve · Lasts until reset")
+    }
+
+    @Test
     func `weekly pace detail formats rounded risk when available`() {
         let now = Date(timeIntervalSince1970: 0)
         let pace = UsagePace(
