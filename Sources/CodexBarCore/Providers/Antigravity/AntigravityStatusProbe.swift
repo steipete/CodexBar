@@ -663,19 +663,25 @@ enum LocalhostTrustPolicy {
 
 private final class LocalhostSessionDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
     func data(for request: URLRequest, session: URLSession) async throws -> (Data, URLResponse) {
-        try await withCheckedThrowingContinuation { continuation in
-            let task = session.dataTask(with: request) { data, response, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
+        let state = LocalhostSessionTaskState()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: request) { data, response, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let data, let response else {
+                        continuation.resume(throwing: AntigravityStatusProbeError.apiError("Invalid response"))
+                        return
+                    }
+                    continuation.resume(returning: (data, response))
                 }
-                guard let data, let response else {
-                    continuation.resume(throwing: AntigravityStatusProbeError.apiError("Invalid response"))
-                    return
-                }
-                continuation.resume(returning: (data, response))
+                state.setTask(task)
+                task.resume()
             }
-            task.resume()
+        } onCancel: {
+            state.cancel()
         }
     }
 
@@ -716,6 +722,31 @@ private final class LocalhostSessionDelegate: NSObject, URLSessionDelegate, URLS
         }
         completionHandler(.useCredential, URLCredential(trust: trust))
         #endif
+    }
+}
+
+private final class LocalhostSessionTaskState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDataTask?
+    private var isCancelled = false
+
+    func setTask(_ task: URLSessionDataTask) {
+        self.lock.lock()
+        self.task = task
+        let shouldCancel = self.isCancelled
+        self.lock.unlock()
+
+        if shouldCancel {
+            task.cancel()
+        }
+    }
+
+    func cancel() {
+        self.lock.lock()
+        self.isCancelled = true
+        let task = self.task
+        self.lock.unlock()
+        task?.cancel()
     }
 }
 
