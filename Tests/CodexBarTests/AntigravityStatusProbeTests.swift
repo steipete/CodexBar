@@ -1,8 +1,38 @@
-import CodexBarCore
+@testable import CodexBarCore
 import Foundation
 import Testing
 
 struct AntigravityStatusProbeTests {
+    @Test
+    func `localhost trust policy only accepts local server trust challenges`() {
+        #expect(
+            LocalhostTrustPolicy.shouldAcceptServerTrust(
+                host: "127.0.0.1",
+                authenticationMethod: NSURLAuthenticationMethodServerTrust,
+                hasServerTrust: true))
+        #expect(
+            LocalhostTrustPolicy.shouldAcceptServerTrust(
+                host: "LOCALHOST",
+                authenticationMethod: NSURLAuthenticationMethodServerTrust,
+                hasServerTrust: true))
+
+        #expect(
+            !LocalhostTrustPolicy.shouldAcceptServerTrust(
+                host: "cursor.com",
+                authenticationMethod: NSURLAuthenticationMethodServerTrust,
+                hasServerTrust: true))
+        #expect(
+            !LocalhostTrustPolicy.shouldAcceptServerTrust(
+                host: "127.0.0.1",
+                authenticationMethod: NSURLAuthenticationMethodHTTPBasic,
+                hasServerTrust: true))
+        #expect(
+            !LocalhostTrustPolicy.shouldAcceptServerTrust(
+                host: "127.0.0.1",
+                authenticationMethod: NSURLAuthenticationMethodServerTrust,
+                hasServerTrust: false))
+    }
+
     @Test
     func `parses user status response`() throws {
         let json = """
