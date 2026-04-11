@@ -347,6 +347,51 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
+    func `Copilot menu includes weekly pace summary when reset window is known`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-copilot-weekly-pace")
+        settings.statusChecksEnabled = false
+
+        let now = Date()
+        let fetcher = UsageFetcher(environment: [:])
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 23,
+                    windowMinutes: 31 * 24 * 60,
+                    resetsAt: now.addingTimeInterval(5 * 24 * 60 * 60),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 23,
+                    windowMinutes: 31 * 24 * 60,
+                    resetsAt: now.addingTimeInterval(5 * 24 * 60 * 60),
+                    resetDescription: nil),
+                updatedAt: now,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .copilot,
+                    accountEmail: "copilot@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "individual_pro")),
+            provider: .copilot)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .copilot,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(lines.contains(where: { $0.hasPrefix("Chat:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("Pace:") && $0.contains("reserve") }))
+    }
+
+    @Test
     func `zai menu descriptor includes Tokens MCP and 5-hour rows`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-zai-three-quota")
         settings.statusChecksEnabled = false

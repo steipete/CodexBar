@@ -5,7 +5,7 @@ import Foundation
 extension UsageStore {
     func supportsWeeklyPace(for provider: UsageProvider) -> Bool {
         switch provider {
-        case .codex, .claude:
+        case .codex, .claude, .copilot:
             true
         default:
             false

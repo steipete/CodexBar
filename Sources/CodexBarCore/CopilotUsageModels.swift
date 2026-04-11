@@ -203,10 +203,29 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         }
     }
 
+    public struct QuotaWindow: Sendable, Equatable {
+        public let assignedAt: Date
+        public let resetsAt: Date
+        public let windowMinutes: Int
+    }
+
     public let quotaSnapshots: QuotaSnapshots
     public let copilotPlan: String
     public let assignedDate: String?
     public let quotaResetDate: String?
+
+    public var quotaWindow: QuotaWindow? {
+        guard let assignedAt = Self.parseQuotaDate(self.assignedDate),
+              let resetsAt = Self.parseQuotaDate(self.quotaResetDate),
+              resetsAt > assignedAt
+        else {
+            return nil
+        }
+
+        let windowMinutes = Int((resetsAt.timeIntervalSince(assignedAt) / 60).rounded())
+        guard windowMinutes > 0 else { return nil }
+        return QuotaWindow(assignedAt: assignedAt, resetsAt: resetsAt, windowMinutes: windowMinutes)
+    }
 
     private enum CodingKeys: String, CodingKey {
         case quotaSnapshots = "quota_snapshots"
@@ -293,5 +312,28 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             return nil
         }
         return snapshot
+    }
+
+    private static func parseQuotaDate(_ value: String?) -> Date? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = isoFormatter.date(from: value) {
+            return date
+        }
+        isoFormatter.formatOptions = [.withInternetDateTime]
+        if let date = isoFormatter.date(from: value) {
+            return date
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: value)
     }
 }

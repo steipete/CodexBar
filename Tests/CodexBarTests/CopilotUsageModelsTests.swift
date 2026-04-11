@@ -36,6 +36,30 @@ struct CopilotUsageModelsTests {
     }
 
     @Test
+    func `builds quota window from assigned and reset dates`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "free",
+              "assigned_date": "2025-01-01",
+              "quota_reset_date": "2025-02-01",
+              "quota_snapshots": {
+                "chat": {
+                  "entitlement": 200,
+                  "remaining": 75,
+                  "percent_remaining": 37.5,
+                  "quota_id": "chat"
+                }
+              }
+            }
+            """)
+
+        let quotaWindow = try #require(response.quotaWindow)
+        #expect(quotaWindow.windowMinutes == 31 * 24 * 60)
+        #expect(quotaWindow.resetsAt > quotaWindow.assignedAt)
+    }
+
+    @Test
     func `decodes chat only quota snapshots payload`() throws {
         let response = try Self.decodeFixture(
             """

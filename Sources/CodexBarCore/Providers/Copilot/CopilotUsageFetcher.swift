@@ -35,8 +35,9 @@ public struct CopilotUsageFetcher: Sendable {
         }
 
         let usage = try JSONDecoder().decode(CopilotUsageResponse.self, from: data)
-        let premium = self.makeRateWindow(from: usage.quotaSnapshots.premiumInteractions)
-        let chat = self.makeRateWindow(from: usage.quotaSnapshots.chat)
+        let quotaWindow = usage.quotaWindow
+        let premium = self.makeRateWindow(from: usage.quotaSnapshots.premiumInteractions, quotaWindow: quotaWindow)
+        let chat = self.makeRateWindow(from: usage.quotaSnapshots.chat, quotaWindow: quotaWindow)
 
         let primary: RateWindow?
         let secondary: RateWindow?
@@ -74,7 +75,10 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("2025-04-01", forHTTPHeaderField: "X-Github-Api-Version")
     }
 
-    private func makeRateWindow(from snapshot: CopilotUsageResponse.QuotaSnapshot?) -> RateWindow? {
+    private func makeRateWindow(
+        from snapshot: CopilotUsageResponse.QuotaSnapshot?,
+        quotaWindow: CopilotUsageResponse.QuotaWindow?) -> RateWindow?
+    {
         guard let snapshot else { return nil }
         guard !snapshot.isPlaceholder else { return nil }
         guard snapshot.hasPercentRemaining else { return nil }
@@ -83,8 +87,8 @@ public struct CopilotUsageFetcher: Sendable {
 
         return RateWindow(
             usedPercent: usedPercent,
-            windowMinutes: nil, // Not provided
-            resetsAt: nil, // Not provided per-quota in the simplified snapshot
+            windowMinutes: quotaWindow?.windowMinutes,
+            resetsAt: quotaWindow?.resetsAt,
             resetDescription: nil)
     }
 }
