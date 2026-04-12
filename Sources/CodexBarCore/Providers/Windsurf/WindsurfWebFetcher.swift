@@ -132,6 +132,8 @@ public enum WindsurfWebFetcherError: LocalizedError, Sendable {
 public enum WindsurfWebFetcher {
     // Public Firebase API key (embedded in windsurf.com frontend)
     private static let firebaseAPIKey = "AIzaSyDsOl-1XpT5err0Tcnx8FFod1H8gVGIycY"
+    private static let windsurfOrigin = "https://windsurf.com"
+    private static let windsurfUsageReferer = "https://windsurf.com/subscription/usage"
     private static let getPlanStatusURL = "https://windsurf.com/_backend/exa.seat_management_pb.SeatManagementService/GetPlanStatus"
 
     public static func fetchUsage(
@@ -139,7 +141,8 @@ public enum WindsurfWebFetcher {
         cookieSource: ProviderCookieSource = .auto,
         manualAccessToken: String? = nil,
         timeout: TimeInterval = 15,
-        logger: ((String) -> Void)? = nil) async throws -> UsageSnapshot
+        logger: ((String) -> Void)? = nil,
+        session: URLSession = .shared) async throws -> UsageSnapshot
     {
         let log: (String) -> Void = { msg in logger?("[windsurf-web] \(msg)") }
         let useKeychain = cookieSource == .auto
@@ -150,12 +153,15 @@ public enum WindsurfWebFetcher {
             let token = manualAccessToken.trimmingCharacters(in: .whitespacesAndNewlines)
             if token.hasPrefix("AMf-vB") {
                 log("Using manual refresh token → exchanging for access token")
-                let accessToken = try await self.refreshFirebaseToken(token, timeout: timeout)
-                let response = try await self.fetchPlanStatus(accessToken: accessToken, timeout: timeout)
+                let accessToken = try await self.refreshFirebaseToken(token, timeout: timeout, session: session)
+                let response = try await self.fetchPlanStatus(
+                    accessToken: accessToken,
+                    timeout: timeout,
+                    session: session)
                 return response.toUsageSnapshot()
             } else {
                 log("Using manual access token")
-                let response = try await self.fetchPlanStatus(accessToken: token, timeout: timeout)
+                let response = try await self.fetchPlanStatus(accessToken: token, timeout: timeout, session: session)
                 return response.toUsageSnapshot()
             }
         }
@@ -164,7 +170,10 @@ public enum WindsurfWebFetcher {
         if useKeychain, let cached = CookieHeaderCache.load(provider: .windsurf) {
             log("Trying cached Firebase access token")
             do {
-                let response = try await self.fetchPlanStatus(accessToken: cached.cookieHeader, timeout: timeout)
+                let response = try await self.fetchPlanStatus(
+                    accessToken: cached.cookieHeader,
+                    timeout: timeout,
+                    session: session)
                 return response.toUsageSnapshot()
             } catch {
                 log("Cached token failed: \(error.localizedDescription)")
@@ -187,7 +196,10 @@ public enum WindsurfWebFetcher {
             if let accessToken = tokenInfo.accessToken {
                 log("Trying access token from \(tokenInfo.sourceLabel)")
                 do {
-                    let response = try await self.fetchPlanStatus(accessToken: accessToken, timeout: timeout)
+                    let response = try await self.fetchPlanStatus(
+                        accessToken: accessToken,
+                        timeout: timeout,
+                        session: session)
                     if useKeychain {
                         CookieHeaderCache.store(
                             provider: .windsurf,
@@ -206,8 +218,12 @@ public enum WindsurfWebFetcher {
             do {
                 let accessToken = try await self.refreshFirebaseToken(
                     tokenInfo.refreshToken,
-                    timeout: timeout)
-                let response = try await self.fetchPlanStatus(accessToken: accessToken, timeout: timeout)
+                    timeout: timeout,
+                    session: session)
+                let response = try await self.fetchPlanStatus(
+                    accessToken: accessToken,
+                    timeout: timeout,
+                    session: session)
                 if useKeychain {
                     CookieHeaderCache.store(
                         provider: .windsurf,
@@ -228,7 +244,8 @@ public enum WindsurfWebFetcher {
 
     private static func refreshFirebaseToken(
         _ refreshToken: String,
-        timeout: TimeInterval) async throws -> String
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
     {
         guard let url = URL(string: "https://securetoken.googleapis.com/v1/token?key=\(self.firebaseAPIKey)") else {
             throw WindsurfWebFetcherError.tokenRefreshFailed("Invalid Firebase token URL")
@@ -238,11 +255,19 @@ public enum WindsurfWebFetcher {
         request.timeoutInterval = timeout
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        self.applyWindsurfHeaders(to: &request)
 
-        let body = "grant_type=refresh_token&refresh_token=\(refreshToken)"
-        request.httpBody = body.data(using: .utf8)
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "grant_type", value: "refresh_token"),
+            URLQueryItem(name: "refresh_token", value: refreshToken),
+        ]
+        guard let body = components.percentEncodedQuery?.data(using: .utf8) else {
+            throw WindsurfWebFetcherError.tokenRefreshFailed("Invalid refresh token request body")
+        }
+        request.httpBody = body
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw WindsurfWebFetcherError.tokenRefreshFailed("Invalid response")
         }
@@ -267,7 +292,8 @@ public enum WindsurfWebFetcher {
 
     private static func fetchPlanStatus(
         accessToken: String,
-        timeout: TimeInterval) async throws -> WindsurfGetPlanStatusResponse
+        timeout: TimeInterval,
+        session: URLSession) async throws -> WindsurfGetPlanStatusResponse
     {
         guard let url = URL(string: self.getPlanStatusURL) else {
             throw WindsurfWebFetcherError.apiCallFailed("Invalid GetPlanStatus URL")
@@ -278,6 +304,7 @@ public enum WindsurfWebFetcher {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: "Connect-Protocol-Version")
+        self.applyWindsurfHeaders(to: &request)
 
         let body: [String: Any] = [
             "authToken": accessToken,
@@ -285,7 +312,7 @@ public enum WindsurfWebFetcher {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw WindsurfWebFetcherError.apiCallFailed("Invalid response")
         }
@@ -302,6 +329,11 @@ public enum WindsurfWebFetcher {
         } catch {
             throw WindsurfWebFetcherError.apiCallFailed("Parse error: \(error.localizedDescription)")
         }
+    }
+
+    private static func applyWindsurfHeaders(to request: inout URLRequest) {
+        request.setValue(self.windsurfOrigin, forHTTPHeaderField: "Origin")
+        request.setValue(self.windsurfUsageReferer, forHTTPHeaderField: "Referer")
     }
 }
 

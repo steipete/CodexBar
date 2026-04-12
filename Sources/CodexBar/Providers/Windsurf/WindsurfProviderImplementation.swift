@@ -55,7 +55,7 @@ struct WindsurfProviderImplementation: ProviderImplementation {
                 source: context.settings.windsurfCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
                 auto: "Automatic imports Firebase tokens from browser IndexedDB.",
-                manual: "Paste a Firebase access token for windsurf.com.",
+                manual: "Paste a Firebase refresh token or access token for windsurf.com.",
                 off: "Windsurf web API access is disabled.")
         }
 
