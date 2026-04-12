@@ -2,6 +2,8 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+// swiftlint:disable file_length
+// swiftlint:disable type_body_length
 struct CostUsageScannerBreakdownTests {
     @Test
     func `codex daily report parses token counts and caches`() throws {
@@ -214,7 +216,6 @@ struct CostUsageScannerBreakdownTests {
             claudeProjectsRoots: nil,
             cacheRoot: env.cacheRoot)
         options.refreshMinIntervalSeconds = 0
-        options.forceRescan = true
 
         let report = CostUsageScanner.loadDailyReport(
             provider: .codex,
@@ -391,6 +392,168 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex forked child subtracts inherited replay from last token usage`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let parentDay = try env.makeLocalNoon(year: 2026, month: 2, day: 27)
+        let childDay = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let parentTs0 = env.isoString(for: parentDay)
+        let parentTs1 = env.isoString(for: parentDay.addingTimeInterval(1))
+        let parentTs2 = env.isoString(for: parentDay.addingTimeInterval(2))
+        let childTs1 = env.isoString(for: childDay.addingTimeInterval(1))
+        let childTs2 = env.isoString(for: childDay.addingTimeInterval(2))
+        let childTs3 = env.isoString(for: childDay.addingTimeInterval(3))
+
+        let model = "openai/gpt-5.2-codex"
+        let parentSessionId = "sess-parent-last"
+        let childSessionId = "sess-child-last"
+        let forkTs = env.isoString(for: parentDay.addingTimeInterval(2.5))
+
+        _ = try env.writeCodexSessionFile(
+            day: parentDay,
+            filename: "rollout-2026-02-27T11-29-28-\(parentSessionId).jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "payload": [
+                        "id": parentSessionId,
+                    ],
+                ],
+                [
+                    "type": "turn_context",
+                    "timestamp": parentTs0,
+                    "payload": [
+                        "model": model,
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": parentTs1,
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "total_token_usage": [
+                                "input_tokens": 10,
+                                "cached_input_tokens": 2,
+                                "output_tokens": 1,
+                            ],
+                            "model": model,
+                        ],
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": parentTs2,
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "total_token_usage": [
+                                "input_tokens": 20,
+                                "cached_input_tokens": 5,
+                                "output_tokens": 2,
+                            ],
+                            "model": model,
+                        ],
+                    ],
+                ],
+            ]))
+
+        _ = try env.writeCodexSessionFile(
+            day: childDay,
+            filename: "rollout-2026-03-11T11-30-27-\(childSessionId).jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "payload": [
+                        "id": childSessionId,
+                        "forked_from_id": parentSessionId,
+                        "timestamp": forkTs,
+                    ],
+                ],
+                [
+                    "type": "turn_context",
+                    "timestamp": childDay.ISO8601Format(),
+                    "payload": [
+                        "model": model,
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": childTs1,
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "last_token_usage": [
+                                "input_tokens": 10,
+                                "cached_input_tokens": 2,
+                                "output_tokens": 1,
+                            ],
+                            "model": model,
+                        ],
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": childTs2,
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "last_token_usage": [
+                                "input_tokens": 10,
+                                "cached_input_tokens": 3,
+                                "output_tokens": 1,
+                            ],
+                            "model": model,
+                        ],
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": childTs3,
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "last_token_usage": [
+                                "input_tokens": 7,
+                                "cached_input_tokens": 2,
+                                "output_tokens": 2,
+                            ],
+                            "model": model,
+                        ],
+                    ],
+                ],
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        options.forceRescan = true
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: childDay,
+            until: childDay,
+            now: childDay,
+            options: options)
+
+        let expectedCost = CostUsagePricing.codexCostUSD(
+            model: model,
+            inputTokens: 7,
+            cachedInputTokens: 2,
+            outputTokens: 2)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 7)
+        #expect(report.data[0].outputTokens == 2)
+        #expect(report.data[0].totalTokens == 9)
+        #expect(abs((report.data[0].costUSD ?? 0) - (expectedCost ?? 0)) < 0.000001)
+    }
+
+    @Test
+    // swiftlint:disable:next function_body_length
     func `codex forked child ignores replayed parent prefix sequence`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -607,6 +770,208 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    // swiftlint:disable:next function_body_length
+    func `codex forked child subtracts inherited replay even when session meta appears late`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let parentDay = try env.makeLocalNoon(year: 2026, month: 2, day: 27)
+        let childDay = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let model = "openai/gpt-5.2-codex"
+        let parentSessionId = "sess-parent-late-meta"
+        let childSessionId = "sess-child-late-meta"
+        let forkTs = env.isoString(for: parentDay.addingTimeInterval(5))
+
+        let parentEvents: [[String: Any]] = [
+            [
+                "type": "session_meta",
+                "payload": [
+                    "id": parentSessionId,
+                ],
+            ],
+            [
+                "type": "turn_context",
+                "timestamp": env.isoString(for: parentDay),
+                "payload": [
+                    "model": model,
+                ],
+            ],
+            [
+                "type": "event_msg",
+                "timestamp": env.isoString(for: parentDay.addingTimeInterval(1)),
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": [
+                            "input_tokens": 10,
+                            "cached_input_tokens": 2,
+                            "output_tokens": 1,
+                        ],
+                        "model": model,
+                    ],
+                ],
+            ],
+            [
+                "type": "event_msg",
+                "timestamp": env.isoString(for: parentDay.addingTimeInterval(2)),
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": [
+                            "input_tokens": 20,
+                            "cached_input_tokens": 5,
+                            "output_tokens": 2,
+                        ],
+                        "model": model,
+                    ],
+                ],
+            ],
+            [
+                "type": "event_msg",
+                "timestamp": env.isoString(for: parentDay.addingTimeInterval(3)),
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": [
+                            "input_tokens": 30,
+                            "cached_input_tokens": 8,
+                            "output_tokens": 3,
+                        ],
+                        "model": model,
+                    ],
+                ],
+            ],
+        ]
+        _ = try env.writeCodexSessionFile(
+            day: parentDay,
+            filename: "rollout-2026-02-27T11-29-28-\(parentSessionId).jsonl",
+            contents: env.jsonl(parentEvents))
+
+        let childEvents: [[String: Any]] = [
+            [
+                "type": "turn_context",
+                "timestamp": env.isoString(for: childDay),
+                "payload": [
+                    "model": model,
+                ],
+            ],
+            [
+                "type": "event_msg",
+                "timestamp": env.isoString(for: childDay.addingTimeInterval(1)),
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": [
+                            "input_tokens": 10,
+                            "cached_input_tokens": 2,
+                            "output_tokens": 1,
+                        ],
+                        "model": model,
+                    ],
+                ],
+            ],
+            [
+                "type": "event_msg",
+                "timestamp": env.isoString(for: childDay.addingTimeInterval(2)),
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": [
+                            "input_tokens": 20,
+                            "cached_input_tokens": 5,
+                            "output_tokens": 2,
+                        ],
+                        "model": model,
+                    ],
+                ],
+            ],
+            [
+                "type": "event_msg",
+                "timestamp": env.isoString(for: childDay.addingTimeInterval(3)),
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": [
+                            "input_tokens": 30,
+                            "cached_input_tokens": 8,
+                            "output_tokens": 3,
+                        ],
+                        "model": model,
+                    ],
+                ],
+            ],
+            [
+                "type": "session_meta",
+                "payload": [
+                    "id": childSessionId,
+                    "forked_from_id": parentSessionId,
+                    "timestamp": forkTs,
+                ],
+            ],
+            [
+                "type": "event_msg",
+                "timestamp": env.isoString(for: childDay.addingTimeInterval(4)),
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": [
+                            "input_tokens": 35,
+                            "cached_input_tokens": 9,
+                            "output_tokens": 4,
+                        ],
+                        "model": model,
+                    ],
+                ],
+            ],
+            [
+                "type": "event_msg",
+                "timestamp": env.isoString(for: childDay.addingTimeInterval(5)),
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": [
+                            "input_tokens": 42,
+                            "cached_input_tokens": 11,
+                            "output_tokens": 5,
+                        ],
+                        "model": model,
+                    ],
+                ],
+            ],
+        ]
+        _ = try env.writeCodexSessionFile(
+            day: childDay,
+            filename: "rollout-2026-03-11T11-30-27-\(childSessionId).jsonl",
+            contents: env.jsonl(childEvents))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        options.forceRescan = true
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: childDay,
+            until: childDay,
+            now: childDay,
+            options: options)
+
+        let expectedCost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.2-codex",
+            inputTokens: 12,
+            cachedInputTokens: 3,
+            outputTokens: 2)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 12)
+        #expect(report.data[0].outputTokens == 2)
+        #expect(report.data[0].totalTokens == 14)
+        #expect(abs((report.data[0].costUSD ?? 0) - (expectedCost ?? 0)) < 0.000001)
+    }
+
+    @Test
     func `codex forked child resolves parent when parent session file is a symlink`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -673,7 +1038,9 @@ struct CostUsageScannerBreakdownTests {
             .appendingPathComponent(String(format: "%02d", comps.month ?? 1), isDirectory: true)
             .appendingPathComponent(String(format: "%02d", comps.day ?? 1), isDirectory: true)
         try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
-        let parentLink = parentDir.appendingPathComponent("rollout-2026-02-27T11-29-28-\(parentSessionId).jsonl", isDirectory: false)
+        let parentLink = parentDir.appendingPathComponent(
+            "rollout-2026-02-27T11-29-28-\(parentSessionId).jsonl",
+            isDirectory: false)
         try FileManager.default.createSymbolicLink(at: parentLink, withDestinationURL: parentTarget)
 
         _ = try env.writeCodexSessionFile(
@@ -755,6 +1122,7 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    // swiftlint:disable:next function_body_length
     func `codex forked child resolves parent by exact session meta id`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -1067,6 +1435,212 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex first refresh keeps unrelated archived sessions out of cache`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let reportDay = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let archivedDay = try env.makeLocalNoon(year: 2025, month: 1, day: 1)
+        let model = "openai/gpt-5.2-codex"
+
+        _ = try env.writeCodexSessionFile(
+            day: reportDay,
+            filename: "rollout-2026-03-11T11-30-27-session-recent.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "turn_context",
+                    "timestamp": env.isoString(for: reportDay),
+                    "payload": [
+                        "model": model,
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: reportDay.addingTimeInterval(1)),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "last_token_usage": [
+                                "input_tokens": 7,
+                                "cached_input_tokens": 2,
+                                "output_tokens": 2,
+                            ],
+                            "model": model,
+                        ],
+                    ],
+                ],
+            ]))
+
+        let archivedURL = try env.writeCodexArchivedSessionFile(
+            filename: "rollout-2025-01-01T12-00-00-session-archived.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "turn_context",
+                    "timestamp": env.isoString(for: archivedDay),
+                    "payload": [
+                        "model": model,
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: archivedDay.addingTimeInterval(1)),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "last_token_usage": [
+                                "input_tokens": 100,
+                                "cached_input_tokens": 10,
+                                "output_tokens": 5,
+                            ],
+                            "model": model,
+                        ],
+                    ],
+                ],
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: reportDay,
+            until: reportDay,
+            now: reportDay,
+            options: options)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+
+        #expect(report.data.count == 1)
+        #expect(cache.files.keys.contains { $0.hasSuffix("session-recent.jsonl") })
+        #expect(!cache.files.keys.contains(archivedURL.path))
+    }
+
+    @Test
+    func `codex root switch reloads long lived sessions from older partitions`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        func writeSessionFile(
+            root: URL,
+            day: Date,
+            filename: String,
+            contents: String) throws -> URL
+        {
+            let comps = Calendar.current.dateComponents([.year, .month, .day], from: day)
+            let dir = root
+                .appendingPathComponent(String(format: "%04d", comps.year ?? 1970), isDirectory: true)
+                .appendingPathComponent(String(format: "%02d", comps.month ?? 1), isDirectory: true)
+                .appendingPathComponent(String(format: "%02d", comps.day ?? 1), isDirectory: true)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let url = dir.appendingPathComponent(filename, isDirectory: false)
+            try contents.write(to: url, atomically: true, encoding: .utf8)
+            return url
+        }
+
+        let fileDay = try env.makeLocalNoon(year: 2026, month: 2, day: 27)
+        let reportDay = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let model = "openai/gpt-5.2-codex"
+        let otherSessionsRoot = env.root
+            .appendingPathComponent("other-codex-home", isDirectory: true)
+            .appendingPathComponent("sessions", isDirectory: true)
+        try FileManager.default.createDirectory(at: otherSessionsRoot, withIntermediateDirectories: true)
+
+        let oldRootURL = try env.writeCodexSessionFile(
+            day: reportDay,
+            filename: "rollout-2026-03-11T11-30-27-session-old-root.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "turn_context",
+                    "timestamp": env.isoString(for: reportDay),
+                    "payload": [
+                        "model": model,
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: reportDay.addingTimeInterval(1)),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "last_token_usage": [
+                                "input_tokens": 7,
+                                "cached_input_tokens": 2,
+                                "output_tokens": 2,
+                            ],
+                            "model": model,
+                        ],
+                    ],
+                ],
+            ]))
+
+        _ = try writeSessionFile(
+            root: otherSessionsRoot,
+            day: fileDay,
+            filename: "rollout-2026-02-27T11-30-27-session-new-root.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "turn_context",
+                    "timestamp": env.isoString(for: reportDay),
+                    "payload": [
+                        "model": model,
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: reportDay.addingTimeInterval(1)),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "last_token_usage": [
+                                "input_tokens": 10,
+                                "cached_input_tokens": 5,
+                                "output_tokens": 4,
+                            ],
+                            "model": model,
+                        ],
+                    ],
+                ],
+            ]))
+
+        var firstOptions = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        firstOptions.refreshMinIntervalSeconds = 0
+
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: reportDay,
+            until: reportDay,
+            now: reportDay,
+            options: firstOptions)
+
+        var secondOptions = CostUsageScanner.Options(
+            codexSessionsRoot: otherSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        secondOptions.refreshMinIntervalSeconds = 0
+
+        let secondReport = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: reportDay,
+            until: reportDay,
+            now: reportDay,
+            options: secondOptions)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+
+        #expect(secondReport.data.count == 1)
+        #expect(secondReport.data[0].inputTokens == 10)
+        #expect(secondReport.data[0].outputTokens == 4)
+        #expect(secondReport.data[0].totalTokens == 14)
+        #expect(!cache.files.keys.contains(oldRootURL.path))
+    }
+
+    @Test
     func `claude daily report parses usage and caches`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -1241,3 +1815,5 @@ struct CostUsageScannerBreakdownTests {
         #expect(report.data[0].modelBreakdowns?.map(\.totalTokens) == [110, 40, 30, 15])
     }
 }
+
+// swiftlint:enable type_body_length
