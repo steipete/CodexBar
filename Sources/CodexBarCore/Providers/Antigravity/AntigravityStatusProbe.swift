@@ -630,10 +630,15 @@ public struct AntigravityStatusProbe: Sendable {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = context.timeout
         config.timeoutIntervalForResource = context.timeout
-        let session = URLSession(configuration: config, delegate: InsecureSessionDelegate(), delegateQueue: nil)
+        #if !os(Linux)
+        config.waitsForConnectivity = false
+        #endif
+
+        let delegate = LocalhostSessionDelegate()
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { session.invalidateAndCancel() }
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await delegate.data(for: request, session: session)
         guard let http = response as? HTTPURLResponse else {
             throw AntigravityStatusProbeError.apiError("Invalid response")
         }
@@ -645,35 +650,104 @@ public struct AntigravityStatusProbe: Sendable {
     }
 }
 
-private final class InsecureSessionDelegate: NSObject {}
+enum LocalhostTrustPolicy {
+    static func shouldAcceptServerTrust(host: String, hasServerTrust: Bool) -> Bool {
+        let normalizedHost = host.lowercased()
+        guard normalizedHost == "127.0.0.1" || normalizedHost == "localhost" else { return false }
+        return hasServerTrust
+    }
+}
 
-extension InsecureSessionDelegate: URLSessionTaskDelegate {}
+private final class LocalhostSessionDelegate: NSObject {
+    func data(for request: URLRequest, session: URLSession) async throws -> (Data, URLResponse) {
+        let state = LocalhostSessionTaskState()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: request) { data, response, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let data, let response else {
+                        continuation.resume(throwing: AntigravityStatusProbeError.apiError("Invalid response"))
+                        return
+                    }
+                    continuation.resume(returning: (data, response))
+                }
+                state.setTask(task)
+                task.resume()
+            }
+        } onCancel: {
+            state.cancel()
+        }
+    }
+}
 
-extension InsecureSessionDelegate {
+extension LocalhostSessionDelegate: URLSessionDelegate {
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+    {
+        let result = self.challengeResult(challenge)
+        completionHandler(result.disposition, result.credential)
+    }
+}
+
+extension LocalhostSessionDelegate: URLSessionTaskDelegate {
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
         didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping @MainActor @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
     {
         let result = self.challengeResult(challenge)
-        Task { @MainActor in
-            completionHandler(result.disposition, result.credential)
-        }
+        completionHandler(result.disposition, result.credential)
     }
 
     private func challengeResult(_ challenge: URLAuthenticationChallenge) -> (
         disposition: URLSession.AuthChallengeDisposition,
         credential: URLCredential?)
     {
-        #if canImport(FoundationNetworking)
+        #if os(Linux)
         return (.performDefaultHandling, nil)
         #else
-        if let trust = challenge.protectionSpace.serverTrust {
-            return (.useCredential, URLCredential(trust: trust))
+        let protectionSpace = challenge.protectionSpace
+        let trust = protectionSpace.serverTrust
+        guard LocalhostTrustPolicy.shouldAcceptServerTrust(
+            host: protectionSpace.host,
+            hasServerTrust: trust != nil),
+            let trust
+        else {
+            return (.performDefaultHandling, nil)
         }
-        return (.performDefaultHandling, nil)
+        return (.useCredential, URLCredential(trust: trust))
         #endif
+    }
+}
+
+private final class LocalhostSessionTaskState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDataTask?
+    private var isCancelled = false
+
+    func setTask(_ task: URLSessionDataTask) {
+        self.lock.lock()
+        self.task = task
+        let shouldCancel = self.isCancelled
+        self.lock.unlock()
+
+        if shouldCancel {
+            task.cancel()
+        }
+    }
+
+    func cancel() {
+        self.lock.lock()
+        self.isCancelled = true
+        let task = self.task
+        self.lock.unlock()
+        task?.cancel()
     }
 }
 
