@@ -63,7 +63,7 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class SettingsStore {
-    static let sharedDefaults = UserDefaults(suiteName: "group.com.steipete.codexbar")
+    static let sharedDefaults = AppGroupSupport.sharedDefaults()
     static let mergedOverviewProviderLimit = 3
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
@@ -124,6 +124,20 @@ final class SettingsStore {
         copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore())
     {
+        let appGroupID = AppGroupSupport.currentGroupID()
+        let appGroupMigration = AppGroupSupport.migrateLegacyDataIfNeeded(standardDefaults: userDefaults)
+        let sharedDefaultsAvailable = Self.sharedDefaults != nil
+        if !Self.isRunningTests {
+            CodexBarLog.logger(LogCategories.settings).info(
+                "App group resolved",
+                metadata: [
+                    "groupID": appGroupID,
+                    "sharedDefaultsAvailable": sharedDefaultsAvailable ? "1" : "0",
+                    "migrationStatus": appGroupMigration.status.rawValue,
+                    "migratedSnapshot": appGroupMigration.copiedSnapshot ? "1" : "0",
+                ])
+        }
+
         let hasStoredOpenAIWebAccessPreference = userDefaults.object(forKey: "openAIWebAccessEnabled") != nil
         let hadExistingConfig = (try? configStore.load()) != nil
         let legacyStores = CodexBarConfigMigrator.LegacyStores(

@@ -184,7 +184,7 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
         in context: Context) async -> Timeline<CodexBarWidgetEntry>
     {
         let provider = configuration.provider.provider
-        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot()
+        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let entry = CodexBarWidgetEntry(date: Date(), provider: provider, snapshot: snapshot)
         let refresh = Date().addingTimeInterval(30 * 60)
         return Timeline(entries: [entry], policy: .after(refresh))
@@ -213,7 +213,7 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
     }
 
     private func makeEntry() -> CodexBarSwitcherEntry {
-        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot()
+        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let providers = self.availableProviders(from: snapshot)
         let stored = WidgetSelectionStore.loadSelectedProvider()
         let selected = providers.first { $0 == stored } ?? providers.first ?? .codex
@@ -262,7 +262,7 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
         in context: Context) async -> Timeline<CodexBarCompactEntry>
     {
         let provider = configuration.provider.provider
-        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot()
+        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let entry = CodexBarCompactEntry(
             date: Date(),
             provider: provider,
@@ -274,6 +274,10 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
 }
 
 enum WidgetPreviewData {
+    static func emptySnapshot() -> WidgetSnapshot {
+        WidgetSnapshot(entries: [], enabledProviders: [], generatedAt: Date())
+    }
+
     static func snapshot() -> WidgetSnapshot {
         let primary = RateWindow(usedPercent: 35, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 4h")
         let secondary = RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 3d")

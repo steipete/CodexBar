@@ -134,9 +134,10 @@ if [[ "$SIGNING_MODE" == "adhoc" ]]; then
   AUTO_CHECKS=false
 fi
 WIDGET_BUNDLE_ID="${BUNDLE_ID}.widget"
-APP_GROUP_ID="group.com.steipete.codexbar"
+APP_TEAM_ID="${APP_TEAM_ID:-Y5PE65HELJ}"
+APP_GROUP_ID="${APP_TEAM_ID}.com.steipete.codexbar"
 if [[ "$BUNDLE_ID" == *".debug"* ]]; then
-  APP_GROUP_ID="group.com.steipete.codexbar.debug"
+  APP_GROUP_ID="${APP_TEAM_ID}.com.steipete.codexbar.debug"
 fi
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"
@@ -197,6 +198,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>SUEnableAutomaticChecks</key><${AUTO_CHECKS}/>
     <key>CodexBuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>CodexGitCommit</key><string>${GIT_COMMIT}</string>
+    <key>CodexBarTeamID</key><string>${APP_TEAM_ID}</string>
 </dict>
 </plist>
 PLIST
@@ -292,6 +294,7 @@ if [[ -n "$(resolve_binary_path "CodexBarWidget" "${ARCH_LIST[0]}")" ]]; then
     <key>CFBundleShortVersionString</key><string>${MARKETING_VERSION}</string>
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>CodexBarTeamID</key><string>${APP_TEAM_ID}</string>
     <key>NSExtension</key>
     <dict>
         <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>
