@@ -651,7 +651,14 @@ public struct AntigravityStatusProbe: Sendable {
 }
 
 enum LocalhostTrustPolicy {
-    static func shouldAcceptServerTrust(host: String, hasServerTrust: Bool) -> Bool {
+    static func shouldAcceptServerTrust(
+        host: String,
+        authenticationMethod: String,
+        hasServerTrust: Bool) -> Bool
+    {
+        #if !os(Linux)
+        guard authenticationMethod == NSURLAuthenticationMethodServerTrust else { return false }
+        #endif
         let normalizedHost = host.lowercased()
         guard normalizedHost == "127.0.0.1" || normalizedHost == "localhost" else { return false }
         return hasServerTrust
@@ -716,6 +723,7 @@ extension LocalhostSessionDelegate: URLSessionTaskDelegate {
         let trust = protectionSpace.serverTrust
         guard LocalhostTrustPolicy.shouldAcceptServerTrust(
             host: protectionSpace.host,
+            authenticationMethod: protectionSpace.authenticationMethod,
             hasServerTrust: trust != nil),
             let trust
         else {
