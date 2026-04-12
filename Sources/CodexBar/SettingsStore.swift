@@ -79,6 +79,7 @@ final class SettingsStore {
     @ObservationIgnored var configPersistTask: Task<Void, Never>?
     @ObservationIgnored var configLoading = false
     @ObservationIgnored var tokenAccountsLoaded = false
+    @ObservationIgnored let networkProxyPasswordStore: any NetworkProxyPasswordStoring
     var defaultsState: SettingsDefaultsState
     var configRevision: Int = 0
     var providerOrder: [UsageProvider] = []
@@ -122,7 +123,8 @@ final class SettingsStore {
             account: "amp-cookie",
             promptKind: .ampCookie),
         copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
-        tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore())
+        tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore(),
+        networkProxyPasswordStore: any NetworkProxyPasswordStoring = KeychainNetworkProxyPasswordStore())
     {
         let hasStoredOpenAIWebAccessPreference = userDefaults.object(forKey: "openAIWebAccessEnabled") != nil
         let hadExistingConfig = (try? configStore.load()) != nil
@@ -149,10 +151,12 @@ final class SettingsStore {
         self.userDefaults = userDefaults
         self.configStore = configStore
         self.config = config
+        self.networkProxyPasswordStore = networkProxyPasswordStore
         self.configLoading = true
         self.defaultsState = Self.loadDefaultsState(userDefaults: userDefaults)
         self.updateProviderState(config: config)
         self.configLoading = false
+        self.syncProviderHTTPClientConfiguration()
         CodexBarLog.setFileLoggingEnabled(self.debugFileLoggingEnabled)
         userDefaults.removeObject(forKey: "showCodexUsage")
         userDefaults.removeObject(forKey: "showClaudeUsage")
@@ -318,6 +322,7 @@ extension SettingsStore {
             enablement[provider] = config.providerConfig(for: provider)?.enabled ?? defaultEnabled
         }
         self.providerEnablement = enablement
+        self.syncProviderHTTPClientConfiguration()
     }
 
     func orderedProviders() -> [UsageProvider] {

@@ -52,7 +52,7 @@ public struct CopilotDeviceFlow: Sendable {
         ]
         postRequest.httpBody = Self.formURLEncodedBody(body)
 
-        let (data, response) = try await URLSession.shared.data(for: postRequest)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: postRequest)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw URLError(.badServerResponse)
@@ -79,7 +79,7 @@ public struct CopilotDeviceFlow: Sendable {
             try await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
             try Task.checkCancellation()
 
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, _) = try await ProviderHTTPClient.shared.data(for: request)
 
             // Check for error in JSON
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

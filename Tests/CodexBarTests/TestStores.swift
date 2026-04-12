@@ -18,6 +18,22 @@ final class InMemoryCookieHeaderStore: CookieHeaderStoring, @unchecked Sendable 
     }
 }
 
+final class InMemoryProxyPasswordStore: NetworkProxyPasswordStoring, @unchecked Sendable {
+    var value: String?
+
+    init(value: String? = nil) {
+        self.value = value
+    }
+
+    func loadPassword() throws -> String? {
+        self.value
+    }
+
+    func storePassword(_ password: String?) throws {
+        self.value = password
+    }
+}
+
 final class InMemoryMiniMaxCookieStore: MiniMaxCookieStoring, @unchecked Sendable {
     var value: String?
 

@@ -371,7 +371,7 @@ public final class AugmentSessionKeepalive {
             request.setValue("https://app.augmentcode.com", forHTTPHeaderField: "Referer")
 
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
 
                 guard let httpResponse = response as? HTTPURLResponse else {
                     self.log("   ✗ Invalid response type")

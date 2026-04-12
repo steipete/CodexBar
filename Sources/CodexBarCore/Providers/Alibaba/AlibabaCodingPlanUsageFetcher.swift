@@ -108,7 +108,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         request.setValue(region.gatewayBaseURLString, forHTTPHeaderField: "Origin")
         request.setValue(region.dashboardURL.absoluteString, forHTTPHeaderField: "Referer")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AlibabaCodingPlanUsageError.networkError("Invalid response")
         }
@@ -158,7 +158,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         request.setValue(region.gatewayBaseURLString, forHTTPHeaderField: "Origin")
         request.setValue(region.consoleRefererURL.absoluteString, forHTTPHeaderField: "Referer")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AlibabaCodingPlanUsageError.networkError("Invalid response")
         }
@@ -338,7 +338,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             forHTTPHeaderField: "Accept")
 
-        if let (data, response) = try? await URLSession.shared.data(for: request),
+        if let (data, response) = try? await ProviderHTTPClient.shared.data(for: request),
            let httpResponse = response as? HTTPURLResponse,
            httpResponse.statusCode == 200,
            let html = String(data: data, encoding: .utf8),
@@ -404,7 +404,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
             .absoluteString + "/"
         request.setValue(referer, forHTTPHeaderField: "Referer")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             return nil
         }
