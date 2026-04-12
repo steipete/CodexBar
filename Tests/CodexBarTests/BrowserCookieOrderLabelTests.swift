@@ -5,6 +5,12 @@ import Testing
 struct BrowserCookieOrderStatusStringTests {
     #if os(macOS)
     @Test
+    func `codex cookie import order keeps firefox ahead of extra chromium browsers`() {
+        let order = ProviderDefaults.metadata[.codex]?.browserCookieOrder ?? Browser.defaultImportOrder
+        #expect(Array(order.prefix(3)) == [.safari, .chrome, .firefox])
+    }
+
+    @Test
     func `cursor no session includes browser login hint`() {
         let order = ProviderDefaults.metadata[.cursor]?.browserCookieOrder ?? Browser.defaultImportOrder
         let message = CursorStatusProbeError.noSessionCookie.errorDescription ?? ""

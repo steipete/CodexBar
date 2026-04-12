@@ -151,4 +151,15 @@ public enum ProviderBrowserCookieDefaults {
         nil
         #endif
     }
+
+    /// Preserve the legacy Codex prompt behavior: prefer Safari/Chrome/Firefox before
+    /// probing additional Chromium variants that may trigger Safe Storage prompts.
+    public static var codexCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        let preferredPrefix: [Browser] = [.safari, .chrome, .firefox]
+        return preferredPrefix + Browser.defaultImportOrder.filter { !preferredPrefix.contains($0) }
+        #else
+        nil
+        #endif
+    }
 }
