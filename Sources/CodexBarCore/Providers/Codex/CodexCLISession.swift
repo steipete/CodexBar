@@ -31,6 +31,7 @@ actor CodexCLISession {
     private var startedAt: Date?
     private var ptyRows: UInt16 = 0
     private var ptyCols: UInt16 = 0
+    private var sessionEnvironment: [String: String]?
 
     private struct RollingBuffer {
         private let maxNeedle: Int
@@ -81,8 +82,14 @@ actor CodexCLISession {
     }
 
     // swiftlint:disable cyclomatic_complexity
-    func captureStatus(binary: String, timeout: TimeInterval, rows: UInt16, cols: UInt16) async throws -> String {
-        try self.ensureStarted(binary: binary, rows: rows, cols: cols)
+    func captureStatus(
+        binary: String,
+        timeout: TimeInterval,
+        rows: UInt16,
+        cols: UInt16,
+        environment: [String: String]) async throws -> String
+    {
+        try self.ensureStarted(binary: binary, rows: rows, cols: cols, environment: environment)
         if let startedAt {
             let sinceStart = Date().timeIntervalSince(startedAt)
             if sinceStart < 0.4 {
@@ -243,12 +250,18 @@ actor CodexCLISession {
         self.cleanup()
     }
 
-    private func ensureStarted(binary: String, rows: UInt16, cols: UInt16) throws {
+    private func ensureStarted(
+        binary: String,
+        rows: UInt16,
+        cols: UInt16,
+        environment: [String: String]) throws
+    {
         if let proc = self.process,
            proc.isRunning,
            self.binaryPath == binary,
            self.ptyRows == rows,
-           self.ptyCols == cols
+           self.ptyCols == cols,
+           self.sessionEnvironment == environment
         {
             return
         }
@@ -273,7 +286,9 @@ actor CodexCLISession {
         proc.standardOutput = secondaryHandle
         proc.standardError = secondaryHandle
 
-        let env = TTYCommandRunner.enrichedEnvironment()
+        let env = TTYCommandRunner.enrichedEnvironment(
+            baseEnv: environment,
+            home: environment["HOME"] ?? NSHomeDirectory())
         proc.environment = env
 
         do {
@@ -299,6 +314,7 @@ actor CodexCLISession {
         self.startedAt = Date()
         self.ptyRows = rows
         self.ptyCols = cols
+        self.sessionEnvironment = environment
     }
 
     private func cleanup() {
@@ -336,6 +352,7 @@ actor CodexCLISession {
         self.startedAt = nil
         self.ptyRows = 0
         self.ptyCols = 0
+        self.sessionEnvironment = nil
     }
 
     private func readChunk() -> Data {

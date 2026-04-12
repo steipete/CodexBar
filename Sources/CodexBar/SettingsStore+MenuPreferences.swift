@@ -3,7 +3,6 @@ import Foundation
 
 extension SettingsStore {
     func menuBarMetricPreference(for provider: UsageProvider) -> MenuBarMetricPreference {
-        if provider == .zai { return .primary }
         if provider == .openrouter {
             let raw = self.menuBarMetricPreferencesRaw[provider.rawValue] ?? ""
             let preference = MenuBarMetricPreference(rawValue: raw) ?? .automatic
@@ -26,10 +25,6 @@ extension SettingsStore {
     }
 
     func setMenuBarMetricPreference(_ preference: MenuBarMetricPreference, for provider: UsageProvider) {
-        if provider == .zai {
-            self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.primary.rawValue
-            return
-        }
         if provider == .openrouter {
             switch preference {
             case .automatic, .primary:
@@ -51,11 +46,11 @@ extension SettingsStore {
     }
 
     func menuBarMetricSupportsTertiary(for provider: UsageProvider) -> Bool {
-        provider == .cursor || provider == .perplexity
+        provider == .cursor || provider == .perplexity || provider == .zai
     }
 
     func menuBarMetricSupportsTertiary(for provider: UsageProvider, snapshot: UsageSnapshot?) -> Bool {
-        if provider == .cursor {
+        if provider == .cursor || provider == .zai {
             return snapshot?.tertiary != nil
         }
         return self.menuBarMetricSupportsTertiary(for: provider)

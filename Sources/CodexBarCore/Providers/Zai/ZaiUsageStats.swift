@@ -15,6 +15,7 @@ public enum ZaiLimitUnit: Int, Sendable {
     case days = 1
     case hours = 3
     case minutes = 5
+    case weeks = 6
 }
 
 /// A single limit entry from the z.ai API
@@ -69,6 +70,8 @@ extension ZaiLimitEntry {
             return self.number * 60
         case .days:
             return self.number * 24 * 60
+        case .weeks:
+            return self.number * 7 * 24 * 60
         case .unknown:
             return nil
         }
@@ -80,6 +83,7 @@ extension ZaiLimitEntry {
         case .minutes: "minute"
         case .hours: "hour"
         case .days: "day"
+        case .weeks: "week"
         case .unknown: nil
         }
         guard let unitLabel else { return nil }
@@ -129,12 +133,21 @@ public struct ZaiUsageDetail: Sendable, Codable {
 /// Complete z.ai usage response
 public struct ZaiUsageSnapshot: Sendable {
     public let tokenLimit: ZaiLimitEntry?
+    /// Shorter-window TOKENS_LIMIT (e.g. 5-hour), present only when the API returns two TOKENS_LIMIT entries.
+    public let sessionTokenLimit: ZaiLimitEntry?
     public let timeLimit: ZaiLimitEntry?
     public let planName: String?
     public let updatedAt: Date
 
-    public init(tokenLimit: ZaiLimitEntry?, timeLimit: ZaiLimitEntry?, planName: String?, updatedAt: Date) {
+    public init(
+        tokenLimit: ZaiLimitEntry?,
+        sessionTokenLimit: ZaiLimitEntry? = nil,
+        timeLimit: ZaiLimitEntry?,
+        planName: String?,
+        updatedAt: Date)
+    {
         self.tokenLimit = tokenLimit
+        self.sessionTokenLimit = sessionTokenLimit
         self.timeLimit = timeLimit
         self.planName = planName
         self.updatedAt = updatedAt
@@ -150,13 +163,13 @@ extension ZaiUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
         let primaryLimit = self.tokenLimit ?? self.timeLimit
         let secondaryLimit = (self.tokenLimit != nil && self.timeLimit != nil) ? self.timeLimit : nil
-
         let primary = primaryLimit.map { Self.rateWindow(for: $0) } ?? RateWindow(
             usedPercent: 0,
             windowMinutes: nil,
             resetsAt: nil,
             resetDescription: nil)
         let secondary = secondaryLimit.map { Self.rateWindow(for: $0) }
+        let tertiary = self.sessionTokenLimit.map { Self.rateWindow(for: $0) }
 
         let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
@@ -168,7 +181,7 @@ extension ZaiUsageSnapshot {
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
-            tertiary: nil,
+            tertiary: tertiary,
             providerCost: nil,
             zaiUsage: self,
             updatedAt: self.updatedAt,
@@ -364,22 +377,38 @@ public struct ZaiUsageFetcher: Sendable {
             throw ZaiUsageError.parseFailed("Missing data")
         }
 
-        var tokenLimit: ZaiLimitEntry?
+        var tokenLimits: [ZaiLimitEntry] = []
         var timeLimit: ZaiLimitEntry?
 
         for limit in responseData.limits {
             if let entry = limit.toLimitEntry() {
                 switch entry.type {
                 case .tokensLimit:
-                    tokenLimit = entry
+                    tokenLimits.append(entry)
                 case .timeLimit:
                     timeLimit = entry
                 }
             }
         }
 
+        // Multiple TOKENS_LIMIT entries: shortest window → sessionTokenLimit (tertiary),
+        // longest → tokenLimit (primary).
+        let tokenLimit: ZaiLimitEntry?
+        let sessionTokenLimit: ZaiLimitEntry?
+        if tokenLimits.count >= 2 {
+            let sorted = tokenLimits.sorted {
+                ($0.windowMinutes ?? Int.max) < ($1.windowMinutes ?? Int.max)
+            }
+            sessionTokenLimit = sorted.first
+            tokenLimit = sorted.last
+        } else {
+            tokenLimit = tokenLimits.first
+            sessionTokenLimit = nil
+        }
+
         return ZaiUsageSnapshot(
             tokenLimit: tokenLimit,
+            sessionTokenLimit: sessionTokenLimit,
             timeLimit: timeLimit,
             planName: responseData.planName,
             updatedAt: Date())

@@ -1,0 +1,132 @@
+import CodexBarCore
+import Foundation
+import Testing
+@testable import CodexBar
+
+@Suite(.serialized)
+struct CodexSystemAccountObserverTests {
+    @Test
+    func `observer reads ambient CODEX_HOME when present`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        try Self.writeCodexAuthFile(
+            homeURL: home,
+            email: "  LIVE@Example.com  ",
+            plan: "pro",
+            accountId: "account-live")
+
+        let observer = DefaultCodexSystemAccountObserver()
+        let account = try observer.loadSystemAccount(environment: ["CODEX_HOME": home.path])
+
+        #expect(account?.email == "live@example.com")
+        #expect(account?.codexHomePath == home.path)
+        #expect(account?.identity == .providerAccount(id: "account-live"))
+    }
+
+    @Test
+    func `observer falls back to nil when ambient home has no readable email`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+
+        let observer = DefaultCodexSystemAccountObserver()
+        let account = try observer.loadSystemAccount(environment: ["CODEX_HOME": home.path])
+
+        #expect(account == nil)
+    }
+
+    @Test
+    func `observer records observation timestamp`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        try Self.writeCodexAuthFile(homeURL: home, email: "user@example.com", plan: "team")
+
+        let before = Date()
+        let observer = DefaultCodexSystemAccountObserver()
+        let account = try observer.loadSystemAccount(environment: ["CODEX_HOME": home.path])
+        let observed = try #require(account)
+
+        #expect(observed.observedAt >= before)
+    }
+
+    @Test
+    func `observer preserves provider account identity from scoped auth`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        try Self.writeCodexAuthFile(
+            homeURL: home,
+            email: "user@example.com",
+            plan: "team",
+            accountId: "account-live-123")
+
+        let observer = DefaultCodexSystemAccountObserver()
+        let account = try #require(try observer.loadSystemAccount(environment: ["CODEX_HOME": home.path]))
+
+        #expect(account.identity == .providerAccount(id: "account-live-123"))
+    }
+
+    @Test
+    func `observer uses cached workspace label for provider account`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let cacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-openai-workspaces-\(UUID().uuidString).json")
+        defer {
+            try? FileManager.default.removeItem(at: home)
+            try? FileManager.default.removeItem(at: cacheURL)
+        }
+        try Self.writeCodexAuthFile(
+            homeURL: home,
+            email: "user@example.com",
+            plan: "team",
+            accountId: "account-live-123")
+
+        try CodexOpenAIWorkspaceIdentityCache.withFileURLOverrideForTesting(cacheURL) {
+            try CodexOpenAIWorkspaceIdentityCache().store(CodexOpenAIWorkspaceIdentity(
+                workspaceAccountID: "account-live-123",
+                workspaceLabel: "Team Alpha"))
+
+            let observer = DefaultCodexSystemAccountObserver()
+            let account = try #require(try observer.loadSystemAccount(environment: ["CODEX_HOME": home.path]))
+
+            #expect(account.workspaceAccountID == "account-live-123")
+            #expect(account.workspaceLabel == "Team Alpha")
+        }
+    }
+
+    private static func writeCodexAuthFile(
+        homeURL: URL,
+        email: String,
+        plan: String,
+        accountId: String? = nil) throws
+    {
+        try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
+        var tokens: [String: Any] = [
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "idToken": Self.fakeJWT(email: email, plan: plan),
+        ]
+        if let accountId {
+            tokens["accountId"] = accountId
+        }
+        let auth = ["tokens": tokens]
+        let data = try JSONSerialization.data(withJSONObject: auth)
+        try data.write(to: homeURL.appendingPathComponent("auth.json"))
+    }
+
+    private static func fakeJWT(email: String, plan: String) -> String {
+        let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        let payload = (try? JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "chatgpt_plan_type": plan,
+        ])) ?? Data()
+
+        func base64URL(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "=", with: "")
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+        }
+
+        return "\(base64URL(header)).\(base64URL(payload))."
+    }
+}

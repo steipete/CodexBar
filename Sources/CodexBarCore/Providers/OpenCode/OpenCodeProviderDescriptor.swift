@@ -84,35 +84,14 @@ struct OpenCodeUsageFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveCookieHeader(context: ProviderFetchContext, allowCached: Bool) throws -> String {
-        if let settings = context.settings?.opencode, settings.cookieSource == .manual {
-            if let header = CookieHeaderNormalizer.normalize(settings.manualCookieHeader) {
-                let pairs = CookieHeaderNormalizer.pairs(from: header)
-                let hasAuthCookie = pairs.contains { pair in
-                    pair.name == "auth" || pair.name == "__Host-auth"
-                }
-                if hasAuthCookie {
-                    return header
-                }
-            }
-            throw OpenCodeSettingsError.invalidCookie
-        }
-
-        #if os(macOS)
-        if allowCached,
-           let cached = CookieHeaderCache.load(provider: .opencode),
-           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return cached.cookieHeader
-        }
-        let session = try OpenCodeCookieImporter.importSession(browserDetection: context.browserDetection)
-        CookieHeaderCache.store(
-            provider: .opencode,
-            cookieHeader: session.cookieHeader,
-            sourceLabel: session.sourceLabel)
-        return session.cookieHeader
-        #else
-        throw OpenCodeSettingsError.missingCookie
-        #endif
+        try OpenCodeWebCookieSupport.resolveCookieHeader(
+            context: OpenCodeWebCookieSupport.Context(
+                settings: context.settings?.opencode,
+                provider: .opencode,
+                browserDetection: context.browserDetection,
+                allowCached: allowCached),
+            invalidCookie: OpenCodeSettingsError.invalidCookie,
+            missingCookie: OpenCodeSettingsError.missingCookie)
     }
 }
 

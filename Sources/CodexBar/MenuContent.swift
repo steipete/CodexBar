@@ -65,6 +65,28 @@ struct MenuContent: View {
                 }
             }
             .buttonStyle(.plain)
+        case let .submenu(title, systemImageName, submenuItems):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    if let systemImageName {
+                        Image(systemName: systemImageName)
+                    }
+                    Text(title).font(.headline)
+                }
+                ForEach(Array(submenuItems.enumerated()), id: \.offset) { _, submenuItem in
+                    HStack(spacing: 8) {
+                        if submenuItem.isChecked {
+                            Image(systemName: "checkmark")
+                                .imageScale(.small)
+                                .frame(width: 18, alignment: .center)
+                        } else {
+                            Spacer().frame(width: 18)
+                        }
+                        Text(submenuItem.title)
+                            .foregroundStyle(submenuItem.isEnabled ? .primary : .secondary)
+                    }
+                }
+            }
         case .divider:
             Divider()
         }
@@ -86,6 +108,10 @@ struct MenuContent: View {
             self.actions.openDashboard()
         case .statusPage:
             self.actions.openStatusPage()
+        case .addCodexAccount:
+            self.actions.addCodexAccount()
+        case .requestCodexSystemPromotion:
+            return
         case let .switchAccount(provider):
             self.actions.switchAccount(provider)
         case let .openTerminal(command):
@@ -112,6 +138,7 @@ struct MenuActions {
     let refreshAugmentSession: () -> Void
     let openDashboard: () -> Void
     let openStatusPage: () -> Void
+    let addCodexAccount: () -> Void
     let switchAccount: (UsageProvider) -> Void
     let openTerminal: (String) -> Void
     let openSettings: () -> Void
@@ -132,10 +159,24 @@ struct StatusIconView: View {
     }
 
     private var icon: NSImage {
-        IconRenderer.makeIcon(
-            primaryRemaining: self.store.snapshot(for: self.provider)?.primary?.remainingPercent,
-            weeklyRemaining: self.store.snapshot(for: self.provider)?.secondary?.remainingPercent,
-            creditsRemaining: self.provider == .codex ? self.store.credits?.remaining : nil,
+        let snapshot = self.store.snapshot(for: self.provider)
+        let remaining = snapshot.map {
+            IconRemainingResolver.resolvedRemaining(snapshot: $0, style: self.store.style(for: self.provider))
+        }
+        let creditsProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: self.provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: snapshot?.updatedAt ?? Date())
+        let creditsRemaining = creditsProjection?.menuBarFallback == .creditsBalance
+            ? self.store.codexMenuBarCreditsRemaining(
+                snapshotOverride: snapshot,
+                now: snapshot?.updatedAt ?? Date())
+            : nil
+        return IconRenderer.makeIcon(
+            primaryRemaining: remaining?.primary,
+            weeklyRemaining: remaining?.secondary,
+            creditsRemaining: creditsRemaining,
             stale: self.store.isStale(provider: self.provider),
             style: self.store.style(for: self.provider),
             statusIndicator: self.store.statusIndicator(for: self.provider))

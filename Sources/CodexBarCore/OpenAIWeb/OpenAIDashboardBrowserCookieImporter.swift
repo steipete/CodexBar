@@ -71,11 +71,22 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
     private let browserDetection: BrowserDetection
 
+    nonisolated static func shouldTrustVerifiedSession(afterPersistFailure error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut
+    }
+
     private struct ImportDiagnostics {
         var mismatches: [FoundAccount] = []
         var foundAnyCookies: Bool = false
         var foundUnknownEmail: Bool = false
         var accessDeniedHints: [String] = []
+    }
+
+    private struct ImportContext {
+        let targetEmail: String?
+        let allowAnyAccount: Bool
+        let cacheScope: CookieHeaderCache.Scope?
     }
 
     private static let cookieDomains = ["chatgpt.com", "openai.com"]
@@ -94,6 +105,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
     public func importBestCookies(
         intoAccountEmail targetEmail: String?,
         allowAnyAccount: Bool = false,
+        cacheScope: CookieHeaderCache.Scope? = nil,
         logger: ((String) -> Void)? = nil) async throws -> ImportResult
     {
         let log: (String) -> Void = { message in
@@ -102,11 +114,15 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         let targetEmail = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedTarget = targetEmail?.isEmpty == false ? targetEmail : nil
+        let context = ImportContext(
+            targetEmail: normalizedTarget,
+            allowAnyAccount: allowAnyAccount,
+            cacheScope: cacheScope)
 
         if normalizedTarget != nil {
             log("Codex email known; matching required.")
         } else {
-            guard allowAnyAccount else {
+            guard context.allowAnyAccount else {
                 throw ImportError.noCookiesFound
             }
             log("Codex email unknown; importing any signed-in session.")
@@ -114,20 +130,21 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         var diagnostics = ImportDiagnostics()
 
-        if let cached = CookieHeaderCache.load(provider: .codex),
+        if let cached = CookieHeaderCache.load(provider: .codex, scope: cacheScope),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             log("Using cached cookie header from \(cached.sourceLabel)")
             do {
                 return try await self.importManualCookies(
                     cookieHeader: cached.cookieHeader,
-                    intoAccountEmail: normalizedTarget,
-                    allowAnyAccount: allowAnyAccount,
+                    intoAccountEmail: context.targetEmail,
+                    allowAnyAccount: context.allowAnyAccount,
+                    cacheScope: cacheScope,
                     logger: log)
             } catch let error as ImportError {
                 switch error {
                 case .manualCookieHeaderInvalid, .noMatchingAccount, .dashboardStillRequiresLogin:
-                    CookieHeaderCache.clear(provider: .codex)
+                    CookieHeaderCache.clear(provider: .codex, scope: cacheScope)
                 default:
                     throw error
                 }
@@ -141,8 +158,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         for browserSource in installedBrowsers {
             if let match = await self.trySource(
                 browserSource,
-                targetEmail: normalizedTarget,
-                allowAnyAccount: allowAnyAccount,
+                context: context,
                 log: log,
                 diagnostics: &diagnostics)
             {
@@ -177,6 +193,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         cookieHeader: String,
         intoAccountEmail targetEmail: String?,
         allowAnyAccount: Bool = false,
+        cacheScope _: CookieHeaderCache.Scope? = nil,
         logger: ((String) -> Void)? = nil) async throws -> ImportResult
     {
         let log: (String) -> Void = { message in
@@ -201,9 +218,17 @@ public struct OpenAIDashboardBrowserCookieImporter {
             log: log)
         {
         case let .match(_, signedInEmail):
-            return try await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log)
+            return try await self.persistVerifiedCandidate(
+                candidate: candidate,
+                targetEmail: signedInEmail,
+                verifiedSignedInEmail: signedInEmail,
+                logger: log)
         case let .loggedIn(_, signedInEmail):
-            return try await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log)
+            return try await self.persistVerifiedCandidate(
+                candidate: candidate,
+                targetEmail: signedInEmail,
+                verifiedSignedInEmail: signedInEmail,
+                logger: log)
         case let .mismatch(_, signedInEmail):
             throw ImportError.noMatchingAccount(found: [FoundAccount(sourceLabel: "Manual", email: signedInEmail)])
         case .unknown:
@@ -217,15 +242,14 @@ public struct OpenAIDashboardBrowserCookieImporter {
     }
 
     private func trySafari(
-        targetEmail: String?,
-        allowAnyAccount: Bool,
+        context: ImportContext,
         log: @escaping (String) -> Void,
         diagnostics: inout ImportDiagnostics) async -> ImportResult?
     {
         // Safari first: avoids touching Keychain ("Chrome Safe Storage") when Safari already matches.
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let sources = try Self.cookieClient.records(
+            let sources = try Self.cookieClient.codexBarRecords(
                 matching: query,
                 in: .safari,
                 logger: log)
@@ -245,8 +269,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 let candidate = Candidate(label: source.label, cookies: cookies)
                 if let match = await self.applyCandidate(
                     candidate,
-                    targetEmail: targetEmail,
-                    allowAnyAccount: allowAnyAccount,
+                    context: context,
                     log: log,
                     diagnostics: &diagnostics)
                 {
@@ -267,21 +290,26 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
     }
 
-    private func tryChrome(
-        targetEmail: String?,
-        allowAnyAccount: Bool,
+    /// Generic cookie loader for any non-Safari browser (Chrome, Edge, Firefox, Brave, Arc, etc.).
+    /// SweetCookieKit handles engine-specific decryption internally.
+    private func tryBrowser(
+        _ browser: Browser,
+        context: ImportContext,
         log: @escaping (String) -> Void,
         diagnostics: inout ImportDiagnostics) async -> ImportResult?
     {
-        // Chrome fallback: may trigger Keychain prompt. Only do this if Safari didn't match.
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let chromeSources = try Self.cookieClient.records(
+            let sources = try Self.cookieClient.codexBarRecords(
                 matching: query,
-                in: .chrome)
-            for source in chromeSources {
+                in: browser)
+            guard !sources.isEmpty else {
+                log("\(browser.displayName) contained 0 matching records.")
+                return nil
+            }
+            for source in sources {
                 let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                if cookies.isEmpty {
+                guard !cookies.isEmpty else {
                     log("\(source.label) produced 0 HTTPCookies.")
                     continue
                 }
@@ -290,8 +318,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 let candidate = Candidate(label: source.label, cookies: cookies)
                 if let match = await self.applyCandidate(
                     candidate,
-                    targetEmail: targetEmail,
-                    allowAnyAccount: allowAnyAccount,
+                    context: context,
                     log: log,
                     diagnostics: &diagnostics)
                 {
@@ -304,108 +331,59 @@ public struct OpenAIDashboardBrowserCookieImporter {
             if let hint = error.accessDeniedHint {
                 diagnostics.accessDeniedHints.append(hint)
             }
-            log("Chrome cookie load failed: \(error.localizedDescription)")
+            log("\(browser.displayName) cookie load failed: \(error.localizedDescription)")
             return nil
         } catch {
-            log("Chrome cookie load failed: \(error.localizedDescription)")
-            return nil
-        }
-    }
-
-    private func tryFirefox(
-        targetEmail: String?,
-        allowAnyAccount: Bool,
-        log: @escaping (String) -> Void,
-        diagnostics: inout ImportDiagnostics) async -> ImportResult?
-    {
-        // Firefox fallback: no Keychain, but still only after Safari/Chrome.
-        do {
-            let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let firefoxSources = try Self.cookieClient.records(
-                matching: query,
-                in: .firefox)
-            for source in firefoxSources {
-                let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                if cookies.isEmpty {
-                    log("\(source.label) produced 0 HTTPCookies.")
-                    continue
-                }
-                diagnostics.foundAnyCookies = true
-                log("Loaded \(cookies.count) cookies from \(source.label) (\(self.cookieSummary(cookies)))")
-                let candidate = Candidate(label: source.label, cookies: cookies)
-                if let match = await self.applyCandidate(
-                    candidate,
-                    targetEmail: targetEmail,
-                    allowAnyAccount: allowAnyAccount,
-                    log: log,
-                    diagnostics: &diagnostics)
-                {
-                    return match
-                }
-            }
-            return nil
-        } catch let error as BrowserCookieError {
-            BrowserCookieAccessGate.recordIfNeeded(error)
-            if let hint = error.accessDeniedHint {
-                diagnostics.accessDeniedHints.append(hint)
-            }
-            log("Firefox cookie load failed: \(error.localizedDescription)")
-            return nil
-        } catch {
-            log("Firefox cookie load failed: \(error.localizedDescription)")
+            log("\(browser.displayName) cookie load failed: \(error.localizedDescription)")
             return nil
         }
     }
 
     private func trySource(
         _ source: Browser,
-        targetEmail: String?,
-        allowAnyAccount: Bool,
+        context: ImportContext,
         log: @escaping (String) -> Void,
         diagnostics: inout ImportDiagnostics) async -> ImportResult?
     {
         switch source {
         case .safari:
             await self.trySafari(
-                targetEmail: targetEmail,
-                allowAnyAccount: allowAnyAccount,
-                log: log,
-                diagnostics: &diagnostics)
-        case .chrome:
-            await self.tryChrome(
-                targetEmail: targetEmail,
-                allowAnyAccount: allowAnyAccount,
-                log: log,
-                diagnostics: &diagnostics)
-        case .firefox:
-            await self.tryFirefox(
-                targetEmail: targetEmail,
-                allowAnyAccount: allowAnyAccount,
+                context: context,
                 log: log,
                 diagnostics: &diagnostics)
         default:
-            nil
+            // All non-Safari browsers (Chrome, Edge, Firefox, Brave, Arc, etc.)
+            // share the same cookie loading path via SweetCookieKit.
+            await self.tryBrowser(
+                source,
+                context: context,
+                log: log,
+                diagnostics: &diagnostics)
         }
     }
 
     private func applyCandidate(
         _ candidate: Candidate,
-        targetEmail: String?,
-        allowAnyAccount: Bool,
+        context: ImportContext,
         log: @escaping (String) -> Void,
         diagnostics: inout ImportDiagnostics) async -> ImportResult?
     {
         switch await self.evaluateCandidate(
             candidate,
-            targetEmail: targetEmail,
-            allowAnyAccount: allowAnyAccount,
+            targetEmail: context.targetEmail,
+            allowAnyAccount: context.allowAnyAccount,
             log: log)
         {
         case let .match(candidate, signedInEmail):
             log("Selected \(candidate.label) (matches Codex: \(signedInEmail))")
-            guard let targetEmail else { return nil }
-            if let result = try? await self.persist(candidate: candidate, targetEmail: targetEmail, logger: log) {
-                self.cacheCookies(candidate: candidate)
+            guard let targetEmail = context.targetEmail else { return nil }
+            if let result = try? await self.persistVerifiedCandidate(
+                candidate: candidate,
+                targetEmail: targetEmail,
+                verifiedSignedInEmail: signedInEmail,
+                logger: log)
+            {
+                self.cacheCookies(candidate: candidate, scope: context.cacheScope)
                 return result
             }
             return nil
@@ -418,16 +396,21 @@ public struct OpenAIDashboardBrowserCookieImporter {
             return nil
         case let .loggedIn(candidate, signedInEmail):
             log("Selected \(candidate.label) (signed in: \(signedInEmail))")
-            if let result = try? await self.persist(candidate: candidate, targetEmail: signedInEmail, logger: log) {
-                self.cacheCookies(candidate: candidate)
+            if let result = try? await self.persistVerifiedCandidate(
+                candidate: candidate,
+                targetEmail: signedInEmail,
+                verifiedSignedInEmail: signedInEmail,
+                logger: log)
+            {
+                self.cacheCookies(candidate: candidate, scope: context.cacheScope)
                 return result
             }
             return nil
         case .unknown:
-            if allowAnyAccount {
+            if context.allowAnyAccount {
                 log("Selected \(candidate.label) (signed in: unknown)")
                 if let result = try? await self.persistToDefaultStore(candidate: candidate, logger: log) {
-                    self.cacheCookies(candidate: candidate)
+                    self.cacheCookies(candidate: candidate, scope: context.cacheScope)
                     return result
                 }
                 return nil
@@ -587,6 +570,31 @@ public struct OpenAIDashboardBrowserCookieImporter {
         return nil
     }
 
+    private func persistVerifiedCandidate(
+        candidate: Candidate,
+        targetEmail: String,
+        verifiedSignedInEmail: String,
+        logger: @escaping (String) -> Void) async throws -> ImportResult
+    {
+        do {
+            return try await self.persist(candidate: candidate, targetEmail: targetEmail, logger: logger)
+        } catch {
+            guard Self.shouldTrustVerifiedSession(afterPersistFailure: error) else {
+                throw error
+            }
+
+            let signedInEmail = verifiedSignedInEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+            logger(
+                "Persistent validation timed out after session verification; " +
+                    "keeping \(candidate.label) cookies for \(signedInEmail).")
+            return ImportResult(
+                sourceLabel: candidate.label,
+                cookieCount: candidate.cookies.count,
+                signedInEmail: signedInEmail,
+                matchesCodexEmail: signedInEmail.lowercased() == targetEmail.lowercased())
+        }
+    }
+
     private func persist(
         candidate: Candidate,
         targetEmail: String,
@@ -598,6 +606,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         // Validate against the persistent store (login + email sync).
         do {
+            defer {
+                // The probe is only a validation step. Start the real dashboard scrape with a
+                // fresh WKWebView instead of reusing the probe instance.
+                OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
+            }
             let probe = try await OpenAIDashboardFetcher().probeUsagePage(
                 websiteDataStore: persistent,
                 logger: logger,
@@ -631,6 +644,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
         await self.setCookies(candidate.cookies, into: persistent)
 
         do {
+            defer {
+                // The probe is only a validation step. Start the real dashboard scrape with a
+                // fresh WKWebView instead of reusing the probe instance.
+                OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
+            }
             let probe = try await OpenAIDashboardFetcher().probeUsagePage(
                 websiteDataStore: persistent,
                 logger: logger,
@@ -669,10 +687,10 @@ public struct OpenAIDashboardBrowserCookieImporter {
         return cookies
     }
 
-    private func cacheCookies(candidate: Candidate) {
+    private func cacheCookies(candidate: Candidate, scope: CookieHeaderCache.Scope?) {
         let header = self.cookieHeader(from: candidate.cookies)
         guard !header.isEmpty else { return }
-        CookieHeaderCache.store(provider: .codex, cookieHeader: header, sourceLabel: candidate.label)
+        CookieHeaderCache.store(provider: .codex, scope: scope, cookieHeader: header, sourceLabel: candidate.label)
     }
 
     private func cookieHeader(from cookies: [HTTPCookie]) -> String {
@@ -798,6 +816,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
     public func importBestCookies(
         intoAccountEmail _: String?,
         allowAnyAccount _: Bool = false,
+        cacheScope _: CookieHeaderCache.Scope? = nil,
         logger _: ((String) -> Void)? = nil) async throws -> ImportResult
     {
         throw ImportError.browserAccessDenied(details: "OpenAI web cookie import is only supported on macOS.")
@@ -807,6 +826,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         cookieHeader _: String,
         intoAccountEmail _: String?,
         allowAnyAccount _: Bool = false,
+        cacheScope _: CookieHeaderCache.Scope? = nil,
         logger _: ((String) -> Void)? = nil) async throws -> ImportResult
     {
         throw ImportError.browserAccessDenied(details: "OpenAI web cookie import is only supported on macOS.")

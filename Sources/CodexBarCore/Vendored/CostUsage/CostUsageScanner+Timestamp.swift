@@ -26,6 +26,10 @@ private enum CostUsageTimestampParser {
 }
 
 extension CostUsageScanner {
+    static func dateFromTimestamp(_ text: String) -> Date? {
+        CostUsageTimestampParser.parseISO(text)
+    }
+
     static func dayKeyFromTimestamp(_ text: String) -> String? {
         let bytes = Array(text.utf8)
         guard bytes.count >= 20 else { return nil }

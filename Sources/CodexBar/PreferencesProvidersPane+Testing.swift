@@ -15,12 +15,79 @@ extension ProvidersPane {
         self.menuBarMetricPicker(for: provider)
     }
 
+    func _test_settingsPickers(for provider: UsageProvider) -> [ProviderSettingsPickerDescriptor] {
+        guard let impl = ProviderCatalog.implementation(for: provider) else { return [] }
+        var statusTextByID: [String: String] = [:]
+        var lastAppActiveRunAtByID: [String: Date] = [:]
+        let context = ProviderSettingsContext(
+            provider: provider,
+            settings: self.settings,
+            store: self.store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { self.settings[keyPath: keyPath] },
+                    set: { self.settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { self.settings[keyPath: keyPath] },
+                    set: { self.settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { id in
+                statusTextByID[id]
+            },
+            setStatusText: { id, text in
+                if let text {
+                    statusTextByID[id] = text
+                } else {
+                    statusTextByID.removeValue(forKey: id)
+                }
+            },
+            lastAppActiveRunAt: { id in
+                lastAppActiveRunAtByID[id]
+            },
+            setLastAppActiveRunAt: { id, date in
+                if let date {
+                    lastAppActiveRunAtByID[id] = date
+                } else {
+                    lastAppActiveRunAtByID.removeValue(forKey: id)
+                }
+            },
+            requestConfirmation: { _ in })
+        return impl.settingsPickers(context: context)
+            .filter { $0.isVisible?() ?? true }
+    }
+
     func _test_tokenAccountDescriptor(for provider: UsageProvider) -> ProviderSettingsTokenAccountsDescriptor? {
         self.tokenAccountDescriptor(for: provider)
     }
 
     func _test_menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
         self.menuCardModel(for: provider)
+    }
+
+    func _test_providerErrorDisplay(for provider: UsageProvider) -> ProviderErrorDisplay? {
+        self.providerErrorDisplay(provider)
+    }
+
+    func _test_codexAccountsSectionState() -> CodexAccountsSectionState? {
+        self.codexAccountsSectionState(for: .codex)
+    }
+
+    func _test_selectCodexVisibleAccount(id: String) async {
+        await self.selectCodexVisibleAccount(id: id)
+    }
+
+    func _test_addManagedCodexAccount() async {
+        await self.addManagedCodexAccount()
+    }
+
+    func _test_reauthenticateCodexAccount(_ account: CodexVisibleAccount) async {
+        await self.reauthenticateCodexAccount(account)
+    }
+
+    func _test_requestCodexSystemVisibleAccount(id: String) async {
+        await self.requestCodexSystemVisibleAccount(id: id)
     }
 }
 
@@ -52,6 +119,7 @@ enum ProvidersPaneTestHarness {
         settings.claudeCookieSource = .manual
         settings.cursorCookieSource = .manual
         settings.opencodeCookieSource = .manual
+        settings.opencodegoCookieSource = .manual
         settings.factoryCookieSource = .manual
         settings.minimaxCookieSource = .manual
         settings.augmentCookieSource = .manual
@@ -63,6 +131,7 @@ enum ProvidersPaneTestHarness {
         _ = pane._test_providerSubtitle(.claude)
         _ = pane._test_providerSubtitle(.cursor)
         _ = pane._test_providerSubtitle(.opencode)
+        _ = pane._test_providerSubtitle(.opencodego)
         _ = pane._test_providerSubtitle(.zai)
         _ = pane._test_providerSubtitle(.synthetic)
         _ = pane._test_providerSubtitle(.minimax)
@@ -100,7 +169,13 @@ enum ProvidersPaneTestHarness {
             errorDisplay: ProviderErrorDisplay(preview: "Preview", full: "Full"),
             isErrorExpanded: expandedBinding,
             onCopyError: { _ in },
-            onRefresh: {}).body
+            onRefresh: {},
+            showsSupplementarySettingsContent: true,
+            supplementarySettingsContent: {
+                ProviderSettingsSection(title: "Accounts") {
+                    Text("Supplementary")
+                }
+            }).body
     }
 
     private static func makeDescriptors() -> ProviderListTestDescriptors {

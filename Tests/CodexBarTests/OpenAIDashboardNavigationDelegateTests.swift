@@ -11,6 +11,12 @@ struct OpenAIDashboardNavigationDelegateTests {
     }
 
     @Test
+    func `ignores WebKit frame load interrupted by policy change`() {
+        let error = NSError(domain: "WebKitErrorDomain", code: 102)
+        #expect(NavigationDelegate.shouldIgnoreNavigationError(error))
+    }
+
+    @Test
     func `does not ignore non-cancelled URL errors`() {
         let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
         #expect(!NavigationDelegate.shouldIgnoreNavigationError(error))
@@ -37,6 +43,48 @@ struct OpenAIDashboardNavigationDelegateTests {
 
     @MainActor
     @Test
+    func `commit completes navigation successfully after grace period`() async {
+        let webView = WKWebView()
+        var result: Result<Void, Error>?
+        let delegate = NavigationDelegate { result = $0 }
+
+        delegate.webView(webView, didCommit: nil)
+        #expect(result == nil)
+
+        try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
+
+        switch result {
+        case .success?:
+            #expect(Bool(true))
+        default:
+            #expect(Bool(false))
+        }
+    }
+
+    @MainActor
+    @Test
+    func `post commit failure wins before delayed success`() async {
+        let webView = WKWebView()
+        var result: Result<Void, Error>?
+        let delegate = NavigationDelegate { result = $0 }
+
+        delegate.webView(webView, didCommit: nil)
+        let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
+        delegate.webView(webView, didFail: nil, withError: timeout)
+
+        try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
+
+        switch result {
+        case let .failure(error as NSError)?:
+            #expect(error.domain == NSURLErrorDomain)
+            #expect(error.code == NSURLErrorTimedOut)
+        default:
+            #expect(Bool(false))
+        }
+    }
+
+    @MainActor
+    @Test
     func `cancelled provisional failure is ignored until real failure`() {
         let webView = WKWebView()
         var result: Result<Void, Error>?
@@ -55,6 +103,29 @@ struct OpenAIDashboardNavigationDelegateTests {
         case let .failure(error as NSError)?:
             #expect(error.domain == NSURLErrorDomain)
             #expect(error.code == NSURLErrorTimedOut)
+        default:
+            #expect(Bool(false))
+        }
+    }
+
+    @MainActor
+    @Test
+    func `frame load interrupted provisional failure is ignored until finish`() {
+        let webView = WKWebView()
+        var result: Result<Void, Error>?
+        let delegate = NavigationDelegate { result = $0 }
+
+        delegate.webView(
+            webView,
+            didFailProvisionalNavigation: nil,
+            withError: NSError(domain: "WebKitErrorDomain", code: 102))
+        #expect(result == nil)
+
+        delegate.webView(webView, didFinish: nil)
+
+        switch result {
+        case .success?:
+            #expect(Bool(true))
         default:
             #expect(Bool(false))
         }

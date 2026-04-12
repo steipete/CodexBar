@@ -381,7 +381,8 @@ private final class CodexRPCClient: @unchecked Sendable {
 
     init(
         executable: String = "codex",
-        arguments: [String] = ["-s", "read-only", "-a", "untrusted", "app-server"]) throws
+        arguments: [String] = ["-s", "read-only", "-a", "untrusted", "app-server"],
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
         var stdoutContinuation: AsyncStream<Data>.Continuation!
         self.stdoutLineStream = AsyncStream<Data> { continuation in
@@ -389,7 +390,7 @@ private final class CodexRPCClient: @unchecked Sendable {
         }
         self.stdoutLineContinuation = stdoutContinuation
 
-        let resolvedExec = BinaryLocator.resolveCodexBinary()
+        let resolvedExec = BinaryLocator.resolveCodexBinary(env: environment)
             ?? TTYCommandRunner.which(executable)
 
         guard let resolvedExec else {
@@ -397,7 +398,7 @@ private final class CodexRPCClient: @unchecked Sendable {
             throw RPCWireError.startFailed(
                 "Codex CLI not found. Install with `npm i -g @openai/codex` (or bun) then relaunch CodexBar.")
         }
-        var env = ProcessInfo.processInfo.environment
+        var env = environment
         env["PATH"] = PathBuilder.effectivePATH(
             purposes: [.rpc, .nodeTooling],
             env: env)
@@ -565,7 +566,7 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCUsage() async throws -> UsageSnapshot {
-        let rpc = try CodexRPCClient()
+        let rpc = try CodexRPCClient(environment: self.environment)
         defer { rpc.shutdown() }
 
         try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
@@ -574,12 +575,6 @@ public struct UsageFetcher: Sendable {
         // for the same pipe.
         let limits = try await rpc.fetchRateLimits().rateLimits
         let account = try? await rpc.fetchAccount()
-
-        guard let primary = Self.makeWindow(from: limits.primary),
-              let secondary = Self.makeWindow(from: limits.secondary)
-        else {
-            throw UsageError.noRateLimitsFound
-        }
 
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -590,37 +585,37 @@ public struct UsageFetcher: Sendable {
             loginMethod: account?.account.flatMap { details in
                 if case let .chatgpt(_, plan) = details { plan } else { nil }
             })
-        return UsageSnapshot(
-            primary: primary,
-            secondary: secondary,
-            tertiary: nil,
-            updatedAt: Date(),
+        guard let state = CodexReconciledState.fromCLI(
+            primary: Self.makeWindow(from: limits.primary),
+            secondary: Self.makeWindow(from: limits.secondary),
             identity: identity)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
     }
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
-        let status = try await CodexStatusProbe(keepCLISessionsAlive: keepCLISessionsAlive).fetch()
-        guard let fiveLeft = status.fiveHourPercentLeft, let weekLeft = status.weeklyPercentLeft else {
+        let status = try await CodexStatusProbe(
+            keepCLISessionsAlive: keepCLISessionsAlive,
+            environment: self.environment)
+            .fetch()
+        guard let state = CodexReconciledState.fromCLI(
+            primary: Self.makeTTYWindow(
+                percentLeft: status.fiveHourPercentLeft,
+                windowMinutes: 300,
+                resetsAt: status.fiveHourResetsAt,
+                resetDescription: status.fiveHourResetDescription),
+            secondary: Self.makeTTYWindow(
+                percentLeft: status.weeklyPercentLeft,
+                windowMinutes: 10080,
+                resetsAt: status.weeklyResetsAt,
+                resetDescription: status.weeklyResetDescription),
+            identity: nil)
+        else {
             throw UsageError.noRateLimitsFound
         }
-
-        let primary = RateWindow(
-            usedPercent: max(0, 100 - Double(fiveLeft)),
-            windowMinutes: 300,
-            resetsAt: status.fiveHourResetsAt,
-            resetDescription: status.fiveHourResetDescription)
-        let secondary = RateWindow(
-            usedPercent: max(0, 100 - Double(weekLeft)),
-            windowMinutes: 10080,
-            resetsAt: status.weeklyResetsAt,
-            resetDescription: status.weeklyResetDescription)
-
-        return UsageSnapshot(
-            primary: primary,
-            secondary: secondary,
-            tertiary: nil,
-            updatedAt: Date(),
-            identity: nil)
+        return state.toUsageSnapshot()
     }
 
     public func loadLatestCredits(keepCLISessionsAlive: Bool = false) async throws -> CreditsSnapshot {
@@ -630,7 +625,7 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCCredits() async throws -> CreditsSnapshot {
-        let rpc = try CodexRPCClient()
+        let rpc = try CodexRPCClient(environment: self.environment)
         defer { rpc.shutdown() }
         try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
         let limits = try await rpc.fetchRateLimits().rateLimits
@@ -640,7 +635,10 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
-        let status = try await CodexStatusProbe(keepCLISessionsAlive: keepCLISessionsAlive).fetch()
+        let status = try await CodexStatusProbe(
+            keepCLISessionsAlive: keepCLISessionsAlive,
+            environment: self.environment)
+            .fetch()
         guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
         return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
     }
@@ -663,7 +661,7 @@ public struct UsageFetcher: Sendable {
 
     public func debugRawRateLimits() async -> String {
         do {
-            let rpc = try CodexRPCClient()
+            let rpc = try CodexRPCClient(environment: self.environment)
             defer { rpc.shutdown() }
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
             let limits = try await rpc.fetchRateLimits()
@@ -675,30 +673,30 @@ public struct UsageFetcher: Sendable {
     }
 
     public func loadAccountInfo() -> AccountInfo {
-        // Keep using auth.json for quick startup (non-blocking, no RPC spin-up required).
-        let authURL = URL(fileURLWithPath: self.environment["CODEX_HOME"] ?? "\(NSHomeDirectory())/.codex")
-            .appendingPathComponent("auth.json")
-        guard let data = try? Data(contentsOf: authURL),
-              let auth = try? JSONDecoder().decode(AuthFile.self, from: data),
-              let idToken = auth.tokens?.idToken
-        else {
-            return AccountInfo(email: nil, plan: nil)
+        let account = self.loadAuthBackedCodexAccount()
+        return AccountInfo(email: account.email, plan: account.plan)
+    }
+
+    public func loadAuthBackedCodexAccount() -> CodexAuthBackedAccount {
+        guard let credentials = try? CodexOAuthCredentialsStore.load(env: self.environment) else {
+            return CodexAuthBackedAccount(identity: .unresolved, email: nil, plan: nil)
         }
 
-        guard let payload = UsageFetcher.parseJWT(idToken) else {
-            return AccountInfo(email: nil, plan: nil)
-        }
+        let payload = credentials.idToken.flatMap(Self.parseJWT)
+        let authDict = payload?["https://api.openai.com/auth"] as? [String: Any]
+        let profileDict = payload?["https://api.openai.com/profile"] as? [String: Any]
 
-        let authDict = payload["https://api.openai.com/auth"] as? [String: Any]
-        let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
+        let email = Self.normalizedCodexAccountField(
+            (payload?["email"] as? String) ?? (profileDict?["email"] as? String))
+        let plan = Self.normalizedCodexAccountField(
+            (authDict?["chatgpt_plan_type"] as? String) ?? (payload?["chatgpt_plan_type"] as? String))
+        let accountId = Self.normalizedCodexAccountField(
+            credentials.accountId
+                ?? (authDict?["chatgpt_account_id"] as? String)
+                ?? (payload?["chatgpt_account_id"] as? String))
+        let identity = CodexIdentityResolver.resolve(accountId: accountId, email: email)
 
-        let plan = (authDict?["chatgpt_plan_type"] as? String)
-            ?? (payload["chatgpt_plan_type"] as? String)
-
-        let email = (payload["email"] as? String)
-            ?? (profileDict?["email"] as? String)
-
-        return AccountInfo(email: email, plan: plan)
+        return CodexAuthBackedAccount(identity: identity, email: email, plan: plan)
     }
 
     // MARK: - Helpers
@@ -714,9 +712,30 @@ public struct UsageFetcher: Sendable {
             resetDescription: resetDescription)
     }
 
+    private static func makeTTYWindow(
+        percentLeft: Int?,
+        windowMinutes: Int,
+        resetsAt: Date?,
+        resetDescription: String?) -> RateWindow?
+    {
+        guard let percentLeft else { return nil }
+        return RateWindow(
+            usedPercent: max(0, 100 - Double(percentLeft)),
+            windowMinutes: windowMinutes,
+            resetsAt: resetsAt,
+            resetDescription: resetDescription)
+    }
+
     private static func parseCredits(_ balance: String?) -> Double {
         guard let balance, let val = Double(balance) else { return 0 }
         return val
+    }
+
+    private static func normalizedCodexAccountField(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 
     public static func parseJWT(_ token: String) -> [String: Any]? {
@@ -736,8 +755,51 @@ public struct UsageFetcher: Sendable {
     }
 }
 
-/// Minimal auth.json struct preserved from previous implementation
-private struct AuthFile: Decodable {
-    struct Tokens: Decodable { let idToken: String? }
-    let tokens: Tokens?
+#if DEBUG
+extension UsageFetcher {
+    static func _mapCodexRPCLimitsForTesting(
+        primary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?,
+        secondary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?) throws -> UsageSnapshot
+    {
+        guard let state = CodexReconciledState.fromCLI(
+            primary: primary.map(self.makeTestingWindow),
+            secondary: secondary.map(self.makeTestingWindow),
+            identity: nil)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
+    }
+
+    static func _mapCodexStatusForTesting(_ status: CodexStatusSnapshot) throws -> UsageSnapshot {
+        guard let state = CodexReconciledState.fromCLI(
+            primary: self.makeTTYWindow(
+                percentLeft: status.fiveHourPercentLeft,
+                windowMinutes: 300,
+                resetsAt: status.fiveHourResetsAt,
+                resetDescription: status.fiveHourResetDescription),
+            secondary: self.makeTTYWindow(
+                percentLeft: status.weeklyPercentLeft,
+                windowMinutes: 10080,
+                resetsAt: status.weeklyResetsAt,
+                resetDescription: status.weeklyResetDescription),
+            identity: nil)
+        else {
+            throw UsageError.noRateLimitsFound
+        }
+        return state.toUsageSnapshot()
+    }
+
+    private static func makeTestingWindow(
+        _ value: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?))
+        -> RateWindow
+    {
+        let resetsAt = value.resetsAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+        return RateWindow(
+            usedPercent: value.usedPercent,
+            windowMinutes: value.windowMinutes,
+            resetsAt: resetsAt,
+            resetDescription: resetsAt.map { UsageFormatter.resetDescription(from: $0) })
+    }
 }
+#endif

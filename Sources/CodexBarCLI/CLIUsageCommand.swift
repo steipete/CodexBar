@@ -294,7 +294,10 @@ extension CodexBarCLI {
 
             var dashboard = result.dashboard
             if dashboard == nil, command.format == .json, provider == .codex {
-                dashboard = Self.loadOpenAIDashboardIfAvailable(usage: usage, fetcher: command.fetcher)
+                dashboard = Self.loadOpenAIDashboardIfAvailable(
+                    usage: usage,
+                    sourceLabel: result.sourceLabel,
+                    context: fetchContext)
             }
 
             let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)

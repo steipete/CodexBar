@@ -92,6 +92,7 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 ## Docs
 - Providers overview: [docs/providers.md](docs/providers.md)
 - Provider authoring: [docs/provider.md](docs/provider.md)
+- Issue labeling guide: [docs/ISSUE_LABELING.md](docs/ISSUE_LABELING.md)
 - UI & icon notes: [docs/ui.md](docs/ui.md)
 - CLI reference: [docs/cli.md](docs/cli.md)
 - Architecture: [docs/architecture.md](docs/architecture.md)

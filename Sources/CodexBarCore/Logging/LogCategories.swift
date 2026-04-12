@@ -42,6 +42,7 @@ public enum LogCategories {
     public static let openAIWebview = "openai-webview"
     public static let ollama = "ollama"
     public static let opencodeUsage = "opencode-usage"
+    public static let opencodeGoUsage = "opencode-go-usage"
     public static let openRouterUsage = "openrouter-usage"
     public static let perplexityAPI = "perplexity-api"
     public static let perplexityCookie = "perplexity-cookie"

@@ -3,6 +3,20 @@ import Foundation
 
 @MainActor
 struct MenuDescriptor {
+    struct SubmenuItem: Equatable {
+        let title: String
+        let action: MenuAction?
+        let isEnabled: Bool
+        let isChecked: Bool
+
+        init(title: String, action: MenuAction?, isEnabled: Bool = true, isChecked: Bool = false) {
+            self.title = title
+            self.action = action
+            self.isEnabled = isEnabled
+            self.isChecked = isChecked
+        }
+    }
+
     struct Section {
         var entries: [Entry]
     }
@@ -10,6 +24,7 @@ struct MenuDescriptor {
     enum Entry {
         case text(String, TextStyle)
         case action(String, MenuAction)
+        case submenu(String, String?, [SubmenuItem])
         case divider
     }
 
@@ -17,6 +32,8 @@ struct MenuDescriptor {
         case refresh = "arrow.clockwise"
         case dashboard = "chart.bar"
         case statusPage = "waveform.path.ecg"
+        case addAccount = "plus"
+        case systemAccount = "person.crop.circle"
         case switchAccount = "key"
         case openTerminal = "terminal"
         case loginToProvider = "arrow.right.square"
@@ -32,12 +49,14 @@ struct MenuDescriptor {
         case secondary
     }
 
-    enum MenuAction {
+    enum MenuAction: Equatable {
         case installUpdate
         case refresh
         case refreshAugmentSession
         case dashboard
         case statusPage
+        case addCodexAccount
+        case requestCodexSystemPromotion(UUID)
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
         case loginToProvider(url: String)
@@ -54,18 +73,21 @@ struct MenuDescriptor {
         store: UsageStore,
         settings: SettingsStore,
         account: AccountInfo,
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator? = nil,
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         updateReady: Bool,
         includeContextualActions: Bool = true) -> MenuDescriptor
     {
         var sections: [Section] = []
 
         if let provider {
+            let fallbackAccount = store.accountInfo(for: provider)
             sections.append(Self.usageSection(for: provider, store: store, settings: settings))
             if let accountSection = Self.accountSection(
                 for: provider,
                 store: store,
                 settings: settings,
-                account: account)
+                account: fallbackAccount)
             {
                 sections.append(accountSection)
             }
@@ -78,11 +100,12 @@ struct MenuDescriptor {
             }
             if addedUsage {
                 if let accountProvider = Self.accountProviderForCombined(store: store),
+                   let fallbackAccount = Optional(store.accountInfo(for: accountProvider)),
                    let accountSection = Self.accountSection(
                        for: accountProvider,
                        store: store,
                        settings: settings,
-                       account: account)
+                       account: fallbackAccount)
                 {
                     sections.append(accountSection)
                 }
@@ -92,7 +115,12 @@ struct MenuDescriptor {
         }
 
         if includeContextualActions {
-            let actions = Self.actionsSection(for: provider, store: store, account: account)
+            let actions = Self.actionsSection(
+                for: provider,
+                store: store,
+                account: account,
+                managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+                codexAccountPromotionCoordinator: codexAccountPromotionCoordinator)
             if !actions.entries.isEmpty {
                 sections.append(actions)
             }
@@ -307,17 +335,20 @@ struct MenuDescriptor {
     private static func actionsSection(
         for provider: UsageProvider?,
         store: UsageStore,
-        account: AccountInfo) -> Section
+        account: AccountInfo,
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?,
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?) -> Section
     {
         var entries: [Entry] = []
         let targetProvider = provider ?? store.enabledProviders().first
         let metadata = targetProvider.map { store.metadata(for: $0) }
+        let fallbackAccount = targetProvider.map { store.accountInfo(for: $0) } ?? account
         let loginContext = targetProvider.map {
             ProviderMenuLoginContext(
                 provider: $0,
                 store: store,
                 settings: store.settings,
-                account: account)
+                account: fallbackAccount)
         }
 
         // Show "Add Account" if no account, "Switch Account" if logged in
@@ -331,7 +362,7 @@ struct MenuDescriptor {
                 entries.append(.action(override.label, override.action))
             } else {
                 let loginAction = self.switchAccountTarget(for: provider, store: store)
-                let hasAccount = self.hasAccount(for: provider, store: store, account: account)
+                let hasAccount = self.hasAccount(for: provider, store: store, account: fallbackAccount)
                 let accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
                 entries.append(.action(accountLabel, loginAction))
             }
@@ -342,7 +373,9 @@ struct MenuDescriptor {
                 provider: targetProvider,
                 store: store,
                 settings: store.settings,
-                account: account)
+                account: fallbackAccount,
+                managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+                codexAccountPromotionCoordinator: codexAccountPromotionCoordinator)
             ProviderCatalog.implementation(for: targetProvider)?
                 .appendActionMenuEntries(context: actionContext, entries: &entries)
         }
@@ -367,6 +400,7 @@ struct MenuDescriptor {
             entries.append(.action("Update ready, restart now?", .installUpdate))
         }
         entries.append(contentsOf: [
+            .action("Refresh", .refresh),
             .action("Settings...", .settings),
             .action("About CodexBar", .about),
             .action("Quit", .quit),
@@ -461,6 +495,9 @@ extension MenuDescriptor.MenuAction {
         case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
+        case .addCodexAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
+        case .requestCodexSystemPromotion:
+            nil
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue

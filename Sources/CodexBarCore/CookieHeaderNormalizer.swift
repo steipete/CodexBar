@@ -51,6 +51,12 @@ public enum CookieHeaderNormalizer {
         return results
     }
 
+    public static func filteredHeader(from raw: String?, allowedNames: Set<String>) -> String? {
+        let filtered = self.pairs(from: raw ?? "").filter { allowedNames.contains($0.name) }
+        guard !filtered.isEmpty else { return nil }
+        return filtered.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+    }
+
     private static func extractHeader(from raw: String) -> String? {
         for pattern in self.headerPatterns {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { continue }
