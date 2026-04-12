@@ -12,8 +12,17 @@ public enum AbacusCookieImporter {
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["abacus.ai", "apps.abacus.ai"]
 
-    /// Cookie name prefixes/substrings that indicate a session or auth cookie.
-    private static let sessionCookiePatterns = ["session", "sess", "auth", "token", "sid", "jwt", "id"]
+    /// Exact cookie names known to carry Abacus session state.
+    private static let knownSessionCookieNames: Set<String> = [
+        "sessionid", "session_id", "session_token",
+        "auth_token", "access_token",
+        "csrftoken", "csrf_token",
+    ]
+
+    /// Substrings that indicate a session or auth cookie (applied only when
+    /// no exact-name match is found). Deliberately excludes overly broad
+    /// patterns like "id" that match analytics/tracking cookies.
+    private static let sessionCookieSubstrings = ["session", "auth", "token", "sid", "jwt"]
 
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
@@ -59,11 +68,13 @@ public enum AbacusCookieImporter {
     }
 
     /// Returns `true` if the cookie set contains at least one cookie whose name
-    /// suggests it carries session or authentication state.
+    /// indicates session or authentication state.  Checks exact known names
+    /// first, then falls back to conservative substring matching.
     private static func containsSessionCookie(_ cookies: [HTTPCookie]) -> Bool {
         cookies.contains { cookie in
             let lower = cookie.name.lowercased()
-            return sessionCookiePatterns.contains { lower.contains($0) }
+            if self.knownSessionCookieNames.contains(lower) { return true }
+            return self.sessionCookieSubstrings.contains { lower.contains($0) }
         }
     }
 }
@@ -209,19 +220,19 @@ public enum AbacusUsageFetcher {
     {
         // Fetch compute points (GET) and billing info (POST) concurrently
         async let computePoints = Self.fetchJSON(
-            url: computePointsURL, method: "GET", cookieHeader: cookieHeader, timeout: timeout)
+            url: self.computePointsURL, method: "GET", cookieHeader: cookieHeader, timeout: timeout)
         async let billingInfo = Self.fetchJSON(
-            url: billingInfoURL, method: "POST", cookieHeader: cookieHeader, timeout: timeout)
+            url: self.billingInfoURL, method: "POST", cookieHeader: cookieHeader, timeout: timeout)
 
         let cpResult = try await computePoints
-        let biResult = (try? await billingInfo) ?? [:]
+        let biResult = await (try? billingInfo) ?? [:]
 
         return Self.parseResults(computePoints: cpResult, billingInfo: biResult)
     }
 
     private static func fetchJSON(
-        url: URL, method: String, cookieHeader: String, timeout: TimeInterval
-    ) async throws -> [String: Any] {
+        url: URL, method: String, cookieHeader: String, timeout: TimeInterval) async throws -> [String: Any]
+    {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = timeout
@@ -264,8 +275,8 @@ public enum AbacusUsageFetcher {
     // MARK: - Parsing
 
     private static func parseResults(
-        computePoints: [String: Any], billingInfo: [String: Any]
-    ) -> AbacusUsageSnapshot {
+        computePoints: [String: Any], billingInfo: [String: Any]) -> AbacusUsageSnapshot
+    {
         // _getOrganizationComputePoints returns values already in credits (no division needed)
         let totalCredits = Self.double(from: computePoints["totalComputePoints"])
         let creditsLeft = Self.double(from: computePoints["computePointsLeft"])
