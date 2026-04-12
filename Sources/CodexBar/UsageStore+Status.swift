@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 
 extension UsageStore {
@@ -6,7 +7,7 @@ extension UsageStore {
         var request = URLRequest(url: apiURL)
         request.timeoutInterval = 10
 
-        let (data, _) = try await URLSession.shared.data(for: request, delegate: nil)
+        let (data, _) = try await ProviderHTTPClient.shared.data(for: request)
 
         struct Response: Decodable {
             struct Status: Decodable {
@@ -52,7 +53,7 @@ extension UsageStore {
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
-        let (data, _) = try await URLSession.shared.data(for: request, delegate: nil)
+        let (data, _) = try await ProviderHTTPClient.shared.data(for: request)
         return try Self.parseGoogleWorkspaceStatus(data: data, productID: productID)
     }
 

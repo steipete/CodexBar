@@ -153,6 +153,7 @@ extension UsageStore {
             env: env,
             settings: snapshot,
             fetcher: fetcher,
+            httpClient: ProviderHTTPClient.shared,
             claudeFetcher: self.claudeFetcher,
             browserDetection: self.browserDetection)
     }

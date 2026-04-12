@@ -5,10 +5,16 @@ public struct CodexBarConfig: Codable, Sendable {
 
     public var version: Int
     public var providers: [ProviderConfig]
+    public var networkProxy: NetworkProxyConfiguration?
 
-    public init(version: Int = Self.currentVersion, providers: [ProviderConfig]) {
+    public init(
+        version: Int = Self.currentVersion,
+        providers: [ProviderConfig],
+        networkProxy: NetworkProxyConfiguration? = nil)
+    {
         self.version = version
         self.providers = providers
+        self.networkProxy = networkProxy
     }
 
     public static func makeDefault(
@@ -19,7 +25,7 @@ public struct CodexBarConfig: Codable, Sendable {
                 id: provider,
                 enabled: metadata[provider]?.defaultEnabled)
         }
-        return CodexBarConfig(version: Self.currentVersion, providers: providers)
+        return CodexBarConfig(version: Self.currentVersion, providers: providers, networkProxy: nil)
     }
 
     public func normalized(
@@ -43,7 +49,8 @@ public struct CodexBarConfig: Codable, Sendable {
 
         return CodexBarConfig(
             version: Self.currentVersion,
-            providers: normalized)
+            providers: normalized,
+            networkProxy: self.networkProxy)
     }
 
     public func orderedProviders() -> [UsageProvider] {
