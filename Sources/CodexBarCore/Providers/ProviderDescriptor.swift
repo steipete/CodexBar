@@ -65,6 +65,7 @@ public enum ProviderDescriptorRegistry {
         .copilot: CopilotProviderDescriptor.descriptor,
         .zai: ZaiProviderDescriptor.descriptor,
         .minimax: MiniMaxProviderDescriptor.descriptor,
+        .manus: ManusProviderDescriptor.descriptor,
         .kimi: KimiProviderDescriptor.descriptor,
         .kilo: KiloProviderDescriptor.descriptor,
         .kiro: KiroProviderDescriptor.descriptor,
