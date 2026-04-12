@@ -71,7 +71,29 @@ struct AbacusProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func settingsFields(context _: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        []
+    func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
+        [
+            ProviderSettingsFieldDescriptor(
+                id: "abacus-cookie",
+                title: "",
+                subtitle: "",
+                kind: .secure,
+                placeholder: "Cookie: \u{2026}\n\nor paste a cURL capture from the Abacus AI dashboard",
+                binding: context.stringBinding(\.abacusCookieHeader),
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "abacus-open-dashboard",
+                        title: "Open Dashboard",
+                        style: .link,
+                        isVisible: nil,
+                        perform: {
+                            if let url = URL(string: "https://apps.abacus.ai/compute-points") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }),
+                ],
+                isVisible: { context.settings.abacusCookieSource == .manual },
+                onActivate: nil),
+        ]
     }
 }
