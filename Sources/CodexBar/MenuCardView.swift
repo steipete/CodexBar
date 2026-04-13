@@ -1068,6 +1068,9 @@ extension UsageMenuCardView.Model {
             {
                 primaryDetailText = detail
             }
+            if primary.resetsAt == nil {
+                primaryResetText = nil
+            }
             if let pace = input.weeklyPace {
                 let paceDetail = Self.weeklyPaceDetail(
                     window: primary,
