@@ -58,6 +58,7 @@ extension StatusItemController {
         let unavailableItem = NSMenuItem(title: "No data available", action: nil, keyEquivalent: "")
         unavailableItem.isEnabled = false
         unavailableItem.representedObject = chartID
+        unavailableItem.toolTip = placeholder.toolTip
         menu.addItem(unavailableItem)
     }
 
