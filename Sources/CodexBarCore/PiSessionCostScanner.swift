@@ -58,7 +58,6 @@ enum PiSessionCostScanner {
             || nowMs - cache.lastScanUnixMs > refreshMs
 
         if shouldRefresh {
-            let startedAt = Date()
             let root = self.defaultPiSessionsRoot(options: options)
             let startCutoff = self.dateFromDayKey(range.scanSinceKey) ?? since
             let files = self.listPiSessionFiles(root: root, startCutoffLocal: startCutoff)
@@ -86,18 +85,6 @@ enum PiSessionCostScanner {
             cache.scanUntilKey = range.scanUntilKey
             cache.lastScanUnixMs = nowMs
             PiSessionCostCacheIO.save(cache: cache, cacheRoot: options.cacheRoot)
-            AgentDebugLogger.log(
-                "0.20 PI session cost scanner refreshed cache",
-                hypothesisId: "G",
-                location: "PiSessionCostScanner.swift:loadDailyReport",
-                data: [
-                    "provider": provider.rawValue,
-                    "fileCount": String(files.count),
-                    "cacheFiles": String(cache.files.count),
-                    "forceRescan": options.forceRescan ? "1" : "0",
-                    "windowExpanded": windowExpanded ? "1" : "0",
-                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                ])
         }
 
         return self.buildReport(provider: provider, cache: cache, range: range)

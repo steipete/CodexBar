@@ -182,18 +182,7 @@ extension SettingsStore {
     }
 
     var codexVisibleAccountProjection: CodexVisibleAccountProjection {
-        let startedAt = Date()
-        let projection = CodexVisibleAccountProjection.make(from: self.codexAccountReconciliationSnapshot)
-        AgentDebugLogger.log(
-            "0.20 Codex visible account projection computed",
-            hypothesisId: "R",
-            location: "CodexSettingsStore.swift:codexVisibleAccountProjection",
-            data: [
-                "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                "mainThread": Thread.isMainThread ? "1" : "0",
-                "visibleAccounts": String(projection.visibleAccounts.count),
-            ])
-        return projection
+        CodexVisibleAccountProjection.make(from: self.codexAccountReconciliationSnapshot)
     }
 
     var codexVisibleAccounts: [CodexVisibleAccount] {

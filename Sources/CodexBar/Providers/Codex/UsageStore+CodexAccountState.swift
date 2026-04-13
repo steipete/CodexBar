@@ -23,15 +23,6 @@ extension UsageStore {
         async
     {
         let refreshStartedAt = Date()
-        AgentDebugLogger.log(
-            "0.20 Codex account-scoped refresh started",
-            hypothesisId: "H",
-            location: "UsageStore+CodexAccountState.swift:refreshCodexAccountScopedState",
-            data: [
-                "allowDisabled": allowDisabled ? "1" : "0",
-                "openAIWebEnabled": self.settings.codexCookieSource.isEnabled ? "1" : "0",
-                "resolvedSource": String(describing: self.settings.codexResolvedActiveSource),
-            ])
         self.prepareRefreshState(for: .codex)
         if self.prepareCodexAccountScopedRefreshIfNeeded() {
             phaseDidChange?(.invalidated)
@@ -60,16 +51,6 @@ extension UsageStore {
 
         self.persistWidgetSnapshot(reason: "codex-account-refresh")
         phaseDidChange?(.completed)
-        AgentDebugLogger.log(
-            "0.20 Codex account-scoped refresh completed",
-            hypothesisId: "H",
-            location: "UsageStore+CodexAccountState.swift:refreshCodexAccountScopedState",
-            data: [
-                "durationMs": String(Int(Date().timeIntervalSince(refreshStartedAt) * 1000)),
-                "hasCredits": self.credits == nil ? "0" : "1",
-                "hasDashboard": self.openAIDashboard == nil ? "0" : "1",
-                "dashboardRequiresLogin": self.openAIDashboardRequiresLogin ? "1" : "0",
-            ])
     }
 
     @discardableResult

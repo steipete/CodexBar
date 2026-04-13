@@ -566,7 +566,6 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCUsage() async throws -> UsageSnapshot {
-        let startedAt = Date()
         let rpc = try CodexRPCClient(environment: self.environment)
         defer { rpc.shutdown() }
         do {
@@ -593,30 +592,13 @@ public struct UsageFetcher: Sendable {
             else {
                 throw UsageError.noRateLimitsFound
             }
-            AgentDebugLogger.log(
-                "0.20 Codex RPC usage fetch succeeded",
-                hypothesisId: "E",
-                location: "UsageFetcher.swift:loadRPCUsage",
-                data: [
-                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                    "accountEmailKnown": identity.accountEmail == nil ? "0" : "1",
-                ])
             return state.toUsageSnapshot()
         } catch {
-            AgentDebugLogger.log(
-                "0.20 Codex RPC usage fetch failed",
-                hypothesisId: "E",
-                location: "UsageFetcher.swift:loadRPCUsage",
-                data: [
-                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                    "error": String(describing: error),
-                ])
             throw error
         }
     }
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
-        let startedAt = Date()
         do {
             let status = try await CodexStatusProbe(
                 keepCLISessionsAlive: keepCLISessionsAlive,
@@ -637,27 +619,8 @@ public struct UsageFetcher: Sendable {
             else {
                 throw UsageError.noRateLimitsFound
             }
-            AgentDebugLogger.log(
-                "0.20 Codex TTY usage fetch succeeded",
-                hypothesisId: "F",
-                location: "UsageFetcher.swift:loadTTYUsage",
-                data: [
-                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                    "keepSessionAlive": keepCLISessionsAlive ? "1" : "0",
-                    "hasFiveHour": status.fiveHourPercentLeft == nil ? "0" : "1",
-                    "hasWeekly": status.weeklyPercentLeft == nil ? "0" : "1",
-                ])
             return state.toUsageSnapshot()
         } catch {
-            AgentDebugLogger.log(
-                "0.20 Codex TTY usage fetch failed",
-                hypothesisId: "F",
-                location: "UsageFetcher.swift:loadTTYUsage",
-                data: [
-                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                    "keepSessionAlive": keepCLISessionsAlive ? "1" : "0",
-                    "error": String(describing: error),
-                ])
             throw error
         }
     }
@@ -669,7 +632,6 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCCredits() async throws -> CreditsSnapshot {
-        let startedAt = Date()
         let rpc = try CodexRPCClient(environment: self.environment)
         defer { rpc.shutdown() }
         do {
@@ -677,55 +639,21 @@ public struct UsageFetcher: Sendable {
             let limits = try await rpc.fetchRateLimits().rateLimits
             guard let credits = limits.credits else { throw UsageError.noRateLimitsFound }
             let remaining = Self.parseCredits(credits.balance)
-            AgentDebugLogger.log(
-                "0.20 Codex RPC credits fetch succeeded",
-                hypothesisId: "E",
-                location: "UsageFetcher.swift:loadRPCCredits",
-                data: [
-                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                    "creditsKnown": "1",
-                ])
             return CreditsSnapshot(remaining: remaining, events: [], updatedAt: Date())
         } catch {
-            AgentDebugLogger.log(
-                "0.20 Codex RPC credits fetch failed",
-                hypothesisId: "E",
-                location: "UsageFetcher.swift:loadRPCCredits",
-                data: [
-                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                    "error": String(describing: error),
-                ])
             throw error
         }
     }
 
     private func loadTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
-        let startedAt = Date()
         do {
             let status = try await CodexStatusProbe(
                 keepCLISessionsAlive: keepCLISessionsAlive,
                 environment: self.environment)
                 .fetch()
             guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
-            AgentDebugLogger.log(
-                "0.20 Codex TTY credits fetch succeeded",
-                hypothesisId: "F",
-                location: "UsageFetcher.swift:loadTTYCredits",
-                data: [
-                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                    "keepSessionAlive": keepCLISessionsAlive ? "1" : "0",
-                ])
             return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
         } catch {
-            AgentDebugLogger.log(
-                "0.20 Codex TTY credits fetch failed",
-                hypothesisId: "F",
-                location: "UsageFetcher.swift:loadTTYCredits",
-                data: [
-                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-                    "keepSessionAlive": keepCLISessionsAlive ? "1" : "0",
-                    "error": String(describing: error),
-                ])
             throw error
         }
     }

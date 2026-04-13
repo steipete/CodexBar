@@ -42,28 +42,6 @@ public struct OpenAIDashboardFetcher {
         0.001
     }
 
-    private nonisolated static func logDashboardEvent(
-        _ message: String,
-        data: [String: String])
-    {
-        AgentDebugLogger.log(
-            message,
-            hypothesisId: "J",
-            location: "OpenAIDashboardFetcher.swift:loadLatestDashboard",
-            data: data)
-    }
-
-    private struct DashboardFetchTrace {
-        let startedAt: Date
-        let timeout: TimeInterval
-        var scrapeIterations = 0
-        var routeReloadCount = 0
-        var workspaceWaitCount = 0
-        var creditsScrollWaitCount = 0
-        var creditsHydrationWaitCount = 0
-        var breakdownHydrationWaitCount = 0
-    }
-
     private struct DashboardSnapshotComponents {
         let scrape: ScrapeResult
         let codeReview: Double?
@@ -74,29 +52,6 @@ public struct OpenAIDashboardFetcher {
         let rateLimits: (primary: RateWindow?, secondary: RateWindow?)
         let creditsRemaining: Double?
         let accountPlan: String?
-    }
-
-    private nonisolated static func emitDashboardSummary(
-        message: String,
-        trace: DashboardFetchTrace,
-        anyDashboardSignalAt: Date?,
-        extra: [String: String] = [:])
-    {
-        var data: [String: String] = [
-            "durationMs": String(Int(Date().timeIntervalSince(trace.startedAt) * 1000)),
-            "timeoutSeconds": String(Int(trace.timeout)),
-            "iterations": String(trace.scrapeIterations),
-            "routeReloads": String(trace.routeReloadCount),
-            "workspaceWaits": String(trace.workspaceWaitCount),
-            "creditsScrollWaits": String(trace.creditsScrollWaitCount),
-            "creditsHydrationWaits": String(trace.creditsHydrationWaitCount),
-            "breakdownHydrationWaits": String(trace.breakdownHydrationWaitCount),
-            "hadDashboardSignal": anyDashboardSignalAt == nil ? "0" : "1",
-        ]
-        for (key, value) in extra {
-            data[key] = value
-        }
-        Self.logDashboardEvent(message, data: data)
     }
 
     private nonisolated static func makeDashboardSnapshot(_ components: DashboardSnapshotComponents)
@@ -156,14 +111,12 @@ public struct OpenAIDashboardFetcher {
             timeout: timeout)
     }
 
-    // swiftlint:disable function_body_length
     public func loadLatestDashboard(
         websiteDataStore: WKWebsiteDataStore,
         logger: ((String) -> Void)? = nil,
         debugDumpHTML: Bool = false,
         timeout: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot
     {
-        var trace = DashboardFetchTrace(startedAt: Date(), timeout: timeout)
         let deadline = Self.deadline(startingAt: Date(), timeout: timeout)
         let lease = try await self.makeWebView(
             websiteDataStore: websiteDataStore,
@@ -183,7 +136,6 @@ public struct OpenAIDashboardFetcher {
         var lastUsageBreakdownDebug: String?
         var lastCreditsPurchaseURL: String?
         while Date() < deadline {
-            trace.scrapeIterations += 1
             let scrape = try await self.scrape(webView: webView)
             lastBody = scrape.bodyText ?? lastBody
             lastHTML = scrape.bodyHTML ?? lastHTML
@@ -202,14 +154,12 @@ public struct OpenAIDashboardFetcher {
             }
 
             if scrape.workspacePicker {
-                trace.workspaceWaitCount += 1
                 try? await Task.sleep(for: .milliseconds(500))
                 continue
             }
 
             // The page is a SPA and can land on ChatGPT UI or other routes; keep forcing the usage URL.
             if let href = scrape.href, !Self.isUsageRoute(href) {
-                trace.routeReloadCount += 1
                 _ = webView.load(URLRequest(url: self.usageURL))
                 try? await Task.sleep(for: .milliseconds(500))
                 continue
@@ -219,14 +169,6 @@ public struct OpenAIDashboardFetcher {
                 if debugDumpHTML, let html = scrape.bodyHTML {
                     Self.writeDebugArtifacts(html: html, bodyText: scrape.bodyText, logger: log)
                 }
-                Self.emitDashboardSummary(
-                    message: "0.20 OpenAI dashboard fetch returned login-required",
-                    trace: trace,
-                    anyDashboardSignalAt: anyDashboardSignalAt,
-                    extra: [
-                        "cloudflare": scrape.cloudflareInterstitial ? "1" : "0",
-                        "workspacePicker": scrape.workspacePicker ? "1" : "0",
-                    ])
                 throw FetchError.loginRequired
             }
 
@@ -234,10 +176,6 @@ public struct OpenAIDashboardFetcher {
                 if debugDumpHTML, let html = scrape.bodyHTML {
                     Self.writeDebugArtifacts(html: html, bodyText: scrape.bodyText, logger: log)
                 }
-                Self.emitDashboardSummary(
-                    message: "0.20 OpenAI dashboard fetch hit Cloudflare interstitial",
-                    trace: trace,
-                    anyDashboardSignalAt: anyDashboardSignalAt)
                 throw FetchError.noDashboardData(body: "Cloudflare challenge detected in WebView.")
             }
 
@@ -278,7 +216,6 @@ public struct OpenAIDashboardFetcher {
                         "inViewport=\(scrape.creditsHeaderInViewport) didScroll=\(scrape.didScrollToCredits) " +
                         "rows=\(scrape.rows.count)")
                 if scrape.didScrollToCredits {
-                    trace.creditsScrollWaitCount += 1
                     log("scrollIntoView(Credits usage history) requested; waiting…")
                     try? await Task.sleep(for: .milliseconds(600))
                     continue
@@ -297,7 +234,6 @@ public struct OpenAIDashboardFetcher {
                     creditsHeaderInViewport: scrape.creditsHeaderInViewport,
                     didScrollToCredits: scrape.didScrollToCredits))
                 {
-                    trace.creditsHydrationWaitCount += 1
                     try? await Task.sleep(for: .milliseconds(400))
                     continue
                 }
@@ -311,21 +247,10 @@ public struct OpenAIDashboardFetcher {
                 if codeReview != nil, usageBreakdown.isEmpty {
                     let elapsed = Date().timeIntervalSince(codeReviewFirstSeenAt ?? Date())
                     if elapsed < 6 {
-                        trace.breakdownHydrationWaitCount += 1
                         try? await Task.sleep(for: .milliseconds(400))
                         continue
                     }
                 }
-                Self.emitDashboardSummary(
-                    message: "0.20 OpenAI dashboard fetch succeeded",
-                    trace: trace,
-                    anyDashboardSignalAt: anyDashboardSignalAt,
-                    extra: [
-                        "creditRows": String(events.count),
-                        "usageBreakdownDays": String(usageBreakdown.count),
-                        "hasRateLimits": hasUsageLimits ? "1" : "0",
-                        "hasCreditsRemaining": creditsRemaining == nil ? "0" : "1",
-                    ])
                 return Self.makeDashboardSnapshot(.init(
                     scrape: scrape,
                     codeReview: codeReview,
@@ -344,18 +269,8 @@ public struct OpenAIDashboardFetcher {
         if debugDumpHTML, let html = lastHTML {
             Self.writeDebugArtifacts(html: html, bodyText: lastBody, logger: log)
         }
-        Self.emitDashboardSummary(
-            message: "0.20 OpenAI dashboard fetch exhausted timeout without data",
-            trace: trace,
-            anyDashboardSignalAt: anyDashboardSignalAt,
-            extra: [
-                "lastBodyPresent": lastBody == nil ? "0" : "1",
-                "lastHrefKnown": lastHref == nil ? "0" : "1",
-            ])
         throw FetchError.noDashboardData(body: lastBody ?? "")
     }
-
-    // swiftlint:enable function_body_length
 
     struct CreditsHistoryWaitContext {
         let now: Date

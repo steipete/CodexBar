@@ -22,14 +22,27 @@ extension UsageStore {
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin
-        _ = self.openAIDashboardCookieImportStatus
-        _ = self.openAIDashboardCookieImportDebugLog
         _ = self.versions
         _ = self.isRefreshing
         _ = self.refreshingProviders
         _ = self.pathDebugInfo
         _ = self.statuses
         _ = self.probeLogs
+        _ = self.historicalPaceRevision
+        return 0
+    }
+
+    var iconObservationToken: Int {
+        _ = self.snapshots
+        _ = self.errors
+        _ = self.credits
+        _ = self.lastCreditsError
+        _ = self.openAIDashboard
+        _ = self.lastOpenAIDashboardError
+        _ = self.openAIDashboardRequiresLogin
+        _ = self.isRefreshing
+        _ = self.refreshingProviders
+        _ = self.statuses
         _ = self.historicalPaceRevision
         return 0
     }
@@ -447,19 +460,6 @@ final class UsageStore {
         let refreshStartedAt = Date()
 
         await ProviderRefreshContext.$current.withValue(refreshPhase) {
-            AgentDebugLogger.log(
-                "0.20 refresh loop scope",
-                hypothesisId: "D",
-                location: "UsageStore.swift:refresh",
-                data: [
-                    "phase": refreshPhase == .startup ? "startup" : "regular",
-                    "enabledProviders": String(refreshProviders.count),
-                    "displayEnabledProviders": String(displayEnabledProviders.count),
-                    "allProviders": String(UsageProvider.allCases.count),
-                    "statusChecksEnabled": self.settings.statusChecksEnabled ? "1" : "0",
-                    "forceTokenUsage": forceTokenUsage ? "1" : "0",
-                    "openAIWebAccessEnabled": self.settings.openAIWebAccessEnabled ? "1" : "0",
-                ])
             self.isRefreshing = true
             defer {
                 self.isRefreshing = false
@@ -497,17 +497,6 @@ final class UsageStore {
                     "batterySaverEnabled": refreshPolicy.batterySaverEnabled ? "1" : "0",
                     "force": refreshPolicy.force ? "1" : "0",
                     "interaction": ProviderInteractionContext.current == .userInitiated ? "user" : "background",
-                    "phase": refreshPhase == .startup ? "startup" : "regular",
-                ])
-            AgentDebugLogger.log(
-                "0.20 main OpenAI web refresh policy evaluated",
-                hypothesisId: "C",
-                location: "UsageStore.swift:refresh",
-                data: [
-                    "allowed": shouldRefreshOpenAIWeb ? "1" : "0",
-                    "accessEnabled": refreshPolicy.accessEnabled ? "1" : "0",
-                    "batterySaverEnabled": refreshPolicy.batterySaverEnabled ? "1" : "0",
-                    "force": refreshPolicy.force ? "1" : "0",
                     "phase": refreshPhase == .startup ? "startup" : "regular",
                 ])
             if shouldRefreshOpenAIWeb {
@@ -1214,14 +1203,6 @@ extension UsageStore {
         let providerText = provider.rawValue
         self.tokenCostLogger
             .debug("cost usage start provider=\(providerText) force=\(force)")
-        AgentDebugLogger.log(
-            "0.20 token usage refresh started",
-            hypothesisId: "G",
-            location: "UsageStore.swift:refreshTokenUsage",
-            data: [
-                "provider": providerText,
-                "force": force ? "1" : "0",
-            ])
 
         do {
             let fetcher = self.costUsageFetcher
@@ -1268,15 +1249,6 @@ extension UsageStore {
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.recordSuccess()
             self.persistWidgetSnapshot(reason: "token-usage")
-            AgentDebugLogger.log(
-                "0.20 token usage refresh succeeded",
-                hypothesisId: "G",
-                location: "UsageStore.swift:refreshTokenUsage",
-                data: [
-                    "provider": providerText,
-                    "durationMs": String(Int(duration * 1000)),
-                    "dailyEntries": String(snapshot.daily.count),
-                ])
         } catch {
             if error is CancellationError { return }
             let duration = Date().timeIntervalSince(startedAt)
@@ -1293,15 +1265,6 @@ extension UsageStore {
             } else {
                 self.tokenErrors[provider] = nil
             }
-            AgentDebugLogger.log(
-                "0.20 token usage refresh failed",
-                hypothesisId: "G",
-                location: "UsageStore.swift:refreshTokenUsage",
-                data: [
-                    "provider": providerText,
-                    "durationMs": String(Int(duration * 1000)),
-                    "error": String(describing: error),
-                ])
         }
     }
 }

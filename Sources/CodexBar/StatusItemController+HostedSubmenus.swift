@@ -76,19 +76,9 @@ extension StatusItemController {
 
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let startedAt = Date()
         let controller = NSHostingController(rootView: chartView)
         let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
-        AgentDebugLogger.log(
-            "0.20 usage breakdown submenu rendered",
-            hypothesisId: "N",
-            location: "StatusItemController+HostedSubmenus.swift:appendUsageBreakdownChartItem",
-            data: [
-                "days": String(breakdown.count),
-                "height": String(Int(size.height)),
-                "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-            ])
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting
@@ -113,19 +103,9 @@ extension StatusItemController {
 
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let startedAt = Date()
         let controller = NSHostingController(rootView: chartView)
         let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
-        AgentDebugLogger.log(
-            "0.20 credits history submenu rendered",
-            hypothesisId: "N",
-            location: "StatusItemController+HostedSubmenus.swift:appendCreditsHistoryChartItem",
-            data: [
-                "days": String(breakdown.count),
-                "height": String(Int(size.height)),
-                "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-            ])
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting
@@ -158,20 +138,9 @@ extension StatusItemController {
             totalCostUSD: tokenSnapshot.last30DaysCostUSD,
             width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let startedAt = Date()
         let controller = NSHostingController(rootView: chartView)
         let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
-        AgentDebugLogger.log(
-            "0.20 cost history submenu rendered",
-            hypothesisId: "N",
-            location: "StatusItemController+HostedSubmenus.swift:appendCostHistoryChartItem",
-            data: [
-                "provider": provider.rawValue,
-                "days": String(tokenSnapshot.daily.count),
-                "height": String(Int(size.height)),
-                "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
-            ])
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting
