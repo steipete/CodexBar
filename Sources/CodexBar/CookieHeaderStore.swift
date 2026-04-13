@@ -52,6 +52,14 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             Self.log.debug("Keychain access disabled; skipping cookie load")
             return nil
         }
+        // Check cache first
+        Self.cacheLock.lock()
+        if let cached = Self.cache[self.account], !cached.isExpired {
+            Self.cacheLock.unlock()
+            Self.log.debug("Using cached cookie header for \(self.account)")
+            return cached.value
+        }
+        Self.cacheLock.unlock()
         let auditMetadata = [
             "service": self.service,
             "account": self.account,
@@ -61,14 +69,6 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             action: "keychain.cookie_header.read",
             target: self.account,
             metadata: auditMetadata)
-        // Check cache first
-        Self.cacheLock.lock()
-        if let cached = Self.cache[self.account], !cached.isExpired {
-            Self.cacheLock.unlock()
-            Self.log.debug("Using cached cookie header for \(self.account)")
-            return cached.value
-        }
-        Self.cacheLock.unlock()
         var result: CFTypeRef?
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

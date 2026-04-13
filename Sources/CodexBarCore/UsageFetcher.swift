@@ -425,10 +425,10 @@ private final class CodexRPCClient: @unchecked Sendable {
             try self.process.run()
             Self.log.debug("Codex RPC started", metadata: ["binary": resolvedExec])
             AuditLogger.recordCommand(
-                action: "process.completed",
+                action: "process.launched",
                 binary: resolvedExec,
                 risk: .sensitive,
-                metadata: auditMetadata.merging(["status": "started"], uniquingKeysWith: { _, new in new }),
+                metadata: auditMetadata.merging(["pid": "\(self.process.processIdentifier)"], uniquingKeysWith: { _, new in new }),
                 context: GovernanceContext(flow: "codex-rpc"))
         } catch {
             Self.log.warning("Codex RPC failed to start", metadata: ["error": error.localizedDescription])

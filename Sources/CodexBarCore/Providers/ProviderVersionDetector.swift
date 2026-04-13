@@ -87,7 +87,8 @@ public enum ProviderVersionDetector {
         }
 
         let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
-        if !didExit, !Self.forceExit(proc, exitSemaphore: exitSemaphore) {
+        if !didExit {
+            _ = Self.forceExit(proc, exitSemaphore: exitSemaphore)
             AuditLogger.recordCommand(
                 action: "process.timed_out",
                 binary: path,

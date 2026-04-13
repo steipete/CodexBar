@@ -439,6 +439,7 @@ public struct TTYCommandRunner {
         var cleanedUp = false
         var didLaunch = false
         var processGroup: pid_t?
+        var auditCompletionAction: String?
         /// Always tear down the PTY child (and its process group) even if we throw early
         /// while bootstrapping the CLI (e.g. when it prompts for login/telemetry).
         func cleanup() {
@@ -476,9 +477,10 @@ public struct TTYCommandRunner {
             }
 
             cleanedUp = true
-            if didLaunch {
+            let terminalAuditAction = auditCompletionAction ?? (didLaunch ? "process.failed" : nil)
+            if let terminalAuditAction {
                 AuditLogger.recordCommand(
-                    action: "process.completed",
+                    action: terminalAuditAction,
                     binary: resolved,
                     risk: auditRisk,
                     metadata: auditMetadata.merging(["status": "\(proc.terminationStatus)"], uniquingKeysWith: { _, new in new }))
@@ -735,7 +737,10 @@ public struct TTYCommandRunner {
             }
 
             let text = String(data: buffer, encoding: .utf8) ?? ""
-            guard !text.isEmpty else { throw Error.timedOut }
+            guard !text.isEmpty else {
+                auditCompletionAction = "process.timed_out"
+                throw Error.timedOut
+            }
             return Result(text: text)
         }
 
@@ -878,9 +883,11 @@ public struct TTYCommandRunner {
         }
 
         guard let text = String(data: buffer, encoding: .utf8), !text.isEmpty else {
+            auditCompletionAction = "process.timed_out"
             throw Error.timedOut
         }
 
+        auditCompletionAction = "process.completed"
         return Result(text: text)
     }
 

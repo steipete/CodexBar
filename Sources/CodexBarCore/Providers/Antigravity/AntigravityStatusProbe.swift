@@ -664,7 +664,7 @@ public struct AntigravityStatusProbe: Sendable {
             context: GovernanceContext(
                 flow: "antigravity-localhost-trust",
                 detail: scheme == "https" ? "self-signed-certificate-bypass" : "http-fallback"))
-        let (data, response) = try await session.codexbarData(for: request, audit: auditOptions)
+        let (data, response) = try await session.codexbarData(for: request, delegate: delegate, audit: auditOptions)
         guard let http = response as? HTTPURLResponse else {
             throw AntigravityStatusProbeError.apiError("Invalid response")
         }
@@ -745,34 +745,36 @@ extension LocalhostSessionDelegate: URLSessionTaskDelegate {
         #if os(Linux)
         return (.performDefaultHandling, nil)
         #else
-let protectionSpace = challenge.protectionSpace
-let trust = protectionSpace.serverTrust
-guard LocalhostTrustPolicy.shouldAcceptServerTrust(
-    host: protectionSpace.host,
-    authenticationMethod: protectionSpace.authenticationMethod,
-    hasServerTrust: trust != nil),
-    let trust
-else {
-    return (.performDefaultHandling, nil)
+        let protectionSpace = challenge.protectionSpace
+        let trust = protectionSpace.serverTrust
+        guard LocalhostTrustPolicy.shouldAcceptServerTrust(
+            host: protectionSpace.host,
+            authenticationMethod: protectionSpace.authenticationMethod,
+            hasServerTrust: trust != nil),
+            let trust
+        else {
+            return (.performDefaultHandling, nil)
+        }
+
+        AuditLogger.record(AuditEvent(
+            category: .network,
+            action: "trust_override.accepted",
+            target: protectionSpace.host,
+            risk: .elevatedRisk,
+            metadata: [
+                "provider": "antigravity",
+                "authentication_method": protectionSpace.authenticationMethod,
+                "host": protectionSpace.host,
+                "port": "\(protectionSpace.port)",
+            ],
+            context: GovernanceContext(
+                flow: "antigravity-localhost-trust",
+                detail: "server-trust-override")))
+
+        return (.useCredential, URLCredential(trust: trust))
+        #endif
+    }
 }
-
-AuditLogger.record(AuditEvent(
-    category: .network,
-    action: "trust_override.accepted",
-    target: protectionSpace.host,
-    risk: .elevatedRisk,
-    metadata: [
-        "provider": "antigravity",
-        "authentication_method": protectionSpace.authenticationMethod,
-        "host": protectionSpace.host,
-        "port": "\(protectionSpace.port)",
-    ],
-    context: GovernanceContext(
-        flow: "antigravity-localhost-trust",
-        detail: "server-trust-override")))
-
-return (.useCredential, URLCredential(trust: trust))
-
 
 private final class LocalhostSessionTaskState: @unchecked Sendable {
     private let lock = NSLock()
