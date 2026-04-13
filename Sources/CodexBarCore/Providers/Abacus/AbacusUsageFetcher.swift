@@ -163,17 +163,13 @@ public enum AbacusUsageFetcher {
         let totalCredits = Self.double(from: computePoints["totalComputePoints"])
         let creditsLeft = Self.double(from: computePoints["computePointsLeft"])
 
-        guard totalCredits != nil || creditsLeft != nil else {
+        guard let totalCredits, let creditsLeft else {
             let keys = computePoints.keys.sorted().joined(separator: ", ")
             throw AbacusUsageError.parseFailed(
                 "Missing credit fields in compute points response. Keys: [\(keys)]")
         }
 
-        let creditsUsed: Double? = if let total = totalCredits, let left = creditsLeft {
-            total - left
-        } else {
-            nil
-        }
+        let creditsUsed = totalCredits - creditsLeft
 
         let nextBillingDate = billingInfo["nextBillingDate"] as? String
         let currentTier = billingInfo["currentTier"] as? String
