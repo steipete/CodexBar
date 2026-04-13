@@ -34,6 +34,50 @@ final class OpenAIDashboardWebViewCache {
     private let idleTimeout: TimeInterval = 60
     private let blankURL = URL(string: "about:blank")!
 
+    private func logCacheEvent(
+        _ message: String,
+        location: String,
+        data: [String: String])
+    {
+        AgentDebugLogger.log(
+            message,
+            hypothesisId: "B",
+            location: location,
+            data: data)
+    }
+
+    private func releaseCachedEntry(_ entry: Entry) {
+        entry.isBusy = false
+        entry.lastUsedAt = Date()
+        self.logCacheEvent(
+            "0.20 releases cached OpenAI webview to idle state",
+            location: "OpenAIDashboardWebViewCache.swift:releaseCached",
+            data: [
+                "currentURLHost": entry.webView.url?.host ?? "none",
+                "currentURLPath": entry.webView.url?.path ?? "",
+                "idleTimeoutSeconds": String(Int(self.idleTimeout)),
+                "entriesAfterRelease": String(self.entries.count),
+            ])
+        self.prepareCachedWebViewForIdle(entry.webView, host: entry.host)
+        self.prune(now: Date())
+    }
+
+    private func releaseNewEntry(_ entry: Entry, webView: WKWebView) {
+        entry.isBusy = false
+        entry.lastUsedAt = Date()
+        self.logCacheEvent(
+            "0.20 releases newly created OpenAI webview to idle state",
+            location: "OpenAIDashboardWebViewCache.swift:releaseNew",
+            data: [
+                "currentURLHost": entry.webView.url?.host ?? "none",
+                "currentURLPath": entry.webView.url?.path ?? "",
+                "idleTimeoutSeconds": String(Int(self.idleTimeout)),
+                "entriesAfterRelease": String(self.entries.count),
+            ])
+        self.prepareCachedWebViewForIdle(webView, host: entry.host)
+        self.prune(now: Date())
+    }
+
     // MARK: - Testing support
 
     #if DEBUG
@@ -129,6 +173,13 @@ final class OpenAIDashboardWebViewCache {
                     try await self.prepareWebView(webView, usageURL: usageURL, timeout: remainingTimeout)
                 } catch {
                     if allowTimeoutRetry, Self.isPrepareTimeout(error) {
+                        self.logCacheEvent(
+                            "0.20 temporary OpenAI webview timed out during prepare",
+                            location: "OpenAIDashboardWebViewCache.swift:acquireBusyRetry",
+                            data: [
+                                "existingEntries": String(self.entries.count),
+                                "remainingTimeoutMs": String(Int(remainingTimeout * 1000)),
+                            ])
                         host.close()
                         log("Temporary OpenAI WebView timed out; retrying with a fresh WebView.")
                         return try await self.acquireTemporaryWebView(
@@ -148,11 +199,27 @@ final class OpenAIDashboardWebViewCache {
 
             entry.isBusy = true
             entry.lastUsedAt = now
+            self.logCacheEvent(
+                "0.20 reuses cached OpenAI webview",
+                location: "OpenAIDashboardWebViewCache.swift:acquire",
+                data: [
+                    "existingEntries": String(self.entries.count),
+                    "idleTimeoutSeconds": String(Int(self.idleTimeout)),
+                    "usageURLHost": usageURL.host ?? "none",
+                    "usageURLPath": usageURL.path,
+                ])
             entry.host.show()
             do {
                 try await self.prepareWebView(entry.webView, usageURL: usageURL, timeout: remainingTimeout)
             } catch {
                 if allowTimeoutRetry, Self.isPrepareTimeout(error) {
+                    self.logCacheEvent(
+                        "0.20 cached OpenAI webview timed out during prepare",
+                        location: "OpenAIDashboardWebViewCache.swift:acquireCachedRetry",
+                        data: [
+                            "existingEntries": String(self.entries.count),
+                            "remainingTimeoutMs": String(Int(remainingTimeout * 1000)),
+                        ])
                     entry.isBusy = false
                     entry.lastUsedAt = Date()
                     entry.host.close()
@@ -178,22 +245,35 @@ final class OpenAIDashboardWebViewCache {
                 log: log,
                 release: { [weak self, weak entry] in
                     guard let self, let entry else { return }
-                    entry.isBusy = false
-                    entry.lastUsedAt = Date()
-                    self.prepareCachedWebViewForIdle(entry.webView, host: entry.host)
-                    self.prune(now: Date())
+                    self.releaseCachedEntry(entry)
                 })
         }
 
         let (webView, host) = self.makeWebView(websiteDataStore: websiteDataStore)
         let entry = Entry(webView: webView, host: host, lastUsedAt: now, isBusy: true)
         self.entries[key] = entry
+        self.logCacheEvent(
+            "0.20 creates cached OpenAI webview",
+            location: "OpenAIDashboardWebViewCache.swift:createEntry",
+            data: [
+                "existingEntries": String(self.entries.count),
+                "idleTimeoutSeconds": String(Int(self.idleTimeout)),
+                "usageURLHost": usageURL.host ?? "none",
+                "usageURLPath": usageURL.path,
+            ])
         host.show()
 
         do {
             try await self.prepareWebView(webView, usageURL: usageURL, timeout: remainingTimeout)
         } catch {
             if allowTimeoutRetry, Self.isPrepareTimeout(error) {
+                self.logCacheEvent(
+                    "0.20 newly created OpenAI webview timed out during prepare",
+                    location: "OpenAIDashboardWebViewCache.swift:createEntryRetry",
+                    data: [
+                        "existingEntries": String(self.entries.count),
+                        "remainingTimeoutMs": String(Int(remainingTimeout * 1000)),
+                    ])
                 self.entries.removeValue(forKey: key)
                 host.close()
                 log("OpenAI WebView timed out during prepare; retrying once.")
@@ -215,10 +295,7 @@ final class OpenAIDashboardWebViewCache {
             log: log,
             release: { [weak self, weak entry] in
                 guard let self, let entry else { return }
-                entry.isBusy = false
-                entry.lastUsedAt = Date()
-                self.prepareCachedWebViewForIdle(webView, host: entry.host)
-                self.prune(now: Date())
+                self.releaseNewEntry(entry, webView: webView)
             })
     }
 
@@ -232,6 +309,15 @@ final class OpenAIDashboardWebViewCache {
     func evictAll() {
         let existing = self.entries
         self.entries.removeAll()
+        if !existing.isEmpty {
+            self.logCacheEvent(
+                "0.20 evicts cached OpenAI webviews after refresh failure or reset",
+                location: "OpenAIDashboardWebViewCache.swift:evictAll",
+                data: [
+                    "evictedEntries": String(existing.count),
+                    "idleTimeoutSeconds": String(Int(self.idleTimeout)),
+                ])
+        }
         for (_, entry) in existing {
             entry.host.close()
         }
@@ -255,6 +341,13 @@ final class OpenAIDashboardWebViewCache {
             !entry.isBusy && now.timeIntervalSince(entry.lastUsedAt) > self.idleTimeout
         }
         for (key, entry) in expired {
+            self.logCacheEvent(
+                "0.20 prunes cached OpenAI webview after shorter idle timeout",
+                location: "OpenAIDashboardWebViewCache.swift:prune",
+                data: [
+                    "idleTimeoutSeconds": String(Int(self.idleTimeout)),
+                    "entriesBeforePrune": String(self.entries.count),
+                ])
             entry.host.close()
             self.entries.removeValue(forKey: key)
             Self.log.debug("OpenAI webview pruned")

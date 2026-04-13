@@ -43,6 +43,7 @@ extension StatusItemController {
         provider: UsageProvider,
         width: CGFloat) -> Bool
     {
+        let startedAt = Date()
         let histories = self.store.planUtilizationHistory(for: provider)
         let snapshot = self.store.snapshot(for: provider)
 
@@ -63,6 +64,16 @@ extension StatusItemController {
         let controller = NSHostingController(rootView: chartView)
         let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        AgentDebugLogger.log(
+            "0.20 usage history submenu rendered",
+            hypothesisId: "T",
+            location: "StatusItemController+UsageHistoryMenu.swift:appendUsageHistoryChartItem",
+            data: [
+                "provider": provider.rawValue,
+                "seriesCount": String(histories.count),
+                "height": String(Int(size.height)),
+                "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+            ])
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting

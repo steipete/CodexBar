@@ -168,6 +168,16 @@ final class SettingsStore {
                 config: config,
                 hadExistingConfig: hadExistingConfig)
         }
+        AgentDebugLogger.log(
+            "0.20 startup OpenAI web access decision",
+            hypothesisId: "A",
+            location: "SettingsStore.swift:init",
+            data: [
+                "codexCookieSource": self.codexCookieSource.rawValue,
+                "openAIWebAccessEnabled": self.openAIWebAccessEnabled ? "1" : "0",
+                "hasStoredPreference": hasStoredOpenAIWebAccessPreference ? "1" : "0",
+                "refreshFrequency": self.refreshFrequency.rawValue,
+            ])
         if Self.shouldBridgeSharedDefaults(for: userDefaults) {
             Self.sharedDefaults?.set(self.debugDisableKeychainAccess, forKey: "debugDisableKeychainAccess")
         }

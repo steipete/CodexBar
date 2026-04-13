@@ -431,6 +431,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func updateIcons() {
+        let startedAt = Date()
         // Avoid flicker: when an animation driver is active, store updates can call `updateIcons()` and
         // briefly overwrite the animated frame with the static (phase=nil) icon.
         let phase: Double? = self.needsMenuBarIconAnimation() ? self.animationPhase : nil
@@ -443,6 +444,19 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
         self.updateAnimationState()
         self.updateBlinkingState()
+        if !self.openMenus.isEmpty || self.store.isRefreshing {
+            AgentDebugLogger.log(
+                "0.20 updateIcons completed during active menu/refresh",
+                hypothesisId: "S",
+                location: "StatusItemController.swift:updateIcons",
+                data: [
+                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+                    "openMenus": String(self.openMenus.count),
+                    "storeRefreshing": self.store.isRefreshing ? "1" : "0",
+                    "shouldMergeIcons": self.shouldMergeIcons ? "1" : "0",
+                    "needsAnimation": self.needsMenuBarIconAnimation() ? "1" : "0",
+                ])
+        }
     }
 
     /// Lazily retrieves or creates a status item for the given provider

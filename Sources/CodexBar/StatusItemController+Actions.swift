@@ -5,6 +5,15 @@ extension StatusItemController {
     // MARK: - Actions reachable from menus
 
     func refreshStore(forceTokenUsage: Bool) {
+        AgentDebugLogger.log(
+            "0.20 status item requested refresh",
+            hypothesisId: "L",
+            location: "StatusItemController+Actions.swift:refreshStore",
+            data: [
+                "forceTokenUsage": forceTokenUsage ? "1" : "0",
+                "openMenus": String(self.openMenus.count),
+                "storeRefreshing": self.store.isRefreshing ? "1" : "0",
+            ])
         Task {
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await self.store.refresh(forceTokenUsage: forceTokenUsage)

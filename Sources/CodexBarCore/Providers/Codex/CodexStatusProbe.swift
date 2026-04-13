@@ -76,6 +76,7 @@ public struct CodexStatusProbe {
     }
 
     public func fetch() async throws -> CodexStatusSnapshot {
+        let startedAt = Date()
         let env = self.environment
         let resolved = BinaryLocator.resolveCodexBinary(env: env, loginPATH: LoginShellPathCache.shared.current)
             ?? self.codexBinary
@@ -83,19 +84,65 @@ public struct CodexStatusProbe {
             throw CodexStatusProbeError.codexNotInstalled
         }
         do {
-            return try await self.runAndParse(binary: resolved, rows: 60, cols: 200, timeout: self.timeout)
+            let snapshot = try await self.runAndParse(binary: resolved, rows: 60, cols: 200, timeout: self.timeout)
+            AgentDebugLogger.log(
+                "0.20 Codex status probe completed on first attempt",
+                hypothesisId: "F",
+                location: "CodexStatusProbe.swift:fetch",
+                data: [
+                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+                    "keepSessionAlive": self.keepCLISessionsAlive ? "1" : "0",
+                ])
+            return snapshot
         } catch let error as CodexStatusProbeError {
             // Retry only parser-level flakes with a short second attempt.
             switch error {
             case .parseFailed:
-                return try await self.runAndParse(
+                AgentDebugLogger.log(
+                    "0.20 Codex status probe retried after parser failure",
+                    hypothesisId: "F",
+                    location: "CodexStatusProbe.swift:fetch",
+                    data: [
+                        "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+                        "keepSessionAlive": self.keepCLISessionsAlive ? "1" : "0",
+                    ])
+                let snapshot = try await self.runAndParse(
                     binary: resolved,
                     rows: 70,
                     cols: 220,
                     timeout: Self.parseRetryTimeoutSeconds)
+                AgentDebugLogger.log(
+                    "0.20 Codex status probe completed after parser retry",
+                    hypothesisId: "F",
+                    location: "CodexStatusProbe.swift:fetch",
+                    data: [
+                        "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+                        "keepSessionAlive": self.keepCLISessionsAlive ? "1" : "0",
+                    ])
+                return snapshot
             default:
+                AgentDebugLogger.log(
+                    "0.20 Codex status probe failed",
+                    hypothesisId: "F",
+                    location: "CodexStatusProbe.swift:fetch",
+                    data: [
+                        "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+                        "keepSessionAlive": self.keepCLISessionsAlive ? "1" : "0",
+                        "error": String(describing: error),
+                    ])
                 throw error
             }
+        } catch {
+            AgentDebugLogger.log(
+                "0.20 Codex status probe failed",
+                hypothesisId: "F",
+                location: "CodexStatusProbe.swift:fetch",
+                data: [
+                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+                    "keepSessionAlive": self.keepCLISessionsAlive ? "1" : "0",
+                    "error": String(describing: error),
+                ])
+            throw error
         }
     }
 

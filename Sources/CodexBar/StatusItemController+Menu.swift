@@ -36,6 +36,14 @@ extension StatusItemController {
             self.hydrateHostedSubviewMenuIfNeeded(menu)
             self.refreshHostedSubviewHeights(in: menu)
             if Self.menuRefreshEnabled, self.isOpenAIWebSubviewMenu(menu) {
+                AgentDebugLogger.log(
+                    "0.20 OpenAI web submenu opened",
+                    hypothesisId: "N",
+                    location: "StatusItemController+Menu.swift:menuWillOpen",
+                    data: [
+                        "menuItems": String(menu.items.count),
+                        "storeRefreshing": self.store.isRefreshing ? "1" : "0",
+                    ])
                 self.store.requestOpenAIDashboardRefreshIfStale(reason: "submenu open")
             }
             self.openMenus[ObjectIdentifier(menu)] = menu
@@ -68,7 +76,19 @@ extension StatusItemController {
             self.markMenuFresh(menu)
             // Heights are already set during populateMenu, no need to remeasure
         }
+        AgentDebugLogger.log(
+            "0.20 top-level menu opened",
+            hypothesisId: "L",
+            location: "StatusItemController+Menu.swift:menuWillOpen",
+            data: [
+                "provider": provider?.rawValue ?? "overview",
+                "didRefresh": didRefresh ? "1" : "0",
+                "menuItems": String(menu.items.count),
+                "storeRefreshing": self.store.isRefreshing ? "1" : "0",
+                "menuRefreshEnabled": Self.menuRefreshEnabled ? "1" : "0",
+            ])
         self.openMenus[ObjectIdentifier(menu)] = menu
+        self.logOpenMenuStructure(menu, provider: provider)
         // Only schedule refresh after menu is registered as open - refreshNow is called async
         if Self.menuRefreshEnabled {
             self.scheduleOpenMenuRefresh(for: menu)
@@ -101,6 +121,7 @@ extension StatusItemController {
     }
 
     private func populateMenu(_ menu: NSMenu, provider: UsageProvider?) {
+        let startedAt = Date()
         let enabledProviders = self.store.enabledProvidersForDisplay()
         let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
         let switcherSelection = self.shouldMergeIcons && enabledProviders.count > 1
@@ -150,6 +171,17 @@ extension StatusItemController {
                 currentProvider: currentProvider,
                 menuWidth: menuWidth,
                 openAIContext: openAIContext)
+            AgentDebugLogger.log(
+                "0.20 menu populated using smart update",
+                hypothesisId: "P",
+                location: "StatusItemController+Menu.swift:populateMenu",
+                data: [
+                    "provider": currentProvider.rawValue,
+                    "menuItems": String(menu.items.count),
+                    "enabledProviders": String(enabledProviders.count),
+                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+                    "hasOpenAIWebItems": openAIContext.hasOpenAIWebMenuItems ? "1" : "0",
+                ])
             return
         }
 
@@ -208,6 +240,29 @@ extension StatusItemController {
             }
         }
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
+        let cardMode = if isOverviewSelected {
+            "overview"
+        } else if tokenAccountDisplay?.showAll == true {
+            "token-accounts"
+        } else if openAIContext.hasOpenAIWebMenuItems {
+            "segmented-openai"
+        } else {
+            "single-card"
+        }
+        AgentDebugLogger.log(
+            "0.20 menu populated",
+            hypothesisId: "P",
+            location: "StatusItemController+Menu.swift:populateMenu",
+            data: [
+                "provider": currentProvider.rawValue,
+                "cardMode": cardMode,
+                "menuItems": String(menu.items.count),
+                "enabledProviders": String(enabledProviders.count),
+                "hasUsageBreakdown": openAIContext.hasUsageBreakdown ? "1" : "0",
+                "hasCreditsHistory": openAIContext.hasCreditsHistory ? "1" : "0",
+                "hasCostHistory": openAIContext.hasCostHistory ? "1" : "0",
+                "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+            ])
     }
 
     /// Smart update: only rebuild content sections when switching providers (keep the switcher intact).

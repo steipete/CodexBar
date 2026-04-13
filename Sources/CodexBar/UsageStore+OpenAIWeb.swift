@@ -67,6 +67,18 @@ extension UsageStore {
                 "batterySaverEnabled": self.settings.openAIWebBatterySaverEnabled ? "1" : "0",
                 "interaction": ProviderInteractionContext.current == .userInitiated ? "user" : "background",
             ])
+        AgentDebugLogger.log(
+            "0.20 stale OpenAI web request evaluated",
+            hypothesisId: "C",
+            location: "UsageStore+OpenAIWeb.swift:requestOpenAIDashboardRefreshIfStale",
+            data: [
+                "reason": reason,
+                "force": forceRefresh ? "1" : "0",
+                "openAIWebAccessEnabled": self.settings.openAIWebAccessEnabled ? "1" : "0",
+                "batterySaverEnabled": self.settings.openAIWebBatterySaverEnabled ? "1" : "0",
+                "refreshIntervalSeconds": String(Int(refreshInterval)),
+                "lastUpdatedAgeSeconds": lastUpdatedAt.map { String(Int(now.timeIntervalSince($0))) } ?? "none",
+            ])
         let expectedGuard = self.currentCodexOpenAIWebRefreshGuard()
         Task { await self.refreshOpenAIDashboardIfNeeded(force: forceRefresh, expectedGuard: expectedGuard) }
     }
@@ -99,6 +111,15 @@ extension UsageStore {
             authorityInput: authority.input,
             attachedAccountEmail: attachedAccountEmail,
             allowCodexUsageBackfill: allowCodexUsageBackfill)
+        OpenAIDashboardFetcher.evictCachedWebView(accountEmail: targetEmail)
+        AgentDebugLogger.log(
+            "0.20 evicts cached OpenAI webview after successful dashboard fetch",
+            hypothesisId: "K",
+            location: "UsageStore+OpenAIWeb.swift:applyOpenAIDashboard",
+            data: [
+                "targetEmailKnown": targetEmail == nil ? "0" : "1",
+                "attachedEmailKnown": attachedAccountEmail == nil ? "0" : "1",
+            ])
     }
 
     func applyOpenAIDashboardFailure(
@@ -236,8 +257,6 @@ extension UsageStore {
                     attachedAccountEmail: attachedAccountEmail)
             }
 
-            OpenAIDashboardFetcher.evictCachedWebView(accountEmail: attachedAccountEmail)
-
         case .displayOnly:
             self.applyOpenAIDashboardCleanup(decision.cleanup, preserveVisibleDashboard: true)
             self.openAIDashboard = dashboard
@@ -246,7 +265,6 @@ extension UsageStore {
             self.lastOpenAIDashboardAttachmentAuthorized = false
             self.lastOpenAIDashboardError = nil
             self.openAIDashboardRequiresLogin = false
-            OpenAIDashboardFetcher.evictCachedWebView(accountEmail: attachedAccountEmail)
 
         case .failClosed:
             self.applyOpenAIDashboardCleanup(decision.cleanup, preserveVisibleDashboard: false)
@@ -376,6 +394,26 @@ extension UsageStore {
 
         let now = Date()
         let minInterval = self.openAIWebRefreshIntervalSeconds()
+        let snapshotAgeSeconds = self.lastOpenAIDashboardSnapshot.map { Int(now.timeIntervalSince($0.updatedAt)) }
+        let willSkipBecauseSnapshotIsFresh = !force &&
+            !self.openAIWebAccountDidChange &&
+            self.lastOpenAIDashboardError == nil &&
+            snapshotAgeSeconds != nil &&
+            TimeInterval(snapshotAgeSeconds ?? 0) < minInterval
+        AgentDebugLogger.log(
+            "0.20 OpenAI web refresh gate evaluated",
+            hypothesisId: "C",
+            location: "UsageStore+OpenAIWeb.swift:refreshOpenAIDashboardIfNeeded",
+            data: [
+                "force": force ? "1" : "0",
+                "openAIWebAccessEnabled": self.settings.openAIWebAccessEnabled ? "1" : "0",
+                "accountDidChange": self.openAIWebAccountDidChange ? "1" : "0",
+                "hasLastError": self.lastOpenAIDashboardError == nil ? "0" : "1",
+                "snapshotAgeSeconds": snapshotAgeSeconds.map(String.init) ?? "none",
+                "refreshIntervalSeconds": String(Int(minInterval)),
+                "willSkipBecauseSnapshotIsFresh": willSkipBecauseSnapshotIsFresh ? "1" : "0",
+                "targetEmailKnown": targetEmail == nil ? "0" : "1",
+            ])
         let refreshGate = OpenAIWebRefreshGateContext(
             force: force,
             accountDidChange: self.openAIWebAccountDidChange,
@@ -385,6 +423,19 @@ extension UsageStore {
             now: now,
             refreshInterval: minInterval)
         if Self.shouldSkipOpenAIWebRefresh(refreshGate) {
+            if let lastAttemptAt = self.lastOpenAIDashboardAttemptAt,
+               now.timeIntervalSince(lastAttemptAt) < minInterval
+            {
+                AgentDebugLogger.log(
+                    "0.20 OpenAI web refresh skipped because recent attempt is still within gate",
+                    hypothesisId: "C",
+                    location: "UsageStore+OpenAIWeb.swift:refreshOpenAIDashboardIfNeeded",
+                    data: [
+                        "secondsSinceLastAttempt": String(Int(now.timeIntervalSince(lastAttemptAt))),
+                        "refreshIntervalSeconds": String(Int(minInterval)),
+                        "hasLastError": self.lastOpenAIDashboardError == nil ? "0" : "1",
+                    ])
+            }
             return
         }
         self.lastOpenAIDashboardAttemptAt = now
@@ -515,6 +566,14 @@ extension UsageStore {
         latestCookieImportStatus: inout String?,
         logger: @escaping (String) -> Void) async
     {
+        AgentDebugLogger.log(
+            "0.20 OpenAI web refresh retried after missing dashboard data",
+            hypothesisId: "I",
+            location: "UsageStore+OpenAIWeb.swift:retryOpenAIDashboardAfterNoData",
+            data: [
+                "bodyPresent": body.isEmpty ? "0" : "1",
+                "targetEmailKnown": context.targetEmail == nil ? "0" : "1",
+            ])
         let targetEmail = self.currentCodexOpenAIWebTargetEmail(
             allowCurrentSnapshotFallback: context.allowCurrentSnapshotFallback,
             allowLastKnownLiveFallback: context.expectedGuard?.identity != .unresolved)
@@ -574,6 +633,14 @@ extension UsageStore {
         latestCookieImportStatus: inout String?,
         logger: @escaping (String) -> Void) async
     {
+        AgentDebugLogger.log(
+            "0.20 OpenAI web refresh retried after login-required result",
+            hypothesisId: "I",
+            location: "UsageStore+OpenAIWeb.swift:retryOpenAIDashboardAfterLoginRequired",
+            data: [
+                "targetEmailKnown": context.targetEmail == nil ? "0" : "1",
+                "cookieStatusKnown": latestCookieImportStatus == nil ? "0" : "1",
+            ])
         let targetEmail = self.currentCodexOpenAIWebTargetEmail(
             allowCurrentSnapshotFallback: context.allowCurrentSnapshotFallback,
             allowLastKnownLiveFallback: context.expectedGuard?.identity != .unresolved)

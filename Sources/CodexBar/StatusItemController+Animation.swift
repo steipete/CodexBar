@@ -595,6 +595,19 @@ extension StatusItemController {
         let needsAnimation = self.needsMenuBarIconAnimation()
         if needsAnimation {
             if self.animationDriver == nil {
+                let primaryProvider = self.primaryProviderForUnifiedIcon()
+                AgentDebugLogger.log(
+                    "0.20 menu bar animation driver started",
+                    hypothesisId: "O",
+                    location: "StatusItemController+Animation.swift:updateAnimationState",
+                    data: [
+                        "primaryProvider": primaryProvider.rawValue,
+                        "selectedMenuProvider": self.selectedMenuProvider?.rawValue ?? "nil",
+                        "snapshotKnown": self.store.snapshot(for: primaryProvider) == nil ? "0" : "1",
+                        "mergedIcons": self.shouldMergeIcons ? "1" : "0",
+                        "enabledProviders": String(self.store.enabledProvidersForDisplay().count),
+                        "refreshingProviders": String(self.store.refreshingProviders.count),
+                    ])
                 if let forced = self.settings.debugLoadingPattern {
                     self.animationPattern = forced
                 } else if !LoadingPattern.allCases.contains(self.animationPattern) {
@@ -611,6 +624,21 @@ extension StatusItemController {
                 self.animationPhase = 0
             }
         } else {
+            if self.animationDriver != nil {
+                let primaryProvider = self.primaryProviderForUnifiedIcon()
+                AgentDebugLogger.log(
+                    "0.20 menu bar animation driver stopped",
+                    hypothesisId: "O",
+                    location: "StatusItemController+Animation.swift:updateAnimationState",
+                    data: [
+                        "primaryProvider": primaryProvider.rawValue,
+                        "selectedMenuProvider": self.selectedMenuProvider?.rawValue ?? "nil",
+                        "snapshotKnown": self.store.snapshot(for: primaryProvider) == nil ? "0" : "1",
+                        "mergedIcons": self.shouldMergeIcons ? "1" : "0",
+                        "enabledProviders": String(self.store.enabledProvidersForDisplay().count),
+                        "refreshingProviders": String(self.store.refreshingProviders.count),
+                    ])
+            }
             self.animationDriver?.stop()
             self.animationDriver = nil
             self.animationPhase = 0

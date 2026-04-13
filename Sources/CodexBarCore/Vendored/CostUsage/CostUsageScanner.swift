@@ -990,6 +990,7 @@ enum CostUsageScanner {
             || nowMs - cache.lastScanUnixMs > refreshMs
 
         if shouldRefresh {
+            let startedAt = Date()
             if options.forceRescan {
                 cache = CostUsageCache()
             }
@@ -1066,6 +1067,17 @@ enum CostUsageScanner {
             cache.roots = rootsFingerprint
             cache.lastScanUnixMs = nowMs
             CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: options.cacheRoot)
+            AgentDebugLogger.log(
+                "0.20 Codex local cost scanner refreshed cache",
+                hypothesisId: "G",
+                location: "CostUsageScanner.swift:loadCodexDaily",
+                data: [
+                    "fileCount": String(files.count),
+                    "rootCount": String(roots.count),
+                    "cacheFiles": String(cache.files.count),
+                    "forceRescan": options.forceRescan ? "1" : "0",
+                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+                ])
         }
 
         return Self.buildCodexReportFromCache(cache: cache, range: range)

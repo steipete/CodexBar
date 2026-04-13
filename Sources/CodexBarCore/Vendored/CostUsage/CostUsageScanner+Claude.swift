@@ -542,6 +542,7 @@ extension CostUsageScanner {
         var touched: Set<String> = []
 
         if shouldRefresh {
+            let startedAt = Date()
             if options.forceRescan {
                 cache = CostUsageCache()
             }
@@ -565,6 +566,18 @@ extension CostUsageScanner {
             Self.pruneDays(cache: &cache, sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
             cache.lastScanUnixMs = nowMs
             CostUsageCacheIO.save(provider: provider, cache: cache, cacheRoot: options.cacheRoot)
+            AgentDebugLogger.log(
+                "0.20 Claude local cost scanner refreshed cache",
+                hypothesisId: "G",
+                location: "CostUsageScanner+Claude.swift:loadClaudeDaily",
+                data: [
+                    "provider": provider.rawValue,
+                    "rootCount": String(roots.count),
+                    "touchedFiles": String(touched.count),
+                    "cacheFiles": String(cache.files.count),
+                    "forceRescan": options.forceRescan ? "1" : "0",
+                    "durationMs": String(Int(Date().timeIntervalSince(startedAt) * 1000)),
+                ])
         }
 
         return Self.buildClaudeReportFromCache(cache: cache, range: range)
