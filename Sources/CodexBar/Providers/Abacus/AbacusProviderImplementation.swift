@@ -88,7 +88,7 @@ struct AbacusProviderImplementation: ProviderImplementation {
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            if let url = URL(string: "https://apps.abacus.ai/compute-points") {
+                            if let url = URL(string: "https://apps.abacus.ai/chatllm/admin/compute-points-usage") {
                                 NSWorkspace.shared.open(url)
                             }
                         }),
