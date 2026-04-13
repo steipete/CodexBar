@@ -45,8 +45,24 @@ extension SettingsStore {
     var governanceAuditModeEnabled: Bool {
         get { self.defaultsState.governanceAuditModeEnabled }
         set {
+            let shouldMaterializeDefaultCategories =
+                newValue &&
+                !self.defaultsState.governanceAuditNetworkRequestsEnabled &&
+                !self.defaultsState.governanceAuditCommandExecutionEnabled &&
+                !self.defaultsState.governanceAuditSecretAccessEnabled
+
             self.defaultsState.governanceAuditModeEnabled = newValue
             self.persistAuditSetting(newValue, key: AuditSettings.modeEnabledKey)
+
+            guard shouldMaterializeDefaultCategories else { return }
+
+            self.defaultsState.governanceAuditNetworkRequestsEnabled = true
+            self.defaultsState.governanceAuditCommandExecutionEnabled = true
+            self.defaultsState.governanceAuditSecretAccessEnabled = true
+
+            self.persistAuditSetting(true, key: AuditSettings.networkEnabledKey)
+            self.persistAuditSetting(true, key: AuditSettings.commandEnabledKey)
+            self.persistAuditSetting(true, key: AuditSettings.secretEnabledKey)
         }
     }
 

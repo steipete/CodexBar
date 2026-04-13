@@ -259,6 +259,31 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `enabling governance audit mode materializes default category coverage`() throws {
+        let suite = "SettingsStoreCoverageTests-governance-audit-materialize-defaults"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(settings.governanceAuditModeEnabled == false)
+        #expect(settings.governanceAuditNetworkRequestsEnabled == false)
+        #expect(settings.governanceAuditCommandExecutionEnabled == false)
+        #expect(settings.governanceAuditSecretAccessEnabled == false)
+
+        settings.governanceAuditModeEnabled = true
+
+        #expect(settings.governanceAuditModeEnabled == true)
+        #expect(settings.governanceAuditNetworkRequestsEnabled == true)
+        #expect(settings.governanceAuditCommandExecutionEnabled == true)
+        #expect(settings.governanceAuditSecretAccessEnabled == true)
+        #expect(defaults.bool(forKey: AuditSettings.modeEnabledKey) == true)
+        #expect(defaults.bool(forKey: AuditSettings.networkEnabledKey) == true)
+        #expect(defaults.bool(forKey: AuditSettings.commandEnabledKey) == true)
+        #expect(defaults.bool(forKey: AuditSettings.secretEnabledKey) == true)
+    }
+
+    @Test
     func `audit settings fall back to shared defaults and local overrides win`() throws {
         let localSuite = "SettingsStoreCoverageTests-audit-local-\(UUID().uuidString)"
         let sharedSuite = "SettingsStoreCoverageTests-audit-shared-\(UUID().uuidString)"
