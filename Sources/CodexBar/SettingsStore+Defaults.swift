@@ -42,12 +42,53 @@ extension SettingsStore {
         }
     }
 
+    var governanceAuditModeEnabled: Bool {
+        get { self.defaultsState.governanceAuditModeEnabled }
+        set {
+            self.defaultsState.governanceAuditModeEnabled = newValue
+            self.persistAuditSetting(newValue, key: AuditSettings.modeEnabledKey)
+        }
+    }
+
+    var governanceAuditNetworkRequestsEnabled: Bool {
+        get { self.defaultsState.governanceAuditNetworkRequestsEnabled }
+        set {
+            self.defaultsState.governanceAuditNetworkRequestsEnabled = newValue
+            self.persistAuditSetting(newValue, key: AuditSettings.networkEnabledKey)
+        }
+    }
+
+    var governanceAuditCommandExecutionEnabled: Bool {
+        get { self.defaultsState.governanceAuditCommandExecutionEnabled }
+        set {
+            self.defaultsState.governanceAuditCommandExecutionEnabled = newValue
+            self.persistAuditSetting(newValue, key: AuditSettings.commandEnabledKey)
+        }
+    }
+
+    var governanceAuditSecretAccessEnabled: Bool {
+        get { self.defaultsState.governanceAuditSecretAccessEnabled }
+        set {
+            self.defaultsState.governanceAuditSecretAccessEnabled = newValue
+            self.persistAuditSetting(newValue, key: AuditSettings.secretEnabledKey)
+        }
+    }
+
     var debugFileLoggingEnabled: Bool {
         get { self.defaultsState.debugFileLoggingEnabled }
         set {
             self.defaultsState.debugFileLoggingEnabled = newValue
             self.userDefaults.set(newValue, forKey: "debugFileLoggingEnabled")
             CodexBarLog.setFileLoggingEnabled(newValue)
+        }
+    }
+
+    var debugPrivacyLoggingEnabled: Bool {
+        get { self.defaultsState.debugPrivacyLoggingEnabled }
+        set {
+            self.defaultsState.debugPrivacyLoggingEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "debugPrivacyLoggingEnabled")
+            CodexBarLog.setPrivacyMinimizationEnabled(newValue)
         }
     }
 
@@ -84,6 +125,13 @@ extension SettingsStore {
             } else {
                 self.userDefaults.removeObject(forKey: "debugLoadingPattern")
             }
+        }
+    }
+
+    private func persistAuditSetting(_ value: Bool, key: String) {
+        self.userDefaults.set(value, forKey: key)
+        if Self.shouldBridgeSharedDefaults(for: self.userDefaults) {
+            Self.sharedDefaults?.set(value, forKey: key)
         }
     }
 

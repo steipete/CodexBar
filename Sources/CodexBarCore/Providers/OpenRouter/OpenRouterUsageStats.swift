@@ -216,7 +216,7 @@ public struct OpenRouterUsageFetcher: Sendable {
         let title = Self.sanitizedHeaderValue(environment[self.clientTitleEnvKey]) ?? Self.defaultClientTitle
         request.setValue(title, forHTTPHeaderField: "X-Title")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.codexbarData(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenRouterUsageError.networkError("Invalid response")
@@ -323,7 +323,7 @@ public struct OpenRouterUsageFetcher: Sendable {
         request.timeoutInterval = timeoutSeconds
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.codexbarData(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200

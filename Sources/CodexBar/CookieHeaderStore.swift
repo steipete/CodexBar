@@ -52,6 +52,15 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             Self.log.debug("Keychain access disabled; skipping cookie load")
             return nil
         }
+        let auditMetadata = [
+            "service": self.service,
+            "account": self.account,
+            "operation": "read",
+        ]
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cookie_header.read",
+            target: self.account,
+            metadata: auditMetadata)
         // Check cache first
         Self.cacheLock.lock()
         if let cached = Self.cache[self.account], !cached.isExpired {
@@ -110,6 +119,15 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             Self.log.debug("Keychain access disabled; skipping cookie store")
             return
         }
+        let auditMetadata = [
+            "service": self.service,
+            "account": self.account,
+            "operation": "write",
+        ]
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cookie_header.write",
+            target: self.account,
+            metadata: auditMetadata)
         guard let raw = header?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty
         else {
@@ -171,6 +189,14 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
 
     private func deleteIfPresent() throws {
         guard !KeychainAccessGate.isDisabled else { return }
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cookie_header.delete",
+            target: self.account,
+            metadata: [
+                "service": self.service,
+                "account": self.account,
+                "operation": "delete",
+            ])
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,

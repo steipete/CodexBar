@@ -148,6 +148,15 @@ public enum KeychainAccessPreflight {
             query[kSecAttrAccount as String] = account
         }
 
+        AuditLogger.recordSecretAccess(
+            action: "keychain.preflight",
+            target: account ?? service,
+            metadata: [
+                "service": service,
+                "account": account ?? "",
+                "operation": "preflight",
+            ])
+
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         switch status {

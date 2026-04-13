@@ -508,7 +508,7 @@ public struct OllamaUsageFetcher: Sendable {
         request.setValue(Self.settingsURL.absoluteString, forHTTPHeaderField: "referer")
 
         let session = self.makeURLSession(diagnostics)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.codexbarData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OllamaUsageError.networkError("Invalid response")
         }

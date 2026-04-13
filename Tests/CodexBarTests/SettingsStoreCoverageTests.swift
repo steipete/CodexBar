@@ -225,6 +225,88 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `governance audit toggles persist across store reload`() throws {
+        let suite = "SettingsStoreCoverageTests-governance-audit"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(first.governanceAuditModeEnabled == false)
+        #expect(first.governanceAuditNetworkRequestsEnabled == false)
+        #expect(first.governanceAuditCommandExecutionEnabled == false)
+        #expect(first.governanceAuditSecretAccessEnabled == false)
+        #expect(first.debugPrivacyLoggingEnabled == false)
+
+        first.governanceAuditModeEnabled = true
+        first.governanceAuditNetworkRequestsEnabled = true
+        first.governanceAuditCommandExecutionEnabled = true
+        first.governanceAuditSecretAccessEnabled = true
+        first.debugPrivacyLoggingEnabled = true
+
+        #expect(defaults.bool(forKey: AuditSettings.modeEnabledKey) == true)
+        #expect(defaults.bool(forKey: AuditSettings.networkEnabledKey) == true)
+        #expect(defaults.bool(forKey: AuditSettings.commandEnabledKey) == true)
+        #expect(defaults.bool(forKey: AuditSettings.secretEnabledKey) == true)
+        #expect(defaults.bool(forKey: "debugPrivacyLoggingEnabled") == true)
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.governanceAuditModeEnabled == true)
+        #expect(second.governanceAuditNetworkRequestsEnabled == true)
+        #expect(second.governanceAuditCommandExecutionEnabled == true)
+        #expect(second.governanceAuditSecretAccessEnabled == true)
+        #expect(second.debugPrivacyLoggingEnabled == true)
+    }
+
+    @Test
+    func `audit settings fall back to shared defaults and local overrides win`() throws {
+        let localSuite = "SettingsStoreCoverageTests-audit-local-\(UUID().uuidString)"
+        let sharedSuite = "SettingsStoreCoverageTests-audit-shared-\(UUID().uuidString)"
+        let localDefaults = try #require(UserDefaults(suiteName: localSuite))
+        let sharedDefaults = try #require(UserDefaults(suiteName: sharedSuite))
+        localDefaults.removePersistentDomain(forName: localSuite)
+        sharedDefaults.removePersistentDomain(forName: sharedSuite)
+
+        sharedDefaults.set(true, forKey: AuditSettings.modeEnabledKey)
+        sharedDefaults.set(true, forKey: AuditSettings.networkEnabledKey)
+        sharedDefaults.set(true, forKey: AuditSettings.commandEnabledKey)
+        sharedDefaults.set(false, forKey: AuditSettings.secretEnabledKey)
+
+        let inherited = AuditSettings.current(userDefaults: localDefaults, sharedDefaults: sharedDefaults)
+        #expect(inherited.modeEnabled == true)
+        #expect(inherited.networkEnabled == true)
+        #expect(inherited.commandEnabled == true)
+        #expect(inherited.secretEnabled == false)
+
+        localDefaults.set(false, forKey: AuditSettings.modeEnabledKey)
+        localDefaults.set(false, forKey: AuditSettings.networkEnabledKey)
+        let overridden = AuditSettings.current(userDefaults: localDefaults, sharedDefaults: sharedDefaults)
+        #expect(overridden.modeEnabled == false)
+        #expect(overridden.networkEnabled == false)
+        #expect(overridden.commandEnabled == true)
+        #expect(overridden.secretEnabled == false)
+    }
+
+    @Test
+    func `audit settings treat enabled mode with no explicit categories as all categories`() throws {
+        let suite = "SettingsStoreCoverageTests-audit-implicit-all-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        defaults.set(true, forKey: AuditSettings.modeEnabledKey)
+
+        let snapshot = AuditSettings.current(userDefaults: defaults, sharedDefaults: nil)
+
+        #expect(snapshot.modeEnabled == true)
+        #expect(snapshot.networkEnabled == true)
+        #expect(snapshot.commandEnabled == true)
+        #expect(snapshot.secretEnabled == true)
+        #expect(snapshot.isEnabled(for: .network) == true)
+        #expect(snapshot.isEnabled(for: .command) == true)
+        #expect(snapshot.isEnabled(for: .secret) == true)
+    }
+
+    @Test
     func `claude keychain prompt mode defaults to only on user action`() {
         let settings = Self.makeSettingsStore()
         #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)

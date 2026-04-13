@@ -273,7 +273,7 @@ public struct OpenCodeUsageFetcher: Sendable {
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
 
-        let (data, response) = try await session.data(for: urlRequest)
+        let (data, response) = try await session.codexbarData(for: urlRequest)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenCodeUsageError.networkError("Invalid response")
         }

@@ -219,7 +219,7 @@ public enum VertexAIUsageFetcher {
             let response: URLResponse
 
             do {
-                (data, response) = try await URLSession.shared.data(for: request)
+                (data, response) = try await URLSession.shared.codexbarData(for: request)
             } catch {
                 throw VertexAIFetchError.networkError(error)
             }

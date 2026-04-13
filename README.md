@@ -70,6 +70,8 @@ The menu bar icon is a tiny two-bar meter:
 ## Privacy note
 Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it reads a small set of known locations (browser cookies/local storage, local JSONL logs) when the related features are enabled. See the discussion and audit notes in [issue #12](https://github.com/steipete/CodexBar/issues/12).
 
+Governance Audit Mode writes a local-only Markdown summary to `~/Library/Logs/CodexBar/Governance Audit Summary.md`. It is opt-in, meant for troubleshooting and observability, groups repeated sensitive actions into a readable summary, and keeps the existing `CodexBar.log` file as the technical debug log.
+
 ## macOS permissions (why they’re needed)
 - **Full Disk Access (optional)**: only required to read Safari cookies/local storage for web-based providers (Codex web, Claude web, Cursor, Droid/Factory). If you don’t grant it, use Chrome/Firefox cookies or CLI-only sources instead.
 - **Keychain access (prompted by macOS)**:

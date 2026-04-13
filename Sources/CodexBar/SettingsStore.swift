@@ -152,6 +152,7 @@ final class SettingsStore {
         self.updateProviderState(config: config)
         self.configLoading = false
         CodexBarLog.setFileLoggingEnabled(self.debugFileLoggingEnabled)
+        CodexBarLog.setPrivacyMinimizationEnabled(self.debugPrivacyLoggingEnabled)
         userDefaults.removeObject(forKey: "showCodexUsage")
         userDefaults.removeObject(forKey: "showClaudeUsage")
         LaunchAtLoginManager.setEnabled(self.launchAtLogin)
@@ -189,7 +190,28 @@ extension SettingsStore {
             }
             return false
         }()
+        let governanceAuditModeEnabled = userDefaults.object(forKey: AuditSettings.modeEnabledKey) as? Bool ?? false
+        let rawGovernanceAuditNetworkRequestsEnabled = userDefaults.object(
+            forKey: AuditSettings.networkEnabledKey) as? Bool ?? false
+        let rawGovernanceAuditCommandExecutionEnabled = userDefaults.object(
+            forKey: AuditSettings.commandEnabledKey) as? Bool ?? false
+        let rawGovernanceAuditSecretAccessEnabled = userDefaults.object(
+            forKey: AuditSettings.secretEnabledKey) as? Bool ?? false
+        let implicitAllGovernanceCategories = governanceAuditModeEnabled
+            && !rawGovernanceAuditNetworkRequestsEnabled
+            && !rawGovernanceAuditCommandExecutionEnabled
+            && !rawGovernanceAuditSecretAccessEnabled
+        let governanceAuditNetworkRequestsEnabled = implicitAllGovernanceCategories
+            ? true
+            : rawGovernanceAuditNetworkRequestsEnabled
+        let governanceAuditCommandExecutionEnabled = implicitAllGovernanceCategories
+            ? true
+            : rawGovernanceAuditCommandExecutionEnabled
+        let governanceAuditSecretAccessEnabled = implicitAllGovernanceCategories
+            ? true
+            : rawGovernanceAuditSecretAccessEnabled
         let debugFileLoggingEnabled = userDefaults.object(forKey: "debugFileLoggingEnabled") as? Bool ?? false
+        let debugPrivacyLoggingEnabled = userDefaults.object(forKey: "debugPrivacyLoggingEnabled") as? Bool ?? false
         let debugLogLevelRaw = userDefaults.string(forKey: "debugLogLevel") ?? CodexBarLog.Level.verbose.rawValue
         if userDefaults.string(forKey: "debugLogLevel") == nil {
             userDefaults.set(debugLogLevelRaw, forKey: "debugLogLevel")
@@ -247,7 +269,12 @@ extension SettingsStore {
             launchAtLogin: launchAtLogin,
             debugMenuEnabled: debugMenuEnabled,
             debugDisableKeychainAccess: debugDisableKeychainAccess,
+            governanceAuditModeEnabled: governanceAuditModeEnabled,
+            governanceAuditNetworkRequestsEnabled: governanceAuditNetworkRequestsEnabled,
+            governanceAuditCommandExecutionEnabled: governanceAuditCommandExecutionEnabled,
+            governanceAuditSecretAccessEnabled: governanceAuditSecretAccessEnabled,
             debugFileLoggingEnabled: debugFileLoggingEnabled,
+            debugPrivacyLoggingEnabled: debugPrivacyLoggingEnabled,
             debugLogLevelRaw: debugLogLevelRaw,
             debugLoadingPatternRaw: debugLoadingPatternRaw,
             debugKeepCLISessionsAlive: debugKeepCLISessionsAlive,

@@ -18,6 +18,14 @@ enum KeychainPromptCoordinator {
     private static func presentKeychainPrompt(_ context: KeychainPromptContext) {
         let (title, message) = self.keychainCopy(for: context)
         self.log.info("Keychain prompt requested", metadata: ["kind": "\(context.kind)"])
+        AuditLogger.recordSecretAccess(
+            action: "keychain.prompt_requested",
+            target: context.account ?? context.service,
+            metadata: [
+                "service": context.service,
+                "kind": "\(context.kind)",
+                "interactive": "1",
+            ])
         self.presentAlert(title: title, message: message)
     }
 
@@ -28,6 +36,13 @@ enum KeychainPromptCoordinator {
             "and authenticate your account. Click OK to continue.",
         ].joined(separator: " ")
         self.log.info("Browser cookie keychain prompt requested", metadata: ["label": context.label])
+        AuditLogger.recordSecretAccess(
+            action: "keychain.browser_cookie_prompt_requested",
+            target: context.label,
+            metadata: [
+                "label": context.label,
+                "interactive": "1",
+            ])
         self.presentAlert(title: title, message: message)
     }
 

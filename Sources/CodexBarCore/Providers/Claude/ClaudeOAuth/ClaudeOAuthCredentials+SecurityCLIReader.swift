@@ -194,11 +194,36 @@ extension ClaudeOAuthCredentialsStore {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
         process.standardInput = nil
+        let auditMetadata = [
+            "argument_count": "\(arguments.count)",
+            "timeout_ms": "\(Int(timeout * 1000))",
+            "service": self.claudeKeychainService,
+            "account_pinned": account == nil ? "0" : "1",
+        ]
+        let governanceContext = GovernanceContext(flow: "claude-security-cli-keychain-read")
+        AuditLogger.recordSecretAccess(
+            action: "keychain.read_via_security_cli",
+            target: self.claudeKeychainService,
+            risk: .elevatedRisk,
+            metadata: ["account_pinned": account == nil ? "0" : "1"],
+            context: governanceContext)
+        AuditLogger.recordCommand(
+            action: "process.started",
+            binary: self.securityBinaryPath,
+            risk: .elevatedRisk,
+            metadata: auditMetadata,
+            context: governanceContext)
 
         let startedAt = DispatchTime.now().uptimeNanoseconds
         do {
             try process.run()
         } catch {
+            AuditLogger.recordCommand(
+                action: "process.launch_failed",
+                binary: self.securityBinaryPath,
+                risk: .elevatedRisk,
+                metadata: auditMetadata.merging(["error": error.localizedDescription], uniquingKeysWith: { _, new in new }),
+                context: governanceContext)
             throw SecurityCLIReadError.launchFailed
         }
 
@@ -215,6 +240,12 @@ extension ClaudeOAuthCredentialsStore {
 
         if process.isRunning {
             self.terminate(process: process, processGroup: processGroup)
+            AuditLogger.recordCommand(
+                action: "process.timed_out",
+                binary: self.securityBinaryPath,
+                risk: .elevatedRisk,
+                metadata: auditMetadata,
+                context: governanceContext)
             throw SecurityCLIReadError.timedOut
         }
 
@@ -223,8 +254,31 @@ extension ClaudeOAuthCredentialsStore {
         let status = process.terminationStatus
         let durationMs = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000.0
         guard status == 0 else {
+            AuditLogger.recordCommand(
+                action: "process.failed",
+                binary: self.securityBinaryPath,
+                risk: .elevatedRisk,
+                metadata: auditMetadata.merging(
+                    [
+                        "status": "\(status)",
+                        "duration_ms": String(format: "%.2f", durationMs),
+                    ],
+                    uniquingKeysWith: { _, new in new }),
+                context: governanceContext)
             throw SecurityCLIReadError.nonZeroExit(status: status, stderrLength: stderr.count)
         }
+
+        AuditLogger.recordCommand(
+            action: "process.completed",
+            binary: self.securityBinaryPath,
+            risk: .elevatedRisk,
+            metadata: auditMetadata.merging(
+                [
+                    "status": "\(status)",
+                    "duration_ms": String(format: "%.2f", durationMs),
+                ],
+                uniquingKeysWith: { _, new in new }),
+            context: governanceContext)
 
         return SecurityCLIReadCommandResult(
             status: status,

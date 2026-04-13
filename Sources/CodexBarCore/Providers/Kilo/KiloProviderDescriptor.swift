@@ -118,6 +118,14 @@ struct KiloCLIFetchStrategy: ProviderFetchStrategy {
 
         let data: Data
         do {
+            AuditLogger.recordSecretAccess(
+                action: "file.auth_json.read",
+                target: authFileURL.lastPathComponent,
+                metadata: [
+                    "path": authFileURL.path,
+                    "operation": "read",
+                    "provider": "kilo",
+                ])
             data = try Data(contentsOf: authFileURL)
         } catch {
             throw KiloUsageError.cliSessionUnreadable(authFileURL.path)

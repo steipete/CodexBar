@@ -142,9 +142,19 @@ public enum SubprocessRunner {
 
         let start = Date()
         let binaryName = URL(fileURLWithPath: binary).lastPathComponent
+        let auditMetadata = [
+            "label": label,
+            "argument_count": "\(arguments.count)",
+            "timeout_ms": "\(Int(timeout * 1000))",
+        ]
         self.log.debug(
             "Subprocess start",
             metadata: ["label": label, "binary": binaryName, "timeout": "\(timeout)"])
+        AuditLogger.recordCommand(
+            action: "process.started",
+            binary: binary,
+            risk: AuditLogger.inferredCommandRisk(binary: binary),
+            metadata: auditMetadata)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
@@ -170,6 +180,11 @@ public enum SubprocessRunner {
             stdoutPipe.fileHandleForWriting.closeFile()
             stderrPipe.fileHandleForReading.closeFile()
             stderrPipe.fileHandleForWriting.closeFile()
+            AuditLogger.recordCommand(
+                action: "process.launch_failed",
+                binary: binary,
+                risk: AuditLogger.inferredCommandRisk(binary: binary),
+                metadata: auditMetadata.merging(["error": error.localizedDescription], uniquingKeysWith: { _, new in new }))
             throw SubprocessRunnerError.launchFailed(error.localizedDescription)
         }
 
@@ -222,6 +237,13 @@ public enum SubprocessRunner {
                         "binary": binaryName,
                         "duration_ms": "\(Int(duration * 1000))",
                     ])
+                AuditLogger.recordCommand(
+                    action: "process.timed_out",
+                    binary: binary,
+                    risk: AuditLogger.inferredCommandRisk(binary: binary),
+                    metadata: auditMetadata.merging(
+                        ["duration_ms": "\(Int(duration * 1000))"],
+                        uniquingKeysWith: { _, new in new }))
                 stdoutTask.cancel()
                 stderrTask.cancel()
                 throw SubprocessRunnerError.timedOut(label)
@@ -242,6 +264,16 @@ public enum SubprocessRunner {
                         "status": "\(exitCode)",
                         "duration_ms": "\(Int(duration * 1000))",
                     ])
+                AuditLogger.recordCommand(
+                    action: "process.failed",
+                    binary: binary,
+                    risk: AuditLogger.inferredCommandRisk(binary: binary),
+                    metadata: auditMetadata.merging(
+                        [
+                            "status": "\(exitCode)",
+                            "duration_ms": "\(Int(duration * 1000))",
+                        ],
+                        uniquingKeysWith: { _, new in new }))
                 throw SubprocessRunnerError.nonZeroExit(code: exitCode, stderr: stderr)
             }
 
@@ -254,6 +286,16 @@ public enum SubprocessRunner {
                     "status": "\(exitCode)",
                     "duration_ms": "\(Int(duration * 1000))",
                 ])
+            AuditLogger.recordCommand(
+                action: "process.completed",
+                binary: binary,
+                risk: AuditLogger.inferredCommandRisk(binary: binary),
+                metadata: auditMetadata.merging(
+                    [
+                        "status": "\(exitCode)",
+                        "duration_ms": "\(Int(duration * 1000))",
+                    ],
+                    uniquingKeysWith: { _, new in new }))
             return SubprocessResult(stdout: stdout, stderr: stderr)
         } catch {
             let duration = Date().timeIntervalSince(start)
@@ -264,6 +306,16 @@ public enum SubprocessRunner {
                     "binary": binaryName,
                     "duration_ms": "\(Int(duration * 1000))",
                 ])
+            AuditLogger.recordCommand(
+                action: "process.error",
+                binary: binary,
+                risk: AuditLogger.inferredCommandRisk(binary: binary),
+                metadata: auditMetadata.merging(
+                    [
+                        "duration_ms": "\(Int(duration * 1000))",
+                        "error": error.localizedDescription,
+                    ],
+                    uniquingKeysWith: { _, new in new }))
             // Safety net: ensure the process is dead (may already be killed by timeout task).
             self.terminateProcess(process, processGroup: processGroup)
             exitCodeTask.cancel()

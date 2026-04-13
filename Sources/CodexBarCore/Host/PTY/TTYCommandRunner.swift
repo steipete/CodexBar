@@ -428,6 +428,13 @@ public struct TTYCommandRunner {
             env["PWD"] = workingDirectory.path
         }
         proc.environment = env
+        let auditMetadata = [
+            "argument_count": "\(options.extraArgs.count)",
+            "timeout_ms": "\(Int(options.timeout * 1000))",
+            "binary_name": binaryName,
+            "working_directory_set": options.workingDirectory == nil ? "0" : "1",
+        ]
+        let auditRisk = AuditLogger.inferredCommandRisk(binary: resolved)
 
         var cleanedUp = false
         var didLaunch = false
@@ -470,6 +477,13 @@ public struct TTYCommandRunner {
 
             cleanedUp = true
             if didLaunch {
+                AuditLogger.recordCommand(
+                    action: "process.completed",
+                    binary: resolved,
+                    risk: auditRisk,
+                    metadata: auditMetadata.merging(["status": "\(proc.terminationStatus)"], uniquingKeysWith: { _, new in new }))
+            }
+            if didLaunch {
                 TTYCommandRunnerActiveProcessRegistry.unregister(pid: proc.processIdentifier)
             }
         }
@@ -477,6 +491,11 @@ public struct TTYCommandRunner {
         // Ensure the PTY process is always torn down, even when we throw early (e.g. login prompt).
         defer { cleanup() }
 
+        AuditLogger.recordCommand(
+            action: "process.started",
+            binary: resolved,
+            risk: auditRisk,
+            metadata: auditMetadata)
         do {
             try proc.run()
             didLaunch = true
@@ -484,6 +503,11 @@ public struct TTYCommandRunner {
             Self.log.warning(
                 "PTY launch failed",
                 metadata: ["binary": binaryName, "error": error.localizedDescription])
+            AuditLogger.recordCommand(
+                action: "process.launch_failed",
+                binary: resolved,
+                risk: auditRisk,
+                metadata: auditMetadata.merging(["error": error.localizedDescription], uniquingKeysWith: { _, new in new }))
             throw Error.launchFailed(error.localizedDescription)
         }
 
@@ -502,6 +526,11 @@ public struct TTYCommandRunner {
             TTYCommandRunnerActiveProcessRegistry.updateProcessGroup(pid: pid, processGroup: processGroup)
         }
         Self.log.debug("PTY launched", metadata: ["binary": binaryName])
+        AuditLogger.recordCommand(
+            action: "process.launched",
+            binary: resolved,
+            risk: auditRisk,
+            metadata: auditMetadata.merging(["pid": "\(pid)"], uniquingKeysWith: { _, new in new }))
 
         func send(_ text: String) throws {
             guard let data = text.data(using: .utf8) else { return }

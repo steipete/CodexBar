@@ -98,7 +98,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("CodexBar", forHTTPHeaderField: "MM-API-Source")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.codexbarData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MiniMaxUsageError.networkError("Invalid response")
         }
@@ -142,7 +142,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             self.resolveCodingPlanRefererURL(region: region, environment: environment).absoluteString,
             forHTTPHeaderField: "referer")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.codexbarData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MiniMaxUsageError.networkError("Invalid response")
         }
@@ -201,7 +201,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             self.resolveCodingPlanRefererURL(region: region, environment: environment).absoluteString,
             forHTTPHeaderField: "referer")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.codexbarData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MiniMaxUsageError.networkError("Invalid response")
         }

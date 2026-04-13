@@ -71,8 +71,10 @@ public enum CodexBarLog {
 
     private static let lock = NSLock()
     private static let levelLock = NSLock()
+    private static let privacyLock = NSLock()
     private nonisolated(unsafe) static var isBootstrapped = false
     private nonisolated(unsafe) static var currentLevel: Level = .info
+    private nonisolated(unsafe) static var privacyMinimizationEnabled = false
 
     public static func bootstrapIfNeeded(_ config: Configuration) {
         self.lock.lock()
@@ -151,6 +153,21 @@ public enum CodexBarLog {
         let state = enabled ? "enabled" : "disabled"
         let logger = self.logger(LogCategories.logging)
         logger.info("File logging \(state)", metadata: ["path": self.fileLogURL.path])
+    }
+
+    public static func setPrivacyMinimizationEnabled(_ enabled: Bool) {
+        self.privacyLock.lock()
+        self.privacyMinimizationEnabled = enabled
+        self.privacyLock.unlock()
+        let state = enabled ? "enabled" : "disabled"
+        let logger = self.logger(LogCategories.logging)
+        logger.info("Privacy-conscious file logging \(state)")
+    }
+
+    static func isPrivacyMinimizationEnabled() -> Bool {
+        self.privacyLock.lock()
+        defer { self.privacyLock.unlock() }
+        return self.privacyMinimizationEnabled
     }
 }
 
