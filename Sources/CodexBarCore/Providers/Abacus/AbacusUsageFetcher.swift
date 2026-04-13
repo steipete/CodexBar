@@ -13,10 +13,11 @@ public enum AbacusCookieImporter {
     private static let cookieDomains = ["abacus.ai", "apps.abacus.ai"]
 
     /// Exact cookie names known to carry Abacus session state.
+    /// CSRF tokens are deliberately excluded — they are present in anonymous
+    /// jars and do not indicate an authenticated session.
     private static let knownSessionCookieNames: Set<String> = [
         "sessionid", "session_id", "session_token",
         "auth_token", "access_token",
-        "csrftoken", "csrf_token",
     ]
 
     /// Substrings that indicate a session or auth cookie (applied only when
@@ -143,6 +144,13 @@ public enum AbacusUsageError: LocalizedError, Sendable {
     case parseFailed(String)
     case unauthorized
 
+    var isAuthRelated: Bool {
+        switch self {
+        case .unauthorized, .sessionExpired: true
+        default: false
+        }
+    }
+
     public var errorDescription: String? {
         switch self {
         case .noSessionCookie:
@@ -225,7 +233,14 @@ public enum AbacusUsageFetcher {
             url: self.billingInfoURL, method: "POST", cookieHeader: cookieHeader, timeout: timeout)
 
         let cpResult = try await computePoints
-        let biResult = await (try? billingInfo) ?? [:]
+        let biResult: [String: Any]
+        do {
+            biResult = try await billingInfo
+        } catch let error as AbacusUsageError where error.isAuthRelated {
+            throw error
+        } catch {
+            biResult = [:]
+        }
 
         return Self.parseResults(computePoints: cpResult, billingInfo: biResult)
     }
