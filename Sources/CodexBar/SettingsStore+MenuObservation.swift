@@ -19,6 +19,7 @@ extension SettingsStore {
         _ = self.historicalTrackingEnabled
         _ = self.showAllTokenAccountsInMenu
         _ = self.menuBarMetricPreferencesRaw
+        _ = self.codexSessionAnalyticsWindowSize
         _ = self.costUsageEnabled
         _ = self.hidePersonalInfo
         _ = self.randomBlinkEnabled

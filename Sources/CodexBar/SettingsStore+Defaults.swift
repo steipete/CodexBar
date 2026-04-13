@@ -168,6 +168,15 @@ extension SettingsStore {
         }
     }
 
+    var codexSessionAnalyticsWindowSize: Int {
+        get { self.defaultsState.codexSessionAnalyticsWindowSize }
+        set {
+            let normalized = Self.normalizedCodexSessionAnalyticsWindowSize(newValue)
+            self.defaultsState.codexSessionAnalyticsWindowSize = normalized
+            self.userDefaults.set(normalized, forKey: "codexSessionAnalyticsWindowSize")
+        }
+    }
+
     var costUsageEnabled: Bool {
         get { self.defaultsState.costUsageEnabled }
         set {

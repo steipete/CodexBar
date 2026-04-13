@@ -262,6 +262,12 @@ extension SettingsStore {
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
+        let storedAnalyticsWindowSize = userDefaults.object(forKey: "codexSessionAnalyticsWindowSize") as? Int
+        let codexSessionAnalyticsWindowSize = Self.normalizedCodexSessionAnalyticsWindowSize(
+            storedAnalyticsWindowSize ?? 20)
+        if storedAnalyticsWindowSize != codexSessionAnalyticsWindowSize {
+            userDefaults.set(codexSessionAnalyticsWindowSize, forKey: "codexSessionAnalyticsWindowSize")
+        }
 
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -297,7 +303,8 @@ extension SettingsStore {
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
-            providerDetectionCompleted: providerDetectionCompleted)
+            providerDetectionCompleted: providerDetectionCompleted,
+            codexSessionAnalyticsWindowSize: codexSessionAnalyticsWindowSize)
     }
 }
 

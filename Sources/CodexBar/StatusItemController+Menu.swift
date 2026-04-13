@@ -28,6 +28,13 @@ extension StatusItemController {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        if self.isSessionAnalyticsRootMenu(menu) {
+            self.populateSessionAnalyticsSubmenu(menu)
+            self.refreshHostedSubviewHeights(in: menu)
+            self.openMenus[ObjectIdentifier(menu)] = menu
+            return
+        }
+
         if self.isHostedSubviewMenu(menu) {
             self.refreshHostedSubviewHeights(in: menu)
             if Self.menuRefreshEnabled, self.isOpenAIWebSubviewMenu(menu) {
@@ -198,7 +205,9 @@ extension StatusItemController {
                 currentProvider: currentProvider,
                 context: openAIContext,
                 addedOpenAIWebItems: addedOpenAIWebItems)
-            if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
+            let addedUsageHistory = self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider)
+            let addedSessionAnalytics = self.addSessionAnalyticsMenuItemIfNeeded(to: menu, provider: currentProvider)
+            if addedUsageHistory || addedSessionAnalytics {
                 menu.addItem(.separator())
             }
         }
@@ -252,7 +261,9 @@ extension StatusItemController {
             currentProvider: currentProvider,
             context: openAIContext,
             addedOpenAIWebItems: addedOpenAIWebItems)
-        if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
+        let addedUsageHistory = self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider)
+        let addedSessionAnalytics = self.addSessionAnalyticsMenuItemIfNeeded(to: menu, provider: currentProvider)
+        if addedUsageHistory || addedSessionAnalytics {
             menu.addItem(.separator())
         }
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
@@ -782,6 +793,12 @@ extension StatusItemController {
                 continue
             }
 
+            if self.isSessionAnalyticsRootMenu(menu) {
+                self.populateSessionAnalyticsSubmenu(menu)
+                self.refreshHostedSubviewHeights(in: menu)
+                continue
+            }
+
             if self.isHostedSubviewMenu(menu) {
                 self.refreshHostedSubviewHeights(in: menu)
                 continue
@@ -908,6 +925,7 @@ extension StatusItemController {
         id: String,
         width: CGFloat,
         submenu: NSMenu? = nil,
+        showsSubmenuIndicator: Bool = true,
         submenuIndicatorAlignment: Alignment = .topTrailing,
         submenuIndicatorTopPadding: CGFloat = 8,
         onClick: (() -> Void)? = nil) -> NSMenuItem
@@ -927,7 +945,7 @@ extension StatusItemController {
         let highlightState = MenuCardHighlightState()
         let wrapped = MenuCardSectionContainerView(
             highlightState: highlightState,
-            showsSubmenuIndicator: submenu != nil,
+            showsSubmenuIndicator: submenu != nil && showsSubmenuIndicator,
             submenuIndicatorAlignment: submenuIndicatorAlignment,
             submenuIndicatorTopPadding: submenuIndicatorTopPadding)
         {
@@ -1312,30 +1330,6 @@ extension StatusItemController {
         chartItem.representedObject = "costHistoryChart"
         submenu.addItem(chartItem)
         return submenu
-    }
-
-    private func isHostedSubviewMenu(_ menu: NSMenu) -> Bool {
-        let ids: Set = [
-            "usageBreakdownChart",
-            "creditsHistoryChart",
-            "costHistoryChart",
-            "usageHistoryChart",
-        ]
-        return menu.items.contains { item in
-            guard let id = item.representedObject as? String else { return false }
-            return ids.contains(id)
-        }
-    }
-
-    private func isOpenAIWebSubviewMenu(_ menu: NSMenu) -> Bool {
-        let ids: Set = [
-            "usageBreakdownChart",
-            "creditsHistoryChart",
-        ]
-        return menu.items.contains { item in
-            guard let id = item.representedObject as? String else { return false }
-            return ids.contains(id)
-        }
     }
 
     private func refreshHostedSubviewHeights(in menu: NSMenu) {
