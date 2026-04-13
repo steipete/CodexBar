@@ -152,8 +152,10 @@ public enum AbacusUsageFetcher {
             let errorMsg = (root["error"] as? String ?? "Unknown error").lowercased()
             if errorMsg.contains("expired") || errorMsg.contains("session")
                 || errorMsg.contains("login") || errorMsg.contains("authenticate")
+                || errorMsg.contains("unauthorized") || errorMsg.contains("unauthenticated")
+                || errorMsg.contains("forbidden")
             {
-                throw AbacusUsageError.sessionExpired
+                throw AbacusUsageError.unauthorized
             }
             throw AbacusUsageError.parseFailed("\(url.lastPathComponent): \(errorMsg)")
         }
