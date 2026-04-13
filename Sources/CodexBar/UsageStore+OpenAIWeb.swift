@@ -236,6 +236,8 @@ extension UsageStore {
                     attachedAccountEmail: attachedAccountEmail)
             }
 
+            OpenAIDashboardFetcher.evictCachedWebView(accountEmail: attachedAccountEmail)
+
         case .displayOnly:
             self.applyOpenAIDashboardCleanup(decision.cleanup, preserveVisibleDashboard: true)
             self.openAIDashboard = dashboard
@@ -244,6 +246,7 @@ extension UsageStore {
             self.lastOpenAIDashboardAttachmentAuthorized = false
             self.lastOpenAIDashboardError = nil
             self.openAIDashboardRequiresLogin = false
+            OpenAIDashboardFetcher.evictCachedWebView(accountEmail: attachedAccountEmail)
 
         case .failClosed:
             self.applyOpenAIDashboardCleanup(decision.cleanup, preserveVisibleDashboard: false)
