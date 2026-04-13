@@ -63,7 +63,7 @@ struct AbacusDescriptorTests {
 
 struct AbacusUsageSnapshotTests {
     @Test
-    func `converts full snapshot to usage snapshot`() {
+    func `converts full snapshot to usage snapshot`() throws {
         let resetDate = Date(timeIntervalSince1970: 1_700_000_000)
         let snapshot = AbacusUsageSnapshot(
             creditsUsed: 250,
@@ -77,7 +77,10 @@ struct AbacusUsageSnapshotTests {
         #expect(abs((usage.primary?.usedPercent ?? 0) - 25.0) < 0.01)
         #expect(usage.primary?.resetDescription == "250 / 1,000 credits")
         #expect(usage.primary?.resetsAt == resetDate)
-        #expect(usage.primary?.windowMinutes == 30 * 24 * 60)
+        // Window derived from actual billing cycle (1 calendar month before resetDate)
+        let cycleStart = try #require(Calendar.current.date(byAdding: .month, value: -1, to: resetDate))
+        let expectedMinutes = Int(resetDate.timeIntervalSince(cycleStart) / 60)
+        #expect(usage.primary?.windowMinutes == expectedMinutes)
         #expect(usage.secondary == nil)
         #expect(usage.tertiary == nil)
         #expect(usage.identity?.providerID == .abacus)

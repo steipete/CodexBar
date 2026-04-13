@@ -31,9 +31,15 @@ public struct AbacusUsageSnapshot: Sendable {
             nil
         }
 
-        // Use windowMinutes matching the monthly billing cycle so pace calculation works.
-        // Approximate 1 month as 30 days.
-        let windowMinutes = 30 * 24 * 60
+        // Derive window from actual billing cycle when possible.
+        // Assume the cycle started one calendar month before resetsAt.
+        let windowMinutes: Int = if let resetDate = self.resetsAt,
+                                    let cycleStart = Calendar.current.date(byAdding: .month, value: -1, to: resetDate)
+        {
+            max(1, Int(resetDate.timeIntervalSince(cycleStart) / 60))
+        } else {
+            30 * 24 * 60
+        }
 
         let primary = RateWindow(
             usedPercent: percentUsed,
