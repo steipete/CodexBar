@@ -48,6 +48,8 @@ public enum AbacusProviderDescriptor {
     }
 }
 
+// MARK: - Fetch Strategy
+
 struct AbacusWebFetchStrategy: ProviderFetchStrategy {
     let id: String = "abacus.web"
     let kind: ProviderFetchKind = .web

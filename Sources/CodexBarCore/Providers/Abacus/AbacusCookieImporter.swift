@@ -3,6 +3,8 @@ import Foundation
 #if os(macOS)
 import SweetCookieKit
 
+// MARK: - Abacus Cookie Importer
+
 public enum AbacusCookieImporter {
     private static let log = CodexBarLog.logger(LogCategories.abacusCookie)
     private static let cookieClient = BrowserCookieClient()
@@ -30,6 +32,11 @@ public enum AbacusCookieImporter {
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
         public let sourceLabel: String
+
+        public init(cookies: [HTTPCookie], sourceLabel: String) {
+            self.cookies = cookies
+            self.sourceLabel = sourceLabel
+        }
 
         public var cookieHeader: String {
             self.cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")

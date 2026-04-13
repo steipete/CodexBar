@@ -234,3 +234,42 @@ struct AbacusErrorTests {
         #expect(error.errorDescription?.contains("log in") == true)
     }
 }
+
+// MARK: - Error Classification Tests
+
+struct AbacusErrorClassificationTests {
+    @Test
+    func `unauthorized is recoverable and auth related`() {
+        let error = AbacusUsageError.unauthorized
+        #expect(error.isRecoverable == true)
+        #expect(error.isAuthRelated == true)
+    }
+
+    @Test
+    func `sessionExpired is recoverable and auth related`() {
+        let error = AbacusUsageError.sessionExpired
+        #expect(error.isRecoverable == true)
+        #expect(error.isAuthRelated == true)
+    }
+
+    @Test
+    func `parseFailed is not recoverable`() {
+        let error = AbacusUsageError.parseFailed("bad json")
+        #expect(error.isRecoverable == false)
+        #expect(error.isAuthRelated == false)
+    }
+
+    @Test
+    func `networkError is not recoverable`() {
+        let error = AbacusUsageError.networkError("timeout")
+        #expect(error.isRecoverable == false)
+        #expect(error.isAuthRelated == false)
+    }
+
+    @Test
+    func `noSessionCookie is not recoverable`() {
+        let error = AbacusUsageError.noSessionCookie
+        #expect(error.isRecoverable == false)
+        #expect(error.isAuthRelated == false)
+    }
+}
