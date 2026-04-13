@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import CodexBarMacroSupport
 import Foundation

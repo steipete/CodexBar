@@ -3,184 +3,10 @@ import Foundation
 #if os(macOS)
 import SweetCookieKit
 
-private let abacusCookieImportOrder: BrowserCookieImportOrder =
-    ProviderDefaults.metadata[.abacus]?.browserCookieOrder ?? Browser.defaultImportOrder
-
-// MARK: - Abacus Cookie Importer
-
-public enum AbacusCookieImporter {
-    private static let cookieClient = BrowserCookieClient()
-    private static let cookieDomains = ["abacus.ai", "apps.abacus.ai"]
-
-    /// Exact cookie names known to carry Abacus session state.
-    /// CSRF tokens are deliberately excluded — they are present in anonymous
-    /// jars and do not indicate an authenticated session.
-    private static let knownSessionCookieNames: Set<String> = [
-        "sessionid", "session_id", "session_token",
-        "auth_token", "access_token",
-    ]
-
-    /// Substrings that indicate a session or auth cookie (applied only when
-    /// no exact-name match is found). Deliberately excludes overly broad
-    /// patterns like "id" and "token" that match analytics/CSRF cookies.
-    private static let sessionCookieSubstrings = ["session", "auth", "sid", "jwt"]
-
-    /// Cookie name prefixes that indicate a non-session cookie even when a
-    /// substring match would otherwise accept it (e.g. "csrftoken").
-    private static let excludedCookiePrefixes = ["csrf", "_ga", "_gid", "tracking", "analytics"]
-
-    public struct SessionInfo: Sendable {
-        public let cookies: [HTTPCookie]
-        public let sourceLabel: String
-
-        public var cookieHeader: String {
-            self.cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-        }
-    }
-
-    /// Returns all candidate sessions across browsers/profiles, ordered by
-    /// import priority.  Callers should try each in turn so that a stale
-    /// session in the first source doesn't block a valid one further down.
-    public static func importSessions(logger: ((String) -> Void)? = nil) throws -> [SessionInfo] {
-        let log: (String) -> Void = { msg in logger?("[abacus-cookie] \(msg)") }
-        var candidates: [SessionInfo] = []
-
-        for browserSource in abacusCookieImportOrder {
-            do {
-                let query = BrowserCookieQuery(domains: cookieDomains)
-                let sources = try Self.cookieClient.codexBarRecords(
-                    matching: query,
-                    in: browserSource,
-                    logger: log)
-                for source in sources where !source.records.isEmpty {
-                    let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                    guard !httpCookies.isEmpty else { continue }
-
-                    guard Self.containsSessionCookie(httpCookies) else {
-                        let cookieNames = httpCookies.map(\.name).joined(separator: ", ")
-                        log("Skipping \(source.label): no session cookie found among [\(cookieNames)]")
-                        continue
-                    }
-
-                    let cookieNames = httpCookies.map(\.name).joined(separator: ", ")
-                    log("Found \(httpCookies.count) cookies in \(source.label): \(cookieNames)")
-                    candidates.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
-                }
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
-            }
-        }
-
-        if candidates.isEmpty {
-            throw AbacusUsageError.noSessionCookie
-        }
-        return candidates
-    }
-
-    /// Returns `true` if the cookie set contains at least one cookie whose name
-    /// indicates session or authentication state.  Checks exact known names
-    /// first, then falls back to conservative substring matching.
-    private static func containsSessionCookie(_ cookies: [HTTPCookie]) -> Bool {
-        cookies.contains { cookie in
-            let lower = cookie.name.lowercased()
-            if self.knownSessionCookieNames.contains(lower) { return true }
-            if self.excludedCookiePrefixes.contains(where: { lower.hasPrefix($0) }) { return false }
-            return self.sessionCookieSubstrings.contains { lower.contains($0) }
-        }
-    }
-}
-
-// MARK: - Abacus Usage Snapshot
-
-public struct AbacusUsageSnapshot: Sendable {
-    public let creditsUsed: Double?
-    public let creditsTotal: Double?
-    public let resetsAt: Date?
-    public let planName: String?
-
-    public func toUsageSnapshot() -> UsageSnapshot {
-        let percentUsed: Double = if let used = self.creditsUsed, let total = self.creditsTotal, total > 0 {
-            (used / total) * 100.0
-        } else {
-            0
-        }
-
-        let resetDesc: String? = if let used = self.creditsUsed, let total = self.creditsTotal {
-            "\(Self.formatCredits(used)) / \(Self.formatCredits(total)) credits"
-        } else {
-            nil
-        }
-
-        // Use windowMinutes matching the monthly billing cycle so pace calculation works.
-        // Approximate 1 month as 30 days.
-        let windowMinutes = 30 * 24 * 60
-
-        let primary = RateWindow(
-            usedPercent: percentUsed,
-            windowMinutes: windowMinutes,
-            resetsAt: self.resetsAt,
-            resetDescription: resetDesc)
-
-        let identity = ProviderIdentitySnapshot(
-            providerID: .abacus,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: self.planName)
-
-        return UsageSnapshot(
-            primary: primary,
-            secondary: nil,
-            tertiary: nil,
-            providerCost: nil,
-            updatedAt: Date(),
-            identity: identity)
-    }
-
-    private static func formatCredits(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = value >= 1000 ? 0 : 1
-        formatter.groupingSeparator = ","
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
-    }
-}
-
-// MARK: - Abacus Usage Error
-
-public enum AbacusUsageError: LocalizedError, Sendable {
-    case noSessionCookie
-    case sessionExpired
-    case networkError(String)
-    case parseFailed(String)
-    case unauthorized
-
-    var isAuthRelated: Bool {
-        switch self {
-        case .unauthorized, .sessionExpired: true
-        default: false
-        }
-    }
-
-    public var errorDescription: String? {
-        switch self {
-        case .noSessionCookie:
-            "No Abacus AI session found. Please log in to apps.abacus.ai in \(abacusCookieImportOrder.loginHint)."
-        case .sessionExpired:
-            "Abacus AI session expired. Please log in again."
-        case let .networkError(msg):
-            "Abacus AI API error: \(msg)"
-        case let .parseFailed(msg):
-            "Could not parse Abacus AI usage: \(msg)"
-        case .unauthorized:
-            "Unauthorized. Please log in to Abacus AI."
-        }
-    }
-}
-
 // MARK: - Abacus Usage Fetcher
 
 public enum AbacusUsageFetcher {
+    private static let log = CodexBarLog.logger(LogCategories.abacusUsage)
     private static let computePointsURL =
         URL(string: "https://apps.abacus.ai/api/_getOrganizationComputePoints")!
     private static let billingInfoURL =
@@ -191,61 +17,65 @@ public enum AbacusUsageFetcher {
         timeout: TimeInterval = 15.0,
         logger: ((String) -> Void)? = nil) async throws -> AbacusUsageSnapshot
     {
-        let log: (String) -> Void = { msg in logger?("[abacus] \(msg)") }
-
+        // Manual cookie header — no fallback, errors propagate directly
         if let override = CookieHeaderNormalizer.normalize(cookieHeaderOverride) {
-            log("Using manual cookie header")
-            return try await Self.fetchWithCookieHeader(override, timeout: timeout)
+            self.emit("Using manual cookie header", logger: logger)
+            return try await self.fetchWithCookieHeader(override, timeout: timeout, logger: logger)
         }
 
+        // Cached cookie header — clear on recoverable errors and fall through
         if let cached = CookieHeaderCache.load(provider: .abacus),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
-            log("Using cached cookie header from \(cached.sourceLabel)")
+            self.emit("Using cached cookie header from \(cached.sourceLabel)", logger: logger)
             do {
-                return try await Self.fetchWithCookieHeader(cached.cookieHeader, timeout: timeout)
-            } catch let error as AbacusUsageError {
-                switch error {
-                case .unauthorized, .sessionExpired:
-                    CookieHeaderCache.clear(provider: .abacus)
-                default:
-                    throw error
-                }
+                return try await Self.fetchWithCookieHeader(
+                    cached.cookieHeader, timeout: timeout, logger: logger)
+            } catch let error as AbacusUsageError where error.isRecoverable {
+                CookieHeaderCache.clear(provider: .abacus)
+                self.emit(
+                    "Cached cookie failed (\(error.localizedDescription)); cleared, trying fresh import",
+                    logger: logger)
             }
         }
 
+        // Fresh browser import — try each candidate, fall through on recoverable errors
         let sessions: [AbacusCookieImporter.SessionInfo]
         do {
-            sessions = try AbacusCookieImporter.importSessions(logger: log)
+            sessions = try AbacusCookieImporter.importSessions(logger: logger)
         } catch {
             BrowserCookieAccessGate.recordIfNeeded(error)
-            log("Browser cookie import failed: \(error.localizedDescription)")
+            self.emit("Browser cookie import failed: \(error.localizedDescription)", logger: logger)
             throw AbacusUsageError.noSessionCookie
         }
 
-        // Try each candidate; fall through on auth errors so a stale session
-        // in the first source doesn't block a valid one further down.
+        var lastError: AbacusUsageError = .noSessionCookie
         for session in sessions {
-            log("Trying cookies from \(session.sourceLabel)")
+            self.emit("Trying cookies from \(session.sourceLabel)", logger: logger)
             do {
-                let snapshot = try await Self.fetchWithCookieHeader(session.cookieHeader, timeout: timeout)
+                let snapshot = try await Self.fetchWithCookieHeader(
+                    session.cookieHeader, timeout: timeout, logger: logger)
                 CookieHeaderCache.store(
                     provider: .abacus,
                     cookieHeader: session.cookieHeader,
                     sourceLabel: session.sourceLabel)
                 return snapshot
-            } catch let error as AbacusUsageError where error.isAuthRelated {
-                log("\(session.sourceLabel): \(error.localizedDescription), trying next source")
+            } catch let error as AbacusUsageError where error.isRecoverable {
+                self.emit(
+                    "\(session.sourceLabel): \(error.localizedDescription), trying next source",
+                    logger: logger)
+                lastError = error
                 continue
             }
         }
 
-        throw AbacusUsageError.noSessionCookie
+        throw lastError
     }
 
     private static func fetchWithCookieHeader(
         _ cookieHeader: String,
-        timeout: TimeInterval) async throws -> AbacusUsageSnapshot
+        timeout: TimeInterval,
+        logger: ((String) -> Void)? = nil) async throws -> AbacusUsageSnapshot
     {
         // Fetch compute points (GET) and billing info (POST) concurrently
         async let computePoints = Self.fetchJSON(
@@ -260,10 +90,13 @@ public enum AbacusUsageFetcher {
         } catch let error as AbacusUsageError where error.isAuthRelated {
             throw error
         } catch {
+            self.emit(
+                "Billing info fetch failed: \(error.localizedDescription); credits shown without plan/reset",
+                logger: logger)
             biResult = [:]
         }
 
-        return Self.parseResults(computePoints: cpResult, billingInfo: biResult)
+        return try Self.parseResults(computePoints: cpResult, billingInfo: biResult)
     }
 
     private static func fetchJSON(
@@ -290,12 +123,21 @@ public enum AbacusUsageFetcher {
         }
 
         guard httpResponse.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? ""
+            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
             throw AbacusUsageError.networkError("HTTP \(httpResponse.statusCode): \(body)")
         }
 
-        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw AbacusUsageError.parseFailed("Invalid JSON from \(url.lastPathComponent)")
+        let parsed: Any
+        do {
+            parsed = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            let preview = String(data: data.prefix(200), encoding: .utf8) ?? "<non-UTF8>"
+            throw AbacusUsageError.parseFailed(
+                "\(url.lastPathComponent): \(error.localizedDescription) — preview: \(preview)")
+        }
+
+        guard let root = parsed as? [String: Any] else {
+            throw AbacusUsageError.parseFailed("\(url.lastPathComponent): top-level JSON is not a dictionary")
         }
 
         guard root["success"] as? Bool == true,
@@ -316,21 +158,25 @@ public enum AbacusUsageFetcher {
     // MARK: - Parsing
 
     private static func parseResults(
-        computePoints: [String: Any], billingInfo: [String: Any]) -> AbacusUsageSnapshot
+        computePoints: [String: Any], billingInfo: [String: Any]) throws -> AbacusUsageSnapshot
     {
-        // _getOrganizationComputePoints returns values already in credits (no division needed)
         let totalCredits = Self.double(from: computePoints["totalComputePoints"])
         let creditsLeft = Self.double(from: computePoints["computePointsLeft"])
+
+        guard totalCredits != nil || creditsLeft != nil else {
+            let keys = computePoints.keys.sorted().joined(separator: ", ")
+            throw AbacusUsageError.parseFailed(
+                "Missing credit fields in compute points response. Keys: [\(keys)]")
+        }
+
         let creditsUsed: Double? = if let total = totalCredits, let left = creditsLeft {
             total - left
         } else {
             nil
         }
 
-        // _getBillingInfo returns the exact next billing date and plan tier
         let nextBillingDate = billingInfo["nextBillingDate"] as? String
         let currentTier = billingInfo["currentTier"] as? String
-
         let resetsAt = Self.parseDate(nextBillingDate)
 
         return AbacusUsageSnapshot(
@@ -355,33 +201,16 @@ public enum AbacusUsageFetcher {
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: isoString)
     }
+
+    private static func emit(_ message: String, logger: ((String) -> Void)?) {
+        logger?("[abacus] \(message)")
+        self.log.debug(message)
+    }
 }
 
 #else
 
 // MARK: - Abacus (Unsupported)
-
-public enum AbacusUsageError: LocalizedError, Sendable {
-    case notSupported
-
-    public var errorDescription: String? {
-        "Abacus AI is only supported on macOS."
-    }
-}
-
-public struct AbacusUsageSnapshot: Sendable {
-    public init() {}
-
-    public func toUsageSnapshot() -> UsageSnapshot {
-        UsageSnapshot(
-            primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            tertiary: nil,
-            providerCost: nil,
-            updatedAt: Date(),
-            identity: nil)
-    }
-}
 
 public enum AbacusUsageFetcher {
     public static func fetchUsage(

@@ -54,7 +54,15 @@ struct AbacusWebFetchStrategy: ProviderFetchStrategy {
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.abacus?.cookieSource != .off else { return false }
-        return true
+        if context.settings?.abacus?.cookieSource == .manual {
+            return CookieHeaderNormalizer.normalize(context.settings?.abacus?.manualCookieHeader) != nil
+        }
+        if CookieHeaderCache.load(provider: .abacus) != nil { return true }
+        #if os(macOS)
+        return AbacusCookieImporter.hasSession(browserDetection: context.browserDetection)
+        #else
+        return false
+        #endif
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {

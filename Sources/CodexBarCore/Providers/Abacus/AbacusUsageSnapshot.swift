@@ -1,0 +1,70 @@
+import Foundation
+
+public struct AbacusUsageSnapshot: Sendable {
+    public let creditsUsed: Double?
+    public let creditsTotal: Double?
+    public let resetsAt: Date?
+    public let planName: String?
+
+    public init(
+        creditsUsed: Double? = nil,
+        creditsTotal: Double? = nil,
+        resetsAt: Date? = nil,
+        planName: String? = nil)
+    {
+        self.creditsUsed = creditsUsed
+        self.creditsTotal = creditsTotal
+        self.resetsAt = resetsAt
+        self.planName = planName
+    }
+
+    public func toUsageSnapshot() -> UsageSnapshot {
+        let percentUsed: Double = if let used = self.creditsUsed, let total = self.creditsTotal, total > 0 {
+            (used / total) * 100.0
+        } else {
+            0
+        }
+
+        let resetDesc: String? = if let used = self.creditsUsed, let total = self.creditsTotal {
+            "\(Self.formatCredits(used)) / \(Self.formatCredits(total)) credits"
+        } else {
+            nil
+        }
+
+        // Use windowMinutes matching the monthly billing cycle so pace calculation works.
+        // Approximate 1 month as 30 days.
+        let windowMinutes = 30 * 24 * 60
+
+        let primary = RateWindow(
+            usedPercent: percentUsed,
+            windowMinutes: windowMinutes,
+            resetsAt: self.resetsAt,
+            resetDescription: resetDesc)
+
+        let identity = ProviderIdentitySnapshot(
+            providerID: .abacus,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: self.planName)
+
+        return UsageSnapshot(
+            primary: primary,
+            secondary: nil,
+            tertiary: nil,
+            providerCost: nil,
+            updatedAt: Date(),
+            identity: identity)
+    }
+
+    private static let creditFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "en_US")
+        return formatter
+    }()
+
+    private static func formatCredits(_ value: Double) -> String {
+        self.creditFormatter.maximumFractionDigits = value >= 1000 ? 0 : 1
+        return self.creditFormatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
+    }
+}
