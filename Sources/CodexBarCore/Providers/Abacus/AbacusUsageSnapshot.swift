@@ -1,5 +1,7 @@
 import Foundation
 
+// MARK: - Abacus Usage Snapshot
+
 public struct AbacusUsageSnapshot: Sendable {
     public let creditsUsed: Double?
     public let creditsTotal: Double?
@@ -62,15 +64,14 @@ public struct AbacusUsageSnapshot: Sendable {
             identity: identity)
     }
 
-    private static let creditFormatter: NumberFormatter = {
+    // MARK: - Formatting
+
+    /// Thread-safe credit formatting — allocates per call to avoid shared mutable state.
+    private static func formatCredits(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.locale = Locale(identifier: "en_US")
-        return formatter
-    }()
-
-    private static func formatCredits(_ value: Double) -> String {
-        self.creditFormatter.maximumFractionDigits = value >= 1000 ? 0 : 1
-        return self.creditFormatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
+        formatter.maximumFractionDigits = value >= 1000 ? 0 : 1
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
     }
 }

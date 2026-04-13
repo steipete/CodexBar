@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 #if os(macOS)
 import SweetCookieKit
 
@@ -29,7 +33,7 @@ public enum AbacusUsageFetcher {
         {
             self.emit("Using cached cookie header from \(cached.sourceLabel)", logger: logger)
             do {
-                return try await Self.fetchWithCookieHeader(
+                return try await self.fetchWithCookieHeader(
                     cached.cookieHeader, timeout: timeout, logger: logger)
             } catch let error as AbacusUsageError where error.isRecoverable {
                 CookieHeaderCache.clear(provider: .abacus)
@@ -53,7 +57,7 @@ public enum AbacusUsageFetcher {
         for session in sessions {
             self.emit("Trying cookies from \(session.sourceLabel)", logger: logger)
             do {
-                let snapshot = try await Self.fetchWithCookieHeader(
+                let snapshot = try await self.fetchWithCookieHeader(
                     session.cookieHeader, timeout: timeout, logger: logger)
                 CookieHeaderCache.store(
                     provider: .abacus,
@@ -72,15 +76,17 @@ public enum AbacusUsageFetcher {
         throw lastError
     }
 
+    // MARK: - API Requests
+
     private static func fetchWithCookieHeader(
         _ cookieHeader: String,
         timeout: TimeInterval,
         logger: ((String) -> Void)? = nil) async throws -> AbacusUsageSnapshot
     {
         // Fetch compute points (GET) and billing info (POST) concurrently
-        async let computePoints = Self.fetchJSON(
+        async let computePoints = self.fetchJSON(
             url: self.computePointsURL, method: "GET", cookieHeader: cookieHeader, timeout: timeout)
-        async let billingInfo = Self.fetchJSON(
+        async let billingInfo = self.fetchJSON(
             url: self.billingInfoURL, method: "POST", cookieHeader: cookieHeader, timeout: timeout)
 
         let cpResult = try await computePoints
@@ -96,7 +102,7 @@ public enum AbacusUsageFetcher {
             biResult = [:]
         }
 
-        return try Self.parseResults(computePoints: cpResult, billingInfo: biResult)
+        return try self.parseResults(computePoints: cpResult, billingInfo: biResult)
     }
 
     private static func fetchJSON(
@@ -160,8 +166,8 @@ public enum AbacusUsageFetcher {
     private static func parseResults(
         computePoints: [String: Any], billingInfo: [String: Any]) throws -> AbacusUsageSnapshot
     {
-        let totalCredits = Self.double(from: computePoints["totalComputePoints"])
-        let creditsLeft = Self.double(from: computePoints["computePointsLeft"])
+        let totalCredits = self.double(from: computePoints["totalComputePoints"])
+        let creditsLeft = self.double(from: computePoints["computePointsLeft"])
 
         guard let totalCredits, let creditsLeft else {
             let keys = computePoints.keys.sorted().joined(separator: ", ")
@@ -173,7 +179,7 @@ public enum AbacusUsageFetcher {
 
         let nextBillingDate = billingInfo["nextBillingDate"] as? String
         let currentTier = billingInfo["currentTier"] as? String
-        let resetsAt = Self.parseDate(nextBillingDate)
+        let resetsAt = self.parseDate(nextBillingDate)
 
         return AbacusUsageSnapshot(
             creditsUsed: creditsUsed,
@@ -197,6 +203,8 @@ public enum AbacusUsageFetcher {
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: isoString)
     }
+
+    // MARK: - Logging
 
     private static func emit(_ message: String, logger: ((String) -> Void)?) {
         logger?("[abacus] \(message)")

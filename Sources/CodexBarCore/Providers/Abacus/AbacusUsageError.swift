@@ -1,6 +1,8 @@
 import Foundation
 
-public enum AbacusUsageError: LocalizedError, Sendable {
+// MARK: - Abacus Usage Error
+
+public enum AbacusUsageError: LocalizedError, Sendable, Equatable {
     case noSessionCookie
     case sessionExpired
     case networkError(String)
@@ -9,18 +11,17 @@ public enum AbacusUsageError: LocalizedError, Sendable {
 
     /// Whether this error indicates an authentication/session problem that
     /// should trigger cache eviction and candidate fallthrough.
+    /// Parse failures are deterministic — retrying with another session
+    /// produces the same result, so they are NOT recoverable.
     public var isRecoverable: Bool {
         switch self {
-        case .unauthorized, .sessionExpired, .parseFailed: true
+        case .unauthorized, .sessionExpired: true
         default: false
         }
     }
 
     public var isAuthRelated: Bool {
-        switch self {
-        case .unauthorized, .sessionExpired: true
-        default: false
-        }
+        self.isRecoverable
     }
 
     public var errorDescription: String? {
@@ -41,6 +42,6 @@ public enum AbacusUsageError: LocalizedError, Sendable {
 
 #if !os(macOS)
 extension AbacusUsageError {
-    static let notSupported = AbacusUsageError.networkError("Abacus AI is only supported on macOS.")
+    public static let notSupported = AbacusUsageError.networkError("Abacus AI is only supported on macOS.")
 }
 #endif
