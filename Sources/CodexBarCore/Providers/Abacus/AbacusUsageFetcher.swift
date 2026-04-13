@@ -39,7 +39,7 @@ public enum AbacusCookieImporter {
         for browserSource in abacusCookieImportOrder {
             do {
                 let query = BrowserCookieQuery(domains: cookieDomains)
-                let sources = try Self.cookieClient.records(
+                let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)
@@ -265,7 +265,12 @@ public enum AbacusUsageFetcher {
         guard root["success"] as? Bool == true,
               let result = root["result"] as? [String: Any]
         else {
-            let errorMsg = root["error"] as? String ?? "Unknown error"
+            let errorMsg = (root["error"] as? String ?? "Unknown error").lowercased()
+            if errorMsg.contains("expired") || errorMsg.contains("session")
+                || errorMsg.contains("login") || errorMsg.contains("authenticate")
+            {
+                throw AbacusUsageError.sessionExpired
+            }
             throw AbacusUsageError.parseFailed("\(url.lastPathComponent): \(errorMsg)")
         }
 
