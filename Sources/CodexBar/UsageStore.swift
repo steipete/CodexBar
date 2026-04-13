@@ -331,6 +331,11 @@ final class UsageStore {
         self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata)
     }
 
+    /// Providers that should actually participate in background refresh/status/token work.
+    func enabledProvidersForBackgroundWork() -> [UsageProvider] {
+        self.enabledProviders()
+    }
+
     var statusChecksEnabled: Bool {
         self.settings.statusChecksEnabled
     }
@@ -436,8 +441,9 @@ final class UsageStore {
         guard !self.isRefreshing else { return }
         self.prepareRefreshState()
         let refreshPhase: ProviderRefreshPhase = self.hasCompletedInitialRefresh ? .regular : .startup
-        let enabledProviders = self.enabledProvidersForDisplay()
-        let enabledProviderSet = Set(enabledProviders)
+        let displayEnabledProviders = self.enabledProvidersForDisplay()
+        let enabledProviderSet = Set(displayEnabledProviders)
+        let refreshProviders = self.enabledProvidersForBackgroundWork()
         let refreshStartedAt = Date()
 
         await ProviderRefreshContext.$current.withValue(refreshPhase) {
@@ -447,7 +453,8 @@ final class UsageStore {
                 location: "UsageStore.swift:refresh",
                 data: [
                     "phase": refreshPhase == .startup ? "startup" : "regular",
-                    "enabledProviders": String(enabledProviders.count),
+                    "enabledProviders": String(refreshProviders.count),
+                    "displayEnabledProviders": String(displayEnabledProviders.count),
                     "allProviders": String(UsageProvider.allCases.count),
                     "statusChecksEnabled": self.settings.statusChecksEnabled ? "1" : "0",
                     "forceTokenUsage": forceTokenUsage ? "1" : "0",
@@ -462,7 +469,7 @@ final class UsageStore {
             self.clearDisabledProviderState(enabledProviders: enabledProviderSet)
 
             await withTaskGroup(of: Void.self) { group in
-                for provider in enabledProviders {
+                for provider in refreshProviders {
                     group.addTask { await self.refreshProvider(provider) }
                     group.addTask { await self.refreshStatus(provider) }
                 }
@@ -571,7 +578,7 @@ final class UsageStore {
             return
         }
 
-        let providers = self.enabledProvidersForDisplay()
+        let providers = self.enabledProvidersForBackgroundWork()
         self.tokenRefreshSequenceTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             defer {

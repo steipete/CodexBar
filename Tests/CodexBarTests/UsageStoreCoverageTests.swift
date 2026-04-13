@@ -204,6 +204,31 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func backgroundWorkExcludesEnabledButUnavailableProviders() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-unavailable")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let metadata = ProviderRegistry.shared.metadata
+        for provider in UsageProvider.allCases {
+            try settings.setProviderEnabled(
+                provider: provider,
+                metadata: #require(metadata[provider]),
+                enabled: false)
+        }
+        try settings.setProviderEnabled(
+            provider: .synthetic,
+            metadata: #require(metadata[.synthetic]),
+            enabled: true)
+
+        let store = Self.makeUsageStore(settings: settings)
+
+        #expect(store.enabledProvidersForDisplay() == [.synthetic])
+        #expect(store.enabledProviders().isEmpty)
+        #expect(store.enabledProvidersForBackgroundWork().isEmpty)
+    }
+
+    @Test
     func statusIndicatorsAndFailureGate() {
         #expect(!ProviderStatusIndicator.none.hasIssue)
         #expect(ProviderStatusIndicator.maintenance.hasIssue)
