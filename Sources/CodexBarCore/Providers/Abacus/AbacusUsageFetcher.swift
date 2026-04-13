@@ -22,8 +22,12 @@ public enum AbacusCookieImporter {
 
     /// Substrings that indicate a session or auth cookie (applied only when
     /// no exact-name match is found). Deliberately excludes overly broad
-    /// patterns like "id" that match analytics/tracking cookies.
-    private static let sessionCookieSubstrings = ["session", "auth", "token", "sid", "jwt"]
+    /// patterns like "id" and "token" that match analytics/CSRF cookies.
+    private static let sessionCookieSubstrings = ["session", "auth", "sid", "jwt"]
+
+    /// Cookie name prefixes that indicate a non-session cookie even when a
+    /// substring match would otherwise accept it (e.g. "csrftoken").
+    private static let excludedCookiePrefixes = ["csrf", "_ga", "_gid", "tracking", "analytics"]
 
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
@@ -34,8 +38,12 @@ public enum AbacusCookieImporter {
         }
     }
 
-    public static func importSession(logger: ((String) -> Void)? = nil) throws -> SessionInfo {
+    /// Returns all candidate sessions across browsers/profiles, ordered by
+    /// import priority.  Callers should try each in turn so that a stale
+    /// session in the first source doesn't block a valid one further down.
+    public static func importSessions(logger: ((String) -> Void)? = nil) throws -> [SessionInfo] {
         let log: (String) -> Void = { msg in logger?("[abacus-cookie] \(msg)") }
+        var candidates: [SessionInfo] = []
 
         for browserSource in abacusCookieImportOrder {
             do {
@@ -48,7 +56,6 @@ public enum AbacusCookieImporter {
                     let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
                     guard !httpCookies.isEmpty else { continue }
 
-                    // Only accept cookie sets that contain at least one session/auth cookie
                     guard Self.containsSessionCookie(httpCookies) else {
                         let cookieNames = httpCookies.map(\.name).joined(separator: ", ")
                         log("Skipping \(source.label): no session cookie found among [\(cookieNames)]")
@@ -57,7 +64,7 @@ public enum AbacusCookieImporter {
 
                     let cookieNames = httpCookies.map(\.name).joined(separator: ", ")
                     log("Found \(httpCookies.count) cookies in \(source.label): \(cookieNames)")
-                    return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
+                    candidates.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
                 }
             } catch {
                 BrowserCookieAccessGate.recordIfNeeded(error)
@@ -65,7 +72,10 @@ public enum AbacusCookieImporter {
             }
         }
 
-        throw AbacusUsageError.noSessionCookie
+        if candidates.isEmpty {
+            throw AbacusUsageError.noSessionCookie
+        }
+        return candidates
     }
 
     /// Returns `true` if the cookie set contains at least one cookie whose name
@@ -75,6 +85,7 @@ public enum AbacusCookieImporter {
         cookies.contains { cookie in
             let lower = cookie.name.lowercased()
             if self.knownSessionCookieNames.contains(lower) { return true }
+            if self.excludedCookiePrefixes.contains(where: { lower.hasPrefix($0) }) { return false }
             return self.sessionCookieSubstrings.contains { lower.contains($0) }
         }
     }
@@ -203,23 +214,33 @@ public enum AbacusUsageFetcher {
             }
         }
 
-        let session: AbacusCookieImporter.SessionInfo
+        let sessions: [AbacusCookieImporter.SessionInfo]
         do {
-            session = try AbacusCookieImporter.importSession(logger: log)
-            log("Using cookies from \(session.sourceLabel)")
+            sessions = try AbacusCookieImporter.importSessions(logger: log)
         } catch {
             BrowserCookieAccessGate.recordIfNeeded(error)
             log("Browser cookie import failed: \(error.localizedDescription)")
             throw AbacusUsageError.noSessionCookie
         }
 
-        // API errors after a successful cookie import must propagate directly
-        let snapshot = try await Self.fetchWithCookieHeader(session.cookieHeader, timeout: timeout)
-        CookieHeaderCache.store(
-            provider: .abacus,
-            cookieHeader: session.cookieHeader,
-            sourceLabel: session.sourceLabel)
-        return snapshot
+        // Try each candidate; fall through on auth errors so a stale session
+        // in the first source doesn't block a valid one further down.
+        for session in sessions {
+            log("Trying cookies from \(session.sourceLabel)")
+            do {
+                let snapshot = try await Self.fetchWithCookieHeader(session.cookieHeader, timeout: timeout)
+                CookieHeaderCache.store(
+                    provider: .abacus,
+                    cookieHeader: session.cookieHeader,
+                    sourceLabel: session.sourceLabel)
+                return snapshot
+            } catch let error as AbacusUsageError where error.isAuthRelated {
+                log("\(session.sourceLabel): \(error.localizedDescription), trying next source")
+                continue
+            }
+        }
+
+        throw AbacusUsageError.noSessionCookie
     }
 
     private static func fetchWithCookieHeader(
