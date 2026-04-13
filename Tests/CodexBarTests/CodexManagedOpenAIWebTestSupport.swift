@@ -95,6 +95,8 @@ extension CodexManagedOpenAIWebTests {
         settings._test_managedCodexAccountStoreURL = nil
         settings._test_liveSystemCodexAccount = nil
         settings._test_codexReconciliationEnvironment = nil
+        settings.openAIWebAccessEnabled = true
+        settings.codexCookieSource = .auto
         return settings
     }
 

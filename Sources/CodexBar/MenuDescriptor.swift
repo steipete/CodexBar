@@ -400,6 +400,7 @@ struct MenuDescriptor {
             entries.append(.action("Update ready, restart now?", .installUpdate))
         }
         entries.append(contentsOf: [
+            .action("Refresh", .refresh),
             .action("Settings...", .settings),
             .action("About CodexBar", .about),
             .action("Quit", .quit),

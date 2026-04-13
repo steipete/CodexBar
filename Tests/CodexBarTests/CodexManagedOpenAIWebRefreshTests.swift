@@ -232,11 +232,14 @@ struct CodexManagedOpenAIWebRefreshTests {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
-        return SettingsStore(
+        let settings = SettingsStore(
             userDefaults: defaults,
             configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.openAIWebAccessEnabled = true
+        settings.codexCookieSource = .auto
+        return settings
     }
 }
 

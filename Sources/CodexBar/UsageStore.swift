@@ -137,6 +137,7 @@ final class UsageStore {
     @ObservationIgnored var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
     @ObservationIgnored var lastOpenAIDashboardAttachmentAuthorized: Bool = false
     @ObservationIgnored var lastOpenAIDashboardTargetEmail: String?
+    @ObservationIgnored var lastOpenAIDashboardAttemptAt: Date?
     @ObservationIgnored var lastOpenAIDashboardCookieImportAttemptAt: Date?
     @ObservationIgnored var lastOpenAIDashboardCookieImportEmail: String?
     @ObservationIgnored var lastCodexAccountScopedRefreshGuard: CodexAccountScopedRefreshGuard?
@@ -435,6 +436,8 @@ final class UsageStore {
         guard !self.isRefreshing else { return }
         self.prepareRefreshState()
         let refreshPhase: ProviderRefreshPhase = self.hasCompletedInitialRefresh ? .regular : .startup
+        let enabledProviders = self.enabledProvidersForDisplay()
+        let enabledProviderSet = Set(enabledProviders)
         let refreshStartedAt = Date()
 
         await ProviderRefreshContext.$current.withValue(refreshPhase) {
@@ -444,8 +447,10 @@ final class UsageStore {
                 self.hasCompletedInitialRefresh = true
             }
 
+            self.clearDisabledProviderState(enabledProviders: enabledProviderSet)
+
             await withTaskGroup(of: Void.self) { group in
-                for provider in UsageProvider.allCases {
+                for provider in enabledProviders {
                     group.addTask { await self.refreshProvider(provider) }
                     group.addTask { await self.refreshStatus(provider) }
                 }
@@ -457,12 +462,32 @@ final class UsageStore {
 
             // OpenAI web scrape depends on the current Codex account email (which can change after login/account
             // switch). Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
-            let codexDashboardGuard = self.currentCodexOpenAIWebRefreshGuard()
-            await self.refreshOpenAIDashboardIfNeeded(
-                force: forceTokenUsage,
-                expectedGuard: codexDashboardGuard)
+            self.syncOpenAIWebState()
+            let refreshPolicy = OpenAIWebRefreshPolicyContext(
+                accessEnabled: self.isEnabled(.codex) &&
+                    self.settings.openAIWebAccessEnabled &&
+                    self.settings.codexCookieSource.isEnabled,
+                batterySaverEnabled: self.settings.openAIWebBatterySaverEnabled,
+                force: forceTokenUsage)
+            let shouldRefreshOpenAIWeb = Self.shouldRunOpenAIWebRefresh(refreshPolicy)
+            self.openAIWebLogger.debug(
+                "OpenAI web refresh gate",
+                metadata: [
+                    "allowed": shouldRefreshOpenAIWeb ? "1" : "0",
+                    "accessEnabled": refreshPolicy.accessEnabled ? "1" : "0",
+                    "batterySaverEnabled": refreshPolicy.batterySaverEnabled ? "1" : "0",
+                    "force": refreshPolicy.force ? "1" : "0",
+                    "interaction": ProviderInteractionContext.current == .userInitiated ? "user" : "background",
+                    "phase": refreshPhase == .startup ? "startup" : "regular",
+                ])
+            if shouldRefreshOpenAIWeb {
+                let codexDashboardGuard = self.currentCodexOpenAIWebRefreshGuard()
+                await self.refreshOpenAIDashboardIfNeeded(
+                    force: forceTokenUsage,
+                    expectedGuard: codexDashboardGuard)
+            }
 
-            if self.openAIDashboardRequiresLogin {
+            if forceTokenUsage, self.openAIDashboardRequiresLogin {
                 await self.refreshProvider(.codex)
                 await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
@@ -523,6 +548,7 @@ final class UsageStore {
             return
         }
 
+        let providers = self.enabledProvidersForDisplay()
         self.tokenRefreshSequenceTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             defer {
@@ -530,7 +556,7 @@ final class UsageStore {
                     self?.tokenRefreshSequenceTask = nil
                 }
             }
-            for provider in UsageProvider.allCases {
+            for provider in providers {
                 if Task.isCancelled { break }
                 await self.refreshTokenUsage(provider, force: force)
             }

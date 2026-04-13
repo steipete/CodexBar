@@ -21,7 +21,8 @@ public enum CodexProviderDescriptor {
                 defaultEnabled: true,
                 isPrimaryProvider: true,
                 usesAccountFallback: true,
-                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.codexCookieImportOrder
+                    ?? ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://chatgpt.com/codex/settings/usage",
                 statusPageURL: "https://status.openai.com/"),
             branding: ProviderBranding(

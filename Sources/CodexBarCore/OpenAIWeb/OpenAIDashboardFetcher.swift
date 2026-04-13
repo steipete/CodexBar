@@ -309,6 +309,10 @@ public struct OpenAIDashboardFetcher {
         await OpenAIDashboardWebsiteDataStore.clearStore(forAccountEmail: accountEmail)
     }
 
+    public static func evictAllCachedWebViews() {
+        OpenAIDashboardWebViewCache.shared.evictAll()
+    }
+
     public func probeUsagePage(
         websiteDataStore: WKWebsiteDataStore,
         logger: ((String) -> Void)? = nil,

@@ -9,6 +9,7 @@ import SweetCookieKit
 
 private let ollamaSessionCookieNames: Set<String> = [
     "session",
+    "__Secure-session",
     "ollama_session",
     "__Host-ollama_session",
     "__Secure-next-auth.session-token",

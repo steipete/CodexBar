@@ -1,6 +1,22 @@
 import CodexBarCore
 import Foundation
 
+struct OpenAIWebRefreshGateContext {
+    let force: Bool
+    let accountDidChange: Bool
+    let lastError: String?
+    let lastSnapshotAt: Date?
+    let lastAttemptAt: Date?
+    let now: Date
+    let refreshInterval: TimeInterval
+}
+
+struct OpenAIWebRefreshPolicyContext {
+    let accessEnabled: Bool
+    let batterySaverEnabled: Bool
+    let force: Bool
+}
+
 // MARK: - OpenAI web lifecycle
 
 extension UsageStore {
@@ -31,15 +47,28 @@ extension UsageStore {
     }
 
     func requestOpenAIDashboardRefreshIfStale(reason: String) {
-        guard self.isEnabled(.codex), self.settings.codexCookieSource.isEnabled else { return }
+        guard self.isEnabled(.codex),
+              self.settings.openAIWebAccessEnabled,
+              self.settings.codexCookieSource.isEnabled
+        else { return }
         let now = Date()
         let refreshInterval = self.openAIWebRefreshIntervalSeconds()
         let lastUpdatedAt = self.openAIDashboard?.updatedAt ?? self.lastOpenAIDashboardSnapshot?.updatedAt
         if let lastUpdatedAt, now.timeIntervalSince(lastUpdatedAt) < refreshInterval { return }
         let stamp = now.formatted(date: .abbreviated, time: .shortened)
         self.logOpenAIWeb("[\(stamp)] OpenAI web refresh request: \(reason)")
+        let forceRefresh = Self.forceOpenAIWebRefreshForStaleRequest(
+            batterySaverEnabled: self.settings.openAIWebBatterySaverEnabled)
+        self.openAIWebLogger.debug(
+            "OpenAI web stale refresh gate",
+            metadata: [
+                "reason": reason,
+                "force": forceRefresh ? "1" : "0",
+                "batterySaverEnabled": self.settings.openAIWebBatterySaverEnabled ? "1" : "0",
+                "interaction": ProviderInteractionContext.current == .userInitiated ? "user" : "background",
+            ])
         let expectedGuard = self.currentCodexOpenAIWebRefreshGuard()
-        Task { await self.refreshOpenAIDashboardIfNeeded(force: true, expectedGuard: expectedGuard) }
+        Task { await self.refreshOpenAIDashboardIfNeeded(force: forceRefresh, expectedGuard: expectedGuard) }
     }
 
     func applyOpenAIDashboard(
@@ -95,6 +124,7 @@ extension UsageStore {
             return
         }
 
+        OpenAIDashboardFetcher.evictAllCachedWebViews()
         await MainActor.run {
             if let cached = self.lastOpenAIDashboardSnapshot {
                 self.openAIDashboard = cached
@@ -132,6 +162,7 @@ extension UsageStore {
             return
         }
 
+        OpenAIDashboardFetcher.evictAllCachedWebViews()
         await MainActor.run {
             self.lastOpenAIDashboardError = [
                 "OpenAI web access requires a signed-in chatgpt.com session.",
@@ -311,10 +342,11 @@ extension UsageStore {
         bypassCoalescing: Bool = false,
         allowCodexUsageBackfill: Bool = true) async
     {
-        guard self.isEnabled(.codex), self.settings.codexCookieSource.isEnabled else {
-            self.resetOpenAIWebState()
-            return
-        }
+        self.syncOpenAIWebState()
+        guard self.isEnabled(.codex),
+              self.settings.openAIWebAccessEnabled,
+              self.settings.codexCookieSource.isEnabled
+        else { return }
         if self.openAIWebManagedTargetStoreIsUnreadable() {
             await self.failClosedRefreshForUnreadableManagedCodexStore()
             return
@@ -341,14 +373,18 @@ extension UsageStore {
 
         let now = Date()
         let minInterval = self.openAIWebRefreshIntervalSeconds()
-        if !force,
-           !self.openAIWebAccountDidChange,
-           self.lastOpenAIDashboardError == nil,
-           let snapshot = self.lastOpenAIDashboardSnapshot,
-           now.timeIntervalSince(snapshot.updatedAt) < minInterval
-        {
+        let refreshGate = OpenAIWebRefreshGateContext(
+            force: force,
+            accountDidChange: self.openAIWebAccountDidChange,
+            lastError: self.lastOpenAIDashboardError,
+            lastSnapshotAt: self.lastOpenAIDashboardSnapshot?.updatedAt,
+            lastAttemptAt: self.lastOpenAIDashboardAttemptAt,
+            now: now,
+            refreshInterval: minInterval)
+        if Self.shouldSkipOpenAIWebRefresh(refreshGate) {
             return
         }
+        self.lastOpenAIDashboardAttemptAt = now
 
         let taskToken = UUID()
         let context = OpenAIDashboardRefreshContext(
@@ -610,6 +646,7 @@ extension UsageStore {
             self.lastOpenAIDashboardSnapshot = nil
             self.lastOpenAIDashboardAttachmentAuthorized = false
             self.lastOpenAIDashboardError = nil
+            self.lastOpenAIDashboardAttemptAt = nil
             self.openAIDashboardRequiresLogin = true
             self.openAIDashboardCookieImportStatus = "Codex account changed; importing browser cookies…"
             self.lastOpenAIDashboardCookieImportAttemptAt = nil
@@ -994,12 +1031,14 @@ extension UsageStore {
 
     func resetOpenAIWebState() {
         self.invalidateOpenAIDashboardRefreshTask()
+        OpenAIDashboardFetcher.evictAllCachedWebViews()
         self.openAIDashboard = nil
         self.openAIDashboardAttachmentAuthorized = false
         self.lastOpenAIDashboardError = nil
         self.lastOpenAIDashboardSnapshot = nil
         self.lastOpenAIDashboardAttachmentAuthorized = false
         self.lastOpenAIDashboardTargetEmail = nil
+        self.lastOpenAIDashboardAttemptAt = nil
         self.openAIDashboardRequiresLogin = false
         self.openAIDashboardCookieImportStatus = nil
         self.openAIDashboardCookieImportDebugLog = nil
@@ -1079,6 +1118,46 @@ extension UsageStore {
 // MARK: - OpenAI web error messaging
 
 extension UsageStore {
+    nonisolated static func shouldRunOpenAIWebRefresh(_ context: OpenAIWebRefreshPolicyContext) -> Bool {
+        guard context.accessEnabled else { return false }
+        return context.force || !context.batterySaverEnabled
+    }
+
+    nonisolated static func forceOpenAIWebRefreshForStaleRequest(batterySaverEnabled: Bool) -> Bool {
+        !batterySaverEnabled
+    }
+
+    nonisolated static func shouldSkipOpenAIWebRefresh(_ context: OpenAIWebRefreshGateContext) -> Bool {
+        if context.force || context.accountDidChange { return false }
+        if let lastAttemptAt = context.lastAttemptAt,
+           context.now.timeIntervalSince(lastAttemptAt) < context.refreshInterval
+        {
+            return true
+        }
+        if context.lastError == nil,
+           let lastSnapshotAt = context.lastSnapshotAt,
+           context.now.timeIntervalSince(lastSnapshotAt) < context.refreshInterval
+        {
+            return true
+        }
+        return false
+    }
+
+    func syncOpenAIWebState() {
+        guard self.isEnabled(.codex),
+              self.settings.openAIWebAccessEnabled,
+              self.settings.codexCookieSource.isEnabled
+        else {
+            self.resetOpenAIWebState()
+            return
+        }
+
+        let targetEmail = self.currentCodexOpenAIWebTargetEmail(
+            allowCurrentSnapshotFallback: true,
+            allowLastKnownLiveFallback: true)
+        self.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: targetEmail)
+    }
+
     func openAIDashboardFriendlyError(
         body: String,
         targetEmail: String?,

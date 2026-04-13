@@ -29,7 +29,10 @@ final class OpenAIDashboardWebViewCache {
     }
 
     private var entries: [ObjectIdentifier: Entry] = [:]
-    private let idleTimeout: TimeInterval = 10 * 60
+    /// Keep the WebView alive only long enough for immediate retries/menu reopens.
+    /// Long-lived hidden ChatGPT tabs still consume noticeable energy on some setups.
+    private let idleTimeout: TimeInterval = 60
+    private let blankURL = URL(string: "about:blank")!
 
     // MARK: - Testing support
 
@@ -48,6 +51,10 @@ final class OpenAIDashboardWebViewCache {
     /// Force prune with a custom "now" timestamp (for testing idle timeout).
     func pruneForTesting(now: Date) {
         self.prune(now: now)
+    }
+
+    var idleTimeoutForTesting: TimeInterval {
+        self.idleTimeout
     }
 
     /// Seed a cached entry without navigating a real page (for test stability).
@@ -173,10 +180,7 @@ final class OpenAIDashboardWebViewCache {
                     guard let self, let entry else { return }
                     entry.isBusy = false
                     entry.lastUsedAt = Date()
-                    // Hide instead of close - keep WebView cached for reuse.
-                    // This avoids re-downloading the ChatGPT SPA bundle on every refresh,
-                    // saving significant network bandwidth. See GitHub issues #269, #251.
-                    entry.host.hide()
+                    self.prepareCachedWebViewForIdle(entry.webView, host: entry.host)
                     self.prune(now: Date())
                 })
         }
@@ -213,10 +217,7 @@ final class OpenAIDashboardWebViewCache {
                 guard let self, let entry else { return }
                 entry.isBusy = false
                 entry.lastUsedAt = Date()
-                // Hide instead of close - keep WebView cached for reuse.
-                // This avoids re-downloading the ChatGPT SPA bundle on every refresh,
-                // saving significant network bandwidth. See GitHub issues #269, #251.
-                entry.host.hide()
+                self.prepareCachedWebViewForIdle(webView, host: entry.host)
                 self.prune(now: Date())
             })
     }
@@ -226,6 +227,27 @@ final class OpenAIDashboardWebViewCache {
         guard let entry = self.entries.removeValue(forKey: key) else { return }
         Self.log.debug("OpenAI webview evicted")
         entry.host.close()
+    }
+
+    func evictAll() {
+        let existing = self.entries
+        self.entries.removeAll()
+        for (_, entry) in existing {
+            entry.host.close()
+        }
+        if !existing.isEmpty {
+            Self.log.debug("OpenAI webview evicted all")
+        }
+    }
+
+    private func prepareCachedWebViewForIdle(_ webView: WKWebView, host: OffscreenWebViewHost) {
+        // Detach the heavyweight ChatGPT SPA as soon as a scrape completes. Keeping the WebView object around
+        // still helps with immediate reuse, but letting chatgpt.com remain the active document is too expensive.
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        webView.codexNavigationDelegate = nil
+        _ = webView.load(URLRequest(url: self.blankURL))
+        host.hide()
     }
 
     private func prune(now: Date) {

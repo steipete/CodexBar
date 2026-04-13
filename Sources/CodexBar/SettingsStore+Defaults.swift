@@ -316,6 +316,17 @@ extension SettingsStore {
         }
     }
 
+    var openAIWebBatterySaverEnabled: Bool {
+        get { self.defaultsState.openAIWebBatterySaverEnabled }
+        set {
+            self.defaultsState.openAIWebBatterySaverEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "openAIWebBatterySaverEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "OpenAI web battery saver updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+        }
+    }
+
     var jetbrainsIDEBasePath: String {
         get { self.defaultsState.jetbrainsIDEBasePath }
         set {

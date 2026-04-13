@@ -69,6 +69,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                         for: .codex)
                 }
             })
+        let batterySaverBinding = context.boolBinding(\.openAIWebBatterySaverEnabled)
 
         return [
             ProviderSettingsToggleDescriptor(
@@ -85,11 +86,28 @@ struct CodexProviderImplementation: ProviderImplementation {
             ProviderSettingsToggleDescriptor(
                 id: "codex-openai-web-extras",
                 title: "OpenAI web extras",
-                subtitle: "Show usage breakdown, credits history, and code review via chatgpt.com.",
+                subtitle: [
+                    "Optional.",
+                    "Turn this on to show code review, usage breakdown, and credits history via chatgpt.com.",
+                ].joined(separator: " "),
                 binding: extrasBinding,
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "codex-openai-web-battery-saver",
+                title: "Battery Saver",
+                subtitle: [
+                    "Limits background chatgpt.com refreshes to reduce battery and network usage.",
+                    "Dashboard extras may stay stale until you refresh them manually.",
+                ].joined(separator: " "),
+                binding: batterySaverBinding,
+                statusText: nil,
+                actions: [],
+                isVisible: { context.settings.openAIWebAccessEnabled },
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),

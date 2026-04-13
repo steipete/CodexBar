@@ -125,6 +125,56 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func codexExposesOpenAIWebExtrasToggleAsDefaultOffOptIn() throws {
+        let suite = "ProviderSettingsDescriptorTests-codex-openai-toggle"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        let context = ProviderSettingsContext(
+            provider: .codex,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+
+        let toggles = CodexProviderImplementation().settingsToggles(context: context)
+        let extrasToggle = try #require(toggles.first(where: { $0.id == "codex-openai-web-extras" }))
+        #expect(extrasToggle.binding.wrappedValue == false)
+        #expect(extrasToggle.subtitle.contains("Optional."))
+        #expect(extrasToggle.subtitle.contains("Turn this on"))
+
+        let batterySaverToggle = try #require(toggles.first(where: { $0.id == "codex-openai-web-battery-saver" }))
+        #expect(batterySaverToggle.binding.wrappedValue == false)
+        #expect(batterySaverToggle.isVisible?() == false)
+
+        settings.openAIWebAccessEnabled = true
+        #expect(batterySaverToggle.isVisible?() == true)
+    }
+
+    @Test
     func `claude exposes usage and cookie pickers`() throws {
         let suite = "ProviderSettingsDescriptorTests-claude"
         let defaults = try #require(UserDefaults(suiteName: suite))

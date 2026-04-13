@@ -565,6 +565,8 @@ struct CodexAccountScopedRefreshTests {
     func `default dashboard refresh path discards stale completion after account switch`() async {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-dashboard-guard")
         settings.refreshFrequency = .manual
+        settings.openAIWebAccessEnabled = true
+        settings.codexCookieSource = .auto
         settings._test_liveSystemCodexAccount = self.liveAccount(email: "alpha@example.com")
 
         let store = self.makeUsageStore(settings: settings)
