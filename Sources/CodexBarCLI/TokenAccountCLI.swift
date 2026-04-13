@@ -170,6 +170,10 @@ struct TokenAccountCLIContext {
         case .zai:
             return self.makeSnapshot(
                 zai: ProviderSettingsSnapshot.ZaiProviderSettings(apiRegion: self.resolveZaiRegion(config)))
+        case .moonshot:
+            return self.makeSnapshot(
+                moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings(
+                    region: self.resolveMoonshotRegion(config)))
         case .kilo:
             return self.makeSnapshot(
                 kilo: ProviderSettingsSnapshot.KiloProviderSettings(
@@ -201,6 +205,7 @@ struct TokenAccountCLIContext {
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
         zai: ProviderSettingsSnapshot.ZaiProviderSettings? = nil,
+        moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings? = nil,
         kilo: ProviderSettingsSnapshot.KiloProviderSettings? = nil,
         kimi: ProviderSettingsSnapshot.KimiProviderSettings? = nil,
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
@@ -219,6 +224,7 @@ struct TokenAccountCLIContext {
             factory: factory,
             minimax: minimax,
             zai: zai,
+            moonshot: moonshot,
             kilo: kilo,
             kimi: kimi,
             augment: augment,
@@ -359,6 +365,15 @@ struct TokenAccountCLIContext {
             return .global
         }
         return MiniMaxAPIRegion(rawValue: raw) ?? .global
+    }
+
+    private func resolveMoonshotRegion(_ config: ProviderConfig?) -> MoonshotRegion {
+        guard let raw = config?.region?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty
+        else {
+            return .international
+        }
+        return MoonshotRegion(rawValue: raw) ?? .international
     }
 
     private func resolveAlibabaCodingPlanRegion(_ config: ProviderConfig?) -> AlibabaCodingPlanAPIRegion {

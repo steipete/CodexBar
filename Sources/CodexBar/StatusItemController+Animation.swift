@@ -635,6 +635,9 @@ extension StatusItemController {
         provider: UsageProvider,
         snapshot: UsageSnapshot?) -> Bool
     {
+        if provider == .moonshot {
+            return snapshot != nil
+        }
         guard provider == .openrouter,
               let openRouterUsage = snapshot?.openRouterUsage
         else {

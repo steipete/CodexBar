@@ -40,3 +40,4 @@
 - Keep provider data siloed: when rendering usage or account info for a provider (Claude vs Codex), never display identity/plan fields sourced from a different provider.***
 - Claude CLI status line is custom + user-configurable; never rely on it for usage parsing.
 - Cookie imports: default Chrome-only when possible to avoid other browser prompts; override via browser list when needed.
+- Moonshot provider: official Moonshot uses `GET /v1/users/me/balance` on `api.moonshot.ai` or `api.moonshot.cn`, exposes a Region picker, shows balance-only/no-limit semantics, and must stay distinct from the third-party Kimi K2 provider tracked in issue #473.

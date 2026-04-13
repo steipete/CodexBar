@@ -37,6 +37,7 @@ public enum LogCategories {
     public static let minimaxCookieStore = "minimax-cookie-store"
     public static let minimaxUsage = "minimax-usage"
     public static let minimaxWeb = "minimax-web"
+    public static let moonshotUsage = "moonshot-usage"
     public static let notifications = "notifications"
     public static let openAIWeb = "openai-web"
     public static let openAIWebview = "openai-webview"

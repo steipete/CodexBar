@@ -3,6 +3,7 @@
 ## 0.21 — Unreleased
 
 ### Highlights
+- Moonshot: add an official Moonshot platform provider with International/China region selection, config/env API-key support, and balance-only display semantics distinct from Kimi K2 (#473).
 - z.ai: preserve weekly and 5-hour token quotas together, surface the 5-hour lane correctly across the menu/menu bar, and add regression coverage (#662). Thanks to @takumi3488 for the original fix and investigation.
 - Cursor: fix a crash in the usage fetch path and add regression coverage (#663). Thanks @anirudhvee for the report and validation!
 - Antigravity: accept localhost TLS challenges when probing the local language server so usage/account info loads again instead of reporting `no working API port found` (#693, fixes #692). Thanks @anirudhvee!
@@ -13,6 +14,7 @@
 - Codex: make OpenAI web extras opt-in for fresh installs, preserve working legacy setups on upgrade, add an OpenAI web battery-saver toggle, and keep account-scoped dashboard state aligned during refreshes and account switches (#529). Thanks @cbrane!
 
 ### Providers & Usage
+- Moonshot: add the official balance endpoint provider for `api.moonshot.ai` / `api.moonshot.cn`, store API keys in `~/.codexbar/config.json`, and keep Kimi K2 untouched so official Moonshot credentials are no longer conflated with the third-party Kimi K2 service (#473).
 - z.ai: preserve both weekly and 5-hour token quotas, keep the existing 2-limit behavior unchanged, and render the 5-hour quota as a tertiary row in provider snapshots and CLI/menu cards (#662). Credit to @takumi3488 for the original fix and investigation.
 - Cursor: fix the usage fetch path so failed or cancelled requests no longer crash, and add Linux build and regression test coverage fixes (#663).
 - Antigravity: scope insecure localhost trust handling to `127.0.0.1` / `localhost`, keep localhost requests cancellable, and restore local quota/account probing on builds that previously failed TLS challenge handling (#693, fixes #692). Thanks @anirudhvee!

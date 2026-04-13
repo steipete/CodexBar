@@ -13,6 +13,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         factory: FactoryProviderSettings? = nil,
         minimax: MiniMaxProviderSettings? = nil,
         zai: ZaiProviderSettings? = nil,
+        moonshot: MoonshotProviderSettings? = nil,
         copilot: CopilotProviderSettings? = nil,
         kilo: KiloProviderSettings? = nil,
         kimi: KimiProviderSettings? = nil,
@@ -34,6 +35,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             factory: factory,
             minimax: minimax,
             zai: zai,
+            moonshot: moonshot,
             copilot: copilot,
             kilo: kilo,
             kimi: kimi,
@@ -160,6 +162,14 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct MoonshotProviderSettings: Sendable {
+        public let region: MoonshotRegion
+
+        public init(region: MoonshotRegion = .international) {
+            self.region = region
+        }
+    }
+
     public struct CopilotProviderSettings: Sendable {
         public init() {}
     }
@@ -243,6 +253,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let factory: FactoryProviderSettings?
     public let minimax: MiniMaxProviderSettings?
     public let zai: ZaiProviderSettings?
+    public let moonshot: MoonshotProviderSettings?
     public let copilot: CopilotProviderSettings?
     public let kilo: KiloProviderSettings?
     public let kimi: KimiProviderSettings?
@@ -268,6 +279,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         factory: FactoryProviderSettings?,
         minimax: MiniMaxProviderSettings?,
         zai: ZaiProviderSettings?,
+        moonshot: MoonshotProviderSettings?,
         copilot: CopilotProviderSettings?,
         kilo: KiloProviderSettings?,
         kimi: KimiProviderSettings?,
@@ -288,6 +300,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.factory = factory
         self.minimax = minimax
         self.zai = zai
+        self.moonshot = moonshot
         self.copilot = copilot
         self.kilo = kilo
         self.kimi = kimi
@@ -309,6 +322,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case factory(ProviderSettingsSnapshot.FactoryProviderSettings)
     case minimax(ProviderSettingsSnapshot.MiniMaxProviderSettings)
     case zai(ProviderSettingsSnapshot.ZaiProviderSettings)
+    case moonshot(ProviderSettingsSnapshot.MoonshotProviderSettings)
     case copilot(ProviderSettingsSnapshot.CopilotProviderSettings)
     case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
     case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
@@ -331,6 +345,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var factory: ProviderSettingsSnapshot.FactoryProviderSettings?
     public var minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings?
     public var zai: ProviderSettingsSnapshot.ZaiProviderSettings?
+    public var moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings?
     public var copilot: ProviderSettingsSnapshot.CopilotProviderSettings?
     public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
     public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
@@ -356,6 +371,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .factory(value): self.factory = value
         case let .minimax(value): self.minimax = value
         case let .zai(value): self.zai = value
+        case let .moonshot(value): self.moonshot = value
         case let .copilot(value): self.copilot = value
         case let .kilo(value): self.kilo = value
         case let .kimi(value): self.kimi = value
@@ -380,6 +396,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             factory: self.factory,
             minimax: self.minimax,
             zai: self.zai,
+            moonshot: self.moonshot,
             copilot: self.copilot,
             kilo: self.kilo,
             kimi: self.kimi,

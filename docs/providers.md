@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Moonshot, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -32,6 +32,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Kilo | API token (`KILO_API_KEY`) → usage API (`api`); auto falls back to CLI session auth (`cli`). |
 | Copilot | API token (device flow/env) → copilot_internal API (`api`). |
 | Kimi K2 | API key (Keychain/env) → credit endpoint (`api`). |
+| Moonshot | Official API key (config/env) + region selector → balance endpoint (`api`). |
 | Kiro | CLI command via `kiro-cli chat --no-interactive "/usage"` (`cli`). |
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | JetBrains AI | Local XML quota file (`local`). |
@@ -90,6 +91,14 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Shows credit usage based on consumed/remaining totals.
 - Status: none yet.
 - Details: `docs/kimi-k2.md`.
+
+## Moonshot
+- API key from `~/.codexbar/config.json` (`providerConfig.moonshot.apiKey`) or `MOONSHOT_API_KEY` / `MOONSHOT_KEY`.
+- Region from config (`providerConfig.moonshot.region`) or `MOONSHOT_REGION`; supported values: `international`, `china`.
+- Balance endpoint: `https://api.moonshot.ai/v1/users/me/balance` or `https://api.moonshot.cn/v1/users/me/balance`.
+- Shows balance-only UI (`Balance: $X.XX`, `No limit set`) and surfaces negative `cash_balance` as `in deficit`.
+- Distinct from Kimi K2, which targets the third-party `kimi-k2.ai` endpoint.
+- Details: `docs/moonshot.md`.
 
 ## Gemini
 - OAuth-backed quota API (`retrieveUserQuota`) using Gemini CLI credentials.
