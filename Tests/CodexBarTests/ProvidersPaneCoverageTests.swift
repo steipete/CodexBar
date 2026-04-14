@@ -117,6 +117,14 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `provider detail plan row formats moonshot as balance`() {
+        let row = ProviderDetailView<EmptyView>.planRow(provider: .moonshot, planText: "Balance: $49.58")
+
+        #expect(row?.label == "Balance")
+        #expect(row?.value == "$49.58")
+    }
+
+    @Test
     func `provider detail plan row keeps plan label for non open router`() {
         let row = ProviderDetailView<EmptyView>.planRow(provider: .codex, planText: "Pro")
 

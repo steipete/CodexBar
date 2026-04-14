@@ -387,6 +387,44 @@ struct MenuCardModelTests {
     }
 
     @Test
+    func `moonshot model shows balance note without quota bars`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.moonshot])
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .moonshot,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Balance: $49.58"))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .moonshot,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.isEmpty)
+        #expect(model.usageNotes == ["No limit set"])
+    }
+
+    @Test
     func `hides email when personal info hidden`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(

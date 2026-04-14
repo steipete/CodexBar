@@ -154,6 +154,15 @@ public enum CodexBarConfigValidator {
                         code: "invalid_region",
                         message: "Region \(region) is not a valid Alibaba Coding Plan region."))
                 }
+            case .moonshot:
+                if MoonshotRegion(rawValue: region) == nil {
+                    issues.append(CodexBarConfigIssue(
+                        severity: .error,
+                        provider: provider,
+                        field: "region",
+                        code: "invalid_region",
+                        message: "Region \(region) is not a valid Moonshot region."))
+                }
             default:
                 issues.append(CodexBarConfigIssue(
                     severity: .warning,

@@ -149,4 +149,21 @@ struct StatusItemControllerMenuTests {
             snapshot: snapshot))
         #expect(snapshot.primary?.usedPercent == 10)
     }
+
+    @Test
+    func `moonshot brand fallback enabled for balance only snapshots`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .moonshot,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Balance: $49.58"))
+
+        #expect(StatusItemController.shouldUseOpenRouterBrandFallback(
+            provider: .moonshot,
+            snapshot: snapshot))
+    }
 }

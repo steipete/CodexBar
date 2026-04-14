@@ -23,6 +23,10 @@ public enum ProviderConfigEnvironment {
             if let key = KimiK2SettingsReader.apiKeyEnvironmentKeys.first {
                 env[key] = apiKey
             }
+        case .moonshot:
+            if let key = MoonshotSettingsReader.apiKeyEnvironmentKeys.first {
+                env[key] = apiKey
+            }
         case .synthetic:
             env[SyntheticSettingsReader.apiKeyKey] = apiKey
         case .warp:

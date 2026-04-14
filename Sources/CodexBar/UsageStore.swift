@@ -802,6 +802,7 @@ extension UsageStore {
                 .kiro: "Kiro debug log not yet implemented",
                 .kimi: "Kimi debug log not yet implemented",
                 .kimik2: "Kimi K2 debug log not yet implemented",
+                .moonshot: "Moonshot debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
             ]
             let buildText = {
@@ -876,7 +877,7 @@ extension UsageStore {
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .jetbrains, .perplexity:
+                     .kimik2, .moonshot, .jetbrains, .perplexity:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

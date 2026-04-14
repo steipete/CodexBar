@@ -40,6 +40,17 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies API key override for moonshot`() {
+        let config = ProviderConfig(id: .moonshot, apiKey: "moon-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .moonshot,
+            config: config)
+
+        #expect(env[MoonshotSettingsReader.apiKeyEnvironmentKeys.first ?? ""] == "moon-token")
+    }
+
+    @Test
     func `applies API key override for kilo`() {
         let config = ProviderConfig(id: .kilo, apiKey: "kilo-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

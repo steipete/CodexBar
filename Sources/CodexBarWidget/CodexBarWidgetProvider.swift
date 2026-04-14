@@ -70,6 +70,7 @@ enum ProviderChoice: String, AppEnum {
         case .jetbrains: return nil // JetBrains not yet supported in widgets
         case .kimi: return nil // Kimi not yet supported in widgets
         case .kimik2: return nil // Kimi K2 not yet supported in widgets
+        case .moonshot: return nil // Moonshot not yet supported in widgets
         case .amp: return nil // Amp not yet supported in widgets
         case .ollama: return nil // Ollama not yet supported in widgets
         case .synthetic: return nil // Synthetic not yet supported in widgets

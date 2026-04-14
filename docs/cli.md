@@ -54,7 +54,7 @@ See `docs/configuration.md` for the schema.
     - `web` (macOS only): web-only; no CLI fallback.
     - `cli`: CLI-only (Codex RPC → PTY fallback; Claude PTY).
     - `oauth`: Claude OAuth only (debug); no fallback. Not supported for Codex.
-    - `api`: API key flow when the provider supports it (z.ai, Gemini, Copilot, Kilo, Kimi K2, MiniMax, Warp, OpenRouter, Synthetic).
+    - `api`: API key flow when the provider supports it (z.ai, Gemini, Copilot, Kilo, Kimi K2, Moonshot, MiniMax, Warp, OpenRouter, Synthetic).
     - Output `source` reflects the strategy actually used (`openai-web`, `web`, `oauth`, `api`, `local`, or provider CLI label).
     - Codex web: OpenAI web dashboard (usage limits, credits remaining, code review remaining, usage breakdown).
         - `--web-timeout <seconds>` (default: 60)
