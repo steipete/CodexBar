@@ -131,15 +131,16 @@ public enum ManusUsageFetcher {
 
     public static func parseResponse(_ data: Data) throws -> ManusCreditsResponse {
         let decoder = JSONDecoder()
-        if let direct = try? decoder.decode(ManusCreditsResponse.self, from: data) {
-            return direct
-        }
 
-        let envelope = try decoder.decode(ManusCreditsEnvelope.self, from: data)
-        if let response = envelope.data ?? envelope.result ?? envelope.response ?? envelope.availableCredits {
+        // Try envelope first — the direct decoder defaults missing fields to 0,
+        // so it would "succeed" on wrapped payloads and silently return zero credits.
+        if let envelope = try? decoder.decode(ManusCreditsEnvelope.self, from: data),
+           let response = envelope.data ?? envelope.result ?? envelope.response ?? envelope.availableCredits
+        {
             return response
         }
-        throw ManusAPIError.parseFailed("Missing credits payload")
+
+        return try decoder.decode(ManusCreditsResponse.self, from: data)
     }
 }
 

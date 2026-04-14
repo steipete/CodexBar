@@ -155,10 +155,10 @@ struct ManusProviderTests {
         }
     }
 
+    #if os(macOS)
     @Test
     func `invalid browser token falls back to environment token`() async throws {
         try await self.withIsolatedCacheStore {
-            #if os(macOS)
             let browserCookie = try #require(HTTPCookie(properties: [
                 .domain: "manus.im",
                 .path: "/",
@@ -174,7 +174,6 @@ struct ManusProviderTests {
                 ManusCookieImporter.importSessionOverrideForTesting = nil
                 ManusCookieImporter.importSessionsOverrideForTesting = nil
             }
-            #endif
 
             let attempts = LockedArray<String>()
             let strategy = ManusWebFetchStrategy()
@@ -206,7 +205,6 @@ struct ManusProviderTests {
     @Test
     func `browser token populates cache after successful fetch`() async throws {
         try await self.withIsolatedCacheStore {
-            #if os(macOS)
             let browserCookie = try #require(HTTPCookie(properties: [
                 .domain: "manus.im",
                 .path: "/",
@@ -222,7 +220,6 @@ struct ManusProviderTests {
                 ManusCookieImporter.importSessionOverrideForTesting = nil
                 ManusCookieImporter.importSessionsOverrideForTesting = nil
             }
-            #endif
 
             let strategy = ManusWebFetchStrategy()
             let settings = ProviderSettingsSnapshot.make(
@@ -243,6 +240,7 @@ struct ManusProviderTests {
             #expect(cached?.cookieHeader == "session_id=browser-token")
         }
     }
+    #endif
 
     @Test
     func `settings reader accepts full cookie header from environment`() {
