@@ -44,26 +44,53 @@ public enum AbacusUsageFetcher {
         }
 
         // Fresh browser import — try Chrome first (AGENTS.md default), then broaden
-        // to all browsers if Chrome yields no session cookies.
-        let sessions: [AbacusCookieImporter.SessionInfo]
-        do {
-            sessions = try AbacusCookieImporter.importSessions(logger: logger)
-        } catch {
-            BrowserCookieAccessGate.recordIfNeeded(error)
-            self.emit(
-                "Chrome cookie import failed: \(error.localizedDescription); falling back to all browsers",
-                logger: logger)
-            do {
-                sessions = try AbacusCookieImporter.importSessions(
-                    preferredBrowsers: [], logger: logger)
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                self.emit("Browser cookie import failed: \(error.localizedDescription)", logger: logger)
-                throw AbacusUsageError.noSessionCookie
-            }
+        // to all browsers if Chrome has no sessions OR if all Chrome sessions fail
+        // with recoverable errors (expired/unauthorized cookies).
+        var lastError: AbacusUsageError = .noSessionCookie
+        if let snapshot = try await self.tryFetchFromBrowsers(
+            preferredBrowsers: [.chrome],
+            label: "Chrome",
+            timeout: timeout,
+            logger: logger,
+            lastError: &lastError)
+        {
+            return snapshot
         }
 
-        var lastError: AbacusUsageError = .noSessionCookie
+        self.emit("Chrome sessions exhausted; falling back to all browsers", logger: logger)
+        if let snapshot = try await self.tryFetchFromBrowsers(
+            preferredBrowsers: [],
+            label: "all browsers",
+            timeout: timeout,
+            logger: logger,
+            lastError: &lastError)
+        {
+            return snapshot
+        }
+
+        throw lastError
+    }
+
+    /// Tries to import sessions from `preferredBrowsers` and fetch usage.  Returns
+    /// the snapshot on success, nil if no sessions were available or all failed
+    /// with recoverable errors. Non-recoverable errors are rethrown directly.
+    private static func tryFetchFromBrowsers(
+        preferredBrowsers: [Browser],
+        label: String,
+        timeout: TimeInterval,
+        logger: ((String) -> Void)?,
+        lastError: inout AbacusUsageError) async throws -> AbacusUsageSnapshot?
+    {
+        let sessions: [AbacusCookieImporter.SessionInfo]
+        do {
+            sessions = try AbacusCookieImporter.importSessions(
+                preferredBrowsers: preferredBrowsers, logger: logger)
+        } catch {
+            BrowserCookieAccessGate.recordIfNeeded(error)
+            self.emit("\(label) cookie import failed: \(error.localizedDescription)", logger: logger)
+            return nil
+        }
+
         for session in sessions {
             self.emit("Trying cookies from \(session.sourceLabel)", logger: logger)
             do {
@@ -82,8 +109,7 @@ public enum AbacusUsageFetcher {
                 continue
             }
         }
-
-        throw lastError
+        return nil
     }
 
     // MARK: - API Requests
