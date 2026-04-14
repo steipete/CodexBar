@@ -8,6 +8,7 @@ xcuserdata/
 # Build products
 .build/
 DerivedData
+Xcode/WidgetBuild/WidgetBuild.xcodeproj/
 
 # Bundles / artifacts
 # Main app bundle (any variation)

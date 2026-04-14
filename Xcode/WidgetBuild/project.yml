@@ -1,0 +1,37 @@
+name: WidgetBuild
+options:
+  minimumXcodeGenVersion: 2.43.0
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  CodexBarPackage:
+    path: ../..
+fileGroups:
+  - CodexBarWidgetExtension/Info.plist
+  - CodexBarWidgetExtension/CodexBarWidgetExtension.entitlements
+targets:
+  CodexBarWidget:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: ../../Sources/CodexBarWidget
+    dependencies:
+      - package: CodexBarPackage
+        product: CodexBarCore
+    settings:
+      base:
+        PRODUCT_NAME: CodexBarWidget
+        PRODUCT_BUNDLE_IDENTIFIER: $(WIDGET_BUNDLE_ID)
+        INFOPLIST_FILE: CodexBarWidgetExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: CodexBarWidgetExtension/CodexBarWidgetExtension.entitlements
+        DEVELOPMENT_TEAM: $(APP_TEAM_ID)
+        MARKETING_VERSION: $(MARKETING_VERSION)
+        CURRENT_PROJECT_VERSION: $(BUILD_NUMBER)
+        CODEXBAR_TEAM_ID: $(APP_TEAM_ID)
+        APP_GROUP_ID: $(APP_GROUP_ID)
+        SWIFT_VERSION: 6.0
+        GENERATE_INFOPLIST_FILE: NO
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: NO
+        CODE_SIGN_STYLE: Manual

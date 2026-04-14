@@ -16,6 +16,11 @@ let package = Package(
     platforms: [
         .macOS(.v14),
     ],
+    products: [
+        .library(
+            name: "CodexBarCore",
+            targets: ["CodexBarCore"]),
+    ],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.8.1"),
         .package(url: "https://github.com/steipete/Commander", from: "0.2.1"),

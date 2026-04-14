@@ -13,7 +13,8 @@ read_when:
 - Widgets read the snapshot and render usage/credits/history states.
 
 ## Extension
-- `Sources/CodexBarWidget` contains timeline + views.
+- `Sources/CodexBarWidget` contains the shared widget timeline + views.
+- `Xcode/WidgetBuild` contains the minimal wrapper project spec used to build a real macOS WidgetKit app extension.
 - Keep data shape in sync with `WidgetSnapshot` in the main app.
 
 ## Visibility troubleshooting (macOS 14+)
@@ -68,9 +69,10 @@ log stream --style compact --predicate '(process == "pkd" OR process == "chronod
 ```
 
 ### 6) Packaging sanity checks
-- Widget bundle id should be `com.steipete.codexbar.widget`.
+- Widget bundle id should be `com.steipete.codexbar.widget` for release builds.
 - `NSExtensionPointIdentifier` must be `com.apple.widgetkit-extension`.
 - Bundle folder name should match: `CodexBarWidget.appex`.
+- The packaged widget executable should import `NSExtensionMain` (`nm -m "$WAPPEX/Contents/MacOS/CodexBarWidget" | egrep 'NSExtensionMain|main'`).
 
 Optional: re-seed LaunchServices (rarely helps, but low risk):
 ```

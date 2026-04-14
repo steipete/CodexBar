@@ -3,6 +3,7 @@ set -euo pipefail
 CONF=${1:-release}
 ALLOW_LLDB=${CODEXBAR_ALLOW_LLDB:-0}
 SIGNING_MODE=${CODEXBAR_SIGNING:-}
+WIDGET_BUILD_MODE=${CODEXBAR_WIDGET_BUILD_MODE:-xcode}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
@@ -177,6 +178,19 @@ PLIST
 BUILD_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
+if [[ "$SIGNING_MODE" == "adhoc" ]]; then
+  CODESIGN_ID="-"
+  CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
+elif [[ "$ALLOW_LLDB" == "1" ]]; then
+  CODESIGN_ID="-"
+  CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
+else
+  CODESIGN_ID="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y5PE65HELJ)}"
+  CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$CODESIGN_ID")
+fi
+
+resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -269,19 +283,37 @@ install_binary() {
   verify_binary_arches "$dest" "${ARCH_LIST[@]}"
 }
 
-install_binary "CodexBar" "$APP/Contents/MacOS/CodexBar"
-# Ship CodexBarCLI alongside the app for easy symlinking.
-if [[ -n "$(resolve_binary_path "CodexBarCLI" "${ARCH_LIST[0]}")" ]]; then
-  install_binary "CodexBarCLI" "$APP/Contents/Helpers/CodexBarCLI"
-fi
-# Watchdog helper: ensures `claude` probes die when CodexBar crashes/gets killed.
-if [[ -n "$(resolve_binary_path "CodexBarClaudeWatchdog" "${ARCH_LIST[0]}")" ]]; then
-  install_binary "CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
-fi
-if [[ -n "$(resolve_binary_path "CodexBarWidget" "${ARCH_LIST[0]}")" ]]; then
-  WIDGET_APP="$APP/Contents/PlugIns/CodexBarWidget.appex"
-  mkdir -p "$WIDGET_APP/Contents/MacOS" "$WIDGET_APP/Contents/Resources"
-  cat > "$WIDGET_APP/Contents/Info.plist" <<PLIST
+copy_widget_bundle() {
+  local source_bundle="$1"
+  local dest_bundle="$2"
+  rm -rf "$dest_bundle"
+  cp -R "$source_bundle" "$dest_bundle"
+  chmod -R u+w "$dest_bundle"
+}
+
+embed_widget_extension() {
+  local widget_app="$APP/Contents/PlugIns/CodexBarWidget.appex"
+
+  case "$WIDGET_BUILD_MODE" in
+    xcode)
+      local built_widget
+      built_widget=$(env \
+        ARCHES="${ARCH_LIST[*]}" \
+        APP_TEAM_ID="$APP_TEAM_ID" \
+        APP_GROUP_ID="$APP_GROUP_ID" \
+        WIDGET_BUNDLE_ID="$WIDGET_BUNDLE_ID" \
+        MARKETING_VERSION="$MARKETING_VERSION" \
+        BUILD_NUMBER="$BUILD_NUMBER" \
+        "$ROOT/Scripts/build_widget_extension.sh" "$LOWER_CONF")
+      copy_widget_bundle "$built_widget" "$widget_app"
+      ;;
+    swiftpm)
+      if [[ -z "$(resolve_binary_path "CodexBarWidget" "${ARCH_LIST[0]}")" ]]; then
+        echo "ERROR: Missing SwiftPM widget build output for ${ARCH_LIST[0]}" >&2
+        exit 1
+      fi
+      mkdir -p "$widget_app/Contents/MacOS" "$widget_app/Contents/Resources"
+      cat > "$widget_app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -303,8 +335,26 @@ if [[ -n "$(resolve_binary_path "CodexBarWidget" "${ARCH_LIST[0]}")" ]]; then
 </dict>
 </plist>
 PLIST
-  install_binary "CodexBarWidget" "$WIDGET_APP/Contents/MacOS/CodexBarWidget"
+      install_binary "CodexBarWidget" "$widget_app/Contents/MacOS/CodexBarWidget"
+      ;;
+    *)
+      echo "ERROR: Unsupported CODEXBAR_WIDGET_BUILD_MODE=${WIDGET_BUILD_MODE} (expected xcode or swiftpm)" >&2
+      exit 1
+      ;;
+  esac
+}
+
+install_binary "CodexBar" "$APP/Contents/MacOS/CodexBar"
+# Ship CodexBarCLI alongside the app for easy symlinking.
+if [[ -n "$(resolve_binary_path "CodexBarCLI" "${ARCH_LIST[0]}")" ]]; then
+  install_binary "CodexBarCLI" "$APP/Contents/Helpers/CodexBarCLI"
 fi
+# Watchdog helper: ensures `claude` probes die when CodexBar crashes/gets killed.
+if [[ -n "$(resolve_binary_path "CodexBarClaudeWatchdog" "${ARCH_LIST[0]}")" ]]; then
+  install_binary "CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
+fi
+embed_widget_extension
+
 # Embed Sparkle.framework
 if [[ -d ".build/$CONF/Sparkle.framework" ]]; then
   cp -R ".build/$CONF/Sparkle.framework" "$APP/Contents/Frameworks/"
@@ -312,17 +362,6 @@ if [[ -d ".build/$CONF/Sparkle.framework" ]]; then
   install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/CodexBar"
   # Re-sign Sparkle and all nested components with Developer ID + timestamp
   SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
-if [[ "$SIGNING_MODE" == "adhoc" ]]; then
-  CODESIGN_ID="-"
-  CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
-elif [[ "$ALLOW_LLDB" == "1" ]]; then
-  CODESIGN_ID="-"
-  CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
-else
-  CODESIGN_ID="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y5PE65HELJ)}"
-  CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$CODESIGN_ID")
-fi
-function resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }
   # Sign innermost binaries first, then the framework root to seal resources
   resign "$SPARKLE"
   resign "$SPARKLE/Versions/B/Sparkle"
