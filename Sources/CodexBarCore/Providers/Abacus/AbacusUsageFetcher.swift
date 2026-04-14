@@ -119,11 +119,14 @@ public enum AbacusUsageFetcher {
         timeout: TimeInterval,
         logger: ((String) -> Void)? = nil) async throws -> AbacusUsageSnapshot
     {
-        // Fetch compute points (GET) and billing info (POST) concurrently
+        // Fetch compute points (required, full timeout) and billing info
+        // (optional, shorter budget) concurrently. Billing is bounded so a
+        // slow/flaky billing endpoint can't delay credit rendering.
+        let billingBudget = min(timeout, 5.0)
         async let computePoints = self.fetchJSON(
             url: self.computePointsURL, method: "GET", cookieHeader: cookieHeader, timeout: timeout)
         async let billingInfo = self.fetchJSON(
-            url: self.billingInfoURL, method: "POST", cookieHeader: cookieHeader, timeout: timeout)
+            url: self.billingInfoURL, method: "POST", cookieHeader: cookieHeader, timeout: billingBudget)
 
         let cpResult = try await computePoints
         let biResult: [String: Any]

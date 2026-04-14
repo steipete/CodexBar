@@ -65,5 +65,12 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .abacus: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Abacus AI Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
     ]
 }
