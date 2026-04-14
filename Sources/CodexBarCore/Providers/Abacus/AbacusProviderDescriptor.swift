@@ -25,7 +25,7 @@ public enum AbacusProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: [.chrome],
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://apps.abacus.ai/chatllm/admin/compute-points-usage",
                 statusPageURL: nil,
                 statusLinkURL: nil),
@@ -61,7 +61,13 @@ struct AbacusWebFetchStrategy: ProviderFetchStrategy {
         }
         if CookieHeaderCache.load(provider: .abacus) != nil { return true }
         #if os(macOS)
-        return AbacusCookieImporter.hasSession(browserDetection: context.browserDetection)
+        // Try Chrome first, then any installed browser as fallback.
+        if AbacusCookieImporter.hasSession(browserDetection: context.browserDetection) {
+            return true
+        }
+        return AbacusCookieImporter.hasSession(
+            browserDetection: context.browserDetection,
+            preferredBrowsers: [])
         #else
         return false
         #endif
