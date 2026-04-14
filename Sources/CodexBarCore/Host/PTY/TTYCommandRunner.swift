@@ -741,6 +741,7 @@ public struct TTYCommandRunner {
                 auditCompletionAction = "process.timed_out"
                 throw Error.timedOut
             }
+            auditCompletionAction = "process.completed"
             return Result(text: text)
         }
 

@@ -124,10 +124,6 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             "account": self.account,
             "operation": "write",
         ]
-        AuditLogger.recordSecretAccess(
-            action: "keychain.cookie_header.write",
-            target: self.account,
-            metadata: auditMetadata)
         guard let raw = header?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty
         else {
@@ -147,6 +143,10 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             return
         }
 
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cookie_header.write",
+            target: self.account,
+            metadata: auditMetadata)
         let data = raw.data(using: .utf8)!
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
