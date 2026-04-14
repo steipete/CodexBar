@@ -43,14 +43,24 @@ public enum AbacusUsageFetcher {
             }
         }
 
-        // Fresh browser import — try each candidate, fall through on recoverable errors
+        // Fresh browser import — try Chrome first (AGENTS.md default), then broaden
+        // to all browsers if Chrome yields no session cookies.
         let sessions: [AbacusCookieImporter.SessionInfo]
         do {
             sessions = try AbacusCookieImporter.importSessions(logger: logger)
         } catch {
             BrowserCookieAccessGate.recordIfNeeded(error)
-            self.emit("Browser cookie import failed: \(error.localizedDescription)", logger: logger)
-            throw AbacusUsageError.noSessionCookie
+            self.emit(
+                "Chrome cookie import failed: \(error.localizedDescription); falling back to all browsers",
+                logger: logger)
+            do {
+                sessions = try AbacusCookieImporter.importSessions(
+                    preferredBrowsers: [], logger: logger)
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                self.emit("Browser cookie import failed: \(error.localizedDescription)", logger: logger)
+                throw AbacusUsageError.noSessionCookie
+            }
         }
 
         var lastError: AbacusUsageError = .noSessionCookie

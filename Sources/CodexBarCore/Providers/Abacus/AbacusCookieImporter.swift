@@ -46,12 +46,19 @@ public enum AbacusCookieImporter {
     /// Returns all candidate sessions across browsers/profiles, ordered by
     /// import priority.  Callers should try each in turn so that a stale
     /// session in the first source doesn't block a valid one further down.
+    ///
+    /// Defaults to Chrome-only per AGENTS.md guideline. Pass an empty
+    /// `preferredBrowsers` list to fall back to the full descriptor-defined
+    /// import order (Safari, Firefox, etc.) when Chrome has no cookies.
     public static func importSessions(
         browserDetection: BrowserDetection = BrowserDetection(),
+        preferredBrowsers: [Browser] = [.chrome],
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
         var candidates: [SessionInfo] = []
-        let installedBrowsers = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
+        let installedBrowsers = preferredBrowsers.isEmpty
+            ? self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
+            : preferredBrowsers.cookieImportCandidates(using: browserDetection)
 
         for browserSource in installedBrowsers {
             do {
@@ -94,10 +101,14 @@ public enum AbacusCookieImporter {
     /// used by the fetch strategy's `isAvailable()`.
     public static func hasSession(
         browserDetection: BrowserDetection = BrowserDetection(),
+        preferredBrowsers: [Browser] = [.chrome],
         logger: ((String) -> Void)? = nil) -> Bool
     {
         do {
-            return try !self.importSessions(browserDetection: browserDetection, logger: logger).isEmpty
+            return try !self.importSessions(
+                browserDetection: browserDetection,
+                preferredBrowsers: preferredBrowsers,
+                logger: logger).isEmpty
         } catch {
             return false
         }
