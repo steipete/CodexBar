@@ -24,8 +24,16 @@ struct CodexUsageFetcherFallbackTests {
     }
 
     @Test
+    func `CLI usage does not partially recover malformed RPC body without session lane`() {
+        let snapshot = UsageFetcher._recoverCodexRPCUsageFromErrorForTesting(
+            Self.partialDecodeBodyMessage)
+
+        #expect(snapshot == nil)
+    }
+
+    @Test
     func `CLI usage falls back from RPC decode mismatch to TTY status`() async throws {
-        let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI()
+        let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.decodeMismatchMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
         let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
@@ -39,13 +47,27 @@ struct CodexUsageFetcherFallbackTests {
 
     @Test
     func `CLI credits fall back from RPC decode mismatch to TTY status`() async throws {
-        let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI()
+        let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.decodeMismatchMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
         let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
         let credits = try await fetcher.loadLatestCredits()
 
         #expect(credits.remaining == 42)
+    }
+
+    @Test
+    func `CLI usage falls back to TTY when RPC body recovery misses session lane`() async throws {
+        let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.partialDecodeBodyMessage)
+        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+
+        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let snapshot = try await fetcher.loadLatestUsage()
+
+        #expect(snapshot.primary?.usedPercent == 12)
+        #expect(snapshot.primary?.windowMinutes == 300)
+        #expect(snapshot.secondary?.usedPercent == 25)
+        #expect(snapshot.secondary?.windowMinutes == 10080)
     }
 
     private static let decodeMismatchBodyMessage = """
@@ -81,7 +103,39 @@ struct CodexUsageFetcherFallbackTests {
     }
     """
 
-    private func makeDecodeMismatchStubCodexCLI() throws -> String {
+    private static let decodeMismatchMessage = """
+    failed to fetch codex rate limits: Decode error for https://chatgpt.com/backend-api/wham/usage:
+    unknown variant `prolite`, expected one of `guest`, `free`, `go`, `plus`, `pro`
+    """
+
+    private static let partialDecodeBodyMessage = """
+    failed to fetch codex rate limits: Decode error for https://chatgpt.com/backend-api/wham/usage:
+    unknown variant `prolite`, expected one of `guest`, `free`, `go`, `plus`, `pro`;
+    content-type=application/json; body={
+      "email": "prolite-test@example.com",
+      "plan_type": "prolite",
+      "rate_limit": {
+        "allowed": true,
+        "limit_reached": false,
+        "primary_window": {
+          "used_percent": "oops",
+          "limit_window_seconds": 18000,
+          "reset_at": 1776216359
+        },
+        "secondary_window": {
+          "used_percent": 19,
+          "limit_window_seconds": 604800,
+          "reset_after_seconds": 187681,
+          "reset_at": 1776395384
+        }
+      }
+    }
+    """
+
+    private func makeDecodeMismatchStubCodexCLI(
+        message: String = Self.decodeMismatchBodyMessage)
+        throws -> String
+    {
         let script = """
         #!/usr/bin/python3
         import json
@@ -104,7 +158,7 @@ struct CodexUsageFetcherFallbackTests {
                     payload = {
                         "id": identifier,
                         "error": {
-                            "message": "failed to fetch codex rate limits: Decode error for https://chatgpt.com/backend-api/wham/usage: unknown variant `prolite`"
+                            "message": '''\(message)'''
                         }
                     }
                 elif method == "account/read":

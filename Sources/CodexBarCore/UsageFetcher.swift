@@ -783,6 +783,11 @@ public struct UsageFetcher: Sendable {
         else {
             return nil
         }
+        if body.rateLimit?.hasWindowDecodeFailure == true,
+           state.session == nil
+        {
+            return nil
+        }
         return state.toUsageSnapshot()
     }
 
