@@ -631,9 +631,21 @@ struct LMManagementPane: View {
         let codexAccounts = CodexAccountInfo.loadManagedAccounts()
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
 
+        // Build fallback order from the user's UI arrangement
+        let userFallbackOrder: [String]? = self.fallbackProviders.isEmpty ? nil : {
+            var order: [String] = []
+            for provider in self.fallbackProviders {
+                for account in provider.accounts {
+                    order.append(account.modelRef)
+                }
+            }
+            return order.isEmpty ? nil : order
+        }()
+
         let export = exporter.export(
             ollamaResults: ollamaResults,
             codexAccounts: codexAccounts,
+            fallbackOrder: userFallbackOrder,
             codexbarVersion: version)
 
         // Try WebSocket RPC first (secure path)

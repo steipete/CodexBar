@@ -264,20 +264,32 @@ public final class OpenClawGatewayClient: Sendable {
             throw GatewayError.invalidResponse("Failed to serialize RPC request")
         }
 
-        // Register continuation before sending to avoid race
-        return try await withCheckedThrowingContinuation { continuation in
-            Task {
-                await state.register(id: requestId, continuation: continuation)
-
-                do {
-                    try await task.send(.string(jsonString))
-                } catch {
-                    await state.fail(
-                        id: requestId,
-                        error: GatewayError.connectionFailed(
-                            port: self.port, underlying: error.localizedDescription))
+        // Register continuation before sending, with per-RPC timeout to prevent
+        // hanging indefinitely if the gateway never replies.
+        return try await withThrowingTaskGroup(of: Data.self) { group in
+            group.addTask {
+                try await withCheckedThrowingContinuation { continuation in
+                    Task {
+                        await self.state.register(id: requestId, continuation: continuation)
+                        do {
+                            try await task.send(.string(jsonString))
+                        } catch {
+                            await self.state.fail(
+                                id: requestId,
+                                error: GatewayError.connectionFailed(
+                                    port: self.port, underlying: error.localizedDescription))
+                        }
+                    }
                 }
             }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(self.timeoutSeconds) * 1_000_000_000)
+                throw GatewayError.timeout(seconds: self.timeoutSeconds)
+            }
+            // First to complete wins — either the response or the timeout
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
         }
     }
 
@@ -386,6 +398,14 @@ public enum OpenClawPatchBuilder {
                 ]
                 let modeValue: String = profile.mode ?? profile.type
                 p["mode"] = modeValue
+                // Include API key if present — needed for Ollama and other
+                // API-key-based providers to actually authenticate requests.
+                if let apiKey = profile.key, !apiKey.isEmpty {
+                    p["key"] = apiKey
+                }
+                if let accountId = profile.accountId, !accountId.isEmpty {
+                    p["accountId"] = accountId
+                }
                 profilesDict[key] = p
             }
             authDict["profiles"] = profilesDict
