@@ -22,14 +22,27 @@ extension UsageStore {
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin
-        _ = self.openAIDashboardCookieImportStatus
-        _ = self.openAIDashboardCookieImportDebugLog
         _ = self.versions
         _ = self.isRefreshing
         _ = self.refreshingProviders
         _ = self.pathDebugInfo
         _ = self.statuses
         _ = self.probeLogs
+        _ = self.historicalPaceRevision
+        return 0
+    }
+
+    var iconObservationToken: Int {
+        _ = self.snapshots
+        _ = self.errors
+        _ = self.credits
+        _ = self.lastCreditsError
+        _ = self.openAIDashboard
+        _ = self.lastOpenAIDashboardError
+        _ = self.openAIDashboardRequiresLogin
+        _ = self.isRefreshing
+        _ = self.refreshingProviders
+        _ = self.statuses
         _ = self.historicalPaceRevision
         return 0
     }
@@ -331,6 +344,11 @@ final class UsageStore {
         self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata)
     }
 
+    /// Providers that should actually participate in background refresh/status/token work.
+    func enabledProvidersForBackgroundWork() -> [UsageProvider] {
+        self.enabledProviders()
+    }
+
     var statusChecksEnabled: Bool {
         self.settings.statusChecksEnabled
     }
@@ -436,8 +454,10 @@ final class UsageStore {
         guard !self.isRefreshing else { return }
         self.prepareRefreshState()
         let refreshPhase: ProviderRefreshPhase = self.hasCompletedInitialRefresh ? .regular : .startup
-        let enabledProviders = self.enabledProvidersForDisplay()
-        let enabledProviderSet = Set(enabledProviders)
+        let displayEnabledProviders = self.enabledProvidersForDisplay()
+        let enabledProviderSet = Set(displayEnabledProviders)
+        let refreshProviders = self.enabledProvidersForBackgroundWork()
+        let availableRefreshProviders = Set(self.enabledProviders())
         let refreshStartedAt = Date()
 
         await ProviderRefreshContext.$current.withValue(refreshPhase) {
@@ -448,11 +468,16 @@ final class UsageStore {
             }
 
             self.clearDisabledProviderState(enabledProviders: enabledProviderSet)
+            self.clearUnavailableProviderState(
+                displayEnabledProviders: enabledProviderSet,
+                availableProviders: availableRefreshProviders)
 
             await withTaskGroup(of: Void.self) { group in
-                for provider in enabledProviders {
+                for provider in refreshProviders {
                     group.addTask { await self.refreshProvider(provider) }
-                    group.addTask { await self.refreshStatus(provider) }
+                    if availableRefreshProviders.contains(provider) {
+                        group.addTask { await self.refreshStatus(provider) }
+                    }
                 }
                 group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
             }
@@ -548,7 +573,7 @@ final class UsageStore {
             return
         }
 
-        let providers = self.enabledProvidersForDisplay()
+        let providers = self.enabledProvidersForBackgroundWork()
         self.tokenRefreshSequenceTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             defer {

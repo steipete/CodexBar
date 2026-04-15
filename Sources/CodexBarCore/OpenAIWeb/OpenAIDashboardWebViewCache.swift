@@ -34,6 +34,20 @@ final class OpenAIDashboardWebViewCache {
     private let idleTimeout: TimeInterval = 60
     private let blankURL = URL(string: "about:blank")!
 
+    private func releaseCachedEntry(_ entry: Entry) {
+        entry.isBusy = false
+        entry.lastUsedAt = Date()
+        self.prepareCachedWebViewForIdle(entry.webView, host: entry.host)
+        self.prune(now: Date())
+    }
+
+    private func releaseNewEntry(_ entry: Entry, webView: WKWebView) {
+        entry.isBusy = false
+        entry.lastUsedAt = Date()
+        self.prepareCachedWebViewForIdle(webView, host: entry.host)
+        self.prune(now: Date())
+    }
+
     // MARK: - Testing support
 
     #if DEBUG
@@ -178,10 +192,7 @@ final class OpenAIDashboardWebViewCache {
                 log: log,
                 release: { [weak self, weak entry] in
                     guard let self, let entry else { return }
-                    entry.isBusy = false
-                    entry.lastUsedAt = Date()
-                    self.prepareCachedWebViewForIdle(entry.webView, host: entry.host)
-                    self.prune(now: Date())
+                    self.releaseCachedEntry(entry)
                 })
         }
 
@@ -215,10 +226,7 @@ final class OpenAIDashboardWebViewCache {
             log: log,
             release: { [weak self, weak entry] in
                 guard let self, let entry else { return }
-                entry.isBusy = false
-                entry.lastUsedAt = Date()
-                self.prepareCachedWebViewForIdle(webView, host: entry.host)
-                self.prune(now: Date())
+                self.releaseNewEntry(entry, webView: webView)
             })
     }
 

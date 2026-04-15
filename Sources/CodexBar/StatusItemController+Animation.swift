@@ -217,8 +217,10 @@ extension StatusItemController {
         return false
     }
 
-    func applyIcon(phase: Double?) {
-        guard let button = self.statusItem.button else { return }
+    // swiftlint:disable function_body_length
+    @discardableResult
+    func applyIcon(phase: Double?) -> Bool {
+        guard let button = self.statusItem.button else { return false }
 
         let style = self.store.iconStyle
         let showUsed = self.settings.usageBarsShowUsed
@@ -299,31 +301,92 @@ extension StatusItemController {
             }
             return .none
         }()
+        let debugDouble: (Double?) -> String = { value in
+            guard let value else { return "nil" }
+            return String(format: "%.3f", value)
+        }
 
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
             let displayText = self.menuBarDisplayText(for: primaryProvider, snapshot: snapshot)
+            let signature = [
+                "mode=brandPercent",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(debugDouble(primary))",
+                "weekly=\(debugDouble(weekly))",
+                "credits=\(debugDouble(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "text=\(displayText ?? "nil")",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             self.setButtonImage(brand, for: button)
             self.setButtonTitle(displayText, for: button)
-            return
+            return false
         }
 
         if Self.shouldUseOpenRouterBrandFallback(provider: primaryProvider, snapshot: snapshot),
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
+            let signature = [
+                "mode=openRouterFallback",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(debugDouble(primary))",
+                "weekly=\(debugDouble(weekly))",
+                "credits=\(debugDouble(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             self.setButtonTitle(nil, for: button)
             self.setButtonImage(
                 Self.brandImageWithStatusOverlay(brand: brand, statusIndicator: statusIndicator),
                 for: button)
-            return
+            return false
         }
 
         self.setButtonTitle(nil, for: button)
         if let morphProgress {
+            let signature = [
+                "mode=morph",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "morph=\(debugDouble(morphProgress))",
+                "status=\(statusIndicator.rawValue)",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
             self.setButtonImage(image, for: button)
         } else {
+            let signature = [
+                "mode=icon",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(debugDouble(primary))",
+                "weekly=\(debugDouble(weekly))",
+                "credits=\(debugDouble(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "blink=\(debugDouble(Double(blink)))",
+                "wiggle=\(debugDouble(Double(wiggle)))",
+                "tilt=\(debugDouble(Double(tilt)))",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             let image = IconRenderer.makeIcon(
                 primaryRemaining: primary,
                 weeklyRemaining: weekly,
@@ -336,6 +399,18 @@ extension StatusItemController {
                 statusIndicator: statusIndicator)
             self.setButtonImage(image, for: button)
         }
+        return false
+    }
+
+    // swiftlint:enable function_body_length
+
+    private func shouldSkipMergedIconRender(_ signature: String) -> Bool {
+        guard self.shouldMergeIcons else { return false }
+        if self.lastAppliedMergedIconRenderSignature == signature {
+            return true
+        }
+        self.lastAppliedMergedIconRenderSignature = signature
+        return false
     }
 
     func applyIcon(for provider: UsageProvider, phase: Double?) {

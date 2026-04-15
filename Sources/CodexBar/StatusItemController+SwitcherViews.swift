@@ -942,7 +942,6 @@ final class CodexAccountSwitcherView: NSView {
             let second = Array(self.accounts.dropFirst(perRow))
             return [first, second]
         }()
-
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .centerX
@@ -959,8 +958,9 @@ final class CodexAccountSwitcherView: NSView {
 
             let buttonWidth = self.buttonWidth(for: rowAccounts.count)
             for account in rowAccounts {
+                let title = self.compactButtonTitle(for: account, buttonWidth: buttonWidth)
                 let button = PaddedToggleButton(
-                    title: self.compactButtonTitle(for: account, buttonWidth: buttonWidth),
+                    title: title,
                     target: self,
                     action: #selector(self.handleSelect))
                 button.identifier = NSUserInterfaceItemIdentifier(account.id)

@@ -580,17 +580,15 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCUsage() async throws -> UsageSnapshot {
+        let rpc = try CodexRPCClient(environment: self.environment)
+        defer { rpc.shutdown() }
         do {
-            let rpc = try CodexRPCClient(environment: self.environment)
-            defer { rpc.shutdown() }
-
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
             // The app-server answers on a single stdout stream, so keep requests
             // serialized to avoid starving one reader when multiple awaiters race
             // for the same pipe.
             let limits = try await rpc.fetchRateLimits().rateLimits
             let account = try? await rpc.fetchAccount()
-
             let identity = ProviderIdentitySnapshot(
                 providerID: .codex,
                 accountEmail: account?.account.flatMap { details in
@@ -617,26 +615,30 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
-        let status = try await CodexStatusProbe(
-            keepCLISessionsAlive: keepCLISessionsAlive,
-            environment: self.environment)
-            .fetch()
-        guard let state = CodexReconciledState.fromCLI(
-            primary: Self.makeTTYWindow(
-                percentLeft: status.fiveHourPercentLeft,
-                windowMinutes: 300,
-                resetsAt: status.fiveHourResetsAt,
-                resetDescription: status.fiveHourResetDescription),
-            secondary: Self.makeTTYWindow(
-                percentLeft: status.weeklyPercentLeft,
-                windowMinutes: 10080,
-                resetsAt: status.weeklyResetsAt,
-                resetDescription: status.weeklyResetDescription),
-            identity: nil)
-        else {
-            throw UsageError.noRateLimitsFound
+        do {
+            let status = try await CodexStatusProbe(
+                keepCLISessionsAlive: keepCLISessionsAlive,
+                environment: self.environment)
+                .fetch()
+            guard let state = CodexReconciledState.fromCLI(
+                primary: Self.makeTTYWindow(
+                    percentLeft: status.fiveHourPercentLeft,
+                    windowMinutes: 300,
+                    resetsAt: status.fiveHourResetsAt,
+                    resetDescription: status.fiveHourResetDescription),
+                secondary: Self.makeTTYWindow(
+                    percentLeft: status.weeklyPercentLeft,
+                    windowMinutes: 10080,
+                    resetsAt: status.weeklyResetsAt,
+                    resetDescription: status.weeklyResetDescription),
+                identity: nil)
+            else {
+                throw UsageError.noRateLimitsFound
+            }
+            return state.toUsageSnapshot()
+        } catch {
+            throw error
         }
-        return state.toUsageSnapshot()
     }
 
     public func loadLatestCredits(keepCLISessionsAlive: Bool = false) async throws -> CreditsSnapshot {
@@ -646,9 +648,9 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCCredits() async throws -> CreditsSnapshot {
+        let rpc = try CodexRPCClient(environment: self.environment)
+        defer { rpc.shutdown() }
         do {
-            let rpc = try CodexRPCClient(environment: self.environment)
-            defer { rpc.shutdown() }
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
             let limits = try await rpc.fetchRateLimits().rateLimits
             guard let credits = limits.credits else { throw UsageError.noRateLimitsFound }
@@ -663,12 +665,16 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
-        let status = try await CodexStatusProbe(
-            keepCLISessionsAlive: keepCLISessionsAlive,
-            environment: self.environment)
-            .fetch()
-        guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
-        return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
+        do {
+            let status = try await CodexStatusProbe(
+                keepCLISessionsAlive: keepCLISessionsAlive,
+                environment: self.environment)
+                .fetch()
+            guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
+            return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
+        } catch {
+            throw error
+        }
     }
 
     private func withFallback<T>(
