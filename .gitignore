@@ -40,3 +40,6 @@ docs/.astro/
 # Swift Package Manager metadata (leave sources tracked)
 # Packages/
 # Package.resolved
+._*
+**/.DS_Store
+**/._%2A
