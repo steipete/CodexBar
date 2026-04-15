@@ -72,8 +72,12 @@ struct StatusItemAnimationSignatureTests {
     }
 
     @Test
-    func `merged icon follows overview provider order when overview is selected`() {
+    func `merged icon follows overview provider order when first overview provider is loading`() {
+        let suite = "StatusItemAnimationSignatureTests-merged-overview-provider-order"
+        let defaults = UserDefaults(suiteName: suite)
+        defaults?.removePersistentDomain(forName: suite)
         let settings = SettingsStore(
+            userDefaults: defaults ?? .standard,
             configStore: testConfigStore(suiteName: "StatusItemAnimationSignatureTests-merged-overview-provider-order"),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
@@ -110,7 +114,6 @@ struct StatusItemAnimationSignatureTests {
             primary: RateWindow(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             updatedAt: Date())
-        store._setSnapshotForTesting(snapshot, provider: .cursor)
         store._setSnapshotForTesting(snapshot, provider: .codex)
         store._setSnapshotForTesting(snapshot, provider: .claude)
 

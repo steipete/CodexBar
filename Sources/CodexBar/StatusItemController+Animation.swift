@@ -601,11 +601,6 @@ extension StatusItemController {
             let overviewProviders = self.settings.resolvedMergedOverviewProviders(
                 activeProviders: enabledProviders,
                 maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
-            for provider in overviewProviders {
-                if self.store.isEnabled(provider), self.store.snapshot(for: provider) != nil {
-                    return provider
-                }
-            }
             if let provider = overviewProviders.first(where: { self.store.isEnabled($0) }) {
                 return provider
             }
