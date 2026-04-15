@@ -27,7 +27,27 @@ struct CodexUsageFetcherFallbackTests {
         #expect(credits.remaining == 19.5)
     }
 
-    private func makeDecodeErrorCodexCLI() throws -> String {
+    @Test
+    func `ignores unrelated JSON error body when recovering rate limits`() async throws {
+        let stubCLIPath = try self.makeDecodeErrorCodexCLI(
+            embeddedBody: """
+            {
+              "error": "unauthorized"
+            }
+            """)
+        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+
+        do {
+            _ = try await fetcher.loadLatestUsage()
+            Issue.record("Expected the original RPC failure for unrelated JSON body")
+        } catch let error as UsageError {
+            Issue.record("Expected original RPC failure, got \(error)")
+        } catch {
+            #expect(error.localizedDescription.contains("unauthorized"))
+        }
+    }
+
+    private func makeDecodeErrorCodexCLI(embeddedBody: String? = nil) throws -> String {
         let usageJSON = """
         {
           "user_id": "user-123",
@@ -65,12 +85,12 @@ struct CodexUsageFetcherFallbackTests {
         import json
         import sys
 
-        USAGE_JSON = \(String(reflecting: usageJSON))
+        EMBEDDED_BODY = \(String(reflecting: embeddedBody ?? usageJSON))
         ERROR_MESSAGE = (
             "failed to fetch codex rate limits: "
             "Decode error for https://chatgpt.com/backend-api/wham/usage/ "
             "decoded body contained unknown variant 'prolite'; "
-            "content-type=application/json; body=" + USAGE_JSON
+            "content-type=application/json; body=" + EMBEDDED_BODY
         )
 
         if "app-server" not in sys.argv:

@@ -568,11 +568,19 @@ private final class CodexRPCClient: @unchecked Sendable {
             return nil
         }
 
+        let primary = RPCRateLimitWindow.from(usage.rateLimit?.primaryWindow)
+        let secondary = RPCRateLimitWindow.from(usage.rateLimit?.secondaryWindow)
+        let credits = RPCCreditsSnapshot.from(usage.credits)
+
+        guard primary != nil || secondary != nil || credits != nil else {
+            return nil
+        }
+
         return RPCRateLimitsResponse(
             rateLimits: RPCRateLimitSnapshot(
-                primary: RPCRateLimitWindow.from(usage.rateLimit?.primaryWindow),
-                secondary: RPCRateLimitWindow.from(usage.rateLimit?.secondaryWindow),
-                credits: RPCCreditsSnapshot.from(usage.credits)))
+                primary: primary,
+                secondary: secondary,
+                credits: credits))
     }
 
     private static func extractEmbeddedJSONBody(from message: String) -> String? {
