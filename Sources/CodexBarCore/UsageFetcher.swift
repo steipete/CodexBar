@@ -316,12 +316,28 @@ private struct RPCRateLimitWindow: Decodable, Encodable {
     let usedPercent: Double
     let windowDurationMins: Int?
     let resetsAt: Int?
+
+    static func from(_ window: CodexUsageResponse.WindowSnapshot?) -> Self? {
+        guard let window else { return nil }
+        return Self(
+            usedPercent: Double(window.usedPercent),
+            windowDurationMins: window.limitWindowSeconds / 60,
+            resetsAt: window.resetAt)
+    }
 }
 
 private struct RPCCreditsSnapshot: Decodable, Encodable {
     let hasCredits: Bool
     let unlimited: Bool
     let balance: String?
+
+    static func from(_ credits: CodexUsageResponse.CreditDetails?) -> Self? {
+        guard let credits else { return nil }
+        return Self(
+            hasCredits: credits.hasCredits,
+            unlimited: credits.unlimited,
+            balance: credits.balance.map { String($0) })
+    }
 }
 
 private enum RPCWireError: Error, LocalizedError {
@@ -465,8 +481,15 @@ private final class CodexRPCClient: @unchecked Sendable {
     }
 
     func fetchRateLimits() async throws -> RPCRateLimitsResponse {
-        let message = try await self.request(method: "account/rateLimits/read")
-        return try self.decodeResult(from: message)
+        do {
+            let message = try await self.request(method: "account/rateLimits/read")
+            return try self.decodeResult(from: message)
+        } catch let RPCWireError.requestFailed(message) {
+            if let recovered = Self.recoverRateLimits(from: message) {
+                return recovered
+            }
+            throw RPCWireError.requestFailed(message)
+        }
     }
 
     func shutdown() {
@@ -535,6 +558,68 @@ private final class CodexRPCClient: @unchecked Sendable {
         let data = try JSONSerialization.data(withJSONObject: result)
         let decoder = JSONDecoder()
         return try decoder.decode(T.self, from: data)
+    }
+
+    private static func recoverRateLimits(from message: String) -> RPCRateLimitsResponse? {
+        guard let body = self.extractEmbeddedJSONBody(from: message),
+              let data = body.data(using: .utf8),
+              let usage = try? JSONDecoder().decode(CodexUsageResponse.self, from: data)
+        else {
+            return nil
+        }
+
+        return RPCRateLimitsResponse(
+            rateLimits: RPCRateLimitSnapshot(
+                primary: RPCRateLimitWindow.from(usage.rateLimit?.primaryWindow),
+                secondary: RPCRateLimitWindow.from(usage.rateLimit?.secondaryWindow),
+                credits: RPCCreditsSnapshot.from(usage.credits)))
+    }
+
+    private static func extractEmbeddedJSONBody(from message: String) -> String? {
+        guard let markerRange = message.range(of: "body=") else { return nil }
+        let suffix = message[markerRange.upperBound...]
+        guard let jsonStart = suffix.firstIndex(where: { $0 == "{" || $0 == "[" }) else { return nil }
+
+        var depth = 0
+        var inString = false
+        var escaping = false
+
+        for index in suffix[jsonStart...].indices {
+            let character = suffix[index]
+
+            if escaping {
+                escaping = false
+                continue
+            }
+
+            if character == "\\" {
+                escaping = true
+                continue
+            }
+
+            if character == "\"" {
+                inString.toggle()
+                continue
+            }
+
+            if inString {
+                continue
+            }
+
+            switch character {
+            case "{", "[":
+                depth += 1
+            case "}", "]":
+                depth -= 1
+                if depth == 0 {
+                    return String(suffix[jsonStart...index])
+                }
+            default:
+                continue
+            }
+        }
+
+        return nil
     }
 
     private func jsonID(_ value: Any?) -> Int? {
