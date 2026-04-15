@@ -55,30 +55,26 @@ struct AbacusWebFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        guard context.settings?.abacus?.cookieSource != .off else { return false }
-        if context.settings?.abacus?.cookieSource == .manual {
-            return CookieHeaderNormalizer.normalize(context.settings?.abacus?.manualCookieHeader) != nil
-        }
-        if CookieHeaderCache.load(provider: .abacus) != nil { return true }
-        #if os(macOS)
-        // Try Chrome first, then any installed browser as fallback.
-        if AbacusCookieImporter.hasSession(browserDetection: context.browserDetection) {
-            return true
-        }
-        return AbacusCookieImporter.hasSession(
-            browserDetection: context.browserDetection,
-            preferredBrowsers: [])
-        #else
-        return false
-        #endif
+        context.settings?.abacus?.cookieSource != .off
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let manual = Self.manualCookieHeader(from: context)
+        let manual: String?
+        if context.settings?.abacus?.cookieSource == .manual {
+            guard let header = Self.manualCookieHeader(from: context) else {
+                throw AbacusUsageError.noSessionCookie
+            }
+            manual = header
+        } else {
+            manual = nil
+        }
         let logger: ((String) -> Void)? = context.verbose
             ? { msg in CodexBarLog.logger(LogCategories.abacusUsage).verbose(msg) }
             : nil
-        let snap = try await AbacusUsageFetcher.fetchUsage(cookieHeaderOverride: manual, logger: logger)
+        let snap = try await AbacusUsageFetcher.fetchUsage(
+            cookieHeaderOverride: manual,
+            timeout: context.webTimeout,
+            logger: logger)
         return self.makeResult(
             usage: snap.toUsageSnapshot(),
             sourceLabel: "web")

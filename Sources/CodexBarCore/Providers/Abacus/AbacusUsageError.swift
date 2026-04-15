@@ -27,7 +27,7 @@ public enum AbacusUsageError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .noSessionCookie:
-            "No Abacus AI session found. Please log in to apps.abacus.ai in your browser."
+            "No Abacus AI session found. Please log in to apps.abacus.ai in your browser or paste a Cookie header in manual mode."
         case .sessionExpired:
             "Abacus AI session expired. Please log in again."
         case let .networkError(msg):

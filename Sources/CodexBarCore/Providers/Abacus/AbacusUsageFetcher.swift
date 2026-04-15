@@ -132,8 +132,6 @@ public enum AbacusUsageFetcher {
         let biResult: [String: Any]
         do {
             biResult = try await billingInfo
-        } catch let error as AbacusUsageError where error.isAuthRelated {
-            throw error
         } catch {
             self.emit(
                 "Billing info fetch failed: \(error.localizedDescription); credits shown without plan/reset",
@@ -154,7 +152,7 @@ public enum AbacusUsageFetcher {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         if method == "POST" {
-            request.httpBody = "{}".data(using: .utf8)
+            request.httpBody = Data("{}".utf8)
         }
 
         let (data, response) = try await URLSession.shared.data(for: request)
