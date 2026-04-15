@@ -12,7 +12,7 @@ struct CodexUsageFetcherFallbackTests {
         #expect(snapshot?.primary?.windowMinutes == 300)
         #expect(snapshot?.secondary?.usedPercent == 19)
         #expect(snapshot?.secondary?.windowMinutes == 10080)
-        #expect(snapshot?.accountEmail(for: UsageProvider.codex) == "lukeforn@gmail.com")
+        #expect(snapshot?.accountEmail(for: UsageProvider.codex) == "prolite-test@example.com")
         #expect(snapshot?.loginMethod(for: UsageProvider.codex) == "prolite")
     }
 
@@ -52,9 +52,9 @@ struct CodexUsageFetcherFallbackTests {
     failed to fetch codex rate limits: Decode error for https://chatgpt.com/backend-api/wham/usage:
     unknown variant `prolite`, expected one of `guest`, `free`, `go`, `plus`, `pro`;
     content-type=application/json; body={
-      "user_id": "user-HjRmNJhdtyqaGzIB98OrOdJw",
-      "account_id": "user-HjRmNJhdtyqaGzIB98OrOdJw",
-      "email": "lukeforn@gmail.com",
+      "user_id": "user-TEST",
+      "account_id": "account-TEST",
+      "email": "prolite-test@example.com",
       "plan_type": "prolite",
       "rate_limit": {
         "allowed": true,

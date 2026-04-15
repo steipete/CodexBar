@@ -807,7 +807,6 @@ public struct UsageFetcher: Sendable {
         var depth = 0
         var inString = false
         var isEscaped = false
-        var endIndex: String.Index?
 
         for index in suffix[start...].indices {
             let character = suffix[index]
@@ -831,16 +830,14 @@ public struct UsageFetcher: Sendable {
             case "}":
                 depth -= 1
                 if depth == 0 {
-                    endIndex = index
-                    break
+                    return String(suffix[start...index])
                 }
             default:
                 break
             }
         }
 
-        guard let endIndex else { return nil }
-        return String(suffix[start...endIndex])
+        return nil
     }
 
     private static func normalizedCodexAccountField(_ value: String?) -> String? {
