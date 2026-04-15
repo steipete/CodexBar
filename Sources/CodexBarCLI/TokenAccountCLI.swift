@@ -160,6 +160,13 @@ struct TokenAccountCLIContext {
                 ollama: ProviderSettingsSnapshot.OllamaProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
+        case .rovodev:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                rovodev: ProviderSettingsSnapshot.RovoDevProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .kimi:
             let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
             let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
@@ -206,6 +213,7 @@ struct TokenAccountCLIContext {
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
         amp: ProviderSettingsSnapshot.AmpProviderSettings? = nil,
         ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
+        rovodev: ProviderSettingsSnapshot.RovoDevProviderSettings? = nil,
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
         perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
@@ -224,6 +232,7 @@ struct TokenAccountCLIContext {
             augment: augment,
             amp: amp,
             ollama: ollama,
+            rovodev: rovodev,
             jetbrains: jetbrains,
             perplexity: perplexity)
     }

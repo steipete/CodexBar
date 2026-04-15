@@ -24,6 +24,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case kimik2
     case amp
     case ollama
+    case rovodev
     case synthetic
     case warp
     case openrouter
@@ -54,6 +55,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case jetbrains
     case amp
     case ollama
+    case rovodev
     case synthetic
     case warp
     case openrouter
