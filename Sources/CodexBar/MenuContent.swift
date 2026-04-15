@@ -128,6 +128,8 @@ struct MenuContent: View {
             self.actions.quit()
         case let .copyError(message):
             self.actions.copyError(message)
+        case .claudeWarmingPingNow:
+            self.actions.claudeWarmingPingNow()
         }
     }
 }
@@ -145,6 +147,7 @@ struct MenuActions {
     let openAbout: () -> Void
     let quit: () -> Void
     let copyError: (String) -> Void
+    let claudeWarmingPingNow: () -> Void
 }
 
 @MainActor

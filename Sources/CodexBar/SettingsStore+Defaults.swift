@@ -233,6 +233,17 @@ extension SettingsStore {
         }
     }
 
+    var claudeWarmingEnabled: Bool {
+        get { self.defaultsState.claudeWarmingEnabled }
+        set {
+            self.defaultsState.claudeWarmingEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "claudeWarmingEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Claude warming updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+        }
+    }
+
     var claudeWebExtrasEnabled: Bool {
         get { self.claudeWebExtrasEnabledRaw }
         set { self.claudeWebExtrasEnabledRaw = newValue }

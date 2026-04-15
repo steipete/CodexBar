@@ -221,6 +221,12 @@ extension StatusItemController {
         }
     }
 
+    @objc func claudeWarmingPingNow() {
+        if let runtime = self.store.providerRuntimes[.claude] as? ClaudeWarmingRuntime {
+            runtime.warmingService?.pingNow()
+        }
+    }
+
     private static func openTerminal(command: String) {
         let escaped = command
             .replacingOccurrences(of: "\\\\", with: "\\\\\\\\")

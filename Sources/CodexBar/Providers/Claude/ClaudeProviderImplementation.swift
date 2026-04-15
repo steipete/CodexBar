@@ -18,6 +18,10 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         }
     }
 
+    func makeRuntime() -> (any ProviderRuntime)? {
+        ClaudeWarmingRuntime()
+    }
+
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.claudeUsageDataSource
@@ -26,6 +30,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeOAuthKeychainPromptMode
         _ = settings.claudeOAuthKeychainReadStrategy
         _ = settings.claudeWebExtrasEnabled
+        _ = settings.claudeWarmingEnabled
     }
 
     @MainActor
@@ -77,12 +82,29 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 context.settings.claudeOAuthPromptFreeCredentialsEnabled = enabled
             })
 
+        let warmingBinding = Binding(
+            get: { context.settings.claudeWarmingEnabled },
+            set: { enabled in
+                context.settings.claudeWarmingEnabled = enabled
+            })
+
         return [
             ProviderSettingsToggleDescriptor(
                 id: "claude-oauth-prompt-free-credentials",
                 title: "Avoid Keychain prompts",
                 subtitle: subtitle,
                 binding: promptFreeBinding,
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "claude-warming",
+                title: "Enable Claude Warming",
+                subtitle: "Pings Claude CLI hourly to keep the 5-hour usage window advancing, so it resets sooner when you start working.",
+                binding: warmingBinding,
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
@@ -210,6 +232,31 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
             entries.append(.text("Extra usage: \(used) / \(limit)", .primary))
+        }
+
+        if context.settings.claudeWarmingEnabled,
+           let runtime = context.store.providerRuntimes[.claude] as? ClaudeWarmingRuntime,
+           let service = runtime.warmingService
+        {
+            if let lastPing = service.lastPingTime {
+                let time = ClaudeWarmingService.formatTime(lastPing)
+                entries.append(.text("Warmer: Last ping \(time) (\(service.lastPingMessage))", .secondary))
+            }
+            if let resetAt = service.windowResetsAt {
+                if Date() > resetAt {
+                    entries.append(.text("Warmer: Window expired", .secondary))
+                } else {
+                    let time = ClaudeWarmingService.formatTime(resetAt)
+                    entries.append(.text("Warmer: Window resets ~\(time)", .secondary))
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry]) {
+        if context.settings.claudeWarmingEnabled {
+            entries.append(.action("Ping Now", .claudeWarmingPingNow))
         }
     }
 

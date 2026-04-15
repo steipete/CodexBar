@@ -18,6 +18,7 @@ extension StatusItemController {
         case .about: (#selector(self.showSettingsAbout), nil)
         case .quit: (#selector(self.quit), nil)
         case let .copyError(message): (#selector(self.copyError(_:)), message)
+        case .claudeWarmingPingNow: (#selector(self.claudeWarmingPingNow), nil)
         }
     }
 

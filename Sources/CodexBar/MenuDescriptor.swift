@@ -64,6 +64,7 @@ struct MenuDescriptor {
         case about
         case quit
         case copyError(String)
+        case claudeWarmingPingNow
     }
 
     var sections: [Section]
@@ -502,6 +503,7 @@ extension MenuDescriptor.MenuAction {
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue
+        case .claudeWarmingPingNow: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         }
     }
 }
