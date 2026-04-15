@@ -23,6 +23,7 @@ final class ClaudeWarmingRuntime: ProviderRuntime {
 
     private func updateWarmingState(context: ProviderRuntimeContext) {
         let shouldRun = context.settings.claudeWarmingEnabled
+            && context.store.isEnabled(.claude)
         if shouldRun {
             if warmingService == nil {
                 warmingService = ClaudeWarmingService()

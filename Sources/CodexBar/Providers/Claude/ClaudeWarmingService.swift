@@ -111,6 +111,8 @@ final class ClaudeWarmingService {
         onStatusChanged?()
     }
 
+    private static let processTimeout: TimeInterval = 60
+
     private func runClaude(at path: String) async -> (String, Int32) {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -125,12 +127,30 @@ final class ClaudeWarmingService {
 
                 do {
                     try process.run()
-                    process.waitUntilExit()
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                    let output = String(data: data, encoding: .utf8) ?? ""
-                    continuation.resume(returning: (output, process.terminationStatus))
                 } catch {
                     continuation.resume(returning: ("Process launch failed: \(error)", 1))
+                    return
+                }
+
+                let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+                timer.schedule(deadline: .now() + Self.processTimeout)
+                timer.setEventHandler {
+                    if process.isRunning {
+                        process.terminate()
+                    }
+                }
+                timer.resume()
+
+                process.waitUntilExit()
+                timer.cancel()
+
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8) ?? ""
+
+                if process.terminationReason == .uncaughtSignal {
+                    continuation.resume(returning: ("Process timed out after \(Int(Self.processTimeout))s", 1))
+                } else {
+                    continuation.resume(returning: (output, process.terminationStatus))
                 }
             }
         }
