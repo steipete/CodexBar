@@ -36,7 +36,8 @@ public enum AbacusUsageFetcher {
             return try await self.fetchWithCookieHeader(override, timeout: timeout, logger: logger)
         }
 
-        // Cached cookie header — clear on recoverable errors and fall through
+        // Cached cookie header — fall back to a fresh browser import when the
+        // cached session is rejected or looks stale.
         if let cached = CookieHeaderCache.load(provider: .abacus),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -44,11 +45,17 @@ public enum AbacusUsageFetcher {
             do {
                 return try await self.fetchWithCookieHeader(
                     cached.cookieHeader, timeout: timeout, logger: logger)
-            } catch let error as AbacusUsageError where error.isRecoverable {
-                CookieHeaderCache.clear(provider: .abacus)
-                self.emit(
-                    "Cached cookie failed (\(error.localizedDescription)); cleared, trying fresh import",
-                    logger: logger)
+            } catch let error as AbacusUsageError where error.shouldTryNextImportedSession {
+                if error.shouldClearCachedCookie {
+                    CookieHeaderCache.clear(provider: .abacus)
+                    self.emit(
+                        "Cached cookie failed (\(error.localizedDescription)); cleared, trying fresh import",
+                        logger: logger)
+                } else {
+                    self.emit(
+                        "Cached cookie failed (\(error.localizedDescription)); trying fresh import",
+                        logger: logger)
+                }
             }
         }
 

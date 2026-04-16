@@ -33,6 +33,16 @@ public enum AbacusUsageError: LocalizedError, Sendable, Equatable {
         }
     }
 
+    /// Whether a cached cookie header should be evicted before falling back to
+    /// a fresh browser import. Parse/auth failures usually indicate that the
+    /// cached session is stale or no longer accepted.
+    var shouldClearCachedCookie: Bool {
+        switch self {
+        case .unauthorized, .sessionExpired, .parseFailed: true
+        case .networkError, .noSessionCookie: false
+        }
+    }
+
     public var errorDescription: String? {
         switch self {
         case .noSessionCookie:

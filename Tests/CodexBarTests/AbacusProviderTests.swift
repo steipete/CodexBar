@@ -258,6 +258,7 @@ struct AbacusErrorClassificationTests {
         #expect(error.isRecoverable == false)
         #expect(error.isAuthRelated == false)
         #expect(error.shouldTryNextImportedSession == true)
+        #expect(error.shouldClearCachedCookie == true)
     }
 
     @Test
@@ -266,6 +267,7 @@ struct AbacusErrorClassificationTests {
         #expect(error.isRecoverable == false)
         #expect(error.isAuthRelated == false)
         #expect(error.shouldTryNextImportedSession == true)
+        #expect(error.shouldClearCachedCookie == false)
     }
 
     @Test
@@ -274,11 +276,14 @@ struct AbacusErrorClassificationTests {
         #expect(error.isRecoverable == false)
         #expect(error.isAuthRelated == false)
         #expect(error.shouldTryNextImportedSession == false)
+        #expect(error.shouldClearCachedCookie == false)
     }
 
     @Test
     func `auth failures continue imported session scanning`() {
         #expect(AbacusUsageError.unauthorized.shouldTryNextImportedSession == true)
         #expect(AbacusUsageError.sessionExpired.shouldTryNextImportedSession == true)
+        #expect(AbacusUsageError.unauthorized.shouldClearCachedCookie == true)
+        #expect(AbacusUsageError.sessionExpired.shouldClearCachedCookie == true)
     }
 }
