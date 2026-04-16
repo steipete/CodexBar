@@ -665,7 +665,39 @@ public struct AntigravityStatusProbe: Sendable {
             let ok = await testConnectivity(endpoint, timeout)
             if ok { return endpoint }
         }
+        if let fallback = fallbackProbeEndpoint(candidateEndpoints) {
+            self.log.debug("Port probe fell back to best-effort endpoint", metadata: [
+                "source": fallback.source.rawValue,
+                "scheme": fallback.scheme,
+                "port": "\(fallback.port)",
+            ])
+            return fallback
+        }
         throw AntigravityStatusProbeError.portDetectionFailed("no working API port found")
+    }
+
+    static func fallbackProbePort(ports: [Int], extensionPort: Int?) -> Int? {
+        if let nonExtension = ports.first(where: { $0 != extensionPort }) {
+            return nonExtension
+        }
+        if let extensionPort {
+            return extensionPort
+        }
+        return ports.first
+    }
+
+    static func isReachableProbeError(_ error: Error) -> Bool {
+        guard case let AntigravityStatusProbeError.apiError(message) = error else { return false }
+        return message.hasPrefix("HTTP ")
+    }
+
+    private static func fallbackProbeEndpoint(
+        _ endpoints: [AntigravityConnectionEndpoint]) -> AntigravityConnectionEndpoint?
+    {
+        if let languageServerEndpoint = endpoints.first(where: { $0.source == .languageServer }) {
+            return languageServerEndpoint
+        }
+        return endpoints.first
     }
 
     private static func testEndpointConnectivity(
@@ -680,6 +712,15 @@ public struct AntigravityStatusProbe: Sendable {
                 context: RequestContext(endpoints: [endpoint], timeout: timeout))
             return true
         } catch {
+            if self.isReachableProbeError(error) {
+                self.log.debug("Port probe received HTTP response; treating endpoint as reachable", metadata: [
+                    "source": endpoint.source.rawValue,
+                    "scheme": endpoint.scheme,
+                    "port": "\(endpoint.port)",
+                    "error": error.localizedDescription,
+                ])
+                return true
+            }
             self.log.debug("Port probe failed", metadata: [
                 "source": endpoint.source.rawValue,
                 "scheme": endpoint.scheme,
@@ -896,11 +937,9 @@ private final class LocalhostSessionDelegate: NSObject {
 extension LocalhostSessionDelegate: URLSessionDelegate {
     func urlSession(
         _ session: URLSession,
-        didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+        didReceive challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)
     {
-        let result = self.challengeResult(challenge)
-        completionHandler(result.disposition, result.credential)
+        self.challengeResult(challenge)
     }
 }
 
@@ -908,11 +947,9 @@ extension LocalhostSessionDelegate: URLSessionTaskDelegate {
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
-        didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+        didReceive challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)
     {
-        let result = self.challengeResult(challenge)
-        completionHandler(result.disposition, result.credential)
+        self.challengeResult(challenge)
     }
 }
 
