@@ -10,6 +10,14 @@ import SweetCookieKit
 // MARK: - Abacus Usage Fetcher
 
 public enum AbacusUsageFetcher {
+    private struct BrowserFetchRequest {
+        let browserDetection: BrowserDetection
+        let preferredBrowsers: [Browser]
+        let label: String
+        let timeout: TimeInterval
+        let logger: ((String) -> Void)?
+    }
+
     private static let log = CodexBarLog.logger(LogCategories.abacusUsage)
     private static let computePointsURL =
         URL(string: "https://apps.abacus.ai/api/_getOrganizationComputePoints")!
@@ -18,6 +26,7 @@ public enum AbacusUsageFetcher {
 
     public static func fetchUsage(
         cookieHeaderOverride: String? = nil,
+        browserDetection: BrowserDetection = BrowserDetection(),
         timeout: TimeInterval = 15.0,
         logger: ((String) -> Void)? = nil) async throws -> AbacusUsageSnapshot
     {
@@ -44,14 +53,16 @@ public enum AbacusUsageFetcher {
         }
 
         // Fresh browser import — try Chrome first (AGENTS.md default), then broaden
-        // to all browsers if Chrome has no sessions OR if all Chrome sessions fail
-        // with recoverable errors (expired/unauthorized cookies).
+        // to all browsers if Chrome has no sessions OR if every imported Chrome
+        // session is exhausted without a successful fetch.
         var lastError: AbacusUsageError = .noSessionCookie
         if let snapshot = try await self.tryFetchFromBrowsers(
-            preferredBrowsers: [.chrome],
-            label: "Chrome",
-            timeout: timeout,
-            logger: logger,
+            BrowserFetchRequest(
+                browserDetection: browserDetection,
+                preferredBrowsers: [.chrome],
+                label: "Chrome",
+                timeout: timeout,
+                logger: logger),
             lastError: &lastError)
         {
             return snapshot
@@ -59,10 +70,12 @@ public enum AbacusUsageFetcher {
 
         self.emit("Chrome sessions exhausted; falling back to all browsers", logger: logger)
         if let snapshot = try await self.tryFetchFromBrowsers(
-            preferredBrowsers: [],
-            label: "all browsers",
-            timeout: timeout,
-            logger: logger,
+            BrowserFetchRequest(
+                browserDetection: browserDetection,
+                preferredBrowsers: [],
+                label: "all browsers",
+                timeout: timeout,
+                logger: logger),
             lastError: &lastError)
         {
             return snapshot
@@ -71,41 +84,50 @@ public enum AbacusUsageFetcher {
         throw lastError
     }
 
-    /// Tries to import sessions from `preferredBrowsers` and fetch usage.  Returns
-    /// the snapshot on success, nil if no sessions were available or all failed
-    /// with recoverable errors. Non-recoverable errors are rethrown directly.
+    /// Tries to import sessions from `preferredBrowsers` and fetch usage. Returns
+    /// the snapshot on success, nil if no sessions were available or every
+    /// imported session was exhausted without success.
     private static func tryFetchFromBrowsers(
-        preferredBrowsers: [Browser],
-        label: String,
-        timeout: TimeInterval,
-        logger: ((String) -> Void)?,
+        _ request: BrowserFetchRequest,
         lastError: inout AbacusUsageError) async throws -> AbacusUsageSnapshot?
     {
         let sessions: [AbacusCookieImporter.SessionInfo]
         do {
             sessions = try AbacusCookieImporter.importSessions(
-                preferredBrowsers: preferredBrowsers, logger: logger)
+                browserDetection: request.browserDetection,
+                preferredBrowsers: request.preferredBrowsers,
+                logger: request.logger)
         } catch {
             BrowserCookieAccessGate.recordIfNeeded(error)
-            self.emit("\(label) cookie import failed: \(error.localizedDescription)", logger: logger)
+            self.emit(
+                "\(request.label) cookie import failed: \(error.localizedDescription)",
+                logger: request.logger)
             return nil
         }
 
         for session in sessions {
-            self.emit("Trying cookies from \(session.sourceLabel)", logger: logger)
+            self.emit("Trying cookies from \(session.sourceLabel)", logger: request.logger)
             do {
                 let snapshot = try await self.fetchWithCookieHeader(
-                    session.cookieHeader, timeout: timeout, logger: logger)
+                    session.cookieHeader,
+                    timeout: request.timeout,
+                    logger: request.logger)
                 CookieHeaderCache.store(
                     provider: .abacus,
                     cookieHeader: session.cookieHeader,
                     sourceLabel: session.sourceLabel)
                 return snapshot
-            } catch let error as AbacusUsageError where error.isRecoverable {
+            } catch let error as AbacusUsageError where error.shouldTryNextImportedSession {
                 self.emit(
                     "\(session.sourceLabel): \(error.localizedDescription), trying next source",
-                    logger: logger)
+                    logger: request.logger)
                 lastError = error
+                continue
+            } catch {
+                self.emit(
+                    "\(session.sourceLabel): \(error.localizedDescription), trying next source",
+                    logger: request.logger)
+                lastError = .networkError(error.localizedDescription)
                 continue
             }
         }
@@ -258,6 +280,7 @@ public enum AbacusUsageFetcher {
 public enum AbacusUsageFetcher {
     public static func fetchUsage(
         cookieHeaderOverride _: String? = nil,
+        browserDetection _: BrowserDetection = BrowserDetection(),
         timeout _: TimeInterval = 15.0,
         logger _: ((String) -> Void)? = nil) async throws -> AbacusUsageSnapshot
     {

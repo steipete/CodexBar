@@ -10,9 +10,7 @@ public enum AbacusUsageError: LocalizedError, Sendable, Equatable {
     case unauthorized
 
     /// Whether this error indicates an authentication/session problem that
-    /// should trigger cache eviction and candidate fallthrough.
-    /// Parse failures are deterministic — retrying with another session
-    /// produces the same result, so they are NOT recoverable.
+    /// should trigger cache eviction.
     public var isRecoverable: Bool {
         switch self {
         case .unauthorized, .sessionExpired: true
@@ -22,6 +20,17 @@ public enum AbacusUsageError: LocalizedError, Sendable, Equatable {
 
     public var isAuthRelated: Bool {
         self.isRecoverable
+    }
+
+    /// Whether browser-import scanning should continue to later sessions after
+    /// this failure. Imported sessions can differ by profile/browser, so we keep
+    /// scanning on per-session fetch failures and surface the first one only if
+    /// every candidate is exhausted.
+    var shouldTryNextImportedSession: Bool {
+        switch self {
+        case .unauthorized, .sessionExpired, .networkError, .parseFailed: true
+        case .noSessionCookie: false
+        }
     }
 
     public var errorDescription: String? {

@@ -14,9 +14,9 @@ struct AbacusDescriptorTests {
     }
 
     @Test
-    func `descriptor supports credits not opus`() {
+    func `descriptor does not expose a separate credits panel`() {
         let meta = AbacusProviderDescriptor.descriptor.metadata
-        #expect(meta.supportsCredits == true)
+        #expect(meta.supportsCredits == false)
         #expect(meta.supportsOpus == false)
     }
 
@@ -257,6 +257,7 @@ struct AbacusErrorClassificationTests {
         let error = AbacusUsageError.parseFailed("bad json")
         #expect(error.isRecoverable == false)
         #expect(error.isAuthRelated == false)
+        #expect(error.shouldTryNextImportedSession == true)
     }
 
     @Test
@@ -264,6 +265,7 @@ struct AbacusErrorClassificationTests {
         let error = AbacusUsageError.networkError("timeout")
         #expect(error.isRecoverable == false)
         #expect(error.isAuthRelated == false)
+        #expect(error.shouldTryNextImportedSession == true)
     }
 
     @Test
@@ -271,5 +273,12 @@ struct AbacusErrorClassificationTests {
         let error = AbacusUsageError.noSessionCookie
         #expect(error.isRecoverable == false)
         #expect(error.isAuthRelated == false)
+        #expect(error.shouldTryNextImportedSession == false)
+    }
+
+    @Test
+    func `auth failures continue imported session scanning`() {
+        #expect(AbacusUsageError.unauthorized.shouldTryNextImportedSession == true)
+        #expect(AbacusUsageError.sessionExpired.shouldTryNextImportedSession == true)
     }
 }

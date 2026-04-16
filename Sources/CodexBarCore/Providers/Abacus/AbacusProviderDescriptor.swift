@@ -18,8 +18,8 @@ public enum AbacusProviderDescriptor {
                 weeklyLabel: "Weekly",
                 opusLabel: nil,
                 supportsOpus: false,
-                supportsCredits: true,
-                creditsHint: "Abacus AI compute credits for ChatLLM/RouteLLM usage.",
+                supportsCredits: false,
+                creditsHint: "",
                 toggleTitle: "Show Abacus AI usage",
                 cliName: "abacusai",
                 defaultEnabled: false,
@@ -73,6 +73,7 @@ struct AbacusWebFetchStrategy: ProviderFetchStrategy {
             : nil
         let snap = try await AbacusUsageFetcher.fetchUsage(
             cookieHeaderOverride: manual,
+            browserDetection: context.browserDetection,
             timeout: context.webTimeout,
             logger: logger)
         return self.makeResult(
