@@ -18,6 +18,12 @@ public enum AbacusUsageFetcher {
         let logger: ((String) -> Void)?
     }
 
+    /// Parsed JSON dictionaries are treated as immutable snapshots here and are
+    /// only moved between sibling fetch tasks before being consumed locally.
+    private struct JSONDictionaryBox: @unchecked Sendable {
+        let value: [String: Any]
+    }
+
     private static let log = CodexBarLog.logger(LogCategories.abacusUsage)
     private static let computePointsURL =
         URL(string: "https://apps.abacus.ai/api/_getOrganizationComputePoints")!
@@ -148,27 +154,61 @@ public enum AbacusUsageFetcher {
         timeout: TimeInterval,
         logger: ((String) -> Void)? = nil) async throws -> AbacusUsageSnapshot
     {
+        enum FetchPart: Sendable {
+            case computePoints(JSONDictionaryBox)
+            case billingInfoSuccess(JSONDictionaryBox)
+            case billingInfoFailure(String)
+        }
+
         // Fetch compute points (required, full timeout) and billing info
         // (optional, shorter budget) concurrently. Billing is bounded so a
         // slow/flaky billing endpoint can't delay credit rendering.
         let billingBudget = min(timeout, 5.0)
-        async let computePoints = self.fetchJSON(
-            url: self.computePointsURL, method: "GET", cookieHeader: cookieHeader, timeout: timeout)
-        async let billingInfo = self.fetchJSON(
-            url: self.billingInfoURL, method: "POST", cookieHeader: cookieHeader, timeout: billingBudget)
 
-        let cpResult = try await computePoints
-        let biResult: [String: Any]
-        do {
-            biResult = try await billingInfo
-        } catch {
-            self.emit(
-                "Billing info fetch failed: \(error.localizedDescription); credits shown without plan/reset",
-                logger: logger)
-            biResult = [:]
+        var computePointsResult: [String: Any]?
+        var billingInfoResult: [String: Any] = [:]
+
+        try await withThrowingTaskGroup(of: FetchPart.self) { group in
+            group.addTask {
+                let result = try await self.fetchJSON(
+                    url: self.computePointsURL,
+                    method: "GET",
+                    cookieHeader: cookieHeader,
+                    timeout: timeout)
+                return .computePoints(JSONDictionaryBox(value: result))
+            }
+            group.addTask {
+                do {
+                    let result = try await self.fetchJSON(
+                        url: self.billingInfoURL,
+                        method: "POST",
+                        cookieHeader: cookieHeader,
+                        timeout: billingBudget)
+                    return .billingInfoSuccess(JSONDictionaryBox(value: result))
+                } catch {
+                    return .billingInfoFailure(error.localizedDescription)
+                }
+            }
+
+            while let result = try await group.next() {
+                switch result {
+                case let .computePoints(value):
+                    computePointsResult = value.value
+                case let .billingInfoSuccess(value):
+                    billingInfoResult = value.value
+                case let .billingInfoFailure(message):
+                    self.emit(
+                        "Billing info fetch failed: \(message); credits shown without plan/reset",
+                        logger: logger)
+                }
+            }
         }
 
-        return try self.parseResults(computePoints: cpResult, billingInfo: biResult)
+        guard let computePointsResult else {
+            throw AbacusUsageError.networkError("Abacus compute points fetch did not complete")
+        }
+
+        return try self.parseResults(computePoints: computePointsResult, billingInfo: billingInfoResult)
     }
 
     private static func fetchJSON(
