@@ -911,6 +911,7 @@ struct SettingsStoreTests {
             .warp,
             .openrouter,
             .perplexity,
+            .abacus,
         ])
 
         // Move one provider; ensure it's persisted across instances.
