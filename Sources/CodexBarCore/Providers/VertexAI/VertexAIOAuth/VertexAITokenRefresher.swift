@@ -49,7 +49,7 @@ public enum VertexAITokenRefresher {
         request.httpBody = bodyString.data(using: .utf8)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.codexbarData(for: request)
             guard let http = response as? HTTPURLResponse else {
                 throw RefreshError.invalidResponse("No HTTP response")
             }

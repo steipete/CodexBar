@@ -60,6 +60,15 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             return cached.value
         }
         Self.cacheLock.unlock()
+        let auditMetadata = [
+            "service": self.service,
+            "account": self.account,
+            "operation": "read",
+        ]
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cookie_header.read",
+            target: self.account,
+            metadata: auditMetadata)
         var result: CFTypeRef?
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -110,6 +119,11 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             Self.log.debug("Keychain access disabled; skipping cookie store")
             return
         }
+        let auditMetadata = [
+            "service": self.service,
+            "account": self.account,
+            "operation": "write",
+        ]
         guard let raw = header?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty
         else {
@@ -129,6 +143,10 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
             return
         }
 
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cookie_header.write",
+            target: self.account,
+            metadata: auditMetadata)
         let data = raw.data(using: .utf8)!
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -171,6 +189,14 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
 
     private func deleteIfPresent() throws {
         guard !KeychainAccessGate.isDisabled else { return }
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cookie_header.delete",
+            target: self.account,
+            metadata: [
+                "service": self.service,
+                "account": self.account,
+                "operation": "delete",
+            ])
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,

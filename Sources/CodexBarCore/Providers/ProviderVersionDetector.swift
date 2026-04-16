@@ -64,14 +64,36 @@ public enum ProviderVersionDetector {
             exitSemaphore.signal()
         }
 
+        let auditMetadata = [
+            "argument_count": "\(args.count)",
+            "timeout_ms": "\(Int(timeout * 1000))",
+            "mode": "version-detect",
+        ]
+        AuditLogger.recordCommand(
+            action: "process.started",
+            binary: path,
+            risk: AuditLogger.inferredCommandRisk(binary: path),
+            metadata: auditMetadata)
+
         do {
             try proc.run()
         } catch {
+            AuditLogger.recordCommand(
+                action: "process.launch_failed",
+                binary: path,
+                risk: AuditLogger.inferredCommandRisk(binary: path),
+                metadata: auditMetadata.merging(["error": error.localizedDescription], uniquingKeysWith: { _, new in new }))
             return nil
         }
 
         let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
-        if !didExit, !Self.forceExit(proc, exitSemaphore: exitSemaphore) {
+        if !didExit {
+            _ = Self.forceExit(proc, exitSemaphore: exitSemaphore)
+            AuditLogger.recordCommand(
+                action: "process.timed_out",
+                binary: path,
+                risk: AuditLogger.inferredCommandRisk(binary: path),
+                metadata: auditMetadata)
             return nil
         }
 
@@ -79,8 +101,20 @@ public enum ProviderVersionDetector {
         guard proc.terminationStatus == 0,
               let text = String(data: data, encoding: .utf8)?
                   .split(whereSeparator: \.isNewline).first
-        else { return nil }
+        else {
+            AuditLogger.recordCommand(
+                action: "process.failed",
+                binary: path,
+                risk: AuditLogger.inferredCommandRisk(binary: path),
+                metadata: auditMetadata.merging(["status": "\(proc.terminationStatus)"], uniquingKeysWith: { _, new in new }))
+            return nil
+        }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        AuditLogger.recordCommand(
+            action: "process.completed",
+            binary: path,
+            risk: AuditLogger.inferredCommandRisk(binary: path),
+            metadata: auditMetadata.merging(["status": "\(proc.terminationStatus)"], uniquingKeysWith: { _, new in new }))
         return trimmed.isEmpty ? nil : trimmed
     }
 

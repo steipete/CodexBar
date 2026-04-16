@@ -1,3 +1,4 @@
+import CodexBarCore
 import KeyboardShortcuts
 import SwiftUI
 
@@ -6,6 +7,7 @@ struct AdvancedPane: View {
     @Bindable var settings: SettingsStore
     @State private var isInstallingCLI = false
     @State private var cliStatus: String?
+    @State private var auditStatus: String?
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -88,6 +90,75 @@ struct AdvancedPane: View {
                             subtitle: "Prevents any Keychain access while enabled.",
                             binding: self.$settings.debugDisableKeychainAccess)
                     }
+
+                Divider()
+
+                SettingsSection(
+                    title: "Governance Summary",
+                    caption: """
+                    Keep a local summary of sensitive actions for troubleshooting. This is observability \
+                    only and does not block or alter behavior.
+                    """) {
+                        PreferenceToggleRow(
+                            title: "Enable Governance Summary",
+                            subtitle: "Write a local Markdown summary of sensitive actions on this Mac.",
+                            binding: self.$settings.governanceAuditModeEnabled)
+
+                        DisclosureGroup("Customize recorded event types") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                PreferenceToggleRow(
+                                    title: "Audit network requests",
+                                    subtitle: "Record request metadata and elevated-risk network flows without storing request secrets.",
+                                    binding: self.$settings.governanceAuditNetworkRequestsEnabled)
+                                PreferenceToggleRow(
+                                    title: "Audit command execution",
+                                    subtitle: "Record spawned commands and high-risk subprocess flows.",
+                                    binding: self.$settings.governanceAuditCommandExecutionEnabled)
+                                PreferenceToggleRow(
+                                    title: "Audit secret access",
+                                    subtitle: "Record keychain and auth-material access without storing accessed values.",
+                                    binding: self.$settings.governanceAuditSecretAccessEnabled)
+                            }
+                            .padding(.top, 8)
+                        }
+                        .font(.footnote)
+
+                        Text("By default, enabling the summary records network, command, and secret events.")
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+
+                        HStack(spacing: 12) {
+                            Button {
+                                self.revealAuditLogFolder()
+                            } label: {
+                                Label("Reveal log folder", systemImage: "folder")
+                            }
+                            .controlSize(.small)
+
+                            Button(role: .destructive) {
+                                self.clearAuditLogs()
+                            } label: {
+                                Label("Clear governance summary", systemImage: "trash")
+                            }
+                            .controlSize(.small)
+                        }
+
+                        Text(
+                            """
+                            Governance summaries stay on this Mac in \(Self.auditLogDisplayPath). CodexBar groups \
+                            sensitive actions into a Markdown summary and keeps technical debug logging in \
+                            CodexBar.log.
+                            """)
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                            .textSelection(.enabled)
+
+                        if let auditStatus = self.auditStatus {
+                            Text(auditStatus)
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
@@ -97,6 +168,15 @@ struct AdvancedPane: View {
 }
 
 extension AdvancedPane {
+    private static var auditLogDisplayPath: String {
+        let path = AuditLogger.summaryFileURL.path
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
+    }
+
     private func installCLI() async {
         if self.isInstallingCLI { return }
         self.isInstallingCLI = true
@@ -152,5 +232,24 @@ extension AdvancedPane {
             .standardizedFileURL
             .path
         return resolved == destination
+    }
+
+    private func revealAuditLogFolder() {
+        do {
+            let url = try AuditLogger.ensureLogDirectoryExists()
+            NSWorkspace.shared.open(url)
+            self.auditStatus = "Opened \(url.path)."
+        } catch {
+            self.auditStatus = "Failed to open log folder."
+        }
+    }
+
+    private func clearAuditLogs() {
+        do {
+            try AuditLogger.clearLogs()
+            self.auditStatus = "Cleared governance audit summary."
+        } catch {
+            self.auditStatus = "Failed to clear governance audit summary."
+        }
     }
 }

@@ -37,6 +37,11 @@ struct DebugPane: View {
                             }
                         }
 
+                    PreferenceToggleRow(
+                        title: "Privacy-conscious file logging",
+                        subtitle: "Normalize home paths and trim obvious IDs in file-log paths and URLs without changing verbosity.",
+                        binding: self.$settings.debugPrivacyLoggingEnabled)
+
                     HStack(alignment: .center, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Verbosity")

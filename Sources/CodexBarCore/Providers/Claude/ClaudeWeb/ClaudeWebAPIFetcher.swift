@@ -264,7 +264,7 @@ public enum ClaudeWebAPIFetcher {
             request.timeoutInterval = 20
 
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await URLSession.shared.codexbarData(for: request)
                 let http = response as? HTTPURLResponse
                 let contentType = http?.allHeaderFields["Content-Type"] as? String
                 let truncated = data.prefix(Self.maxProbeBytes)
@@ -399,7 +399,7 @@ public enum ClaudeWebAPIFetcher {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.codexbarData(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FetchError.invalidResponse
@@ -429,7 +429,7 @@ public enum ClaudeWebAPIFetcher {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.codexbarData(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FetchError.invalidResponse
@@ -530,7 +530,7 @@ public enum ClaudeWebAPIFetcher {
         request.timeoutInterval = 15
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.codexbarData(for: request)
             guard let httpResponse = response as? HTTPURLResponse else { return nil }
             logger?("Overage API status: \(httpResponse.statusCode)")
             guard httpResponse.statusCode == 200 else { return nil }
@@ -677,7 +677,7 @@ public enum ClaudeWebAPIFetcher {
         request.timeoutInterval = 15
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.codexbarData(for: request)
             guard let httpResponse = response as? HTTPURLResponse else { return nil }
             logger?("Account API status: \(httpResponse.statusCode)")
             guard httpResponse.statusCode == 200 else { return nil }

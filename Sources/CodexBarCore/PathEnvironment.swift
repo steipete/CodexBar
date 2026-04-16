@@ -263,9 +263,25 @@ public enum ShellCommandLocator {
         let stdout = Pipe()
         process.standardOutput = stdout
         process.standardError = Pipe()
+        let auditMetadata = [
+            "timeout_ms": "\(Int(timeout * 1000))",
+            "interactive_login_shell": isCI ? "0" : "1",
+            "command_length": "\(command.count)",
+            "purpose": "path-shell-capture",
+        ]
+        AuditLogger.recordCommand(
+            action: "process.started",
+            binary: shellPath,
+            risk: AuditLogger.inferredCommandRisk(binary: shellPath, usesShell: true),
+            metadata: auditMetadata)
         do {
             try process.run()
         } catch {
+            AuditLogger.recordCommand(
+                action: "process.launch_failed",
+                binary: shellPath,
+                risk: AuditLogger.inferredCommandRisk(binary: shellPath, usesShell: true),
+                metadata: auditMetadata.merging(["error": error.localizedDescription], uniquingKeysWith: { _, new in new }))
             return nil
         }
 
@@ -276,10 +292,20 @@ public enum ShellCommandLocator {
 
         if process.isRunning {
             process.terminate()
+            AuditLogger.recordCommand(
+                action: "process.timed_out",
+                binary: shellPath,
+                risk: AuditLogger.inferredCommandRisk(binary: shellPath, usesShell: true),
+                metadata: auditMetadata)
             return nil
         }
 
         let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        AuditLogger.recordCommand(
+            action: "process.completed",
+            binary: shellPath,
+            risk: AuditLogger.inferredCommandRisk(binary: shellPath, usesShell: true),
+            metadata: auditMetadata.merging(["status": "\(process.terminationStatus)"], uniquingKeysWith: { _, new in new }))
         return String(data: data, encoding: .utf8)
     }
 
@@ -424,9 +450,24 @@ enum LoginShellPathCapturer {
         let stdout = Pipe()
         process.standardOutput = stdout
         process.standardError = Pipe()
+        let auditMetadata = [
+            "timeout_ms": "\(Int(timeout * 1000))",
+            "interactive_login_shell": isCI ? "0" : "1",
+            "purpose": "login-shell-path-capture",
+        ]
+        AuditLogger.recordCommand(
+            action: "process.started",
+            binary: shellPath,
+            risk: AuditLogger.inferredCommandRisk(binary: shellPath, usesShell: true),
+            metadata: auditMetadata)
         do {
             try process.run()
         } catch {
+            AuditLogger.recordCommand(
+                action: "process.launch_failed",
+                binary: shellPath,
+                risk: AuditLogger.inferredCommandRisk(binary: shellPath, usesShell: true),
+                metadata: auditMetadata.merging(["error": error.localizedDescription], uniquingKeysWith: { _, new in new }))
             return nil
         }
 
@@ -437,10 +478,20 @@ enum LoginShellPathCapturer {
 
         if process.isRunning {
             process.terminate()
+            AuditLogger.recordCommand(
+                action: "process.timed_out",
+                binary: shellPath,
+                risk: AuditLogger.inferredCommandRisk(binary: shellPath, usesShell: true),
+                metadata: auditMetadata)
             return nil
         }
 
         let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        AuditLogger.recordCommand(
+            action: "process.completed",
+            binary: shellPath,
+            risk: AuditLogger.inferredCommandRisk(binary: shellPath, usesShell: true),
+            metadata: auditMetadata.merging(["status": "\(process.terminationStatus)"], uniquingKeysWith: { _, new in new }))
         guard let raw = String(data: data, encoding: .utf8),
               !raw.isEmpty else { return nil }
 

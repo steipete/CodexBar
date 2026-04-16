@@ -52,7 +52,7 @@ public enum CodexOpenAIWorkspaceResolver {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(workspaceAccountID, forHTTPHeaderField: "ChatGPT-Account-Id")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.codexbarData(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode)
         else {

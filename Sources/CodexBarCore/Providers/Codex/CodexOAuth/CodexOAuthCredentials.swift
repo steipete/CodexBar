@@ -63,6 +63,13 @@ public enum CodexOAuthCredentialsStore {
             throw CodexOAuthCredentialsError.notFound
         }
 
+        AuditLogger.recordSecretAccess(
+            action: "file.auth_json.read",
+            target: url.lastPathComponent,
+            metadata: [
+                "path": url.path,
+                "operation": "read",
+            ])
         let data = try Data(contentsOf: url)
         return try self.parse(data: data)
     }
@@ -113,6 +120,13 @@ public enum CodexOAuthCredentialsStore {
         env: [String: String] = ProcessInfo.processInfo.environment) throws
     {
         let url = self.authFilePath(env: env)
+        AuditLogger.recordSecretAccess(
+            action: "file.auth_json.write",
+            target: url.lastPathComponent,
+            metadata: [
+                "path": url.path,
+                "operation": "write",
+            ])
 
         var json: [String: Any] = [:]
         if let data = try? Data(contentsOf: url),

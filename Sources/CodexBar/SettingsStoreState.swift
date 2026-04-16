@@ -5,7 +5,12 @@ struct SettingsDefaultsState {
     var launchAtLogin: Bool
     var debugMenuEnabled: Bool
     var debugDisableKeychainAccess: Bool
+    var governanceAuditModeEnabled: Bool
+    var governanceAuditNetworkRequestsEnabled: Bool
+    var governanceAuditCommandExecutionEnabled: Bool
+    var governanceAuditSecretAccessEnabled: Bool
     var debugFileLoggingEnabled: Bool
+    var debugPrivacyLoggingEnabled: Bool
     var debugLogLevelRaw: String?
     var debugLoadingPatternRaw: String?
     var debugKeepCLISessionsAlive: Bool

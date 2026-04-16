@@ -599,6 +599,20 @@ public struct AntigravityStatusProbe: Sendable {
                 context: context)
         } catch {
             guard let httpPort = context.httpPort, httpPort != context.httpsPort else { throw error }
+            AuditLogger.record(AuditEvent(
+                category: .network,
+                action: "request.http_fallback",
+                target: "127.0.0.1:\(httpPort)",
+                risk: .elevatedRisk,
+                metadata: [
+                    "provider": "antigravity",
+                    "https_port": "\(context.httpsPort)",
+                    "http_port": "\(httpPort)",
+                    "error": error.localizedDescription,
+                ],
+                context: GovernanceContext(
+                    flow: "antigravity-localhost-trust",
+                    detail: "https-failed-http-fallback")))
             return try await Self.sendRequest(
                 scheme: "http",
                 port: httpPort,
@@ -637,8 +651,20 @@ public struct AntigravityStatusProbe: Sendable {
         let delegate = LocalhostSessionDelegate()
         let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { session.invalidateAndCancel() }
-
-        let (data, response) = try await delegate.data(for: request, session: session)
+        let auditOptions = NetworkAuditOptions(
+            risk: .elevatedRisk,
+            metadata: [
+                "provider": "antigravity",
+                "scheme": scheme,
+                "port": "\(port)",
+                "localhost": "1",
+                "tls_bypass": scheme == "https" ? "1" : "0",
+                "http_fallback": scheme == "http" ? "1" : "0",
+            ],
+            context: GovernanceContext(
+                flow: "antigravity-localhost-trust",
+                detail: scheme == "https" ? "self-signed-certificate-bypass" : "http-fallback"))
+        let (data, response) = try await session.codexbarData(for: request, delegate: delegate, audit: auditOptions)
         guard let http = response as? HTTPURLResponse else {
             throw AntigravityStatusProbeError.apiError("Invalid response")
         }
@@ -729,6 +755,22 @@ extension LocalhostSessionDelegate: URLSessionTaskDelegate {
         else {
             return (.performDefaultHandling, nil)
         }
+
+        AuditLogger.record(AuditEvent(
+            category: .network,
+            action: "trust_override.accepted",
+            target: protectionSpace.host,
+            risk: .elevatedRisk,
+            metadata: [
+                "provider": "antigravity",
+                "authentication_method": protectionSpace.authenticationMethod,
+                "host": protectionSpace.host,
+                "port": "\(protectionSpace.port)",
+            ],
+            context: GovernanceContext(
+                flow: "antigravity-localhost-trust",
+                detail: "server-trust-override")))
+
         return (.useCredential, URLCredential(trust: trust))
         #endif
     }

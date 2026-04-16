@@ -595,7 +595,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
 
-        let (data, response) = try await session.data(for: urlRequest)
+        let (data, response) = try await session.codexbarData(for: urlRequest)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenCodeGoUsageError.networkError("Invalid response")
         }
@@ -637,7 +637,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.codexbarData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenCodeGoUsageError.networkError("Invalid response")
         }

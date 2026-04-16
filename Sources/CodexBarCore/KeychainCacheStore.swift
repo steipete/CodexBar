@@ -46,6 +46,15 @@ public enum KeychainCacheStore {
             return testResult
         }
         #if os(macOS)
+        let auditMetadata = [
+            "service": self.serviceName,
+            "account": key.account,
+            "operation": "read",
+        ]
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cache.read",
+            target: key.account,
+            metadata: auditMetadata)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.serviceName,
@@ -84,6 +93,15 @@ public enum KeychainCacheStore {
             return
         }
         #if os(macOS)
+        let auditMetadata = [
+            "service": self.serviceName,
+            "account": key.account,
+            "operation": "write",
+        ]
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cache.write",
+            target: key.account,
+            metadata: auditMetadata)
         let encoder = Self.makeEncoder()
         guard let data = try? encoder.encode(entry) else {
             self.log.error("Failed to encode keychain cache (\(key.account))")
@@ -125,6 +143,14 @@ public enum KeychainCacheStore {
             return
         }
         #if os(macOS)
+        AuditLogger.recordSecretAccess(
+            action: "keychain.cache.delete",
+            target: key.account,
+            metadata: [
+                "service": self.serviceName,
+                "account": key.account,
+                "operation": "delete",
+            ])
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.serviceName,

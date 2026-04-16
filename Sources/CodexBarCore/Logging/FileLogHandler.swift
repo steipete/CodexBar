@@ -122,13 +122,13 @@ struct FileLogHandler: LogHandler {
                 .sorted(by: { $0.key < $1.key })
                 .map { key, value in
                     let rendered = Self.renderMetadataValue(value)
-                    let safeValue = LogRedactor.redact(rendered)
+                    let safeValue = Self.sanitizeForFileLog(rendered)
                     return "\(key)=\(safeValue)"
                 }
                 .joined(separator: " ")
             metaText = " \(pairs)"
         }
-        let safeMessage = LogRedactor.redact("\(message)")
+        let safeMessage = Self.sanitizeForFileLog("\(message)")
         let lineText = "[\(ts)] [\(level.rawValue.uppercased())] \(self.label): \(safeMessage)\(metaText)\n"
         _ = source
         _ = file
@@ -150,5 +150,13 @@ struct FileLogHandler: LogHandler {
         default:
             String(describing: value)
         }
+    }
+
+    private static func sanitizeForFileLog(_ value: String) -> String {
+        let redacted = LogRedactor.redact(value)
+        if CodexBarLog.isPrivacyMinimizationEnabled() {
+            return AuditPrivacySanitizer.sanitizeText(redacted)
+        }
+        return redacted
     }
 }

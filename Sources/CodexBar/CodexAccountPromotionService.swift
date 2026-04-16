@@ -44,6 +44,13 @@ struct DefaultCodexAuthMaterialReader: CodexAuthMaterialReading {
         guard FileManager.default.fileExists(atPath: authFileURL.path) else {
             return nil
         }
+        AuditLogger.recordSecretAccess(
+            action: "file.auth_json.read",
+            target: authFileURL.lastPathComponent,
+            metadata: [
+                "path": authFileURL.path,
+                "operation": "read",
+            ])
         return try Data(contentsOf: authFileURL)
     }
 }
@@ -56,6 +63,14 @@ struct DefaultCodexLiveAuthSwapper: CodexLiveAuthSwapping {
         let stagedAuthURL = liveHomeURL.appendingPathComponent(
             "auth.json.codexbar-staged-\(UUID().uuidString)",
             isDirectory: false)
+        AuditLogger.recordSecretAccess(
+            action: "file.auth_json.write",
+            target: liveAuthURL.lastPathComponent,
+            metadata: [
+                "path": liveAuthURL.path,
+                "staged_path": stagedAuthURL.lastPathComponent,
+                "operation": "write",
+            ])
 
         do {
             try data.write(to: stagedAuthURL)
