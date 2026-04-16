@@ -514,6 +514,15 @@ public struct GeminiStatusProbe: Sendable {
             }
         }
 
+        // Bundled format: realPath points into a bundle/ dir containing chunk-*.js files
+        // with OAuth credentials embedded in one of the chunks.
+        if let result = self.searchBundleDirectory(binDir, fm: fm) {
+            return result
+        }
+        if let result = self.searchBundleDirectory(baseDir + "/bundle", fm: fm) {
+            return result
+        }
+
         return nil
     }
 
@@ -542,6 +551,18 @@ public struct GeminiStatusProbe: Sendable {
         let clientSecret = String(content[secretRange])
 
         return OAuthClientCredentials(clientId: clientId, clientSecret: clientSecret)
+    }
+
+    private static func searchBundleDirectory(_ dir: String, fm: FileManager) -> OAuthClientCredentials? {
+        guard let entries = try? fm.contentsOfDirectory(atPath: dir) else { return nil }
+        for entry in entries where entry.hasPrefix("chunk-") && entry.hasSuffix(".js") {
+            let path = (dir as NSString).appendingPathComponent(entry)
+            guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
+            if let result = self.parseOAuthCredentials(from: content) {
+                return result
+            }
+        }
+        return nil
     }
 
     private static func refreshAccessToken(
