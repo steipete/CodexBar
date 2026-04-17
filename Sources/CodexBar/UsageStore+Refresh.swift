@@ -32,6 +32,8 @@ extension UsageStore {
                 self.statuses.removeValue(forKey: provider)
                 self.lastKnownSessionRemaining.removeValue(forKey: provider)
                 self.lastKnownSessionWindowSource.removeValue(forKey: provider)
+                self.lastKnownSecondaryRemaining.removeValue(forKey: provider)
+                self.quotaWarningFiredThresholds.removeValue(forKey: provider)
                 self.lastTokenFetchAt.removeValue(forKey: provider)
             }
             return
@@ -92,6 +94,7 @@ extension UsageStore {
                 return
             }
             await MainActor.run {
+                self.handleQuotaWarningTransition(provider: provider, snapshot: scoped)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: scoped)
                 self.snapshots[provider] = scoped
                 self.lastSourceLabels[provider] = result.sourceLabel

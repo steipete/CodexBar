@@ -220,6 +220,10 @@ extension SettingsStore {
         if sessionQuotaDefault == nil {
             userDefaults.set(true, forKey: "sessionQuotaNotificationsEnabled")
         }
+        let quotaWarningNotificationsEnabled = userDefaults.object(
+            forKey: "quotaWarningNotificationsEnabled") as? Bool ?? false
+        let quotaWarningThresholdsRaw = userDefaults.array(
+            forKey: "quotaWarningThresholds") as? [Int] ?? [50, 20]
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
         let menuBarShowsBrandIconWithPercent = userDefaults.object(
@@ -274,6 +278,8 @@ extension SettingsStore {
             debugKeepCLISessionsAlive: debugKeepCLISessionsAlive,
             statusChecksEnabled: statusChecksEnabled,
             sessionQuotaNotificationsEnabled: sessionQuotaNotificationsEnabled,
+            quotaWarningNotificationsEnabled: quotaWarningNotificationsEnabled,
+            quotaWarningThresholdsRaw: quotaWarningThresholdsRaw,
             usageBarsShowUsed: usageBarsShowUsed,
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
