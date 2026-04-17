@@ -153,7 +153,12 @@ enum CLIRenderer {
                 lines.append(self.labelValueLine("Activity", value: detail, useColor: context.useColor))
             }
         } else if let plan = snapshot.loginMethod(for: provider), !plan.isEmpty {
-            lines.append(self.labelValueLine("Plan", value: plan.capitalized, useColor: context.useColor))
+            let displayPlan = if provider == .codex {
+                CodexPlanFormatting.displayName(plan) ?? plan
+            } else {
+                plan.capitalized
+            }
+            lines.append(self.labelValueLine("Plan", value: displayPlan, useColor: context.useColor))
         }
 
         for note in context.notes {
@@ -295,7 +300,7 @@ enum CLIRenderer {
         useColor: Bool,
         now: Date) -> String?
     {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard provider == .codex || provider == .claude || provider == .opencode else { return nil }
         guard window.remainingPercent > 0 else { return nil }
         guard let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080) else { return nil }
         guard pace.expectedUsedPercent >= Self.paceMinimumExpectedPercent else { return nil }

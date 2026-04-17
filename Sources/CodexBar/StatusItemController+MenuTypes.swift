@@ -55,7 +55,7 @@ struct TokenAccountMenuDisplay {
     let showSwitcher: Bool
 }
 
-struct CodexAccountMenuDisplay {
+struct CodexAccountMenuDisplay: Equatable {
     let accounts: [CodexVisibleAccount]
     let activeVisibleAccountID: String?
 }

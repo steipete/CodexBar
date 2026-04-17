@@ -28,6 +28,17 @@ struct CodexUserFacingErrorTests {
     }
 
     @Test
+    func `decode mismatch codex error is sanitized`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-decode-mismatch")
+        store.errors[.codex] =
+            "Codex connection failed: failed to fetch codex rate limits: "
+                + "Decode error for https://chatgpt.com/backend-api/wham/usage: "
+                + "unknown variant `prolite`, expected one of `guest`, `free`, `go`, `plus`, `pro`"
+
+        #expect(store.userFacingError(for: .codex) == "Codex usage is temporarily unavailable. Try refreshing.")
+    }
+
+    @Test
     func `cached credits failure preserves cached suffix while sanitizing body`() {
         let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-cached-credits")
         store.lastCreditsError =

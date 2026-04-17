@@ -4,6 +4,10 @@ import WebKit
 @testable import CodexBarCore
 
 struct OpenAIDashboardNavigationDelegateTests {
+    final class DelegateBox: @unchecked Sendable {
+        var delegate: NavigationDelegate?
+    }
+
     @Test
     func `ignores NSURLErrorCancelled`() {
         let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)
@@ -46,12 +50,14 @@ struct OpenAIDashboardNavigationDelegateTests {
     func `commit completes navigation successfully after grace period`() async {
         let webView = WKWebView()
         var result: Result<Void, Error>?
-        let delegate = NavigationDelegate { result = $0 }
+        let box = DelegateBox()
+        box.delegate = NavigationDelegate { result = $0 }
 
-        delegate.webView(webView, didCommit: nil)
+        box.delegate?.webView(webView, didCommit: nil)
         #expect(result == nil)
 
         try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
+        box.delegate = nil
 
         switch result {
         case .success?:
@@ -66,13 +72,15 @@ struct OpenAIDashboardNavigationDelegateTests {
     func `post commit failure wins before delayed success`() async {
         let webView = WKWebView()
         var result: Result<Void, Error>?
-        let delegate = NavigationDelegate { result = $0 }
+        let box = DelegateBox()
+        box.delegate = NavigationDelegate { result = $0 }
 
-        delegate.webView(webView, didCommit: nil)
+        box.delegate?.webView(webView, didCommit: nil)
         let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
-        delegate.webView(webView, didFail: nil, withError: timeout)
+        box.delegate?.webView(webView, didFail: nil, withError: timeout)
 
         try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
+        box.delegate = nil
 
         switch result {
         case let .failure(error as NSError)?:
@@ -133,10 +141,6 @@ struct OpenAIDashboardNavigationDelegateTests {
 
     @Test
     func `navigation timeout fails with timed out error`() async {
-        final class DelegateBox: @unchecked Sendable {
-            var delegate: NavigationDelegate?
-        }
-
         let result = await withCheckedContinuation { (continuation: CheckedContinuation<Result<Void, Error>, Never>) in
             Task { @MainActor in
                 let box = DelegateBox()

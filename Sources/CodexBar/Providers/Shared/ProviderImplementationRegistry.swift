@@ -39,6 +39,7 @@ enum ProviderImplementationRegistry {
         case .openrouter: OpenRouterProviderImplementation()
         case .warp: WarpProviderImplementation()
         case .perplexity: PerplexityProviderImplementation()
+        case .abacus: AbacusProviderImplementation()
         }
     }
 

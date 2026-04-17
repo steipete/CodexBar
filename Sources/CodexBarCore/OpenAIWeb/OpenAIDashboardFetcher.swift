@@ -42,6 +42,36 @@ public struct OpenAIDashboardFetcher {
         0.001
     }
 
+    private struct DashboardSnapshotComponents {
+        let scrape: ScrapeResult
+        let codeReview: Double?
+        let codeReviewLimit: RateWindow?
+        let events: [CreditEvent]
+        let breakdown: [OpenAIDashboardDailyBreakdown]
+        let usageBreakdown: [OpenAIDashboardDailyBreakdown]
+        let rateLimits: (primary: RateWindow?, secondary: RateWindow?)
+        let creditsRemaining: Double?
+        let accountPlan: String?
+    }
+
+    private nonisolated static func makeDashboardSnapshot(_ components: DashboardSnapshotComponents)
+        -> OpenAIDashboardSnapshot
+    {
+        OpenAIDashboardSnapshot(
+            signedInEmail: components.scrape.signedInEmail,
+            codeReviewRemainingPercent: components.codeReview,
+            codeReviewLimit: components.codeReviewLimit,
+            creditEvents: components.events,
+            dailyBreakdown: components.breakdown,
+            usageBreakdown: components.usageBreakdown,
+            creditsPurchaseURL: components.scrape.creditsPurchaseURL,
+            primaryLimit: components.rateLimits.primary,
+            secondaryLimit: components.rateLimits.secondary,
+            creditsRemaining: components.creditsRemaining,
+            accountPlan: components.accountPlan,
+            updatedAt: Date())
+    }
+
     public struct ProbeResult: Sendable {
         public let href: String?
         public let loginRequired: Bool
@@ -105,7 +135,6 @@ public struct OpenAIDashboardFetcher {
         var creditsHeaderVisibleAt: Date?
         var lastUsageBreakdownDebug: String?
         var lastCreditsPurchaseURL: String?
-
         while Date() < deadline {
             let scrape = try await self.scrape(webView: webView)
             lastBody = scrape.bodyText ?? lastBody
@@ -222,19 +251,16 @@ public struct OpenAIDashboardFetcher {
                         continue
                     }
                 }
-                return OpenAIDashboardSnapshot(
-                    signedInEmail: scrape.signedInEmail,
-                    codeReviewRemainingPercent: codeReview,
+                return Self.makeDashboardSnapshot(.init(
+                    scrape: scrape,
+                    codeReview: codeReview,
                     codeReviewLimit: codeReviewLimit,
-                    creditEvents: events,
-                    dailyBreakdown: breakdown,
+                    events: events,
+                    breakdown: breakdown,
                     usageBreakdown: usageBreakdown,
-                    creditsPurchaseURL: scrape.creditsPurchaseURL,
-                    primaryLimit: rateLimits.primary,
-                    secondaryLimit: rateLimits.secondary,
+                    rateLimits: rateLimits,
                     creditsRemaining: creditsRemaining,
-                    accountPlan: accountPlan,
-                    updatedAt: Date())
+                    accountPlan: accountPlan))
             }
 
             try? await Task.sleep(for: .milliseconds(500))

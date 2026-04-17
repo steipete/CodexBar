@@ -35,9 +35,36 @@ extension UsageStore {
     }
 
     func userFacingError(for provider: UsageProvider) -> String? {
-        let raw = self.errors[provider]
-        guard provider == .codex else { return raw }
-        return CodexUIErrorMapper.userFacingMessage(raw)
+        if let raw = self.errors[provider] {
+            guard provider == .codex else { return raw }
+            return CodexUIErrorMapper.userFacingMessage(raw)
+        }
+        return self.unavailableMessage(for: provider)
+    }
+
+    func unavailableMessage(for provider: UsageProvider) -> String? {
+        guard self.enabledProvidersForDisplay().contains(provider),
+              !self.isProviderAvailable(provider)
+        else {
+            return nil
+        }
+
+        switch provider {
+        case .synthetic:
+            return SyntheticSettingsError.missingToken.errorDescription
+        case .zai:
+            return ZaiSettingsError.missingToken.errorDescription
+        case .openrouter:
+            return OpenRouterSettingsError.missingToken.errorDescription
+        case .perplexity:
+            return PerplexityAPIError.missingToken.errorDescription
+        case .minimax:
+            return MiniMaxAPISettingsError.missingToken.errorDescription
+        case .kimi:
+            return KimiAPIError.missingToken.errorDescription
+        default:
+            return "\(self.metadata(for: provider).displayName) is unavailable in the current environment."
+        }
     }
 
     func status(for provider: UsageProvider) -> ProviderStatus? {

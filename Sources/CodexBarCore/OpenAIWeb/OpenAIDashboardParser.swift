@@ -492,7 +492,7 @@ public enum OpenAIDashboardParser {
             "essential",
         ]
         guard allowed.contains(where: { lower.contains($0) }) else { return nil }
-        return UsageFormatter.cleanPlanName(trimmed)
+        return CodexPlanFormatting.displayName(trimmed) ?? UsageFormatter.cleanPlanName(trimmed)
     }
 }
 

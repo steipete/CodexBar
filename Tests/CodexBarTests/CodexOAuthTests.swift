@@ -88,6 +88,33 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func `decodes prolite plan type without failing usage mapping`() throws {
+        let json = """
+        {
+          "plan_type": "prolite",
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 12,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            }
+          }
+        }
+        """
+        let response = try CodexOAuthUsageFetcher._decodeUsageResponseForTesting(Data(json.utf8))
+        #expect(response.planType?.rawValue == "prolite")
+
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let mapped = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        #expect(mapped?.primary?.usedPercent == 12)
+    }
+
+    @Test
     func `maps usage windows from O auth`() throws {
         let json = """
         {
@@ -280,6 +307,239 @@ struct CodexOAuthTests {
             lastRefresh: Date())
         let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
         #expect(snapshot == nil)
+    }
+
+    @Test
+    func `keeps valid window when secondary window is malformed`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 18,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            },
+            "secondary_window": {
+              "used_percent": "bad",
+              "reset_at": 1767407914,
+              "limit_window_seconds": 604800
+            }
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        #expect(snapshot?.primary?.usedPercent == 18)
+        #expect(snapshot?.secondary == nil)
+    }
+
+    @Test
+    func `auto mode falls back when primary window is malformed but weekly window survives`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": "bad",
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            },
+            "secondary_window": {
+              "used_percent": 43,
+              "reset_at": 1767407914,
+              "limit_window_seconds": 604800
+            }
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+
+        #expect(throws: UsageError.noRateLimitsFound) {
+            _ = try CodexOAuthFetchStrategy._mapResultForTesting(
+                Data(json.utf8),
+                credentials: creds,
+                sourceMode: .auto)
+        }
+    }
+
+    @Test
+    func `explicit oauth keeps weekly window when primary window is malformed`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": "bad",
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            },
+            "secondary_window": {
+              "used_percent": 43,
+              "reset_at": 1767407914,
+              "limit_window_seconds": 604800
+            }
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            credentials: creds,
+            sourceMode: .oauth)
+
+        #expect(result.usage.primary == nil)
+        #expect(result.usage.secondary?.usedPercent == 43)
+        #expect(result.usage.secondary?.windowMinutes == 10080)
+    }
+
+    @Test
+    func `auto mode preserves reversed session window when primary window is malformed`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": "bad",
+              "reset_at": 1767407914,
+              "limit_window_seconds": 604800
+            },
+            "secondary_window": {
+              "used_percent": 18,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            }
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            credentials: creds,
+            sourceMode: .auto)
+
+        #expect(result.usage.primary?.usedPercent == 18)
+        #expect(result.usage.primary?.windowMinutes == 300)
+        #expect(result.usage.secondary == nil)
+    }
+
+    @Test
+    func `auto mode falls back when reversed session window is malformed in secondary`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 43,
+              "reset_at": 1767407914,
+              "limit_window_seconds": 604800
+            },
+            "secondary_window": {
+              "used_percent": "bad",
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            }
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+
+        #expect(throws: UsageError.noRateLimitsFound) {
+            _ = try CodexOAuthFetchStrategy._mapResultForTesting(
+                Data(json.utf8),
+                credentials: creds,
+                sourceMode: .auto)
+        }
+    }
+
+    @Test
+    func `explicit oauth keeps weekly window when reversed session window is malformed`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 43,
+              "reset_at": 1767407914,
+              "limit_window_seconds": 604800
+            },
+            "secondary_window": {
+              "used_percent": "bad",
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            }
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            credentials: creds,
+            sourceMode: .oauth)
+
+        #expect(result.usage.primary == nil)
+        #expect(result.usage.secondary?.usedPercent == 43)
+        #expect(result.usage.secondary?.windowMinutes == 10080)
+    }
+
+    @Test
+    func `ignores malformed credits payload while keeping usage`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 22,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            }
+          },
+          "credits": {
+            "has_credits": false,
+            "unlimited": false,
+            "balance": []
+          }
+        }
+        """
+        let response = try CodexOAuthUsageFetcher._decodeUsageResponseForTesting(Data(json.utf8))
+        #expect(response.credits?.hasCredits == false)
+        #expect(response.credits?.unlimited == false)
+        #expect(response.credits?.balance == nil)
+
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
+        #expect(snapshot?.primary?.usedPercent == 22)
     }
 
     @Test
