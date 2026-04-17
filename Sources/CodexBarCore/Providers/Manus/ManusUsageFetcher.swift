@@ -140,7 +140,26 @@ public enum ManusUsageFetcher {
             return response
         }
 
-        return try decoder.decode(ManusCreditsResponse.self, from: data)
+        let response = try decoder.decode(ManusCreditsResponse.self, from: data)
+        // The custom decoder defaults every numeric field to 0, so an unrelated JSON
+        // object (e.g. an error payload) would otherwise surface as a bogus zero-credit
+        // snapshot. Require at least one known credits key in the raw payload.
+        guard Self.payloadContainsCreditsField(data: data) else {
+            throw ManusAPIError.parseFailed("response missing expected credits fields")
+        }
+        return response
+    }
+
+    private static let expectedCreditsKeys: Set<String> = [
+        "totalCredits", "freeCredits", "periodicCredits", "addonCredits",
+        "refreshCredits", "maxRefreshCredits", "proMonthlyCredits", "eventCredits",
+    ]
+
+    private static func payloadContainsCreditsField(data: Data) -> Bool {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        return !Self.expectedCreditsKeys.isDisjoint(with: object.keys)
     }
 }
 

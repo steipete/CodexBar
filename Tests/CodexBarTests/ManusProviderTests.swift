@@ -279,4 +279,32 @@ struct ManusProviderTests {
         #expect(snapshot.secondary?.usedPercent == 100)
         #expect(snapshot.secondary?.resetDescription == "Daily: 0 / 300")
     }
+
+    @Test
+    func `parse response rejects payload without credits fields`() {
+        let data = Data(#"{"error":"unauthorized","message":"session expired"}"#.utf8)
+
+        #expect(throws: ManusAPIError.self) {
+            try ManusUsageFetcher.parseResponse(data)
+        }
+    }
+
+    @Test
+    func `parse response accepts wrapped envelope`() throws {
+        let data = Data("""
+        {
+          "data": {
+            "totalCredits": 100,
+            "proMonthlyCredits": 200,
+            "periodicCredits": 50,
+            "maxRefreshCredits": 10,
+            "refreshCredits": 5
+          }
+        }
+        """.utf8)
+
+        let response = try ManusUsageFetcher.parseResponse(data)
+        #expect(response.totalCredits == 100)
+        #expect(response.periodicCredits == 50)
+    }
 }
