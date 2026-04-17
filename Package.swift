@@ -9,7 +9,10 @@ let useLocalSweetCookieKit =
 let sweetCookieKitDependency: Package.Dependency =
     useLocalSweetCookieKit && FileManager.default.fileExists(atPath: sweetCookieKitPath)
     ? .package(path: sweetCookieKitPath)
-    : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0")
+    // Temporary pin to forked SweetCookieKit commit until Safari profile support lands upstream and is released.
+    : .package(
+        url: "https://github.com/przemyslaw-szurmak/SweetCookieKit",
+        revision: "9d4564d6ec9555a920a654f6336d01a7d6217644")
 
 let package = Package(
     name: "CodexBar",
