@@ -1085,6 +1085,18 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
+        if input.provider == .synthetic,
+           let regen = Self.syntheticRollingRegenDetail(
+               window: primary,
+               now: input.now,
+               showUsed: input.usageBarsShowUsed)
+        {
+            primaryResetText = regen.resetText
+            primaryDetailLeft = regen.pace.leftLabel
+            primaryDetailRight = regen.pace.rightLabel
+            primaryPacePercent = regen.pace.pacePercent
+            primaryPaceOnTop = regen.pace.paceOnTop
+        }
         return Metric(
             id: "primary",
             title: input.metadata.sessionLabel,
@@ -1353,6 +1365,35 @@ extension UsageMenuCardView.Model {
         } else {
             String(format: "Full in ~%.0f regens", ceil(ticksToFull))
         }
+        return (resetText, PaceDetail(leftLabel: left, rightLabel: right, pacePercent: nil, paceOnTop: true))
+    }
+
+    private static func syntheticRollingRegenDetail(
+        window: RateWindow,
+        now: Date,
+        showUsed: Bool) -> (resetText: String, pace: PaceDetail)?
+    {
+        guard let resetsAt = window.resetsAt else { return nil }
+
+        let countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
+        let resetText = "Regenerates \(countdown)"
+
+        let nextRegenPercent = 5.0
+        let afterNextRegenRemaining = min(100, window.remainingPercent + nextRegenPercent)
+        let afterNextRegen = showUsed ? max(0, 100 - afterNextRegenRemaining) : afterNextRegenRemaining
+        let suffix = showUsed ? "used after next regen" : "after next regen"
+        let left = String(format: "%.0f%% %@", afterNextRegen, suffix)
+
+        let missingPercent = max(0, window.usedPercent)
+        let ticksToFull = missingPercent / nextRegenPercent
+        let right = if ticksToFull <= 0.1 {
+            "Near full"
+        } else if ticksToFull < 1.5 {
+            "Full in ~1 regen"
+        } else {
+            String(format: "Full in ~%.0f regens", ceil(ticksToFull))
+        }
+
         return (resetText, PaceDetail(leftLabel: left, rightLabel: right, pacePercent: nil, paceOnTop: true))
     }
 
