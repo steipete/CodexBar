@@ -1,9 +1,18 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 @Suite(.serialized)
 struct WindsurfWebFetcherTests {
+    private struct ResponseFixture {
+        let planName: String
+        let dailyRemaining: Int
+        let weeklyRemaining: Int
+        let planEndUnix: Int64
+        let dailyResetUnix: Int64
+        let weeklyResetUnix: Int64
+    }
+
     private func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [WindsurfWebFetcherStubURLProtocol.self]
@@ -11,7 +20,7 @@ struct WindsurfWebFetcherTests {
     }
 
     @Test
-    func `manual refresh token sends windsurf browser headers to firebase`() async throws {
+    func `manual devin session sends protobuf request and auth headers`() async throws {
         defer {
             WindsurfWebFetcherStubURLProtocol.requests = []
             WindsurfWebFetcherStubURLProtocol.handler = nil
@@ -20,78 +29,150 @@ struct WindsurfWebFetcherTests {
         WindsurfWebFetcherStubURLProtocol.requests = []
         WindsurfWebFetcherStubURLProtocol.handler = { request in
             let url = try #require(request.url)
+            #expect(url.host == "windsurf.com")
+            #expect(request.httpMethod == "POST")
+            #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/proto")
+            #expect(request.value(forHTTPHeaderField: "Connect-Protocol-Version") == "1")
+            #expect(request.value(forHTTPHeaderField: "Origin") == "https://windsurf.com")
+            #expect(request.value(forHTTPHeaderField: "Referer") == "https://windsurf.com/profile")
+            #expect(request.value(forHTTPHeaderField: "x-auth-token") == "devin-session-token$abc")
+            #expect(request.value(forHTTPHeaderField: "x-devin-session-token") == "devin-session-token$abc")
+            #expect(request.value(forHTTPHeaderField: "x-devin-auth1-token") == "auth1_xyz")
+            #expect(request.value(forHTTPHeaderField: "x-devin-account-id") == "account-123")
+            #expect(request.value(forHTTPHeaderField: "x-devin-primary-org-id") == "org-456")
 
-            switch url.host {
-            case "securetoken.googleapis.com":
-                #expect(request.httpMethod == "POST")
-                #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/x-www-form-urlencoded")
-                #expect(request.value(forHTTPHeaderField: "Origin") == "https://windsurf.com")
-                #expect(request.value(forHTTPHeaderField: "Referer") == "https://windsurf.com/subscription/usage")
+            let body = try WindsurfPlanStatusProtoCodec.decodeRequest(Self.requestBodyData(from: request))
+            #expect(body.authToken == "devin-session-token$abc")
+            #expect(body.includeTopUpStatus == true)
 
-                let body = Self.requestBodyString(from: request)
-                #expect(body == "grant_type=refresh_token&refresh_token=AMf-vB-refresh-token")
-
-                return Self.makeResponse(
-                    url: url,
-                    body: #"{"access_token":"windsurf-access-token"}"#,
-                    statusCode: 200)
-
-            case "windsurf.com":
-                #expect(request.httpMethod == "POST")
-                #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
-                #expect(request.value(forHTTPHeaderField: "Connect-Protocol-Version") == "1")
-                #expect(request.value(forHTTPHeaderField: "Origin") == "https://windsurf.com")
-                #expect(request.value(forHTTPHeaderField: "Referer") == "https://windsurf.com/subscription/usage")
-
-                let bodyData = Data(Self.requestBodyString(from: request).utf8)
-                let body = try #require(
-                    JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
-                #expect(body["authToken"] as? String == "windsurf-access-token")
-                #expect(body["includeTopUpStatus"] as? Bool == true)
-
-                return Self.makeResponse(
-                    url: url,
-                    body: #"{"planStatus":{"planInfo":{"planName":"Pro"}}}"#,
-                    statusCode: 200)
-
-            default:
-                Issue.record("Unexpected request host: \(url.host ?? "<missing>")")
-                return Self.makeResponse(url: url, body: "{}", statusCode: 404)
-            }
+            return Self.makeResponse(
+                url: url,
+                body: Self.makePlanStatusResponse(ResponseFixture(
+                    planName: "Pro",
+                    dailyRemaining: 68,
+                    weeklyRemaining: 84,
+                    planEndUnix: 1_777_888_000,
+                    dailyResetUnix: 1_777_900_000,
+                    weeklyResetUnix: 1_778_000_000)),
+                contentType: "application/proto",
+                statusCode: 200)
         }
+
+        let manualSession = """
+        {
+          "devin_session_token": "devin-session-token$abc",
+          "devin_auth1_token": "auth1_xyz",
+          "devin_account_id": "account-123",
+          "devin_primary_org_id": "org-456"
+        }
+        """
 
         let snapshot = try await WindsurfWebFetcher.fetchUsage(
             browserDetection: BrowserDetection(cacheTTL: 0),
             cookieSource: .manual,
-            manualAccessToken: " AMf-vB-refresh-token ",
+            manualSessionInput: manualSession,
             timeout: 2,
             session: self.makeSession())
 
-        #expect(WindsurfWebFetcherStubURLProtocol.requests.count == 2)
+        #expect(WindsurfWebFetcherStubURLProtocol.requests.count == 1)
         #expect(snapshot.identity?.providerID == .windsurf)
         #expect(snapshot.identity?.loginMethod == "Pro")
+        #expect(snapshot.primary?.usedPercent == 32)
+        #expect(snapshot.secondary?.usedPercent == 16)
+    }
+
+    @Test
+    func `manual key value session input is accepted`() throws {
+        let parsed = try WindsurfWebFetcher.parseManualSessionInput(
+            """
+            devin_session_token=devin-session-token$abc
+            devin_auth1_token=auth1_xyz
+            devin_account_id=account-123
+            devin_primary_org_id=org-456
+            """)
+
+        #expect(parsed.sessionToken == "devin-session-token$abc")
+        #expect(parsed.auth1Token == "auth1_xyz")
+        #expect(parsed.accountID == "account-123")
+        #expect(parsed.primaryOrgID == "org-456")
+    }
+
+    @Test
+    func `manual JSON camelCase aliases are accepted`() throws {
+        let parsed = try WindsurfWebFetcher.parseManualSessionInput(
+            """
+            {
+              "devinSessionToken": "devin-session-token$abc",
+              "devinAuth1Token": "auth1_xyz",
+              "devinAccountId": "account-123",
+              "devinPrimaryOrgId": "org-456"
+            }
+            """)
+
+        #expect(parsed.sessionToken == "devin-session-token$abc")
+        #expect(parsed.auth1Token == "auth1_xyz")
+        #expect(parsed.accountID == "account-123")
+        #expect(parsed.primaryOrgID == "org-456")
+    }
+
+    @Test
+    func `manual session input rejects empty string`() {
+        #expect {
+            try WindsurfWebFetcher.parseManualSessionInput("   \n")
+        } throws: { error in
+            guard case let WindsurfWebFetcherError.invalidManualSession(message) = error else { return false }
+            return message == "empty input"
+        }
+    }
+
+    @Test
+    func `manual session input rejects invalid text`() {
+        #expect {
+            try WindsurfWebFetcher.parseManualSessionInput("not a valid session bundle")
+        } throws: { error in
+            guard case let WindsurfWebFetcherError.invalidManualSession(message) = error else { return false }
+            return message.contains("expected JSON")
+        }
+    }
+
+    @Test
+    func `manual session input rejects missing required fields`() {
+        #expect {
+            try WindsurfWebFetcher.parseManualSessionInput(
+                """
+                {
+                  "devin_session_token": "devin-session-token$abc",
+                  "devin_auth1_token": "auth1_xyz",
+                  "devin_account_id": "account-123"
+                }
+                """)
+        } throws: { error in
+            guard case let WindsurfWebFetcherError.invalidManualSession(message) = error else { return false }
+            return message.contains("expected JSON")
+        }
     }
 
     private static func makeResponse(
         url: URL,
-        body: String,
+        body: Data,
+        contentType: String,
         statusCode: Int) -> (HTTPURLResponse, Data)
     {
         let response = HTTPURLResponse(
             url: url,
             statusCode: statusCode,
             httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": "application/json"])!
-        return (response, Data(body.utf8))
+            headerFields: ["Content-Type": contentType])!
+        return (response, body)
     }
 
-    private static func requestBodyString(from request: URLRequest) -> String {
+    private static func requestBodyData(from request: URLRequest) -> Data {
         if let data = request.httpBody {
-            return String(data: data, encoding: .utf8) ?? ""
+            return data
         }
 
         guard let stream = request.httpBodyStream else {
-            return ""
+            return Data()
         }
 
         stream.open()
@@ -110,7 +191,76 @@ struct WindsurfWebFetcherTests {
             data.append(buffer, count: count)
         }
 
-        return String(data: data, encoding: .utf8) ?? ""
+        return data
+    }
+
+    private static func makePlanStatusResponse(_ fixture: ResponseFixture) -> Data {
+        let planInfo = self.message([
+            self.stringField(2, fixture.planName),
+        ])
+
+        let planStatus = self.message([
+            self.messageField(1, planInfo),
+            self.messageField(3, self.timestamp(seconds: fixture.planEndUnix)),
+            self.varintField(14, UInt64(fixture.dailyRemaining)),
+            self.varintField(15, UInt64(fixture.weeklyRemaining)),
+            self.varintField(17, UInt64(fixture.dailyResetUnix)),
+            self.varintField(18, UInt64(fixture.weeklyResetUnix)),
+        ])
+
+        return self.message([
+            self.messageField(1, planStatus),
+        ])
+    }
+
+    private static func timestamp(seconds: Int64) -> Data {
+        self.message([
+            self.varintField(1, UInt64(seconds)),
+        ])
+    }
+
+    private static func message(_ fields: [Data]) -> Data {
+        fields.reduce(into: Data()) { partialResult, field in
+            partialResult.append(field)
+        }
+    }
+
+    private static func stringField(_ number: Int, _ value: String) -> Data {
+        self.lengthDelimitedField(number, Data(value.utf8))
+    }
+
+    private static func messageField(_ number: Int, _ value: Data) -> Data {
+        self.lengthDelimitedField(number, value)
+    }
+
+    private static func lengthDelimitedField(_ number: Int, _ value: Data) -> Data {
+        var data = Data()
+        data.append(self.fieldKey(number, wireType: 2))
+        data.append(self.varint(UInt64(value.count)))
+        data.append(value)
+        return data
+    }
+
+    private static func varintField(_ number: Int, _ value: UInt64) -> Data {
+        var data = Data()
+        data.append(self.fieldKey(number, wireType: 0))
+        data.append(self.varint(value))
+        return data
+    }
+
+    private static func fieldKey(_ number: Int, wireType: UInt64) -> Data {
+        self.varint(UInt64((number << 3) | Int(wireType)))
+    }
+
+    private static func varint(_ value: UInt64) -> Data {
+        var remaining = value
+        var data = Data()
+        while remaining >= 0x80 {
+            data.append(UInt8((remaining & 0x7F) | 0x80))
+            remaining >>= 7
+        }
+        data.append(UInt8(remaining))
+        return data
     }
 }
 

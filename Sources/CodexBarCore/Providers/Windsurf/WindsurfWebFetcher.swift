@@ -2,29 +2,27 @@ import Foundation
 
 // MARK: - API Response Model
 
-public struct WindsurfGetPlanStatusResponse: Codable, Sendable {
+public struct WindsurfGetPlanStatusResponse: Sendable, Equatable {
     public let planStatus: PlanStatus?
 
-    public struct PlanStatus: Codable, Sendable {
+    public struct PlanStatus: Sendable, Equatable {
         public let planInfo: PlanInfo?
-        public let planStart: String?
-        public let planEnd: String?
-        public let availablePromptCredits: Int?
-        public let availableFlowCredits: Int?
-        public let dailyQuotaRemainingPercent: Double?
-        public let weeklyQuotaRemainingPercent: Double?
-        public let dailyQuotaResetAtUnix: String?
-        public let weeklyQuotaResetAtUnix: String?
+        public let planStart: Date?
+        public let planEnd: Date?
+        public let dailyQuotaRemainingPercent: Int?
+        public let weeklyQuotaRemainingPercent: Int?
+        public let dailyQuotaResetAtUnix: Int64?
+        public let weeklyQuotaResetAtUnix: Int64?
         public let topUpStatus: TopUpStatus?
-        public let gracePeriodStatus: String?
+        public let gracePeriodStatus: Int?
 
-        public struct PlanInfo: Codable, Sendable {
+        public struct PlanInfo: Sendable, Equatable {
             public let planName: String?
-            public let teamsTier: String?
+            public let teamsTier: Int?
         }
 
-        public struct TopUpStatus: Codable, Sendable {
-            public let topUpTransactionStatus: String?
+        public struct TopUpStatus: Sendable, Equatable {
+            public let topUpTransactionStatus: Int?
         }
     }
 }
@@ -38,22 +36,22 @@ extension WindsurfGetPlanStatusResponse {
 
         if let status = self.planStatus {
             if let daily = status.dailyQuotaRemainingPercent {
-                let resetDate = status.dailyQuotaResetAtUnix.flatMap { Int64($0) }.map {
+                let resetDate = status.dailyQuotaResetAtUnix.map {
                     Date(timeIntervalSince1970: TimeInterval($0))
                 }
                 primary = RateWindow(
-                    usedPercent: max(0, min(100, 100 - daily)),
+                    usedPercent: max(0, min(100, 100 - Double(daily))),
                     windowMinutes: nil,
                     resetsAt: resetDate,
                     resetDescription: Self.formatResetDescription(resetDate))
             }
 
             if let weekly = status.weeklyQuotaRemainingPercent {
-                let resetDate = status.weeklyQuotaResetAtUnix.flatMap { Int64($0) }.map {
+                let resetDate = status.weeklyQuotaResetAtUnix.map {
                     Date(timeIntervalSince1970: TimeInterval($0))
                 }
                 secondary = RateWindow(
-                    usedPercent: max(0, min(100, 100 - weekly)),
+                    usedPercent: max(0, min(100, 100 - Double(weekly))),
                     windowMinutes: nil,
                     resetsAt: resetDate,
                     resetDescription: Self.formatResetDescription(resetDate))
@@ -61,17 +59,11 @@ extension WindsurfGetPlanStatusResponse {
         }
 
         var orgDescription: String?
-        if let planEnd = self.planStatus?.planEnd {
-            let isoFormatter = ISO8601DateFormatter()
-            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            let endDate = isoFormatter.date(from: planEnd)
-                ?? ISO8601DateFormatter().date(from: planEnd)
-            if let endDate {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                formatter.timeStyle = .none
-                orgDescription = "Expires \(formatter.string(from: endDate))"
-            }
+        if let endDate = self.planStatus?.planEnd {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .none
+            orgDescription = "Expires \(formatter.string(from: endDate))"
         }
 
         let identity = ProviderIdentitySnapshot(
@@ -108,21 +100,28 @@ extension WindsurfGetPlanStatusResponse {
     }
 }
 
-// MARK: - Web Fetcher
+// MARK: - Session Material
 
 #if os(macOS)
 
+struct WindsurfDevinSessionAuth: Codable, Sendable, Equatable {
+    let sessionToken: String
+    let auth1Token: String
+    let accountID: String
+    let primaryOrgID: String
+}
+
 public enum WindsurfWebFetcherError: LocalizedError, Sendable {
-    case noFirebaseToken
-    case tokenRefreshFailed(String)
+    case noSessionData
+    case invalidManualSession(String)
     case apiCallFailed(String)
 
     public var errorDescription: String? {
         switch self {
-        case .noFirebaseToken:
-            "No Firebase token found in browser IndexedDB. Sign in to windsurf.com in Chrome or Edge first."
-        case let .tokenRefreshFailed(message):
-            "Firebase token refresh failed: \(message)"
+        case .noSessionData:
+            "No Windsurf web session found in Chromium localStorage. Sign in to windsurf.com in Chrome or Edge first."
+        case let .invalidManualSession(message):
+            "Invalid Windsurf session payload: \(message)"
         case let .apiCallFailed(message):
             "Windsurf API call failed: \(message)"
         }
@@ -130,168 +129,126 @@ public enum WindsurfWebFetcherError: LocalizedError, Sendable {
 }
 
 public enum WindsurfWebFetcher {
-    // Public Firebase API key (embedded in windsurf.com frontend)
-    private static let firebaseAPIKey = "AIzaSyDsOl-1XpT5err0Tcnx8FFod1H8gVGIycY"
     private static let windsurfOrigin = "https://windsurf.com"
-    private static let windsurfUsageReferer = "https://windsurf.com/subscription/usage"
+    private static let windsurfProfileReferer = "https://windsurf.com/profile"
     private static let getPlanStatusURL = "https://windsurf.com/_backend/exa.seat_management_pb.SeatManagementService/GetPlanStatus"
 
     public static func fetchUsage(
         browserDetection: BrowserDetection,
         cookieSource: ProviderCookieSource = .auto,
-        manualAccessToken: String? = nil,
+        manualSessionInput: String? = nil,
         timeout: TimeInterval = 15,
         logger: ((String) -> Void)? = nil,
         session: URLSession = .shared) async throws -> UsageSnapshot
     {
         let log: (String) -> Void = { msg in logger?("[windsurf-web] \(msg)") }
-        let useKeychain = cookieSource == .auto
 
-        // 0. Manual token override (cookie source = manual)
-        // Accepts either a refresh token (AMf-vB prefix, long-lived) or access token (eyJ prefix, ~1h)
-        if let manualAccessToken, !manualAccessToken.isEmpty {
-            let token = manualAccessToken.trimmingCharacters(in: .whitespacesAndNewlines)
-            if token.hasPrefix("AMf-vB") {
-                log("Using manual refresh token → exchanging for access token")
-                let accessToken = try await self.refreshFirebaseToken(token, timeout: timeout, session: session)
-                let response = try await self.fetchPlanStatus(
-                    accessToken: accessToken,
-                    timeout: timeout,
-                    session: session)
-                return response.toUsageSnapshot()
-            } else {
-                log("Using manual access token")
-                let response = try await self.fetchPlanStatus(accessToken: token, timeout: timeout, session: session)
-                return response.toUsageSnapshot()
-            }
+        if let manualSessionInput, !manualSessionInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            log("Using manual Windsurf session bundle")
+            let auth = try self.parseManualSessionInput(manualSessionInput)
+            let response = try await self.fetchPlanStatus(auth: auth, timeout: timeout, session: session)
+            return response.toUsageSnapshot()
         }
 
-        // 1. Try cached token from CookieHeaderCache (only when auto / Keychain allowed)
-        if useKeychain, let cached = CookieHeaderCache.load(provider: .windsurf) {
-            log("Trying cached Firebase access token")
-            do {
-                let response = try await self.fetchPlanStatus(
-                    accessToken: cached.cookieHeader,
-                    timeout: timeout,
-                    session: session)
-                return response.toUsageSnapshot()
-            } catch {
-                log("Cached token failed: \(error.localizedDescription)")
-                CookieHeaderCache.clear(provider: .windsurf)
-            }
+        guard cookieSource != .off else {
+            throw WindsurfWebFetcherError.noSessionData
         }
 
-        // 2. Import Firebase tokens from browser IndexedDB
-        let tokenInfos = WindsurfFirebaseTokenImporter.importFirebaseTokens(
+        let sessionInfos = WindsurfDevinSessionImporter.importSessions(
             browserDetection: browserDetection,
             logger: logger)
-        guard !tokenInfos.isEmpty else {
-            throw WindsurfWebFetcherError.noFirebaseToken
+        guard let sessionInfo = sessionInfos.first else {
+            throw WindsurfWebFetcherError.noSessionData
         }
 
-        var lastError: Error?
-
-        for tokenInfo in tokenInfos {
-            // 2a. Try existing access token first (if not expired)
-            if let accessToken = tokenInfo.accessToken {
-                log("Trying access token from \(tokenInfo.sourceLabel)")
-                do {
-                    let response = try await self.fetchPlanStatus(
-                        accessToken: accessToken,
-                        timeout: timeout,
-                        session: session)
-                    if useKeychain {
-                        CookieHeaderCache.store(
-                            provider: .windsurf,
-                            cookieHeader: accessToken,
-                            sourceLabel: tokenInfo.sourceLabel)
-                    }
-                    return response.toUsageSnapshot()
-                } catch {
-                    log("Access token failed: \(error.localizedDescription)")
-                    lastError = error
-                }
-            }
-
-            // 2b. Refresh token to get new access token
-            log("Refreshing Firebase token from \(tokenInfo.sourceLabel)")
-            do {
-                let accessToken = try await self.refreshFirebaseToken(
-                    tokenInfo.refreshToken,
-                    timeout: timeout,
-                    session: session)
-                let response = try await self.fetchPlanStatus(
-                    accessToken: accessToken,
-                    timeout: timeout,
-                    session: session)
-                if useKeychain {
-                    CookieHeaderCache.store(
-                        provider: .windsurf,
-                        cookieHeader: accessToken,
-                        sourceLabel: tokenInfo.sourceLabel)
-                }
-                return response.toUsageSnapshot()
-            } catch {
-                log("Token refresh/API call failed: \(error.localizedDescription)")
-                lastError = error
-            }
-        }
-
-        throw lastError ?? WindsurfWebFetcherError.noFirebaseToken
+        log("Using devin session from \(sessionInfo.sourceLabel)")
+        let response = try await self.fetchPlanStatus(auth: sessionInfo.session, timeout: timeout, session: session)
+        return response.toUsageSnapshot()
     }
 
-    // MARK: - Firebase Token Refresh
-
-    private static func refreshFirebaseToken(
-        _ refreshToken: String,
-        timeout: TimeInterval,
-        session: URLSession) async throws -> String
-    {
-        guard let url = URL(string: "https://securetoken.googleapis.com/v1/token?key=\(self.firebaseAPIKey)") else {
-            throw WindsurfWebFetcherError.tokenRefreshFailed("Invalid Firebase token URL")
+    static func parseManualSessionInput(_ raw: String) throws -> WindsurfDevinSessionAuth {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw WindsurfWebFetcherError.invalidManualSession("empty input")
         }
 
-        var request = URLRequest(url: url)
-        request.timeoutInterval = timeout
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        self.applyWindsurfHeaders(to: &request)
-
-        var components = URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "grant_type", value: "refresh_token"),
-            URLQueryItem(name: "refresh_token", value: refreshToken),
-        ]
-        guard let body = components.percentEncodedQuery?.data(using: .utf8) else {
-            throw WindsurfWebFetcherError.tokenRefreshFailed("Invalid refresh token request body")
-        }
-        request.httpBody = body
-
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WindsurfWebFetcherError.tokenRefreshFailed("Invalid response")
+        if let auth = self.parseJSONSessionInput(trimmed) {
+            return auth
         }
 
-        guard httpResponse.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<binary>"
-            let snippet = body.isEmpty ? "" : ": \(body.prefix(200))"
-            throw WindsurfWebFetcherError.tokenRefreshFailed("HTTP \(httpResponse.statusCode)\(snippet)")
+        if let auth = self.parseKeyValueSessionInput(trimmed) {
+            return auth
         }
 
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let accessToken = json["access_token"] as? String
+        throw WindsurfWebFetcherError.invalidManualSession(
+            "expected JSON with devin_session_token, devin_auth1_token, devin_account_id, and devin_primary_org_id")
+    }
+
+    private static func parseJSONSessionInput(_ raw: String) -> WindsurfDevinSessionAuth? {
+        guard let data = raw.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
-            throw WindsurfWebFetcherError.tokenRefreshFailed("Missing access_token in response")
+            return nil
         }
-
-        return accessToken
+        return self.sessionAuth(from: json)
     }
 
-    // MARK: - GetPlanStatus API
+    private static func parseKeyValueSessionInput(_ raw: String) -> WindsurfDevinSessionAuth? {
+        let separators = CharacterSet(charactersIn: "\n,;")
+        let segments = raw
+            .trimmingCharacters(in: CharacterSet(charactersIn: "{}"))
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var values: [String: String] = [:]
+        for segment in segments {
+            let delimiter: Character? = segment.contains("=") ? "=" : (segment.contains(":") ? ":" : nil)
+            guard let delimiter, let index = segment.firstIndex(of: delimiter) else { continue }
+            let key = String(segment[..<index]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = String(segment[segment.index(after: index)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            values[key] = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        }
+
+        guard !values.isEmpty else { return nil }
+        return self.sessionAuth(from: values)
+    }
+
+    private static func sessionAuth(from values: [String: Any]) -> WindsurfDevinSessionAuth? {
+        func stringValue(for keys: [String]) -> String? {
+            for key in keys {
+                if let value = values[key] as? String {
+                    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        return trimmed
+                    }
+                }
+            }
+            return nil
+        }
+
+        guard let sessionToken = stringValue(for: ["devin_session_token", "devinSessionToken", "sessionToken"]),
+              let auth1Token = stringValue(for: ["devin_auth1_token", "devinAuth1Token", "auth1Token"]),
+              let accountID = stringValue(for: ["devin_account_id", "devinAccountId", "accountID", "accountId"]),
+              let primaryOrgID = stringValue(for: [
+                  "devin_primary_org_id",
+                  "devinPrimaryOrgId",
+                  "primaryOrgID",
+                  "primaryOrgId",
+              ])
+        else {
+            return nil
+        }
+
+        return WindsurfDevinSessionAuth(
+            sessionToken: sessionToken,
+            auth1Token: auth1Token,
+            accountID: accountID,
+            primaryOrgID: primaryOrgID)
+    }
 
     private static func fetchPlanStatus(
-        accessToken: String,
+        auth: WindsurfDevinSessionAuth,
         timeout: TimeInterval,
         session: URLSession) async throws -> WindsurfGetPlanStatusResponse
     {
@@ -302,15 +259,12 @@ public enum WindsurfWebFetcher {
         var request = URLRequest(url: url)
         request.timeoutInterval = timeout
         request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/proto", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: "Connect-Protocol-Version")
-        self.applyWindsurfHeaders(to: &request)
-
-        let body: [String: Any] = [
-            "authToken": accessToken,
-            "includeTopUpStatus": true,
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+        self.applyWindsurfHeaders(to: &request, auth: auth)
+        request.httpBody = WindsurfPlanStatusProtoCodec.encodeRequest(
+            authToken: auth.sessionToken,
+            includeTopUpStatus: true)
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -319,21 +273,335 @@ public enum WindsurfWebFetcher {
 
         guard httpResponse.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<binary>"
-            let snippet = body.isEmpty ? "" : ": \(body.prefix(200))"
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let snippet = if let body, !body.isEmpty {
+                ": \(body.prefix(200))"
+            } else {
+                ": <binary \(data.count) bytes>"
+            }
             throw WindsurfWebFetcherError.apiCallFailed("HTTP \(httpResponse.statusCode)\(snippet)")
         }
 
         do {
-            return try JSONDecoder().decode(WindsurfGetPlanStatusResponse.self, from: data)
+            return try WindsurfPlanStatusProtoCodec.decodeResponse(data)
         } catch {
             throw WindsurfWebFetcherError.apiCallFailed("Parse error: \(error.localizedDescription)")
         }
     }
 
-    private static func applyWindsurfHeaders(to request: inout URLRequest) {
+    private static func applyWindsurfHeaders(to request: inout URLRequest, auth: WindsurfDevinSessionAuth) {
         request.setValue(self.windsurfOrigin, forHTTPHeaderField: "Origin")
-        request.setValue(self.windsurfUsageReferer, forHTTPHeaderField: "Referer")
+        request.setValue(self.windsurfProfileReferer, forHTTPHeaderField: "Referer")
+        request.setValue(auth.sessionToken, forHTTPHeaderField: "x-auth-token")
+        request.setValue(auth.sessionToken, forHTTPHeaderField: "x-devin-session-token")
+        request.setValue(auth.auth1Token, forHTTPHeaderField: "x-devin-auth1-token")
+        request.setValue(auth.accountID, forHTTPHeaderField: "x-devin-account-id")
+        request.setValue(auth.primaryOrgID, forHTTPHeaderField: "x-devin-primary-org-id")
+    }
+}
+
+enum WindsurfPlanStatusProtoCodec {
+    /// Field numbers come from Windsurf's bundled protobuf metadata in
+    /// `/Applications/Windsurf.app/.../extension.js` and were re-verified against live browser traffic on 2026-04-17.
+    struct Request: Sendable, Equatable {
+        let authToken: String
+        let includeTopUpStatus: Bool
+    }
+
+    static func encodeRequest(authToken: String, includeTopUpStatus: Bool) -> Data {
+        var data = Data()
+        self.appendFieldKey(1, wireType: .lengthDelimited, to: &data)
+        self.appendString(authToken, to: &data)
+        self.appendFieldKey(2, wireType: .varint, to: &data)
+        self.appendVarint(includeTopUpStatus ? 1 : 0, to: &data)
+        return data
+    }
+
+    static func decodeRequest(_ data: Data) throws -> Request {
+        var reader = ProtoReader(data: data)
+        var authToken: String?
+        var includeTopUpStatus = false
+
+        while let field = try reader.nextField() {
+            switch (field.number, field.wireType) {
+            case (1, .lengthDelimited):
+                authToken = try reader.readString()
+            case (2, .varint):
+                includeTopUpStatus = try reader.readVarint() != 0
+            default:
+                try reader.skipFieldBody(wireType: field.wireType)
+            }
+        }
+
+        guard let authToken else {
+            throw WindsurfProtoError.missingField("auth_token")
+        }
+
+        return Request(authToken: authToken, includeTopUpStatus: includeTopUpStatus)
+    }
+
+    static func decodeResponse(_ data: Data) throws -> WindsurfGetPlanStatusResponse {
+        var reader = ProtoReader(data: data)
+        var planStatus: WindsurfGetPlanStatusResponse.PlanStatus?
+
+        while let field = try reader.nextField() {
+            switch (field.number, field.wireType) {
+            case (1, .lengthDelimited):
+                planStatus = try self.decodePlanStatus(from: reader.readLengthDelimitedData())
+            default:
+                try reader.skipFieldBody(wireType: field.wireType)
+            }
+        }
+
+        return WindsurfGetPlanStatusResponse(planStatus: planStatus)
+    }
+
+    private static func decodePlanStatus(from data: Data) throws -> WindsurfGetPlanStatusResponse.PlanStatus {
+        var reader = ProtoReader(data: data)
+        var planInfo: WindsurfGetPlanStatusResponse.PlanStatus.PlanInfo?
+        var planStart: Date?
+        var planEnd: Date?
+        var dailyQuotaRemainingPercent: Int?
+        var weeklyQuotaRemainingPercent: Int?
+        var dailyQuotaResetAtUnix: Int64?
+        var weeklyQuotaResetAtUnix: Int64?
+        var topUpStatus: WindsurfGetPlanStatusResponse.PlanStatus.TopUpStatus?
+        var gracePeriodStatus: Int?
+
+        while let field = try reader.nextField() {
+            switch (field.number, field.wireType) {
+            case (1, .lengthDelimited):
+                planInfo = try self.decodePlanInfo(from: reader.readLengthDelimitedData())
+            case (2, .lengthDelimited):
+                planStart = try self.decodeTimestamp(from: reader.readLengthDelimitedData())
+            case (3, .lengthDelimited):
+                planEnd = try self.decodeTimestamp(from: reader.readLengthDelimitedData())
+            case (10, .lengthDelimited):
+                topUpStatus = try self.decodeTopUpStatus(from: reader.readLengthDelimitedData())
+            case (12, .varint):
+                gracePeriodStatus = try Int(reader.readVarint())
+            case (14, .varint):
+                dailyQuotaRemainingPercent = try Int(reader.readVarint())
+            case (15, .varint):
+                weeklyQuotaRemainingPercent = try Int(reader.readVarint())
+            case (17, .varint):
+                dailyQuotaResetAtUnix = try Int64(reader.readVarint())
+            case (18, .varint):
+                weeklyQuotaResetAtUnix = try Int64(reader.readVarint())
+            default:
+                try reader.skipFieldBody(wireType: field.wireType)
+            }
+        }
+
+        return WindsurfGetPlanStatusResponse.PlanStatus(
+            planInfo: planInfo,
+            planStart: planStart,
+            planEnd: planEnd,
+            dailyQuotaRemainingPercent: dailyQuotaRemainingPercent,
+            weeklyQuotaRemainingPercent: weeklyQuotaRemainingPercent,
+            dailyQuotaResetAtUnix: dailyQuotaResetAtUnix,
+            weeklyQuotaResetAtUnix: weeklyQuotaResetAtUnix,
+            topUpStatus: topUpStatus,
+            gracePeriodStatus: gracePeriodStatus)
+    }
+
+    private static func decodePlanInfo(
+        from data: Data) throws -> WindsurfGetPlanStatusResponse.PlanStatus.PlanInfo
+    {
+        var reader = ProtoReader(data: data)
+        var planName: String?
+        var teamsTier: Int?
+
+        while let field = try reader.nextField() {
+            switch (field.number, field.wireType) {
+            case (1, .varint):
+                teamsTier = try Int(reader.readVarint())
+            case (2, .lengthDelimited):
+                planName = try reader.readString()
+            default:
+                try reader.skipFieldBody(wireType: field.wireType)
+            }
+        }
+
+        return WindsurfGetPlanStatusResponse.PlanStatus.PlanInfo(planName: planName, teamsTier: teamsTier)
+    }
+
+    private static func decodeTopUpStatus(
+        from data: Data) throws -> WindsurfGetPlanStatusResponse.PlanStatus.TopUpStatus
+    {
+        var reader = ProtoReader(data: data)
+        var topUpTransactionStatus: Int?
+
+        while let field = try reader.nextField() {
+            switch (field.number, field.wireType) {
+            case (1, .varint):
+                topUpTransactionStatus = try Int(reader.readVarint())
+            default:
+                try reader.skipFieldBody(wireType: field.wireType)
+            }
+        }
+
+        return WindsurfGetPlanStatusResponse.PlanStatus.TopUpStatus(
+            topUpTransactionStatus: topUpTransactionStatus)
+    }
+
+    private static func decodeTimestamp(from data: Data) throws -> Date {
+        var reader = ProtoReader(data: data)
+        var seconds: Int64 = 0
+        var nanos: Int32 = 0
+
+        while let field = try reader.nextField() {
+            switch (field.number, field.wireType) {
+            case (1, .varint):
+                seconds = try Int64(reader.readVarint())
+            case (2, .varint):
+                nanos = try Int32(reader.readVarint())
+            default:
+                try reader.skipFieldBody(wireType: field.wireType)
+            }
+        }
+
+        let timeInterval = TimeInterval(seconds) + (TimeInterval(nanos) / 1_000_000_000)
+        return Date(timeIntervalSince1970: timeInterval)
+    }
+
+    private static func appendString(_ string: String, to data: inout Data) {
+        let encoded = Data(string.utf8)
+        self.appendVarint(UInt64(encoded.count), to: &data)
+        data.append(encoded)
+    }
+
+    private static func appendFieldKey(_ fieldNumber: Int, wireType: ProtoWireType, to data: inout Data) {
+        self.appendVarint(UInt64((fieldNumber << 3) | Int(wireType.rawValue)), to: &data)
+    }
+
+    private static func appendVarint(_ value: UInt64, to data: inout Data) {
+        var remaining = value
+        while remaining >= 0x80 {
+            data.append(UInt8((remaining & 0x7F) | 0x80))
+            remaining >>= 7
+        }
+        data.append(UInt8(remaining))
+    }
+}
+
+enum WindsurfProtoError: LocalizedError {
+    case truncated
+    case invalidWireType(UInt64)
+    case invalidUTF8
+    case missingField(String)
+    case unsupportedWireType(ProtoWireType)
+    case malformedFieldKey
+
+    var errorDescription: String? {
+        switch self {
+        case .truncated:
+            "truncated protobuf payload"
+        case let .invalidWireType(rawValue):
+            "invalid wire type \(rawValue)"
+        case .invalidUTF8:
+            "invalid UTF-8 string"
+        case let .missingField(name):
+            "missing protobuf field \(name)"
+        case let .unsupportedWireType(type):
+            "unsupported protobuf wire type \(type.rawValue)"
+        case .malformedFieldKey:
+            "malformed protobuf field key"
+        }
+    }
+}
+
+enum ProtoWireType: UInt64 {
+    case varint = 0
+    case fixed64 = 1
+    case lengthDelimited = 2
+    case startGroup = 3
+    case endGroup = 4
+    case fixed32 = 5
+}
+
+private struct ProtoField {
+    let number: Int
+    let wireType: ProtoWireType
+}
+
+private struct ProtoReader {
+    private let bytes: [UInt8]
+    private var index: Int = 0
+
+    init(data: Data) {
+        self.bytes = Array(data)
+    }
+
+    mutating func nextField() throws -> ProtoField? {
+        guard self.index < self.bytes.count else { return nil }
+        let key = try self.readVarint()
+        let number = Int(key >> 3)
+        guard number > 0 else {
+            throw WindsurfProtoError.malformedFieldKey
+        }
+        guard let wireType = ProtoWireType(rawValue: key & 0x07) else {
+            throw WindsurfProtoError.invalidWireType(key & 0x07)
+        }
+        return ProtoField(number: number, wireType: wireType)
+    }
+
+    mutating func readVarint() throws -> UInt64 {
+        var result: UInt64 = 0
+        var shift: UInt64 = 0
+
+        while self.index < self.bytes.count {
+            let byte = self.bytes[self.index]
+            self.index += 1
+
+            result |= UInt64(byte & 0x7F) << shift
+            if byte & 0x80 == 0 {
+                return result
+            }
+
+            shift += 7
+            if shift >= 64 {
+                throw WindsurfProtoError.truncated
+            }
+        }
+
+        throw WindsurfProtoError.truncated
+    }
+
+    mutating func readLengthDelimitedData() throws -> Data {
+        let length = try Int(self.readVarint())
+        guard length >= 0, self.index + length <= self.bytes.count else {
+            throw WindsurfProtoError.truncated
+        }
+
+        let chunk = Data(self.bytes[self.index..<(self.index + length)])
+        self.index += length
+        return chunk
+    }
+
+    mutating func readString() throws -> String {
+        let data = try self.readLengthDelimitedData()
+        guard let string = String(data: data, encoding: .utf8) else {
+            throw WindsurfProtoError.invalidUTF8
+        }
+        return string
+    }
+
+    mutating func skipFieldBody(wireType: ProtoWireType) throws {
+        switch wireType {
+        case .varint:
+            _ = try self.readVarint()
+        case .fixed64:
+            guard self.index + 8 <= self.bytes.count else { throw WindsurfProtoError.truncated }
+            self.index += 8
+        case .lengthDelimited:
+            _ = try self.readLengthDelimitedData()
+        case .fixed32:
+            guard self.index + 4 <= self.bytes.count else { throw WindsurfProtoError.truncated }
+            self.index += 4
+        case .startGroup, .endGroup:
+            throw WindsurfProtoError.unsupportedWireType(wireType)
+        }
     }
 }
 

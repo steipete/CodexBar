@@ -54,8 +54,8 @@ struct WindsurfProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.windsurfCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports Firebase tokens from browser IndexedDB.",
-                manual: "Paste a Firebase refresh token or access token for windsurf.com.",
+                auto: "Automatic imports Windsurf session data from Chromium browser localStorage.",
+                manual: "Paste the Windsurf session JSON bundle from localStorage.",
                 off: "Windsurf web API access is disabled.")
         }
 
@@ -76,18 +76,13 @@ struct WindsurfProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "windsurf-cookie-source",
                 title: "Cookie source",
-                subtitle: "Automatic imports Firebase tokens from browser IndexedDB.",
+                subtitle: "Automatic imports Windsurf session data from Chromium browser localStorage.",
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
                 isVisible: nil,
                 onChange: nil,
-                trailingText: {
-                    guard !context.settings.debugDisableKeychainAccess else { return nil }
-                    guard let entry = CookieHeaderCache.load(provider: .windsurf) else { return nil }
-                    let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
-                }),
+                trailingText: nil),
         ]
     }
 
@@ -99,7 +94,7 @@ struct WindsurfProviderImplementation: ProviderImplementation {
                 title: "",
                 subtitle: "",
                 kind: .secure,
-                placeholder: "Firebase refresh token (AMf-vB…) or access token (eyJ…)",
+                placeholder: "Windsurf session JSON bundle",
                 binding: context.stringBinding(\.windsurfCookieHeader),
                 actions: [],
                 isVisible: {
