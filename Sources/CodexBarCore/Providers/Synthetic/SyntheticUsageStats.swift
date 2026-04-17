@@ -9,29 +9,42 @@ public struct SyntheticQuotaEntry: Sendable {
     public let windowMinutes: Int?
     public let resetsAt: Date?
     public let resetDescription: String?
+    public let cost: ProviderCostSnapshot?
 
     public init(
         label: String?,
         usedPercent: Double,
         windowMinutes: Int?,
         resetsAt: Date?,
-        resetDescription: String?)
+        resetDescription: String?,
+        cost: ProviderCostSnapshot? = nil)
     {
         self.label = label
         self.usedPercent = usedPercent
         self.windowMinutes = windowMinutes
         self.resetsAt = resetsAt
         self.resetDescription = resetDescription
+        self.cost = cost
     }
 }
 
 public struct SyntheticUsageSnapshot: Sendable {
     public let quotas: [SyntheticQuotaEntry]
+    /// Slot-identified lanes for the known Synthetic response shape: [rolling-5h, weekly, search-hourly].
+    /// When set, `toUsageSnapshot` maps slot 0 → primary, slot 1 → secondary, slot 2 → tertiary,
+    /// so a missing lane stays nil instead of promoting the next lane into the wrong UI label.
+    public let slottedQuotas: [SyntheticQuotaEntry?]?
     public let planName: String?
     public let updatedAt: Date
 
-    public init(quotas: [SyntheticQuotaEntry], planName: String?, updatedAt: Date) {
+    public init(
+        quotas: [SyntheticQuotaEntry],
+        slottedQuotas: [SyntheticQuotaEntry?]? = nil,
+        planName: String?,
+        updatedAt: Date)
+    {
         self.quotas = quotas
+        self.slottedQuotas = slottedQuotas
         self.planName = planName
         self.updatedAt = updatedAt
     }
@@ -39,11 +52,13 @@ public struct SyntheticUsageSnapshot: Sendable {
 
 extension SyntheticUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
-        let primaryEntry = self.quotas.first
-        let secondaryEntry = self.quotas.dropFirst().first
+        let slots = self.slottedQuotas
+            ?? [self.quotas.first, self.quotas.dropFirst().first, self.quotas.dropFirst(2).first]
+        let entries: [SyntheticQuotaEntry?] = (0..<3).map { slots.indices.contains($0) ? slots[$0] : nil }
 
-        let primary = primaryEntry.map(Self.rateWindow(for:))
-        let secondary = secondaryEntry.map(Self.rateWindow(for:))
+        let primary = entries[0].map(Self.rateWindow(for:))
+        let secondary = entries[1].map(Self.rateWindow(for:))
+        let tertiary = entries[2].map(Self.rateWindow(for:))
 
         let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
@@ -56,8 +71,8 @@ extension SyntheticUsageSnapshot {
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
-            tertiary: nil,
-            providerCost: nil,
+            tertiary: tertiary,
+            providerCost: self.quotas.first(where: { $0.cost != nil })?.cost,
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -147,20 +162,46 @@ enum SyntheticUsageParser {
         }()
 
         let planName = self.planName(from: root)
-        let quotaObjects = self.quotaObjects(from: root)
-        let quotas = quotaObjects.compactMap { self.parseQuota($0) }
 
+        if let slots = self.prioritizedQuotaSlots(from: root) {
+            let slotted: [SyntheticQuotaEntry?] = slots.map { $0.flatMap(self.parseQuota) }
+            let flat = slotted.compactMap(\.self)
+            guard !flat.isEmpty else {
+                throw SyntheticUsageError.parseFailed("Missing quota data.")
+            }
+            return SyntheticUsageSnapshot(
+                quotas: flat,
+                slottedQuotas: slotted,
+                planName: planName,
+                updatedAt: now)
+        }
+
+        let quotas = self.fallbackQuotaObjects(from: root).compactMap(self.parseQuota)
         guard !quotas.isEmpty else {
             throw SyntheticUsageError.parseFailed("Missing quota data.")
         }
-
         return SyntheticUsageSnapshot(
             quotas: quotas,
             planName: planName,
             updatedAt: now)
     }
 
-    private static func quotaObjects(from root: [String: Any]) -> [[String: Any]] {
+    /// Returns slot-positional quota payloads `[rolling-5h, weekly, search-hourly]` when the known Synthetic
+    /// response shape is detected. Missing lanes stay nil in their slot so downstream code doesn't shift
+    /// labels. Returns nil if none of the known keys appear, so the fallback path runs.
+    private static func prioritizedQuotaSlots(from root: [String: Any]) -> [[String: Any]?]? {
+        let dataDict = root["data"] as? [String: Any]
+        let rolling = self.namedQuota(root["rollingFiveHourLimit"], label: "Rolling five-hour limit")
+            ?? self.namedQuota(dataDict?["rollingFiveHourLimit"], label: "Rolling five-hour limit")
+        let weekly = self.namedQuota(root["weeklyTokenLimit"], label: "Weekly token limit")
+            ?? self.namedQuota(dataDict?["weeklyTokenLimit"], label: "Weekly token limit")
+        let searchHourly = self.namedQuota((root["search"] as? [String: Any])?["hourly"], label: "Search hourly")
+            ?? self.namedQuota((dataDict?["search"] as? [String: Any])?["hourly"], label: "Search hourly")
+        let slots: [[String: Any]?] = [rolling, weekly, searchHourly]
+        return slots.contains(where: { $0 != nil }) ? slots : nil
+    }
+
+    private static func fallbackQuotaObjects(from root: [String: Any]) -> [[String: Any]] {
         let dataDict = root["data"] as? [String: Any]
         let candidates: [Any?] = [
             root["quotas"],
@@ -179,14 +220,8 @@ enum SyntheticUsageParser {
         ]
 
         for candidate in candidates {
-            if let array = candidate as? [[String: Any]] { return array }
-            if let array = candidate as? [Any] {
-                let dicts = array.compactMap { $0 as? [String: Any] }
-                if !dicts.isEmpty { return dicts }
-            }
-            if let dict = candidate as? [String: Any], self.isQuotaPayload(dict) {
-                return [dict]
-            }
+            let quotas = self.extractQuotaObjects(from: candidate)
+            if !quotas.isEmpty { return quotas }
         }
         return []
     }
@@ -239,14 +274,19 @@ enum SyntheticUsageParser {
 
         let windowMinutes = windowMinutes(from: payload)
         let resetsAt = self.firstDate(in: payload, keys: self.resetKeys)
+        // Leave resetDescription nil when resetsAt is set so the UI rebuilds the countdown each render
+        // against the current clock instead of freezing a stale "in Xm" string at parse time.
         let resetDescription = resetsAt == nil ? self.windowDescription(minutes: windowMinutes) : nil
+
+        let cost = self.providerCost(from: payload, usedPercent: clamped, resetsAt: resetsAt)
 
         return SyntheticQuotaEntry(
             label: label,
             usedPercent: clamped,
             windowMinutes: windowMinutes,
             resetsAt: resetsAt,
-            resetDescription: resetDescription)
+            resetDescription: resetDescription,
+            cost: cost)
     }
 
     private static func isQuotaPayload(_ payload: [String: Any]) -> Bool {
@@ -271,6 +311,70 @@ enum SyntheticUsageParser {
         if let seconds = self.firstDouble(in: payload, keys: windowSecondsKeys) {
             return Int((seconds / 60).rounded())
         }
+        if let text = self.firstString(in: payload, keys: windowStringKeys) {
+            return self.windowMinutes(from: text)
+        }
+        return nil
+    }
+
+    private static func namedQuota(_ candidate: Any?, label: String) -> [String: Any]? {
+        guard var payload = candidate as? [String: Any], self.isQuotaPayload(payload) else { return nil }
+        if payload["label"] == nil, payload["name"] == nil {
+            payload["label"] = label
+        }
+        return payload
+    }
+
+    private static func extractQuotaObjects(from candidate: Any?) -> [[String: Any]] {
+        switch candidate {
+        case let array as [[String: Any]]:
+            var nestedQuotas: [[String: Any]] = []
+            for entry in array {
+                if self.isQuotaPayload(entry) {
+                    nestedQuotas.append(entry)
+                } else {
+                    nestedQuotas.append(contentsOf: self.extractQuotaObjects(from: entry))
+                }
+            }
+            return nestedQuotas
+        case let array as [Any]:
+            return array.flatMap { self.extractQuotaObjects(from: $0) }
+        case let dict as [String: Any]:
+            if self.isQuotaPayload(dict) {
+                return [dict]
+            }
+            var nestedQuotas: [[String: Any]] = []
+            for key in dict.keys.sorted() {
+                nestedQuotas.append(contentsOf: self.extractQuotaObjects(from: dict[key]))
+            }
+            return nestedQuotas
+        default:
+            return []
+        }
+    }
+
+    private static func windowMinutes(from text: String) -> Int? {
+        let normalized = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+        guard !normalized.isEmpty else { return nil }
+
+        let unitMappings: [(suffixes: [String], multiplier: Double)] = [
+            (["minutes", "minute", "mins", "min", "m"], 1),
+            (["hours", "hour", "hrs", "hr", "h"], 60),
+            (["days", "day", "d"], 24 * 60),
+        ]
+
+        for mapping in unitMappings {
+            for suffix in mapping.suffixes {
+                guard normalized.hasSuffix(suffix) else { continue }
+                let valueText = String(normalized.dropLast(suffix.count))
+                guard let value = Double(valueText), value > 0 else { return nil }
+                return Int((value * mapping.multiplier).rounded())
+            }
+        }
+
         return nil
     }
 
@@ -286,6 +390,57 @@ enum SyntheticUsageParser {
             return "\(hours) hour\(hours == 1 ? "" : "s") window"
         }
         return "\(minutes) minute\(minutes == 1 ? "" : "s") window"
+    }
+
+    private static func providerCost(
+        from payload: [String: Any],
+        usedPercent: Double,
+        resetsAt: Date?) -> ProviderCostSnapshot?
+    {
+        guard let limit = self.firstCurrency(in: payload, keys: self.costLimitKeys) else { return nil }
+
+        let remaining = self.firstCurrency(in: payload, keys: self.costRemainingKeys)
+        let usedFromPayload = self.firstCurrency(in: payload, keys: self.costUsedKeys)
+        let nextRegenAmount = self.firstCurrency(in: payload, keys: self.regenAmountKeys)
+        let used = if let usedFromPayload {
+            usedFromPayload
+        } else if let remaining {
+            max(0, limit - remaining)
+        } else {
+            (usedPercent.clamped(to: 0...100) / 100) * limit
+        }
+
+        return ProviderCostSnapshot(
+            used: used,
+            limit: limit,
+            currencyCode: "USD",
+            period: "Weekly",
+            resetsAt: resetsAt,
+            nextRegenAmount: nextRegenAmount,
+            updatedAt: Date())
+    }
+
+    private static func firstCurrency(in payload: [String: Any], keys: [String]) -> Double? {
+        for key in keys {
+            guard let value = payload[key] else { continue }
+            if let text = value as? String,
+               let parsed = self.parseCurrency(text)
+            {
+                return parsed
+            }
+            if let number = self.doubleValue(value) {
+                return number
+            }
+        }
+        return nil
+    }
+
+    private static func parseCurrency(_ text: String) -> Double? {
+        let cleaned = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+        return Double(cleaned)
     }
 
     private static func normalizedPercent(_ value: Double?) -> Double? {
@@ -423,6 +578,13 @@ enum SyntheticUsageParser {
 
     private static let limitKeys = [
         "limit",
+        "messageLimit",
+        "message_limit",
+        "messages",
+        "maxRequests",
+        "max_requests",
+        "requestLimit",
+        "request_limit",
         "quota",
         "max",
         "total",
@@ -433,6 +595,10 @@ enum SyntheticUsageParser {
     private static let usedKeys = [
         "used",
         "usage",
+        "usedMessages",
+        "used_messages",
+        "messagesUsed",
+        "messages_used",
         "requests",
         "requestCount",
         "request_count",
@@ -456,12 +622,36 @@ enum SyntheticUsageParser {
         "renew_at",
         "renewsAt",
         "renews_at",
+        "nextTickAt",
+        "next_tick_at",
+        "nextRegenAt",
+        "next_regen_at",
         "periodEnd",
         "period_end",
         "expiresAt",
         "expires_at",
         "endAt",
         "end_at",
+    ]
+
+    private static let regenAmountKeys = [
+        "nextRegenCredits",
+        "next_regen_credits",
+    ]
+
+    private static let costLimitKeys = [
+        "maxCredits",
+        "max_credits",
+    ]
+
+    private static let costRemainingKeys = [
+        "remainingCredits",
+        "remaining_credits",
+    ]
+
+    private static let costUsedKeys = [
+        "usedCredits",
+        "used_credits",
     ]
 
     private static let windowMinutesKeys = [
@@ -490,6 +680,15 @@ enum SyntheticUsageParser {
         "window_seconds",
         "periodSeconds",
         "period_seconds",
+    ]
+
+    private static let windowStringKeys = [
+        "window",
+        "windowLabel",
+        "window_label",
+        "period",
+        "periodLabel",
+        "period_label",
     ]
 }
 
