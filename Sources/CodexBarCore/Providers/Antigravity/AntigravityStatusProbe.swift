@@ -282,19 +282,19 @@ public struct AntigravityStatusProbe: Sendable {
             timeout: self.timeout)
 
         do {
-            let response = try await Self.makeRequest(
+            return try await Self.makeParsedRequest(
                 payload: RequestPayload(
                     path: Self.getUserStatusPath,
                     body: Self.defaultRequestBody()),
-                context: context)
-            return try Self.parseUserStatusResponse(response)
+                context: context,
+                parse: Self.parseUserStatusResponse)
         } catch {
-            let response = try await Self.makeRequest(
+            return try await Self.makeParsedRequest(
                 payload: RequestPayload(
                     path: Self.commandModelConfigPath,
                     body: Self.defaultRequestBody()),
-                context: context)
-            return try Self.parseCommandModelResponse(response)
+                context: context,
+                parse: Self.parseCommandModelResponse)
         }
     }
 
@@ -308,7 +308,7 @@ public struct AntigravityStatusProbe: Sendable {
                 extensionServerPort: processInfo.extensionPort,
                 extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
             timeout: self.timeout)
-        let response = try await Self.makeRequest(
+        return try await Self.makeParsedRequest(
             payload: RequestPayload(
                 path: Self.getUserStatusPath,
                 body: Self.defaultRequestBody()),
@@ -319,8 +319,8 @@ public struct AntigravityStatusProbe: Sendable {
                     languageServerCSRFToken: processInfo.csrfToken,
                     extensionServerPort: processInfo.extensionPort,
                     extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
-                timeout: self.timeout))
-        return try Self.parsePlanInfoSummary(response)
+                timeout: self.timeout),
+            parse: Self.parsePlanInfoSummary)
     }
 
     public static func isRunning(timeout: TimeInterval = 4.0) async -> Bool {
@@ -692,12 +692,12 @@ public struct AntigravityStatusProbe: Sendable {
 
     // MARK: - HTTP
 
-    private struct RequestPayload {
+    struct RequestPayload {
         let path: String
         let body: [String: Any]
     }
 
-    private struct RequestContext {
+    struct RequestContext {
         let endpoints: [AntigravityConnectionEndpoint]
         let timeout: TimeInterval
     }
@@ -736,6 +736,34 @@ public struct AntigravityStatusProbe: Sendable {
         context: RequestContext) async throws -> Data
     {
         try await self.sendRequest(payload: payload, context: context)
+    }
+
+    static func makeParsedRequest<T>(
+        payload: RequestPayload,
+        context: RequestContext,
+        send: @escaping @Sendable (RequestPayload, AntigravityConnectionEndpoint, TimeInterval) async throws -> Data =
+            sendRequest,
+        parse: @escaping @Sendable (Data) throws -> T) async throws -> T
+    {
+        var lastError: Error?
+
+        for endpoint in context.endpoints {
+            do {
+                let data = try await send(payload, endpoint, context.timeout)
+                return try parse(data)
+            } catch {
+                lastError = error
+                Self.log.debug("Antigravity request/parse attempt failed", metadata: [
+                    "path": payload.path,
+                    "source": endpoint.source.rawValue,
+                    "scheme": endpoint.scheme,
+                    "port": "\(endpoint.port)",
+                    "error": error.localizedDescription,
+                ])
+            }
+        }
+
+        throw lastError ?? AntigravityStatusProbeError.apiError("Invalid response")
     }
 
     private static func sendRequest(

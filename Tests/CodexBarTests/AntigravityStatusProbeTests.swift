@@ -282,6 +282,53 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
+    func `parsed request retries later endpoints after api level error payload`() async throws {
+        let endpoints = [
+            AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                scheme: "https",
+                port: 64440,
+                csrfToken: "bad-token",
+                source: .languageServer),
+            AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                scheme: "http",
+                port: 64432,
+                csrfToken: "good-token",
+                source: .extensionServer),
+        ]
+        let attempted = AntigravityAttemptRecorder()
+
+        let snapshot = try await AntigravityStatusProbe.makeParsedRequest(
+            payload: AntigravityStatusProbe.RequestPayload(
+                path: "/exa.language_server_pb.LanguageServerService/GetUserStatus",
+                body: ["metadata": [:]]),
+            context: AntigravityStatusProbe.RequestContext(
+                endpoints: endpoints,
+                timeout: 1),
+            send: { _, endpoint, _ in
+                attempted.append(endpoint)
+                if endpoint.csrfToken == "bad-token" {
+                    return Data(#"{"code":16}"#.utf8)
+                }
+                return Data(
+                    #"""
+                    {
+                      "code": 0,
+                      "userStatus": {
+                        "email": "test@example.com",
+                        "cascadeModelConfigData": {
+                          "clientModelConfigs": []
+                        }
+                      }
+                    }
+                    """#.utf8)
+            },
+            parse: AntigravityStatusProbe.parseUserStatusResponse)
+
+        #expect(snapshot.accountEmail == "test@example.com")
+        #expect(attempted.snapshot() == endpoints)
+    }
+
+    @Test
     func `endpoint resolver prefers successful https language server candidate`() async throws {
         let candidates = AntigravityStatusProbe.connectionCandidates(
             listeningPorts: [64440],
