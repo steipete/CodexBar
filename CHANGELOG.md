@@ -4,6 +4,7 @@
 
 ### Providers & Usage
 - Gemini: discover OAuth config in fnm/Homebrew/bundled CLI layouts so expired-token refresh keeps working (#723). Thanks @Leechael!
+- Copilot: open the complete device-login verification URL when available so the browser flow carries the user code (#739). Thanks @skhe!
 
 ### Fixes
 - Keychain cache: preserve cached credentials when macOS temporarily denies keychain UI after wake, avoiding repeated prompts (#594). Thanks @josepe98!
