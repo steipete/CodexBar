@@ -3,6 +3,7 @@
 ## 0.22 — Unreleased
 
 ### Providers & Usage
+- Synthetic: parse live five-hour, weekly, and search quota payloads, including continuous reset/regeneration details (#732). Thanks @baanish!
 - Gemini: discover OAuth config in fnm/Homebrew/bundled CLI layouts so expired-token refresh keeps working (#723). Thanks @Leechael!
 - Copilot: open the complete device-login verification URL when available so the browser flow carries the user code (#739). Thanks @skhe!
 - Alibaba: update the China mainland Coding Plan endpoint and browser-cookie domain while keeping older domains as fallbacks (#712). Thanks @hezhongtang!
