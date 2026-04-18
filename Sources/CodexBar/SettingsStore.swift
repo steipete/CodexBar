@@ -135,6 +135,7 @@ final class SettingsStore {
                     "sharedDefaultsAvailable": sharedDefaultsAvailable ? "1" : "0",
                     "migrationStatus": appGroupMigration.status.rawValue,
                     "migratedSnapshot": appGroupMigration.copiedSnapshot ? "1" : "0",
+                    "migratedDefaults": "\(appGroupMigration.copiedDefaults)",
                 ])
         }
 
