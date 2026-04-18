@@ -92,9 +92,9 @@ struct ClaudeOAuthTests {
         """
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
         #expect(snap.extraRateWindows.count == 2)
-        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.title == "Claude Design")
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.title == "Designs")
         #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.window.usedPercent == 44)
-        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.title == "Claude Routines")
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.title == "Daily Routines")
         #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 18)
     }
 

@@ -520,7 +520,7 @@ public enum ClaudeWebAPIFetcher {
         let definitions: [(id: String, title: String, keys: [String])] = [
             (
                 id: "claude-design",
-                title: "Claude Design",
+                title: "Designs",
                 keys: [
                     "seven_day_design",
                     "seven_day_claude_design",
@@ -533,7 +533,7 @@ public enum ClaudeWebAPIFetcher {
             ),
             (
                 id: "claude-routines",
-                title: "Claude Routines",
+                title: "Daily Routines",
                 keys: [
                     "seven_day_routines",
                     "seven_day_claude_routines",

@@ -896,13 +896,13 @@ extension ClaudeUsageFetcher {
         let definitions: [(id: String, title: String, window: OAuthUsageWindow?, sourceKey: String?)] = [
             (
                 id: "claude-design",
-                title: "Claude Design",
+                title: "Designs",
                 window: usage.sevenDayDesign,
                 sourceKey: usage.sevenDayDesignSourceKey
             ),
             (
                 id: "claude-routines",
-                title: "Claude Routines",
+                title: "Daily Routines",
                 window: usage.sevenDayRoutines,
                 sourceKey: usage.sevenDayRoutinesSourceKey
             ),

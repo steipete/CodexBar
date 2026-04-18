@@ -918,12 +918,29 @@ extension UsageStore {
                         cacheScope: cacheScope,
                         logger: log)
                 case .auto:
-                    result = try await importer.importBestCookies(
-                        intoAccountEmail: normalizedTarget,
-                        allowAnyAccount: allowAnyAccount,
-                        preferCachedCookieHeader: !force,
-                        cacheScope: cacheScope,
-                        logger: log)
+                    do {
+                        result = try await importer.importBestCookies(
+                            intoAccountEmail: normalizedTarget,
+                            allowAnyAccount: allowAnyAccount,
+                            preferCachedCookieHeader: !force,
+                            cacheScope: cacheScope,
+                            logger: log)
+                    } catch let error as OpenAIDashboardBrowserCookieImporter.ImportError {
+                        let manualHeader = self.settings.codexCookieHeader
+                        if case .browserAccessDenied = error,
+                           let normalizedManual = CookieHeaderNormalizer.normalize(manualHeader)
+                        {
+                            log("Auto browser import blocked; retrying with manual cookie header fallback.")
+                            result = try await importer.importManualCookies(
+                                cookieHeader: normalizedManual,
+                                intoAccountEmail: normalizedTarget,
+                                allowAnyAccount: allowAnyAccount,
+                                cacheScope: cacheScope,
+                                logger: log)
+                        } else {
+                            throw error
+                        }
+                    }
                 case .off:
                     result = OpenAIDashboardBrowserCookieImporter.ImportResult(
                         sourceLabel: "Off",
@@ -992,8 +1009,14 @@ extension UsageStore {
                             targetEmail: normalizedTarget)
                     self.failClosedOpenAIDashboardSnapshot()
                 }
+            case let .browserAccessDenied(details):
+                self.logOpenAIWeb("[\(stamp)] import failed: \(err.localizedDescription)")
+                await MainActor.run {
+                    self.openAIDashboardCookieImportStatus = Self.conciseOpenAICookieAccessDeniedStatus(
+                        details: details)
+                    self.openAIDashboardRequiresLogin = true
+                }
             case .noCookiesFound,
-                 .browserAccessDenied,
                  .dashboardStillRequiresLogin,
                  .manualCookieHeaderInvalid:
                 self.logOpenAIWeb("[\(stamp)] import failed: \(err.localizedDescription)")
@@ -1227,5 +1250,19 @@ extension UsageStore {
             return "OpenAI cookies are for \(foundLabel)."
         }
         return "OpenAI cookies are for \(foundLabel), not \(targetLabel)."
+    }
+
+    private static func conciseOpenAICookieAccessDeniedStatus(details: String) -> String {
+        let lower = details.lowercased()
+        if lower.contains("safari") {
+            return [
+                "OpenAI cookie import is blocked by macOS privacy for Safari.",
+                "Enable Full Disk Access for CodexBar, or switch Codex cookie source to Manual.",
+            ].joined(separator: " ")
+        }
+        return [
+            "OpenAI cookie import is blocked by browser privacy permissions.",
+            "Enable cookie/keychain access for CodexBar, or switch Codex cookie source to Manual.",
+        ].joined(separator: " ")
     }
 }

@@ -147,7 +147,7 @@ struct MenuCardModelTests {
             extraRateWindows: [
                 NamedRateWindow(
                     id: "claude-design",
-                    title: "Claude Design",
+                    title: "Designs",
                     window: RateWindow(
                         usedPercent: 31,
                         windowMinutes: 10080,
@@ -155,7 +155,7 @@ struct MenuCardModelTests {
                         resetDescription: nil)),
                 NamedRateWindow(
                     id: "claude-routines",
-                    title: "Claude Routines",
+                    title: "Daily Routines",
                     window: RateWindow(
                         usedPercent: 7,
                         windowMinutes: 10080,
@@ -185,8 +185,8 @@ struct MenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.map(\.title).contains("Claude Design"))
-        #expect(model.metrics.map(\.title).contains("Claude Routines"))
+        #expect(model.metrics.map(\.title).contains("Designs"))
+        #expect(model.metrics.map(\.title).contains("Daily Routines"))
     }
 
     @Test
