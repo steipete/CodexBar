@@ -84,6 +84,7 @@ public enum ClaudeWebAPIFetcher {
         public let weeklyPercentUsed: Double?
         public let weeklyResetsAt: Date?
         public let opusPercentUsed: Double?
+        public let extraRateWindows: [NamedRateWindow]
         public let extraUsageCost: ProviderCostSnapshot?
         public let accountOrganization: String?
         public let accountEmail: String?
@@ -95,6 +96,7 @@ public enum ClaudeWebAPIFetcher {
             weeklyPercentUsed: Double?,
             weeklyResetsAt: Date?,
             opusPercentUsed: Double?,
+            extraRateWindows: [NamedRateWindow],
             extraUsageCost: ProviderCostSnapshot?,
             accountOrganization: String?,
             accountEmail: String?,
@@ -105,6 +107,7 @@ public enum ClaudeWebAPIFetcher {
             self.weeklyPercentUsed = weeklyPercentUsed
             self.weeklyResetsAt = weeklyResetsAt
             self.opusPercentUsed = opusPercentUsed
+            self.extraRateWindows = extraRateWindows
             self.extraUsageCost = extraUsageCost
             self.accountOrganization = accountOrganization
             self.accountEmail = accountEmail
@@ -195,6 +198,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                extraRateWindows: usage.extraRateWindows,
                 extraUsageCost: extra,
                 accountOrganization: usage.accountOrganization,
                 accountEmail: usage.accountEmail,
@@ -207,6 +211,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                extraRateWindows: usage.extraRateWindows,
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: usage.accountOrganization,
                 accountEmail: account.email,
@@ -219,6 +224,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                extraRateWindows: usage.extraRateWindows,
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: name,
                 accountEmail: usage.accountEmail,
@@ -439,7 +445,7 @@ public enum ClaudeWebAPIFetcher {
 
         switch httpResponse.statusCode {
         case 200:
-            return try self.parseUsageResponse(data)
+            return try self.parseUsageResponse(data, logger: logger)
         case 401, 403:
             throw FetchError.unauthorized
         default:
@@ -447,7 +453,7 @@ public enum ClaudeWebAPIFetcher {
         }
     }
 
-    private static func parseUsageResponse(_ data: Data) throws -> WebUsageData {
+    private static func parseUsageResponse(_ data: Data, logger: ((String) -> Void)? = nil) throws -> WebUsageData {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw FetchError.invalidResponse
         }
@@ -480,12 +486,19 @@ public enum ClaudeWebAPIFetcher {
             }
         }
 
-        // Parse seven_day_opus (Opus-specific weekly) usage
+        // Parse seven_day_sonnet (preferred) / seven_day_opus usage
         var opusPercent: Double?
-        if let sevenDayOpus = json["seven_day_opus"] as? [String: Any] {
-            if let utilization = sevenDayOpus["utilization"] as? Int {
-                opusPercent = Double(utilization)
-            }
+        if let sevenDaySonnet = json["seven_day_sonnet"] as? [String: Any] {
+            opusPercent = Self.percentValue(from: sevenDaySonnet["utilization"])
+        } else if let sevenDayOpus = json["seven_day_opus"] as? [String: Any] {
+            opusPercent = Self.percentValue(from: sevenDayOpus["utilization"])
+        }
+        let extraRateParse = Self.parseExtraRateWindows(from: json)
+        if let sourceKey = extraRateParse.sourceKeys["claude-design"] {
+            logger?("Usage API extra window key matched: design=\(sourceKey)")
+        }
+        if let sourceKey = extraRateParse.sourceKeys["claude-routines"] {
+            logger?("Usage API extra window key matched: routines=\(sourceKey)")
         }
 
         return WebUsageData(
@@ -494,10 +507,110 @@ public enum ClaudeWebAPIFetcher {
             weeklyPercentUsed: weeklyPercent,
             weeklyResetsAt: weeklyResets,
             opusPercentUsed: opusPercent,
+            extraRateWindows: extraRateParse.windows,
             extraUsageCost: nil,
             accountOrganization: nil,
             accountEmail: nil,
             loginMethod: nil)
+    }
+
+    private static func parseExtraRateWindows(
+        from json: [String: Any]) -> (windows: [NamedRateWindow], sourceKeys: [String: String])
+    {
+        let definitions: [(id: String, title: String, keys: [String])] = [
+            (
+                id: "claude-design",
+                title: "Claude Design",
+                keys: [
+                    "seven_day_design",
+                    "seven_day_claude_design",
+                    "claude_design",
+                    "design",
+                    "seven_day_omelette",
+                    "omelette",
+                    "omelette_promotional",
+                ]
+            ),
+            (
+                id: "claude-routines",
+                title: "Claude Routines",
+                keys: [
+                    "seven_day_routines",
+                    "seven_day_claude_routines",
+                    "claude_routines",
+                    "routines",
+                    "routine",
+                    "seven_day_cowork",
+                    "cowork",
+                ]
+            ),
+        ]
+
+        var windows: [NamedRateWindow] = []
+        var sourceKeys: [String: String] = [:]
+        windows.reserveCapacity(definitions.count)
+
+        for definition in definitions {
+            if let foundWindow = Self.firstUsageWindow(in: json, keys: definition.keys) {
+                let rawWindow = foundWindow.window
+                guard let utilization = Self.percentValue(from: rawWindow["utilization"]) else { continue }
+                let resetsAt = (rawWindow["resets_at"] as? String).flatMap(Self.parseISO8601Date)
+                windows.append(NamedRateWindow(
+                    id: definition.id,
+                    title: definition.title,
+                    window: RateWindow(
+                        usedPercent: utilization,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: resetsAt,
+                        resetDescription: nil)))
+                sourceKeys[definition.id] = foundWindow.sourceKey
+                continue
+            }
+
+            // Some accounts expose the key with null payloads (for example `seven_day_cowork: null`).
+            // Preserve the bar in that case with a 0% window so the product section remains visible.
+            if let key = Self.firstUsageKey(in: json, keys: definition.keys) {
+                windows.append(NamedRateWindow(
+                    id: definition.id,
+                    title: definition.title,
+                    window: RateWindow(
+                        usedPercent: 0,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)))
+                sourceKeys[definition.id] = key
+            }
+        }
+        return (windows, sourceKeys)
+    }
+
+    private static func firstUsageWindow(
+        in json: [String: Any],
+        keys: [String]) -> (window: [String: Any], sourceKey: String)?
+    {
+        for key in keys {
+            if let window = json[key] as? [String: Any] {
+                return (window, key)
+            }
+        }
+        return nil
+    }
+
+    private static func firstUsageKey(in json: [String: Any], keys: [String]) -> String? {
+        for key in keys where json.keys.contains(key) {
+            return key
+        }
+        return nil
+    }
+
+    private static func percentValue(from value: Any?) -> Double? {
+        if let intValue = value as? Int {
+            return Double(intValue)
+        }
+        if let doubleValue = value as? Double {
+            return doubleValue
+        }
+        return nil
     }
 
     // MARK: - Extra usage cost (Claude "Extra")

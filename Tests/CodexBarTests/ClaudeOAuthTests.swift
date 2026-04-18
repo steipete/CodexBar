@@ -82,6 +82,51 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `maps O auth design and routines usage windows`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day_design": { "utilization": 44, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_routines": { "utilization": 18, "resets_at": "2026-01-01T00:00:00.000Z" }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.count == 2)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.title == "Claude Design")
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.window.usedPercent == 44)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.title == "Claude Routines")
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 18)
+    }
+
+    @Test
+    func `maps O auth omelette and cowork usage windows`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day_omelette": { "utilization": 29, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_cowork": { "utilization": 9, "resets_at": "2026-01-01T00:00:00.000Z" }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.count == 2)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.window.usedPercent == 29)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 9)
+    }
+
+    @Test
+    func `maps O auth null cowork as zero routines window`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day_omelette": { "utilization": 29, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_cowork": null
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 0)
+    }
+
+    @Test
     func `maps O auth extra usage`() throws {
         // OAuth API returns values in cents (minor units), same as Web API.
         // The normalization always converts to dollars (major units).

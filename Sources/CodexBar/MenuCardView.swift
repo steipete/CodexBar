@@ -965,6 +965,27 @@ extension UsageMenuCardView.Model {
                 percentStyle: percentStyle,
                 zaiTimeDetail: zaiTimeDetail))
         }
+        if let extraRateWindows = snapshot.extraRateWindows {
+            metrics.append(contentsOf: extraRateWindows.map { namedWindow in
+                Metric(
+                    id: namedWindow.id,
+                    title: namedWindow.title,
+                    percent: Self.clamped(
+                        input.usageBarsShowUsed
+                            ? namedWindow.window.usedPercent
+                            : namedWindow.window.remainingPercent),
+                    percentStyle: percentStyle,
+                    resetText: Self.resetText(
+                        for: namedWindow.window,
+                        style: input.resetTimeDisplayStyle,
+                        now: input.now),
+                    detailText: nil,
+                    detailLeftText: nil,
+                    detailRightText: nil,
+                    pacePercent: nil,
+                    paceOnTop: true)
+            })
+        }
         if input.provider == .kilo,
            metrics.contains(where: { $0.id == "primary" }),
            metrics.contains(where: { $0.id == "secondary" })
