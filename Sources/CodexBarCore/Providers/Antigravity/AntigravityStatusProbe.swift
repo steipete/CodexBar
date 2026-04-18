@@ -265,14 +265,20 @@ public struct AntigravityStatusProbe: Sendable {
     public func fetch() async throws -> AntigravityStatusSnapshot {
         let processInfo = try await Self.detectProcessInfo(timeout: self.timeout)
         let ports = try await Self.listeningPorts(pid: processInfo.pid, timeout: self.timeout)
-        let connectPort = try await Self.findWorkingPort(
-            ports: ports,
-            csrfToken: processInfo.csrfToken,
+        let endpoint = try await Self.resolveWorkingEndpoint(
+            candidateEndpoints: Self.connectionCandidates(
+                listeningPorts: ports,
+                languageServerCSRFToken: processInfo.csrfToken,
+                extensionServerPort: processInfo.extensionPort,
+                extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
             timeout: self.timeout)
         let context = RequestContext(
-            httpsPort: connectPort,
-            httpPort: processInfo.extensionPort,
-            csrfToken: processInfo.csrfToken,
+            endpoints: Self.requestEndpoints(
+                resolvedEndpoint: endpoint,
+                listeningPorts: ports,
+                languageServerCSRFToken: processInfo.csrfToken,
+                extensionServerPort: processInfo.extensionPort,
+                extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
             timeout: self.timeout)
 
         do {
@@ -295,18 +301,24 @@ public struct AntigravityStatusProbe: Sendable {
     public func fetchPlanInfoSummary() async throws -> AntigravityPlanInfoSummary? {
         let processInfo = try await Self.detectProcessInfo(timeout: self.timeout)
         let ports = try await Self.listeningPorts(pid: processInfo.pid, timeout: self.timeout)
-        let connectPort = try await Self.findWorkingPort(
-            ports: ports,
-            csrfToken: processInfo.csrfToken,
+        let endpoint = try await Self.resolveWorkingEndpoint(
+            candidateEndpoints: Self.connectionCandidates(
+                listeningPorts: ports,
+                languageServerCSRFToken: processInfo.csrfToken,
+                extensionServerPort: processInfo.extensionPort,
+                extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
             timeout: self.timeout)
         let response = try await Self.makeRequest(
             payload: RequestPayload(
                 path: Self.getUserStatusPath,
                 body: Self.defaultRequestBody()),
             context: RequestContext(
-                httpsPort: connectPort,
-                httpPort: processInfo.extensionPort,
-                csrfToken: processInfo.csrfToken,
+                endpoints: Self.requestEndpoints(
+                    resolvedEndpoint: endpoint,
+                    listeningPorts: ports,
+                    languageServerCSRFToken: processInfo.csrfToken,
+                    extensionServerPort: processInfo.extensionPort,
+                    extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
                 timeout: self.timeout))
         return try Self.parsePlanInfoSummary(response)
     }
@@ -405,8 +417,25 @@ public struct AntigravityStatusProbe: Sendable {
     private struct ProcessInfoResult {
         let pid: Int
         let extensionPort: Int?
+        let extensionServerCSRFToken: String?
         let csrfToken: String
         let commandLine: String
+    }
+
+    struct AntigravityConnectionEndpoint: Sendable, Equatable {
+        enum Source: String, Sendable {
+            case languageServer = "language-server"
+            case extensionServer = "extension-server"
+        }
+
+        let scheme: String
+        let port: Int
+        let csrfToken: String
+        let source: Source
+
+        func matchesRequestTarget(_ other: Self) -> Bool {
+            self.scheme == other.scheme && self.port == other.port && self.csrfToken == other.csrfToken
+        }
     }
 
     private static func detectProcessInfo(timeout: TimeInterval) async throws -> ProcessInfoResult {
@@ -429,7 +458,13 @@ public struct AntigravityStatusProbe: Sendable {
             sawAntigravity = true
             guard let token = Self.extractFlag("--csrf_token", from: match.command) else { continue }
             let port = Self.extractPort("--extension_server_port", from: match.command)
-            return ProcessInfoResult(pid: match.pid, extensionPort: port, csrfToken: token, commandLine: match.command)
+            let extensionServerCSRFToken = Self.extractFlag("--extension_server_csrf_token", from: match.command)
+            return ProcessInfoResult(
+                pid: match.pid,
+                extensionPort: port,
+                extensionServerCSRFToken: extensionServerCSRFToken,
+                csrfToken: token,
+                commandLine: match.command)
         }
 
         if sawAntigravity {
@@ -508,21 +543,133 @@ public struct AntigravityStatusProbe: Sendable {
         return ports.sorted()
     }
 
-    private static func findWorkingPort(
-        ports: [Int],
-        csrfToken: String,
-        timeout: TimeInterval) async throws -> Int
+    static func connectionCandidates(
+        listeningPorts: [Int],
+        languageServerCSRFToken: String,
+        extensionServerPort: Int?,
+        extensionServerCSRFToken: String?) -> [AntigravityConnectionEndpoint]
     {
-        for port in ports {
-            let ok = await Self.testPortConnectivity(port: port, csrfToken: csrfToken, timeout: timeout)
-            if ok { return port }
+        var endpoints = Self.languageServerEndpoints(
+            listeningPorts: listeningPorts,
+            languageServerCSRFToken: languageServerCSRFToken)
+
+        for endpoint in Self.extensionServerEndpoints(
+            extensionServerPort: extensionServerPort,
+            languageServerCSRFToken: languageServerCSRFToken,
+            extensionServerCSRFToken: extensionServerCSRFToken)
+        {
+            guard !endpoints.contains(where: { $0.matchesRequestTarget(endpoint) }) else { continue }
+            endpoints.append(endpoint)
+        }
+
+        return endpoints
+    }
+
+    static func requestEndpoints(
+        resolvedEndpoint: AntigravityConnectionEndpoint,
+        listeningPorts: [Int],
+        languageServerCSRFToken: String,
+        extensionServerPort: Int?,
+        extensionServerCSRFToken: String?) -> [AntigravityConnectionEndpoint]
+    {
+        var endpoints = [resolvedEndpoint]
+
+        if resolvedEndpoint.source == .extensionServer {
+            Self.appendUniqueRequestTargets(
+                from: Self.extensionServerEndpoints(
+                    extensionServerPort: extensionServerPort,
+                    languageServerCSRFToken: languageServerCSRFToken,
+                    extensionServerCSRFToken: extensionServerCSRFToken),
+                to: &endpoints)
+            Self.appendUniqueRequestTargets(
+                from: Self.languageServerEndpoints(
+                    listeningPorts: listeningPorts,
+                    languageServerCSRFToken: languageServerCSRFToken),
+                to: &endpoints)
+        } else {
+            Self.appendUniqueRequestTargets(
+                from: Self.languageServerEndpoints(
+                    listeningPorts: listeningPorts,
+                    languageServerCSRFToken: languageServerCSRFToken),
+                to: &endpoints)
+            Self.appendUniqueRequestTargets(
+                from: Self.extensionServerEndpoints(
+                    extensionServerPort: extensionServerPort,
+                    languageServerCSRFToken: languageServerCSRFToken,
+                    extensionServerCSRFToken: extensionServerCSRFToken),
+                to: &endpoints)
+        }
+
+        return endpoints
+    }
+
+    private static func languageServerEndpoints(
+        listeningPorts: [Int],
+        languageServerCSRFToken: String) -> [AntigravityConnectionEndpoint]
+    {
+        listeningPorts.map {
+            AntigravityConnectionEndpoint(
+                scheme: "https",
+                port: $0,
+                csrfToken: languageServerCSRFToken,
+                source: .languageServer)
+        }
+    }
+
+    private static func extensionServerEndpoints(
+        extensionServerPort: Int?,
+        languageServerCSRFToken: String,
+        extensionServerCSRFToken: String?) -> [AntigravityConnectionEndpoint]
+    {
+        guard let extensionServerPort else { return [] }
+
+        var endpoints: [AntigravityConnectionEndpoint] = []
+        if let extensionServerCSRFToken {
+            endpoints.append(
+                AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: extensionServerPort,
+                    csrfToken: extensionServerCSRFToken,
+                    source: .extensionServer))
+        }
+
+        if extensionServerCSRFToken != languageServerCSRFToken {
+            endpoints.append(
+                AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: extensionServerPort,
+                    csrfToken: languageServerCSRFToken,
+                    source: .extensionServer))
+        }
+
+        return endpoints
+    }
+
+    private static func appendUniqueRequestTargets(
+        from candidates: [AntigravityConnectionEndpoint],
+        to endpoints: inout [AntigravityConnectionEndpoint])
+    {
+        for endpoint in candidates {
+            guard !endpoints.contains(where: { $0.matchesRequestTarget(endpoint) }) else { continue }
+            endpoints.append(endpoint)
+        }
+    }
+
+    static func resolveWorkingEndpoint(
+        candidateEndpoints: [AntigravityConnectionEndpoint],
+        timeout: TimeInterval,
+        testConnectivity: @escaping @Sendable (AntigravityConnectionEndpoint, TimeInterval) async -> Bool = Self
+            .testEndpointConnectivity) async throws -> AntigravityConnectionEndpoint
+    {
+        for endpoint in candidateEndpoints {
+            let ok = await testConnectivity(endpoint, timeout)
+            if ok { return endpoint }
         }
         throw AntigravityStatusProbeError.portDetectionFailed("no working API port found")
     }
 
-    private static func testPortConnectivity(
-        port: Int,
-        csrfToken: String,
+    private static func testEndpointConnectivity(
+        _ endpoint: AntigravityConnectionEndpoint,
         timeout: TimeInterval) async -> Bool
     {
         do {
@@ -530,15 +677,13 @@ public struct AntigravityStatusProbe: Sendable {
                 payload: RequestPayload(
                     path: self.unleashPath,
                     body: self.unleashRequestBody()),
-                context: RequestContext(
-                    httpsPort: port,
-                    httpPort: nil,
-                    csrfToken: csrfToken,
-                    timeout: timeout))
+                context: RequestContext(endpoints: [endpoint], timeout: timeout))
             return true
         } catch {
             self.log.debug("Port probe failed", metadata: [
-                "port": "\(port)",
+                "source": endpoint.source.rawValue,
+                "scheme": endpoint.scheme,
+                "port": "\(endpoint.port)",
                 "error": error.localizedDescription,
             ])
             return false
@@ -553,9 +698,7 @@ public struct AntigravityStatusProbe: Sendable {
     }
 
     private struct RequestContext {
-        let httpsPort: Int
-        let httpPort: Int?
-        let csrfToken: String
+        let endpoints: [AntigravityConnectionEndpoint]
         let timeout: TimeInterval
     }
 
@@ -592,29 +735,39 @@ public struct AntigravityStatusProbe: Sendable {
         payload: RequestPayload,
         context: RequestContext) async throws -> Data
     {
-        do {
-            return try await self.sendRequest(
-                scheme: "https",
-                port: context.httpsPort,
-                payload: payload,
-                context: context)
-        } catch {
-            guard let httpPort = context.httpPort, httpPort != context.httpsPort else { throw error }
-            return try await Self.sendRequest(
-                scheme: "http",
-                port: httpPort,
-                payload: payload,
-                context: context)
-        }
+        try await self.sendRequest(payload: payload, context: context)
     }
 
     private static func sendRequest(
-        scheme: String,
-        port: Int,
         payload: RequestPayload,
         context: RequestContext) async throws -> Data
     {
-        guard let url = URL(string: "\(scheme)://127.0.0.1:\(port)\(payload.path)") else {
+        var lastError: Error?
+
+        for endpoint in context.endpoints {
+            do {
+                return try await Self.sendRequest(payload: payload, endpoint: endpoint, timeout: context.timeout)
+            } catch {
+                lastError = error
+                Self.log.debug("Antigravity request attempt failed", metadata: [
+                    "path": payload.path,
+                    "source": endpoint.source.rawValue,
+                    "scheme": endpoint.scheme,
+                    "port": "\(endpoint.port)",
+                    "error": error.localizedDescription,
+                ])
+            }
+        }
+
+        throw lastError ?? AntigravityStatusProbeError.apiError("Invalid URL")
+    }
+
+    private static func sendRequest(
+        payload: RequestPayload,
+        endpoint: AntigravityConnectionEndpoint,
+        timeout: TimeInterval) async throws -> Data
+    {
+        guard let url = URL(string: "\(endpoint.scheme)://127.0.0.1:\(endpoint.port)\(payload.path)") else {
             throw AntigravityStatusProbeError.apiError("Invalid URL")
         }
 
@@ -622,15 +775,15 @@ public struct AntigravityStatusProbe: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = body
-        request.timeoutInterval = context.timeout
+        request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
         request.setValue("1", forHTTPHeaderField: "Connect-Protocol-Version")
-        request.setValue(context.csrfToken, forHTTPHeaderField: "X-Codeium-Csrf-Token")
+        request.setValue(endpoint.csrfToken, forHTTPHeaderField: "X-Codeium-Csrf-Token")
 
         let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = context.timeout
-        config.timeoutIntervalForResource = context.timeout
+        config.timeoutIntervalForRequest = timeout
+        config.timeoutIntervalForResource = timeout
         #if !os(Linux)
         config.waitsForConnectivity = false
         #endif
@@ -689,6 +842,27 @@ private final class LocalhostSessionDelegate: NSObject {
             state.cancel()
         }
     }
+
+    private func challengeResult(_ challenge: URLAuthenticationChallenge) -> (
+        disposition: URLSession.AuthChallengeDisposition,
+        credential: URLCredential?)
+    {
+        #if os(Linux)
+        return (.performDefaultHandling, nil)
+        #else
+        let protectionSpace = challenge.protectionSpace
+        let trust = protectionSpace.serverTrust
+        guard LocalhostTrustPolicy.shouldAcceptServerTrust(
+            host: protectionSpace.host,
+            authenticationMethod: protectionSpace.authenticationMethod,
+            hasServerTrust: trust != nil),
+            let trust
+        else {
+            return (.performDefaultHandling, nil)
+        }
+        return (.useCredential, URLCredential(trust: trust))
+        #endif
+    }
 }
 
 extension LocalhostSessionDelegate: URLSessionDelegate {
@@ -711,27 +885,6 @@ extension LocalhostSessionDelegate: URLSessionTaskDelegate {
     {
         let result = self.challengeResult(challenge)
         completionHandler(result.disposition, result.credential)
-    }
-
-    private func challengeResult(_ challenge: URLAuthenticationChallenge) -> (
-        disposition: URLSession.AuthChallengeDisposition,
-        credential: URLCredential?)
-    {
-        #if os(Linux)
-        return (.performDefaultHandling, nil)
-        #else
-        let protectionSpace = challenge.protectionSpace
-        let trust = protectionSpace.serverTrust
-        guard LocalhostTrustPolicy.shouldAcceptServerTrust(
-            host: protectionSpace.host,
-            authenticationMethod: protectionSpace.authenticationMethod,
-            hasServerTrust: trust != nil),
-            let trust
-        else {
-            return (.performDefaultHandling, nil)
-        }
-        return (.useCredential, URLCredential(trust: trust))
-        #endif
     }
 }
 

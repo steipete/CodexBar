@@ -2,6 +2,24 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+private final class AntigravityAttemptRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var endpoints: [AntigravityStatusProbe.AntigravityConnectionEndpoint] = []
+
+    func append(_ endpoint: AntigravityStatusProbe.AntigravityConnectionEndpoint) {
+        self.lock.lock()
+        self.endpoints.append(endpoint)
+        self.lock.unlock()
+    }
+
+    func snapshot() -> [AntigravityStatusProbe.AntigravityConnectionEndpoint] {
+        self.lock.lock()
+        let snapshot = self.endpoints
+        self.lock.unlock()
+        return snapshot
+    }
+}
+
 struct AntigravityStatusProbeTests {
     @Test
     func `localhost trust policy only accepts local server trust challenges`() {
@@ -31,6 +49,300 @@ struct AntigravityStatusProbeTests {
                 host: "127.0.0.1",
                 authenticationMethod: NSURLAuthenticationMethodServerTrust,
                 hasServerTrust: false))
+    }
+
+    @Test
+    func `localhost trust policy rejects non loopback hostnames that contain localhost`() {
+        #expect(
+            !LocalhostTrustPolicy.shouldAcceptServerTrust(
+                host: "localhost.example.com",
+                authenticationMethod: NSURLAuthenticationMethodServerTrust,
+                hasServerTrust: true))
+    }
+
+    @Test
+    func `connection candidates preserve scheme order and endpoint tokens`() {
+        let candidates = AntigravityStatusProbe.connectionCandidates(
+            listeningPorts: [64440],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: "extension-token")
+
+        #expect(
+            candidates == [
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "extension-token",
+                    source: .extensionServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .extensionServer),
+            ])
+    }
+
+    @Test
+    func `connection candidates restrict plain http probing to the declared extension port`() {
+        let candidates = AntigravityStatusProbe.connectionCandidates(
+            listeningPorts: [64440, 64441],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: nil)
+
+        #expect(
+            candidates == [
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: 64441,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .extensionServer),
+            ])
+    }
+
+    @Test
+    func `connection candidates preserve extension fallback when extension token is unavailable`() {
+        let candidates = AntigravityStatusProbe.connectionCandidates(
+            listeningPorts: [64440],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: nil)
+
+        #expect(
+            candidates == [
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .extensionServer),
+            ])
+    }
+
+    @Test
+    func `connection candidates do not duplicate the same http target when ports overlap`() {
+        let candidates = AntigravityStatusProbe.connectionCandidates(
+            listeningPorts: [64432],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: nil)
+
+        #expect(
+            candidates == [
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .extensionServer),
+            ])
+    }
+
+    @Test
+    func `request endpoints retry extension server after language server success`() {
+        let resolvedEndpoint = AntigravityStatusProbe.AntigravityConnectionEndpoint(
+            scheme: "https",
+            port: 64440,
+            csrfToken: "language-token",
+            source: .languageServer)
+
+        let endpoints = AntigravityStatusProbe.requestEndpoints(
+            resolvedEndpoint: resolvedEndpoint,
+            listeningPorts: [64440],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: "extension-token")
+
+        #expect(
+            endpoints == [
+                resolvedEndpoint,
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "extension-token",
+                    source: .extensionServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .extensionServer),
+            ])
+    }
+
+    @Test
+    func `request endpoints preserve extension fallback when extension token is unavailable`() {
+        let resolvedEndpoint = AntigravityStatusProbe.AntigravityConnectionEndpoint(
+            scheme: "https",
+            port: 64440,
+            csrfToken: "language-token",
+            source: .languageServer)
+
+        let endpoints = AntigravityStatusProbe.requestEndpoints(
+            resolvedEndpoint: resolvedEndpoint,
+            listeningPorts: [64440],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: nil)
+
+        #expect(
+            endpoints == [
+                resolvedEndpoint,
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .extensionServer),
+            ])
+    }
+
+    @Test
+    func `request endpoints retry alternate token after extension server wins discovery`() {
+        let resolvedEndpoint = AntigravityStatusProbe.AntigravityConnectionEndpoint(
+            scheme: "http",
+            port: 64432,
+            csrfToken: "extension-token",
+            source: .extensionServer)
+
+        let endpoints = AntigravityStatusProbe.requestEndpoints(
+            resolvedEndpoint: resolvedEndpoint,
+            listeningPorts: [64440],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: "extension-token")
+
+        #expect(
+            endpoints == [
+                resolvedEndpoint,
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .extensionServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+            ])
+    }
+
+    @Test
+    func `request endpoints keep https language server fallback after extension probe wins`() {
+        let resolvedEndpoint = AntigravityStatusProbe.AntigravityConnectionEndpoint(
+            scheme: "http",
+            port: 64432,
+            csrfToken: "language-token",
+            source: .extensionServer)
+
+        let endpoints = AntigravityStatusProbe.requestEndpoints(
+            resolvedEndpoint: resolvedEndpoint,
+            listeningPorts: [64432, 64440],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: nil)
+
+        #expect(
+            endpoints == [
+                resolvedEndpoint,
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+            ])
+    }
+
+    @Test
+    func `endpoint resolver prefers successful https language server candidate`() async throws {
+        let candidates = AntigravityStatusProbe.connectionCandidates(
+            listeningPorts: [64440],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: "extension-token")
+        let attempted = AntigravityAttemptRecorder()
+
+        let endpoint = try await AntigravityStatusProbe.resolveWorkingEndpoint(
+            candidateEndpoints: candidates,
+            timeout: 1)
+        { endpoint, _ in
+            attempted.append(endpoint)
+            return endpoint.scheme == "https" && endpoint.port == 64440
+        }
+
+        #expect(endpoint == candidates[0])
+        #expect(attempted.snapshot() == [candidates[0]])
+    }
+
+    @Test
+    func `endpoint resolver falls back to extension server after https language server candidates`() async throws {
+        let candidates = AntigravityStatusProbe.connectionCandidates(
+            listeningPorts: [64440, 64441],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: "extension-token")
+        let attempted = AntigravityAttemptRecorder()
+
+        let endpoint = try await AntigravityStatusProbe.resolveWorkingEndpoint(
+            candidateEndpoints: candidates,
+            timeout: 1)
+        { endpoint, _ in
+            attempted.append(endpoint)
+            return endpoint.scheme == "http" && endpoint.port == 64432 && endpoint.source == .extensionServer
+        }
+
+        #expect(endpoint == candidates[2])
+        #expect(attempted.snapshot() == Array(candidates.prefix(3)))
+    }
+
+    @Test
+    func `endpoint resolver falls back to alternate extension token after primary token fails`() async throws {
+        let candidates = AntigravityStatusProbe.connectionCandidates(
+            listeningPorts: [64440],
+            languageServerCSRFToken: "language-token",
+            extensionServerPort: 64432,
+            extensionServerCSRFToken: "extension-token")
+        let attempted = AntigravityAttemptRecorder()
+
+        let endpoint = try await AntigravityStatusProbe.resolveWorkingEndpoint(
+            candidateEndpoints: candidates,
+            timeout: 1)
+        { endpoint, _ in
+            attempted.append(endpoint)
+            return endpoint.source == .extensionServer && endpoint.csrfToken == "language-token"
+        }
+
+        #expect(endpoint == candidates[2])
+        #expect(attempted.snapshot() == candidates)
+        #expect(endpoint.csrfToken == "language-token")
     }
 
     @Test
