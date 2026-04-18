@@ -9,6 +9,9 @@
 - Copilot: open the complete device-login verification URL when available so the browser flow carries the user code (#739). Thanks @skhe!
 - Alibaba: update the China mainland Coding Plan endpoint and browser-cookie domain while keeping older domains as fallbacks (#712). Thanks @hezhongtang!
 
+### Menu & Settings
+- Settings: fix provider-sidebar clipping on macOS Tahoe and resize the Preferences window when switching tabs (#580). Thanks @chadneal!
+
 ### Fixes
 - Keychain cache: preserve cached credentials when macOS temporarily denies keychain UI after wake, avoiding repeated prompts (#594). Thanks @josepe98!
 

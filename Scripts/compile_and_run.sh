@@ -31,8 +31,14 @@ delete_keychain_service_items() {
 
 # Ensure Swift >= 5.5 (required for --arch flag in swift build)
 ensure_swift_version() {
+  local swift_output
   local swift_ver
-  swift_ver=$(swift --version 2>&1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
+  swift_output=$(swift --version 2>&1 || true)
+  if [[ "$swift_output" =~ (Apple[[:space:]]+)?Swift[[:space:]]+version[[:space:]]+([0-9]+)\.([0-9]+)(\.[0-9]+)? ]]; then
+    swift_ver="${BASH_REMATCH[2]}.${BASH_REMATCH[3]}${BASH_REMATCH[4]}"
+  else
+    fail "Swift >= 5.5 required (found ${swift_output:-none}). Install Xcode or update swiftly."
+  fi
   local major minor
   major=$(echo "$swift_ver" | cut -d. -f1)
   minor=$(echo "$swift_ver" | cut -d. -f2)
