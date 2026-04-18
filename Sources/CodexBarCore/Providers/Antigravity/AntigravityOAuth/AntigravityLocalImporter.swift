@@ -180,7 +180,7 @@ public enum AntigravityLocalImporter {
             }
         }
 
-        if (name == nil || name?.isEmpty == true) && (email == nil || email?.isEmpty == true) {
+        if name == nil || name?.isEmpty == true, email == nil || email?.isEmpty == true {
             throw AntigravityOAuthCredentialsError.decodeFailed("userStatus contained no name or email")
         }
 
@@ -358,7 +358,7 @@ private struct ProtobufWireReader: Sequence, IteratorProtocol {
             guard let length = self.readVarint() else { return nil }
             let end = self.offset + Int(length)
             guard end <= self.data.count else { return nil }
-            let slice = self.data.subdata(in: self.data.startIndex + self.offset ..< self.data.startIndex + end)
+            let slice = self.data.subdata(in: self.data.startIndex + self.offset..<self.data.startIndex + end)
             self.offset = end
             return .lengthDelimited(fieldNumber: fieldNumber, value: slice)
         case 5:
@@ -386,7 +386,7 @@ private struct ProtobufWireReader: Sequence, IteratorProtocol {
     private mutating func readFixed64() -> UInt64? {
         guard self.offset + 8 <= self.data.count else { return nil }
         var value: UInt64 = 0
-        for i in 0 ..< 8 {
+        for i in 0..<8 {
             value |= UInt64(self.data[self.data.startIndex + self.offset + i]) << (8 * i)
         }
         self.offset += 8
@@ -396,7 +396,7 @@ private struct ProtobufWireReader: Sequence, IteratorProtocol {
     private mutating func readFixed32() -> UInt32? {
         guard self.offset + 4 <= self.data.count else { return nil }
         var value: UInt32 = 0
-        for i in 0 ..< 4 {
+        for i in 0..<4 {
             value |= UInt32(self.data[self.data.startIndex + self.offset + i]) << (8 * i)
         }
         self.offset += 4
