@@ -5,6 +5,9 @@
 ### Providers & Usage
 - Gemini: discover OAuth config in fnm/Homebrew/bundled CLI layouts so expired-token refresh keeps working (#723). Thanks @Leechael!
 
+### Fixes
+- Keychain cache: preserve cached credentials when macOS temporarily denies keychain UI after wake, avoiding repeated prompts (#594). Thanks @josepe98!
+
 ## 0.21 — 2026-04-18
 
 ### Highlights

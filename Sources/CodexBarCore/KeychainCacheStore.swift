@@ -69,17 +69,8 @@ public enum KeychainCacheStore {
                 return .invalid
             }
             return .found(decoded)
-        case errSecItemNotFound:
-            return .missing
-        case errSecInteractionNotAllowed:
-            // Keychain is temporarily locked (e.g. immediately after wake from sleep).
-            // The cache entry is valid — treat as missing so the caller falls through
-            // gracefully rather than deleting a perfectly good cache entry.
-            self.log.info("Keychain cache temporarily locked (\(key.account)), will retry on next access")
-            return .missing
         default:
-            self.log.error("Keychain cache read failed (\(key.account)): \(status)")
-            return .invalid
+            return self.loadResultForKeychainReadFailure(status: status, key: key)
         }
         #else
         return .missing
@@ -210,6 +201,25 @@ public enum KeychainCacheStore {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }
+
+    #if os(macOS)
+    static func loadResultForKeychainReadFailure<Entry>(
+        status: OSStatus,
+        key: Key) -> LoadResult<Entry>
+    {
+        switch status {
+        case errSecItemNotFound:
+            return .missing
+        case errSecInteractionNotAllowed:
+            // Keychain is temporarily locked, e.g. immediately after wake from sleep.
+            self.log.info("Keychain cache temporarily locked (\(key.account)), will retry on next access")
+            return .missing
+        default:
+            self.log.error("Keychain cache read failed (\(key.account)): \(status)")
+            return .invalid
+        }
+    }
+    #endif
 
     private static func loadFromTestStore<Entry: Codable>(
         key: Key,
