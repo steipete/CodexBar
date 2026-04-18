@@ -43,21 +43,20 @@ struct AntigravityOAuthCredentialsStoreTests {
     func saveAndLoadByLabel() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
-        let previousKeychainDisabled = KeychainAccessGate.isDisabled
-        KeychainAccessGate.isDisabled = false
-        defer { KeychainAccessGate.isDisabled = previousKeychainDisabled }
         AntigravityOAuthCredentialsStore.invalidateCache()
 
-        let creds = AntigravityOAuthCredentials(
-            accessToken: "ya29.test",
-            refreshToken: "1//refresh",
-            expiresAt: Date().addingTimeInterval(3600),
-            email: "user@example.com")
-        #expect(AntigravityOAuthCredentialsStore.save(creds, accountLabel: "User@Example.com"))
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            let creds = AntigravityOAuthCredentials(
+                accessToken: "ya29.test",
+                refreshToken: "1//refresh",
+                expiresAt: Date().addingTimeInterval(3600),
+                email: "user@example.com")
+            #expect(AntigravityOAuthCredentialsStore.save(creds, accountLabel: "User@Example.com"))
 
-        let loaded = AntigravityOAuthCredentialsStore.load(accountLabel: "user@example.com")
-        #expect(loaded?.accessToken == "ya29.test")
-        #expect(loaded?.refreshToken == "1//refresh")
+            let loaded = AntigravityOAuthCredentialsStore.load(accountLabel: "user@example.com")
+            #expect(loaded?.accessToken == "ya29.test")
+            #expect(loaded?.refreshToken == "1//refresh")
+        }
     }
 }
 
@@ -124,13 +123,17 @@ struct AntigravityAuthorizedFetchStrategyTests {
             claude: nil,
             cursor: nil,
             opencode: nil,
+            opencodego: nil,
+            alibaba: nil,
             factory: nil,
             minimax: nil,
             zai: nil,
             copilot: nil,
+            kilo: nil,
             kimi: nil,
             augment: nil,
             amp: nil,
+            ollama: nil,
             jetbrains: nil,
             antigravity: .init(usageSource: usageSource, accountLabel: accountLabel))
         return ProviderFetchContext(
@@ -159,22 +162,21 @@ struct AntigravityAuthorizedFetchStrategyTests {
     func availableWithStoredCredentials() async {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
-        let previousKeychainDisabled = KeychainAccessGate.isDisabled
-        KeychainAccessGate.isDisabled = false
-        defer { KeychainAccessGate.isDisabled = previousKeychainDisabled }
         AntigravityOAuthCredentialsStore.invalidateCache()
 
-        let creds = AntigravityOAuthCredentials(
-            accessToken: "ya29.test",
-            refreshToken: "1//refresh",
-            expiresAt: Date().addingTimeInterval(3600),
-            email: "user@example.com")
-        _ = AntigravityOAuthCredentialsStore.save(creds, accountLabel: "user@example.com")
+        await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            let creds = AntigravityOAuthCredentials(
+                accessToken: "ya29.test",
+                refreshToken: "1//refresh",
+                expiresAt: Date().addingTimeInterval(3600),
+                email: "user@example.com")
+            _ = AntigravityOAuthCredentialsStore.save(creds, accountLabel: "user@example.com")
 
-        let strategy = AntigravityAuthorizedFetchStrategy()
-        let context = self.makeContext(usageSource: .auto, accountLabel: "user@example.com")
-        let available = await strategy.isAvailable(context)
-        #expect(available)
+            let strategy = AntigravityAuthorizedFetchStrategy()
+            let context = self.makeContext(usageSource: .auto, accountLabel: "user@example.com")
+            let available = await strategy.isAvailable(context)
+            #expect(available)
+        }
     }
 
     @Test

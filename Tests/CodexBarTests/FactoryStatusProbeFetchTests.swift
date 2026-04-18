@@ -5,7 +5,7 @@ import Testing
 @Suite(.serialized)
 struct FactoryStatusProbeFetchTests {
     @Test
-    func fetchesSnapshotUsingCookieHeaderOverride() async throws {
+    func `fetches snapshot using cookie header override`() async throws {
         let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
         defer {
             if registered {

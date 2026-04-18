@@ -13,7 +13,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     private let transientFailureCountKey = "claudeOAuthRefreshTransientFailureCountV1"
 
     @Test
-    func blocksIndefinitely_whenFingerprintUnchanged() {
+    func `blocks indefinitely when fingerprint unchanged`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -43,7 +43,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func migratesLegacyBlockedUntilInPast_doesNotBlockAndClearsKey() {
+    func `migrates legacy blocked until in past does not block and clears key`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -57,7 +57,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func migratesLegacyBackoffToTransientBackoff_doesNotSetTerminalBlock() throws {
+    func `migrates legacy backoff to transient backoff does not set terminal block`() throws {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -87,7 +87,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func unblocksWhenFingerprintBecomesAvailable_afterBeingUnknownAtFailure() {
+    func `unblocks when fingerprint becomes available after being unknown at failure`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -112,7 +112,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func unblocksImmediately_whenFingerprintChanges() {
+    func `unblocks immediately when fingerprint changes`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -139,7 +139,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func throttlesFingerprintRecheck_whileTerminalBlocked() {
+    func `throttles fingerprint recheck while terminal blocked`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -174,7 +174,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func terminalBlockIsMonotonic_whenTransientFailureIsRecorded() {
+    func `terminal block is monotonic when transient failure is recorded`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -197,7 +197,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func recordSuccess_clearsTerminalBlock() {
+    func `record success clears terminal block`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -219,7 +219,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func transientBackoff_blocksUntilExpiry_thenUnblocks() {
+    func `transient backoff blocks until expiry then unblocks`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -241,7 +241,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func transientBackoff_isExponentialAndCapped() {
+    func `transient backoff is exponential and capped`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
@@ -274,7 +274,7 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
-    func transientBackoff_unblocksEarly_whenFingerprintChanges() {
+    func `transient backoff unblocks early when fingerprint changes`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 

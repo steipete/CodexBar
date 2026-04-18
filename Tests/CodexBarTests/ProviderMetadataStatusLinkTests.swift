@@ -1,10 +1,9 @@
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct ProviderMetadataStatusLinkTests {
     @Test
-    func workspaceStatusLinkMatchesProductID() {
+    func `workspace status link matches product ID`() {
         for (provider, meta) in ProviderDefaults.metadata {
             guard let productID = meta.statusWorkspaceProductID else { continue }
             let expected = "https://www.google.com/appsstatus/dashboard/products/\(productID)/history"

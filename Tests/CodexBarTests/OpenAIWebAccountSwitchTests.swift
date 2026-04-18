@@ -4,10 +4,9 @@ import Testing
 @testable import CodexBar
 
 @MainActor
-@Suite
 struct OpenAIWebAccountSwitchTests {
     @Test
-    func clearsDashboardWhenCodexEmailChanges() {
+    func `clears dashboard when codex email changes`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-clears"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -36,7 +35,7 @@ struct OpenAIWebAccountSwitchTests {
     }
 
     @Test
-    func keepsDashboardWhenCodexEmailStaysSame() {
+    func `keeps dashboard when codex email stays same`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-keeps"),
             zaiTokenStore: NoopZaiTokenStore(),

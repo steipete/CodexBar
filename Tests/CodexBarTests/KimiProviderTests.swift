@@ -2,48 +2,46 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct KimiSettingsReaderTests {
     @Test
-    func readsTokenFromEnvironmentVariable() {
+    func `reads token from environment variable`() {
         let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
         let token = KimiSettingsReader.authToken(environment: env)
         #expect(token == "test.jwt.token")
     }
 
     @Test
-    func normalizesQuotedToken() {
+    func `normalizes quoted token`() {
         let env = ["KIMI_AUTH_TOKEN": "\"test.jwt.token\""]
         let token = KimiSettingsReader.authToken(environment: env)
         #expect(token == "test.jwt.token")
     }
 
     @Test
-    func returnsNilWhenMissing() {
+    func `returns nil when missing`() {
         let env: [String: String] = [:]
         let token = KimiSettingsReader.authToken(environment: env)
         #expect(token == nil)
     }
 
     @Test
-    func returnsNilWhenEmpty() {
+    func `returns nil when empty`() {
         let env = ["KIMI_AUTH_TOKEN": ""]
         let token = KimiSettingsReader.authToken(environment: env)
         #expect(token == nil)
     }
 
     @Test
-    func normalizesLowercaseEnvironmentKey() {
+    func `normalizes lowercase environment key`() {
         let env = ["kimi_auth_token": "test.jwt.token"]
         let token = KimiSettingsReader.authToken(environment: env)
         #expect(token == "test.jwt.token")
     }
 }
 
-@Suite
 struct KimiUsageResponseParsingTests {
     @Test
-    func parsesValidResponse() throws {
+    func `parses valid response`() throws {
         let json = """
         {
           "usages": [
@@ -92,7 +90,7 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
-    func parsesResponseWithoutRateLimits() throws {
+    func `parses response without rate limits`() throws {
         let json = """
         {
           "usages": [
@@ -115,7 +113,7 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
-    func parsesResponseWithNullLimits() throws {
+    func `parses response with null limits`() throws {
         let json = """
         {
           "usages": [
@@ -138,7 +136,7 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
-    func throwsOnInvalidJson() {
+    func `throws on invalid json`() {
         let invalidJson = "{ invalid json }"
 
         #expect(throws: DecodingError.self) {
@@ -147,7 +145,7 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
-    func throwsOnMissingFeatureCodingScope() throws {
+    func `throws on missing feature coding scope`() throws {
         let json = """
         {
           "usages": [
@@ -170,10 +168,9 @@ struct KimiUsageResponseParsingTests {
     }
 }
 
-@Suite
 struct KimiUsageSnapshotConversionTests {
     @Test
-    func convertsToUsageSnapshotWithBothWindows() {
+    func `converts to usage snapshot with both windows`() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",
@@ -210,7 +207,7 @@ struct KimiUsageSnapshotConversionTests {
     }
 
     @Test
-    func convertsToUsageSnapshotWithoutRateLimit() {
+    func `converts to usage snapshot without rate limit`() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",
@@ -233,7 +230,7 @@ struct KimiUsageSnapshotConversionTests {
     }
 
     @Test
-    func handlesZeroValuesCorrectly() {
+    func `handles zero values correctly`() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",
@@ -251,7 +248,7 @@ struct KimiUsageSnapshotConversionTests {
     }
 
     @Test
-    func handlesHundredPercentCorrectly() {
+    func `handles hundred percent correctly`() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",
@@ -269,10 +266,9 @@ struct KimiUsageSnapshotConversionTests {
     }
 }
 
-@Suite
 struct KimiTokenResolverTests {
     @Test
-    func resolvesTokenFromEnvironment() {
+    func `resolves token from environment`() {
         KeychainAccessGate.withTaskOverrideForTesting(true) {
             let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
             let token = ProviderTokenResolver.kimiAuthToken(environment: env)
@@ -281,7 +277,7 @@ struct KimiTokenResolverTests {
     }
 
     @Test
-    func resolvesTokenFromKeychainFirst() {
+    func `resolves token from keychain first`() {
         // This test would require mocking the keychain.
         KeychainAccessGate.withTaskOverrideForTesting(true) {
             let env = ["KIMI_AUTH_TOKEN": "test.env.token"]
@@ -291,7 +287,7 @@ struct KimiTokenResolverTests {
     }
 
     @Test
-    func resolutionIncludesSource() {
+    func `resolution includes source`() {
         KeychainAccessGate.withTaskOverrideForTesting(true) {
             let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
             let resolution = ProviderTokenResolver.kimiAuthResolution(environment: env)
@@ -302,10 +298,9 @@ struct KimiTokenResolverTests {
     }
 }
 
-@Suite
 struct KimiAPIErrorTests {
     @Test
-    func errorDescriptionsAreHelpful() {
+    func `error descriptions are helpful`() {
         #expect(KimiAPIError.missingToken.errorDescription?.contains("missing") == true)
         #expect(KimiAPIError.invalidToken.errorDescription?.contains("invalid") == true)
         #expect(KimiAPIError.invalidRequest("Bad request").errorDescription?.contains("Bad request") == true)

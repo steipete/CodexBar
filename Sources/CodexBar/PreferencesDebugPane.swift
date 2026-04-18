@@ -435,7 +435,11 @@ struct DebugPane: View {
     private func loadLog(_ provider: UsageProvider) {
         self.isLoadingLog = true
         Task {
-            let text = await self.store.debugLog(for: provider)
+            let text = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await ProviderRefreshContext.$current.withValue(.regular) {
+                    await self.store.debugLog(for: provider)
+                }
+            }
             await MainActor.run {
                 self.logText = text
                 self.isLoadingLog = false
@@ -447,11 +451,19 @@ struct DebugPane: View {
         Task {
             if self.logText.isEmpty {
                 self.isLoadingLog = true
-                let text = await self.store.debugLog(for: provider)
+                let text = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await ProviderRefreshContext.$current.withValue(.regular) {
+                        await self.store.debugLog(for: provider)
+                    }
+                }
                 await MainActor.run { self.logText = text }
                 self.isLoadingLog = false
             }
-            _ = await self.store.dumpLog(toFileFor: provider)
+            _ = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await ProviderRefreshContext.$current.withValue(.regular) {
+                    await self.store.dumpLog(toFileFor: provider)
+                }
+            }
         }
     }
 

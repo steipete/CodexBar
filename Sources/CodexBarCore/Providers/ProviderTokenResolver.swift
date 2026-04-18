@@ -2,6 +2,7 @@ import Foundation
 
 public enum ProviderTokenSource: String, Sendable {
     case environment
+    case authFile
 }
 
 public struct ProviderTokenResolution: Sendable {
@@ -33,6 +34,10 @@ public enum ProviderTokenResolver {
         self.minimaxTokenResolution(environment: environment)?.token
     }
 
+    public static func alibabaToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.alibabaTokenResolution(environment: environment)?.token
+    }
+
     public static func minimaxCookie(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.minimaxCookieResolution(environment: environment)?.token
     }
@@ -45,12 +50,25 @@ public enum ProviderTokenResolver {
         self.kimiK2Resolution(environment: environment)?.token
     }
 
+    public static func kiloToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        authFileURL: URL? = nil) -> String?
+    {
+        self.kiloResolution(environment: environment, authFileURL: authFileURL)?.token
+    }
+
     public static func warpToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.warpResolution(environment: environment)?.token
     }
 
     public static func openRouterToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.openRouterResolution(environment: environment)?.token
+    }
+
+    public static func perplexitySessionToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.perplexityResolution(environment: environment)?.token
     }
 
     public static func zaiResolution(
@@ -75,6 +93,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(MiniMaxAPISettingsReader.apiToken(environment: environment))
+    }
+
+    public static func alibabaTokenResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(AlibabaCodingPlanSettingsReader.apiToken(environment: environment))
     }
 
     public static func minimaxCookieResolution(
@@ -108,6 +132,19 @@ public enum ProviderTokenResolver {
         self.resolveEnv(KimiK2SettingsReader.apiKey(environment: environment))
     }
 
+    public static func kiloResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        authFileURL: URL? = nil) -> ProviderTokenResolution?
+    {
+        if let resolution = self.resolveEnv(KiloSettingsReader.apiKey(environment: environment)) {
+            return resolution
+        }
+        if let token = KiloSettingsReader.authToken(authFileURL: authFileURL) {
+            return ProviderTokenResolution(token: token, source: .authFile)
+        }
+        return nil
+    }
+
     public static func warpResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
@@ -118,6 +155,25 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(OpenRouterSettingsReader.apiToken(environment: environment))
+    }
+
+    public static func perplexityResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        if let resolution = self.resolveEnv(PerplexitySettingsReader.sessionToken(environment: environment)) {
+            return resolution
+        }
+        #if os(macOS)
+        do {
+            let session = try PerplexityCookieImporter.importSession()
+            if let token = session.sessionToken {
+                return ProviderTokenResolution(token: token, source: .environment)
+            }
+        } catch {
+            // No browser cookies found, continue to fallback
+        }
+        #endif
+        return nil
     }
 
     private static func cleaned(_ raw: String?) -> String? {

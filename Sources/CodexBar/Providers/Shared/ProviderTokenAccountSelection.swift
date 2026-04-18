@@ -1,7 +1,7 @@
 import CodexBarCore
 import Foundation
 
-struct TokenAccountOverride: Sendable {
+struct TokenAccountOverride {
     let provider: UsageProvider
     let account: ProviderTokenAccount
 }

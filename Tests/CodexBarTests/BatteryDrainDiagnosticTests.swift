@@ -21,8 +21,8 @@ struct BatteryDrainDiagnosticTests {
         return NSStatusBar()
     }
 
-    @Test("Fallback provider should not animate when all providers are disabled")
-    func fallbackProviderDoesNotAnimate() {
+    @Test
+    func `Fallback provider should not animate when all providers are disabled`() {
         self.ensureAppKitInitialized()
 
         let settings = SettingsStore(
@@ -63,8 +63,8 @@ struct BatteryDrainDiagnosticTests {
             "Animation driver should not start for fallback provider")
     }
 
-    @Test("Enabled provider with data should not animate")
-    func enabledProviderWithDataDoesNotAnimate() {
+    @Test
+    func `Enabled provider with data should not animate`() {
         self.ensureAppKitInitialized()
 
         let settings = SettingsStore(
@@ -110,8 +110,8 @@ struct BatteryDrainDiagnosticTests {
             "Animation driver should be nil when data is present")
     }
 
-    @Test("Enabled provider without data should animate")
-    func enabledProviderWithoutDataAnimates() {
+    @Test
+    func `Enabled provider without data should animate`() {
         self.ensureAppKitInitialized()
 
         let settings = SettingsStore(

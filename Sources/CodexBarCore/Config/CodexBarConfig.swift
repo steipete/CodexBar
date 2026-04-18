@@ -76,6 +76,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public let id: UsageProvider
     public var enabled: Bool?
     public var source: ProviderSourceMode?
+    public var extrasEnabled: Bool?
     public var apiKey: String?
     public var cookieHeader: String?
     public var cookieSource: ProviderCookieSource?
@@ -83,22 +84,26 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var workspaceID: String?
     public var tokenAccounts: ProviderTokenAccountData?
     public var usageSource: String?
+    public var codexActiveSource: CodexActiveSource?
 
     public init(
         id: UsageProvider,
         enabled: Bool? = nil,
         source: ProviderSourceMode? = nil,
+        extrasEnabled: Bool? = nil,
         apiKey: String? = nil,
         cookieHeader: String? = nil,
         cookieSource: ProviderCookieSource? = nil,
         region: String? = nil,
         workspaceID: String? = nil,
         tokenAccounts: ProviderTokenAccountData? = nil,
-        usageSource: String? = nil)
+        usageSource: String? = nil,
+        codexActiveSource: CodexActiveSource? = nil)
     {
         self.id = id
         self.enabled = enabled
         self.source = source
+        self.extrasEnabled = extrasEnabled
         self.apiKey = apiKey
         self.cookieHeader = cookieHeader
         self.cookieSource = cookieSource
@@ -106,6 +111,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.workspaceID = workspaceID
         self.tokenAccounts = tokenAccounts
         self.usageSource = usageSource
+        self.codexActiveSource = codexActiveSource
     }
 
     public var sanitizedAPIKey: String? {

@@ -8,7 +8,7 @@ enum KeychainMigration {
     private static let log = CodexBarLog.logger(LogCategories.keychainMigration)
     private static let migrationKey = "KeychainMigrationV1Completed"
 
-    struct MigrationItem: Hashable, Sendable {
+    struct MigrationItem: Hashable {
         let service: String
         let account: String?
 

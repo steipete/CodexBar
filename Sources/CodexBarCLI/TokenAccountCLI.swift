@@ -2,7 +2,7 @@ import CodexBarCore
 import Commander
 import Foundation
 
-struct TokenAccountCLISelection: Sendable {
+struct TokenAccountCLISelection {
     let label: String?
     let index: Int?
     let allAccounts: Bool
@@ -77,70 +77,92 @@ struct TokenAccountCLIContext {
 
     func settingsSnapshot(for provider: UsageProvider, account: ProviderTokenAccount?) -> ProviderSettingsSnapshot? {
         let config = self.providerConfig(for: provider)
-        let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-        let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
 
         switch provider {
         case .codex:
-            return self.makeSnapshot(
-                codex: ProviderSettingsSnapshot.CodexProviderSettings(
-                    usageDataSource: .auto,
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
+            return self.makeSnapshot(codex: self.makeCodexSettingsSnapshot(account: account))
         case .claude:
-            let claudeSource: ClaudeUsageDataSource = if provider == .claude,
-                                                         let account,
-                                                         TokenAccountSupportCatalog.isClaudeOAuthToken(account.token)
-            {
-                .oauth
-            } else {
-                .auto
-            }
-            let effectiveSource = (claudeSource == .oauth) ? ProviderCookieSource.off : cookieSource
+            let routing = self.claudeCredentialRouting(account: account, config: config)
+            let claudeSource: ClaudeUsageDataSource = routing.isOAuth ? .oauth : .auto
+            let cookieSource = routing.isOAuth
+                ? ProviderCookieSource.off
+                : self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 claude: ProviderSettingsSnapshot.ClaudeProviderSettings(
                     usageDataSource: claudeSource,
                     webExtrasEnabled: false,
-                    cookieSource: effectiveSource,
-                    manualCookieHeader: claudeSource == .oauth ? nil : cookieHeader))
+                    cookieSource: cookieSource,
+                    manualCookieHeader: routing.manualCookieHeader))
         case .cursor:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 cursor: ProviderSettingsSnapshot.CursorProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .opencode:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader,
                     workspaceID: config?.workspaceID))
+        case .opencodego:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader,
+                    workspaceID: config?.workspaceID))
+        case .alibaba:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader,
+                    apiRegion: self.resolveAlibabaCodingPlanRegion(config)))
         case .factory:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 factory: ProviderSettingsSnapshot.FactoryProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .minimax:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader,
                     apiRegion: self.resolveMiniMaxRegion(config)))
         case .augment:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 augment: ProviderSettingsSnapshot.AugmentProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .amp:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 amp: ProviderSettingsSnapshot.AmpProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .ollama:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 ollama: ProviderSettingsSnapshot.OllamaProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .kimi:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 kimi: ProviderSettingsSnapshot.KimiProviderSettings(
                     cookieSource: cookieSource,
@@ -148,6 +170,11 @@ struct TokenAccountCLIContext {
         case .zai:
             return self.makeSnapshot(
                 zai: ProviderSettingsSnapshot.ZaiProviderSettings(apiRegion: self.resolveZaiRegion(config)))
+        case .kilo:
+            return self.makeSnapshot(
+                kilo: ProviderSettingsSnapshot.KiloProviderSettings(
+                    usageDataSource: Self.kiloUsageDataSource(from: config?.source),
+                    extrasEnabled: Self.kiloExtrasEnabled(from: config)))
         case .jetbrains:
             return self.makeSnapshot(
                 jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
@@ -160,6 +187,20 @@ struct TokenAccountCLIContext {
                     usageSource: usageSource,
                     accountLabel: account?.label,
                     tokenAccounts: config?.tokenAccounts))
+        case .perplexity:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
+        case .abacus:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                abacus: ProviderSettingsSnapshot.AbacusProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .gemini, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp:
             return nil
         }
@@ -170,30 +211,54 @@ struct TokenAccountCLIContext {
         claude: ProviderSettingsSnapshot.ClaudeProviderSettings? = nil,
         cursor: ProviderSettingsSnapshot.CursorProviderSettings? = nil,
         opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
+        opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
+        alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings? = nil,
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
         zai: ProviderSettingsSnapshot.ZaiProviderSettings? = nil,
+        kilo: ProviderSettingsSnapshot.KiloProviderSettings? = nil,
         kimi: ProviderSettingsSnapshot.KimiProviderSettings? = nil,
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
         amp: ProviderSettingsSnapshot.AmpProviderSettings? = nil,
         ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
-        antigravity: ProviderSettingsSnapshot.AntigravityProviderSettings? = nil) -> ProviderSettingsSnapshot
+        antigravity: ProviderSettingsSnapshot.AntigravityProviderSettings? = nil,
+        perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings? = nil,
+        abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
             claude: claude,
             cursor: cursor,
             opencode: opencode,
+            opencodego: opencodego,
+            alibaba: alibaba,
             factory: factory,
             minimax: minimax,
             zai: zai,
+            kilo: kilo,
             kimi: kimi,
             augment: augment,
             amp: amp,
             ollama: ollama,
             jetbrains: jetbrains,
-            antigravity: antigravity)
+            antigravity: antigravity,
+            perplexity: perplexity,
+            abacus: abacus)
+    }
+
+    private func makeCodexSettingsSnapshot(account: ProviderTokenAccount?) ->
+        ProviderSettingsSnapshot.CodexProviderSettings
+    {
+        let config = self.providerConfig(for: .codex)
+        let reconciliationSnapshot = self.codexAccountReconciler().loadSnapshot()
+        let resolvedActiveSource = CodexActiveSourceResolver.resolve(from: reconciliationSnapshot)
+        return CodexProviderSettingsBuilder.make(input: CodexProviderSettingsBuilderInput(
+            usageDataSource: .auto,
+            cookieSource: self.cookieSource(provider: .codex, account: account, config: config),
+            manualCookieHeader: self.manualCookieHeader(provider: .codex, account: account, config: config),
+            reconciliationSnapshot: reconciliationSnapshot,
+            resolvedActiveSource: resolvedActiveSource))
     }
 
     func environment(
@@ -241,13 +306,12 @@ struct TokenAccountCLIContext {
         account: ProviderTokenAccount?) -> ProviderSourceMode
     {
         guard base == .auto,
-              provider == .claude,
-              let account,
-              TokenAccountSupportCatalog.isClaudeOAuthToken(account.token)
+              provider == .claude
         else {
             return base
         }
-        return .oauth
+        let config = self.providerConfig(for: provider)
+        return self.claudeCredentialRouting(account: account, config: config).isOAuth ? .oauth : base
     }
 
     func preferredSourceMode(for provider: UsageProvider) -> ProviderSourceMode {
@@ -259,6 +323,15 @@ struct TokenAccountCLIContext {
         self.config.providerConfig(for: provider)
     }
 
+    private func codexAccountReconciler() -> DefaultCodexAccountReconciler {
+        DefaultCodexAccountReconciler(
+            activeSource: self.providerConfig(for: .codex)?.codexActiveSource ?? .liveSystem,
+            baseEnvironment: ProcessInfo.processInfo.environment,
+            managedEnvironmentBuilder: { environment, account in
+                CodexHomeScope.scopedEnvironment(base: environment, codexHome: account.managedHomePath)
+            })
+    }
+
     private func manualCookieHeader(
         provider: UsageProvider,
         account: ProviderTokenAccount?,
@@ -268,9 +341,6 @@ struct TokenAccountCLIContext {
            let support = TokenAccountSupportCatalog.support(for: provider),
            case .cookieHeader = support.injection
         {
-            if provider == .claude, TokenAccountSupportCatalog.isClaudeOAuthToken(account.token) {
-                return nil
-            }
             let header = TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
             return header.isEmpty ? nil : header
         }
@@ -282,10 +352,7 @@ struct TokenAccountCLIContext {
         account: ProviderTokenAccount?,
         config: ProviderConfig?) -> ProviderCookieSource
     {
-        if let account, TokenAccountSupportCatalog.support(for: provider)?.requiresManualCookieSource == true {
-            if provider == .claude, TokenAccountSupportCatalog.isClaudeOAuthToken(account.token) {
-                return .off
-            }
+        if account != nil, TokenAccountSupportCatalog.support(for: provider)?.requiresManualCookieSource == true {
             return .manual
         }
         if let override = config?.cookieSource { return override }
@@ -311,5 +378,41 @@ struct TokenAccountCLIContext {
             return .global
         }
         return MiniMaxAPIRegion(rawValue: raw) ?? .global
+    }
+
+    private func resolveAlibabaCodingPlanRegion(_ config: ProviderConfig?) -> AlibabaCodingPlanAPIRegion {
+        guard let raw = config?.region?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty
+        else {
+            return .international
+        }
+        return AlibabaCodingPlanAPIRegion(rawValue: raw) ?? .international
+    }
+
+    private static func kiloUsageDataSource(from source: ProviderSourceMode?) -> KiloUsageDataSource {
+        guard let source else { return .auto }
+        switch source {
+        case .auto, .web, .oauth:
+            return .auto
+        case .api:
+            return .api
+        case .cli:
+            return .cli
+        }
+    }
+
+    private static func kiloExtrasEnabled(from config: ProviderConfig?) -> Bool {
+        guard self.kiloUsageDataSource(from: config?.source) == .auto else { return false }
+        return config?.extrasEnabled ?? false
+    }
+
+    private func claudeCredentialRouting(
+        account: ProviderTokenAccount?,
+        config: ProviderConfig?) -> ClaudeCredentialRouting
+    {
+        let manualCookieHeader = account == nil ? config?.sanitizedCookieHeader : nil
+        return ClaudeCredentialRouting.resolve(
+            tokenAccountToken: account?.token,
+            manualCookieHeader: manualCookieHeader)
     }
 }

@@ -1,7 +1,6 @@
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct ProviderCandidateRetryRunnerTests {
     private enum TestError: Error, Equatable {
         case retryable(Int)
@@ -9,7 +8,7 @@ struct ProviderCandidateRetryRunnerTests {
     }
 
     @Test
-    func retriesThenSucceeds() async throws {
+    func `retries then succeeds`() async throws {
         let candidates = [1, 2, 3]
         var attempted: [Int] = []
         var retried: [Int] = []
@@ -39,7 +38,7 @@ struct ProviderCandidateRetryRunnerTests {
     }
 
     @Test
-    func nonRetryableFailsImmediately() async {
+    func `non retryable fails immediately`() async {
         let candidates = [1, 2, 3]
         var attempted: [Int] = []
         var retried: [Int] = []
@@ -71,7 +70,7 @@ struct ProviderCandidateRetryRunnerTests {
     }
 
     @Test
-    func exhaustedRetryableThrowsLastError() async {
+    func `exhausted retryable throws last error`() async {
         let candidates = [1, 2]
         var attempted: [Int] = []
         var retried: [Int] = []
@@ -103,7 +102,7 @@ struct ProviderCandidateRetryRunnerTests {
     }
 
     @Test
-    func emptyCandidatesThrowsNoCandidates() async {
+    func `empty candidates throws no candidates`() async {
         do {
             let candidates: [Int] = []
             _ = try await ProviderCandidateRetryRunner.run(

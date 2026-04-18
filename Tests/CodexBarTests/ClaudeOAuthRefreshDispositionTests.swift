@@ -2,24 +2,23 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct ClaudeOAuthRefreshDispositionTests {
     @Test
-    func invalidGrant_isTerminal() {
+    func `invalid grant is terminal`() {
         let data = Data(#"{"error":"invalid_grant"}"#.utf8)
         #expect(ClaudeOAuthCredentialsStore
             .refreshFailureDispositionForTesting(statusCode: 400, data: data) == "terminalInvalidGrant")
     }
 
     @Test
-    func otherError_isTransient() {
+    func `other error is transient`() {
         let data = Data(#"{"error":"invalid_request"}"#.utf8)
         #expect(ClaudeOAuthCredentialsStore
             .refreshFailureDispositionForTesting(statusCode: 400, data: data) == "transientBackoff")
     }
 
     @Test
-    func undecodableBody_isTransient() {
+    func `undecodable body is transient`() {
         let data = Data("not-json".utf8)
         #expect(ClaudeOAuthCredentialsStore
             .refreshFailureDispositionForTesting(statusCode: 401, data: data) == "transientBackoff")
@@ -27,7 +26,7 @@ struct ClaudeOAuthRefreshDispositionTests {
     }
 
     @Test
-    func nonAuthStatus_isNotHandled() {
+    func `non auth status is not handled`() {
         let data = Data(#"{"error":"invalid_grant"}"#.utf8)
         #expect(ClaudeOAuthCredentialsStore.refreshFailureDispositionForTesting(statusCode: 500, data: data) == nil)
     }

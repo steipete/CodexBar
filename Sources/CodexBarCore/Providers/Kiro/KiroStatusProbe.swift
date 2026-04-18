@@ -110,7 +110,7 @@ public struct KiroStatusProbe: Sendable {
         return try self.parse(output: output)
     }
 
-    private struct KiroCLIResult: Sendable {
+    private struct KiroCLIResult {
         let stdout: String
         let stderr: String
         let terminationStatus: Int32

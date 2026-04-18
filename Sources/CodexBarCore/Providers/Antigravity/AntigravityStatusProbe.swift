@@ -10,10 +10,37 @@ public struct AntigravityModelQuota: Sendable {
     public let resetTime: Date?
     public let resetDescription: String?
 
+    public init(
+        label: String,
+        modelId: String,
+        remainingFraction: Double?,
+        resetTime: Date?,
+        resetDescription: String?)
+    {
+        self.label = label
+        self.modelId = modelId
+        self.remainingFraction = remainingFraction
+        self.resetTime = resetTime
+        self.resetDescription = resetDescription
+    }
+
     public var remainingPercent: Double {
         guard let remainingFraction else { return 0 }
         return max(0, min(100, remainingFraction * 100))
     }
+}
+
+private enum AntigravityModelFamily {
+    case claude
+    case geminiPro
+    case geminiFlash
+    case unknown
+}
+
+private struct AntigravityNormalizedModel {
+    let quota: AntigravityModelQuota
+    let family: AntigravityModelFamily
+    let selectionPriority: Int?
 }
 
 public struct AntigravityStatusSnapshot: Sendable {
@@ -21,15 +48,36 @@ public struct AntigravityStatusSnapshot: Sendable {
     public let accountEmail: String?
     public let accountPlan: String?
 
+    public init(
+        modelQuotas: [AntigravityModelQuota],
+        accountEmail: String?,
+        accountPlan: String?)
+    {
+        self.modelQuotas = modelQuotas
+        self.accountEmail = accountEmail
+        self.accountPlan = accountPlan
+    }
+
     public func toUsageSnapshot() throws -> UsageSnapshot {
-        let ordered = Self.selectModels(self.modelQuotas)
-        guard let primaryQuota = ordered.first else {
+        guard !self.modelQuotas.isEmpty else {
             throw AntigravityStatusProbeError.parseFailed("No quota models available")
         }
 
-        let primary = Self.rateWindow(for: primaryQuota)
-        let secondary = ordered.count > 1 ? Self.rateWindow(for: ordered[1]) : nil
-        let tertiary = ordered.count > 2 ? Self.rateWindow(for: ordered[2]) : nil
+        let normalized = Self.normalizedModels(self.modelQuotas)
+        let primaryQuota = Self.representative(for: .claude, in: normalized)
+        let secondaryQuota = Self.representative(for: .geminiPro, in: normalized)
+        let tertiaryQuota = Self.representative(for: .geminiFlash, in: normalized)
+        let fallbackQuota: AntigravityModelQuota? = if primaryQuota == nil, secondaryQuota == nil,
+                                                       tertiaryQuota == nil
+        {
+            Self.fallbackRepresentative(in: normalized)
+        } else {
+            nil
+        }
+
+        let primary = (primaryQuota ?? fallbackQuota).map(Self.rateWindow(for:))
+        let secondary = secondaryQuota.map(Self.rateWindow(for:))
+        let tertiary = tertiaryQuota.map(Self.rateWindow(for:))
 
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,
@@ -52,40 +100,99 @@ public struct AntigravityStatusSnapshot: Sendable {
             resetDescription: quota.resetDescription)
     }
 
-    private static func selectModels(_ models: [AntigravityModelQuota]) -> [AntigravityModelQuota] {
-        var ordered: [AntigravityModelQuota] = []
-        if let claude = models.first(where: { Self.isClaudeWithoutThinking($0.label) }) {
-            ordered.append(claude)
-        }
-        if let pro = models.first(where: { Self.isGeminiProLow($0.label) }),
-           !ordered.contains(where: { $0.label == pro.label })
-        {
-            ordered.append(pro)
-        }
-        if let flash = models.first(where: { Self.isGeminiFlash($0.label) }),
-           !ordered.contains(where: { $0.label == flash.label })
-        {
-            ordered.append(flash)
-        }
-        if ordered.isEmpty {
-            ordered.append(contentsOf: models.sorted(by: { $0.remainingPercent < $1.remainingPercent }))
-        }
-        return ordered
+    private static func normalizedModels(_ models: [AntigravityModelQuota]) -> [AntigravityNormalizedModel] {
+        models.map { self.normalizeModel($0) }
     }
 
-    private static func isClaudeWithoutThinking(_ label: String) -> Bool {
-        let lower = label.lowercased()
-        return lower.contains("claude") && !lower.contains("thinking")
+    private static func normalizeModel(_ quota: AntigravityModelQuota) -> AntigravityNormalizedModel {
+        let modelId = quota.modelId.lowercased()
+        let label = quota.label.lowercased()
+        let family = Self.family(forModelID: modelId, label: label)
+
+        let isLite = modelId.contains("lite") || label.contains("lite")
+        let isAutocomplete = modelId.contains("autocomplete") || label.contains("autocomplete") || modelId
+            .hasPrefix("tab_")
+        let isLowPriorityGeminiPro = modelId.contains("pro-low")
+            || (label.contains("pro") && label.contains("low"))
+
+        let selectionPriority: Int? = switch family {
+        case .claude:
+            0
+        case .geminiPro:
+            if isLowPriorityGeminiPro {
+                0
+            } else if !isLite, !isAutocomplete {
+                1
+            } else {
+                nil
+            }
+        case .geminiFlash:
+            (!isLite && !isAutocomplete) ? 0 : nil
+        case .unknown:
+            nil
+        }
+
+        return AntigravityNormalizedModel(
+            quota: quota,
+            family: family,
+            selectionPriority: selectionPriority)
     }
 
-    private static func isGeminiProLow(_ label: String) -> Bool {
-        let lower = label.lowercased()
-        return lower.contains("pro") && lower.contains("low")
+    private static func representative(
+        for family: AntigravityModelFamily,
+        in models: [AntigravityNormalizedModel]) -> AntigravityModelQuota?
+    {
+        let candidates = models.filter { $0.family == family && $0.selectionPriority != nil }
+        guard !candidates.isEmpty else { return nil }
+        return candidates.min { lhs, rhs in
+            let lhsPriority = lhs.selectionPriority ?? Int.max
+            let rhsPriority = rhs.selectionPriority ?? Int.max
+            if lhsPriority != rhsPriority {
+                return lhsPriority < rhsPriority
+            }
+            let lhsHasRemainingFraction = lhs.quota.remainingFraction != nil
+            let rhsHasRemainingFraction = rhs.quota.remainingFraction != nil
+            if lhsHasRemainingFraction != rhsHasRemainingFraction {
+                return lhsHasRemainingFraction && !rhsHasRemainingFraction
+            }
+            return lhs.quota.remainingPercent < rhs.quota.remainingPercent
+        }?.quota
     }
 
-    private static func isGeminiFlash(_ label: String) -> Bool {
-        let lower = label.lowercased()
-        return lower.contains("gemini") && lower.contains("flash")
+    private static func fallbackRepresentative(in models: [AntigravityNormalizedModel]) -> AntigravityModelQuota? {
+        guard !models.isEmpty else { return nil }
+        return models.min { lhs, rhs in
+            let lhsHasRemainingFraction = lhs.quota.remainingFraction != nil
+            let rhsHasRemainingFraction = rhs.quota.remainingFraction != nil
+            if lhsHasRemainingFraction != rhsHasRemainingFraction {
+                return lhsHasRemainingFraction && !rhsHasRemainingFraction
+            }
+            if lhs.quota.remainingPercent != rhs.quota.remainingPercent {
+                return lhs.quota.remainingPercent < rhs.quota.remainingPercent
+            }
+            return lhs.quota.label.localizedCaseInsensitiveCompare(rhs.quota.label) == .orderedAscending
+        }?.quota
+    }
+
+    private static func family(forModelID modelId: String, label: String) -> AntigravityModelFamily {
+        let modelIDFamily = Self.family(from: modelId)
+        if modelIDFamily != .unknown {
+            return modelIDFamily
+        }
+        return Self.family(from: label)
+    }
+
+    private static func family(from text: String) -> AntigravityModelFamily {
+        if text.contains("claude") {
+            return .claude
+        }
+        if text.contains("gemini"), text.contains("pro") {
+            return .geminiPro
+        }
+        if text.contains("gemini"), text.contains("flash") {
+            return .geminiFlash
+        }
+        return .unknown
     }
 }
 
@@ -228,7 +335,8 @@ public struct AntigravityStatusProbe: Sendable {
         let modelConfigs = userStatus.cascadeModelConfigData?.clientModelConfigs ?? []
         let models = modelConfigs.compactMap(Self.quotaFromConfig(_:))
         let email = userStatus.email
-        let planName = userStatus.planStatus?.planInfo?.preferredName
+        // Prefer userTier.name (actual subscription tier) over planInfo (shows "Pro" for Ultra users)
+        let planName = userStatus.userTier?.preferredName ?? userStatus.planStatus?.planInfo?.preferredName
 
         return AntigravityStatusSnapshot(
             modelQuotas: models,
@@ -294,7 +402,7 @@ public struct AntigravityStatusProbe: Sendable {
 
     // MARK: - Port detection
 
-    private struct ProcessInfoResult: Sendable {
+    private struct ProcessInfoResult {
         let pid: Int
         let extensionPort: Int?
         let csrfToken: String
@@ -444,7 +552,7 @@ public struct AntigravityStatusProbe: Sendable {
         let body: [String: Any]
     }
 
-    private struct RequestContext: Sendable {
+    private struct RequestContext {
         let httpsPort: Int
         let httpPort: Int?
         let csrfToken: String
@@ -523,10 +631,15 @@ public struct AntigravityStatusProbe: Sendable {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = context.timeout
         config.timeoutIntervalForResource = context.timeout
-        let session = URLSession(configuration: config, delegate: InsecureSessionDelegate(), delegateQueue: nil)
+        #if !os(Linux)
+        config.waitsForConnectivity = false
+        #endif
+
+        let delegate = LocalhostSessionDelegate()
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { session.invalidateAndCancel() }
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await delegate.data(for: request, session: session)
         guard let http = response as? HTTPURLResponse else {
             throw AntigravityStatusProbeError.apiError("Invalid response")
         }
@@ -538,35 +651,112 @@ public struct AntigravityStatusProbe: Sendable {
     }
 }
 
-private final class InsecureSessionDelegate: NSObject {}
+enum LocalhostTrustPolicy {
+    static func shouldAcceptServerTrust(
+        host: String,
+        authenticationMethod: String,
+        hasServerTrust: Bool) -> Bool
+    {
+        #if !os(Linux)
+        guard authenticationMethod == NSURLAuthenticationMethodServerTrust else { return false }
+        #endif
+        let normalizedHost = host.lowercased()
+        guard normalizedHost == "127.0.0.1" || normalizedHost == "localhost" else { return false }
+        return hasServerTrust
+    }
+}
 
-extension InsecureSessionDelegate: URLSessionTaskDelegate {}
+private final class LocalhostSessionDelegate: NSObject {
+    func data(for request: URLRequest, session: URLSession) async throws -> (Data, URLResponse) {
+        let state = LocalhostSessionTaskState()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: request) { data, response, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let data, let response else {
+                        continuation.resume(throwing: AntigravityStatusProbeError.apiError("Invalid response"))
+                        return
+                    }
+                    continuation.resume(returning: (data, response))
+                }
+                state.setTask(task)
+                task.resume()
+            }
+        } onCancel: {
+            state.cancel()
+        }
+    }
+}
 
-extension InsecureSessionDelegate {
+extension LocalhostSessionDelegate: URLSessionDelegate {
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+    {
+        let result = self.challengeResult(challenge)
+        completionHandler(result.disposition, result.credential)
+    }
+}
+
+extension LocalhostSessionDelegate: URLSessionTaskDelegate {
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
         didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping @MainActor @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
     {
         let result = self.challengeResult(challenge)
-        Task { @MainActor in
-            completionHandler(result.disposition, result.credential)
-        }
+        completionHandler(result.disposition, result.credential)
     }
 
     private func challengeResult(_ challenge: URLAuthenticationChallenge) -> (
         disposition: URLSession.AuthChallengeDisposition,
         credential: URLCredential?)
     {
-        #if canImport(FoundationNetworking)
+        #if os(Linux)
         return (.performDefaultHandling, nil)
         #else
-        if let trust = challenge.protectionSpace.serverTrust {
-            return (.useCredential, URLCredential(trust: trust))
+        let protectionSpace = challenge.protectionSpace
+        let trust = protectionSpace.serverTrust
+        guard LocalhostTrustPolicy.shouldAcceptServerTrust(
+            host: protectionSpace.host,
+            authenticationMethod: protectionSpace.authenticationMethod,
+            hasServerTrust: trust != nil),
+            let trust
+        else {
+            return (.performDefaultHandling, nil)
         }
-        return (.performDefaultHandling, nil)
+        return (.useCredential, URLCredential(trust: trust))
         #endif
+    }
+}
+
+private final class LocalhostSessionTaskState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDataTask?
+    private var isCancelled = false
+
+    func setTask(_ task: URLSessionDataTask) {
+        self.lock.lock()
+        self.task = task
+        let shouldCancel = self.isCancelled
+        self.lock.unlock()
+
+        if shouldCancel {
+            task.cancel()
+        }
+    }
+
+    func cancel() {
+        self.lock.lock()
+        self.isCancelled = true
+        let task = self.task
+        self.lock.unlock()
+        task?.cancel()
     }
 }
 
@@ -586,6 +776,18 @@ private struct UserStatus: Decodable {
     let email: String?
     let planStatus: PlanStatus?
     let cascadeModelConfigData: ModelConfigData?
+    let userTier: UserTier?
+}
+
+private struct UserTier: Decodable {
+    let id: String?
+    let name: String?
+    let description: String?
+
+    var preferredName: String? {
+        guard let value = name?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        return value.isEmpty ? nil : value
+    }
 }
 
 private struct PlanStatus: Decodable {

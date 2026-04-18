@@ -2,17 +2,16 @@ import Foundation
 import Testing
 @testable import CodexBarCLI
 
-@Suite
 struct CLIOutputTests {
     @Test
-    func outputPreferencesJsonOnlyForcesJSON() {
+    func `output preferences json only forces JSON`() {
         let output = CLIOutputPreferences.from(argv: ["--json-only"])
         #expect(output.jsonOnly == true)
         #expect(output.format == .json)
     }
 
     @Test
-    func cliErrorPayloadIsJSONArray() throws {
+    func `cli error payload is JSON array`() throws {
         let payload = CodexBarCLI.makeCLIErrorPayload(
             message: "Nope",
             code: .failure,

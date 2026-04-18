@@ -3,8 +3,8 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Test("ProviderTokenAccountData encoding")
-func providerTokenAccountDataEncoding() throws {
+@Test
+func `ProviderTokenAccountData encoding`() throws {
     let now = Date().timeIntervalSince1970
     let account = ProviderTokenAccount(
         id: UUID(),
@@ -26,8 +26,8 @@ func providerTokenAccountDataEncoding() throws {
     #expect(decoded.activeIndex == 0)
 }
 
-@Test("FileTokenAccountStore round trip")
-func fileTokenAccountStoreRoundTrip() throws {
+@Test
+func `FileTokenAccountStore round trip`() throws {
     let tempDir = FileManager.default.temporaryDirectory
     let fileURL = tempDir.appendingPathComponent("codexbar-token-accounts-test.json")
     defer { try? FileManager.default.removeItem(at: fileURL) }

@@ -79,7 +79,7 @@ public enum FactoryCookieImporter {
         let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
         let cookieDomains = ["factory.ai", "app.factory.ai", "auth.factory.ai"]
         let query = BrowserCookieQuery(domains: cookieDomains)
-        let sources = try Self.cookieClient.records(
+        let sources = try Self.cookieClient.codexBarRecords(
             matching: query,
             in: browserSource,
             logger: log)
@@ -590,7 +590,7 @@ public struct FactoryStatusProbe: Sendable {
         "client_01HNM792M5G5G1A2THWPXKFMXB",
     ]
 
-    private struct WorkOSAuthResponse: Decodable, Sendable {
+    private struct WorkOSAuthResponse: Decodable {
         let access_token: String
         let refresh_token: String?
         let organization_id: String?
@@ -685,7 +685,7 @@ public struct FactoryStatusProbe: Sendable {
         throw FactoryStatusProbeError.noSessionCookie
     }
 
-    private enum FetchAttemptResult: Sendable {
+    private enum FetchAttemptResult {
         case success(FactoryStatusSnapshot)
         case failure(Error)
         case skipped
@@ -818,7 +818,7 @@ public struct FactoryStatusProbe: Sendable {
         for browserSource in sources {
             do {
                 let query = BrowserCookieQuery(domains: ["workos.com"])
-                let sources = try BrowserCookieClient().records(
+                let sources = try BrowserCookieClient().codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)

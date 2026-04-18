@@ -1,10 +1,9 @@
 import CodexBarCore
 import Testing
 
-@Suite
 struct ProviderRegistryTests {
     @Test
-    func descriptorRegistryIsCompleteAndDeterministic() {
+    func `descriptor registry is complete and deterministic`() {
         let descriptors = ProviderDescriptorRegistry.all
         let ids = descriptors.map(\.id)
 
@@ -19,7 +18,7 @@ struct ProviderRegistryTests {
     }
 
     @Test
-    func minimaxSortsAfterZaiInRegistry() {
+    func `minimax sorts after zai in registry`() {
         let ids = ProviderDescriptorRegistry.all.map(\.id)
         guard let zaiIndex = ids.firstIndex(of: .zai),
               let minimaxIndex = ids.firstIndex(of: .minimax)

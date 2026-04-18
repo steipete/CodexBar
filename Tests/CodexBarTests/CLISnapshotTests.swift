@@ -3,10 +3,9 @@ import Foundation
 import Testing
 @testable import CodexBarCLI
 
-@Suite
 struct CLISnapshotTests {
     @Test
-    func rendersTextSnapshotForCodex() {
+    func `renders text snapshot for codex`() {
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
             accountEmail: "user@example.com",
@@ -44,7 +43,35 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func rendersTextSnapshotForClaudeWithoutWeekly() {
+    func `renders Codex prolite plan with spaced display name`() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "prolite")
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: "today at 3:00 PM"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 1.2.3 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Plan: Pro Lite"))
+        #expect(!output.contains("Plan: Prolite"))
+    }
+
+    @Test
+    func `renders text snapshot for claude without weekly`() {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 2, windowMinutes: nil, resetsAt: nil, resetDescription: "3pm (Europe/Vienna)"),
             secondary: nil,
@@ -66,7 +93,7 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func rendersWarpUnlimitedAsDetailNotReset() {
+    func `renders warp unlimited as detail not reset`() {
         let meta = ProviderDescriptorRegistry.descriptor(for: .warp).metadata
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: "Unlimited"),
@@ -95,7 +122,7 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func rendersWarpCreditsAsDetailAndResetAsDate() {
+    func `renders warp credits as detail and reset as date`() {
         let meta = ProviderDescriptorRegistry.descriptor(for: .warp).metadata
         let now = Date(timeIntervalSince1970: 0)
         let snap = UsageSnapshot(
@@ -130,7 +157,97 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func rendersPaceLineWhenWeeklyHasReset() {
+    func `renders kilo plan activity and fallback note`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .kilo,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "Kilo Pass Pro · Auto top-up: visa")
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: "40/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .kilo,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Kilo (cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute,
+                notes: ["Using CLI fallback"]))
+
+        #expect(output.contains("Credits: 60% left"))
+        #expect(output.contains("40/100 credits"))
+        #expect(!output.contains("Resets 40/100 credits"))
+        #expect(output.contains("Plan: Kilo Pass Pro"))
+        #expect(output.contains("Activity: Auto top-up: visa"))
+        #expect(output.contains("Note: Using CLI fallback"))
+    }
+
+    @Test
+    func `renders kilo zero total edge state as detail`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let snap = KiloUsageSnapshot(
+            creditsUsed: 0,
+            creditsTotal: 0,
+            creditsRemaining: 0,
+            planName: "Kilo Pass Pro",
+            autoTopUpEnabled: true,
+            autoTopUpMethod: "visa",
+            updatedAt: now).toUsageSnapshot()
+
+        let output = CLIRenderer.renderText(
+            provider: .kilo,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Kilo (api)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Credits: 0% left"))
+        #expect(output.contains("0/0 credits"))
+        #expect(!output.contains("Resets 0/0 credits"))
+    }
+
+    @Test
+    func `renders kilo auto top up only as activity without plan`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .kilo,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "Auto top-up: off")
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .kilo,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Kilo (cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Activity: Auto top-up: off"))
+        #expect(!output.contains("Plan: Auto top-up: off"))
+    }
+
+    @Test
+    func `renders pace line when weekly has reset`() {
         let now = Date()
         let snap = UsageSnapshot(
             primary: nil,
@@ -156,7 +273,7 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func rendersJSONPayload() throws {
+    func `renders JSON payload`() throws {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: .init(usedPercent: 10, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
@@ -196,7 +313,7 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func encodesJSONWithSecondaryNullWhenMissing() throws {
+    func `encodes JSON with secondary null when missing`() throws {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: nil,
@@ -215,21 +332,21 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func parsesOutputFormat() {
+    func `parses output format`() {
         #expect(OutputFormat(argument: "json") == .json)
         #expect(OutputFormat(argument: "TEXT") == .text)
         #expect(OutputFormat(argument: "invalid") == nil)
     }
 
     @Test
-    func defaultsToUsageWhenNoCommandProvided() {
+    func `defaults to usage when no command provided`() {
         #expect(CodexBarCLI.effectiveArgv([]) == ["usage"])
         #expect(CodexBarCLI.effectiveArgv(["--format", "json"]).first == "usage")
         #expect(CodexBarCLI.effectiveArgv(["usage", "--format", "json"]).first == "usage")
     }
 
     @Test
-    func statusLineIsLastAndColoredWhenTTY() {
+    func `status line is last and colored when TTY`() {
         let identity = ProviderIdentitySnapshot(
             providerID: .claude,
             accountEmail: nil,
@@ -262,7 +379,7 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func outputHasAnsiWhenTTYEvenWithoutStatus() {
+    func `output has ansi when TTY even without status`() {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
@@ -283,7 +400,7 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func ttyOutputColorsHeaderAndUsage() {
+    func `tty output colors header and usage`() {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 95, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: .init(usedPercent: 80, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
@@ -306,7 +423,7 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func statusLineIsPlainWhenNoTTY() {
+    func `status line is plain when no TTY`() {
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
             accountEmail: nil,
@@ -335,5 +452,28 @@ struct CLISnapshotTests {
 
         #expect(!output.contains("\u{001B}["))
         #expect(output.contains("Status: Operational – Operational"))
+    }
+
+    @Test
+    func `renders 5-hour tertiary row for zai`() {
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 9, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: .init(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: .init(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CLIRenderer.renderText(
+            provider: .zai,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "z.ai 0.0.0 (zai)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("5-hour:"))
+        #expect(output.contains("Tokens:"))
+        #expect(output.contains("MCP:"))
     }
 }

@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct CostUsageDecodingTests {
     @Test
-    func decodesDailyReportTypeFormat() throws {
+    func `decodes daily report type format`() throws {
         let json = """
         {
           "type": "daily",
@@ -44,7 +43,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func decodesDailyReportLegacyFormat() throws {
+    func `decodes daily report legacy format`() throws {
         let json = """
         {
           "daily": [
@@ -80,7 +79,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func decodesLegacyCacheTokenKeys() throws {
+    func `decodes legacy cache token keys`() throws {
         let json = """
         {
           "type": "daily",
@@ -108,7 +107,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func decodesDailyReportLegacyFormatWithModelMap() throws {
+    func `decodes daily report legacy format with model map`() throws {
         let json = """
         {
           "daily": [
@@ -119,7 +118,7 @@ struct CostUsageDecodingTests {
               "totalTokens": 30,
               "costUSD": 0.12,
               "models": {
-                "gpt-5.2": {
+                "gpt-5.2-codex": {
                   "inputTokens": 10,
                   "outputTokens": 20,
                   "totalTokens": 30,
@@ -138,11 +137,11 @@ struct CostUsageDecodingTests {
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
         #expect(report.data.count == 1)
         #expect(report.data[0].costUSD == 0.12)
-        #expect(report.data[0].modelsUsed == ["gpt-5.2"])
+        #expect(report.data[0].modelsUsed == ["gpt-5.2-codex"])
     }
 
     @Test
-    func decodesDailyReportLegacyFormatWithModelMapSorted() throws {
+    func `decodes daily report legacy format with model map sorted`() throws {
         let json = """
         {
           "daily": [
@@ -165,7 +164,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func decodesDailyReportLegacyFormatWithEmptyModelMapAsNil() throws {
+    func `decodes daily report legacy format with empty model map as nil`() throws {
         let json = """
         {
           "daily": [
@@ -184,7 +183,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func decodesDailyReportLegacyFormatPrefersModelsUsedListOverModelsMap() throws {
+    func `decodes daily report legacy format prefers models used list over models map`() throws {
         let json = """
         {
           "daily": [
@@ -192,7 +191,7 @@ struct CostUsageDecodingTests {
               "date": "Dec 20, 2025",
               "totalTokens": 30,
               "costUSD": 0.12,
-              "modelsUsed": ["gpt-5.2"],
+              "modelsUsed": ["gpt-5.2-codex"],
               "models": {
                 "ignored-model": { "totalTokens": 30 }
               }
@@ -202,11 +201,11 @@ struct CostUsageDecodingTests {
         """
 
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
-        #expect(report.data[0].modelsUsed == ["gpt-5.2"])
+        #expect(report.data[0].modelsUsed == ["gpt-5.2-codex"])
     }
 
     @Test
-    func decodesDailyReportLegacyFormatWithModelsList() throws {
+    func `decodes daily report legacy format with models list`() throws {
         let json = """
         {
           "daily": [
@@ -214,18 +213,46 @@ struct CostUsageDecodingTests {
               "date": "Dec 20, 2025",
               "totalTokens": 30,
               "costUSD": 0.12,
-              "models": ["gpt-5.2", "gpt-5.2-mini"]
+              "models": ["gpt-5.2-codex", "gpt-5.2-mini"]
             }
           ]
         }
         """
 
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
-        #expect(report.data[0].modelsUsed == ["gpt-5.2", "gpt-5.2-mini"])
+        #expect(report.data[0].modelsUsed == ["gpt-5.2-codex", "gpt-5.2-mini"])
     }
 
     @Test
-    func decodesDailyReportLegacyFormatWithInvalidModelsField() throws {
+    func `decodes model breakdown total tokens`() throws {
+        let json = """
+        {
+          "type": "daily",
+          "data": [
+            {
+              "date": "2025-12-20",
+              "totalTokens": 30,
+              "costUSD": 0.12,
+              "modelBreakdowns": [
+                {
+                  "modelName": "gpt-5.2-codex",
+                  "costUSD": 0.12,
+                  "totalTokens": 30
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
+        #expect(report.data[0].modelBreakdowns == [
+            CostUsageDailyReport.ModelBreakdown(modelName: "gpt-5.2-codex", costUSD: 0.12, totalTokens: 30),
+        ])
+    }
+
+    @Test
+    func `decodes daily report legacy format with invalid models field`() throws {
         let json = """
         {
           "daily": [
@@ -244,7 +271,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func decodesMonthlyReportLegacyFormat() throws {
+    func `decodes monthly report legacy format`() throws {
         let json = """
         {
           "monthly": [
@@ -269,7 +296,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func selectsMostRecentSession() throws {
+    func `selects most recent session`() throws {
         let json = """
         {
           "type": "session",
@@ -305,7 +332,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func tokenSnapshotSelectsMostRecentDay() throws {
+    func `token snapshot selects most recent day`() throws {
         let json = """
         {
           "type": "daily",
@@ -338,7 +365,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func tokenSnapshotUsesSummaryTotalCostWhenAvailable() throws {
+    func `token snapshot uses summary total cost when available`() throws {
         let json = """
         {
           "type": "daily",
@@ -358,7 +385,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func tokenSnapshotFallsBackToSummedEntriesWhenSummaryMissing() throws {
+    func `token snapshot falls back to summed entries when summary missing`() throws {
         let json = """
         {
           "type": "daily",
@@ -375,7 +402,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func tokenSnapshotReturnsNilTotalWhenNoCostsPresent() throws {
+    func `token snapshot returns nil total when no costs present`() throws {
         let json = """
         {
           "type": "daily",

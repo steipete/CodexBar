@@ -266,7 +266,7 @@ public struct OpenRouterUsageFetcher: Sendable {
     }
 
     /// Fetches key quota/rate-limit info from /key endpoint
-    private struct OpenRouterKeyFetchResult: Sendable {
+    private struct OpenRouterKeyFetchResult {
         let data: OpenRouterKeyData?
         let fetched: Bool
     }

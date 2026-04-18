@@ -29,7 +29,24 @@ final class OpenAIDashboardWebViewCache {
     }
 
     private var entries: [ObjectIdentifier: Entry] = [:]
-    private let idleTimeout: TimeInterval = 10 * 60
+    /// Keep the WebView alive only long enough for immediate retries/menu reopens.
+    /// Long-lived hidden ChatGPT tabs still consume noticeable energy on some setups.
+    private let idleTimeout: TimeInterval = 60
+    private let blankURL = URL(string: "about:blank")!
+
+    private func releaseCachedEntry(_ entry: Entry) {
+        entry.isBusy = false
+        entry.lastUsedAt = Date()
+        self.prepareCachedWebViewForIdle(entry.webView, host: entry.host)
+        self.prune(now: Date())
+    }
+
+    private func releaseNewEntry(_ entry: Entry, webView: WKWebView) {
+        entry.isBusy = false
+        entry.lastUsedAt = Date()
+        self.prepareCachedWebViewForIdle(webView, host: entry.host)
+        self.prune(now: Date())
+    }
 
     // MARK: - Testing support
 
@@ -50,6 +67,33 @@ final class OpenAIDashboardWebViewCache {
         self.prune(now: now)
     }
 
+    var idleTimeoutForTesting: TimeInterval {
+        self.idleTimeout
+    }
+
+    /// Seed a cached entry without navigating a real page (for test stability).
+    @discardableResult
+    func cacheEntryForTesting(
+        websiteDataStore: WKWebsiteDataStore,
+        lastUsedAt: Date = Date(),
+        isBusy: Bool = false) -> WKWebView
+    {
+        let key = ObjectIdentifier(websiteDataStore)
+        if let existing = self.entries.removeValue(forKey: key) {
+            existing.host.close()
+        }
+
+        let (webView, host) = self.makeWebView(websiteDataStore: websiteDataStore)
+        let entry = Entry(webView: webView, host: host, lastUsedAt: lastUsedAt, isBusy: isBusy)
+        self.entries[key] = entry
+        if isBusy {
+            host.show()
+        } else {
+            host.hide()
+        }
+        return webView
+    }
+
     /// Clear all cached entries (for test isolation).
     func clearAllForTesting() {
         for (_, entry) in self.entries {
@@ -62,7 +106,24 @@ final class OpenAIDashboardWebViewCache {
     func acquire(
         websiteDataStore: WKWebsiteDataStore,
         usageURL: URL,
-        logger: ((String) -> Void)?) async throws -> OpenAIDashboardWebViewLease
+        logger: ((String) -> Void)?,
+        navigationTimeout: TimeInterval = 15) async throws -> OpenAIDashboardWebViewLease
+    {
+        let deadline = Date().addingTimeInterval(max(navigationTimeout, 1))
+        return try await self.acquire(
+            websiteDataStore: websiteDataStore,
+            usageURL: usageURL,
+            logger: logger,
+            deadline: deadline,
+            allowTimeoutRetry: true)
+    }
+
+    private func acquire(
+        websiteDataStore: WKWebsiteDataStore,
+        usageURL: URL,
+        logger: ((String) -> Void)?,
+        deadline: Date,
+        allowTimeoutRetry: Bool) async throws -> OpenAIDashboardWebViewLease
     {
         let now = Date()
         self.prune(now: now)
@@ -71,6 +132,7 @@ final class OpenAIDashboardWebViewCache {
             logger?("[webview] \(message)")
         }
         let key = ObjectIdentifier(websiteDataStore)
+        let remainingTimeout = max(0.5, deadline.timeIntervalSince(now))
 
         if let entry = self.entries[key] {
             if entry.isBusy {
@@ -78,8 +140,17 @@ final class OpenAIDashboardWebViewCache {
                 let (webView, host) = self.makeWebView(websiteDataStore: websiteDataStore)
                 host.show()
                 do {
-                    try await self.prepareWebView(webView, usageURL: usageURL)
+                    try await self.prepareWebView(webView, usageURL: usageURL, timeout: remainingTimeout)
                 } catch {
+                    if allowTimeoutRetry, Self.isPrepareTimeout(error) {
+                        host.close()
+                        log("Temporary OpenAI WebView timed out; retrying with a fresh WebView.")
+                        return try await self.acquireTemporaryWebView(
+                            websiteDataStore: websiteDataStore,
+                            usageURL: usageURL,
+                            log: log,
+                            deadline: deadline)
+                    }
                     host.close()
                     throw error
                 }
@@ -93,8 +164,21 @@ final class OpenAIDashboardWebViewCache {
             entry.lastUsedAt = now
             entry.host.show()
             do {
-                try await self.prepareWebView(entry.webView, usageURL: usageURL)
+                try await self.prepareWebView(entry.webView, usageURL: usageURL, timeout: remainingTimeout)
             } catch {
+                if allowTimeoutRetry, Self.isPrepareTimeout(error) {
+                    entry.isBusy = false
+                    entry.lastUsedAt = Date()
+                    entry.host.close()
+                    self.entries.removeValue(forKey: key)
+                    log("Cached OpenAI WebView timed out; recreating it.")
+                    return try await self.acquire(
+                        websiteDataStore: websiteDataStore,
+                        usageURL: usageURL,
+                        logger: logger,
+                        deadline: deadline,
+                        allowTimeoutRetry: false)
+                }
                 entry.isBusy = false
                 entry.lastUsedAt = Date()
                 entry.host.close()
@@ -108,13 +192,7 @@ final class OpenAIDashboardWebViewCache {
                 log: log,
                 release: { [weak self, weak entry] in
                     guard let self, let entry else { return }
-                    entry.isBusy = false
-                    entry.lastUsedAt = Date()
-                    // Hide instead of close - keep WebView cached for reuse.
-                    // This avoids re-downloading the ChatGPT SPA bundle on every refresh,
-                    // saving significant network bandwidth. See GitHub issues #269, #251.
-                    entry.host.hide()
-                    self.prune(now: Date())
+                    self.releaseCachedEntry(entry)
                 })
         }
 
@@ -124,8 +202,19 @@ final class OpenAIDashboardWebViewCache {
         host.show()
 
         do {
-            try await self.prepareWebView(webView, usageURL: usageURL)
+            try await self.prepareWebView(webView, usageURL: usageURL, timeout: remainingTimeout)
         } catch {
+            if allowTimeoutRetry, Self.isPrepareTimeout(error) {
+                self.entries.removeValue(forKey: key)
+                host.close()
+                log("OpenAI WebView timed out during prepare; retrying once.")
+                return try await self.acquire(
+                    websiteDataStore: websiteDataStore,
+                    usageURL: usageURL,
+                    logger: logger,
+                    deadline: deadline,
+                    allowTimeoutRetry: false)
+            }
             self.entries.removeValue(forKey: key)
             host.close()
             Self.log.warning("OpenAI webview prepare failed")
@@ -137,13 +226,7 @@ final class OpenAIDashboardWebViewCache {
             log: log,
             release: { [weak self, weak entry] in
                 guard let self, let entry else { return }
-                entry.isBusy = false
-                entry.lastUsedAt = Date()
-                // Hide instead of close - keep WebView cached for reuse.
-                // This avoids re-downloading the ChatGPT SPA bundle on every refresh,
-                // saving significant network bandwidth. See GitHub issues #269, #251.
-                entry.host.hide()
-                self.prune(now: Date())
+                self.releaseNewEntry(entry, webView: webView)
             })
     }
 
@@ -152,6 +235,27 @@ final class OpenAIDashboardWebViewCache {
         guard let entry = self.entries.removeValue(forKey: key) else { return }
         Self.log.debug("OpenAI webview evicted")
         entry.host.close()
+    }
+
+    func evictAll() {
+        let existing = self.entries
+        self.entries.removeAll()
+        for (_, entry) in existing {
+            entry.host.close()
+        }
+        if !existing.isEmpty {
+            Self.log.debug("OpenAI webview evicted all")
+        }
+    }
+
+    private func prepareCachedWebViewForIdle(_ webView: WKWebView, host: OffscreenWebViewHost) {
+        // Detach the heavyweight ChatGPT SPA as soon as a scrape completes. Keeping the WebView object around
+        // still helps with immediate reuse, but letting chatgpt.com remain the active document is too expensive.
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        webView.codexNavigationDelegate = nil
+        _ = webView.load(URLRequest(url: self.blankURL))
+        host.hide()
     }
 
     private func prune(now: Date) {
@@ -177,15 +281,49 @@ final class OpenAIDashboardWebViewCache {
         return (webView, host)
     }
 
-    private func prepareWebView(_ webView: WKWebView, usageURL: URL) async throws {
+    private func prepareWebView(_ webView: WKWebView, usageURL: URL, timeout: TimeInterval) async throws {
+        #if DEBUG
+        if usageURL.absoluteString == "about:blank" {
+            _ = webView.loadHTMLString("", baseURL: nil)
+            return
+        }
+        #endif
+
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             let delegate = NavigationDelegate { result in
                 cont.resume(with: result)
             }
             webView.navigationDelegate = delegate
             webView.codexNavigationDelegate = delegate
+            delegate.armTimeout(seconds: timeout)
             _ = webView.load(URLRequest(url: usageURL))
         }
+    }
+
+    private func acquireTemporaryWebView(
+        websiteDataStore: WKWebsiteDataStore,
+        usageURL: URL,
+        log: @escaping (String) -> Void,
+        deadline: Date) async throws -> OpenAIDashboardWebViewLease
+    {
+        let remainingTimeout = max(0.5, deadline.timeIntervalSinceNow)
+        let (webView, host) = self.makeWebView(websiteDataStore: websiteDataStore)
+        host.show()
+        do {
+            try await self.prepareWebView(webView, usageURL: usageURL, timeout: remainingTimeout)
+        } catch {
+            host.close()
+            throw error
+        }
+        return OpenAIDashboardWebViewLease(
+            webView: webView,
+            log: log,
+            release: { host.close() })
+    }
+
+    private static func isPrepareTimeout(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut
     }
 }
 

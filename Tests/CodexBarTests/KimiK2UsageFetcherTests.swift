@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct KimiK2UsageFetcherTests {
     @Test
-    func parsesUsageFromNestedUsage() throws {
+    func `parses usage from nested usage`() throws {
         let json = """
         {
           "data": {
@@ -29,7 +28,7 @@ struct KimiK2UsageFetcherTests {
     }
 
     @Test
-    func usesHeaderFallbackForRemainingCredits() throws {
+    func `uses header fallback for remaining credits`() throws {
         let json = """
         { "total_credits_consumed": 50 }
         """
@@ -42,7 +41,7 @@ struct KimiK2UsageFetcherTests {
     }
 
     @Test
-    func parsesNumericTimestampSeconds() throws {
+    func `parses numeric timestamp seconds`() throws {
         let json = """
         {
           "timestamp": 1700000000,
@@ -58,7 +57,7 @@ struct KimiK2UsageFetcherTests {
     }
 
     @Test
-    func parsesNumericTimestampMilliseconds() throws {
+    func `parses numeric timestamp milliseconds`() throws {
         let json = """
         {
           "timestamp": 1700000000000,
@@ -74,7 +73,7 @@ struct KimiK2UsageFetcherTests {
     }
 
     @Test
-    func invalidRootReturnsParseError() {
+    func `invalid root returns parse error`() {
         let json = """
         [{ "total": 1 }]
         """

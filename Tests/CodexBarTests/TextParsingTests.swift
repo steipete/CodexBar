@@ -1,17 +1,16 @@
 import CodexBarCore
 import Testing
 
-@Suite
 struct TextParsingTests {
     @Test
-    func stripANSICodesRemovesCursorVisibilityCSI() {
+    func `strip ANSI codes removes cursor visibility CSI`() {
         let input = "\u{001B}[?25hhello\u{001B}[0m"
         let stripped = TextParsing.stripANSICodes(input)
         #expect(stripped == "hello")
     }
 
     @Test
-    func firstNumberParsesDecimalSeparators() {
+    func `first number parses decimal separators`() {
         let dotDecimal = TextParsing.firstNumber(pattern: #"Credits:\s*([0-9][0-9., ]*)"#, text: "Credits: 54.72")
         #expect(dotDecimal == 54.72)
 

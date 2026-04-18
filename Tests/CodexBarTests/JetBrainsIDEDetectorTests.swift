@@ -1,10 +1,9 @@
 import CodexBarCore
 import Testing
 
-@Suite
 struct JetBrainsIDEDetectorTests {
     @Test
-    func parsesIDEDirectoryCaseInsensitive() {
+    func `parses IDE directory case insensitive`() {
         let info = JetBrainsIDEDetector._parseIDEDirectoryForTesting(
             dirname: "Webstorm2024.1",
             basePath: "/test")

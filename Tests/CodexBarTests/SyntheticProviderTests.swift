@@ -2,25 +2,23 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct SyntheticSettingsReaderTests {
     @Test
-    func apiKeyReadsFromEnvironment() {
+    func `api key reads from environment`() {
         let token = SyntheticSettingsReader.apiKey(environment: ["SYNTHETIC_API_KEY": "abc123"])
         #expect(token == "abc123")
     }
 
     @Test
-    func apiKeyStripsQuotes() {
+    func `api key strips quotes`() {
         let token = SyntheticSettingsReader.apiKey(environment: ["SYNTHETIC_API_KEY": "\"token-xyz\""])
         #expect(token == "token-xyz")
     }
 }
 
-@Suite
 struct SyntheticUsageSnapshotTests {
     @Test
-    func mapsUsageSnapshotWindows() throws {
+    func `maps usage snapshot windows`() throws {
         let json = """
         {
           "plan": "Starter",
@@ -41,7 +39,7 @@ struct SyntheticUsageSnapshotTests {
     }
 
     @Test
-    func parsesSubscriptionQuota() throws {
+    func `parses subscription quota`() throws {
         let json = """
         {
           "subscription": {

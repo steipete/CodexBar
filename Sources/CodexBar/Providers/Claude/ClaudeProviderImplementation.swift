@@ -80,7 +80,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         return [
             ProviderSettingsToggleDescriptor(
                 id: "claude-oauth-prompt-free-credentials",
-                title: "Avoid Keychain prompts (experimental)",
+                title: "Avoid Keychain prompts",
                 subtitle: subtitle,
                 binding: promptFreeBinding,
                 statusText: nil,
@@ -140,7 +140,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             if context.settings.debugDisableKeychainAccess {
                 return "Global Keychain access is disabled in Advanced, so this setting is currently inactive."
             }
-            return "Controls Claude OAuth Keychain prompts when experimental reader mode is off. Choosing " +
+            return "Controls Claude OAuth Keychain prompts when the standard reader is active. Choosing " +
                 "\"Never prompt\" can make OAuth unavailable; use Web/CLI when needed."
         }
 

@@ -7,9 +7,10 @@ public enum CookieHeaderNormalizer {
         #"(?i)\bcookie:\s*'([^']+)'"#,
         #"(?i)\bcookie:\s*\"([^\"]+)\""#,
         #"(?i)\bcookie:\s*([^\r\n]+)"#,
-        #"(?i)(?:--cookie|-b)\s*'([^']+)'"#,
-        #"(?i)(?:--cookie|-b)\s*\"([^\"]+)\""#,
-        #"(?i)(?:--cookie|-b)\s*([^\s]+)"#,
+        #"(?i)(?:^|\s)(?:--cookie|-b)\s*'([^']+)'"#,
+        #"(?i)(?:^|\s)(?:--cookie|-b)\s*\"([^\"]+)\""#,
+        #"(?i)(?:^|\s)-b([^\s=]+=[^\s]+)"#,
+        #"(?i)(?:^|\s)(?:--cookie|-b)\s+([^\s]+)"#,
     ]
 
     public static func normalize(_ raw: String?) -> String? {
@@ -48,6 +49,12 @@ public enum CookieHeaderNormalizer {
         }
 
         return results
+    }
+
+    public static func filteredHeader(from raw: String?, allowedNames: Set<String>) -> String? {
+        let filtered = self.pairs(from: raw ?? "").filter { allowedNames.contains($0.name) }
+        guard !filtered.isEmpty else { return nil }
+        return filtered.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
     }
 
     private static func extractHeader(from raw: String) -> String? {

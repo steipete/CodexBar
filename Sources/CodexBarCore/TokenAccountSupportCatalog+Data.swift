@@ -37,6 +37,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .opencodego: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple OpenCode Go Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
         .factory: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Factory Cookie headers.",
@@ -61,6 +68,13 @@ extension TokenAccountSupportCatalog {
         .ollama: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Ollama Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
+        .abacus: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Abacus AI Cookie headers.",
             placeholder: "Cookie: …",
             injection: .cookieHeader,
             requiresManualCookieSource: true,

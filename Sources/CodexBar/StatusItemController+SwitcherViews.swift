@@ -1,21 +1,25 @@
 import AppKit
 import CodexBarCore
 
+enum ProviderSwitcherSelection: Equatable {
+    case overview
+    case provider(UsageProvider)
+}
+
 final class ProviderSwitcherView: NSView {
     private struct Segment {
-        let provider: UsageProvider
+        let selection: ProviderSwitcherSelection
         let image: NSImage
         let title: String
     }
 
     private struct WeeklyIndicator {
-        let provider: UsageProvider
         let track: NSView
         let fill: NSView
     }
 
     private let segments: [Segment]
-    private let onSelect: (UsageProvider) -> Void
+    private let onSelect: (ProviderSwitcherSelection) -> Void
     private let showsIcons: Bool
     private let weeklyRemainingProvider: (UsageProvider) -> Double?
     private var buttons: [NSButton] = []
@@ -36,29 +40,42 @@ final class ProviderSwitcherView: NSView {
 
     init(
         providers: [UsageProvider],
-        selected: UsageProvider?,
+        selected: ProviderSwitcherSelection?,
+        includesOverview: Bool,
         width: CGFloat,
         showsIcons: Bool,
         iconProvider: (UsageProvider) -> NSImage,
         weeklyRemainingProvider: @escaping (UsageProvider) -> Double?,
-        onSelect: @escaping (UsageProvider) -> Void)
+        onSelect: @escaping (ProviderSwitcherSelection) -> Void)
     {
         let minimumGap: CGFloat = 1
-        self.segments = providers.map { provider in
+        var segments = providers.map { provider in
             let fullTitle = Self.switcherTitle(for: provider)
             let icon = iconProvider(provider)
             icon.isTemplate = true
             // Avoid any resampling: we ship exact 16pt/32px assets for crisp rendering.
             icon.size = NSSize(width: 16, height: 16)
             return Segment(
-                provider: provider,
+                selection: .provider(provider),
                 image: icon,
                 title: fullTitle)
         }
+        if includesOverview {
+            let overviewIcon = Self.overviewIcon()
+            overviewIcon.isTemplate = true
+            overviewIcon.size = NSSize(width: 16, height: 16)
+            segments.insert(
+                Segment(
+                    selection: .overview,
+                    image: overviewIcon,
+                    title: "Overview"),
+                at: 0)
+        }
+        self.segments = segments
         self.onSelect = onSelect
         self.showsIcons = showsIcons
         self.weeklyRemainingProvider = weeklyRemainingProvider
-        self.stackedIcons = showsIcons && providers.count > 3
+        self.stackedIcons = showsIcons && self.segments.count > 3
         let initialOuterPadding = Self.switcherOuterPadding(
             for: width,
             count: self.segments.count,
@@ -139,8 +156,13 @@ final class ProviderSwitcherView: NSView {
                 button.imagePosition = .noImage
             }
 
-            let remaining = self.weeklyRemainingProvider(segment.provider)
-            self.addWeeklyIndicator(to: button, provider: segment.provider, remainingPercent: remaining)
+            let remaining: Double? = switch segment.selection {
+            case let .provider(provider):
+                self.weeklyRemainingProvider(provider)
+            case .overview:
+                nil
+            }
+            self.addWeeklyIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
             button.bezelStyle = .regularSquare
             button.isBordered = false
             button.controlSize = .small
@@ -150,7 +172,7 @@ final class ProviderSwitcherView: NSView {
             button.alignment = .center
             button.wantsLayer = true
             button.layer?.cornerRadius = 6
-            button.state = (selected == segment.provider) ? .on : .off
+            button.state = (selected == segment.selection) ? .on : .off
             button.toolTip = nil
             button.translatesAutoresizingMaskIntoConstraints = false
             self.buttons.append(button)
@@ -493,7 +515,7 @@ final class ProviderSwitcherView: NSView {
             button.state = (idx == index) ? .on : .off
         }
         self.updateButtonStyles()
-        self.onSelect(self.segments[index].provider)
+        self.onSelect(self.segments[index].selection)
     }
 
     private func updateButtonStyles() {
@@ -705,7 +727,7 @@ final class ProviderSwitcherView: NSView {
         return newImage
     }
 
-    private func addWeeklyIndicator(to view: NSView, provider: UsageProvider, remainingPercent: Double?) {
+    private func addWeeklyIndicator(to view: NSView, selection: ProviderSwitcherSelection, remainingPercent: Double?) {
         guard let remainingPercent else { return }
 
         let track = NSView()
@@ -718,7 +740,7 @@ final class ProviderSwitcherView: NSView {
 
         let fill = NSView()
         fill.wantsLayer = true
-        fill.layer?.backgroundColor = Self.weeklyIndicatorColor(for: provider).cgColor
+        fill.layer?.backgroundColor = Self.weeklyIndicatorColor(for: selection).cgColor
         fill.layer?.cornerRadius = 2
         fill.translatesAutoresizingMaskIntoConstraints = false
         track.addSubview(fill)
@@ -737,7 +759,7 @@ final class ProviderSwitcherView: NSView {
 
         fill.widthAnchor.constraint(equalTo: track.widthAnchor, multiplier: ratio).isActive = true
 
-        self.weeklyIndicators[ObjectIdentifier(view)] = WeeklyIndicator(provider: provider, track: track, fill: fill)
+        self.weeklyIndicators[ObjectIdentifier(view)] = WeeklyIndicator(track: track, fill: fill)
         self.updateWeeklyIndicatorVisibility(for: view)
     }
 
@@ -748,9 +770,21 @@ final class ProviderSwitcherView: NSView {
         indicator.fill.isHidden = isSelected
     }
 
-    private static func weeklyIndicatorColor(for provider: UsageProvider) -> NSColor {
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
-        return NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: 1)
+    private static func weeklyIndicatorColor(for selection: ProviderSwitcherSelection) -> NSColor {
+        switch selection {
+        case let .provider(provider):
+            let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+            return NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: 1)
+        case .overview:
+            return NSColor.secondaryLabelColor
+        }
+    }
+
+    private static func overviewIcon() -> NSImage {
+        if let symbol = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil) {
+            return symbol
+        }
+        return NSImage(size: NSSize(width: 16, height: 16))
     }
 
     private static func switcherTitle(for provider: UsageProvider) -> String {
@@ -860,4 +894,210 @@ final class TokenAccountSwitcherView: NSView {
         self.updateButtonStyles()
         self.onSelect(index)
     }
+}
+
+final class CodexAccountSwitcherView: NSView {
+    private let accounts: [CodexVisibleAccount]
+    private let onSelect: (String) -> Void
+    private var selectedAccountID: String
+    private var buttons: [NSButton] = []
+    private let rowSpacing: CGFloat = 4
+    private let rowHeight: CGFloat = 26
+    private let selectedBackground = NSColor.controlAccentColor.cgColor
+    private let unselectedBackground = NSColor.clear.cgColor
+    private let selectedTextColor = NSColor.white
+    private let unselectedTextColor = NSColor.secondaryLabelColor
+    private let buttonFont = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+    private let buttonHorizontalPadding: CGFloat = 14
+    private let buttonSideInset: CGFloat = 6
+
+    init(
+        accounts: [CodexVisibleAccount],
+        selectedAccountID: String?,
+        width: CGFloat,
+        onSelect: @escaping (String) -> Void)
+    {
+        self.accounts = accounts
+        self.onSelect = onSelect
+        self.selectedAccountID = selectedAccountID ?? accounts.first?.id ?? ""
+        let useTwoRows = accounts.count > 3
+        let rows = useTwoRows ? 2 : 1
+        let height = self.rowHeight * CGFloat(rows) + (useTwoRows ? self.rowSpacing : 0)
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        self.wantsLayer = true
+        self.buildButtons(useTwoRows: useTwoRows)
+        self.updateButtonStyles()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    private func buildButtons(useTwoRows: Bool) {
+        let perRow = useTwoRows ? Int(ceil(Double(self.accounts.count) / 2.0)) : self.accounts.count
+        let rows: [[CodexVisibleAccount]] = {
+            if !useTwoRows { return [self.accounts] }
+            let first = Array(self.accounts.prefix(perRow))
+            let second = Array(self.accounts.dropFirst(perRow))
+            return [first, second]
+        }()
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = self.rowSpacing
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        for rowAccounts in rows {
+            let row = NSStackView()
+            row.orientation = .horizontal
+            row.alignment = .centerY
+            row.distribution = .fillEqually
+            row.spacing = self.rowSpacing
+            row.translatesAutoresizingMaskIntoConstraints = false
+
+            let buttonWidth = self.buttonWidth(for: rowAccounts.count)
+            for account in rowAccounts {
+                let title = self.compactButtonTitle(for: account, buttonWidth: buttonWidth)
+                let button = PaddedToggleButton(
+                    title: title,
+                    target: self,
+                    action: #selector(self.handleSelect))
+                button.identifier = NSUserInterfaceItemIdentifier(account.id)
+                button.toolTip = account.menuDisplayName
+                button.isBordered = false
+                button.setButtonType(.toggle)
+                button.controlSize = .small
+                button.font = self.buttonFont
+                button.wantsLayer = true
+                button.layer?.cornerRadius = 6
+                row.addArrangedSubview(button)
+                self.buttons.append(button)
+            }
+
+            stack.addArrangedSubview(row)
+        }
+
+        self.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: self.buttonSideInset),
+            stack.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -self.buttonSideInset),
+            stack.topAnchor.constraint(equalTo: self.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: self.bottomAnchor),
+            stack.heightAnchor.constraint(equalToConstant: self.rowHeight * CGFloat(rows.count) +
+                (useTwoRows ? self.rowSpacing : 0)),
+        ])
+    }
+
+    private func buttonWidth(for count: Int) -> CGFloat {
+        let contentWidth = self.bounds.width - (self.buttonSideInset * 2)
+        let spacing = self.rowSpacing * CGFloat(max(0, count - 1))
+        guard count > 0 else { return contentWidth }
+        return max(44, floor((contentWidth - spacing) / CGFloat(count)))
+    }
+
+    private func compactButtonTitle(for account: CodexVisibleAccount, buttonWidth: CGFloat) -> String {
+        let availableTextWidth = max(24, buttonWidth - self.buttonHorizontalPadding)
+        if self.textWidth(account.menuDisplayName) <= availableTextWidth {
+            return account.menuDisplayName
+        }
+
+        guard let workspace = account.menuWorkspaceLabel else {
+            return self.truncateTail(account.email, toFit: availableTextWidth)
+        }
+
+        let separator = "|"
+        let separatorWidth = self.textWidth(separator)
+        let contentWidth = max(24, availableTextWidth - separatorWidth)
+        let minimumEmailWidth = min(contentWidth * 0.45, max(18, contentWidth * 0.3))
+        let minimumWorkspaceWidth = min(contentWidth * 0.4, max(18, contentWidth * 0.25))
+        var emailWidth = max(minimumEmailWidth, contentWidth * 0.58)
+        var workspaceWidth = max(minimumWorkspaceWidth, contentWidth - emailWidth)
+
+        func makeTitle() -> String {
+            let email = self.truncateTail(account.email, toFit: emailWidth)
+            let workspace = self.truncateTail(workspace, toFit: workspaceWidth)
+            return "\(email)\(separator)\(workspace)"
+        }
+
+        var title = makeTitle()
+        var attempts = 0
+        while self.textWidth(title) > availableTextWidth, attempts < 16 {
+            let emailText = self.truncateTail(account.email, toFit: emailWidth)
+            let workspaceText = self.truncateTail(workspace, toFit: workspaceWidth)
+            let emailRenderedWidth = self.textWidth(emailText)
+            let workspaceRenderedWidth = self.textWidth(workspaceText)
+
+            if emailRenderedWidth >= workspaceRenderedWidth, emailWidth > minimumEmailWidth {
+                emailWidth = max(minimumEmailWidth, emailWidth - 6)
+            } else if workspaceWidth > minimumWorkspaceWidth {
+                workspaceWidth = max(minimumWorkspaceWidth, workspaceWidth - 6)
+            } else {
+                break
+            }
+
+            title = makeTitle()
+            attempts += 1
+        }
+
+        return title
+    }
+
+    private func truncateTail(_ text: String, toFit width: CGFloat) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return text }
+        if self.textWidth(trimmed) <= width {
+            return trimmed
+        }
+
+        let ellipsis = "…"
+        let ellipsisWidth = self.textWidth(ellipsis)
+        guard ellipsisWidth < width else { return ellipsis }
+
+        var candidate = ""
+        for character in trimmed {
+            let next = candidate + String(character)
+            if self.textWidth(next + ellipsis) > width {
+                break
+            }
+            candidate = next
+        }
+
+        if candidate.isEmpty {
+            return ellipsis
+        }
+        return candidate + ellipsis
+    }
+
+    private func textWidth(_ text: String) -> CGFloat {
+        let attributes: [NSAttributedString.Key: Any] = [.font: self.buttonFont]
+        return ceil((text as NSString).size(withAttributes: attributes).width)
+    }
+
+    private func updateButtonStyles() {
+        for button in self.buttons {
+            let selected = button.identifier?.rawValue == self.selectedAccountID
+            button.state = selected ? .on : .off
+            button.layer?.backgroundColor = selected ? self.selectedBackground : self.unselectedBackground
+            button.contentTintColor = selected ? self.selectedTextColor : self.unselectedTextColor
+        }
+    }
+
+    @objc private func handleSelect(_ sender: NSButton) {
+        guard let accountID = sender.identifier?.rawValue else { return }
+        guard self.accounts.contains(where: { $0.id == accountID }) else { return }
+        self.selectedAccountID = accountID
+        self.updateButtonStyles()
+        self.onSelect(accountID)
+    }
+
+    #if DEBUG
+    func _test_buttonTitles() -> [String] {
+        self.buttons.map(\.title)
+    }
+
+    func _test_buttonToolTips() -> [String?] {
+        self.buttons.map(\.toolTip)
+    }
+    #endif
 }

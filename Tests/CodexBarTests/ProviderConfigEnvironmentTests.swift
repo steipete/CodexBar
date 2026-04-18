@@ -1,10 +1,9 @@
 import CodexBarCore
 import Testing
 
-@Suite
 struct ProviderConfigEnvironmentTests {
     @Test
-    func appliesAPIKeyOverrideForZai() {
+    func `applies API key override for zai`() {
         let config = ProviderConfig(id: .zai, apiKey: "z-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
@@ -15,7 +14,7 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
-    func appliesAPIKeyOverrideForWarp() {
+    func `applies API key override for warp`() {
         let config = ProviderConfig(id: .warp, apiKey: "w-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
@@ -30,7 +29,7 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
-    func appliesAPIKeyOverrideForOpenRouter() {
+    func `applies API key override for open router`() {
         let config = ProviderConfig(id: .openrouter, apiKey: "or-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
@@ -41,7 +40,19 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
-    func openRouterConfigOverrideWinsOverEnvironmentToken() {
+    func `applies API key override for kilo`() {
+        let config = ProviderConfig(id: .kilo, apiKey: "kilo-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .kilo,
+            config: config)
+
+        #expect(env[KiloSettingsReader.apiTokenKey] == "kilo-token")
+        #expect(ProviderTokenResolver.kiloToken(environment: env, authFileURL: nil) == "kilo-token")
+    }
+
+    @Test
+    func `open router config override wins over environment token`() {
         let config = ProviderConfig(id: .openrouter, apiKey: "config-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [OpenRouterSettingsReader.envKey: "env-token"],
@@ -53,7 +64,7 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
-    func leavesEnvironmentWhenAPIKeyMissing() {
+    func `leaves environment when API key missing`() {
         let config = ProviderConfig(id: .zai, apiKey: nil)
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [ZaiSettingsReader.apiTokenKey: "existing"],

@@ -2,24 +2,23 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct OllamaUsageFetcherTests {
     @Test
-    func attachesCookieForOllamaHosts() {
+    func `attaches cookie for ollama hosts`() {
         #expect(OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "https://ollama.com/settings")))
         #expect(OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "https://www.ollama.com")))
         #expect(OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "https://app.ollama.com/path")))
     }
 
     @Test
-    func rejectsNonOllamaHosts() {
+    func `rejects non ollama hosts`() {
         #expect(!OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "https://example.com")))
         #expect(!OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "https://ollama.com.evil.com")))
         #expect(!OllamaUsageFetcher.shouldAttachCookie(to: nil))
     }
 
     @Test
-    func manualModeWithoutValidHeaderThrowsNoSessionCookie() {
+    func `manual mode without valid header throws no session cookie`() {
         do {
             _ = try OllamaUsageFetcher.resolveManualCookieHeader(
                 override: nil,
@@ -33,7 +32,7 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func autoModeWithoutHeaderDoesNotForceManualError() throws {
+    func `auto mode without header does not force manual error`() throws {
         let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
             override: nil,
             manualCookieMode: false)
@@ -41,7 +40,7 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func manualModeWithoutRecognizedSessionCookieThrowsNoSessionCookie() {
+    func `manual mode without recognized session cookie throws no session cookie`() {
         do {
             _ = try OllamaUsageFetcher.resolveManualCookieHeader(
                 override: "analytics_session_id=noise; theme=dark",
@@ -55,7 +54,7 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func manualModeWithRecognizedSessionCookieAcceptsHeader() throws {
+    func `manual mode with recognized session cookie accepts header`() throws {
         let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
             override: "next-auth.session-token.0=abc; theme=dark",
             manualCookieMode: true)
@@ -63,7 +62,15 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func retryPolicyRetriesOnlyForAuthErrors() {
+    func `manual mode accepts secure session cookie header`() throws {
+        let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: "__Secure-session=abc; theme=dark",
+            manualCookieMode: true)
+        #expect(resolved?.contains("__Secure-session=abc") == true)
+    }
+
+    @Test
+    func `retry policy retries only for auth errors`() {
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(after: OllamaUsageError.invalidCredentials))
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(after: OllamaUsageError.notLoggedIn))
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(
@@ -77,12 +84,12 @@ struct OllamaUsageFetcherTests {
 
     #if os(macOS)
     @Test
-    func cookieImporterDefaultsToChromeFirst() {
+    func `cookie importer defaults to chrome first`() {
         #expect(OllamaCookieImporter.defaultPreferredBrowsers == [.chrome])
     }
 
     @Test
-    func cookieSelectorSkipsSessionLikeNoiseAndFindsRecognizedCookie() throws {
+    func `cookie selector skips session like noise and finds recognized cookie`() throws {
         let first = OllamaCookieImporter.SessionInfo(
             cookies: [Self.makeCookie(name: "analytics_session_id", value: "noise")],
             sourceLabel: "Profile A")
@@ -95,7 +102,7 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func cookieSelectorThrowsWhenNoRecognizedSessionCookieExists() {
+    func `cookie selector throws when no recognized session cookie exists`() {
         let candidates = [
             OllamaCookieImporter.SessionInfo(
                 cookies: [Self.makeCookie(name: "analytics_session_id", value: "noise")],
@@ -116,7 +123,7 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func cookieSelectorAcceptsChunkedNextAuthSessionTokenCookie() throws {
+    func `cookie selector accepts chunked next auth session token cookie`() throws {
         let candidate = OllamaCookieImporter.SessionInfo(
             cookies: [Self.makeCookie(name: "next-auth.session-token.0", value: "chunk0")],
             sourceLabel: "Profile C")
@@ -126,7 +133,17 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func cookieSelectorKeepsRecognizedCandidatesInOrder() throws {
+    func `cookie selector accepts secure session cookie`() throws {
+        let candidate = OllamaCookieImporter.SessionInfo(
+            cookies: [Self.makeCookie(name: "__Secure-session", value: "auth")],
+            sourceLabel: "Profile D")
+
+        let selected = try OllamaCookieImporter.selectSessionInfo(from: [candidate])
+        #expect(selected.sourceLabel == "Profile D")
+    }
+
+    @Test
+    func `cookie selector keeps recognized candidates in order`() throws {
         let first = OllamaCookieImporter.SessionInfo(
             cookies: [Self.makeCookie(name: "session", value: "stale")],
             sourceLabel: "Chrome Profile A")
@@ -142,7 +159,7 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func cookieSelectorDoesNotFallbackWhenFallbackDisabled() {
+    func `cookie selector does not fallback when fallback disabled`() {
         let preferred = [
             OllamaCookieImporter.SessionInfo(
                 cookies: [Self.makeCookie(name: "analytics_session_id", value: "noise")],
@@ -168,7 +185,7 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func cookieSelectorFallsBackToNonChromeCandidateWhenFallbackEnabled() throws {
+    func `cookie selector falls back to non chrome candidate when fallback enabled`() throws {
         let preferred = [
             OllamaCookieImporter.SessionInfo(
                 cookies: [Self.makeCookie(name: "analytics_session_id", value: "noise")],

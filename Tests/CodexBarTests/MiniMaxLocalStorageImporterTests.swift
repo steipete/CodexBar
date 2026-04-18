@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct MiniMaxLocalStorageImporterTests {
     @Test
-    func extractsAccessTokensFromJSONPreferringLongTokens() {
+    func `extracts access tokens from JSON preferring long tokens`() {
         let shortToken = String(repeating: "b", count: 24)
         let longToken = String(repeating: "a", count: 72)
         let payload = """
@@ -19,7 +18,7 @@ struct MiniMaxLocalStorageImporterTests {
     }
 
     @Test
-    func extractsGroupIDFromJSONString() {
+    func `extracts group ID from JSON string`() {
         let payload = """
         {"user":{"groupId":"98765"}}
         """
@@ -30,7 +29,7 @@ struct MiniMaxLocalStorageImporterTests {
     }
 
     @Test
-    func resolvesGroupIDFromJWTClaims() {
+    func `resolves group ID from JWT claims`() {
         let token = Self.makeJWT(payload: [
             "iss": "minimax",
             "group_id": "12345",
@@ -42,7 +41,7 @@ struct MiniMaxLocalStorageImporterTests {
     }
 
     @Test
-    func rejectsNonMiniMaxJWTsWithoutSignal() {
+    func `rejects non mini max JW ts without signal`() {
         let token = Self.makeJWT(payload: [
             "iss": "other",
             "pad": String(repeating: "y", count: 80),

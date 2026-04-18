@@ -2,10 +2,9 @@ import CodexBarCore
 import Foundation
 import Testing
 
-@Suite
 struct ConfigValidationTests {
     @Test
-    func reportsUnsupportedSource() {
+    func `reports unsupported source`() {
         var config = CodexBarConfig.makeDefault()
         config.setProviderConfig(ProviderConfig(id: .codex, source: .api))
         let issues = CodexBarConfigValidator.validate(config)
@@ -13,7 +12,7 @@ struct ConfigValidationTests {
     }
 
     @Test
-    func reportsMissingAPIKeyWhenSourceAPI() {
+    func `reports missing API key when source API`() {
         var config = CodexBarConfig.makeDefault()
         config.setProviderConfig(ProviderConfig(id: .zai, source: .api, apiKey: nil))
         let issues = CodexBarConfigValidator.validate(config)
@@ -21,7 +20,7 @@ struct ConfigValidationTests {
     }
 
     @Test
-    func reportsInvalidRegion() {
+    func `reports invalid region`() {
         var config = CodexBarConfig.makeDefault()
         config.setProviderConfig(ProviderConfig(id: .minimax, region: "nowhere"))
         let issues = CodexBarConfigValidator.validate(config)
@@ -29,7 +28,7 @@ struct ConfigValidationTests {
     }
 
     @Test
-    func warnsOnUnsupportedTokenAccounts() {
+    func `warns on unsupported token accounts`() {
         let accounts = ProviderTokenAccountData(
             version: 1,
             accounts: [ProviderTokenAccount(id: UUID(), label: "a", token: "t", addedAt: 0, lastUsed: nil)],
@@ -41,7 +40,7 @@ struct ConfigValidationTests {
     }
 
     @Test
-    func allowsOllamaTokenAccounts() {
+    func `allows ollama token accounts`() {
         let accounts = ProviderTokenAccountData(
             version: 1,
             accounts: [ProviderTokenAccount(id: UUID(), label: "a", token: "t", addedAt: 0, lastUsed: nil)],
@@ -50,5 +49,13 @@ struct ConfigValidationTests {
         config.setProviderConfig(ProviderConfig(id: .ollama, tokenAccounts: accounts))
         let issues = CodexBarConfigValidator.validate(config)
         #expect(!issues.contains(where: { $0.code == "token_accounts_unused" && $0.provider == .ollama }))
+    }
+
+    @Test
+    func `accepts kilo extras config field`() {
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(id: .kilo, extrasEnabled: true))
+        let issues = CodexBarConfigValidator.validate(config)
+        #expect(!issues.contains(where: { $0.provider == .kilo && $0.field == "extrasEnabled" }))
     }
 }

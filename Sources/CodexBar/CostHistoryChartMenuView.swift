@@ -151,7 +151,7 @@ struct CostHistoryChartMenuView: View {
         var peak: (key: String, costUSD: Double)?
         var maxCostUSD: Double = 0
         for entry in sorted {
-            guard let costUSD = entry.costUSD, costUSD > 0 else { continue }
+            guard let costUSD = entry.costUSD, costUSD >= 0 else { continue }
             guard let date = self.dateFromDayKey(entry.date) else { continue }
             let point = Point(date: date, costUSD: costUSD, totalTokens: entry.totalTokens)
             points.append(point)
@@ -180,7 +180,7 @@ struct CostHistoryChartMenuView: View {
             dateKeys: dateKeys,
             axisDates: axisDates,
             barColor: barColor,
-            peakKey: peak?.key,
+            peakKey: maxCostUSD > 0 ? peak?.key : nil,
             maxCostUSD: maxCostUSD)
     }
 
@@ -310,16 +310,16 @@ struct CostHistoryChartMenuView: View {
         guard let entry = model.entriesByDateKey[key] else { return nil }
         guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return nil }
         let parts = breakdown
-            .compactMap { item -> (name: String, costUSD: Double)? in
-                guard let costUSD = item.costUSD, costUSD > 0 else { return nil }
-                return (UsageFormatter.modelDisplayName(item.modelName), costUSD)
-            }
-            .sorted { lhs, rhs in
-                if lhs.costUSD == rhs.costUSD { return lhs.name < rhs.name }
-                return lhs.costUSD > rhs.costUSD
+            .compactMap { item -> String? in
+                let name = UsageFormatter.modelDisplayName(item.modelName)
+                guard let detail = UsageFormatter.modelCostDetail(
+                    item.modelName,
+                    costUSD: item.costUSD,
+                    totalTokens: item.totalTokens)
+                else { return nil }
+                return "\(name) \(detail)"
             }
             .prefix(3)
-            .map { "\($0.name) \(UsageFormatter.usdString($0.costUSD))" }
         guard !parts.isEmpty else { return nil }
         return "Top: \(parts.joined(separator: " · "))"
     }

@@ -6,7 +6,7 @@ import Testing
 @Suite(.serialized)
 struct TTYIntegrationTests {
     @Test
-    func codexRPCUsageLive() async throws {
+    func `codex RPC usage live`() async throws {
         let fetcher = UsageFetcher()
         do {
             let snapshot = try await fetcher.loadLatestUsage()
@@ -23,7 +23,7 @@ struct TTYIntegrationTests {
     }
 
     @Test
-    func claudeTTYUsageProbeLive() async throws {
+    func `claude TTY usage probe live`() async throws {
         guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_TTY"] == "1" else {
             return
         }

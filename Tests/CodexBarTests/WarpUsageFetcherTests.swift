@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct WarpUsageFetcherTests {
     @Test
-    func parsesSnapshotAndAggregatesBonusCredits() throws {
+    func `parses snapshot and aggregates bonus credits`() throws {
         let json = """
         {
           "data": {
@@ -66,7 +65,7 @@ struct WarpUsageFetcherTests {
     }
 
     @Test
-    func graphQLErrorsThrowAPIError() {
+    func `graph QL errors throw API error`() {
         let json = """
         {
           "errors": [
@@ -84,7 +83,7 @@ struct WarpUsageFetcherTests {
     }
 
     @Test
-    func nullUnlimitedAndStringNumericsParseSafely() throws {
+    func `null unlimited and string numerics parse safely`() throws {
         let json = """
         {
           "data": {
@@ -112,7 +111,7 @@ struct WarpUsageFetcherTests {
     }
 
     @Test
-    func unexpectedTypenameReturnsParseError() {
+    func `unexpected typename returns parse error`() {
         let json = """
         {
           "data": {
@@ -132,7 +131,7 @@ struct WarpUsageFetcherTests {
     }
 
     @Test
-    func missingRequestLimitInfoReturnsParseError() {
+    func `missing request limit info returns parse error`() {
         let json = """
         {
           "data": {
@@ -153,7 +152,7 @@ struct WarpUsageFetcherTests {
     }
 
     @Test
-    func invalidRootReturnsParseError() {
+    func `invalid root returns parse error`() {
         let json = """
         [{ "data": {} }]
         """
@@ -167,7 +166,7 @@ struct WarpUsageFetcherTests {
     }
 
     @Test
-    func toUsageSnapshotOmitsSecondaryWhenNoBonusCredits() {
+    func `to usage snapshot omits secondary when no bonus credits`() {
         let source = WarpUsageSnapshot(
             requestLimit: 100,
             requestsUsed: 10,
@@ -184,7 +183,7 @@ struct WarpUsageFetcherTests {
     }
 
     @Test
-    func toUsageSnapshotKeepsBonusWindowWhenBonusExists() throws {
+    func `to usage snapshot keeps bonus window when bonus exists`() throws {
         let source = WarpUsageSnapshot(
             requestLimit: 100,
             requestsUsed: 10,
@@ -202,7 +201,7 @@ struct WarpUsageFetcherTests {
     }
 
     @Test
-    func toUsageSnapshotUnlimitedPrimaryDoesNotShowResetDate() throws {
+    func `to usage snapshot unlimited primary does not show reset date`() throws {
         let source = WarpUsageSnapshot(
             requestLimit: 0,
             requestsUsed: 0,
@@ -221,7 +220,7 @@ struct WarpUsageFetcherTests {
     }
 
     @Test
-    func apiErrorSummaryIncludesPlainTextBodies() {
+    func `api error summary includes plain text bodies`() {
         // Regression: Warp edge returns 429 with a non-JSON body ("Rate exceeded.") when User-Agent is missing/wrong.
         let summary = WarpUsageFetcher._apiErrorSummaryForTesting(
             statusCode: 429,

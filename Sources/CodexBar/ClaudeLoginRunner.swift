@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 
 struct ClaudeLoginRunner {
-    enum Phase: Sendable {
+    enum Phase {
         case requesting
         case waitingBrowser
     }

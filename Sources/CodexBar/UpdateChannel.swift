@@ -1,6 +1,6 @@
 import Foundation
 
-enum UpdateChannel: String, CaseIterable, Codable, Sendable {
+enum UpdateChannel: String, CaseIterable, Codable {
     case stable
     case beta
 

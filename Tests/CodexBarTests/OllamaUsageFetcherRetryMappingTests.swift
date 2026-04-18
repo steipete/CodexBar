@@ -5,7 +5,7 @@ import Testing
 @Suite(.serialized)
 struct OllamaUsageFetcherRetryMappingTests {
     @Test
-    func missingUsageShapeSurfacesPublicParseFailedMessage() async {
+    func `missing usage shape surfaces public parse failed message`() async {
         defer { OllamaRetryMappingStubURLProtocol.handler = nil }
 
         OllamaRetryMappingStubURLProtocol.handler = { request in

@@ -1,4 +1,4 @@
-enum ExitCode: Int32, Sendable {
+enum ExitCode: Int32 {
     case success = 0
     case failure = 1
     case binaryNotFound = 2

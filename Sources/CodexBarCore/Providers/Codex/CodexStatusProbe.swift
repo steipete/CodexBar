@@ -6,6 +6,8 @@ public struct CodexStatusSnapshot: Sendable {
     public let weeklyPercentLeft: Int?
     public let fiveHourResetDescription: String?
     public let weeklyResetDescription: String?
+    public let fiveHourResetsAt: Date?
+    public let weeklyResetsAt: Date?
     public let rawText: String
 
     public init(
@@ -14,6 +16,8 @@ public struct CodexStatusSnapshot: Sendable {
         weeklyPercentLeft: Int?,
         fiveHourResetDescription: String?,
         weeklyResetDescription: String?,
+        fiveHourResetsAt: Date?,
+        weeklyResetsAt: Date?,
         rawText: String)
     {
         self.credits = credits
@@ -21,6 +25,8 @@ public struct CodexStatusSnapshot: Sendable {
         self.weeklyPercentLeft = weeklyPercentLeft
         self.fiveHourResetDescription = fiveHourResetDescription
         self.weeklyResetDescription = weeklyResetDescription
+        self.fiveHourResetsAt = fiveHourResetsAt
+        self.weeklyResetsAt = weeklyResetsAt
         self.rawText = rawText
     }
 }
@@ -47,20 +53,30 @@ public enum CodexStatusProbeError: LocalizedError, Sendable {
 
 /// Runs `codex` inside a PTY, sends `/status`, captures text, and parses credits/limits.
 public struct CodexStatusProbe {
+    private static let defaultTimeoutSeconds: TimeInterval = 8.0
+    private static let parseRetryTimeoutSeconds: TimeInterval = 4.0
+
     public var codexBinary: String = "codex"
-    public var timeout: TimeInterval = 18.0
+    public var timeout: TimeInterval = Self.defaultTimeoutSeconds
     public var keepCLISessionsAlive: Bool = false
+    public var environment: [String: String] = ProcessInfo.processInfo.environment
 
     public init() {}
 
-    public init(codexBinary: String = "codex", timeout: TimeInterval = 18.0, keepCLISessionsAlive: Bool = false) {
+    public init(
+        codexBinary: String = "codex",
+        timeout: TimeInterval = 8.0,
+        keepCLISessionsAlive: Bool = false,
+        environment: [String: String] = ProcessInfo.processInfo.environment)
+    {
         self.codexBinary = codexBinary
         self.timeout = timeout
         self.keepCLISessionsAlive = keepCLISessionsAlive
+        self.environment = environment
     }
 
     public func fetch() async throws -> CodexStatusSnapshot {
-        let env = ProcessInfo.processInfo.environment
+        let env = self.environment
         let resolved = BinaryLocator.resolveCodexBinary(env: env, loginPATH: LoginShellPathCache.shared.current)
             ?? self.codexBinary
         guard FileManager.default.isExecutableFile(atPath: resolved) || TTYCommandRunner.which(resolved) != nil else {
@@ -69,23 +85,25 @@ public struct CodexStatusProbe {
         do {
             return try await self.runAndParse(binary: resolved, rows: 60, cols: 200, timeout: self.timeout)
         } catch let error as CodexStatusProbeError {
-            // Codex sometimes returns an incomplete screen on the first try; retry once with a longer window.
+            // Retry only parser-level flakes with a short second attempt.
             switch error {
-            case .parseFailed, .timedOut:
+            case .parseFailed:
                 return try await self.runAndParse(
                     binary: resolved,
                     rows: 70,
                     cols: 220,
-                    timeout: max(self.timeout, 24.0))
+                    timeout: Self.parseRetryTimeoutSeconds)
             default:
                 throw error
             }
+        } catch {
+            throw error
         }
     }
 
     // MARK: - Parsing
 
-    public static func parse(text: String) throws -> CodexStatusSnapshot {
+    public static func parse(text: String, now: Date = .init()) throws -> CodexStatusSnapshot {
         let clean = TextParsing.stripANSICodes(text)
         guard !clean.isEmpty else { throw CodexStatusProbeError.timedOut }
         if clean.localizedCaseInsensitiveContains("data not available yet") {
@@ -112,7 +130,66 @@ public struct CodexStatusProbe {
             weeklyPercentLeft: weekPct,
             fiveHourResetDescription: fiveReset,
             weeklyResetDescription: weekReset,
+            fiveHourResetsAt: self.parseResetDate(from: fiveReset, now: now),
+            weeklyResetsAt: self.parseResetDate(from: weekReset, now: now),
             rawText: clean)
+    }
+
+    private static func parseResetDate(from text: String?, now: Date) -> Date? {
+        guard var raw = text?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        raw = raw.trimmingCharacters(in: CharacterSet(charactersIn: "()"))
+        raw = raw.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let calendar = Calendar(identifier: .gregorian)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.defaultDate = now
+
+        if let match = raw.firstMatch(of: /^([0-9]{1,2}:[0-9]{2}) on ([0-9]{1,2} [A-Za-z]{3})$/) {
+            raw = "\(match.output.2) \(match.output.1)"
+            formatter.dateFormat = "d MMM HH:mm"
+            if let date = formatter.date(from: raw) {
+                return self.bumpYearIfNeeded(date, now: now, calendar: calendar)
+            }
+        }
+
+        if let match = raw.firstMatch(of: /^([0-9]{1,2}:[0-9]{2}) on ([A-Za-z]{3} [0-9]{1,2})$/) {
+            raw = "\(match.output.2) \(match.output.1)"
+            formatter.dateFormat = "MMM d HH:mm"
+            if let date = formatter.date(from: raw) {
+                return self.bumpYearIfNeeded(date, now: now, calendar: calendar)
+            }
+        }
+
+        for format in ["HH:mm", "H:mm"] {
+            formatter.dateFormat = format
+            if let time = formatter.date(from: raw) {
+                let components = calendar.dateComponents([.hour, .minute], from: time)
+                guard let anchored = calendar.date(
+                    bySettingHour: components.hour ?? 0,
+                    minute: components.minute ?? 0,
+                    second: 0,
+                    of: now)
+                else {
+                    return nil
+                }
+                if anchored >= now {
+                    return anchored
+                }
+                return calendar.date(byAdding: .day, value: 1, to: anchored)
+            }
+        }
+
+        return nil
+    }
+
+    private static func bumpYearIfNeeded(_ date: Date, now: Date, calendar: Calendar) -> Date? {
+        if date >= now {
+            return date
+        }
+        return calendar.date(byAdding: .year, value: 1, to: date)
     }
 
     private func runAndParse(
@@ -128,7 +205,8 @@ public struct CodexStatusProbe {
                     binary: binary,
                     timeout: timeout,
                     rows: rows,
-                    cols: cols)
+                    cols: cols,
+                    environment: self.environment)
             } catch CodexCLISession.SessionError.processExited {
                 throw CodexStatusProbeError.timedOut
             } catch CodexCLISession.SessionError.timedOut {
@@ -146,7 +224,8 @@ public struct CodexStatusProbe {
                     rows: rows,
                     cols: cols,
                     timeout: timeout,
-                    extraArgs: ["-s", "read-only", "-a", "untrusted"]))
+                    extraArgs: ["-s", "read-only", "-a", "untrusted"],
+                    baseEnvironment: self.environment))
             text = result.text
         }
         return try Self.parse(text: text)

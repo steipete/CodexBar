@@ -217,17 +217,17 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         false
     }
 
-    private struct TokenContext: Sendable {
+    private struct TokenContext {
         let tokensByLabel: [String: [String]]
         let groupIDByLabel: [String: String]
     }
 
-    private struct FetchContext: Sendable {
+    private struct FetchContext {
         let region: MiniMaxAPIRegion
         let environment: [String: String]
     }
 
-    private enum FetchAttemptResult: Sendable {
+    private enum FetchAttemptResult {
         case success(MiniMaxUsageSnapshot)
         case failure(Error)
     }

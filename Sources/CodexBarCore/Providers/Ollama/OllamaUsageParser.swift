@@ -3,12 +3,12 @@ import Foundation
 enum OllamaUsageParser {
     private static let primaryUsageLabels = ["Session usage", "Hourly usage"]
 
-    enum ParseFailure: Sendable, Equatable {
+    enum ParseFailure: Equatable {
         case notLoggedIn
         case missingUsageData
     }
 
-    enum ClassifiedParseResult: Sendable {
+    enum ClassifiedParseResult {
         case success(OllamaUsageSnapshot)
         case failure(ParseFailure)
     }
@@ -47,7 +47,7 @@ enum OllamaUsageParser {
             updatedAt: now))
     }
 
-    private struct UsageBlock: Sendable {
+    private struct UsageBlock {
         let usedPercent: Double
         let resetsAt: Date?
     }

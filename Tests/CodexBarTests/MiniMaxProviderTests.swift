@@ -2,38 +2,37 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct MiniMaxCookieHeaderTests {
     @Test
-    func normalizesRawCookieHeader() {
+    func `normalizes raw cookie header`() {
         let raw = "foo=bar; session=abc123"
         let normalized = MiniMaxCookieHeader.normalized(from: raw)
         #expect(normalized == "foo=bar; session=abc123")
     }
 
     @Test
-    func extractsFromCookieHeaderLine() {
+    func `extracts from cookie header line`() {
         let raw = "Cookie: foo=bar; session=abc123"
         let normalized = MiniMaxCookieHeader.normalized(from: raw)
         #expect(normalized == "foo=bar; session=abc123")
     }
 
     @Test
-    func extractsFromCurlHeader() {
+    func `extracts from curl header`() {
         let raw = "curl https://platform.minimax.io -H 'Cookie: foo=bar; session=abc123' -H 'accept: */*'"
         let normalized = MiniMaxCookieHeader.normalized(from: raw)
         #expect(normalized == "foo=bar; session=abc123")
     }
 
     @Test
-    func extractsFromCurlCookieFlag() {
+    func `extracts from curl cookie flag`() {
         let raw = "curl https://platform.minimax.io --cookie 'foo=bar; session=abc123'"
         let normalized = MiniMaxCookieHeader.normalized(from: raw)
         #expect(normalized == "foo=bar; session=abc123")
     }
 
     @Test
-    func extractsAuthAndGroupIDFromCurl() {
+    func `extracts auth and group ID from curl`() {
         let raw = """
         curl 'https://platform.minimax.io/v1/api/openplatform/coding_plan/remains?GroupId=123456' \
           -H 'authorization: Bearer token123' \
@@ -46,7 +45,7 @@ struct MiniMaxCookieHeaderTests {
     }
 
     @Test
-    func extractsAuthFromUppercaseHeader() {
+    func `extracts auth from uppercase header`() {
         let raw = """
         curl 'https://platform.minimax.io/v1/api/openplatform/coding_plan/remains?GROUP_ID=98765' \
           -H 'Authorization: Bearer token-abc' \
@@ -58,10 +57,9 @@ struct MiniMaxCookieHeaderTests {
     }
 }
 
-@Suite
 struct MiniMaxUsageParserTests {
     @Test
-    func parsesCodingPlanSnapshot() throws {
+    func `parses coding plan snapshot`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <div>Coding Plan</div>
@@ -85,7 +83,7 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func parsesCodingPlanRemainsResponse() throws {
+    func `parses coding plan remains response`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let start = 1_700_000_000_000
         let end = start + 5 * 60 * 60 * 1000
@@ -118,7 +116,7 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func parsesCodingPlanRemainsFromDataWrapper() throws {
+    func `parses coding plan remains from data wrapper`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_100)
         let start = 1_700_000_000_000
         let end = start + 5 * 60 * 60 * 1000
@@ -154,7 +152,7 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func parsesCodingPlanFromNextData() throws {
+    func `parses coding plan from next data`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let start = 1_700_000_000_000
         let end = start + 5 * 60 * 60 * 1000
@@ -198,7 +196,7 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func parsesHTMLWithUsedPrefixAndResetTime() throws {
+    func `parses HTML with used prefix and reset time`() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
         let now = try #require(calendar.date(from: DateComponents(year: 2025, month: 1, day: 1, hour: 10, minute: 0)))
@@ -226,7 +224,7 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func throwsOnMissingCookieResponse() {
+    func `throws on missing cookie response`() {
         let json = """
         {
           "base_resp": { "status_code": 1004, "status_msg": "cookie is missing, log in again" }
@@ -239,7 +237,7 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func throwsOnStringStatusCodeWhenLoggedOut() {
+    func `throws on string status code when logged out`() {
         let json = """
         {
           "base_resp": { "status_code": "1004", "status_msg": "login required" }
@@ -252,7 +250,7 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func throwsOnErrorInDataWrapper() {
+    func `throws on error in data wrapper`() {
         let json = """
         {
           "data": {
@@ -267,10 +265,9 @@ struct MiniMaxUsageParserTests {
     }
 }
 
-@Suite
 struct MiniMaxAPIRegionTests {
     @Test
-    func defaultsToGlobalHosts() {
+    func `defaults to global hosts`() {
         let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: [:])
         let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: [:])
         #expect(codingPlan.host == "platform.minimax.io")
@@ -278,7 +275,7 @@ struct MiniMaxAPIRegionTests {
     }
 
     @Test
-    func usesChinaMainlandHosts() {
+    func `uses china mainland hosts`() {
         let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .chinaMainland, environment: [:])
         let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .chinaMainland, environment: [:])
         #expect(codingPlan.host == "platform.minimaxi.com")
@@ -287,7 +284,7 @@ struct MiniMaxAPIRegionTests {
     }
 
     @Test
-    func hostOverrideWinsForRemainsAndCodingPlan() {
+    func `host override wins for remains and coding plan`() {
         let env = [MiniMaxSettingsReader.hostKey: "api.minimaxi.com"]
         let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env)
         let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
@@ -296,14 +293,14 @@ struct MiniMaxAPIRegionTests {
     }
 
     @Test
-    func remainsUrlOverrideBeatsHost() {
+    func `remains url override beats host`() {
         let env = [MiniMaxSettingsReader.remainsURLKey: "https://platform.minimaxi.com/custom/remains"]
         let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
         #expect(remains.absoluteString == "https://platform.minimaxi.com/custom/remains")
     }
 
     @Test
-    func originUsesCodingPlanOverrideHost() {
+    func `origin uses coding plan override host`() {
         let env = [MiniMaxSettingsReader.codingPlanURLKey: "https://api.minimaxi.com/custom/path?cycle_type=3"]
         let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env)
         let origin = MiniMaxUsageFetcher.originURL(from: codingPlan)
@@ -311,7 +308,7 @@ struct MiniMaxAPIRegionTests {
     }
 
     @Test
-    func originStripsHostOverridePath() {
+    func `origin strips host override path`() {
         let env = [MiniMaxSettingsReader.hostKey: "https://api.minimaxi.com/custom/path"]
         let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env)
         let origin = MiniMaxUsageFetcher.originURL(from: codingPlan)

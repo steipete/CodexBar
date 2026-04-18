@@ -31,12 +31,15 @@ public struct GeminiStatusSnapshot: Sendable {
     }
 
     /// Converts Gemini quotas to a unified UsageSnapshot.
-    /// Groups quotas by tier: Pro (24h window) as primary, Flash (24h window) as secondary.
+    /// Groups quotas by tier: Pro (24h window) as primary, Flash (24h window) as secondary,
+    /// Flash Lite (24h window) as tertiary.
     public func toUsageSnapshot() -> UsageSnapshot {
         let lower = self.modelQuotas.map { ($0.modelId.lowercased(), $0) }
-        let flashQuotas = lower.filter { $0.0.contains("flash") }.map(\.1)
-        let proQuotas = lower.filter { $0.0.contains("pro") }.map(\.1)
+        let flashLiteQuotas = lower.filter { Self.isFlashLiteModel(id: $0.0) }.map(\.1)
+        let flashQuotas = lower.filter { Self.isFlashModel(id: $0.0) }.map(\.1)
+        let proQuotas = lower.filter { Self.isProModel(id: $0.0) }.map(\.1)
 
+        let flashLiteMin = flashLiteQuotas.min(by: { $0.percentLeft < $1.percentLeft })
         let flashMin = flashQuotas.min(by: { $0.percentLeft < $1.percentLeft })
         let proMin = proQuotas.min(by: { $0.percentLeft < $1.percentLeft })
 
@@ -53,6 +56,13 @@ public struct GeminiStatusSnapshot: Sendable {
                 resetsAt: $0.resetTime,
                 resetDescription: $0.resetDescription)
         }
+        let tertiary: RateWindow? = flashLiteMin.map {
+            RateWindow(
+                usedPercent: 100 - $0.percentLeft,
+                windowMinutes: 1440,
+                resetsAt: $0.resetTime,
+                resetDescription: $0.resetDescription)
+        }
 
         let identity = ProviderIdentitySnapshot(
             providerID: .gemini,
@@ -62,8 +72,21 @@ public struct GeminiStatusSnapshot: Sendable {
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
+            tertiary: tertiary,
             updatedAt: Date(),
             identity: identity)
+    }
+
+    private static func isFlashLiteModel(id: String) -> Bool {
+        id.contains("flash-lite")
+    }
+
+    private static func isFlashModel(id: String) -> Bool {
+        id.contains("flash") && !self.isFlashLiteModel(id: id)
+    }
+
+    private static func isProModel(id: String) -> Bool {
+        id.contains("pro")
     }
 }
 
@@ -337,7 +360,7 @@ public struct GeminiStatusProbe: Sendable {
         return nil
     }
 
-    private struct CodeAssistStatus: Sendable {
+    private struct CodeAssistStatus {
         let tier: GeminiUserTierId?
         let projectId: String?
 

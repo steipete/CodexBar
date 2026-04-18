@@ -48,6 +48,10 @@ public struct ClaudeStatusProbe: Sendable {
     public var timeout: TimeInterval = 20.0
     public var keepCLISessionsAlive: Bool = false
     private static let log = CodexBarLog.logger(LogCategories.claudeProbe)
+    #if DEBUG
+    public typealias FetchOverride = @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot
+    @TaskLocal static var fetchOverride: FetchOverride?
+    #endif
 
     public init(claudeBinary: String = "claude", timeout: TimeInterval = 20.0, keepCLISessionsAlive: Bool = false) {
         self.claudeBinary = claudeBinary
@@ -55,15 +59,44 @@ public struct ClaudeStatusProbe: Sendable {
         self.keepCLISessionsAlive = keepCLISessionsAlive
     }
 
+    #if DEBUG
+    public static var currentFetchOverrideForTesting: FetchOverride? {
+        self.fetchOverride
+    }
+
+    public static func withFetchOverrideForTesting<T>(
+        _ override: FetchOverride?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$fetchOverride.withValue(override) {
+            try await operation()
+        }
+    }
+
+    public static func withFetchOverrideForTesting<T>(
+        _ override: FetchOverride?,
+        operation: () async -> T) async -> T
+    {
+        await self.$fetchOverride.withValue(override) {
+            await operation()
+        }
+    }
+    #endif
+
     public func fetch() async throws -> ClaudeStatusSnapshot {
         let resolved = Self.resolvedBinaryPath(binaryName: self.claudeBinary)
-        guard Self.isBinaryAvailable(resolved) else {
+        guard let resolved, Self.isBinaryAvailable(resolved) else {
             throw ClaudeStatusProbeError.claudeNotInstalled
         }
 
         // Run commands sequentially through a shared Claude session to avoid warm-up churn.
         let timeout = self.timeout
         let keepAlive = self.keepCLISessionsAlive
+        #if DEBUG
+        if let override = Self.fetchOverride {
+            return try await override(resolved, timeout, keepAlive)
+        }
+        #endif
         do {
             var usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: timeout)
             if !Self.usageOutputLooksRelevant(usage) {
@@ -104,14 +137,10 @@ public struct ClaudeStatusProbe: Sendable {
             self.normalizedData = Data(normalized.utf8)
         }
 
-        func contains(_ needle: Data) -> Bool {
-            self.normalizedData.range(of: needle) != nil
+        func contains(_ needle: String) -> Bool {
+            self.normalizedData.range(of: Data(needle.utf8)) != nil
         }
     }
-
-    private static let weeklyLabelNeedle = Data("current week".utf8)
-    private static let opusLabelNeedle = Data("opus".utf8)
-    private static let sonnetLabelNeedle = Data("sonnet".utf8)
 
     public static func parse(text: String, statusText: String? = nil) throws -> ClaudeStatusSnapshot {
         let clean = TextParsing.stripANSICodes(text)
@@ -151,9 +180,9 @@ public struct ClaudeStatusProbe: Sendable {
         // may omit the weekly panel entirely, and we should treat that as "unavailable" rather than guessing.
         let compactContext = usagePanelText.lowercased().filter { !$0.isWhitespace }
         let hasWeeklyLabel =
-            labelContext.contains(Self.weeklyLabelNeedle)
+            labelContext.contains("currentweek")
             || compactContext.contains("currentweek")
-        let hasOpusLabel = labelContext.contains(Self.opusLabelNeedle) || labelContext.contains(Self.sonnetLabelNeedle)
+        let hasOpusLabel = labelContext.contains("opus") || labelContext.contains("sonnet")
 
         if sessionPct == nil || (hasWeeklyLabel && weeklyPct == nil) || (hasOpusLabel && opusPct == nil) {
             let ordered = self.allPercents(usagePanelText)
@@ -212,18 +241,24 @@ public struct ClaudeStatusProbe: Sendable {
         return self.extractIdentity(usageText: usageClean, statusText: statusClean)
     }
 
-    public static func fetchIdentity(timeout: TimeInterval = 12.0) async throws -> ClaudeAccountIdentity {
-        let resolved = self.resolvedBinaryPath(binaryName: "claude")
-        guard self.isBinaryAvailable(resolved) else {
+    public static func fetchIdentity(
+        timeout: TimeInterval = 12.0,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> ClaudeAccountIdentity
+    {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude", environment: environment)
+        guard let resolved, self.isBinaryAvailable(resolved) else {
             throw ClaudeStatusProbeError.claudeNotInstalled
         }
         let statusText = try await Self.capture(subcommand: "/status", binary: resolved, timeout: timeout)
         return Self.parseIdentity(usageText: nil, statusText: statusText)
     }
 
-    public static func touchOAuthAuthPath(timeout: TimeInterval = 8) async throws {
-        let resolved = self.resolvedBinaryPath(binaryName: "claude")
-        guard self.isBinaryAvailable(resolved) else {
+    public static func touchOAuthAuthPath(
+        timeout: TimeInterval = 8,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws
+    {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude", environment: environment)
+        guard let resolved, self.isBinaryAvailable(resolved) else {
             throw ClaudeStatusProbeError.claudeNotInstalled
         }
         do {
@@ -245,8 +280,10 @@ public struct ClaudeStatusProbe: Sendable {
         }
     }
 
-    public static func isClaudeBinaryAvailable() -> Bool {
-        let resolved = self.resolvedBinaryPath(binaryName: "claude")
+    public static func isClaudeBinaryAvailable(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude", environment: environment)
         return self.isBinaryAvailable(resolved)
     }
 
@@ -374,6 +411,7 @@ public struct ClaudeStatusProbe: Sendable {
         if let jsonHint = self.extractUsageErrorJSON(text: text) { return jsonHint }
 
         let lower = text.lowercased()
+        let compact = lower.filter { !$0.isWhitespace }
         if lower.contains("do you trust the files in this folder?"), !lower.contains("current session") {
             let folder = self.extractFirst(
                 pattern: #"Do you trust the files in this folder\?\s*(?:\r?\n)+\s*([^\r\n]+)"#,
@@ -399,7 +437,16 @@ public struct ClaudeStatusProbe: Sendable {
         if lower.contains("authentication_error") {
             return "Claude CLI authentication error. Run `claude login`."
         }
+        if lower.contains("rate_limit_error")
+            || lower.contains("rate limited")
+            || compact.contains("ratelimited")
+        {
+            return "Claude CLI usage endpoint is rate limited right now. Please try again later."
+        }
         if lower.contains("failed to load usage data") {
+            return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
+        }
+        if compact.contains("failedtoloadusagedata") {
             return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
         }
         return nil
@@ -449,7 +496,7 @@ public struct ClaudeStatusProbe: Sendable {
             for candidate in window {
                 let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
                 let normalized = self.normalizedForLabelSearch(trimmed)
-                if normalized.hasPrefix("current "), !normalized.contains(label) { break }
+                if normalized.hasPrefix("current"), !normalized.contains(label) { break }
                 if let reset = self.resetFromLine(candidate) { return reset }
             }
         }
@@ -470,9 +517,7 @@ public struct ClaudeStatusProbe: Sendable {
     }
 
     private static func normalizedForLabelSearch(_ text: String) -> String {
-        text.lowercased()
-            .split(whereSeparator: { $0.isWhitespace })
-            .joined(separator: " ")
+        String(text.lowercased().unicodeScalars.filter(CharacterSet.alphanumerics.contains))
     }
 
     /// Capture all "Resets ..." strings to surface in the menu.
@@ -569,6 +614,9 @@ public struct ClaudeStatusProbe: Sendable {
         guard var raw = text?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         raw = raw.replacingOccurrences(of: #"(?i)^resets?:?\s*"#, with: "", options: .regularExpression)
         raw = raw.replacingOccurrences(of: " at ", with: " ", options: .caseInsensitive)
+        raw = raw.replacingOccurrences(of: #"(?i)\b([A-Za-z]{3})(\d)"#, with: "$1 $2", options: .regularExpression)
+        raw = raw.replacingOccurrences(of: #",(\d)"#, with: ", $1", options: .regularExpression)
+        raw = raw.replacingOccurrences(of: #"(?i)(\d)at(?=\d)"#, with: "$1 ", options: .regularExpression)
         raw = raw.replacingOccurrences(
             of: #"(?<=\d)\.(\d{2})\b"#,
             with: ":$1",
@@ -600,7 +648,7 @@ public struct ClaudeStatusProbe: Sendable {
     private static func extractLoginMethod(text: String) -> String? {
         guard !text.isEmpty else { return nil }
         if let explicit = self.extractFirst(pattern: #"(?i)login\s+method:\s*(.+)"#, text: text) {
-            return self.cleanPlan(explicit)
+            return ClaudePlan.cliCompatibilityLoginMethod(self.cleanPlan(explicit))
         }
         // Capture any "Claude <...>" phrase (e.g., Max/Pro/Ultra/Team) to avoid future plan-name churn.
         // Strip any leading ANSI that may have survived (rare) before matching.
@@ -613,7 +661,7 @@ public struct ClaudeStatusProbe: Sendable {
                       match.numberOfRanges >= 2,
                       let r = Range(match.range(at: 1), in: text) else { return }
                 let raw = String(text[r])
-                let val = Self.cleanPlan(raw)
+                let val = ClaudePlan.cliCompatibilityLoginMethod(Self.cleanPlan(raw)) ?? Self.cleanPlan(raw)
                 candidates.append(val)
             }
         }
@@ -669,8 +717,16 @@ public struct ClaudeStatusProbe: Sendable {
         }
     }
 
+    #if DEBUG
+    public static func _replaceDumpsForTesting(_ dumps: [String]) async {
+        await MainActor.run {
+            self.recentDumps = dumps
+        }
+    }
+    #endif
+
     private static func extractUsageErrorJSON(text: String) -> String? {
-        let pattern = #"Failed to load usage data:\s*(\{.*\})"#
+        let pattern = #"Failed\s*to\s*load\s*usage\s*data:\s*(\{.*\})"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
             return nil
         }
@@ -695,6 +751,11 @@ public struct ClaudeStatusProbe: Sendable {
         let message = (error["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let details = error["details"] as? [String: Any]
         let code = (details?["error_code"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let type = (error["type"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if type == "rate_limit_error" {
+            return "Claude CLI usage endpoint is rate limited right now. Please try again later."
+        }
 
         var parts: [String] = []
         if let message, !message.isEmpty { parts.append(message) }
@@ -711,15 +772,19 @@ public struct ClaudeStatusProbe: Sendable {
 
     // MARK: - Process helpers
 
-    private static func resolvedBinaryPath(binaryName: String) -> String {
-        let env = ProcessInfo.processInfo.environment
-        return BinaryLocator.resolveClaudeBinary(env: env, loginPATH: LoginShellPathCache.shared.current)
-            ?? TTYCommandRunner.which(binaryName)
-            ?? binaryName
+    private static func resolvedBinaryPath(
+        binaryName: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        if binaryName.contains("/") {
+            return binaryName
+        }
+        return ClaudeCLIResolver.resolvedBinaryPath(environment: environment)
     }
 
-    private static func isBinaryAvailable(_ binaryPathOrName: String) -> Bool {
-        FileManager.default.isExecutableFile(atPath: binaryPathOrName)
+    private static func isBinaryAvailable(_ binaryPathOrName: String?) -> Bool {
+        guard let binaryPathOrName else { return false }
+        return FileManager.default.isExecutableFile(atPath: binaryPathOrName)
             || TTYCommandRunner.which(binaryPathOrName) != nil
     }
 
@@ -748,6 +813,8 @@ public struct ClaudeStatusProbe: Sendable {
                 "Current session",
                 "Failed to load usage data",
                 "failed to load usage data",
+                "Failedto loadusagedata",
+                "failedtoloadusagedata",
             ]
             : []
         let idleTimeout: TimeInterval? = subcommand == "/usage" ? nil : 3.0

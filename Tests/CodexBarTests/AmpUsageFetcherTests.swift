@@ -2,24 +2,23 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct AmpUsageFetcherTests {
     @Test
-    func attachesCookieForAmpHosts() {
+    func `attaches cookie for amp hosts`() {
         #expect(AmpUsageFetcher.shouldAttachCookie(to: URL(string: "https://ampcode.com/settings")))
         #expect(AmpUsageFetcher.shouldAttachCookie(to: URL(string: "https://www.ampcode.com")))
         #expect(AmpUsageFetcher.shouldAttachCookie(to: URL(string: "https://app.ampcode.com/path")))
     }
 
     @Test
-    func rejectsNonAmpHosts() {
+    func `rejects non amp hosts`() {
         #expect(!AmpUsageFetcher.shouldAttachCookie(to: URL(string: "https://example.com")))
         #expect(!AmpUsageFetcher.shouldAttachCookie(to: URL(string: "https://ampcode.com.evil.com")))
         #expect(!AmpUsageFetcher.shouldAttachCookie(to: nil))
     }
 
     @Test
-    func detectsLoginRedirects() throws {
+    func `detects login redirects`() throws {
         let signIn = try #require(URL(string: "https://ampcode.com/auth/sign-in?returnTo=%2Fsettings"))
         #expect(AmpUsageFetcher.isLoginRedirect(signIn))
 
@@ -34,7 +33,7 @@ struct AmpUsageFetcherTests {
     }
 
     @Test
-    func ignoresNonLoginURLs() throws {
+    func `ignores non login UR ls`() throws {
         let settings = try #require(URL(string: "https://ampcode.com/settings"))
         #expect(!AmpUsageFetcher.isLoginRedirect(settings))
 

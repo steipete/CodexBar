@@ -1,12 +1,25 @@
 import Foundation
 
 public struct WidgetSnapshot: Codable, Sendable {
+    public struct WidgetUsageRowSnapshot: Codable, Equatable, Sendable {
+        public let id: String
+        public let title: String
+        public let percentLeft: Double?
+
+        public init(id: String, title: String, percentLeft: Double?) {
+            self.id = id
+            self.title = title
+            self.percentLeft = percentLeft
+        }
+    }
+
     public struct ProviderEntry: Codable, Sendable {
         public let provider: UsageProvider
         public let updatedAt: Date
         public let primary: RateWindow?
         public let secondary: RateWindow?
         public let tertiary: RateWindow?
+        public let usageRows: [WidgetUsageRowSnapshot]?
         public let creditsRemaining: Double?
         public let codeReviewRemainingPercent: Double?
         public let tokenUsage: TokenUsageSummary?
@@ -18,6 +31,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             primary: RateWindow?,
             secondary: RateWindow?,
             tertiary: RateWindow?,
+            usageRows: [WidgetUsageRowSnapshot]? = nil,
             creditsRemaining: Double?,
             codeReviewRemainingPercent: Double?,
             tokenUsage: TokenUsageSummary?,
@@ -28,6 +42,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.primary = primary
             self.secondary = secondary
             self.tertiary = tertiary
+            self.usageRows = usageRows
             self.creditsRemaining = creditsRemaining
             self.codeReviewRemainingPercent = codeReviewRemainingPercent
             self.tokenUsage = tokenUsage

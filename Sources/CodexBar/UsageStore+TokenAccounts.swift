@@ -1,7 +1,7 @@
 import CodexBarCore
 import Foundation
 
-struct TokenAccountUsageSnapshot: Identifiable, Sendable {
+struct TokenAccountUsageSnapshot: Identifiable {
     let id: UUID
     let account: ProviderTokenAccount
     let snapshot: UsageSnapshot?
@@ -33,6 +33,7 @@ extension UsageStore {
         let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
         let effectiveSelected = selectedAccount ?? limitedAccounts.first
         var snapshots: [TokenAccountUsageSnapshot] = []
+        var historySamples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)] = []
         var selectedOutcome: ProviderFetchOutcome?
         var selectedSnapshot: UsageSnapshot?
 
@@ -41,6 +42,9 @@ extension UsageStore {
             let outcome = await self.fetchOutcome(provider: provider, override: override)
             let resolved = self.resolveAccountOutcome(outcome, provider: provider, account: account)
             snapshots.append(resolved.snapshot)
+            if let usage = resolved.usage {
+                historySamples.append((account: account, snapshot: usage))
+            }
             if account.id == effectiveSelected?.id {
                 selectedOutcome = outcome
                 selectedSnapshot = resolved.usage
@@ -58,6 +62,11 @@ extension UsageStore {
                 account: effectiveSelected,
                 fallbackSnapshot: selectedSnapshot)
         }
+
+        await self.recordFetchedTokenAccountPlanUtilizationHistory(
+            provider: provider,
+            samples: historySamples,
+            selectedAccount: effectiveSelected)
     }
 
     func limitedTokenAccounts(
@@ -79,6 +88,14 @@ extension UsageStore {
         override: TokenAccountOverride?) async -> ProviderFetchOutcome
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let context = self.makeFetchContext(provider: provider, override: override)
+        return await descriptor.fetchOutcome(context: context)
+    }
+
+    func makeFetchContext(
+        provider: UsageProvider,
+        override: TokenAccountOverride?) -> ProviderFetchContext
+    {
         let sourceMode = self.sourceMode(for: provider)
         let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: override)
         let env = ProviderRegistry.makeEnvironment(
@@ -86,6 +103,7 @@ extension UsageStore {
             provider: provider,
             settings: self.settings,
             tokenOverride: override)
+        let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: provider, env: env)
         let verbose = self.settings.isVerboseLoggingEnabled
 
         let onAntigravityCredentialsRefreshed: (@Sendable (String, AntigravityOAuthCredentials) -> Void) =
@@ -96,7 +114,7 @@ extension UsageStore {
                 }
             }
 
-        let context = ProviderFetchContext(
+        return ProviderFetchContext(
             runtime: .app,
             sourceMode: sourceMode,
             includeCredits: false,
@@ -105,11 +123,10 @@ extension UsageStore {
             verbose: verbose,
             env: env,
             settings: snapshot,
-            fetcher: self.codexFetcher,
+            fetcher: fetcher,
             claudeFetcher: self.claudeFetcher,
             browserDetection: self.browserDetection,
             onAntigravityCredentialsRefreshed: onAntigravityCredentialsRefreshed)
-        return await descriptor.fetchOutcome(context: context)
     }
 
     func sourceMode(for provider: UsageProvider) -> ProviderSourceMode {
@@ -121,6 +138,21 @@ extension UsageStore {
     private struct ResolvedAccountOutcome {
         let snapshot: TokenAccountUsageSnapshot
         let usage: UsageSnapshot?
+    }
+
+    func recordFetchedTokenAccountPlanUtilizationHistory(
+        provider: UsageProvider,
+        samples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)],
+        selectedAccount: ProviderTokenAccount?) async
+    {
+        for sample in samples where sample.account.id != selectedAccount?.id {
+            await self.recordPlanUtilizationHistorySample(
+                provider: provider,
+                snapshot: sample.snapshot,
+                account: sample.account,
+                shouldUpdatePreferredAccountKey: false,
+                shouldAdoptUnscopedHistory: false)
+        }
     }
 
     private func resolveAccountOutcome(
@@ -172,6 +204,10 @@ extension UsageStore {
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
             }
+            await self.recordPlanUtilizationHistorySample(
+                provider: provider,
+                snapshot: labeled,
+                account: account)
         case let .failure(error):
             await MainActor.run {
                 let hadPriorData = self.snapshots[provider] != nil || fallbackSnapshot != nil

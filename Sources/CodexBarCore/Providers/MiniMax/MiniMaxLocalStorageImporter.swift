@@ -5,7 +5,7 @@ import SweetCookieKit
 
 #if os(macOS)
 enum MiniMaxLocalStorageImporter {
-    struct TokenInfo: Sendable {
+    struct TokenInfo {
         let accessToken: String
         let groupID: String?
         let sourceLabel: String
@@ -106,21 +106,21 @@ enum MiniMaxLocalStorageImporter {
 
     // MARK: - Chrome local storage discovery
 
-    private enum LocalStorageSourceKind: Sendable {
+    private enum LocalStorageSourceKind {
         case chromeLevelDB(URL)
     }
 
-    private struct LocalStorageCandidate: Sendable {
+    private struct LocalStorageCandidate {
         let label: String
         let kind: LocalStorageSourceKind
     }
 
-    private struct SessionStorageCandidate: Sendable {
+    private struct SessionStorageCandidate {
         let label: String
         let url: URL
     }
 
-    private struct IndexedDBCandidate: Sendable {
+    private struct IndexedDBCandidate {
         let label: String
         let url: URL
     }
@@ -335,7 +335,7 @@ enum MiniMaxLocalStorageImporter {
 
     // MARK: - Token extraction
 
-    private struct LocalStorageSnapshot: Sendable {
+    private struct LocalStorageSnapshot {
         let tokens: [String]
         let groupID: String?
     }

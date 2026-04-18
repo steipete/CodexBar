@@ -9,7 +9,7 @@ public enum ClaudeOAuthRefreshFailureGate {
         case transient(until: Date, failures: Int)
     }
 
-    struct AuthFingerprint: Codable, Equatable, Sendable {
+    struct AuthFingerprint: Codable, Equatable {
         let keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?
         let credentialsFile: String?
     }

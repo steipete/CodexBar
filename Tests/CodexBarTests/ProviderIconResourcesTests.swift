@@ -3,10 +3,9 @@ import Foundation
 import Testing
 
 @MainActor
-@Suite
 struct ProviderIconResourcesTests {
     @Test
-    func providerIconSVGsExist() throws {
+    func `provider icon SV gs exist`() throws {
         let root = try Self.repoRoot()
         let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
 
@@ -17,6 +16,8 @@ struct ProviderIconResourcesTests {
             "minimax",
             "cursor",
             "opencode",
+            "opencodego",
+            "alibaba",
             "gemini",
             "antigravity",
             "factory",

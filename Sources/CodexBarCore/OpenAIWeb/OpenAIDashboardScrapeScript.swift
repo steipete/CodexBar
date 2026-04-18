@@ -203,6 +203,12 @@ let openAIDashboardScrapeScript = """
       };
       const dayKeyFromPayload = (payload) => {
         if (!payload || typeof payload !== 'object') return null;
+        const localDayKeyForDate = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
         const keys = ['day', 'date', 'name', 'label', 'x', 'time', 'timestamp'];
         for (const k of keys) {
           const v = payload[k];
@@ -215,7 +221,7 @@ let openAIDashboardScrapeScript = """
           if (typeof v === 'number' && Number.isFinite(v) && (k === 'timestamp' || k === 'time' || k === 'x')) {
             try {
               const d = new Date(v);
-              if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+              if (!isNaN(d.getTime())) return localDayKeyForDate(d);
             } catch {}
           }
         }

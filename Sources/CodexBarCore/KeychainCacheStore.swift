@@ -141,7 +141,7 @@ public enum KeychainCacheStore {
         self.globalServiceOverride = service
     }
 
-    static func withServiceOverrideForTesting<T>(
+    public static func withServiceOverrideForTesting<T>(
         _ service: String?,
         operation: () throws -> T) rethrows -> T
     {
@@ -150,13 +150,26 @@ public enum KeychainCacheStore {
         }
     }
 
-    static func withServiceOverrideForTesting<T>(
+    public static func withServiceOverrideForTesting<T>(
         _ service: String?,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$serviceOverride.withValue(service) {
             try await operation()
         }
+    }
+
+    public static func withCurrentServiceOverrideForTesting<T>(
+        operation: () async throws -> T) async rethrows -> T
+    {
+        let service = self.serviceOverride
+        return try await self.$serviceOverride.withValue(service) {
+            try await operation()
+        }
+    }
+
+    public static var currentServiceOverrideForTesting: String? {
+        self.serviceOverride
     }
 
     static func setTestStoreForTesting(_ enabled: Bool) {
@@ -231,8 +244,13 @@ public enum KeychainCacheStore {
 }
 
 extension KeychainCacheStore.Key {
-    public static func cookie(provider: UsageProvider) -> Self {
-        Self(category: "cookie", identifier: provider.rawValue)
+    public static func cookie(provider: UsageProvider, scopeIdentifier: String? = nil) -> Self {
+        let identifier: String = if let scopeIdentifier, !scopeIdentifier.isEmpty {
+            "\(provider.rawValue).\(scopeIdentifier)"
+        } else {
+            provider.rawValue
+        }
+        return Self(category: "cookie", identifier: identifier)
     }
 
     public static func oauth(provider: UsageProvider) -> Self {

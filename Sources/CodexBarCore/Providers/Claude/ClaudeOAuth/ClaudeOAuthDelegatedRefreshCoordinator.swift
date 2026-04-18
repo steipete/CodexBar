@@ -1,6 +1,21 @@
 import Foundation
 
 public enum ClaudeOAuthDelegatedRefreshCoordinator {
+    private final class AttemptStateStorage: @unchecked Sendable {
+        let lock = NSLock()
+        let persistsCooldown: Bool
+        var hasLoadedState = false
+        var lastAttemptAt: Date?
+        var lastCooldownInterval: TimeInterval?
+        var inFlightAttemptID: UInt64?
+        var inFlightTask: Task<Outcome, Never>?
+        var nextAttemptID: UInt64 = 0
+
+        init(persistsCooldown: Bool) {
+            self.persistsCooldown = persistsCooldown
+        }
+    }
+
     public enum Outcome: Sendable, Equatable {
         case skippedByCooldown
         case cliUnavailable
@@ -14,84 +29,125 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
     private static let defaultCooldownInterval: TimeInterval = 60 * 5
     private static let shortCooldownInterval: TimeInterval = 20
 
-    private static let stateLock = NSLock()
-    private nonisolated(unsafe) static var hasLoadedState = false
-    private nonisolated(unsafe) static var lastAttemptAt: Date?
-    private nonisolated(unsafe) static var lastCooldownInterval: TimeInterval?
-    private nonisolated(unsafe) static var inFlightAttemptID: UInt64?
-    private nonisolated(unsafe) static var inFlightTask: Task<Outcome, Never>?
-    private nonisolated(unsafe) static var nextAttemptID: UInt64 = 0
+    private static let sharedState = AttemptStateStorage(persistsCooldown: true)
 
-    public static func attempt(now: Date = Date(), timeout: TimeInterval = 8) async -> Outcome {
+    public static func attempt(
+        now: Date = Date(),
+        timeout: TimeInterval = 8,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async -> Outcome
+    {
         if Task.isCancelled {
             return .attemptedFailed("Cancelled.")
         }
 
-        switch self.inFlightDecision(now: now, timeout: timeout) {
+        switch self.inFlightDecision(now: now, timeout: timeout, environment: environment) {
         case let .join(task):
             return await task.value
-        case let .start(id, task):
+        case let .start(id, task, state):
             let outcome = await task.value
-            self.clearInFlightTaskIfStillCurrent(id: id)
+            self.clearInFlightTaskIfStillCurrent(id: id, state: state)
             return outcome
         }
     }
 
     private enum InFlightDecision {
         case join(Task<Outcome, Never>)
-        case start(UInt64, Task<Outcome, Never>)
+        case start(UInt64, Task<Outcome, Never>, AttemptStateStorage)
     }
 
-    private static func inFlightDecision(now: Date, timeout: TimeInterval) -> InFlightDecision {
-        self.stateLock.lock()
-        defer { self.stateLock.unlock() }
+    private struct AttemptConfiguration {
+        let environment: [String: String]
+        let readStrategy: ClaudeOAuthKeychainReadStrategy
+        let keychainAccessDisabled: Bool
+        #if DEBUG
+        let cliAvailableOverride: Bool?
+        let touchAuthPathOverride: (@Sendable (TimeInterval, [String: String]) async throws -> Void)?
+        let keychainFingerprintOverride: (@Sendable () -> ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?)?
+        #endif
+    }
 
-        if let existing = self.inFlightTask {
+    private static func inFlightDecision(
+        now: Date,
+        timeout: TimeInterval,
+        environment: [String: String]) -> InFlightDecision
+    {
+        let state = self.currentStateStorage
+        state.lock.lock()
+        defer { state.lock.unlock() }
+
+        if let existing = state.inFlightTask {
             return .join(existing)
         }
 
-        self.nextAttemptID += 1
-        let attemptID = self.nextAttemptID
+        state.nextAttemptID += 1
+        let attemptID = state.nextAttemptID
         // Detached to avoid inheriting the caller's executor context (e.g. MainActor) and cancellation state.
-        let readStrategy = ClaudeOAuthKeychainReadStrategyPreference.current()
-        let keychainAccessDisabled = KeychainAccessGate.isDisabled
+        #if DEBUG
+        let configuration = AttemptConfiguration(
+            environment: environment,
+            readStrategy: ClaudeOAuthKeychainReadStrategyPreference.current(),
+            keychainAccessDisabled: KeychainAccessGate.isDisabled,
+            cliAvailableOverride: self.cliAvailableOverrideForTesting,
+            touchAuthPathOverride: self.touchAuthPathOverrideForTesting,
+            keychainFingerprintOverride: self.keychainFingerprintOverrideForTesting)
+        let securityCLIReadOverride = ClaudeOAuthCredentialsStore.currentSecurityCLIReadOverrideForTesting()
+        #else
+        let configuration = AttemptConfiguration(
+            environment: environment,
+            readStrategy: ClaudeOAuthKeychainReadStrategyPreference.current(),
+            keychainAccessDisabled: KeychainAccessGate.isDisabled)
+        #endif
         let task = Task.detached(priority: .utility) {
+            #if DEBUG
+            return await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(securityCLIReadOverride) {
+                await self.performAttempt(
+                    now: now,
+                    timeout: timeout,
+                    configuration: configuration,
+                    state: state)
+            }
+            #else
             await self.performAttempt(
                 now: now,
                 timeout: timeout,
-                readStrategy: readStrategy,
-                keychainAccessDisabled: keychainAccessDisabled)
+                configuration: configuration,
+                state: state)
+            #endif
         }
-        self.inFlightAttemptID = attemptID
-        self.inFlightTask = task
-        return .start(attemptID, task)
+        state.inFlightAttemptID = attemptID
+        state.inFlightTask = task
+        return .start(attemptID, task, state)
     }
 
     private static func performAttempt(
         now: Date,
         timeout: TimeInterval,
-        readStrategy: ClaudeOAuthKeychainReadStrategy,
-        keychainAccessDisabled: Bool) async -> Outcome
+        configuration: AttemptConfiguration,
+        state: AttemptStateStorage) async -> Outcome
     {
-        guard self.isClaudeCLIAvailable() else {
+        guard self.isClaudeCLIAvailable(environment: configuration.environment, configuration: configuration) else {
             self.log.info("Claude OAuth delegated refresh skipped: claude CLI unavailable")
             return .cliUnavailable
         }
 
         // Atomically reserve an attempt under the lock so concurrent callers don't race past isInCooldown() and start
         // multiple touches/poll loops.
-        guard self.reserveAttemptIfNotInCooldown(now: now) else {
+        guard self.reserveAttemptIfNotInCooldown(now: now, state: state) else {
             self.log.debug("Claude OAuth delegated refresh skipped by cooldown")
             return .skippedByCooldown
         }
 
         let baseline = self.currentKeychainChangeObservationBaseline(
-            readStrategy: readStrategy,
-            keychainAccessDisabled: keychainAccessDisabled)
+            readStrategy: configuration.readStrategy,
+            keychainAccessDisabled: configuration.keychainAccessDisabled,
+            configuration: configuration)
         var touchError: Error?
 
         do {
-            try await self.touchOAuthAuthPath(timeout: timeout)
+            try await self.touchOAuthAuthPath(
+                timeout: timeout,
+                environment: configuration.environment,
+                configuration: configuration)
         } catch {
             touchError = error
         }
@@ -100,16 +156,17 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         // Otherwise we end up in a long cooldown with still-expired credentials.
         let changed = await self.waitForClaudeKeychainChange(
             from: baseline,
-            readStrategy: readStrategy,
-            keychainAccessDisabled: keychainAccessDisabled,
+            readStrategy: configuration.readStrategy,
+            keychainAccessDisabled: configuration.keychainAccessDisabled,
+            configuration: configuration,
             timeout: min(max(timeout, 1), 2))
         if changed {
-            self.recordAttempt(now: now, cooldown: self.defaultCooldownInterval)
+            self.recordAttempt(now: now, cooldown: self.defaultCooldownInterval, state: state)
             self.log.info("Claude OAuth delegated refresh touch succeeded")
             return .attemptedSucceeded
         }
 
-        self.recordAttempt(now: now, cooldown: self.shortCooldownInterval)
+        self.recordAttempt(now: now, cooldown: self.shortCooldownInterval, state: state)
         if let touchError {
             let errorType = String(describing: type(of: touchError))
             self.log.warning(
@@ -124,65 +181,85 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
     }
 
     public static func isInCooldown(now: Date = Date()) -> Bool {
-        self.stateLock.lock()
-        defer { self.stateLock.unlock() }
-        self.loadStateIfNeededLocked()
-        guard let lastAttemptAt = self.lastAttemptAt else { return false }
-        let cooldown = self.lastCooldownInterval ?? self.defaultCooldownInterval
+        let state = self.currentStateStorage
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        self.loadStateIfNeededLocked(state: state)
+        guard let lastAttemptAt = state.lastAttemptAt else { return false }
+        let cooldown = state.lastCooldownInterval ?? self.defaultCooldownInterval
         return now.timeIntervalSince(lastAttemptAt) < cooldown
     }
 
     public static func cooldownRemainingSeconds(now: Date = Date()) -> Int? {
-        self.stateLock.lock()
-        defer { self.stateLock.unlock() }
-        self.loadStateIfNeededLocked()
-        guard let lastAttemptAt = self.lastAttemptAt else { return nil }
-        let cooldown = self.lastCooldownInterval ?? self.defaultCooldownInterval
+        let state = self.currentStateStorage
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        self.loadStateIfNeededLocked(state: state)
+        guard let lastAttemptAt = state.lastAttemptAt else { return nil }
+        let cooldown = state.lastCooldownInterval ?? self.defaultCooldownInterval
         let remaining = cooldown - now.timeIntervalSince(lastAttemptAt)
         guard remaining > 0 else { return nil }
         return Int(remaining.rounded(.up))
     }
 
-    public static func isClaudeCLIAvailable() -> Bool {
+    public static func isClaudeCLIAvailable(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        self.isClaudeCLIAvailable(
+            environment: environment,
+            configuration: nil)
+    }
+
+    private static func isClaudeCLIAvailable(
+        environment: [String: String],
+        configuration: AttemptConfiguration?) -> Bool
+    {
         #if DEBUG
-        if let override = self.cliAvailableOverride {
+        if let override = configuration?.cliAvailableOverride ?? self.cliAvailableOverrideForTesting {
             return override
         }
         #endif
-        return ClaudeStatusProbe.isClaudeBinaryAvailable()
+        return ClaudeCLIResolver.isAvailable(environment: environment)
     }
 
-    private static func touchOAuthAuthPath(timeout: TimeInterval) async throws {
+    private static func touchOAuthAuthPath(
+        timeout: TimeInterval,
+        environment: [String: String],
+        configuration: AttemptConfiguration?) async throws
+    {
         #if DEBUG
-        if let override = self.touchAuthPathOverride {
-            try await override(timeout)
+        if let override = configuration?.touchAuthPathOverride ?? self.touchAuthPathOverrideForTesting {
+            try await override(timeout, environment)
             return
         }
         #endif
-        try await ClaudeStatusProbe.touchOAuthAuthPath(timeout: timeout)
+        try await ClaudeStatusProbe.touchOAuthAuthPath(timeout: timeout, environment: environment)
     }
 
-    private enum KeychainChangeObservationBaseline: Sendable {
+    private enum KeychainChangeObservationBaseline {
         case securityFramework(fingerprint: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?)
         case securityCLI(data: Data?)
     }
 
     private static func currentKeychainChangeObservationBaseline(
         readStrategy: ClaudeOAuthKeychainReadStrategy,
-        keychainAccessDisabled: Bool) -> KeychainChangeObservationBaseline
+        keychainAccessDisabled: Bool,
+        configuration: AttemptConfiguration?) -> KeychainChangeObservationBaseline
     {
         if readStrategy == .securityCLIExperimental {
             return .securityCLI(data: self.currentClaudeKeychainDataViaSecurityCLIForObservation(
                 readStrategy: readStrategy,
-                keychainAccessDisabled: keychainAccessDisabled))
+                keychainAccessDisabled: keychainAccessDisabled,
+                interaction: .background))
         }
-        return .securityFramework(fingerprint: self.currentClaudeKeychainFingerprint())
+        return .securityFramework(fingerprint: self.currentClaudeKeychainFingerprint(configuration: configuration))
     }
 
     private static func waitForClaudeKeychainChange(
         from baseline: KeychainChangeObservationBaseline,
         readStrategy: ClaudeOAuthKeychainReadStrategy,
         keychainAccessDisabled: Bool,
+        configuration: AttemptConfiguration?,
         timeout: TimeInterval) async -> Bool
     {
         // Prefer correctness but bound the delay. Keychain writes can be slightly delayed after the CLI touch.
@@ -198,7 +275,10 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             case let .securityFramework(fingerprintBefore):
                 // Treat "no fingerprint" as "not observed"; we only succeed if we can read a fingerprint and it
                 // differs.
-                guard let current = self.currentClaudeKeychainFingerprintForObservation() else { return false }
+                guard let current = self.currentClaudeKeychainFingerprintForObservation(configuration: configuration)
+                else {
+                    return false
+                }
                 return current != fingerprintBefore
             case let .securityCLI(dataBefore):
                 // In experimental mode, avoid Security.framework observation entirely and detect change from
@@ -208,7 +288,8 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
                 guard let dataBefore else { return false }
                 guard let current = self.currentClaudeKeychainDataViaSecurityCLIForObservation(
                     readStrategy: readStrategy,
-                    keychainAccessDisabled: keychainAccessDisabled)
+                    keychainAccessDisabled: keychainAccessDisabled,
+                    interaction: .background)
                 else { return false }
                 return current != dataBefore
             }
@@ -235,9 +316,11 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         return false
     }
 
-    private static func currentClaudeKeychainFingerprint() -> ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint? {
+    private static func currentClaudeKeychainFingerprint(
+        configuration: AttemptConfiguration?) -> ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?
+    {
         #if DEBUG
-        if let override = self.keychainFingerprintOverride {
+        if let override = configuration?.keychainFingerprintOverride ?? self.keychainFingerprintOverrideForTesting {
             return override()
         }
         #endif
@@ -247,8 +330,14 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
     private static func currentClaudeKeychainFingerprintForObservation() -> ClaudeOAuthCredentialsStore
         .ClaudeKeychainFingerprint?
     {
+        self.currentClaudeKeychainFingerprintForObservation(configuration: nil)
+    }
+
+    private static func currentClaudeKeychainFingerprintForObservation(
+        configuration: AttemptConfiguration?) -> ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?
+    {
         #if DEBUG
-        if let override = self.keychainFingerprintOverride {
+        if let override = configuration?.keychainFingerprintOverride ?? self.keychainFingerprintOverrideForTesting {
             return override()
         }
         #endif
@@ -265,101 +354,139 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
 
     private static func currentClaudeKeychainDataViaSecurityCLIForObservation(
         readStrategy: ClaudeOAuthKeychainReadStrategy,
-        keychainAccessDisabled: Bool) -> Data?
+        keychainAccessDisabled: Bool,
+        interaction: ProviderInteraction) -> Data?
     {
         guard !keychainAccessDisabled else { return nil }
         return ClaudeOAuthCredentialsStore.loadFromClaudeKeychainViaSecurityCLIIfEnabled(
-            interaction: .background,
+            interaction: interaction,
             readStrategy: readStrategy)
     }
 
-    private static func clearInFlightTaskIfStillCurrent(id: UInt64) {
-        self.stateLock.lock()
-        if self.inFlightAttemptID == id {
-            self.inFlightAttemptID = nil
-            self.inFlightTask = nil
+    private static func clearInFlightTaskIfStillCurrent(id: UInt64, state: AttemptStateStorage) {
+        state.lock.lock()
+        if state.inFlightAttemptID == id {
+            state.inFlightAttemptID = nil
+            state.inFlightTask = nil
         }
-        self.stateLock.unlock()
+        state.lock.unlock()
     }
 
-    private static func recordAttempt(now: Date, cooldown: TimeInterval) {
-        self.stateLock.lock()
-        defer { self.stateLock.unlock() }
-        self.loadStateIfNeededLocked()
-        self.lastAttemptAt = now
-        self.lastCooldownInterval = cooldown
+    private static func recordAttempt(now: Date, cooldown: TimeInterval, state: AttemptStateStorage) {
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        self.loadStateIfNeededLocked(state: state)
+        state.lastAttemptAt = now
+        state.lastCooldownInterval = cooldown
+        guard state.persistsCooldown else { return }
         UserDefaults.standard.set(now.timeIntervalSince1970, forKey: self.cooldownDefaultsKey)
         UserDefaults.standard.set(cooldown, forKey: self.cooldownIntervalDefaultsKey)
     }
 
-    private static func reserveAttemptIfNotInCooldown(now: Date) -> Bool {
-        self.stateLock.lock()
-        defer { self.stateLock.unlock() }
-        self.loadStateIfNeededLocked()
+    private static func reserveAttemptIfNotInCooldown(now: Date, state: AttemptStateStorage) -> Bool {
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        self.loadStateIfNeededLocked(state: state)
 
-        let cooldown = self.lastCooldownInterval ?? self.defaultCooldownInterval
-        if let lastAttemptAt = self.lastAttemptAt, now.timeIntervalSince(lastAttemptAt) < cooldown {
+        let cooldown = state.lastCooldownInterval ?? self.defaultCooldownInterval
+        if let lastAttemptAt = state.lastAttemptAt, now.timeIntervalSince(lastAttemptAt) < cooldown {
             return false
         }
 
         // Reserve with a short cooldown; the final outcome will extend or keep it short.
-        self.lastAttemptAt = now
-        self.lastCooldownInterval = self.shortCooldownInterval
+        state.lastAttemptAt = now
+        state.lastCooldownInterval = self.shortCooldownInterval
+        guard state.persistsCooldown else { return true }
         UserDefaults.standard.set(now.timeIntervalSince1970, forKey: self.cooldownDefaultsKey)
         UserDefaults.standard.set(self.shortCooldownInterval, forKey: self.cooldownIntervalDefaultsKey)
         return true
     }
 
-    private static func loadStateIfNeededLocked() {
-        guard !self.hasLoadedState else { return }
-        self.hasLoadedState = true
-        guard let raw = UserDefaults.standard.object(forKey: self.cooldownDefaultsKey) as? Double else {
-            self.lastAttemptAt = nil
-            self.lastCooldownInterval = nil
+    private static func loadStateIfNeededLocked(state: AttemptStateStorage) {
+        guard !state.hasLoadedState else { return }
+        state.hasLoadedState = true
+        guard state.persistsCooldown else {
+            state.lastAttemptAt = nil
+            state.lastCooldownInterval = nil
             return
         }
-        self.lastAttemptAt = Date(timeIntervalSince1970: raw)
+        guard let raw = UserDefaults.standard.object(forKey: self.cooldownDefaultsKey) as? Double else {
+            state.lastAttemptAt = nil
+            state.lastCooldownInterval = nil
+            return
+        }
+        state.lastAttemptAt = Date(timeIntervalSince1970: raw)
         if let interval = UserDefaults.standard.object(forKey: self.cooldownIntervalDefaultsKey) as? Double {
-            self.lastCooldownInterval = interval
+            state.lastCooldownInterval = interval
         } else {
-            self.lastCooldownInterval = nil
+            state.lastCooldownInterval = nil
         }
     }
 
     #if DEBUG
-    private nonisolated(unsafe) static var cliAvailableOverride: Bool?
-    private nonisolated(unsafe) static var touchAuthPathOverride: (@Sendable (TimeInterval) async throws -> Void)?
-    private nonisolated(unsafe) static var keychainFingerprintOverride: (() -> ClaudeOAuthCredentialsStore
+    @TaskLocal private static var stateStorageForTesting: AttemptStateStorage?
+    @TaskLocal static var cliAvailableOverrideForTesting: Bool?
+    @TaskLocal static var touchAuthPathOverrideForTesting: (@Sendable (
+        TimeInterval,
+        [String: String]) async throws -> Void)?
+    @TaskLocal static var keychainFingerprintOverrideForTesting: (@Sendable () -> ClaudeOAuthCredentialsStore
         .ClaudeKeychainFingerprint?)?
 
-    static func setCLIAvailableOverrideForTesting(_ override: Bool?) {
-        self.cliAvailableOverride = override
-    }
-
-    static func setTouchAuthPathOverrideForTesting(_ override: (@Sendable (TimeInterval) async throws -> Void)?) {
-        self.touchAuthPathOverride = override
-    }
-
-    static func setKeychainFingerprintOverrideForTesting(
-        _ override: (() -> ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?)?)
+    static func withCLIAvailableOverrideForTesting<T>(
+        _ override: Bool?,
+        operation: () async throws -> T) async rethrows -> T
     {
-        self.keychainFingerprintOverride = override
+        try await self.$cliAvailableOverrideForTesting.withValue(override) {
+            try await operation()
+        }
+    }
+
+    static func withTouchAuthPathOverrideForTesting<T>(
+        _ override: (@Sendable (TimeInterval, [String: String]) async throws -> Void)?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$touchAuthPathOverrideForTesting.withValue(override) {
+            try await operation()
+        }
+    }
+
+    static func withKeychainFingerprintOverrideForTesting<T>(
+        _ override: (@Sendable () -> ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?)?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$keychainFingerprintOverrideForTesting.withValue(override) {
+            try await operation()
+        }
+    }
+
+    static func withIsolatedStateForTesting<T>(operation: () async throws -> T) async rethrows -> T {
+        let state = AttemptStateStorage(persistsCooldown: false)
+        return try await self.$stateStorageForTesting.withValue(state) {
+            try await operation()
+        }
     }
 
     static func resetForTesting() {
-        self.stateLock.lock()
-        self.hasLoadedState = true
-        self.lastAttemptAt = nil
-        self.lastCooldownInterval = nil
-        self.inFlightAttemptID = nil
-        self.inFlightTask = nil
-        self.nextAttemptID = 0
-        self.stateLock.unlock()
+        let state = self.currentStateStorage
+        state.lock.lock()
+        state.hasLoadedState = true
+        state.lastAttemptAt = nil
+        state.lastCooldownInterval = nil
+        state.inFlightAttemptID = nil
+        state.inFlightTask = nil
+        state.nextAttemptID = 0
+        state.lock.unlock()
+        guard state.persistsCooldown else { return }
         UserDefaults.standard.removeObject(forKey: self.cooldownDefaultsKey)
         UserDefaults.standard.removeObject(forKey: self.cooldownIntervalDefaultsKey)
-        self.cliAvailableOverride = nil
-        self.touchAuthPathOverride = nil
-        self.keychainFingerprintOverride = nil
     }
     #endif
+
+    private static var currentStateStorage: AttemptStateStorage {
+        #if DEBUG
+        self.stateStorageForTesting ?? self.sharedState
+        #else
+        self.sharedState
+        #endif
+    }
 }

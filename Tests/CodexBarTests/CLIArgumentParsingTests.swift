@@ -3,10 +3,9 @@ import Commander
 import Testing
 @testable import CodexBarCLI
 
-@Suite
 struct CLIArgumentParsingTests {
     @Test
-    func jsonShortcutDoesNotEnableJsonLogs() throws {
+    func `json shortcut does not enable json logs`() throws {
         let signature = CodexBarCLI._usageSignatureForTesting()
         let parser = CommandParser(signature: signature)
         let parsed = try parser.parse(arguments: ["--json"])
@@ -17,7 +16,7 @@ struct CLIArgumentParsingTests {
     }
 
     @Test
-    func jsonOutputFlagEnablesJsonLogs() throws {
+    func `json output flag enables json logs`() throws {
         let signature = CodexBarCLI._usageSignatureForTesting()
         let parser = CommandParser(signature: signature)
         let parsed = try parser.parse(arguments: ["--json-output"])
@@ -28,7 +27,7 @@ struct CLIArgumentParsingTests {
     }
 
     @Test
-    func logLevelAndVerboseAreParsed() throws {
+    func `log level and verbose are parsed`() throws {
         let signature = CodexBarCLI._usageSignatureForTesting()
         let parser = CommandParser(signature: signature)
         let parsed = try parser.parse(arguments: ["--log-level", "info", "--verbose"])
@@ -38,14 +37,14 @@ struct CLIArgumentParsingTests {
     }
 
     @Test
-    func resolvedLogLevelDefaultsToError() {
+    func `resolved log level defaults to error`() {
         #expect(CodexBarCLI.resolvedLogLevel(verbose: false, rawLevel: nil) == .error)
         #expect(CodexBarCLI.resolvedLogLevel(verbose: true, rawLevel: nil) == .debug)
         #expect(CodexBarCLI.resolvedLogLevel(verbose: false, rawLevel: "info") == .info)
     }
 
     @Test
-    func formatOptionOverridesJsonShortcut() throws {
+    func `format option overrides json shortcut`() throws {
         let signature = CodexBarCLI._usageSignatureForTesting()
         let parser = CommandParser(signature: signature)
         let parsed = try parser.parse(arguments: ["--json", "--format", "text"])
@@ -56,7 +55,7 @@ struct CLIArgumentParsingTests {
     }
 
     @Test
-    func jsonOnlyEnablesJsonFormat() throws {
+    func `json only enables json format`() throws {
         let signature = CodexBarCLI._usageSignatureForTesting()
         let parser = CommandParser(signature: signature)
         let parsed = try parser.parse(arguments: ["--json-only"])

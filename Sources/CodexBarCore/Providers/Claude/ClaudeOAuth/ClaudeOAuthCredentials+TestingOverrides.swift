@@ -102,7 +102,7 @@ extension ClaudeOAuthCredentialsStore {
         }
     }
 
-    enum SecurityCLIReadOverride: Sendable {
+    enum SecurityCLIReadOverride {
         case data(Data?)
         case timedOut
         case nonZeroExit
@@ -114,6 +114,40 @@ extension ClaudeOAuthCredentialsStore {
     @TaskLocal static var taskSecurityCLIReadOverride: SecurityCLIReadOverride?
     @TaskLocal static var taskSecurityCLIReadAccountOverride: String?
     nonisolated(unsafe) static var securityCLIReadOverride: SecurityCLIReadOverride?
+
+    public struct TestingOverridesSnapshot: Sendable {
+        let keychainOverrideStore: ClaudeKeychainOverrideStore?
+        let keychainData: Data?
+        let keychainFingerprint: ClaudeKeychainFingerprint?
+        let memoryCacheStore: MemoryCacheStore?
+        let fingerprintStore: ClaudeKeychainFingerprintStore?
+        let keychainAccessOverride: Bool?
+        let credentialsFileFingerprintStore: CredentialsFileFingerprintStore?
+        let securityCLIReadOverride: SecurityCLIReadOverride?
+        let securityCLIReadAccountOverride: String?
+
+        init(
+            keychainOverrideStore: ClaudeKeychainOverrideStore?,
+            keychainData: Data?,
+            keychainFingerprint: ClaudeKeychainFingerprint?,
+            memoryCacheStore: MemoryCacheStore?,
+            fingerprintStore: ClaudeKeychainFingerprintStore?,
+            keychainAccessOverride: Bool?,
+            credentialsFileFingerprintStore: CredentialsFileFingerprintStore?,
+            securityCLIReadOverride: SecurityCLIReadOverride?,
+            securityCLIReadAccountOverride: String?)
+        {
+            self.keychainOverrideStore = keychainOverrideStore
+            self.keychainData = keychainData
+            self.keychainFingerprint = keychainFingerprint
+            self.memoryCacheStore = memoryCacheStore
+            self.fingerprintStore = fingerprintStore
+            self.keychainAccessOverride = keychainAccessOverride
+            self.credentialsFileFingerprintStore = credentialsFileFingerprintStore
+            self.securityCLIReadOverride = securityCLIReadOverride
+            self.securityCLIReadAccountOverride = securityCLIReadAccountOverride
+        }
+    }
 
     static func withKeychainAccessOverrideForTesting<T>(
         _ disabled: Bool?,
@@ -187,6 +221,10 @@ extension ClaudeOAuthCredentialsStore {
         }
     }
 
+    static func currentSecurityCLIReadOverrideForTesting() -> SecurityCLIReadOverride? {
+        self.taskSecurityCLIReadOverride ?? self.securityCLIReadOverride
+    }
+
     static func withSecurityCLIReadAccountOverrideForTesting<T>(
         _ account: String?,
         operation: () throws -> T) rethrows -> T
@@ -202,6 +240,98 @@ extension ClaudeOAuthCredentialsStore {
     {
         try await self.$taskSecurityCLIReadAccountOverride.withValue(account) {
             try await operation()
+        }
+    }
+
+    public static func withCurrentTestingOverridesForTask<T>(
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.withTestingOverridesSnapshotForTask(
+            self.currentTestingOverridesSnapshotForTask,
+            operation: operation)
+    }
+
+    public static func withCurrentTestingOverridesForTask<T>(
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.withTestingOverridesSnapshotForTask(
+            self.currentTestingOverridesSnapshotForTask,
+            operation: operation)
+    }
+
+    public static var currentTestingOverridesSnapshotForTask: TestingOverridesSnapshot {
+        TestingOverridesSnapshot(
+            keychainOverrideStore: self.taskClaudeKeychainOverrideStore,
+            keychainData: self.taskClaudeKeychainDataOverride,
+            keychainFingerprint: self.taskClaudeKeychainFingerprintOverride,
+            memoryCacheStore: self.taskMemoryCacheStoreOverride,
+            fingerprintStore: self.taskClaudeKeychainFingerprintStoreOverride,
+            keychainAccessOverride: self.taskKeychainAccessOverride,
+            credentialsFileFingerprintStore: self.taskCredentialsFileFingerprintStoreOverride,
+            securityCLIReadOverride: self.taskSecurityCLIReadOverride,
+            securityCLIReadAccountOverride: self.taskSecurityCLIReadAccountOverride)
+    }
+
+    public static func withTestingOverridesSnapshotForTask<T>(
+        _ snapshot: TestingOverridesSnapshot,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskClaudeKeychainOverrideStore.withValue(snapshot.keychainOverrideStore) {
+            try await self.$taskClaudeKeychainDataOverride.withValue(snapshot.keychainData) {
+                try await self.$taskClaudeKeychainFingerprintOverride.withValue(snapshot.keychainFingerprint) {
+                    try await self.$taskMemoryCacheStoreOverride.withValue(snapshot.memoryCacheStore) {
+                        try await self.$taskClaudeKeychainFingerprintStoreOverride
+                            .withValue(snapshot.fingerprintStore) {
+                                try await self.$taskKeychainAccessOverride.withValue(snapshot.keychainAccessOverride) {
+                                    try await self.$taskCredentialsFileFingerprintStoreOverride.withValue(
+                                        snapshot.credentialsFileFingerprintStore)
+                                    {
+                                        try await self.$taskSecurityCLIReadOverride.withValue(
+                                            snapshot.securityCLIReadOverride)
+                                        {
+                                            try await self.$taskSecurityCLIReadAccountOverride.withValue(
+                                                snapshot.securityCLIReadAccountOverride)
+                                            {
+                                                try await operation()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                    }
+                }
+            }
+        }
+    }
+
+    public static func withTestingOverridesSnapshotForTask<T>(
+        _ snapshot: TestingOverridesSnapshot,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskClaudeKeychainOverrideStore.withValue(snapshot.keychainOverrideStore) {
+            try self.$taskClaudeKeychainDataOverride.withValue(snapshot.keychainData) {
+                try self.$taskClaudeKeychainFingerprintOverride.withValue(snapshot.keychainFingerprint) {
+                    try self.$taskMemoryCacheStoreOverride.withValue(snapshot.memoryCacheStore) {
+                        try self.$taskClaudeKeychainFingerprintStoreOverride.withValue(snapshot.fingerprintStore) {
+                            try self.$taskKeychainAccessOverride.withValue(snapshot.keychainAccessOverride) {
+                                try self.$taskCredentialsFileFingerprintStoreOverride.withValue(
+                                    snapshot.credentialsFileFingerprintStore)
+                                {
+                                    try self.$taskSecurityCLIReadOverride.withValue(
+                                        snapshot.securityCLIReadOverride)
+                                    {
+                                        try self.$taskSecurityCLIReadAccountOverride.withValue(
+                                            snapshot.securityCLIReadAccountOverride)
+                                        {
+                                            try operation()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

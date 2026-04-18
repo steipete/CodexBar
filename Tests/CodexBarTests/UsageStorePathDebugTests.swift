@@ -4,10 +4,9 @@ import Testing
 @testable import CodexBar
 
 @MainActor
-@Suite
 struct UsageStorePathDebugTests {
     @Test
-    func refreshPathDebugInfoPopulatesSnapshot() async throws {
+    func `refresh path debug info populates snapshot`() async throws {
         let suite = "UsageStorePathDebugTests-path"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -19,7 +18,8 @@ struct UsageStorePathDebugTests {
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+            settings: settings,
+            startupBehavior: .full)
 
         let deadline = Date().addingTimeInterval(2)
         while store.pathDebugInfo == .empty, Date() < deadline {

@@ -1,10 +1,10 @@
-import CodexBarCore
+import Foundation
 import Testing
+@testable import CodexBarCore
 
-@Suite
 struct OpenAIDashboardBrowserCookieImporterTests {
     @Test
-    func mismatchErrorMentionsSourceLabel() {
+    func `mismatch error mentions source label`() {
         let err = OpenAIDashboardBrowserCookieImporter.ImportError.noMatchingAccount(
             found: [
                 .init(sourceLabel: "Safari", email: "a@example.com"),
@@ -13,5 +13,17 @@ struct OpenAIDashboardBrowserCookieImporterTests {
         let msg = err.localizedDescription
         #expect(msg.contains("Safari=a@example.com"))
         #expect(msg.contains("Chrome=b@example.com"))
+    }
+
+    @Test
+    func `timed out persistent validation keeps verified session`() {
+        #expect(OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(
+            afterPersistFailure: URLError(.timedOut)))
+    }
+
+    @Test
+    func `non-timeout persistent validation failures are not trusted`() {
+        #expect(!OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(
+            afterPersistFailure: OpenAIDashboardBrowserCookieImporter.ImportError.dashboardStillRequiresLogin))
     }
 }

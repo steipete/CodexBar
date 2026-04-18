@@ -4,6 +4,8 @@ import QuartzCore
 
 extension StatusItemController {
     private static let loadingPercentEpsilon = 0.0001
+    private static let blinkActiveTickInterval: Duration = .milliseconds(75)
+    private static let blinkIdleFallbackInterval: Duration = .seconds(1)
 
     func needsMenuBarIconAnimation() -> Bool {
         if self.shouldMergeIcons {
@@ -21,18 +23,21 @@ extension StatusItemController {
         }
 
         let blinkingEnabled = self.isBlinkingAllowed()
-        // Cache enabled providers to avoid repeated enablement lookups.
-        let enabledProviders = self.store.enabledProviders()
-        let anyEnabled = !enabledProviders.isEmpty || self.store.debugForceAnimation
+        // Use display list so merged-mode visibility stays consistent with shouldMergeIcons.
+        let displayProviders = self.store.enabledProvidersForDisplay()
+        let anyEnabled = !displayProviders.isEmpty || self.store.debugForceAnimation
         let anyVisible = UsageProvider.allCases.contains { self.isVisible($0) }
-        let mergeIcons = self.settings.mergeIcons && enabledProviders.count > 1
+        let mergeIcons = self.shouldMergeIcons
         let shouldBlink = mergeIcons ? anyEnabled : anyVisible
         if blinkingEnabled, shouldBlink {
             if self.blinkTask == nil {
                 self.seedBlinkStatesIfNeeded()
                 self.blinkTask = Task { [weak self] in
                     while !Task.isCancelled {
-                        try? await Task.sleep(for: .milliseconds(75))
+                        let delay = await MainActor.run {
+                            self?.blinkTickSleepDuration(now: Date()) ?? Self.blinkIdleFallbackInterval
+                        }
+                        try? await Task.sleep(for: delay)
                         await MainActor.run { self?.tickBlink() }
                     }
                 }
@@ -61,6 +66,36 @@ extension StatusItemController {
                 self.applyIcon(for: provider, phase: phase)
             }
         }
+    }
+
+    private func blinkTickSleepDuration(now: Date) -> Duration {
+        let mergeIcons = self.shouldMergeIcons
+        var nextWakeAt: Date?
+
+        for provider in UsageProvider.allCases {
+            let shouldRender = mergeIcons ? self.isEnabled(provider) : self.isVisible(provider)
+            guard shouldRender, !self.shouldAnimate(provider: provider, mergeIcons: mergeIcons) else { continue }
+
+            let state = self
+                .blinkStates[provider] ?? BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
+            if state.blinkStart != nil {
+                return Self.blinkActiveTickInterval
+            }
+
+            let candidate: Date = state.pendingSecondStart ?? state.nextBlink
+            if let current = nextWakeAt {
+                if candidate < current {
+                    nextWakeAt = candidate
+                }
+            } else {
+                nextWakeAt = candidate
+            }
+        }
+
+        guard let nextWakeAt else { return Self.blinkIdleFallbackInterval }
+        let delay = nextWakeAt.timeIntervalSince(now)
+        if delay <= 0 { return Self.blinkActiveTickInterval }
+        return .seconds(delay)
     }
 
     private func tickBlink(now: Date = .init()) {
@@ -182,8 +217,10 @@ extension StatusItemController {
         return false
     }
 
-    func applyIcon(phase: Double?) {
-        guard let button = self.statusItem.button else { return }
+    // swiftlint:disable function_body_length
+    @discardableResult
+    func applyIcon(phase: Double?) -> Bool {
+        guard let button = self.statusItem.button else { return false }
 
         let style = self.store.iconStyle
         let showUsed = self.settings.usageBarsShowUsed
@@ -193,8 +230,14 @@ extension StatusItemController {
 
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
-        var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
-        var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        let resolved = snapshot.map {
+            IconRemainingResolver.resolvedPercents(
+                snapshot: $0,
+                style: style,
+                showUsed: showUsed)
+        }
+        var primary = resolved?.primary
+        var weekly = resolved?.secondary
         if showUsed,
            primaryProvider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,
@@ -212,7 +255,16 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        var credits: Double? = primaryProvider == .codex ? self.store.credits?.remaining : nil
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: primaryProvider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: snapshot?.updatedAt ?? Date())
+        var credits: Double? = codexProjection?.menuBarFallback == .creditsBalance
+            ? self.store.codexMenuBarCreditsRemaining(
+                snapshotOverride: snapshot,
+                now: snapshot?.updatedAt ?? Date())
+            : nil
         var stale = self.store.isStale(provider: primaryProvider)
         var morphProgress: Double?
 
@@ -243,37 +295,98 @@ extension StatusItemController {
         let tilt: CGFloat = style == .combined ? 0 : self.tiltAmount(for: primaryProvider) * .pi / 28
 
         let statusIndicator: ProviderStatusIndicator = {
-            for provider in self.store.enabledProviders() {
+            for provider in self.store.enabledProvidersForDisplay() {
                 let indicator = self.store.statusIndicator(for: provider)
                 if indicator.hasIssue { return indicator }
             }
             return .none
         }()
+        let debugDouble: (Double?) -> String = { value in
+            guard let value else { return "nil" }
+            return String(format: "%.3f", value)
+        }
 
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
             let displayText = self.menuBarDisplayText(for: primaryProvider, snapshot: snapshot)
+            let signature = [
+                "mode=brandPercent",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(debugDouble(primary))",
+                "weekly=\(debugDouble(weekly))",
+                "credits=\(debugDouble(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "text=\(displayText ?? "nil")",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             self.setButtonImage(brand, for: button)
             self.setButtonTitle(displayText, for: button)
-            return
+            return false
         }
 
         if Self.shouldUseOpenRouterBrandFallback(provider: primaryProvider, snapshot: snapshot),
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
+            let signature = [
+                "mode=openRouterFallback",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(debugDouble(primary))",
+                "weekly=\(debugDouble(weekly))",
+                "credits=\(debugDouble(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             self.setButtonTitle(nil, for: button)
             self.setButtonImage(
                 Self.brandImageWithStatusOverlay(brand: brand, statusIndicator: statusIndicator),
                 for: button)
-            return
+            return false
         }
 
         self.setButtonTitle(nil, for: button)
         if let morphProgress {
+            let signature = [
+                "mode=morph",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "morph=\(debugDouble(morphProgress))",
+                "status=\(statusIndicator.rawValue)",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
             self.setButtonImage(image, for: button)
         } else {
+            let signature = [
+                "mode=icon",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(debugDouble(primary))",
+                "weekly=\(debugDouble(weekly))",
+                "credits=\(debugDouble(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "blink=\(debugDouble(Double(blink)))",
+                "wiggle=\(debugDouble(Double(wiggle)))",
+                "tilt=\(debugDouble(Double(tilt)))",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             let image = IconRenderer.makeIcon(
                 primaryRemaining: primary,
                 weeklyRemaining: weekly,
@@ -286,6 +399,18 @@ extension StatusItemController {
                 statusIndicator: statusIndicator)
             self.setButtonImage(image, for: button)
         }
+        return false
+    }
+
+    // swiftlint:enable function_body_length
+
+    private func shouldSkipMergedIconRender(_ signature: String) -> Bool {
+        guard self.shouldMergeIcons else { return false }
+        if self.lastAppliedMergedIconRenderSignature == signature {
+            return true
+        }
+        self.lastAppliedMergedIconRenderSignature = signature
+        return false
     }
 
     func applyIcon(for provider: UsageProvider, phase: Double?) {
@@ -295,6 +420,7 @@ extension StatusItemController {
         // user setting we pass either "percent left" or "percent used".
         let showUsed = self.settings.usageBarsShowUsed
         let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
+        let style: IconStyle = self.store.style(for: provider)
 
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: provider)
@@ -316,8 +442,14 @@ extension StatusItemController {
                 for: button)
             return
         }
-        var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
-        var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        let resolved = snapshot.map {
+            IconRemainingResolver.resolvedPercents(
+                snapshot: $0,
+                style: style,
+                showUsed: showUsed)
+        }
+        var primary = resolved?.primary
+        var weekly = resolved?.secondary
         if showUsed,
            provider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,
@@ -335,7 +467,16 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        var credits: Double? = provider == .codex ? self.store.credits?.remaining : nil
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: snapshot?.updatedAt ?? Date())
+        var credits: Double? = codexProjection?.menuBarFallback == .creditsBalance
+            ? self.store.codexMenuBarCreditsRemaining(
+                snapshotOverride: snapshot,
+                now: snapshot?.updatedAt ?? Date())
+            : nil
         var stale = self.store.isStale(provider: provider)
         var morphProgress: Double?
 
@@ -359,7 +500,6 @@ extension StatusItemController {
             }
         }
 
-        let style: IconStyle = self.store.style(for: provider)
         let isLoading = phase != nil && self.shouldAnimate(provider: provider)
         let blink: CGFloat = {
             guard isLoading, style == .warp, let phase else {
@@ -407,21 +547,36 @@ extension StatusItemController {
 
     func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
+        let mode = self.settings.menuBarDisplayMode
+        let now = Date()
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)
+        let pace: UsagePace?
+        switch mode {
+        case .percent:
+            pace = nil
+        case .pace, .both:
+            let weeklyWindow = codexProjection?.rateWindow(for: .weekly)
+                ?? snapshot?.secondary
+                // Abacus has no secondary window; pace is computed on primary monthly credits
+                ?? (provider == .abacus ? snapshot?.primary : nil)
+            pace = weeklyWindow.flatMap { window in
+                self.store.weeklyPace(provider: provider, window: window, now: now)
+            }
+        }
         let displayText = MenuBarDisplayText.displayText(
-            mode: self.settings.menuBarDisplayMode,
-            provider: provider,
+            mode: mode,
             percentWindow: percentWindow,
-            paceWindow: snapshot?.secondary,
+            pace: pace,
             showUsed: self.settings.usageBarsShowUsed)
 
-        let sessionExhausted = (snapshot?.primary?.remainingPercent ?? 100) <= 0
-        let weeklyExhausted = (snapshot?.secondary?.remainingPercent ?? 100) <= 0
-
-        if provider == .codex,
-           self.settings.menuBarDisplayMode == .percent,
+        if mode == .percent,
            !self.settings.usageBarsShowUsed,
-           sessionExhausted || weeklyExhausted,
-           let creditsRemaining = self.store.credits?.remaining,
+           codexProjection?.menuBarFallback == .creditsBalance,
+           let creditsRemaining = codexProjection?.credits?.remaining,
            creditsRemaining > 0
         {
             return UsageFormatter
@@ -444,6 +599,15 @@ extension StatusItemController {
         {
             return highest.provider
         }
+        if self.shouldMergeIcons, self.settings.mergedMenuLastSelectedWasOverview {
+            let enabledProviders = self.store.enabledProvidersForDisplay()
+            let overviewProviders = self.settings.resolvedMergedOverviewProviders(
+                activeProviders: enabledProviders,
+                maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+            if let provider = overviewProviders.first(where: { self.store.isEnabled($0) }) {
+                return provider
+            }
+        }
         if self.shouldMergeIcons,
            let selected = self.selectedMenuProvider,
            self.store.isEnabled(selected)
@@ -455,6 +619,8 @@ extension StatusItemController {
                 return provider
             }
         }
+        // Use availability-filtered list: fallback must pick a provider that can
+        // actually animate, otherwise shouldAnimate() fails on credential-less providers.
         if let enabled = self.store.enabledProviders().first {
             return enabled
         }
@@ -483,6 +649,10 @@ extension StatusItemController {
             self.assignMotion(amount: 0, for: provider, effect: state.effect)
         }
 
+        // If the blink task is currently in a long idle sleep, restart it so this forced blink
+        // keeps animating on the active frame cadence immediately.
+        self.blinkTask?.cancel()
+        self.blinkTask = nil
         self.updateBlinkingState()
         self.tickBlink(now: now)
     }

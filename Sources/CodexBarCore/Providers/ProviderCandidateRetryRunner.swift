@@ -1,6 +1,6 @@
 import Foundation
 
-enum ProviderCandidateRetryRunnerError: Error, Sendable {
+enum ProviderCandidateRetryRunnerError: Error {
     case noCandidates
 }
 

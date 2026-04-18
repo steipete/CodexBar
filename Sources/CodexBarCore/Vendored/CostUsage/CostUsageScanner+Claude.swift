@@ -37,11 +37,6 @@ extension CostUsageScanner {
         providerFilter: ClaudeLogProviderFilter,
         startOffset: Int64 = 0) -> ClaudeParseResult
     {
-        var days: [String: [String: [Int]]] = [:]
-        // Track seen message+request IDs to deduplicate streaming chunks within a JSONL file.
-        // Claude emits multiple lines per message with cumulative usage, so we only count once.
-        var seenKeys: Set<String> = []
-
         struct ClaudeTokens: Sendable {
             let input: Int
             let cacheRead: Int
@@ -50,7 +45,7 @@ extension CostUsageScanner {
             let costNanos: Int
         }
 
-        func add(dayKey: String, model: String, tokens: ClaudeTokens) {
+        func add(dayKey: String, model: String, tokens: ClaudeTokens, days: inout [String: [String: [Int]]]) {
             guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
             else { return }
             let normModel = CostUsagePricing.normalizeClaudeModel(model)
@@ -64,6 +59,21 @@ extension CostUsageScanner {
             dayModels[normModel] = packed
             days[dayKey] = dayModels
         }
+
+        func toInt(_ v: Any?) -> Int {
+            if let n = v as? NSNumber { return n.intValue }
+            return 0
+        }
+
+        func toBool(_ value: Any?) -> Bool {
+            if let bool = value as? Bool { return bool }
+            if let number = value as? NSNumber { return number.boolValue }
+            return false
+        }
+
+        let pathRole = Self.claudePathRole(fileURL: fileURL)
+        var keyedRows: [String: ClaudeUsageRow] = [:]
+        var unkeyedRows: [ClaudeUsageRow] = []
 
         let maxLineBytes = 512 * 1024
         // Keep the full line so usage at the tail isn't dropped on large tool outputs.
@@ -95,22 +105,6 @@ extension CostUsageScanner {
                 guard let model = message["model"] as? String else { return }
                 guard let usage = message["usage"] as? [String: Any] else { return }
 
-                // Deduplicate by message.id + requestId (streaming chunks have same usage).
-                let messageId = message["id"] as? String
-                let requestId = obj["requestId"] as? String
-                if let messageId, let requestId {
-                    let key = "\(messageId):\(requestId)"
-                    if seenKeys.contains(key) { return }
-                    seenKeys.insert(key)
-                } else {
-                    // Older logs omit IDs; treat each line as distinct to avoid dropping usage.
-                }
-
-                func toInt(_ v: Any?) -> Int {
-                    if let n = v as? NSNumber { return n.intValue }
-                    return 0
-                }
-
                 let input = max(0, toInt(usage["input_tokens"]))
                 let cacheCreate = max(0, toInt(usage["cache_creation_input_tokens"]))
                 let cacheRead = max(0, toInt(usage["cache_read_input_tokens"]))
@@ -130,10 +124,161 @@ extension CostUsageScanner {
                     cacheCreate: cacheCreate,
                     output: output,
                     costNanos: costNanos)
-                add(dayKey: dayKey, model: model, tokens: tokens)
+
+                guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
+                else { return }
+
+                let messageId = message["id"] as? String
+                let requestId = obj["requestId"] as? String
+                let sessionId = obj["sessionId"] as? String
+                    ?? obj["session_id"] as? String
+                    ?? (obj["metadata"] as? [String: Any])?["sessionId"] as? String
+                    ?? (message["metadata"] as? [String: Any])?["sessionId"] as? String
+                let normalizedModel = CostUsagePricing.normalizeClaudeModel(model)
+                let row = ClaudeUsageRow(
+                    dayKey: dayKey,
+                    model: normalizedModel,
+                    sessionId: sessionId,
+                    messageId: messageId,
+                    requestId: requestId,
+                    isSidechain: toBool(obj["isSidechain"]),
+                    pathRole: pathRole,
+                    input: tokens.input,
+                    cacheRead: tokens.cacheRead,
+                    cacheCreate: tokens.cacheCreate,
+                    output: tokens.output,
+                    costNanos: tokens.costNanos)
+
+                // Streaming chunks share message.id + requestId inside a file.
+                // Keep overwriting so the final cumulative chunk wins.
+                if let messageId, let requestId {
+                    let key = "\(messageId):\(requestId)"
+                    keyedRows[key] = row
+                } else {
+                    // Older logs omit IDs; treat each line as distinct to avoid dropping usage.
+                    unkeyedRows.append(row)
+                }
             })) ?? startOffset
 
-        return ClaudeParseResult(days: days, parsedBytes: parsedBytes)
+        let rows = keyedRows.keys.sorted().compactMap { keyedRows[$0] } + unkeyedRows
+        var days: [String: [String: [Int]]] = [:]
+        for row in rows {
+            let tokens = ClaudeTokens(
+                input: row.input,
+                cacheRead: row.cacheRead,
+                cacheCreate: row.cacheCreate,
+                output: row.output,
+                costNanos: row.costNanos)
+            add(dayKey: row.dayKey, model: row.model, tokens: tokens, days: &days)
+        }
+
+        return ClaudeParseResult(days: days, rows: rows, parsedBytes: parsedBytes)
+    }
+
+    private static func claudePathRole(fileURL: URL) -> ClaudePathRole {
+        fileURL.path.contains("/subagents/") ? .subagent : .parent
+    }
+
+    private static func claudeCanonicalRowKey(_ row: ClaudeUsageRow) -> String? {
+        guard let sessionId = row.sessionId, let messageId = row.messageId, let requestId = row.requestId else {
+            return nil
+        }
+        return "\(sessionId):\(messageId):\(requestId)"
+    }
+
+    private static func mergeClaudeRows(existing: [ClaudeUsageRow], delta: [ClaudeUsageRow]) -> [ClaudeUsageRow] {
+        var keyedRows: [String: ClaudeUsageRow] = [:]
+        var unkeyedRows: [ClaudeUsageRow] = []
+
+        for row in existing {
+            if let key = Self.claudeInFileKey(row) {
+                keyedRows[key] = row
+            } else {
+                unkeyedRows.append(row)
+            }
+        }
+        for row in delta {
+            if let key = Self.claudeInFileKey(row) {
+                keyedRows[key] = row
+            } else {
+                unkeyedRows.append(row)
+            }
+        }
+
+        return keyedRows.keys.sorted().compactMap { keyedRows[$0] } + unkeyedRows
+    }
+
+    private static func claudeInFileKey(_ row: ClaudeUsageRow) -> String? {
+        guard let messageId = row.messageId, let requestId = row.requestId else { return nil }
+        return "\(messageId):\(requestId)"
+    }
+
+    private static func claudeRowWins(
+        lhs: (path: String, row: ClaudeUsageRow),
+        rhs: (path: String, row: ClaudeUsageRow)) -> Bool
+    {
+        if lhs.row.isSidechain != rhs.row.isSidechain {
+            return rhs.row.isSidechain
+        }
+        if lhs.row.pathRole != rhs.row.pathRole {
+            return rhs.row.pathRole == .subagent
+        }
+        return lhs.path < rhs.path
+    }
+
+    private static func rebuildClaudeDays(cache: inout CostUsageCache) {
+        var days: [String: [String: [Int]]] = [:]
+        var winners: [String: (path: String, row: ClaudeUsageRow)] = [:]
+
+        func addRow(_ row: ClaudeUsageRow) {
+            var dayModels = days[row.dayKey] ?? [:]
+            var packed = dayModels[row.model] ?? [0, 0, 0, 0, 0]
+            packed[0] = (packed[safe: 0] ?? 0) + row.input
+            packed[1] = (packed[safe: 1] ?? 0) + row.cacheRead
+            packed[2] = (packed[safe: 2] ?? 0) + row.cacheCreate
+            packed[3] = (packed[safe: 3] ?? 0) + row.output
+            packed[4] = (packed[safe: 4] ?? 0) + row.costNanos
+            dayModels[row.model] = packed
+            days[row.dayKey] = dayModels
+        }
+
+        for path in cache.files.keys.sorted() {
+            guard let rows = cache.files[path]?.claudeRows else { continue }
+            for row in rows {
+                guard let canonicalKey = Self.claudeCanonicalRowKey(row) else {
+                    addRow(row)
+                    continue
+                }
+                let candidate = (path: path, row: row)
+                if let existing = winners[canonicalKey] {
+                    if Self.claudeRowWins(lhs: candidate, rhs: existing) {
+                        winners[canonicalKey] = candidate
+                    }
+                } else {
+                    winners[canonicalKey] = candidate
+                }
+            }
+        }
+
+        for winner in winners.values {
+            addRow(winner.row)
+        }
+
+        cache.days = days
+    }
+
+    private static func makeClaudeFileUsage(
+        mtimeMs: Int64,
+        size: Int64,
+        rows: [ClaudeUsageRow],
+        parsedBytes: Int64?) -> CostUsageFileUsage
+    {
+        makeFileUsage(
+            mtimeUnixMs: mtimeMs,
+            size: size,
+            days: [:],
+            parsedBytes: parsedBytes,
+            claudeRows: rows)
     }
 
     private static let vertexProviderKeys: Set<String> = [
@@ -260,14 +405,12 @@ extension CostUsageScanner {
 
     private final class ClaudeScanState {
         var cache: CostUsageCache
-        var rootCache: [String: Int64]
         var touched: Set<String>
         let range: CostUsageDayRange
         let providerFilter: ClaudeLogProviderFilter
 
         init(cache: CostUsageCache, range: CostUsageDayRange, providerFilter: ClaudeLogProviderFilter) {
             self.cache = cache
-            self.rootCache = cache.roots ?? [:]
             self.touched = []
             self.range = range
             self.providerFilter = providerFilter
@@ -293,40 +436,33 @@ extension CostUsageScanner {
         if let cached = state.cache.files[path] {
             let startOffset = cached.parsedBytes ?? cached.size
             let canIncremental = size > cached.size && startOffset > 0 && startOffset <= size
+                && cached.claudeRows != nil
             if canIncremental {
                 let delta = Self.parseClaudeFile(
                     fileURL: url,
                     range: state.range,
                     providerFilter: state.providerFilter,
                     startOffset: startOffset)
-                if !delta.days.isEmpty {
-                    Self.applyFileDays(cache: &state.cache, fileDays: delta.days, sign: 1)
-                }
-
-                var mergedDays = cached.days
-                Self.mergeFileDays(existing: &mergedDays, delta: delta.days)
-                state.cache.files[path] = Self.makeFileUsage(
-                    mtimeUnixMs: mtimeMs,
+                let mergedRows = Self.mergeClaudeRows(existing: cached.claudeRows ?? [], delta: delta.rows)
+                state.cache.files[path] = Self.makeClaudeFileUsage(
+                    mtimeMs: mtimeMs,
                     size: size,
-                    days: mergedDays,
+                    rows: mergedRows,
                     parsedBytes: delta.parsedBytes)
                 return
             }
-
-            Self.applyFileDays(cache: &state.cache, fileDays: cached.days, sign: -1)
         }
 
         let parsed = Self.parseClaudeFile(
             fileURL: url,
             range: state.range,
             providerFilter: state.providerFilter)
-        let usage = Self.makeFileUsage(
-            mtimeUnixMs: mtimeMs,
+        let usage = Self.makeClaudeFileUsage(
+            mtimeMs: mtimeMs,
             size: size,
-            days: parsed.days,
+            rows: parsed.rows,
             parsedBytes: parsed.parsedBytes)
         state.cache.files[path] = usage
-        Self.applyFileDays(cache: &state.cache, fileDays: usage.days, sign: 1)
     }
 
     private static func scanClaudeRoot(
@@ -339,58 +475,24 @@ extension CostUsageScanner {
             path.hasSuffix("/") ? path : "\(path)/"
         }
         let rootExists = rootCandidates.contains { FileManager.default.fileExists(atPath: $0) }
-        let canonicalRootPath = rootCandidates.first(where: {
-            FileManager.default.fileExists(atPath: $0)
-        }) ?? rootPath
 
         guard rootExists else {
             let stale = state.cache.files.keys.filter { path in
                 prefixes.contains(where: { path.hasPrefix($0) })
             }
             for path in stale {
-                if let old = state.cache.files[path] {
-                    Self.applyFileDays(cache: &state.cache, fileDays: old.days, sign: -1)
-                }
                 state.cache.files.removeValue(forKey: path)
             }
-            for candidate in rootCandidates {
-                state.rootCache.removeValue(forKey: candidate)
-            }
             return
         }
 
-        let rootAttrs = (try? FileManager.default.attributesOfItem(atPath: canonicalRootPath)) ?? [:]
-        let rootMtime = (rootAttrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let rootMtimeMs = Int64(rootMtime * 1000)
-        let cachedRootMtime = rootCandidates.compactMap { state.rootCache[$0] }.first
-        let canSkipEnumeration = cachedRootMtime == rootMtimeMs && rootMtimeMs > 0
-
-        if canSkipEnumeration {
-            let cachedPaths = state.cache.files.keys.filter { path in
-                prefixes.contains(where: { path.hasPrefix($0) })
-            }
-            for path in cachedPaths {
-                guard FileManager.default.fileExists(atPath: path) else {
-                    if let old = state.cache.files[path] {
-                        Self.applyFileDays(cache: &state.cache, fileDays: old.days, sign: -1)
-                    }
-                    state.cache.files.removeValue(forKey: path)
-                    continue
-                }
-                let attrs = (try? FileManager.default.attributesOfItem(atPath: path)) ?? [:]
-                let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
-                if size <= 0 { continue }
-                let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-                let mtimeMs = Int64(mtime * 1000)
-                Self.processClaudeFile(
-                    url: URL(fileURLWithPath: path),
-                    size: size,
-                    mtimeMs: mtimeMs,
-                    state: state)
-            }
-            return
-        }
-
+        // Always enumerate the directory tree. The per-file mtime/size cache in
+        // processClaudeFile already skips unchanged files, so the only cost here is
+        // the directory walk itself. The previous root-mtime optimization skipped
+        // enumeration entirely when the root directory mtime was unchanged, but on
+        // POSIX systems a directory mtime only updates for direct child changes —
+        // not for files created or modified inside subdirectories. This caused new
+        // session logs to go undetected until the cache was manually cleared.
         let keys: [URLResourceKey] = [
             .isRegularFileKey,
             .contentModificationDateKey,
@@ -419,12 +521,7 @@ extension CostUsageScanner {
                 state: state)
         }
 
-        if rootMtimeMs > 0 {
-            state.rootCache[canonicalRootPath] = rootMtimeMs
-            for candidate in rootCandidates where candidate != canonicalRootPath {
-                state.rootCache.removeValue(forKey: candidate)
-            }
-        }
+        // Root mtime caching removed — see comment above.
     }
 
     static func loadClaudeDaily(
@@ -458,15 +555,13 @@ extension CostUsageScanner {
 
             cache = scanState.cache
             touched = scanState.touched
-            cache.roots = scanState.rootCache.isEmpty ? nil : scanState.rootCache
+            cache.roots = nil
 
             for key in cache.files.keys where !touched.contains(key) {
-                if let old = cache.files[key] {
-                    Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
-                }
                 cache.files.removeValue(forKey: key)
             }
 
+            Self.rebuildClaudeDays(cache: &cache)
             Self.pruneDays(cache: &cache, sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
             cache.lastScanUnixMs = nowMs
             CostUsageCacheIO.save(provider: provider, cache: cache, cacheRoot: options.cacheRoot)
@@ -513,6 +608,7 @@ extension CostUsageScanner {
                 let cacheCreate = packed[safe: 2] ?? 0
                 let output = packed[safe: 3] ?? 0
                 let cachedCost = packed[safe: 4] ?? 0
+                let totalTokens = input + cacheRead + cacheCreate + output
 
                 // Cache tokens are tracked separately; totalTokens includes input + cache.
                 dayInput += input
@@ -528,15 +624,18 @@ extension CostUsageScanner {
                         cacheReadInputTokens: cacheRead,
                         cacheCreationInputTokens: cacheCreate,
                         outputTokens: output)
-                breakdown.append(CostUsageDailyReport.ModelBreakdown(modelName: model, costUSD: cost))
+                breakdown.append(
+                    CostUsageDailyReport.ModelBreakdown(
+                        modelName: model,
+                        costUSD: cost,
+                        totalTokens: totalTokens))
                 if let cost {
                     dayCost += cost
                     dayCostSeen = true
                 }
             }
 
-            breakdown.sort { lhs, rhs in (rhs.costUSD ?? -1) < (lhs.costUSD ?? -1) }
-            let top = Array(breakdown.prefix(3))
+            let sortedBreakdown = Self.sortedModelBreakdowns(breakdown)
 
             let dayTotal = dayInput + dayCacheRead + dayCacheCreate + dayOutput
             let entryCost = dayCostSeen ? dayCost : nil
@@ -549,7 +648,7 @@ extension CostUsageScanner {
                 totalTokens: dayTotal,
                 costUSD: entryCost,
                 modelsUsed: modelNames,
-                modelBreakdowns: top))
+                modelBreakdowns: sortedBreakdown))
 
             totalInput += dayInput
             totalOutput += dayOutput

@@ -96,6 +96,38 @@ extension CodexBarCLI {
         }
     }
 
+    static func usageTextNotes(
+        provider: UsageProvider,
+        sourceMode: ProviderSourceMode,
+        resolvedSourceLabel: String) -> [String]
+    {
+        guard provider == .kilo,
+              sourceMode == .auto,
+              resolvedSourceLabel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "cli"
+        else {
+            return []
+        }
+        return ["Using CLI fallback"]
+    }
+
+    static func kiloAutoFallbackSummary(
+        provider: UsageProvider,
+        sourceMode: ProviderSourceMode,
+        attempts: [ProviderFetchAttempt]) -> String?
+    {
+        guard provider == .kilo, sourceMode == .auto, !attempts.isEmpty else { return nil }
+        let parts = attempts.map { attempt in
+            let label = Self.fetchKindLabel(attempt.kind)
+            let message = attempt.errorDescription?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !message.isEmpty {
+                return "\(label): \(message)"
+            }
+            return "\(label): \(attempt.wasAvailable ? "success" : "unavailable")"
+        }
+        guard !parts.isEmpty else { return nil }
+        return "Kilo auto fallback attempts: " + parts.joined(separator: " -> ")
+    }
+
     private static func fetchKindLabel(_ kind: ProviderFetchKind) -> String {
         switch kind {
         case .cli: "cli"
@@ -163,17 +195,17 @@ extension CodexBarCLI {
 
     static func loadOpenAIDashboardIfAvailable(
         usage: UsageSnapshot,
-        fetcher: UsageFetcher) -> OpenAIDashboardSnapshot?
+        sourceLabel: String,
+        context: ProviderFetchContext) -> OpenAIDashboardSnapshot?
     {
         guard let cache = OpenAIDashboardCacheStore.load() else { return nil }
-        let codexEmail = (usage.accountEmail(for: .codex) ?? fetcher.loadAccountInfo().email)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let codexEmail, !codexEmail.isEmpty else { return nil }
-        if cache.accountEmail.lowercased() != codexEmail.lowercased() { return nil }
-        if cache.snapshot.dailyBreakdown.isEmpty, !cache.snapshot.creditEvents.isEmpty {
-            return OpenAIDashboardSnapshot(
+        let snapshot: OpenAIDashboardSnapshot = if cache.snapshot.dailyBreakdown.isEmpty,
+                                                   !cache.snapshot.creditEvents.isEmpty
+        {
+            OpenAIDashboardSnapshot(
                 signedInEmail: cache.snapshot.signedInEmail,
                 codeReviewRemainingPercent: cache.snapshot.codeReviewRemainingPercent,
+                codeReviewLimit: cache.snapshot.codeReviewLimit,
                 creditEvents: cache.snapshot.creditEvents,
                 dailyBreakdown: OpenAIDashboardSnapshot.makeDailyBreakdown(
                     from: cache.snapshot.creditEvents,
@@ -181,8 +213,24 @@ extension CodexBarCLI {
                 usageBreakdown: cache.snapshot.usageBreakdown,
                 creditsPurchaseURL: cache.snapshot.creditsPurchaseURL,
                 updatedAt: cache.snapshot.updatedAt)
+        } else {
+            cache.snapshot
         }
-        return cache.snapshot
+
+        let input = CodexCLIDashboardAuthorityContext.makeCachedDashboardInput(
+            dashboard: snapshot,
+            cachedAccountEmail: cache.accountEmail,
+            usage: usage,
+            sourceLabel: sourceLabel,
+            context: context)
+        let decision = CodexDashboardAuthority.evaluate(input)
+        if decision.allowedEffects.contains(.cachedDashboardReuse) {
+            return snapshot
+        }
+        if decision.cleanup.contains(.dashboardCache) {
+            OpenAIDashboardCacheStore.clear()
+        }
+        return nil
     }
 
     static func decodeWebTimeout(from values: ParsedValues) -> TimeInterval? {
@@ -210,7 +258,13 @@ extension CodexBarCLI {
         }
         if let remaining = dash.codeReviewRemainingPercent {
             let percent = Int(remaining.rounded())
-            lines.append("Code review: \(percent)% remaining")
+            if let limit = dash.codeReviewLimit,
+               let reset = UsageFormatter.resetLine(for: limit, style: .countdown)
+            {
+                lines.append("Code review: \(percent)% remaining (\(reset))")
+            } else {
+                lines.append("Code review: \(percent)% remaining")
+            }
         }
         if let first = dash.creditEvents.first {
             let day = first.date.formatted(date: .abbreviated, time: .omitted)

@@ -5,10 +5,12 @@ extension UsageStore {
         let modeSnapshot: [String: String] = [
             "codexUsageSource": self.settings.codexUsageDataSource.rawValue,
             "claudeUsageSource": self.settings.claudeUsageDataSource.rawValue,
+            "kiloUsageSource": self.settings.kiloUsageDataSource.rawValue,
             "codexCookieSource": self.settings.codexCookieSource.rawValue,
             "claudeCookieSource": self.settings.claudeCookieSource.rawValue,
             "cursorCookieSource": self.settings.cursorCookieSource.rawValue,
             "opencodeCookieSource": self.settings.opencodeCookieSource.rawValue,
+            "opencodegoCookieSource": self.settings.opencodegoCookieSource.rawValue,
             "factoryCookieSource": self.settings.factoryCookieSource.rawValue,
             "minimaxCookieSource": self.settings.minimaxCookieSource.rawValue,
             "kimiCookieSource": self.settings.kimiCookieSource.rawValue,
@@ -16,7 +18,9 @@ extension UsageStore {
             "ampCookieSource": self.settings.ampCookieSource.rawValue,
             "ollamaCookieSource": self.settings.ollamaCookieSource.rawValue,
             "openAIWebAccess": self.settings.openAIWebAccessEnabled ? "1" : "0",
+            "openAIWebBatterySaver": self.settings.openAIWebBatterySaverEnabled ? "1" : "0",
             "claudeWebExtras": self.settings.claudeWebExtrasEnabled ? "1" : "0",
+            "kiloExtras": self.settings.kiloExtrasEnabled ? "1" : "0",
         ]
         ProviderLogging.logStartupState(
             logger: self.providerLogger,

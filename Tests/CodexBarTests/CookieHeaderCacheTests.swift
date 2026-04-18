@@ -5,7 +5,7 @@ import Testing
 @Suite(.serialized)
 struct CookieHeaderCacheTests {
     @Test
-    func storesAndLoadsEntry() {
+    func `stores and loads entry`() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -26,7 +26,55 @@ struct CookieHeaderCacheTests {
     }
 
     @Test
-    func migratesLegacyFileToKeychain() {
+    func `stores separate codex entries per managed account scope`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let provider: UsageProvider = .codex
+        let accountA = UUID()
+        let accountB = UUID()
+
+        CookieHeaderCache.store(
+            provider: provider,
+            scope: .managedAccount(accountA),
+            cookieHeader: "auth=account-a",
+            sourceLabel: "Chrome")
+        CookieHeaderCache.store(
+            provider: provider,
+            scope: .managedAccount(accountB),
+            cookieHeader: "auth=account-b",
+            sourceLabel: "Safari")
+        defer {
+            CookieHeaderCache.clear(provider: provider, scope: .managedAccount(accountA))
+            CookieHeaderCache.clear(provider: provider, scope: .managedAccount(accountB))
+        }
+
+        #expect(CookieHeaderCache.load(provider: provider, scope: .managedAccount(accountA))?
+            .cookieHeader == "auth=account-a")
+        #expect(CookieHeaderCache.load(provider: provider, scope: .managedAccount(accountB))?
+            .cookieHeader == "auth=account-b")
+        #expect(CookieHeaderCache.load(provider: provider)?.cookieHeader == nil)
+    }
+
+    @Test
+    func `provider global scope remains available without managed account`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let provider: UsageProvider = .codex
+
+        CookieHeaderCache.store(
+            provider: provider,
+            cookieHeader: "auth=system",
+            sourceLabel: "Chrome")
+        defer { CookieHeaderCache.clear(provider: provider) }
+
+        #expect(CookieHeaderCache.load(provider: provider)?.cookieHeader == "auth=system")
+        #expect(CookieHeaderCache.load(provider: provider, scope: .managedAccount(UUID())) == nil)
+    }
+
+    @Test
+    func `migrates legacy file to keychain`() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
 

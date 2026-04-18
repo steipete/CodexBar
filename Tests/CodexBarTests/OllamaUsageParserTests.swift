@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct OllamaUsageParserTests {
     @Test
-    func parsesCloudUsageFromSettingsHTML() throws {
+    func `parses cloud usage from settings HTML`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <div>
@@ -47,7 +46,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func missingUsageThrowsParseFailed() {
+    func `missing usage throws parse failed`() {
         let html = "<html><body>No usage here. login status unknown.</body></html>"
 
         #expect {
@@ -59,7 +58,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func classifiedParseMissingUsageReturnsTypedFailure() {
+    func `classified parse missing usage returns typed failure`() {
         let html = "<html><body>No usage here. login status unknown.</body></html>"
         let result = OllamaUsageParser.parseClassified(html: html)
 
@@ -72,7 +71,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func signedOutThrowsNotLoggedIn() {
+    func `signed out throws not logged in`() {
         let html = """
         <html>
           <body>
@@ -94,7 +93,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func classifiedParseSignedOutReturnsTypedFailure() {
+    func `classified parse signed out returns typed failure`() {
         let html = """
         <html>
           <body>
@@ -117,7 +116,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func genericSignInTextWithoutAuthMarkersThrowsParseFailed() {
+    func `generic sign in text without auth markers throws parse failed`() {
         let html = """
         <html>
           <body>
@@ -137,7 +136,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func parsesHourlyUsageAsPrimaryWindow() throws {
+    func `parses hourly usage as primary window`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <div>
@@ -157,7 +156,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func parsesUsageWhenUsedIsCapitalized() throws {
+    func `parses usage when used is capitalized`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <div>

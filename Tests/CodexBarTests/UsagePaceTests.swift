@@ -2,10 +2,9 @@ import CodexBarCore
 import Foundation
 import Testing
 
-@Suite
 struct UsagePaceTests {
     @Test
-    func weeklyPace_computesDeltaAndEta() {
+    func `weekly pace computes delta and eta`() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 50,
@@ -22,11 +21,12 @@ struct UsagePaceTests {
         #expect(pace.stage == .ahead)
         #expect(pace.willLastToReset == false)
         #expect(pace.etaSeconds != nil)
+        #expect(pace.runOutProbability == nil)
         #expect(abs((pace.etaSeconds ?? 0) - (3 * 24 * 3600)) < 1)
     }
 
     @Test
-    func weeklyPace_marksLastsToResetWhenUsageIsLow() {
+    func `weekly pace marks lasts to reset when usage is low`() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 5,
@@ -40,11 +40,12 @@ struct UsagePaceTests {
         guard let pace else { return }
         #expect(pace.willLastToReset == true)
         #expect(pace.etaSeconds == nil)
+        #expect(pace.runOutProbability == nil)
         #expect(pace.stage == .farBehind)
     }
 
     @Test
-    func weeklyPace_hidesWhenResetMissingOrOutsideWindow() {
+    func `weekly pace hides when reset missing or outside window`() {
         let now = Date(timeIntervalSince1970: 0)
         let missing = RateWindow(
             usedPercent: 10,
@@ -62,7 +63,7 @@ struct UsagePaceTests {
     }
 
     @Test
-    func weeklyPace_hidesWhenUsageExistsButNoElapsed() {
+    func `weekly pace hides when usage exists but no elapsed`() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 12,

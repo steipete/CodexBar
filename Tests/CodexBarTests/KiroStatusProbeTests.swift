@@ -2,12 +2,11 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct KiroStatusProbeTests {
     // MARK: - Happy Path Parsing
 
     @Test
-    func parsesBasicUsageOutput() throws {
+    func `parses basic usage output`() throws {
         let output = """
         | KIRO FREE                                          |
         ████████████████████████████████████████████████████ 25%
@@ -28,7 +27,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func parsesOutputWithBonusCredits() throws {
+    func `parses output with bonus credits`() throws {
         let output = """
         | KIRO PRO                                           |
         ████████████████████████████████████████████████████ 80%
@@ -49,7 +48,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func parsesOutputWithoutPercentFallbacksToCreditsRatio() throws {
+    func `parses output without percent fallbacks to credits ratio`() throws {
         let output = """
         | KIRO FREE                                          |
         (12.50 of 50 covered in plan), resets on 01/15
@@ -62,7 +61,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func parsesBonusCreditsWithoutExpiry() throws {
+    func `parses bonus credits without expiry`() throws {
         let output = """
         | KIRO FREE                                          |
         ████████████████████████████████████████████████████ 60%
@@ -79,7 +78,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func parsesOutputWithANSICodes() throws {
+    func `parses output with ANSI codes`() throws {
         let output = """
         \u{001B}[32m| KIRO FREE                                          |\u{001B}[0m
         \u{001B}[38;5;11m████████████████████████████████████████████████████\u{001B}[0m 50%
@@ -96,7 +95,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func parsesOutputWithSingleDay() throws {
+    func `parses output with single day`() throws {
         let output = """
         | KIRO FREE                                          |
         ████████████████████████████████████████████████████ 10%
@@ -111,7 +110,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func rejectsOutputMissingUsageMarkers() throws {
+    func `rejects output missing usage markers`() throws {
         let output = """
         | KIRO FREE                                          |
         """
@@ -125,7 +124,7 @@ struct KiroStatusProbeTests {
     // MARK: - New Format (kiro-cli 1.24+, Q Developer)
 
     @Test
-    func parsesQDeveloperManagedPlan() throws {
+    func `parses Q developer managed plan`() throws {
         let output = """
         Plan: Q Developer Pro
         Your plan is managed by admin
@@ -145,7 +144,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func parsesQDeveloperFreePlan() throws {
+    func `parses Q developer free plan`() throws {
         let output = """
         Plan: Q Developer Free
         Your plan is managed by admin
@@ -159,7 +158,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func parsesNewFormatWithANSICodes() throws {
+    func `parses new format with ANSI codes`() throws {
         let output = """
         \u{001B}[38;5;141mPlan: Q Developer Pro\u{001B}[0m
         Your plan is managed by admin
@@ -172,7 +171,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func rejectsHeaderOnlyNewFormatWithoutManagedMarker() {
+    func `rejects header only new format without managed marker`() {
         let output = """
         Plan: Q Developer Pro
         Tip: to see context window usage, run /context
@@ -185,7 +184,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func preservesParsedUsageForManagedPlanWithMetrics() throws {
+    func `preserves parsed usage for managed plan with metrics`() throws {
         let output = """
         Plan: Q Developer Enterprise
         Your plan is managed by admin
@@ -206,7 +205,7 @@ struct KiroStatusProbeTests {
     // MARK: - Snapshot Conversion
 
     @Test
-    func convertsSnapshotToUsageSnapshot() throws {
+    func `converts snapshot to usage snapshot`() throws {
         let now = Date()
         let resetDate = try #require(Calendar.current.date(byAdding: .day, value: 7, to: now))
 
@@ -231,7 +230,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func convertsSnapshotWithoutBonusCredits() {
+    func `converts snapshot without bonus credits`() {
         let snapshot = KiroUsageSnapshot(
             planName: "KIRO FREE",
             creditsUsed: 10.0,
@@ -252,7 +251,7 @@ struct KiroStatusProbeTests {
     // MARK: - Error Cases
 
     @Test
-    func emptyOutputThrowsParseError() {
+    func `empty output throws parse error`() {
         let probe = KiroStatusProbe()
 
         #expect(throws: KiroStatusProbeError.self) {
@@ -261,7 +260,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func warningOutputThrowsParseError() {
+    func `warning output throws parse error`() {
         let output = """
         \u{001B}[38;5;11m⚠️  Warning: Could not retrieve usage information from backend
         \u{001B}[38;5;8mError: dispatch failure (io error): an i/o error occurred
@@ -275,7 +274,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func unrecognizedFormatThrowsParseError() {
+    func `unrecognized format throws parse error`() {
         // Simulates a CLI format change where none of the expected patterns match
         let output = """
         Welcome to Kiro!
@@ -294,7 +293,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func loginPromptThrowsNotLoggedIn() {
+    func `login prompt throws not logged in`() {
         let output = """
         Failed to initialize auth portal.
         Please try again with: kiro-cli login --use-device-flow
@@ -314,7 +313,7 @@ struct KiroStatusProbeTests {
     // MARK: - WhoAmI Validation
 
     @Test
-    func whoamiNotLoggedInThrows() {
+    func `whoami not logged in throws`() {
         let probe = KiroStatusProbe()
 
         #expect {
@@ -326,7 +325,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func whoamiLoginRequiredThrows() {
+    func `whoami login required throws`() {
         let probe = KiroStatusProbe()
 
         #expect {
@@ -338,7 +337,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func whoamiEmptyOutputWithZeroStatusThrows() {
+    func `whoami empty output with zero status throws`() {
         let probe = KiroStatusProbe()
 
         #expect {
@@ -350,7 +349,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func whoamiNonZeroStatusWithMessageThrows() {
+    func `whoami non zero status with message throws`() {
         let probe = KiroStatusProbe()
 
         #expect {
@@ -362,7 +361,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func whoamiSuccessDoesNotThrow() throws {
+    func `whoami success does not throw`() throws {
         let probe = KiroStatusProbe()
 
         try probe.validateWhoAmIOutput(

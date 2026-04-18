@@ -7,9 +7,9 @@ import Foundation
 struct UsageOptions: CommanderParsable {
     private static let sourceHelp: String = {
         #if os(macOS)
-        "Data source: auto | web | cli | oauth | api (auto uses web then falls back on missing cookies)"
+        "Data source: auto | web | cli | oauth | api (auto behavior is provider-specific)"
         #else
-        "Data source: auto | web | cli | oauth | api (web/auto are macOS only)"
+        "Data source: auto | web | cli | oauth | api (web/auto are macOS only for web-capable providers)"
         #endif
     }()
 
@@ -76,7 +76,7 @@ struct UsageOptions: CommanderParsable {
     var augmentDebug: Bool = false
 }
 
-enum ProviderSelection: Sendable, ExpressibleFromArgument {
+enum ProviderSelection: ExpressibleFromArgument {
     case single(UsageProvider)
     case both
     case all
@@ -120,7 +120,7 @@ enum ProviderSelection: Sendable, ExpressibleFromArgument {
     }
 }
 
-enum OutputFormat: String, Sendable, ExpressibleFromArgument {
+enum OutputFormat: String, ExpressibleFromArgument {
     case text
     case json
 

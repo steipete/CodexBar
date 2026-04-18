@@ -12,11 +12,11 @@ struct KimiUsage: Codable {
 
 public struct KimiUsageDetail: Codable, Sendable {
     public let limit: String
-    public let used: String? // Optional because rate limit detail doesn't have this
+    public let used: String?
     public let remaining: String?
-    public let resetTime: String
+    public let resetTime: String?
 
-    public init(limit: String, used: String?, remaining: String?, resetTime: String) {
+    public init(limit: String, used: String?, remaining: String?, resetTime: String?) {
         self.limit = limit
         self.used = used
         self.remaining = remaining

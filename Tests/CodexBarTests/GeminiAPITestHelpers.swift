@@ -37,6 +37,11 @@ enum GeminiAPITestHelpers {
                     "remainingFraction": 0.9,
                     "resetTime": "2025-01-01T00:00:00Z",
                 ],
+                [
+                    "modelId": "gemini-2.5-flash-lite",
+                    "remainingFraction": 0.8,
+                    "resetTime": "2025-01-01T00:00:00Z",
+                ],
             ],
         ])
     }
