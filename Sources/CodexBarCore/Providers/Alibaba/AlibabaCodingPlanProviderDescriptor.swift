@@ -184,6 +184,8 @@ struct AlibabaCodingPlanWebFetchStrategy: ProviderFetchStrategy {
             return true
         case .invalidCredentials:
             return true
+        case .apiKeyUnavailableInRegion:
+            return false
         case let .apiError(message):
             return message.contains("HTTP 404") || message.contains("HTTP 403")
         case .networkError:
