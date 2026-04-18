@@ -1373,12 +1373,14 @@ extension UsageMenuCardView.Model {
         now: Date,
         showUsed: Bool) -> (resetText: String, pace: PaceDetail)?
     {
-        guard let resetsAt = window.resetsAt else { return nil }
+        guard let resetsAt = window.resetsAt,
+              let nextRegenPercent = window.nextRegenPercent,
+              nextRegenPercent > 0
+        else { return nil }
 
         let countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
         let resetText = "Regenerates \(countdown)"
 
-        let nextRegenPercent = 5.0
         let afterNextRegenRemaining = min(100, window.remainingPercent + nextRegenPercent)
         let afterNextRegen = showUsed ? max(0, 100 - afterNextRegenRemaining) : afterNextRegenRemaining
         let suffix = showUsed ? "used after next regen" : "after next regen"

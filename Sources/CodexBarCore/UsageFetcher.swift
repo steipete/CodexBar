@@ -6,12 +6,21 @@ public struct RateWindow: Codable, Equatable, Sendable {
     public let resetsAt: Date?
     /// Optional textual reset description (used by Claude CLI UI scrape).
     public let resetDescription: String?
+    /// Optional percent restored on the next regeneration tick for providers with rolling recovery.
+    public let nextRegenPercent: Double?
 
-    public init(usedPercent: Double, windowMinutes: Int?, resetsAt: Date?, resetDescription: String?) {
+    public init(
+        usedPercent: Double,
+        windowMinutes: Int?,
+        resetsAt: Date?,
+        resetDescription: String?,
+        nextRegenPercent: Double? = nil)
+    {
         self.usedPercent = usedPercent
         self.windowMinutes = windowMinutes
         self.resetsAt = resetsAt
         self.resetDescription = resetDescription
+        self.nextRegenPercent = nextRegenPercent
     }
 
     public var remainingPercent: Double {

@@ -146,6 +146,56 @@ struct SyntheticUsageSnapshotTests {
     }
 
     @Test
+    func `parses rolling lane tickPercent into primary nextRegenPercent`() throws {
+        let json = """
+        {
+          "rollingFiveHourLimit": {
+            "nextTickAt": "2026-04-17T03:44:11.000Z",
+            "tickPercent": 0.05,
+            "remaining": 750,
+            "max": 750,
+            "limited": false
+          }
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        let snapshot = try SyntheticUsageParser.parse(data: data, now: Date(timeIntervalSince1970: 123))
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.nextRegenPercent == 5.0)
+    }
+
+    @Test
+    func `omits nextRegenPercent when rolling lane lacks tickPercent`() throws {
+        let json = """
+        {
+          "rollingFiveHourLimit": {
+            "nextTickAt": "2026-04-17T03:44:11.000Z",
+            "remaining": 750,
+            "max": 750
+          }
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        let snapshot = try SyntheticUsageParser.parse(data: data, now: Date(timeIntervalSince1970: 123))
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.nextRegenPercent == nil)
+    }
+
+    @Test
+    func `parses time string suffixes covering minutes hours and days`() {
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "5min") == 5)
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "5m") == 5)
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "5hr") == 300)
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "5h") == 300)
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "5hours") == 300)
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "2days") == 2880)
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "2d") == 2880)
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "1 hour") == 60)
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "junk") == nil)
+        #expect(SyntheticUsageParser.windowMinutes(fromText: "") == nil)
+    }
+
+    @Test
     func `preserves slot identity when rolling lane is missing`() throws {
         let json = """
         {

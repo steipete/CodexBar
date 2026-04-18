@@ -9,6 +9,7 @@ public struct SyntheticQuotaEntry: Sendable {
     public let windowMinutes: Int?
     public let resetsAt: Date?
     public let resetDescription: String?
+    public let nextRegenPercent: Double?
     public let cost: ProviderCostSnapshot?
 
     public init(
@@ -17,6 +18,7 @@ public struct SyntheticQuotaEntry: Sendable {
         windowMinutes: Int?,
         resetsAt: Date?,
         resetDescription: String?,
+        nextRegenPercent: Double? = nil,
         cost: ProviderCostSnapshot? = nil)
     {
         self.label = label
@@ -24,6 +26,7 @@ public struct SyntheticQuotaEntry: Sendable {
         self.windowMinutes = windowMinutes
         self.resetsAt = resetsAt
         self.resetDescription = resetDescription
+        self.nextRegenPercent = nextRegenPercent
         self.cost = cost
     }
 }
@@ -82,7 +85,8 @@ extension SyntheticUsageSnapshot {
             usedPercent: quota.usedPercent,
             windowMinutes: quota.windowMinutes,
             resetsAt: quota.resetsAt,
-            resetDescription: quota.resetDescription)
+            resetDescription: quota.resetDescription,
+            nextRegenPercent: quota.nextRegenPercent)
     }
 }
 
@@ -279,6 +283,8 @@ enum SyntheticUsageParser {
         let resetDescription = resetsAt == nil ? self.windowDescription(minutes: windowMinutes) : nil
 
         let cost = self.providerCost(from: payload, usedPercent: clamped, resetsAt: resetsAt)
+        let nextRegenPercent = self.normalizedPercent(
+            self.firstDouble(in: payload, keys: Self.tickPercentKeys))
 
         return SyntheticQuotaEntry(
             label: label,
@@ -286,6 +292,7 @@ enum SyntheticUsageParser {
             windowMinutes: windowMinutes,
             resetsAt: resetsAt,
             resetDescription: resetDescription,
+            nextRegenPercent: nextRegenPercent,
             cost: cost)
     }
 
@@ -312,7 +319,7 @@ enum SyntheticUsageParser {
             return Int((seconds / 60).rounded())
         }
         if let text = self.firstString(in: payload, keys: windowStringKeys) {
-            return self.windowMinutes(from: text)
+            return self.windowMinutes(fromText: text)
         }
         return nil
     }
@@ -353,30 +360,35 @@ enum SyntheticUsageParser {
         }
     }
 
-    private static func windowMinutes(from text: String) -> Int? {
+    /// Parses durations like `"5hr"`, `"30min"`, `"2 days"`. Suffixes are sorted longest-first so
+    /// multi-letter units always win over their single-letter aliases — no ordering surprises if a
+    /// future unit shares a trailing letter with another.
+    static func windowMinutes(fromText text: String) -> Int? {
         let normalized = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .replacingOccurrences(of: " ", with: "")
         guard !normalized.isEmpty else { return nil }
 
-        let unitMappings: [(suffixes: [String], multiplier: Double)] = [
-            (["minutes", "minute", "mins", "min", "m"], 1),
-            (["hours", "hour", "hrs", "hr", "h"], 60),
-            (["days", "day", "d"], 24 * 60),
-        ]
-
-        for mapping in unitMappings {
-            for suffix in mapping.suffixes {
-                guard normalized.hasSuffix(suffix) else { continue }
-                let valueText = String(normalized.dropLast(suffix.count))
-                guard let value = Double(valueText), value > 0 else { return nil }
-                return Int((value * mapping.multiplier).rounded())
-            }
+        for (suffix, multiplier) in Self.windowSuffixMultipliers {
+            guard normalized.hasSuffix(suffix) else { continue }
+            let valueText = String(normalized.dropLast(suffix.count))
+            guard let value = Double(valueText), value > 0 else { return nil }
+            return Int((value * multiplier).rounded())
         }
-
         return nil
     }
+
+    private static let windowSuffixMultipliers: [(suffix: String, multiplier: Double)] = {
+        let raw: [(String, Double)] = [
+            ("minutes", 1), ("minute", 1), ("mins", 1), ("min", 1), ("m", 1),
+            ("hours", 60), ("hour", 60), ("hrs", 60), ("hr", 60), ("h", 60),
+            ("days", 24 * 60), ("day", 24 * 60), ("d", 24 * 60),
+        ]
+        return raw
+            .sorted { $0.0.count > $1.0.count }
+            .map { (suffix: $0.0, multiplier: $0.1) }
+    }()
 
     private static func windowDescription(minutes: Int?) -> String? {
         guard let minutes, minutes > 0 else { return nil }
@@ -637,6 +649,13 @@ enum SyntheticUsageParser {
     private static let regenAmountKeys = [
         "nextRegenCredits",
         "next_regen_credits",
+    ]
+
+    private static let tickPercentKeys = [
+        "tickPercent",
+        "tick_percent",
+        "nextTickPercent",
+        "next_tick_percent",
     ]
 
     private static let costLimitKeys = [
