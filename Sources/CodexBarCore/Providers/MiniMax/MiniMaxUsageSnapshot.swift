@@ -9,6 +9,8 @@ public struct MiniMaxUsageSnapshot: Sendable {
     public let usedPercent: Double?
     public let resetsAt: Date?
     public let updatedAt: Date
+    /// All rows from `model_remains` (first row mirrors the scalar fields above).
+    public let models: [MiniMaxModelUsage]
 
     public init(
         planName: String?,
@@ -18,7 +20,8 @@ public struct MiniMaxUsageSnapshot: Sendable {
         windowMinutes: Int?,
         usedPercent: Double?,
         resetsAt: Date?,
-        updatedAt: Date)
+        updatedAt: Date,
+        models: [MiniMaxModelUsage] = [])
     {
         self.planName = planName
         self.availablePrompts = availablePrompts
@@ -28,6 +31,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
         self.updatedAt = updatedAt
+        self.models = models
     }
 }
 

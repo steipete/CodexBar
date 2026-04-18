@@ -80,7 +80,14 @@ either a Bearer API token or a session cookie header.
 - Reset: derived from `remains_time` (fallback to `end_time`) or HTML "Resets in …".
 - Plan/tier: best-effort from response fields or HTML title.
 
+### Coding Plan multi-model (`model_remains[]`)
+- The remains API returns **one row per quota** (text, VLM, search, TTS HD, video, music, image, lyrics, coding-plan modules, etc.). CodexBar decodes **every** row into `MiniMaxUsageSnapshot.models` while keeping the **existing scalar fields** (`availablePrompts`, `usedPercent`, `resetsAt`, …) aligned with **`model_remains[0]`** for the menu bar icon / primary `UsageSnapshot`.
+- Field semantics match the existing parser: `current_interval_total_count` is the window cap, `current_interval_usage_count` is treated as **remaining** in this codebase, and **used = total − remaining** (same as before).
+- Optional **weekly** columns (e.g. TTS): `current_weekly_total_count` and `current_weekly_usage_count` (weekly **remaining**, same naming convention as the interval fields). When present, the menu card shows a secondary “↳ Weekly …” line under that row.
+- Rows are grouped in the menu card by inferred window: **5-hour** (`windowMinutes == 300`), **daily** (~24h window), **weekly** (weekly-only rows), **other**.
+
 ## Key files
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageFetcher.swift`
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxModelUsage.swift`
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxProviderDescriptor.swift`
 - `Sources/CodexBar/Providers/MiniMax/MiniMaxProviderImplementation.swift`

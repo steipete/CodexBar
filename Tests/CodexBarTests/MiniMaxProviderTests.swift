@@ -113,6 +113,8 @@ struct MiniMaxUsageParserTests {
         #expect(snapshot.windowMinutes == 300)
         #expect(snapshot.usedPercent == 75)
         #expect(snapshot.resetsAt == expectedReset)
+        #expect(snapshot.models.count == 1)
+        #expect(snapshot.models.first?.window == .fiveHour)
     }
 
     @Test
@@ -149,6 +151,69 @@ struct MiniMaxUsageParserTests {
         #expect(snapshot.windowMinutes == 300)
         #expect(abs((snapshot.usedPercent ?? 0) - expectedUsed) < 0.01)
         #expect(snapshot.resetsAt == expectedReset)
+        #expect(snapshot.models.count == 1)
+    }
+
+    @Test
+    func `parses multiple model_remains rows and weekly fields`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let start5h = 1_700_000_000_000
+        let end5h = start5h + 5 * 60 * 60 * 1000
+        let dayStart = 1_700_000_000_000
+        let dayEnd = dayStart + 24 * 60 * 60 * 1000
+        let json = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_subscribe_title": "Token Plan",
+          "model_remains": [
+            {
+              "model_name": "text-gen",
+              "current_interval_total_count": 4500,
+              "current_interval_usage_count": 4381,
+              "start_time": \(start5h),
+              "end_time": \(end5h),
+              "remains_time": 240000
+            },
+            {
+              "model_name": "image-01",
+              "current_interval_total_count": 120,
+              "current_interval_usage_count": 120,
+              "start_time": \(dayStart),
+              "end_time": \(dayEnd),
+              "remains_time": 3600000
+            },
+            {
+              "model_name": "speech-hd",
+              "current_interval_total_count": 11000,
+              "current_interval_usage_count": 5,
+              "current_weekly_total_count": "77000",
+              "current_weekly_usage_count": "70646",
+              "start_time": \(dayStart),
+              "end_time": \(dayEnd),
+              "remains_time": 3600000
+            }
+          ]
+        }
+        """
+
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
+
+        #expect(snapshot.planName == "Token Plan")
+        #expect(snapshot.availablePrompts == 4500)
+        #expect(snapshot.models.count == 3)
+
+        let text = snapshot.models.first { $0.identifier == "text-gen" }
+        #expect(text?.window == .fiveHour)
+        #expect(text?.currentPrompts == 119)
+
+        let image = snapshot.models.first { $0.identifier == "image-01" }
+        #expect(image?.window == .daily)
+        #expect(image?.usedPercent == 0)
+
+        let speech = snapshot.models.first { $0.identifier == "speech-hd" }
+        #expect(speech?.weeklyTotal == 77000)
+        #expect(speech?.weeklyRemaining == 70646)
+        #expect(speech?.weeklyUsed == 6354)
     }
 
     @Test
@@ -193,6 +258,7 @@ struct MiniMaxUsageParserTests {
         #expect(snapshot.windowMinutes == 300)
         #expect(snapshot.usedPercent == 75)
         #expect(snapshot.resetsAt == expectedReset)
+        #expect(snapshot.models.count == 1)
     }
 
     @Test
