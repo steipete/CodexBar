@@ -175,6 +175,16 @@ enum CostUsagePricing {
             outputCostPerTokenAboveThreshold: nil,
             cacheCreationInputCostPerTokenAboveThreshold: nil,
             cacheReadInputCostPerTokenAboveThreshold: nil),
+        "claude-opus-4-7": ClaudePricing(
+            inputCostPerToken: 5e-6,
+            outputCostPerToken: 2.5e-5,
+            cacheCreationInputCostPerToken: 6.25e-6,
+            cacheReadInputCostPerToken: 5e-7,
+            thresholdTokens: nil,
+            inputCostPerTokenAboveThreshold: nil,
+            outputCostPerTokenAboveThreshold: nil,
+            cacheCreationInputCostPerTokenAboveThreshold: nil,
+            cacheReadInputCostPerTokenAboveThreshold: nil),
         "claude-sonnet-4-5": ClaudePricing(
             inputCostPerToken: 3e-6,
             outputCostPerToken: 1.5e-5,

@@ -653,7 +653,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func hidesOpenAIWebSubmenusWhenOpenAIWebExtrasDisabled() {
+    func `hides open AI web submenus when open AI web extras disabled`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -702,7 +702,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func showsOpenAIWebSubmenusWhenHistoryExists() throws {
+    func `shows open AI web submenus when history exists`() throws {
         self.disableMenuCardsForTesting()
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusMenuTests-history"),
@@ -837,6 +837,62 @@ extension StatusMenuTests {
         #expect(creditsIndex != nil)
         #expect(costIndex != nil)
         #expect(try #require(creditsIndex) < costIndex!)
+    }
+
+    @Test
+    func `hosted cost submenu preserves provider context after empty hydration`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.costUsageEnabled = true
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.costHistoryChartID,
+            provider: .codex)
+
+        controller.hydrateHostedSubviewMenuIfNeeded(submenu)
+        #expect(submenu.items.count == 1)
+        #expect(submenu.items.first?.title == "No data available")
+        #expect(submenu.items.first?.toolTip == UsageProvider.codex.rawValue)
+
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: 123,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 123,
+            last30DaysCostUSD: 1.23,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-12-23",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 123,
+                    costUSD: 1.23,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date()), provider: .codex)
+
+        controller.hydrateHostedSubviewMenuIfNeeded(submenu)
+        #expect(submenu.items.count == 1)
+        #expect(submenu.items.first?.title != "No data available")
+        #expect(submenu.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
     }
 
     @Test

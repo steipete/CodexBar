@@ -1045,7 +1045,9 @@ final class CursorStatusProbeStubURLProtocol: URLProtocol {
         Self.lock.unlock()
 
         do {
-            let handler = try #require(handler)
+            guard let handler else {
+                throw URLError(.cancelled)
+            }
             let (response, data) = try handler(self.request)
             self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             self.client?.urlProtocol(self, didLoad: data)

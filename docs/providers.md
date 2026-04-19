@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter, Abacus AI)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -39,6 +39,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | Ollama | Web settings page via browser cookies (`web`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
+| Abacus AI | Browser cookies → compute points + billing API (`web`). |
 
 ## Codex
 - Web dashboard (optional, off by default): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -182,5 +183,13 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Override base URL with `OPENROUTER_API_URL` env var.
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
 - Details: `docs/openrouter.md`.
+
+## Abacus AI
+- Browser cookies (`abacus.ai`, `apps.abacus.ai`) via automatic import or manual header.
+- `GET https://apps.abacus.ai/api/_getOrganizationComputePoints` (credits used/total).
+- `POST https://apps.abacus.ai/api/_getBillingInfo` (next billing date, subscription tier).
+- Shows monthly credit gauge with pace tick and reserve/deficit estimate.
+- Status: none yet.
+- Details: `docs/abacus.md`.
 
 See also: `docs/provider.md` for architecture notes.

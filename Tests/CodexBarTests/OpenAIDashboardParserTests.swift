@@ -99,6 +99,20 @@ struct OpenAIDashboardParserTests {
     }
 
     @Test
+    func `parses prolite plan from client bootstrap`() {
+        let html = """
+        <html>
+        <body>
+        <script type="application/json" id="client-bootstrap">
+        {"session":{"user":{"email":"user@example.com"}},"planType":"prolite"}
+        </script>
+        </body>
+        </html>
+        """
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro Lite")
+    }
+
+    @Test
     func `parses credit events from table rows`() {
         let rows: [[String]] = [
             ["Dec 18, 2025", "CLI", "397.205 credits"],

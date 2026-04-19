@@ -245,6 +245,41 @@ struct PathBuilderTests {
     }
 
     @Test
+    func `resolves claude from native installer path`() {
+        let nativePath = "/Users/test/.local/bin/claude"
+        let fm = MockFileManager(executables: [nativePath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == nativePath)
+    }
+
+    @Test
+    func `prefers migrated local claude path over legacy home dir path`() {
+        let migratedPath = "/Users/test/.claude/local/claude"
+        let legacyPath = "/Users/test/.claude/bin/claude"
+        let fm = MockFileManager(executables: [migratedPath, legacyPath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == migratedPath)
+    }
+
+    @Test
     func `prefers user managed well-known path over cmux path`() {
         let homePath = "/Users/test/.claude/bin/claude"
         let cmuxPath = "/Applications/cmux.app/Contents/Resources/bin/claude"

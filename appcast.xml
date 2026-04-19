@@ -3,6 +3,64 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.21</title>
+            <pubDate>Sat, 18 Apr 2026 19:49:47 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>56</sparkle:version>
+            <sparkle:shortVersionString>0.21</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.21</h2>
+<h3>Highlights</h3>
+<ul>
+<li>Abacus AI: add a new provider for ChatLLM and RouteLLM credit tracking with browser-cookie import, manual-cookie support, and monthly pace rendering. Thanks @ChrisGVE!</li>
+<li>Codex: recognize the new Pro $100 plan in OAuth, OpenAI web, menu, and CLI rendering, and preserve CLI fallback when partial OAuth payloads lose the 5-hour session lane (#691, #709). Thanks @ImLukeF!</li>
+<li>Codex: make OpenAI web extras opt-in for fresh installs, preserve working legacy setups on upgrade, add an OpenAI web battery-saver toggle, and keep account-scoped dashboard state aligned during refreshes and account switches (#529). Thanks @cbrane!</li>
+<li>Codex: fix local cost scanner overcounting and cross-day undercounting across forked sessions, cold-cache refreshes, and sessions-root changes (#698). Thanks @xx205!</li>
+<li>z.ai: preserve weekly and 5-hour token quotas together, surface the 5-hour lane correctly across the menu/menu bar, and add regression coverage (#662). Thanks to @takumi3488 for the original fix and investigation.</li>
+<li>Cursor: fix a crash in the usage fetch path and add regression coverage (#663). Thanks @anirudhvee for the report and validation!</li>
+<li>Antigravity: restore account and quota probing across newer localhost endpoint/token layouts and API-level retry failures (#693, fixes #692). Thanks @anirudhvee!</li>
+<li>Menu bar: fix missing icons on affected macOS 26 systems by avoiding RenderBox-triggering SwiftUI effects (#677). Thanks @andrzejchm!</li>
+<li>Battery / refresh: cut menu redraw churn, skip background work for unavailable providers, and reuse cached OpenAI web views more efficiently (#708).</li>
+<li>Claude: add Opus 4.7 pricing so local cost scanning and cost breakdowns recognize the new model. Thanks @knivram!</li>
+<li>Codex: add Microsoft Edge as a browser-cookie import option for the Codex provider while preserving the contributor-branch workflow from the original PR (#694). Thanks @Astro-Han!</li>
+</ul>
+<h3>Providers & Usage</h3>
+<ul>
+<li>Abacus AI: add provider support for ChatLLM and RouteLLM monthly compute-credit tracking with cookie import, manual cookie headers, timeout/browser-detection threading, optional billing fallback, and hardened cached-session retry behavior. Thanks @ChrisGVE!</li>
+<li>Codex: render the new Pro $100 plan consistently across OAuth, OpenAI web, menu, and CLI surfaces, tolerate newer Codex OAuth payload variants like <code>prolite</code>, and only fall back to the CLI in auto mode when OAuth decode damage actually drops the session lane (#691, #709).</li>
+<li>Codex: make OpenAI web extras opt-in by default, preserve legacy implicit-auto cookie setups during upgrade inference, add battery-saver gating for non-forced dashboard refreshes, and preserve provider/dashboard state for enabled providers that are temporarily unavailable.</li>
+<li>Cost: tighten the local Codex cost scanner around fork inheritance, cold-cache discovery, incremental parsing, and sessions-root changes so replayed sessions no longer overcount or slip usage across day boundaries (#698). Thanks @xx205!</li>
+<li>z.ai: preserve both weekly and 5-hour token quotas, keep the existing 2-limit behavior unchanged, and render the 5-hour quota as a tertiary row in provider snapshots and CLI/menu cards (#662). Credit to @takumi3488 for the original fix and investigation.</li>
+<li>Cursor: fix the usage fetch path so failed or cancelled requests no longer crash, and add Linux build and regression test coverage fixes (#663).</li>
+<li>Antigravity: try both language-server and extension-server endpoint/token combinations, retry after API-level errors, scope insecure localhost trust handling to loopback hosts, and restore local quota/account probing on newer Antigravity builds (#693, fixes #692). Thanks @anirudhvee!</li>
+<li>Antigravity: prefer <code>userTier.name</code> over generic plan info when rendering the account plan so Google AI Ultra and similar tiers show their real subscription name, while still falling back cleanly when the tier label is absent or blank (#303). Thanks @zacklavin11!</li>
+<li>Ollama: recognize <code>__Secure-session</code> cookies during manual cookie entry and browser-cookie import so authenticated usage fetching continues to work with the newer cookie name (#707). Thanks @anirudhvee!</li>
+<li>OpenCode: enable weekly pace visualization for the app and CLI so weekly bars show reserve percentage, expected-usage markers, and "Lasts until reset" details like Codex and Claude (#639). Thanks @Zachary!</li>
+<li>Refresh pipeline: skip background work for unavailable providers, clear stale cached state, and show explicit unavailable messages (#708).</li>
+<li>Codex: support Microsoft Edge in browser-cookie import for the Codex provider while keeping the contributor branch untouched in the superseding integration path (#694). Thanks @Astro-Han!</li>
+<li>OpenCode / OpenCode Go: treat serialized <code>_server</code> auth/account-context failures as invalid credentials so cached browser cookies are cleared and retried instead of surfacing a misleading HTTP 500.</li>
+<li>OpenAI web: keep cached WebViews across same-account refreshes and clean them up only when accounts or providers go stale (#708).</li>
+<li>Claude: add Opus 4.7 pricing so local cost usage and breakdowns price the new model correctly. Thanks @knivram!</li>
+<li>Claude: broaden CLI binary lookup to native installer paths (#731). Thanks @dingtang2008!</li>
+</ul>
+<h3>Menu & Settings</h3>
+<ul>
+<li>Menu bar: fix missing icons on affected macOS 26 systems by replacing RenderBox-triggering material/offscreen SwiftUI effects in the provider sidebar and highlighted progress bar (#677). Thanks @andrzejchm!</li>
+<li>z.ai: fix menu bar selection when both weekly and 5-hour quotas are present (#662).</li>
+<li>Menu bar: avoid redundant merged-icon redraws and make hosted chart submenus load lazily without losing provider context (#708).</li>
+<li>Merged menu: when Overview is selected, keep the merged menu bar icon aligned with the first Overview provider in configured order, even while that provider is still loading (#724). Thanks @anirudhvee!</li>
+<li>Codex: add an OpenAI web battery-saver toggle, keep manual refresh available when battery saver is on, and hide OpenAI web submenus when web extras are disabled.</li>
+</ul>
+<h3>Development & Tooling</h3>
+<ul>
+<li>Diagnostics: add lightweight battery instrumentation for menu updates and refresh work (#708).</li>
+<li>Build script: make CodexBar-owned ad-hoc keychain cleanup opt-in with <code>--clear-adhoc-keychain</code>, and extend the explicit reset path to clear both <code>com.steipete.CodexBar</code> and <code>com.steipete.codexbar.cache</code>. Thanks @magnaprog!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.21/CodexBar-0.21.zip" length="29629137" type="application/octet-stream" sparkle:edSignature="AVZRGIJP48INFFn2IcDxnde+Qz5TwzMM4nVXWs6J1qQ3CIr6ExOj7vIJg/+lg+FrKgHJbkPw8q4+XcFs9P9bBQ=="/>
+        </item>
+        <item>
             <title>0.20</title>
             <pubDate>Wed, 08 Apr 2026 04:42:18 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -66,47 +124,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.20.0-beta.1/CodexBar-0.20.0-beta.1.zip" length="27000457" type="application/octet-stream" sparkle:edSignature="3w8bAWbYOKl5tshJ4vFg+upCSxPS+amG1+hxVz9glfpwaRsjVjI9Fo5AAC51HUl1QgAO9EWOjcEGOmiYTzxbBQ=="/>
-        </item>
-        <item>
-            <title>0.19.0</title>
-            <pubDate>Mon, 23 Mar 2026 17:44:57 -0700</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>53</sparkle:version>
-            <sparkle:shortVersionString>0.19.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.19.0</h2>
-<h3>Highlights</h3>
-<ul>
-<li>Add Alibaba Coding Plan provider with region-aware quota fetching, widget integration, and browser-cookie import defaults (#574).</li>
-<li>Align Cursor usage with the dashboard's Total/Auto/API lanes. (#587). Thanks @Rag30!</li>
-<li>Add subscription utilization history chart to the menu with DST-safe data point identification (#589). Thanks @maxceem!</li>
-<li>Refactor the Claude provider end to end into clearer, better-tested components while preserving behavior (#494). @ratulsarna</li>
-<li>Add reset time display for Codex code review limits (#581). Thanks @Q1CHENL!</li>
-<li>Add per-model token counts to cost history (#546). Thanks @iam-brain!</li>
-<li>Fix Antigravity model selection to use stable model-family matching for Claude, Gemini Pro, and Gemini Flash, and preserve fallback lane visibility in the menu bar and icon (#590). Thanks @skainguyen1412!</li>
-<li>Add GPT-5.4 mini and nano pricing (#561). Thanks @iam-brain!</li>
-</ul>
-<h3>Providers & Usage</h3>
-<ul>
-<li>Alibaba: add Coding Plan provider support with region-aware web/API quota fetching, widget integration, and browser-cookie import defaults (#574).</li>
-<li>Cursor: trust dashboard percent fields for Total/Auto/API usage, preserve on-demand remaining fallback views, and keep scanning imported browser-cookie candidates until a working Cursor session is found (#587, supersedes #579). Thanks @Rag30!</li>
-<li>Claude: refactor the provider end to end into clearer components, with baseline docs and expanded tests to lock down behavior (#494).</li>
-<li>Codex: show reset times for code review limits, including Core review reset parsing support (#581). Thanks @Q1CHENL!</li>
-<li>Cost history: add per-model token counts so token usage is broken out by model (#546). Thanks @iam-brain!</li>
-<li>Antigravity: replace label-order guessing with stable model-family selection for Claude, Gemini Pro, and Gemini Flash; fix mapping for Claude thinking models and placeholder model IDs; preserve fallback lane visibility in the menu bar and icon when only fallback lanes exist (#590). Thanks @skainguyen1412!</li>
-<li>Kimi: tolerate API responses without <code>resetTime</code> so usage decoding no longer fails on sparse payloads.</li>
-<li>Codex: add GPT-5.4 mini and nano pricing (#561). Thanks @iam-brain!</li>
-</ul>
-<h3>Menu & Settings</h3>
-<ul>
-<li>Menu: add subscription utilization history chart with DST-safe chart point identifiers and per-provider plan utilization tracking (#589). Thanks @maxceem!</li>
-<li>Menu bar: in Both display mode, fall back to percent when pace data is unavailable so text stays visible for providers without pace metrics (#527). Thanks @Astro-Han!</li>
-<li>Settings: persist the resolved refresh cadence default to <code>UserDefaults</code> on first launch and repair invalid stored values so the setting stays normalized across relaunches (#519). Thanks @Astro-Han!</li>
-<li>Menu: wrap long status blurbs and preserve wrapped titles for multiline entries (#543). Thanks @zkforge!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.19.0/CodexBar-0.19.0.zip" length="26122301" type="application/octet-stream" sparkle:edSignature="Qi8+pZV5u0I436wC/vZ022EpH6OD0KzOKA9Bf+VLAuqtzZiG4iueruEhhSPUhWXjJnpNVKq6k5L2JEh0BsF4BQ=="/>
         </item>
         <item>
             <title>0.14.0</title>

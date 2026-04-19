@@ -39,6 +39,7 @@ enum ProviderImplementationRegistry {
         case .warp: WarpProviderImplementation()
         case .windsurf: WindsurfProviderImplementation()
         case .perplexity: PerplexityProviderImplementation()
+        case .abacus: AbacusProviderImplementation()
         }
     }
 

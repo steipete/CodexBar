@@ -96,6 +96,42 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
+    func `Codex menu humanizes prolite plan from snapshot identity`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-prolite")
+        settings.statusChecksEnabled = false
+
+        let fetcher = UsageFetcher(environment: [:])
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "codex@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "prolite")),
+            provider: .codex)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(lines.contains("Plan: Pro Lite"))
+        #expect(!lines.contains("Plan: Prolite"))
+    }
+
+    @Test
     func `Codex menu prefers snapshot identity over conflicting fallback account info`() throws {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-snapshot-precedence")
         settings.statusChecksEnabled = false

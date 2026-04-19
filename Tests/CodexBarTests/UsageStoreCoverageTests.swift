@@ -134,7 +134,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func backgroundRefreshOnlyTracksEnabledProviders() throws {
+    func `background refresh only tracks enabled providers`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-refresh")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -167,7 +167,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func cleanupPreservesEnabledButUnavailableProviderState() throws {
+    func `cleanup preserves enabled but unavailable provider state`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-preserve-unavailable")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -204,7 +204,175 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func statusIndicatorsAndFailureGate() {
+    func `background work excludes enabled but unavailable providers`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-unavailable")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let metadata = ProviderRegistry.shared.metadata
+        for provider in UsageProvider.allCases {
+            try settings.setProviderEnabled(
+                provider: provider,
+                metadata: #require(metadata[provider]),
+                enabled: false)
+        }
+        try settings.setProviderEnabled(
+            provider: .synthetic,
+            metadata: #require(metadata[.synthetic]),
+            enabled: true)
+
+        let store = Self.makeUsageStore(settings: settings)
+
+        #expect(store.enabledProvidersForDisplay() == [.synthetic])
+        #expect(store.enabledProviders().isEmpty)
+        #expect(store.enabledProvidersForBackgroundWork().isEmpty)
+    }
+
+    @Test
+    func `visible unavailable provider gets explicit user facing state`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-unavailable-message")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let metadata = ProviderRegistry.shared.metadata
+        for provider in UsageProvider.allCases {
+            try settings.setProviderEnabled(
+                provider: provider,
+                metadata: #require(metadata[provider]),
+                enabled: false)
+        }
+        try settings.setProviderEnabled(
+            provider: .synthetic,
+            metadata: #require(metadata[.synthetic]),
+            enabled: true)
+
+        let store = Self.makeUsageStore(settings: settings)
+
+        #expect(store.errors[.synthetic] == nil)
+        #expect(store.enabledProvidersForDisplay() == [.synthetic])
+        #expect(store.isProviderAvailable(.synthetic) == false)
+        #expect(store.userFacingError(for: .synthetic) == SyntheticSettingsError.missingToken.errorDescription)
+        #expect(store.unavailableMessage(for: .synthetic) == SyntheticSettingsError.missingToken.errorDescription)
+    }
+
+    @Test
+    func `refresh clears enabled but unavailable cached state`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-cleanup")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let metadata = ProviderRegistry.shared.metadata
+        for provider in UsageProvider.allCases {
+            try settings.setProviderEnabled(
+                provider: provider,
+                metadata: #require(metadata[provider]),
+                enabled: false)
+        }
+        try settings.setProviderEnabled(
+            provider: .synthetic,
+            metadata: #require(metadata[.synthetic]),
+            enabled: true)
+
+        let store = Self.makeUsageStore(settings: settings)
+        let cachedSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        store._setSnapshotForTesting(cachedSnapshot, provider: .synthetic)
+        let account = ProviderTokenAccount(id: UUID(), label: "Account", token: "token", addedAt: 0, lastUsed: nil)
+        store.accountSnapshots[.synthetic] = [
+            TokenAccountUsageSnapshot(account: account, snapshot: cachedSnapshot, error: nil, sourceLabel: "api"),
+        ]
+        store._setTokenSnapshotForTesting(
+            CostUsageTokenSnapshot(
+                sessionTokens: 10,
+                sessionCostUSD: 1.23,
+                last30DaysTokens: 100,
+                last30DaysCostUSD: 4.56,
+                daily: [],
+                updatedAt: Date()),
+            provider: .synthetic)
+
+        #expect(store.enabledProvidersForDisplay() == [.synthetic])
+        #expect(store.enabledProviders().isEmpty)
+        #expect(store.enabledProvidersForBackgroundWork().isEmpty)
+
+        await store.refresh()
+        #expect(store.snapshot(for: .synthetic) == nil)
+        #expect((store.accountSnapshots[.synthetic] ?? []).isEmpty)
+        #expect(store.tokenSnapshots[.synthetic] == nil)
+        #expect(store.enabledProvidersForBackgroundWork().isEmpty)
+    }
+
+    @Test
+    func `refresh clears enabled but unavailable failure state`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-failure-cleanup")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let metadata = ProviderRegistry.shared.metadata
+        for provider in UsageProvider.allCases {
+            try settings.setProviderEnabled(
+                provider: provider,
+                metadata: #require(metadata[provider]),
+                enabled: false)
+        }
+        try settings.setProviderEnabled(
+            provider: .synthetic,
+            metadata: #require(metadata[.synthetic]),
+            enabled: true)
+
+        let store = Self.makeUsageStore(settings: settings)
+        store._setErrorForTesting("stale", provider: .synthetic)
+        store.statuses[.synthetic] = ProviderStatus(indicator: .major, description: "Outage", updatedAt: Date())
+        store.tokenErrors[.synthetic] = "token stale"
+
+        #expect(store.enabledProvidersForDisplay() == [.synthetic])
+        #expect(store.enabledProviders().isEmpty)
+        #expect(store.enabledProvidersForBackgroundWork().isEmpty)
+
+        await store.refresh()
+
+        #expect(store.errors[.synthetic] == nil)
+        #expect(store.tokenErrors[.synthetic] == nil)
+        #expect(store.statuses[.synthetic] == nil)
+        #expect(store.enabledProvidersForBackgroundWork().isEmpty)
+    }
+
+    @Test
+    func `unavailable provider with only cached status gets single cleanup pass`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-status-cleanup")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = true
+
+        let metadata = ProviderRegistry.shared.metadata
+
+        for provider in UsageProvider.allCases {
+            try settings.setProviderEnabled(
+                provider: provider,
+                metadata: #require(metadata[provider]),
+                enabled: false)
+        }
+        try settings.setProviderEnabled(
+            provider: .synthetic,
+            metadata: #require(metadata[.synthetic]),
+            enabled: true)
+
+        let store = Self.makeUsageStore(settings: settings)
+        store.statuses[.synthetic] = ProviderStatus(indicator: .major, description: "Outage", updatedAt: Date())
+
+        #expect(store.enabledProvidersForDisplay() == [.synthetic])
+        #expect(store.enabledProviders().isEmpty)
+        #expect(store.enabledProvidersForBackgroundWork().isEmpty)
+
+        await store.refresh()
+
+        #expect(store.statuses[.synthetic] == nil)
+        #expect(store.enabledProvidersForBackgroundWork().isEmpty)
+    }
+
+    @Test
+    func `status indicators and failure gate`() {
         #expect(!ProviderStatusIndicator.none.hasIssue)
         #expect(ProviderStatusIndicator.maintenance.hasIssue)
         #expect(ProviderStatusIndicator.unknown.label == "Status unknown")
@@ -255,7 +423,8 @@ struct UsageStoreCoverageTests {
         UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+            settings: settings,
+            environmentBase: [:])
     }
 }
 

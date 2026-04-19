@@ -283,6 +283,7 @@ private struct ProviderSwitchChip: View {
         case .warp: "Warp"
         case .windsurf: "Windsurf"
         case .perplexity: "Pplx"
+        case .abacus: "Abacus"
         }
     }
 }
@@ -644,6 +645,8 @@ enum WidgetColors {
             Color(red: 52 / 255, green: 232 / 255, blue: 187 / 255) // Windsurf #34e8bb
         case .perplexity:
             Color(red: 32 / 255, green: 178 / 255, blue: 170 / 255) // Perplexity teal
+        case .abacus:
+            Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
         }
     }
 }

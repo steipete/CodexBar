@@ -146,9 +146,9 @@ struct MenuDescriptor {
         if let snap = store.snapshot(for: provider) {
             let resetStyle = settings.resetTimeDisplayStyle
             if let primary = snap.primary {
-                let primaryWindow = if provider == .warp || provider == .kilo {
-                    // Warp/Kilo primary uses resetDescription for non-reset detail (e.g., "Unlimited", "X/Y credits").
-                    // Avoid rendering it as a "Resets ..." line.
+                let primaryWindow = if provider == .warp || provider == .kilo || provider == .abacus {
+                    // Warp/Kilo/Abacus primary uses resetDescription for non-reset detail
+                    // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
                     RateWindow(
                         usedPercent: primary.usedPercent,
                         windowMinutes: primary.windowMinutes,
@@ -163,11 +163,17 @@ struct MenuDescriptor {
                     window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
-                if provider == .warp || provider == .kilo,
+                if provider == .warp || provider == .kilo || provider == .abacus,
                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !detail.isEmpty
                 {
                     entries.append(.text(detail, .secondary))
+                }
+                if provider == .abacus,
+                   let pace = store.weeklyPace(provider: provider, window: primary)
+                {
+                    let paceSummary = UsagePaceText.weeklySummary(pace: pace)
+                    entries.append(.text(paceSummary, .secondary))
                 }
             }
             if let weekly = snap.secondary {
@@ -477,7 +483,7 @@ struct MenuDescriptor {
 
 private enum AccountFormatter {
     static func plan(_ text: String) -> String {
-        let cleaned = UsageFormatter.cleanPlanName(text)
+        let cleaned = CodexPlanFormatting.displayName(text) ?? UsageFormatter.cleanPlanName(text)
         return cleaned.isEmpty ? text : cleaned
     }
 

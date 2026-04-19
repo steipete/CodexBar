@@ -21,7 +21,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         ollama: OllamaProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
-        perplexity: PerplexityProviderSettings? = nil) -> ProviderSettingsSnapshot
+        perplexity: PerplexityProviderSettings? = nil,
+        abacus: AbacusProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
             debugMenuEnabled: debugMenuEnabled,
@@ -43,7 +44,8 @@ public struct ProviderSettingsSnapshot: Sendable {
             ollama: ollama,
             jetbrains: jetbrains,
             windsurf: windsurf,
-            perplexity: perplexity)
+            perplexity: perplexity,
+            abacus: abacus)
     }
 
     public struct CodexProviderSettings: Sendable {
@@ -250,6 +252,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct AbacusProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public let debugMenuEnabled: Bool
     public let debugKeepCLISessionsAlive: Bool
     public let codex: CodexProviderSettings?
@@ -270,6 +282,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let jetbrains: JetBrainsProviderSettings?
     public let windsurf: WindsurfProviderSettings?
     public let perplexity: PerplexityProviderSettings?
+    public let abacus: AbacusProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
         self.jetbrains?.ideBasePath
@@ -295,7 +308,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         ollama: OllamaProviderSettings?,
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
-        perplexity: PerplexityProviderSettings? = nil)
+        perplexity: PerplexityProviderSettings? = nil,
+        abacus: AbacusProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
@@ -317,6 +331,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.jetbrains = jetbrains
         self.windsurf = windsurf
         self.perplexity = perplexity
+        self.abacus = abacus
     }
 }
 
@@ -339,6 +354,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
     case windsurf(ProviderSettingsSnapshot.WindsurfProviderSettings)
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
+    case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
 }
 
 public struct ProviderSettingsSnapshotBuilder: Sendable {
@@ -362,6 +378,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
     public var windsurf: ProviderSettingsSnapshot.WindsurfProviderSettings?
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
+    public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
         self.debugMenuEnabled = debugMenuEnabled
@@ -388,6 +405,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .jetbrains(value): self.jetbrains = value
         case let .windsurf(value): self.windsurf = value
         case let .perplexity(value): self.perplexity = value
+        case let .abacus(value): self.abacus = value
         }
     }
 
@@ -412,6 +430,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             ollama: self.ollama,
             jetbrains: self.jetbrains,
             windsurf: self.windsurf,
-            perplexity: self.perplexity)
+            perplexity: self.perplexity,
+            abacus: self.abacus)
     }
 }

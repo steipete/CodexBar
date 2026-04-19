@@ -47,7 +47,7 @@ public enum AlibabaCodingPlanAPIRegion: String, CaseIterable, Sendable {
         case .international:
             "MODELSTUDIO_ALIBABACLOUD"
         case .chinaMainland:
-            "BAILIAN_CONSOLE"
+            "BAILIAN_ALIYUN"
         }
     }
 
@@ -79,7 +79,7 @@ public enum AlibabaCodingPlanAPIRegion: String, CaseIterable, Sendable {
         case .international:
             "https://bailian-singapore-cs.alibabacloud.com"
         case .chinaMainland:
-            "https://bailian-beijing-cs.aliyuncs.com"
+            "https://bailian-cs.console.aliyun.com"
         }
     }
 

@@ -79,6 +79,7 @@ public enum ProviderDescriptorRegistry {
         .warp: WarpProviderDescriptor.descriptor,
         .windsurf: WindsurfProviderDescriptor.descriptor,
         .perplexity: PerplexityProviderDescriptor.descriptor,
+        .abacus: AbacusProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {
