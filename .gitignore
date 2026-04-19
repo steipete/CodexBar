@@ -30,6 +30,10 @@ debug_*.swift
 # Misc
 .DS_Store
 .vscode/
+
+# Cursor / SpecStory local state (never commit)
+.cursor/hooks/state/
+.specstory/
 .codex/environments/
 .swiftpm-cache/
 
