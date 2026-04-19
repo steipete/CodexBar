@@ -232,4 +232,50 @@ struct MiniMaxMenuCardTests {
         store.toggle(sectionTitle: "Other windows", rowCount: 2)
         #expect(store.isCollapsed(sectionTitle: "Other windows", rowCount: 2))
     }
+
+    @Test
+    func `minimax detail line does not infer full usage when interval usage count missing`() {
+        let row = MiniMaxModelUsage(
+            identifier: "m",
+            displayName: "M",
+            availablePrompts: 1000,
+            currentPrompts: nil,
+            remainingPrompts: nil,
+            windowMinutes: 300,
+            usedPercent: 12.0,
+            resetsAt: nil,
+            weeklyTotal: nil,
+            weeklyUsed: nil,
+            weeklyRemaining: nil,
+            weeklyUsedPercent: nil,
+            weeklyResetsAt: nil,
+            window: .fiveHour)
+        let line = UsageMenuCardView.Model.miniMaxDetailLine(model: row)
+        let totalStr = UsageFormatter.tokenCountString(1000)
+        #expect(line == "—/\(totalStr)")
+    }
+
+    @Test
+    func `minimax detail line derives used from remaining when current omitted`() {
+        let row = MiniMaxModelUsage(
+            identifier: "m",
+            displayName: "M",
+            availablePrompts: 1000,
+            currentPrompts: nil,
+            remainingPrompts: 250,
+            windowMinutes: 300,
+            usedPercent: 75.0,
+            resetsAt: nil,
+            weeklyTotal: nil,
+            weeklyUsed: nil,
+            weeklyRemaining: nil,
+            weeklyUsedPercent: nil,
+            weeklyResetsAt: nil,
+            window: .fiveHour)
+        let line = UsageMenuCardView.Model.miniMaxDetailLine(model: row)
+        let usedStr = UsageFormatter.tokenCountString(750)
+        let totalStr = UsageFormatter.tokenCountString(1000)
+        let remStr = UsageFormatter.tokenCountString(250)
+        #expect(line == "\(usedStr)/\(totalStr) (\(remStr) remaining)")
+    }
 }

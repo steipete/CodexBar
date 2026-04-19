@@ -74,14 +74,29 @@ extension UsageMenuCardView.Model {
 
     static func miniMaxDetailLine(model: MiniMaxModelUsage) -> String? {
         guard let total = model.availablePrompts else { return nil }
-        let used = model.currentPrompts ?? max(0, total - (model.remainingPrompts ?? 0))
+
+        // 与 MiniMaxUsageFetcher 一致：仅当同时有 total+remaining（或解析出的 current）时才推导已用量；
+        // remaining 缺省时不得假定为 0，否则会显示成「用尽」且与省略的 current_interval_usage_count 矛盾。
+        let used: Int? = if let current = model.currentPrompts {
+            current
+        } else if let remaining = model.remainingPrompts {
+            max(0, total - remaining)
+        } else {
+            nil
+        }
+
         let remaining = model.remainingPrompts
         // 区间额度占位 0/0 时不展示误导性用量（与周限 0/0 同类问题）。
-        if total == 0, used == 0, remaining == nil || remaining == 0 {
+        if total == 0, (used ?? 0) == 0, remaining == nil || remaining == 0 {
             return nil
         }
-        let usedStr = UsageFormatter.tokenCountString(used)
+
         let totalStr = UsageFormatter.tokenCountString(total)
+        guard let used else {
+            return "—/\(totalStr)"
+        }
+
+        let usedStr = UsageFormatter.tokenCountString(used)
         if let remaining {
             let remStr = UsageFormatter.tokenCountString(remaining)
             return "\(usedStr)/\(totalStr) (\(remStr) remaining)"
