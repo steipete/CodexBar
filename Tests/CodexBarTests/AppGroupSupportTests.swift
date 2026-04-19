@@ -91,6 +91,15 @@ struct AppGroupSupportTests {
 
     @Test
     func `legacy migration preserves existing target shared defaults`() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        let currentSnapshotURL = root.appendingPathComponent("current/widget-snapshot.json", isDirectory: false)
+        let legacySnapshotURL = root.appendingPathComponent("legacy/widget-snapshot.json", isDirectory: false)
+        // 隔离快照路径，避免在未覆盖时使用本机 Group Container 中的真实文件而误判为已迁移。
+
         let standardSuite = "AppGroupSupportTests-standard-existing-\(UUID().uuidString)"
         let currentSuite = "AppGroupSupportTests-current-existing-\(UUID().uuidString)"
         let legacySuite = "AppGroupSupportTests-legacy-existing-\(UUID().uuidString)"
@@ -111,7 +120,9 @@ struct AppGroupSupportTests {
             bundleID: "com.steipete.codexbar",
             standardDefaults: standardDefaults,
             currentDefaultsOverride: currentDefaults,
-            legacyDefaultsOverride: legacyDefaults)
+            legacyDefaultsOverride: legacyDefaults,
+            currentSnapshotURLOverride: currentSnapshotURL,
+            legacySnapshotURLOverride: legacySnapshotURL)
 
         #expect(result.status == .noChangesNeeded)
         #expect(result.copiedDefaults == 0)
