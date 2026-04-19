@@ -1389,4 +1389,47 @@ extension ClaudeUsageTests {
         }
         #expect(flags.respectPromptCooldownFlags == [true])
     }
+
+    /// Regression for https://github.com/steipete/CodexBar/issues/726: when the
+    /// OAuth usage response is missing the `five_hour` block, the snapshot must
+    /// still be produced using whichever windows are available instead of being
+    /// thrown away entirely.
+    @Test
+    func `mapOAuthUsage falls back to seven-day window when five_hour is absent`() throws {
+        let json = """
+        {
+          "seven_day": { "utilization": 42, "resets_at": "2025-12-29T23:00:00.000Z" },
+          "seven_day_sonnet": { "utilization": 17, "resets_at": "2025-12-29T23:00:00.000Z" }
+        }
+        """
+        let snapshot = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snapshot.primary.usedPercent == 42)
+        #expect(snapshot.secondary?.usedPercent == 42)
+        #expect(snapshot.opus?.usedPercent == 17)
+    }
+
+    /// Regression for https://github.com/steipete/CodexBar/issues/726: when
+    /// `five_hour.utilization` itself is missing (the exact shape from the
+    /// reporter's debug output), we should still map the remaining data.
+    @Test
+    func `mapOAuthUsage falls back when five_hour has no utilization`() throws {
+        let json = """
+        {
+          "five_hour": { "resets_at": "2025-12-23T16:00:00.000Z" },
+          "seven_day": { "utilization": 9, "resets_at": "2025-12-29T23:00:00.000Z" }
+        }
+        """
+        let snapshot = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snapshot.primary.usedPercent == 9)
+    }
+
+    /// When *every* window is missing we still want to signal an error rather
+    /// than synthesise fake data.
+    @Test
+    func `mapOAuthUsage throws when no windows are present`() throws {
+        let json = "{}"
+        #expect(throws: ClaudeUsageError.self) {
+            try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        }
+    }
 }
