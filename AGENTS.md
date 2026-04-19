@@ -40,3 +40,11 @@
 - Keep provider data siloed: when rendering usage or account info for a provider (Claude vs Codex), never display identity/plan fields sourced from a different provider.***
 - Claude CLI status line is custom + user-configurable; never rely on it for usage parsing.
 - Cookie imports: default Chrome-only when possible to avoid other browser prompts; override via browser list when needed.
+
+## Learned User Preferences
+- When extending provider usage models (e.g. MiniMax), mirror existing field and UI patterns; add new fields using the same conventions as neighboring code.
+
+## Learned Workspace Facts
+- MiniMax Coding Plan `model_remains` weekly fields may arrive as both zeros, or with only one of `current_weekly_total_count` / `current_weekly_usage_count` present and zero. CodexBar treats “at least one weekly key present and both sides numerically zero when missing counts as zero” as no weekly cap. Interval window lines that are 0/0 placeholders are suppressed in the menu card so they are not mistaken for weekly limits.
+- `swift build -c release` only refreshes the `.build/.../CodexBar` binary. The launchable root `CodexBar.app` is recreated by `Scripts/package_app.sh` or `Scripts/compile_and_run.sh`; if UI behavior looks stale, compare the bundle `CodexGitCommit` in `Contents/Info.plist` with `git rev-parse --short HEAD`.
+- MiniMax menu usage is rendered inside one hosted `NSMenuItem`, so height limiting, scrolling, and section collapsing must happen inside that card to keep the bottom app-level menu items visible. Current MiniMax behavior: collapse state is keyed by section title, 5+ row sections default to collapsed, and Preferences mirrors the sections with scrolling only (no collapse).

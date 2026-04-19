@@ -897,12 +897,10 @@ extension LocalhostSessionDelegate: URLSessionDelegate {
     func urlSession(
         _ session: URLSession,
         didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping @MainActor @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
     {
         let result = self.challengeResult(challenge)
-        Task { @MainActor in
-            completionHandler(result.disposition, result.credential)
-        }
+        completionHandler(result.disposition, result.credential)
     }
 }
 
@@ -911,12 +909,10 @@ extension LocalhostSessionDelegate: URLSessionTaskDelegate {
         _ session: URLSession,
         task: URLSessionTask,
         didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping @MainActor @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
     {
         let result = self.challengeResult(challenge)
-        Task { @MainActor in
-            completionHandler(result.disposition, result.credential)
-        }
+        completionHandler(result.disposition, result.credential)
     }
 }
 

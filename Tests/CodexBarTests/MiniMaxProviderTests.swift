@@ -217,6 +217,71 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `parses weekly zero zero as no weekly cap`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let start = 1_700_000_000_000
+        let end = start + 5 * 60 * 60 * 1000
+        let json = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_subscribe_title": "Unlimited Weekly",
+          "model_remains": [
+            {
+              "model_name": "coding-model",
+              "current_interval_total_count": 1000,
+              "current_interval_usage_count": 500,
+              "current_weekly_total_count": 0,
+              "current_weekly_usage_count": 0,
+              "weekly_end_time": \(start + 7 * 24 * 60 * 60 * 1000),
+              "weekly_remains_time": 3600000,
+              "start_time": \(start),
+              "end_time": \(end),
+              "remains_time": 240000
+            }
+          ]
+        }
+        """
+
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
+        let row = try #require(snapshot.models.first { $0.identifier == "coding-model" })
+        #expect(row.weeklyTotal == nil)
+        #expect(row.weeklyRemaining == nil)
+        #expect(row.weeklyUsed == nil)
+        #expect(row.weeklyUsedPercent == nil)
+        #expect(row.weeklyResetsAt == nil)
+    }
+
+    @Test
+    func `parses weekly total zero with missing remaining as no weekly cap`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let start = 1_700_000_000_000
+        let end = start + 5 * 60 * 60 * 1000
+        let json = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_subscribe_title": "Plan",
+          "model_remains": [
+            {
+              "model_name": "m1",
+              "current_interval_total_count": 1000,
+              "current_interval_usage_count": 500,
+              "current_weekly_total_count": 0,
+              "start_time": \(start),
+              "end_time": \(end),
+              "remains_time": 240000
+            }
+          ]
+        }
+        """
+
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
+        let row = try #require(snapshot.models.first)
+        #expect(row.weeklyTotal == nil)
+        #expect(row.weeklyRemaining == nil)
+        #expect(row.weeklyResetsAt == nil)
+    }
+
+    @Test
     func `parses coding plan from next data`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let start = 1_700_000_000_000

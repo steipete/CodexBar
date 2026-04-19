@@ -137,7 +137,99 @@ struct MiniMaxMenuCardTests {
         let sections = try #require(model.minimaxSections)
         #expect(sections.count == 1)
         let row = try #require(sections.first?.rows.first)
-        #expect(row.secondaryLine?.contains("Weekly") == true)
-        #expect(row.secondaryLine?.contains("70646") == true)
+        let weekly = try #require(row.secondaryLine)
+        #expect(weekly.contains("Weekly"))
+        #expect(weekly.contains("91.7"))
+        // Remaining uses UsageFormatter.tokenCountString (e.g. 70646 → "71K"), not raw digits.
+        #expect(weekly.contains("remaining"))
+    }
+
+    @Test
+    func `minimax hides weekly secondary line when weekly quota is zero zero`() throws {
+        let now = Date()
+        let models: [MiniMaxModelUsage] = [
+            MiniMaxModelUsage(
+                identifier: "coding",
+                displayName: "Coding",
+                availablePrompts: 1000,
+                currentPrompts: 100,
+                remainingPrompts: 900,
+                windowMinutes: 300,
+                usedPercent: 10,
+                resetsAt: nil,
+                weeklyTotal: 0,
+                weeklyUsed: 0,
+                weeklyRemaining: 0,
+                weeklyUsedPercent: nil,
+                weeklyResetsAt: nil,
+                window: .fiveHour),
+        ]
+        let minimax = MiniMaxUsageSnapshot(
+            planName: "Plan",
+            availablePrompts: 1000,
+            currentPrompts: 100,
+            remainingPrompts: 900,
+            windowMinutes: 300,
+            usedPercent: 10,
+            resetsAt: nil,
+            updatedAt: now,
+            models: models)
+        let snapshot = minimax.toUsageSnapshot()
+        let metadata = try #require(ProviderDefaults.metadata[.minimax])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .minimax,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let sections = try #require(model.minimaxSections)
+        let row = try #require(sections.first?.rows.first)
+        #expect(row.secondaryLine == nil)
+    }
+
+    @Test @MainActor
+    func `collapse store defaults collapsed when row count at least five`() {
+        let store = MiniMaxSectionCollapseStore.shared
+        store.resetOverridesForTesting()
+        #expect(store.isCollapsed(sectionTitle: "Daily quota", rowCount: MiniMaxUILayoutMetrics.collapseThreshold))
+        #expect(store.isCollapsed(sectionTitle: "Daily quota", rowCount: 10))
+        #expect(!store.isCollapsed(sectionTitle: "Daily quota", rowCount: MiniMaxUILayoutMetrics.collapseThreshold - 1))
+    }
+
+    @Test @MainActor
+    func `collapse store toggle persists until reset`() {
+        let store = MiniMaxSectionCollapseStore.shared
+        store.resetOverridesForTesting()
+        #expect(store.isCollapsed(sectionTitle: "Daily quota", rowCount: MiniMaxUILayoutMetrics.collapseThreshold))
+        store.toggle(sectionTitle: "Daily quota", rowCount: MiniMaxUILayoutMetrics.collapseThreshold)
+        #expect(!store.isCollapsed(sectionTitle: "Daily quota", rowCount: MiniMaxUILayoutMetrics.collapseThreshold))
+        store.toggle(sectionTitle: "Daily quota", rowCount: MiniMaxUILayoutMetrics.collapseThreshold)
+        #expect(store.isCollapsed(sectionTitle: "Daily quota", rowCount: MiniMaxUILayoutMetrics.collapseThreshold))
+        store.resetOverridesForTesting()
+        #expect(store.isCollapsed(sectionTitle: "Daily quota", rowCount: MiniMaxUILayoutMetrics.collapseThreshold))
+    }
+
+    @Test @MainActor
+    func `collapse store user override beats default for small sections`() {
+        let store = MiniMaxSectionCollapseStore.shared
+        store.resetOverridesForTesting()
+        #expect(!store.isCollapsed(sectionTitle: "Other windows", rowCount: 2))
+        store.toggle(sectionTitle: "Other windows", rowCount: 2)
+        #expect(store.isCollapsed(sectionTitle: "Other windows", rowCount: 2))
     }
 }

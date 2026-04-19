@@ -16,6 +16,13 @@ extension ProviderSwitcherSelection {
 struct OverviewMenuCardRowView: View {
     let model: UsageMenuCardView.Model
     let width: CGFloat
+    let onMiniMaxLayoutChange: (() -> Void)?
+
+    init(model: UsageMenuCardView.Model, width: CGFloat, onMiniMaxLayoutChange: (() -> Void)? = nil) {
+        self.model = model
+        self.width = width
+        self.onMiniMaxLayoutChange = onMiniMaxLayoutChange
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -28,14 +35,16 @@ struct OverviewMenuCardRowView: View {
                     model: self.model,
                     showBottomDivider: false,
                     bottomPadding: 6,
-                    width: self.width)
+                    width: self.width,
+                    onMiniMaxLayoutChange: self.onMiniMaxLayoutChange)
             }
         }
         .frame(width: self.width, alignment: .leading)
     }
 
     private var hasUsageBlock: Bool {
-        !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty || self.model.placeholder != nil
+        !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty || self.model.placeholder != nil ||
+            (self.model.minimaxSections?.isEmpty == false)
     }
 }
 

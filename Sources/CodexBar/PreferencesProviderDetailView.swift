@@ -349,13 +349,14 @@ struct ProviderMetricsInlineView: View {
         let hasCredits = self.model.creditsText != nil
         let hasProviderCost = self.model.providerCost != nil
         let hasTokenUsage = self.model.tokenUsage != nil
+        let hasMiniMaxSections = self.model.minimaxSections?.isEmpty == false
         ProviderSettingsSection(
             title: "Usage",
             spacing: 8,
             verticalPadding: 6,
             horizontalPadding: 0)
         {
-            if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage {
+            if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage, !hasMiniMaxSections {
                 Text(self.placeholderText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -373,6 +374,13 @@ struct ProviderMetricsInlineView: View {
                         notes: self.model.usageNotes,
                         labelWidth: self.labelWidth,
                         alignsWithMetricContent: hasMetrics)
+                }
+
+                if let sections = self.model.minimaxSections, !sections.isEmpty {
+                    ProviderMiniMaxSectionsInlineView(
+                        sections: sections,
+                        progressColor: self.model.progressColor,
+                        labelWidth: self.labelWidth)
                 }
 
                 if let credits = self.model.creditsText {
@@ -559,6 +567,110 @@ private struct ProviderMetricInlineCostRow: View {
             }
 
             Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - MiniMax `model_remains[]`（设置页镜像菜单卡分组，无折叠）
+
+private struct ProviderMiniMaxSectionsInlineView: View {
+    let sections: [UsageMenuCardView.Model.MiniMaxSection]
+    let progressColor: Color
+    let labelWidth: CGFloat
+
+    private var totalRowCount: Int {
+        self.sections.reduce(0) { $0 + $1.rows.count }
+    }
+
+    var body: some View {
+        Group {
+            if self.totalRowCount >= MiniMaxUILayoutMetrics.settingsEmbeddedScrollThreshold {
+                ScrollView {
+                    self.sectionStack
+                }
+                .frame(maxHeight: MiniMaxUILayoutMetrics.settingsEmbeddedScrollMaxHeight)
+                .background {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.primary.opacity(0.06))
+                }
+            } else {
+                self.sectionStack
+            }
+        }
+    }
+
+    private var sectionStack: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(self.sections, id: \.title) { section in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(section.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(section.rows) { row in
+                        ProviderMiniMaxRowInlineView(
+                            row: row,
+                            progressColor: self.progressColor,
+                            labelWidth: self.labelWidth)
+                    }
+                }
+            }
+        }
+        .padding(.top, 4)
+    }
+}
+
+private struct ProviderMiniMaxRowInlineView: View {
+    let row: UsageMenuCardView.Model.MiniMaxRow
+    let progressColor: Color
+    let labelWidth: CGFloat
+
+    private static var titleWidthCap: CGFloat {
+        MiniMaxUILayoutMetrics.settingsTitleWidthCap()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(self.row.title)
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(self.row.title)
+                .frame(width: Self.titleWidthCap, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 4) {
+                if let detail = self.row.detailText, !detail.isEmpty {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                UsageProgressBar(
+                    percent: self.row.percent,
+                    tint: self.progressColor,
+                    accessibilityLabel: self.row.percentStyle.accessibilityLabel)
+                    .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
+
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(String(format: "%.0f%% %@", self.row.percent, self.row.percentStyle.labelSuffix))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                    Spacer(minLength: 8)
+                    if let resetText = self.row.resetText, !resetText.isEmpty {
+                        Text(resetText)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let secondary = self.row.secondaryLine, !secondary.isEmpty {
+                    Text(secondary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 2)
     }

@@ -126,13 +126,24 @@ struct UsageMenuCardView: View {
 
     let model: Model
     let width: CGFloat
+    let onMiniMaxLayoutChange: (() -> Void)?
     @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    init(model: Model, width: CGFloat, onMiniMaxLayoutChange: (() -> Void)? = nil) {
+        self.model = model
+        self.width = width
+        self.onMiniMaxLayoutChange = onMiniMaxLayoutChange
+    }
 
     static func popupMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
         if provider == .openrouter, metric.id == "primary" {
             return "API key limit"
         }
         return metric.title
+    }
+
+    static func miniMaxUsageScrollMaxHeight() -> CGFloat {
+        MiniMaxUILayoutMetrics.menuUsageScrollMaxHeight(visibleScreenHeight: NSScreen.main?.visibleFrame.height)
     }
 
     var body: some View {
@@ -160,20 +171,43 @@ struct UsageMenuCardView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     if hasUsage {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(self.model.metrics, id: \.id) { metric in
-                                MetricRow(
-                                    metric: metric,
-                                    title: Self.popupMetricTitle(provider: self.model.provider, metric: metric),
-                                    progressColor: self.model.progressColor)
-                            }
-                            if !self.model.usageNotes.isEmpty {
-                                UsageNotesContent(notes: self.model.usageNotes)
-                            }
-                            if let sections = self.model.minimaxSections, !sections.isEmpty {
-                                MiniMaxTokenPlanSectionsView(
-                                    sections: sections,
-                                    progressColor: self.model.progressColor)
+                        Group {
+                            if hasMiniMaxSections {
+                                MiniMaxCappedScrollView(maxHeight: Self.miniMaxUsageScrollMaxHeight()) {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        ForEach(self.model.metrics, id: \.id) { metric in
+                                            MetricRow(
+                                                metric: metric,
+                                                title: Self.popupMetricTitle(
+                                                    provider: self.model.provider,
+                                                    metric: metric),
+                                                progressColor: self.model.progressColor)
+                                        }
+                                        if !self.model.usageNotes.isEmpty {
+                                            UsageNotesContent(notes: self.model.usageNotes)
+                                        }
+                                        if let sections = self.model.minimaxSections, !sections.isEmpty {
+                                            MiniMaxTokenPlanSectionsView(
+                                                sections: sections,
+                                                progressColor: self.model.progressColor,
+                                                onLayoutChange: self.onMiniMaxLayoutChange)
+                                        }
+                                    }
+                                }
+                            } else {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    ForEach(self.model.metrics, id: \.id) { metric in
+                                        MetricRow(
+                                            metric: metric,
+                                            title: Self.popupMetricTitle(
+                                                provider: self.model.provider,
+                                                metric: metric),
+                                            progressColor: self.model.progressColor)
+                                    }
+                                    if !self.model.usageNotes.isEmpty {
+                                        UsageNotesContent(notes: self.model.usageNotes)
+                                    }
+                                }
                             }
                         }
                     }
@@ -371,70 +405,6 @@ private struct ProviderCostContent: View {
     }
 }
 
-private struct MiniMaxTokenPlanSectionsView: View {
-    let sections: [UsageMenuCardView.Model.MiniMaxSection]
-    let progressColor: Color
-    @Environment(\.menuItemHighlighted) private var isHighlighted
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(Array(self.sections.enumerated()), id: \.offset) { _, section in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(section.title)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                    ForEach(section.rows) { row in
-                        MiniMaxTokenPlanRowView(row: row, progressColor: self.progressColor)
-                    }
-                }
-            }
-        }
-        .padding(.top, 4)
-    }
-}
-
-private struct MiniMaxTokenPlanRowView: View {
-    let row: UsageMenuCardView.Model.MiniMaxRow
-    let progressColor: Color
-    @Environment(\.menuItemHighlighted) private var isHighlighted
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(self.row.title)
-                .font(.footnote)
-                .fontWeight(.medium)
-            if let statusText = self.row.detailText, statusText.isEmpty == false {
-                Text(statusText)
-                    .font(.caption2)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-            }
-            UsageProgressBar(
-                percent: self.row.percent,
-                tint: self.progressColor,
-                accessibilityLabel: self.row.percentStyle.accessibilityLabel)
-            HStack(alignment: .firstTextBaseline) {
-                Text(String(format: "%.0f%% %@", self.row.percent, self.row.percentStyle.labelSuffix))
-                    .font(.caption2)
-                Spacer()
-                if let reset = self.row.resetText {
-                    Text(reset)
-                        .font(.caption2)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .lineLimit(2)
-                }
-            }
-            if let secondary = self.row.secondaryLine, !secondary.isEmpty {
-                Text(secondary)
-                    .font(.caption2)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-}
-
 private struct MetricRow: View {
     let metric: UsageMenuCardView.Model.Metric
     let title: String
@@ -545,34 +515,32 @@ struct UsageMenuCardUsageSectionView: View {
     let showBottomDivider: Bool
     let bottomPadding: CGFloat
     let width: CGFloat
+    let onMiniMaxLayoutChange: (() -> Void)?
     @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    init(
+        model: UsageMenuCardView.Model,
+        showBottomDivider: Bool,
+        bottomPadding: CGFloat,
+        width: CGFloat,
+        onMiniMaxLayoutChange: (() -> Void)? = nil)
+    {
+        self.model = model
+        self.showBottomDivider = showBottomDivider
+        self.bottomPadding = bottomPadding
+        self.width = width
+        self.onMiniMaxLayoutChange = onMiniMaxLayoutChange
+    }
 
     var body: some View {
         let hasMiniMaxSections = self.model.minimaxSections?.isEmpty == false
         VStack(alignment: .leading, spacing: 12) {
-            if self.model.metrics.isEmpty, !hasMiniMaxSections {
-                if !self.model.usageNotes.isEmpty {
-                    UsageNotesContent(notes: self.model.usageNotes)
-                } else if let placeholder = self.model.placeholder {
-                    Text(placeholder)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .font(.subheadline)
+            if hasMiniMaxSections {
+                MiniMaxCappedScrollView(maxHeight: UsageMenuCardView.miniMaxUsageScrollMaxHeight()) {
+                    self.usageContent(hasMiniMaxSections: hasMiniMaxSections)
                 }
             } else {
-                ForEach(self.model.metrics, id: \.id) { metric in
-                    MetricRow(
-                        metric: metric,
-                        title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
-                        progressColor: self.model.progressColor)
-                }
-                if !self.model.usageNotes.isEmpty {
-                    UsageNotesContent(notes: self.model.usageNotes)
-                }
-            }
-            if let sections = self.model.minimaxSections, !sections.isEmpty {
-                MiniMaxTokenPlanSectionsView(
-                    sections: sections,
-                    progressColor: self.model.progressColor)
+                self.usageContent(hasMiniMaxSections: hasMiniMaxSections)
             }
             if self.showBottomDivider {
                 Divider()
@@ -582,6 +550,35 @@ struct UsageMenuCardUsageSectionView: View {
         .padding(.top, 10)
         .padding(.bottom, self.bottomPadding)
         .frame(width: self.width, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func usageContent(hasMiniMaxSections: Bool) -> some View {
+        if self.model.metrics.isEmpty, !hasMiniMaxSections {
+            if !self.model.usageNotes.isEmpty {
+                UsageNotesContent(notes: self.model.usageNotes)
+            } else if let placeholder = self.model.placeholder {
+                Text(placeholder)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .font(.subheadline)
+            }
+        } else {
+            ForEach(self.model.metrics, id: \.id) { metric in
+                MetricRow(
+                    metric: metric,
+                    title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
+                    progressColor: self.model.progressColor)
+            }
+            if !self.model.usageNotes.isEmpty {
+                UsageNotesContent(notes: self.model.usageNotes)
+            }
+        }
+        if let sections = self.model.minimaxSections, !sections.isEmpty {
+            MiniMaxTokenPlanSectionsView(
+                sections: sections,
+                progressColor: self.model.progressColor,
+                onLayoutChange: self.onMiniMaxLayoutChange)
+        }
     }
 }
 
@@ -868,123 +865,6 @@ extension UsageMenuCardView.Model {
             tokenUsage: tokenUsage,
             placeholder: placeholder,
             progressColor: Self.progressColor(for: input.provider))
-    }
-
-    private static func miniMaxSections(input: Input) -> [MiniMaxSection]? {
-        guard input.provider == .minimax,
-              let models = input.snapshot?.minimaxUsage?.models,
-              !models.isEmpty
-        else {
-            return nil
-        }
-        let hasWeeklyDetail = models.contains { $0.weeklyTotal != nil || $0.weeklyRemaining != nil }
-        guard models.count > 1 || hasWeeklyDetail else {
-            return nil
-        }
-
-        let fiveHour = models.filter { if case .fiveHour = $0.window { return true }; return false }
-        let daily = models.filter { if case .daily = $0.window { return true }; return false }
-        let weeklyOnly = models.filter { if case .weekly = $0.window { return true }; return false }
-        let other = models.filter { if case .other = $0.window { return true }; return false }
-
-        var sections: [MiniMaxSection] = []
-        if !fiveHour.isEmpty {
-            sections.append(MiniMaxSection(
-                title: "5-hour window",
-                rows: fiveHour.map { Self.miniMaxRow(model: $0, input: input) }))
-        }
-        if !daily.isEmpty {
-            sections.append(MiniMaxSection(
-                title: "Daily quota",
-                rows: daily.map { Self.miniMaxRow(model: $0, input: input) }))
-        }
-        if !weeklyOnly.isEmpty {
-            sections.append(MiniMaxSection(
-                title: "Weekly quota",
-                rows: weeklyOnly.map { Self.miniMaxRow(model: $0, input: input) }))
-        }
-        if !other.isEmpty {
-            sections.append(MiniMaxSection(
-                title: "Other windows",
-                rows: other.map { Self.miniMaxRow(model: $0, input: input) }))
-        }
-        return sections.isEmpty ? nil : sections
-    }
-
-    private static func miniMaxRow(model: MiniMaxModelUsage, input: Input) -> MiniMaxRow {
-        let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
-        let used = model.usedPercent ?? 0
-        let barPercent = percentStyle == .used ? used : (100 - used)
-        let resetText: String? = if let at = model.resetsAt {
-            UsageFormatter.resetLine(
-                for: RateWindow(
-                    usedPercent: used,
-                    windowMinutes: model.windowMinutes,
-                    resetsAt: at,
-                    resetDescription: nil),
-                style: input.resetTimeDisplayStyle,
-                now: input.now)
-        } else {
-            nil
-        }
-        let detailText = Self.miniMaxDetailLine(model: model)
-        let secondaryLine = Self.miniMaxWeeklySecondaryLine(model: model, input: input)
-        return MiniMaxRow(
-            id: model.identifier,
-            title: model.displayName,
-            percent: Self.clamped(barPercent),
-            percentStyle: percentStyle,
-            resetText: resetText,
-            detailText: detailText,
-            secondaryLine: secondaryLine)
-    }
-
-    private static func miniMaxDetailLine(model: MiniMaxModelUsage) -> String? {
-        guard let total = model.availablePrompts else { return nil }
-        let used = model.currentPrompts ?? max(0, total - (model.remainingPrompts ?? 0))
-        let remaining = model.remainingPrompts
-        let usedStr = UsageFormatter.tokenCountString(used)
-        let totalStr = UsageFormatter.tokenCountString(total)
-        if let remaining {
-            let remStr = UsageFormatter.tokenCountString(remaining)
-            return "\(usedStr)/\(totalStr) (\(remStr) remaining)"
-        }
-        return "\(usedStr)/\(totalStr)"
-    }
-
-    private static func miniMaxWeeklySecondaryLine(model: MiniMaxModelUsage, input: Input) -> String? {
-        guard model.weeklyTotal != nil || model.weeklyRemaining != nil else { return nil }
-        let total = model.weeklyTotal
-        let used = model.weeklyUsed
-        let remaining = model.weeklyRemaining
-        let usedStr = used.map { UsageFormatter.tokenCountString($0) } ?? "—"
-        let totalStr = total.map { UsageFormatter.tokenCountString($0) } ?? "—"
-        let pctStr: String = if let p = model.weeklyUsedPercent {
-            String(format: "%.1f%%", p)
-        } else {
-            "—"
-        }
-        let weeklyReset: String? = if let at = model.weeklyResetsAt {
-            UsageFormatter.resetLine(
-                for: RateWindow(
-                    usedPercent: model.weeklyUsedPercent ?? 0,
-                    windowMinutes: 7 * 24 * 60,
-                    resetsAt: at,
-                    resetDescription: nil),
-                style: input.resetTimeDisplayStyle,
-                now: input.now)
-        } else {
-            nil
-        }
-        let remStr = remaining.map { UsageFormatter.tokenCountString($0) }
-        var line = "↳ Weekly \(usedStr)/\(totalStr) (\(pctStr) used)"
-        if let remStr {
-            line += " · \(remStr) remaining"
-        }
-        if let weeklyReset {
-            line += " · \(weeklyReset)"
-        }
-        return line
     }
 
     private static func usageNotes(input: Input) -> [String] {
@@ -1616,7 +1496,7 @@ extension UsageMenuCardView.Model {
             spendLine: "\(periodLabel): \(used) / \(limit)")
     }
 
-    private static func clamped(_ value: Double) -> Double {
+    static func clamped(_ value: Double) -> Double {
         min(100, max(0, value))
     }
 

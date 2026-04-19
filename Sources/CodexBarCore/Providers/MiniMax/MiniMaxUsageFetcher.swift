@@ -418,7 +418,7 @@ struct MiniMaxModelRemains: Decodable {
         case modelId = "model_id"
         case modelTitle = "model_title"
         case displayName = "name"
-        case title = "title"
+        case title
     }
 
     init(from decoder: Decoder) throws {
@@ -598,8 +598,15 @@ enum MiniMaxUsageParser {
             nil
         }
 
-        let weeklyTotal = row.currentWeeklyTotalCount
-        let weeklyRemaining = row.currentWeeklyUsageCount
+        // API 在无周限套餐上可能返回周限占位 0（仅 total、仅 remaining、或两者均为 0）。双 nil 表示未提供周限字段，不归一化。
+        let rawWeeklyTotal = row.currentWeeklyTotalCount
+        let rawWeeklyRemaining = row.currentWeeklyUsageCount
+        let hasAnyWeeklyField = rawWeeklyTotal != nil || rawWeeklyRemaining != nil
+        let noWeeklyCap = hasAnyWeeklyField
+            && (rawWeeklyTotal ?? 0) == 0
+            && (rawWeeklyRemaining ?? 0) == 0
+        let weeklyTotal: Int? = noWeeklyCap ? nil : rawWeeklyTotal
+        let weeklyRemaining: Int? = noWeeklyCap ? nil : rawWeeklyRemaining
         let weeklyUsed: Int? = if let weeklyTotal, let weeklyRemaining {
             max(0, weeklyTotal - weeklyRemaining)
         } else {
@@ -607,7 +614,11 @@ enum MiniMaxUsageParser {
         }
         let weeklyUsedPercent = self.usedPercent(total: weeklyTotal, remaining: weeklyRemaining)
         let weeklyEndDate = self.dateFromEpoch(row.weeklyEndTime)
-        let weeklyResetsAt = self.resetsAt(end: weeklyEndDate, remains: row.weeklyRemainsTime, now: now)
+        let weeklyResetsAt: Date? = if noWeeklyCap {
+            nil
+        } else {
+            self.resetsAt(end: weeklyEndDate, remains: row.weeklyRemainsTime, now: now)
+        }
 
         let identifier = self.modelIdentifier(row: row, index: index)
         let displayName = self.modelDisplayName(row: row, identifier: identifier)

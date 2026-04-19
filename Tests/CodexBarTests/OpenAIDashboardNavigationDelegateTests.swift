@@ -56,7 +56,12 @@ struct OpenAIDashboardNavigationDelegateTests {
         box.delegate?.webView(webView, didCommit: nil)
         #expect(result == nil)
 
-        try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
+        // postCommitTask 在 sleep 结束后仍要在 MainActor 上执行 completeOnce；全量并行测试时
+        // MainActor 积压会导致固定短 sleep 竞态失败，故轮询直到结果就绪或超时。
+        let deadline = Date().addingTimeInterval(5.0)
+        while result == nil, Date() < deadline {
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
         box.delegate = nil
 
         switch result {

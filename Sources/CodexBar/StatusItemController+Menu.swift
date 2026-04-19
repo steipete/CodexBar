@@ -66,9 +66,9 @@ extension StatusItemController {
         if didRefresh {
             self.populateMenu(menu, provider: provider)
             self.markMenuFresh(menu)
-            // Heights are already set during populateMenu, no need to remeasure
         }
         self.openMenus[ObjectIdentifier(menu)] = menu
+        self.refreshMenuCardHeights(in: menu)
         // Only schedule refresh after menu is registered as open - refreshNow is called async
         if Self.menuRefreshEnabled {
             self.scheduleOpenMenuRefresh(for: menu)
@@ -357,7 +357,10 @@ extension StatusItemController {
         for (index, row) in rows.enumerated() {
             let identifier = "\(Self.overviewRowIdentifierPrefix)\(row.provider.rawValue)"
             let item = self.makeMenuCardItem(
-                OverviewMenuCardRowView(model: row.model, width: menuWidth),
+                OverviewMenuCardRowView(
+                    model: row.model,
+                    width: menuWidth,
+                    onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu)),
                 id: identifier,
                 width: menuWidth,
                 onClick: { [weak self, weak menu] in
@@ -403,14 +406,20 @@ extension StatusItemController {
                 }
             if cards.isEmpty, let model = self.menuCardModel(for: context.selectedProvider) {
                 menu.addItem(self.makeMenuCardItem(
-                    UsageMenuCardView(model: model, width: context.menuWidth),
+                    UsageMenuCardView(
+                        model: model,
+                        width: context.menuWidth,
+                        onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu)),
                     id: "menuCard",
                     width: context.menuWidth))
                 menu.addItem(.separator())
             } else {
                 for (index, model) in cards.enumerated() {
                     menu.addItem(self.makeMenuCardItem(
-                        UsageMenuCardView(model: model, width: context.menuWidth),
+                        UsageMenuCardView(
+                            model: model,
+                            width: context.menuWidth,
+                            onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu)),
                         id: "menuCard-\(index)",
                         width: context.menuWidth))
                     if index < cards.count - 1 {
@@ -441,7 +450,10 @@ extension StatusItemController {
         }
 
         menu.addItem(self.makeMenuCardItem(
-            UsageMenuCardView(model: model, width: context.menuWidth),
+            UsageMenuCardView(
+                model: model,
+                width: context.menuWidth,
+                onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu)),
             id: "menuCard",
             width: context.menuWidth))
         if context.openAIContext.canShowBuyCredits {
@@ -803,7 +815,7 @@ extension StatusItemController {
                 let provider = self.menuProvider(for: menu)
                 self.populateMenu(menu, provider: provider)
                 self.markMenuFresh(menu)
-                // Heights are already set during populateMenu, no need to remeasure
+                self.refreshMenuCardHeights(in: menu)
             }
         }
     }
@@ -842,6 +854,7 @@ extension StatusItemController {
         guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
         self.populateMenu(menu, provider: provider)
         self.markMenuFresh(menu)
+        self.refreshMenuCardHeights(in: menu)
         self.applyIcon(phase: nil)
         #if DEBUG
         self._test_openMenuRebuildObserver?(menu)
@@ -904,18 +917,13 @@ extension StatusItemController {
     }
 
     private func refreshMenuCardHeights(in menu: NSMenu) {
-        // Re-measure the menu card height right before display to avoid stale/incorrect sizing when content
-        // changes (e.g. dashboard error lines causing wrapping).
-        let cardItems = menu.items.filter { item in
-            (item.representedObject as? String)?.hasPrefix("menuCard") == true
-        }
-        for item in cardItems {
-            guard let view = item.view else { continue }
-            let width = self.menuCardWidth(for: self.store.enabledProvidersForDisplay(), menu: menu)
-            let height = self.menuCardHeight(for: view, width: width)
-            view.frame = NSRect(
-                origin: .zero,
-                size: NSSize(width: width, height: height))
+        let width = self.menuCardWidth(for: self.store.enabledProvidersForDisplay(), menu: menu)
+        for item in menu.items {
+            let isOverviewRow = (item.representedObject as? String)?.hasPrefix(Self.overviewRowIdentifierPrefix) == true
+            let isMenuCard = (item.representedObject as? String)?.hasPrefix("menuCard") == true
+            guard isOverviewRow || isMenuCard, let view = item.view else { continue }
+            let height = self.remeasuredMenuCardHeight(for: view, width: width)
+            view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
         }
     }
 
@@ -1279,6 +1287,26 @@ extension StatusItemController {
             view.layoutSubtreeIfNeeded()
             let height = view.fittingSize.height
             view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        }
+    }
+
+    private func remeasuredMenuCardHeight(for view: NSView, width: CGFloat) -> CGFloat {
+        let basePadding: CGFloat = 6
+        let descenderSafety: CGFloat = 1
+
+        view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        view.layoutSubtreeIfNeeded()
+        let fitted = view.fittingSize
+        return max(1, ceil(fitted.height + basePadding + descenderSafety))
+    }
+
+    private func makeMiniMaxLayoutRefreshAction(for menu: NSMenu) -> () -> Void {
+        { [weak self, weak menu] in
+            Task { @MainActor [weak self, weak menu] in
+                guard let self, let menu else { return }
+                await Task.yield()
+                self.rebuildOpenMenuIfStillVisible(menu, provider: self.menuProvider(for: menu))
+            }
         }
     }
 
