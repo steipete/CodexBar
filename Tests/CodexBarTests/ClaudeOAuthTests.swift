@@ -127,6 +127,22 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `prefers populated alias over null alias in mixed payload`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day_design": null,
+          "seven_day_omelette": { "utilization": 37, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_routines": null,
+          "seven_day_cowork": { "utilization": 14, "resets_at": "2026-01-01T00:00:00.000Z" }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.window.usedPercent == 37)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 14)
+    }
+
+    @Test
     func `maps O auth extra usage`() throws {
         // OAuth API returns values in cents (minor units), same as Web API.
         // The normalization always converts to dollars (major units).
