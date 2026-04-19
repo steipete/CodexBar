@@ -238,8 +238,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
         self.wireBindings()
-        self.updateIcons()
         self.updateVisibility()
+        self.updateIcons()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(self.handleDebugReplayNotification(_:)),

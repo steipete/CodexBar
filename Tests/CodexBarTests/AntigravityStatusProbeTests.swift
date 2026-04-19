@@ -745,4 +745,34 @@ struct AntigravityStatusProbeTests {
         #expect(usage.accountEmail(for: .antigravity) == "test@example.com")
         #expect(usage.loginMethod(for: .antigravity) == "Pro")
     }
+
+    @Test
+    func `http probe errors still count as reachable`() {
+        #expect(
+            AntigravityStatusProbe.isReachableProbeError(
+                AntigravityStatusProbeError.apiError("HTTP 403: Forbidden")))
+        #expect(
+            AntigravityStatusProbe.isReachableProbeError(
+                AntigravityStatusProbeError.apiError("HTTP 404: Not Found")))
+        #expect(
+            !AntigravityStatusProbe.isReachableProbeError(
+                AntigravityStatusProbeError.apiError("Invalid response")))
+        #expect(!AntigravityStatusProbe.isReachableProbeError(AntigravityStatusProbeError.notRunning))
+    }
+
+    @Test
+    func `fallback probe port prefers non extension candidate`() {
+        #expect(
+            AntigravityStatusProbe.fallbackProbePort(
+                ports: [51170, 61775],
+                extensionPort: 61775) == 51170)
+        #expect(
+            AntigravityStatusProbe.fallbackProbePort(
+                ports: [61775],
+                extensionPort: 61775) == 61775)
+        #expect(
+            AntigravityStatusProbe.fallbackProbePort(
+                ports: [51170, 61775],
+                extensionPort: nil) == 51170)
+    }
 }

@@ -17,6 +17,13 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `supported providers fall back to codex when snapshot is empty`() {
+        let snapshot = WidgetSnapshot(entries: [], enabledProviders: [], generatedAt: Date())
+
+        #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.codex])
+    }
+
+    @Test
     func `supported providers keep alibaba when it is the only enabled provider`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let entry = WidgetSnapshot.ProviderEntry(

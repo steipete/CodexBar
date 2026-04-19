@@ -405,7 +405,10 @@ extension StatusItemController {
     // swiftlint:enable function_body_length
 
     private func shouldSkipMergedIconRender(_ signature: String) -> Bool {
-        guard self.shouldMergeIcons else { return false }
+        guard self.shouldMergeIcons else {
+            self.lastAppliedMergedIconRenderSignature = signature
+            return false
+        }
         if self.lastAppliedMergedIconRenderSignature == signature {
             return true
         }

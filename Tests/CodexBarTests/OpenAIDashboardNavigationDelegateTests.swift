@@ -3,9 +3,23 @@ import Testing
 import WebKit
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct OpenAIDashboardNavigationDelegateTests {
     final class DelegateBox: @unchecked Sendable {
         var delegate: NavigationDelegate?
+    }
+
+    @MainActor
+    private func waitForResult(
+        _ result: @escaping () -> Result<Void, Error>?,
+        timeout: TimeInterval = NavigationDelegate.postCommitSuccessDelay + 10.0) async -> Result<Void, Error>?
+    {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let result = result() { return result }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return result()
     }
 
     @Test
@@ -56,15 +70,10 @@ struct OpenAIDashboardNavigationDelegateTests {
         box.delegate?.webView(webView, didCommit: nil)
         #expect(result == nil)
 
-        // postCommitTask 在 sleep 结束后仍要在 MainActor 上执行 completeOnce；全量并行测试时
-        // MainActor 积压会导致固定短 sleep 竞态失败，故轮询直到结果就绪或超时。
-        let deadline = Date().addingTimeInterval(5.0)
-        while result == nil, Date() < deadline {
-            try? await Task.sleep(nanoseconds: 20_000_000)
-        }
+        let completed = await self.waitForResult { result }
         box.delegate = nil
 
-        switch result {
+        switch completed {
         case .success?:
             #expect(Bool(true))
         default:
@@ -84,10 +93,10 @@ struct OpenAIDashboardNavigationDelegateTests {
         let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
         box.delegate?.webView(webView, didFail: nil, withError: timeout)
 
-        try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
+        let completed = await self.waitForResult { result }
         box.delegate = nil
 
-        switch result {
+        switch completed {
         case let .failure(error as NSError)?:
             #expect(error.domain == NSURLErrorDomain)
             #expect(error.code == NSURLErrorTimedOut)

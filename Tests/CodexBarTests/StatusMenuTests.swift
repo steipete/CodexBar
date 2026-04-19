@@ -653,7 +653,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func hidesOpenAIWebSubmenusWhenOpenAIWebExtrasDisabled() {
+    func `hides open AI web submenus when open AI web extras disabled`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -702,7 +702,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func showsOpenAIWebSubmenusWhenHistoryExists() throws {
+    func `shows open AI web submenus when history exists`() throws {
         self.disableMenuCardsForTesting()
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusMenuTests-history"),

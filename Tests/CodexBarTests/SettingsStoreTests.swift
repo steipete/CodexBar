@@ -649,7 +649,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func defaultsOpenAIWebAccessToDisabled() throws {
+    func `defaults open AI web access to disabled`() throws {
         let suite = "SettingsStoreTests-openai-web"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -670,7 +670,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func infersOpenAIWebAccessEnabledForLegacyConfiguredCodexCookies() throws {
+    func `infers open AI web access enabled for legacy configured codex cookies`() throws {
         let suite = "SettingsStoreTests-openai-web-legacy"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -695,7 +695,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func infersOpenAIWebAccessEnabledForLegacyCodexConfigWithImplicitAutoCookies() throws {
+    func `infers open AI web access enabled for legacy codex config with implicit auto cookies`() throws {
         let suite = "SettingsStoreTests-openai-web-legacy-implicit-auto"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -720,7 +720,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func disablingOpenAIWebAccessTurnsCodexCookieSourceOff() throws {
+    func `disabling open AI web access turns codex cookie source off`() throws {
         let suite = "SettingsStoreTests-openai-web-toggle"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -746,7 +746,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func openAIWebBatterySaverPersistsSeparatelyFromExtrasAvailability() throws {
+    func `open AI web battery saver persists separately from extras availability`() throws {
         let suite = "SettingsStoreTests-openai-web-battery-saver"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)

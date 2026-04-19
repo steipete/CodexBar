@@ -14,9 +14,13 @@ struct StatusItemAnimationSignatureTests {
     }
 
     @Test
-    func `merged render signature changes when unified icon style changes`() {
+    func `merged render signature changes when unified icon style changes`() throws {
+        let suite = "StatusItemAnimationSignatureTests-merged-style-signature"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
         let settings = SettingsStore(
-            configStore: testConfigStore(suiteName: "StatusItemAnimationSignatureTests-merged-style-signature"),
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
         settings.statusChecksEnabled = false
@@ -57,9 +61,11 @@ struct StatusItemAnimationSignatureTests {
         controller.applyIcon(phase: nil)
         let combinedSignature = controller.lastAppliedMergedIconRenderSignature
 
-        settings.syntheticAPIToken = ""
+        if let syntheticMeta = registry.metadata[.synthetic] {
+            settings.setProviderEnabled(provider: .synthetic, metadata: syntheticMeta, enabled: false)
+        }
 
-        #expect(store.enabledProvidersForDisplay() == [.codex, .synthetic])
+        #expect(store.enabledProvidersForDisplay() == [.codex])
         #expect(store.enabledProviders() == [.codex])
         #expect(store.iconStyle == .codex)
         controller.applyIcon(phase: nil)

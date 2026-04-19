@@ -188,8 +188,8 @@ struct OpenAIDashboardWebViewCacheTests {
         cache.clearAllForTesting()
     }
 
-    @Test("Evict all should remove every cached WebView")
-    func evictAllRemovesAllEntries() async throws {
+    @Test
+    func `Evict all should remove every cached WebView`() async throws {
         if self.shouldSkipOnCI() { return }
         let cache = OpenAIDashboardWebViewCache()
         let store1 = WKWebsiteDataStore.nonPersistent()
