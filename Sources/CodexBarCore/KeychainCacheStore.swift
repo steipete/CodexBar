@@ -21,6 +21,7 @@ public enum KeychainCacheStore {
     public enum LoadResult<Entry> {
         case found(Entry)
         case missing
+        case temporarilyUnavailable
         case invalid
     }
 
@@ -29,6 +30,9 @@ public enum KeychainCacheStore {
     private static let cacheLabel = "CodexBar Cache"
     private nonisolated(unsafe) static var globalServiceOverride: String?
     @TaskLocal private static var serviceOverride: String?
+    #if DEBUG && os(macOS)
+    @TaskLocal private static var loadFailureStatusOverride: OSStatus?
+    #endif
     private static let testStoreLock = NSLock()
     private struct TestStoreKey: Hashable {
         let service: String
@@ -42,6 +46,11 @@ public enum KeychainCacheStore {
         key: Key,
         as type: Entry.Type = Entry.self) -> LoadResult<Entry>
     {
+        #if DEBUG && os(macOS)
+        if let status = self.loadFailureStatusOverride {
+            return self.loadResultForKeychainReadFailure(status: status, key: key)
+        }
+        #endif
         if let testResult = loadFromTestStore(key: key, as: type) {
             return testResult
         }
@@ -170,6 +179,17 @@ public enum KeychainCacheStore {
         self.serviceOverride
     }
 
+    #if DEBUG && os(macOS)
+    public static func withLoadFailureStatusOverrideForTesting<T>(
+        _ status: OSStatus?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$loadFailureStatusOverride.withValue(status) {
+            try operation()
+        }
+    }
+    #endif
+
     static func setTestStoreForTesting(_ enabled: Bool) {
         self.testStoreLock.lock()
         defer { self.testStoreLock.unlock() }
@@ -213,7 +233,7 @@ public enum KeychainCacheStore {
         case errSecInteractionNotAllowed:
             // Keychain is temporarily locked, e.g. immediately after wake from sleep.
             self.log.info("Keychain cache temporarily locked (\(key.account)), will retry on next access")
-            return .missing
+            return .temporarilyUnavailable
         default:
             self.log.error("Keychain cache read failed (\(key.account)): \(status)")
             return .invalid
