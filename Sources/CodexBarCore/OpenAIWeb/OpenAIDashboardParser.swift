@@ -152,16 +152,6 @@ public enum OpenAIDashboardParser {
         .sorted { $0.date > $1.date }
     }
 
-    private static func parseCreditsUsed(_ text: String) -> Double {
-        let cleaned = text
-            .replacingOccurrences(of: ",", with: "")
-            .replacingOccurrences(of: "credits", with: "", options: .caseInsensitive)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return Double(cleaned) ?? 0
-    }
-
-    // MARK: - Private
-
     private static let codeReviewRegexes: [NSRegularExpression] = {
         let patterns = [
             #"Code\s*review[^0-9%]*([0-9]{1,3})%\s*remaining"#,

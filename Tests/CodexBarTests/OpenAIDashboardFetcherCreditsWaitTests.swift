@@ -168,9 +168,16 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
     }
 
     @Test
+    func `usage route matcher accepts analytics dashboard routes`() {
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/settings/analytics"))
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/analytics"))
+    }
+
+    @Test
     func `usage route matcher accepts trailing slash variants`() {
         #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/settings/usage/"))
         #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/usage/"))
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/analytics/"))
     }
 
     @Test
@@ -178,5 +185,13 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         #expect(!OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/"))
         #expect(!OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex"))
         #expect(!OpenAIDashboardFetcher.isUsageRoute(nil))
+    }
+
+    @Test
+    func `analytics loading body maps to friendly no data description`() {
+        let message = OpenAIDashboardFetcher.friendlyNoDashboardDataDescription(
+            "Codex Analytics\nLoading usage data\nTrack threads and turns by client")
+        #expect(message.contains("still loading"))
+        #expect(!message.contains("Body sample"))
     }
 }

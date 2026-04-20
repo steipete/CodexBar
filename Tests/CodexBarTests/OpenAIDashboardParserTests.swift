@@ -1,7 +1,7 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 struct OpenAIDashboardParserTests {
     @Test
@@ -169,6 +169,128 @@ struct OpenAIDashboardParserTests {
         decoder.dateDecodingStrategy = .iso8601
         let snapshot = try decoder.decode(OpenAIDashboardSnapshot.self, from: Data(json.utf8))
         #expect(snapshot.usageBreakdown.isEmpty)
+    }
+
+    @Test
+    func `captured day key uses local timezone for iso timestamps`() throws {
+        let timeZone = try #require(TimeZone(secondsFromGMT: 60 * 60 * 3))
+        let day = OpenAIDashboardParser.capturedDayKey(
+            "2026-04-18T23:30:00Z",
+            timeZone: timeZone)
+        #expect(day == "2026-04-19")
+    }
+
+    @Test
+    func `parses captured dashboard responses`() {
+        let json = """
+        [
+          {
+            "url": "https://chatgpt.com/backend-api/codex/usage",
+            "json": {
+              "rateLimit": {
+                "primary_window": {
+                  "remaining_percent": 72,
+                  "limit_window_seconds": 18000,
+                  "reset_after_seconds": 3600
+                },
+                "secondary_window": {
+                  "remaining_percent": 41,
+                  "limit_window_seconds": 604800,
+                  "reset_after_seconds": 7200
+                }
+              },
+              "codeReviewRateLimit": {
+                "primary_window": {
+                  "remaining_percent": 42,
+                  "limit_window_seconds": 18000,
+                  "reset_after_seconds": 1800
+                }
+              },
+              "creditDetails": {
+                "balance": 2988.97,
+                "unlimited": false
+              }
+            }
+          },
+          {
+            "url": "https://chatgpt.com/backend-api/codex/credit-history",
+            "json": {
+              "data": [
+                {
+                  "date": "2026-04-18T00:00:00Z",
+                  "product_surface": "cli",
+                  "credit_amount": 397.205
+                }
+              ]
+            }
+          },
+          {
+            "url": "https://chatgpt.com/backend-api/codex/usage-breakdown",
+            "json": {
+              "data": [
+                {
+                  "date": "2026-04-18",
+                  "product_surface_usage_values": {
+                    "cli": 12,
+                    "github_code_review": 5,
+                    "unknown": 1
+                  }
+                }
+              ]
+            }
+          }
+        ]
+        """
+
+        let captured = OpenAIDashboardParser.parseCapturedDashboardData(
+            responsesJSON: json,
+            now: Date(timeIntervalSince1970: 1_776_500_000))
+
+        #expect(abs((captured?.creditsRemaining ?? 0) - 2988.97) < 0.001)
+        #expect(abs((captured?.primaryLimit?.usedPercent ?? 0) - 28) < 0.001)
+        #expect(captured?.primaryLimit?.windowMinutes == 300)
+        #expect(abs((captured?.secondaryLimit?.usedPercent ?? 0) - 59) < 0.001)
+        #expect(captured?.secondaryLimit?.windowMinutes == 10080)
+        #expect(abs((captured?.codeReviewLimit?.usedPercent ?? 0) - 58) < 0.001)
+        #expect(captured?.creditEvents.count == 1)
+        #expect(captured?.creditEvents.first?.service == "CLI")
+        #expect(abs((captured?.creditEvents.first?.creditsUsed ?? 0) - 397.205) < 0.0001)
+        #expect(captured?.usageBreakdown.count == 1)
+        #expect(captured?.usageBreakdown.first?.services.first?.service == "CLI")
+        #expect(abs((captured?.usageBreakdown.first?.totalCreditsUsed ?? 0) - 18) < 0.001)
+        #expect(captured?.hasDashboardSignal == true)
+    }
+
+    @Test
+    func `parses large captured response payloads`() throws {
+        let filler = (0..<2000).map { index in
+            [
+                "junk": [
+                    "id": index,
+                    "label": "node-\(index)",
+                ],
+            ]
+        }
+        let payload: [String: Any] = [
+            "nodes": filler,
+            "tail": [
+                "creditDetails": [
+                    "balance": 42,
+                    "unlimited": false,
+                ],
+            ],
+        ]
+        let response: [String: Any] = [
+            "url": "https://chatgpt.com/backend-api/codex/usage",
+            "json": payload,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: [response], options: [.sortedKeys])
+        let json = try #require(String(data: data, encoding: .utf8))
+
+        let captured = OpenAIDashboardParser.parseCapturedDashboardData(responsesJSON: json)
+
+        #expect(captured?.creditsRemaining == 42)
+        #expect(captured?.hasDashboardSignal == true)
     }
 
     @Test

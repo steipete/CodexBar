@@ -539,6 +539,17 @@ let openAIDashboardScrapeScript = """
         } catch {}
       }
 
+      const capturedResponsesJSON = (() => {
+        try {
+          const responses = Array.isArray(window.__codexbarCapturedResponses)
+            ? window.__codexbarCapturedResponses
+            : [];
+          return responses.length > 0 ? JSON.stringify(responses) : null;
+        } catch {
+          return null;
+        }
+      })();
+
       return {
         loginRequired,
         workspacePicker,
@@ -551,6 +562,7 @@ let openAIDashboardScrapeScript = """
         rows,
         usageBreakdownJSON,
         usageBreakdownDebug,
+        capturedResponsesJSON,
         scrollY,
         scrollHeight,
         viewportHeight,
