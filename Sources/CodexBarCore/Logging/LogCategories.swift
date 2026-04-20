@@ -1,4 +1,6 @@
 public enum LogCategories {
+    public static let abacusCookie = "abacus-cookie"
+    public static let abacusUsage = "abacus-usage"
     public static let amp = "amp"
     public static let antigravity = "antigravity"
     public static let app = "app"
@@ -42,6 +44,7 @@ public enum LogCategories {
     public static let openAIWebview = "openai-webview"
     public static let ollama = "ollama"
     public static let opencodeUsage = "opencode-usage"
+    public static let opencodeGoUsage = "opencode-go-usage"
     public static let openRouterUsage = "openrouter-usage"
     public static let perplexityAPI = "perplexity-api"
     public static let perplexityCookie = "perplexity-cookie"

@@ -47,7 +47,7 @@ struct SettingsStoreCoverageTests {
         #expect(settings.menuBarMetricSupportsAverage(for: .gemini))
 
         settings.setMenuBarMetricPreference(.secondary, for: .zai)
-        #expect(settings.menuBarMetricPreference(for: .zai) == .primary)
+        #expect(settings.menuBarMetricPreference(for: .zai) == .secondary)
 
         settings.menuBarDisplayMode = .pace
         #expect(settings.menuBarDisplayMode == .pace)
@@ -129,6 +129,28 @@ struct SettingsStoreCoverageTests {
 
         #expect(snapshot.cookieSource == .manual)
         #expect(snapshot.manualCookieHeader?.isEmpty == true)
+    }
+
+    @Test
+    func `opencode go token accounts force manual cookie routing`() {
+        let settings = Self.makeSettingsStore()
+        settings.addTokenAccount(provider: .opencodego, label: "Go", token: "auth=go-cookie")
+
+        let snapshot = settings.opencodegoSettingsSnapshot(tokenOverride: nil)
+
+        #expect(settings.opencodegoCookieSource == .manual)
+        #expect(snapshot.cookieSource == .manual)
+        #expect(snapshot.manualCookieHeader == "auth=go-cookie")
+    }
+
+    @Test
+    func `opencode go snapshot preserves nil workspace id when settings are unset`() {
+        let settings = Self.makeSettingsStore()
+
+        let snapshot = settings.opencodegoSettingsSnapshot(tokenOverride: nil)
+
+        #expect(settings.opencodegoWorkspaceID.isEmpty)
+        #expect(snapshot.workspaceID == nil)
     }
 
     @Test
@@ -238,9 +260,9 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func `claude keychain read strategy defaults to security framework`() {
+    func `claude keychain read strategy defaults to security CLI experimental`() {
         let settings = Self.makeSettingsStore()
-        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
     }
 
     @Test
@@ -275,13 +297,13 @@ struct SettingsStoreCoverageTests {
     @Test
     func `claude prompt free credentials toggle maps to read strategy`() {
         let settings = Self.makeSettingsStore()
-        #expect(settings.claudeOAuthPromptFreeCredentialsEnabled == false)
-
-        settings.claudeOAuthPromptFreeCredentialsEnabled = true
-        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+        #expect(settings.claudeOAuthPromptFreeCredentialsEnabled == true)
 
         settings.claudeOAuthPromptFreeCredentialsEnabled = false
         #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+
+        settings.claudeOAuthPromptFreeCredentialsEnabled = true
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
     }
 
     private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {

@@ -22,14 +22,27 @@ extension UsageStore {
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin
-        _ = self.openAIDashboardCookieImportStatus
-        _ = self.openAIDashboardCookieImportDebugLog
         _ = self.versions
         _ = self.isRefreshing
         _ = self.refreshingProviders
         _ = self.pathDebugInfo
         _ = self.statuses
         _ = self.probeLogs
+        _ = self.historicalPaceRevision
+        return 0
+    }
+
+    var iconObservationToken: Int {
+        _ = self.snapshots
+        _ = self.errors
+        _ = self.credits
+        _ = self.lastCreditsError
+        _ = self.openAIDashboard
+        _ = self.lastOpenAIDashboardError
+        _ = self.openAIDashboardRequiresLogin
+        _ = self.isRefreshing
+        _ = self.refreshingProviders
+        _ = self.statuses
         _ = self.historicalPaceRevision
         return 0
     }
@@ -66,11 +79,22 @@ extension UsageStore {
             }
         }
     }
+
+    var attachedOpenAIDashboardSnapshot: OpenAIDashboardSnapshot? {
+        guard self.openAIDashboardAttachmentAuthorized else { return nil }
+        return self.openAIDashboard
+    }
 }
 
 @MainActor
 @Observable
 final class UsageStore {
+    enum CodexCreditsSource {
+        case none
+        case api
+        case dashboardWeb
+    }
+
     enum StartupBehavior {
         case automatic
         case full
@@ -120,9 +144,13 @@ final class UsageStore {
     var historicalPaceRevision: Int = 0
     @ObservationIgnored var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored var lastCreditsSnapshotAccountKey: String?
+    @ObservationIgnored var lastCreditsSource: CodexCreditsSource = .none
     @ObservationIgnored var creditsFailureStreak: Int = 0
+    @ObservationIgnored var openAIDashboardAttachmentAuthorized: Bool = false
     @ObservationIgnored var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
+    @ObservationIgnored var lastOpenAIDashboardAttachmentAuthorized: Bool = false
     @ObservationIgnored var lastOpenAIDashboardTargetEmail: String?
+    @ObservationIgnored var lastOpenAIDashboardAttemptAt: Date?
     @ObservationIgnored var lastOpenAIDashboardCookieImportAttemptAt: Date?
     @ObservationIgnored var lastOpenAIDashboardCookieImportEmail: String?
     @ObservationIgnored var lastCodexAccountScopedRefreshGuard: CodexAccountScopedRefreshGuard?
@@ -151,6 +179,7 @@ final class UsageStore {
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
+    @ObservationIgnored let environmentBase: [String: String]
     @ObservationIgnored private let sessionQuotaNotifier: any SessionQuotaNotifying
     @ObservationIgnored private let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
     @ObservationIgnored let openAIWebLogger = CodexBarLog.logger(LogCategories.openAIWeb)
@@ -192,7 +221,8 @@ final class UsageStore {
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
         planUtilizationHistoryStore: PlanUtilizationHistoryStore = .defaultAppSupport(),
         sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
-        startupBehavior: StartupBehavior = .automatic)
+        startupBehavior: StartupBehavior = .automatic,
+        environmentBase: [String: String] = ProcessInfo.processInfo.environment)
     {
         self.codexFetcher = fetcher
         self.browserDetection = browserDetection
@@ -200,6 +230,7 @@ final class UsageStore {
         self.costUsageFetcher = costUsageFetcher
         self.settings = settings
         self.registry = registry
+        self.environmentBase = environmentBase
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.planUtilizationHistoryStore = planUtilizationHistoryStore
         self.sessionQuotaNotifier = sessionQuotaNotifier
@@ -219,7 +250,8 @@ final class UsageStore {
             metadata: self.providerMetadata,
             codexFetcher: fetcher,
             claudeFetcher: self.claudeFetcher,
-            browserDetection: browserDetection)
+            browserDetection: browserDetection,
+            environmentBase: environmentBase)
         self.providerRuntimes = Dictionary(uniqueKeysWithValues: ProviderCatalog.all.compactMap { implementation in
             implementation.makeRuntime().map { (implementation.id, $0) }
         })
@@ -316,6 +348,11 @@ final class UsageStore {
         self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata)
     }
 
+    /// Providers that should actually participate in background refresh/status/token work.
+    func enabledProvidersForBackgroundWork() -> [UsageProvider] {
+        self.enabledProviders()
+    }
+
     var statusChecksEnabled: Bool {
         self.settings.statusChecksEnabled
     }
@@ -386,7 +423,7 @@ final class UsageStore {
         // Otherwise providers (notably token-account-backed API providers) can fetch successfully but be
         // hidden from the menu because their credentials are not in ProcessInfo's environment.
         let environment = ProviderRegistry.makeEnvironment(
-            base: ProcessInfo.processInfo.environment,
+            base: self.environmentBase,
             provider: provider,
             settings: self.settings,
             tokenOverride: nil)
@@ -421,6 +458,10 @@ final class UsageStore {
         guard !self.isRefreshing else { return }
         self.prepareRefreshState()
         let refreshPhase: ProviderRefreshPhase = self.hasCompletedInitialRefresh ? .regular : .startup
+        let displayEnabledProviders = self.enabledProvidersForDisplay()
+        let enabledProviderSet = Set(displayEnabledProviders)
+        let refreshProviders = self.enabledProvidersForBackgroundWork()
+        let availableRefreshProviders = Set(self.enabledProviders())
         let refreshStartedAt = Date()
 
         await ProviderRefreshContext.$current.withValue(refreshPhase) {
@@ -430,10 +471,17 @@ final class UsageStore {
                 self.hasCompletedInitialRefresh = true
             }
 
+            self.clearDisabledProviderState(enabledProviders: enabledProviderSet)
+            self.clearUnavailableProviderState(
+                displayEnabledProviders: enabledProviderSet,
+                availableProviders: availableRefreshProviders)
+
             await withTaskGroup(of: Void.self) { group in
-                for provider in UsageProvider.allCases {
+                for provider in refreshProviders {
                     group.addTask { await self.refreshProvider(provider) }
-                    group.addTask { await self.refreshStatus(provider) }
+                    if availableRefreshProviders.contains(provider) {
+                        group.addTask { await self.refreshStatus(provider) }
+                    }
                 }
                 group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
             }
@@ -443,12 +491,32 @@ final class UsageStore {
 
             // OpenAI web scrape depends on the current Codex account email (which can change after login/account
             // switch). Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
-            let codexDashboardGuard = self.currentCodexOpenAIWebRefreshGuard()
-            await self.refreshOpenAIDashboardIfNeeded(
-                force: forceTokenUsage,
-                expectedGuard: codexDashboardGuard)
+            self.syncOpenAIWebState()
+            let refreshPolicy = OpenAIWebRefreshPolicyContext(
+                accessEnabled: self.isEnabled(.codex) &&
+                    self.settings.openAIWebAccessEnabled &&
+                    self.settings.codexCookieSource.isEnabled,
+                batterySaverEnabled: self.settings.openAIWebBatterySaverEnabled,
+                force: forceTokenUsage)
+            let shouldRefreshOpenAIWeb = Self.shouldRunOpenAIWebRefresh(refreshPolicy)
+            self.openAIWebLogger.debug(
+                "OpenAI web refresh gate",
+                metadata: [
+                    "allowed": shouldRefreshOpenAIWeb ? "1" : "0",
+                    "accessEnabled": refreshPolicy.accessEnabled ? "1" : "0",
+                    "batterySaverEnabled": refreshPolicy.batterySaverEnabled ? "1" : "0",
+                    "force": refreshPolicy.force ? "1" : "0",
+                    "interaction": ProviderInteractionContext.current == .userInitiated ? "user" : "background",
+                    "phase": refreshPhase == .startup ? "startup" : "regular",
+                ])
+            if shouldRefreshOpenAIWeb {
+                let codexDashboardGuard = self.currentCodexOpenAIWebRefreshGuard()
+                await self.refreshOpenAIDashboardIfNeeded(
+                    force: forceTokenUsage,
+                    expectedGuard: codexDashboardGuard)
+            }
 
-            if self.openAIDashboardRequiresLogin {
+            if forceTokenUsage, self.openAIDashboardRequiresLogin {
                 await self.refreshProvider(.codex)
                 await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
@@ -509,6 +577,7 @@ final class UsageStore {
             return
         }
 
+        let providers = self.enabledProvidersForBackgroundWork()
         self.tokenRefreshSequenceTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             defer {
@@ -516,7 +585,7 @@ final class UsageStore {
                     self?.tokenRefreshSequenceTask = nil
                 }
             }
-            for provider in UsageProvider.allCases {
+            for provider in providers {
                 if Task.isCancelled { break }
                 await self.refreshTokenUsage(provider, force: force)
             }
@@ -712,7 +781,7 @@ extension UsageStore {
         let ampCookieHeader = self.settings.ampCookieHeader
         let ollamaCookieSource = self.settings.ollamaCookieSource
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
-        let processEnvironment = ProcessInfo.processInfo.environment
+        let processEnvironment = self.environmentBase
         let openRouterConfigToken = self.settings.providerConfig(for: .openrouter)?.sanitizedAPIKey
         let openRouterHasConfigToken = !(openRouterConfigToken?.trimmingCharacters(in: .whitespacesAndNewlines)
             .isEmpty ?? true)
@@ -810,8 +879,8 @@ extension UsageStore {
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-                case .gemini, .antigravity, .opencode, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .jetbrains, .perplexity:
+                case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
+                     .kimik2, .jetbrains, .perplexity, .abacus:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
@@ -833,7 +902,7 @@ extension UsageStore {
             let sourceMode = self.sourceMode(for: .claude)
             let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: nil)
             let environment = ProviderRegistry.makeEnvironment(
-                base: ProcessInfo.processInfo.environment,
+                base: self.environmentBase,
                 provider: .claude,
                 settings: self.settings,
                 tokenOverride: nil)

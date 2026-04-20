@@ -112,7 +112,10 @@ private final class CoordinatorStubManagedCodexIdentityReader: ManagedCodexIdent
         self.email = email
     }
 
-    func loadAccountInfo(homePath _: String) throws -> AccountInfo {
-        AccountInfo(email: self.email, plan: "Pro")
+    func loadAccountIdentity(homePath _: String) throws -> CodexAuthBackedAccount {
+        CodexAuthBackedAccount(
+            identity: CodexIdentityResolver.resolve(accountId: nil, email: self.email),
+            email: self.email,
+            plan: "Pro")
     }
 }

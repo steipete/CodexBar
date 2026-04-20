@@ -314,6 +314,9 @@ private struct ProviderDetailInfoGrid: View {
         if self.store.refreshingProviders.contains(self.provider) {
             return "Refreshing"
         }
+        if self.store.unavailableMessage(for: self.provider) != nil {
+            return "Unavailable"
+        }
         return "Not fetched yet"
     }
 }

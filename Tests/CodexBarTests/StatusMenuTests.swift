@@ -30,6 +30,44 @@ struct StatusMenuTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
     }
 
+    private func makeCodexStore(settings: SettingsStore, dashboardAuthorized: Bool) -> UsageStore {
+        let now = Date()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 22,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(1800),
+                    resetDescription: nil),
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: now,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "codex@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "Plus Plan")),
+            provider: .codex)
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "other@example.com",
+            codeReviewRemainingPercent: 88,
+            codeReviewLimit: RateWindow(
+                usedPercent: 12,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            updatedAt: now)
+        store.openAIDashboardAttachmentAuthorized = dashboardAuthorized
+        store.openAIDashboardRequiresLogin = false
+        return store
+    }
+
     private func switcherButtons(in menu: NSMenu) -> [NSButton] {
         guard let switcherView = menu.items.first?.view as? ProviderSwitcherView else { return [] }
         return switcherView.subviews
@@ -156,6 +194,7 @@ struct StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
+        settings.openAIWebAccessEnabled = true
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
@@ -213,6 +252,53 @@ struct StatusMenuTests {
         controller.refreshOpenMenusIfNeeded()
 
         #expect(hasOpenAIWebSubmenus(menu) == false)
+    }
+
+    @Test
+    func `display only dashboard does not show code review in status menu card`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let fetcher = UsageFetcher()
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let model = try #require(controller.menuCardModel(for: .codex))
+        #expect(model.metrics.contains { $0.id == "code-review" } == false)
+    }
+
+    @Test
+    func `display only dashboard does not show code review in providers pane`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let model = pane._test_menuCardModel(for: .codex)
+        #expect(model.metrics.contains { $0.id == "code-review" } == false)
+    }
+
+    @Test
+    func `attached dashboard still shows code review in providers pane`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: true)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let model = pane._test_menuCardModel(for: .codex)
+        #expect(model.metrics.contains { $0.id == "code-review" && $0.percent == 88 })
     }
 
     @Test
@@ -432,11 +518,15 @@ struct StatusMenuTests {
         #expect(!titles.contains("Switch Account..."))
         #expect(!titles.contains("Usage Dashboard"))
         #expect(!titles.contains("Status Page"))
+        #expect(titles.contains("Refresh"))
         #expect(titles.contains("Settings..."))
         #expect(titles.contains("About CodexBar"))
         #expect(titles.contains("Quit"))
     }
+}
 
+@MainActor
+extension StatusMenuTests {
     @Test
     func `status blurb uses wrapped view-backed menu item`() {
         self.disableMenuCardsForTesting()
@@ -563,6 +653,55 @@ struct StatusMenuTests {
     }
 
     @Test
+    func `hides open AI web submenus when open AI web extras disabled`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.openAIWebAccessEnabled = false
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+        if let geminiMeta = registry.metadata[.gemini] {
+            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let event = CreditEvent(date: Date(), service: "CLI", creditsUsed: 1)
+        let breakdown = OpenAIDashboardSnapshot.makeDailyBreakdown(from: [event], maxDays: 30)
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: 100,
+            creditEvents: [event],
+            dailyBreakdown: breakdown,
+            usageBreakdown: breakdown,
+            creditsPurchaseURL: nil,
+            updatedAt: Date())
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let titles = Set(menu.items.map(\.title))
+        #expect(!titles.contains("Credits history"))
+        #expect(!titles.contains("Usage breakdown"))
+    }
+
+    @Test
     func `shows open AI web submenus when history exists`() throws {
         self.disableMenuCardsForTesting()
         let settings = SettingsStore(
@@ -573,6 +712,7 @@ struct StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
+        settings.openAIWebAccessEnabled = true
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
@@ -607,6 +747,8 @@ struct StatusMenuTests {
             usageBreakdown: breakdown,
             creditsPurchaseURL: nil,
             updatedAt: Date())
+        store.openAIDashboardAttachmentAuthorized = true
+        store.openAIDashboardRequiresLogin = false
 
         let controller = StatusItemController(
             store: store,
@@ -660,6 +802,8 @@ struct StatusMenuTests {
             usageBreakdown: [],
             creditsPurchaseURL: nil,
             updatedAt: Date())
+        store.openAIDashboardAttachmentAuthorized = true
+        store.openAIDashboardRequiresLogin = false
         store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 0.12,
@@ -693,6 +837,62 @@ struct StatusMenuTests {
         #expect(creditsIndex != nil)
         #expect(costIndex != nil)
         #expect(try #require(creditsIndex) < costIndex!)
+    }
+
+    @Test
+    func `hosted cost submenu preserves provider context after empty hydration`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.costUsageEnabled = true
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.costHistoryChartID,
+            provider: .codex)
+
+        controller.hydrateHostedSubviewMenuIfNeeded(submenu)
+        #expect(submenu.items.count == 1)
+        #expect(submenu.items.first?.title == "No data available")
+        #expect(submenu.items.first?.toolTip == UsageProvider.codex.rawValue)
+
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: 123,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 123,
+            last30DaysCostUSD: 1.23,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-12-23",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 123,
+                    costUSD: 1.23,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date()), provider: .codex)
+
+        controller.hydrateHostedSubviewMenuIfNeeded(submenu)
+        #expect(submenu.items.count == 1)
+        #expect(submenu.items.first?.title != "No data available")
+        #expect(submenu.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
     }
 
     @Test

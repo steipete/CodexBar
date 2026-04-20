@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-enum PreferencesTab: String, Hashable {
+enum PreferencesTab: String, CaseIterable, Hashable {
     case general
     case providers
     case display
@@ -12,6 +12,17 @@ enum PreferencesTab: String, Hashable {
     static let defaultWidth: CGFloat = 496
     static let providersWidth: CGFloat = 720
     static let windowHeight: CGFloat = 580
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .providers: "Providers"
+        case .display: "Display"
+        case .advanced: "Advanced"
+        case .about: "About"
+        case .debug: "Debug"
+        }
+    }
 
     var preferredWidth: CGFloat {
         self == .providers ? PreferencesTab.providersWidth : PreferencesTab.defaultWidth
@@ -29,6 +40,7 @@ struct PreferencesView: View {
     let updater: UpdaterProviding
     @Bindable var selection: PreferencesSelection
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     @State private var contentWidth: CGFloat = PreferencesTab.general.preferredWidth
     @State private var contentHeight: CGFloat = PreferencesTab.general.preferredHeight
 
@@ -37,13 +49,19 @@ struct PreferencesView: View {
         store: UsageStore,
         updater: UpdaterProviding,
         selection: PreferencesSelection,
-        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator())
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil)
     {
         self.settings = settings
         self.store = store
         self.updater = updater
         self.selection = selection
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+        self.codexAccountPromotionCoordinator = codexAccountPromotionCoordinator
+            ?? CodexAccountPromotionCoordinator(
+                settingsStore: settings,
+                usageStore: store,
+                managedAccountCoordinator: managedCodexAccountCoordinator)
     }
 
     var body: some View {
@@ -55,7 +73,8 @@ struct PreferencesView: View {
             ProvidersPane(
                 settings: self.settings,
                 store: self.store,
-                managedCodexAccountCoordinator: self.managedCodexAccountCoordinator)
+                managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
+                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator)
                 .tabItem { Label("Providers", systemImage: "square.grid.2x2") }
                 .tag(PreferencesTab.providers)
 
@@ -102,6 +121,24 @@ struct PreferencesView: View {
         } else {
             change()
         }
+        Self.resizeSettingsWindow(width: tab.preferredWidth, height: tab.preferredHeight, animate: animate)
+    }
+
+    private static let settingsWindowIdentifier = "com_apple_SwiftUI_Settings_window"
+    private static let knownTabTitles = Set(PreferencesTab.allCases.map(\.title))
+
+    private static func resizeSettingsWindow(width: CGFloat, height: CGFloat, animate: Bool) {
+        guard let window = NSApp.windows.first(where: {
+            $0.identifier?.rawValue == settingsWindowIdentifier
+                || knownTabTitles.contains($0.title)
+        }) else { return }
+        let toolbarHeight = window.frame.height - window.contentLayoutRect.height
+        guard toolbarHeight > 0 else { return }
+        let newSize = NSSize(width: width, height: height + toolbarHeight)
+        var frame = window.frame
+        frame.origin.y += frame.size.height - newSize.height
+        frame.size = newSize
+        window.setFrame(frame, display: true, animate: animate)
     }
 
     private func ensureValidTabSelection() {

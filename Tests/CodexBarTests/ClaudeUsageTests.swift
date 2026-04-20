@@ -303,15 +303,23 @@ struct ClaudeUsageTests {
         }
 
         do {
-            _ = try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
-                try await ProviderInteractionContext.$current.withValue(.background) {
-                    try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(delegatedOverride) {
-                        try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(loadCredsOverride) {
-                            try await fetcher.loadLatestUsage(model: "sonnet")
+            _ = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                .securityFramework,
+                operation: {
+                    try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                        try await ProviderInteractionContext.$current.withValue(.background) {
+                            try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(
+                                delegatedOverride)
+                            {
+                                try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(
+                                    loadCredsOverride)
+                                {
+                                    try await fetcher.loadLatestUsage(model: "sonnet")
+                                }
+                            }
                         }
                     }
-                }
-            }
+                })
             Issue.record("Expected delegated refresh to be suppressed in background")
         } catch let error as ClaudeUsageError {
             guard case let .oauthFailed(message) = error else {
@@ -355,15 +363,23 @@ struct ClaudeUsageTests {
         }
 
         do {
-            _ = try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
-                try await ProviderInteractionContext.$current.withValue(.background) {
-                    try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(delegatedOverride) {
-                        try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(loadCredsOverride) {
-                            try await fetcher.loadLatestUsage(model: "sonnet")
+            _ = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                .securityFramework,
+                operation: {
+                    try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                        try await ProviderInteractionContext.$current.withValue(.background) {
+                            try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(
+                                delegatedOverride)
+                            {
+                                try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(
+                                    loadCredsOverride)
+                                {
+                                    try await fetcher.loadLatestUsage(model: "sonnet")
+                                }
+                            }
                         }
                     }
-                }
-            }
+                })
             Issue.record("Expected delegated refresh to be suppressed for prompt policy 'never'")
         } catch let error as ClaudeUsageError {
             guard case let .oauthFailed(message) = error else {
@@ -383,6 +399,7 @@ struct ClaudeUsageTests {
     func `oauth bootstrap only on user action background startup allows interactive read when no cache`() async throws {
         final class FlagBox: @unchecked Sendable {
             var allowKeychainPromptFlags: [Bool] = []
+            var allowBackgroundPromptBootstrapFlags: [Bool] = []
         }
 
         let flags = FlagBox()
@@ -400,6 +417,7 @@ struct ClaudeUsageTests {
             Bool,
             Bool) async throws -> ClaudeOAuthCredentials)? = { _, allowKeychainPrompt, _ in
             flags.allowKeychainPromptFlags.append(allowKeychainPrompt)
+            flags.allowBackgroundPromptBootstrapFlags.append(ClaudeOAuthCredentialsStore.allowBackgroundPromptBootstrap)
             return ClaudeOAuthCredentials(
                 accessToken: "fresh-token",
                 refreshToken: "refresh-token",
@@ -423,6 +441,7 @@ struct ClaudeUsageTests {
         }
 
         #expect(flags.allowKeychainPromptFlags == [true])
+        #expect(flags.allowBackgroundPromptBootstrapFlags == [true])
         #expect(snapshot.primary.usedPercent == 7)
     }
 
@@ -969,7 +988,7 @@ struct ClaudeAutoFetcherCharacterizationTests {
             return try await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                 try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
                     try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(missingCredentialsURL) {
-                        try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(false) {
+                        try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                             try await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
                                 data: nil,
                                 fingerprint: nil)

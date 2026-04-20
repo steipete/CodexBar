@@ -7,6 +7,7 @@ struct ProvidersPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     let codexAmbientLoginRunner: any CodexAmbientLoginRunning
     @State private var expandedErrors: Set<UsageProvider> = []
     @State private var settingsStatusTextByID: [String: String] = [:]
@@ -24,11 +25,17 @@ struct ProvidersPane: View {
         settings: SettingsStore,
         store: UsageStore,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         codexAmbientLoginRunner: any CodexAmbientLoginRunning = DefaultCodexAmbientLoginRunner())
     {
         self.settings = settings
         self.store = store
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+        self.codexAccountPromotionCoordinator = codexAccountPromotionCoordinator
+            ?? CodexAccountPromotionCoordinator(
+                settingsStore: settings,
+                usageStore: store,
+                managedAccountCoordinator: managedCodexAccountCoordinator)
         self.codexAmbientLoginRunner = codexAmbientLoginRunner
     }
 
@@ -59,15 +66,7 @@ struct ProvidersPane: View {
                     isErrorExpanded: self.expandedBinding(for: provider),
                     onCopyError: { text in self.copyToPasteboard(text) },
                     onRefresh: {
-                        Task { @MainActor in
-                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                                if provider == .codex {
-                                    await self.store.refreshCodexAccountScopedState(allowDisabled: true)
-                                } else {
-                                    await self.store.refreshProvider(provider, allowDisabled: true)
-                                }
-                            }
-                        }
+                        self.triggerRefresh(for: provider)
                     },
                     showsSupplementarySettingsContent: self.codexAccountsSectionState(for: provider) != nil,
                     supplementarySettingsContent: {
@@ -86,6 +85,11 @@ struct ProvidersPane: View {
                                 },
                                 removeAccount: { account in
                                     self.requestManagedCodexAccountRemoval(account)
+                                },
+                                requestSystemVisibleAccount: { visibleAccountID in
+                                    Task { @MainActor in
+                                        await self.requestCodexSystemVisibleAccount(id: visibleAccountID)
+                                    }
                                 },
                                 addAccount: {
                                     Task { @MainActor in
@@ -144,6 +148,18 @@ struct ProvidersPane: View {
         self.selectedProvider = self.providers.first
     }
 
+    private func triggerRefresh(for provider: UsageProvider) {
+        Task { @MainActor in
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                if provider == .codex {
+                    await self.store.refreshCodexAccountScopedState(allowDisabled: true)
+                } else {
+                    await self.store.refreshProvider(provider, allowDisabled: true)
+                }
+            }
+        }
+    }
+
     func binding(for provider: UsageProvider) -> Binding<Bool> {
         let meta = self.store.metadata(for: provider)
         return Binding(
@@ -193,10 +209,13 @@ struct ProvidersPane: View {
         return CodexAccountsSectionState(
             visibleAccounts: projection.visibleAccounts,
             activeVisibleAccountID: projection.activeVisibleAccountID,
+            liveVisibleAccountID: projection.liveVisibleAccountID,
             hasUnreadableManagedAccountStore: projection.hasUnreadableAddedAccountStore,
             isAuthenticatingManagedAccount: self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount,
             authenticatingManagedAccountID: self.managedCodexAccountCoordinator.authenticatingManagedAccountID,
+            isRemovingManagedAccount: self.managedCodexAccountCoordinator.isRemovingManagedAccount,
             isAuthenticatingLiveAccount: self.isAuthenticatingLiveCodexAccount,
+            isPromotingSystemAccount: self.codexAccountPromotionCoordinator.isPromotingSystemAccount,
             notice: self.codexAccountsNotice ?? degradedNotice)
     }
 
@@ -204,6 +223,20 @@ struct ProvidersPane: View {
         self.codexAccountsNotice = nil
         guard self.settings.selectCodexVisibleAccount(id: id) else { return }
         await self.refreshCodexProvider()
+    }
+
+    func requestCodexSystemVisibleAccount(id: String) async {
+        self.codexAccountsNotice = nil
+        guard let account = self.settings.codexVisibleAccountProjection.visibleAccounts.first(where: { $0.id == id }),
+              let managedAccountID = account.storedAccountID
+        else {
+            return
+        }
+
+        let result = await self.codexAccountPromotionCoordinator.promote(managedAccountID: managedAccountID)
+        if case let .failure(error) = result {
+            self.codexAccountsNotice = CodexAccountsSectionNotice(text: error.message, tone: .warning)
+        }
     }
 
     func addManagedCodexAccount() async {
@@ -242,7 +275,11 @@ struct ProvidersPane: View {
         }
 
         self.isAuthenticatingLiveCodexAccount = true
-        defer { self.isAuthenticatingLiveCodexAccount = false }
+        self.codexAccountPromotionCoordinator.setLiveReauthenticationInProgress(true)
+        defer {
+            self.isAuthenticatingLiveCodexAccount = false
+            self.codexAccountPromotionCoordinator.setLiveReauthenticationInProgress(false)
+        }
 
         let result = await self.codexAmbientLoginRunner.run(timeout: 120)
         if let info = CodexLoginAlertPresentation.alertInfo(for: result) {
@@ -407,7 +444,6 @@ struct ProvidersPane: View {
     }
 
     func menuBarMetricPicker(for provider: UsageProvider) -> ProviderSettingsPickerDescriptor? {
-        if provider == .zai { return nil }
         let options: [ProviderSettingsPickerOption]
         if provider == .openrouter {
             options = [
@@ -415,6 +451,14 @@ struct ProvidersPane: View {
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
                     title: "Primary (API key limit)"),
+            ]
+        } else if provider == .abacus {
+            let metadata = self.store.metadata(for: provider)
+            options = [
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.primary.rawValue,
+                    title: "Primary (\(metadata.sessionLabel))"),
             ]
         } else {
             let metadata = self.store.metadata(for: provider)
@@ -465,17 +509,22 @@ struct ProvidersPane: View {
     func menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
         let metadata = self.store.metadata(for: provider)
         let snapshot = self.store.snapshot(for: provider)
+        let now = Date()
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .liveCard,
+            now: now)
         let credits: CreditsSnapshot?
         let creditsError: String?
         let dashboard: OpenAIDashboardSnapshot?
         let dashboardError: String?
         let tokenSnapshot: CostUsageTokenSnapshot?
         let tokenError: String?
-        if provider == .codex {
-            credits = self.store.credits
-            creditsError = self.store.userFacingLastCreditsError
-            dashboard = self.store.openAIDashboardRequiresLogin ? nil : self.store.openAIDashboard
-            dashboardError = self.store.userFacingLastOpenAIDashboardError
+        if let codexProjection {
+            credits = codexProjection.credits?.snapshot
+            creditsError = codexProjection.credits?.userFacingError
+            dashboard = nil
+            dashboardError = codexProjection.userFacingErrors.dashboard
             tokenSnapshot = self.store.tokenSnapshot(for: provider)
             tokenError = self.store.tokenError(for: provider)
         } else if provider == .claude || provider == .vertexai {
@@ -494,14 +543,22 @@ struct ProvidersPane: View {
             tokenError = nil
         }
 
-        let now = Date()
-        let weeklyPace = snapshot?.secondary.flatMap { window in
-            self.store.weeklyPace(provider: provider, window: window, now: now)
+        // Abacus uses primary for monthly credits (no secondary window)
+        let paceWindow = provider == .abacus ? snapshot?.primary : snapshot?.secondary
+        let weeklyPace = if let codexProjection,
+                            let weekly = codexProjection.rateWindow(for: .weekly)
+        {
+            self.store.weeklyPace(provider: provider, window: weekly, now: now)
+        } else {
+            paceWindow.flatMap { window in
+                self.store.weeklyPace(provider: provider, window: window, now: now)
+            }
         }
         let input = UsageMenuCardView.Model.Input(
             provider: provider,
             metadata: metadata,
             snapshot: snapshot,
+            codexProjection: codexProjection,
             credits: credits,
             creditsError: creditsError,
             dashboard: dashboard,
@@ -510,7 +567,7 @@ struct ProvidersPane: View {
             tokenError: tokenError,
             account: self.store.accountInfo(for: provider),
             isRefreshing: self.store.refreshingProviders.contains(provider),
-            lastError: self.store.userFacingError(for: provider),
+            lastError: codexProjection?.userFacingErrors.usage ?? self.store.userFacingError(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),

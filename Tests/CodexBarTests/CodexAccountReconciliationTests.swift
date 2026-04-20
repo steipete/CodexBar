@@ -43,7 +43,10 @@ struct CodexAccountReconciliationTests {
         #expect(snapshot.storedAccounts.map(\.email) == [managed.email])
         #expect(snapshot.activeStoredAccount?.id == managed.id)
         #expect(snapshot.activeStoredAccount?.email == managed.email)
-        #expect(snapshot.liveSystemAccount == live)
+        #expect(snapshot.liveSystemAccount?.email == live.email)
+        #expect(snapshot.liveSystemAccount?.codexHomePath == live.codexHomePath)
+        #expect(snapshot.liveSystemAccount?.observedAt == live.observedAt)
+        #expect(snapshot.liveSystemAccount?.identity == .emailOnly(normalizedEmail: "system@example.com"))
         #expect(snapshot.matchingStoredAccountForLiveSystemAccount == nil)
         #expect(snapshot.activeSource == .managedAccount(id: managed.id))
         #expect(snapshot.hasUnreadableAddedAccountStore == false)
@@ -193,7 +196,7 @@ struct CodexAccountReconciliationTests {
         let snapshot = settings.codexAccountReconciliationSnapshot
 
         #expect(settings.codexActiveSource == .liveSystem)
-        #expect(settings.providerConfig(for: .codex)?.codexActiveSource == .liveSystem)
+        #expect(settings.providerConfig(for: .codex)?.codexActiveSource == nil)
         #expect(snapshot.storedAccounts.map(\.id) == [ambient.id])
         #expect(snapshot.storedAccounts.map(\.email) == [ambient.email])
         #expect(snapshot.activeStoredAccount == nil)
@@ -280,6 +283,50 @@ struct CodexAccountReconciliationTests {
     }
 
     @Test
+    func `workspace hydration changes snapshot equality and visible display state`() {
+        let accountID = UUID()
+        let baseAccount = ManagedCodexAccount(
+            id: accountID,
+            email: "user@example.com",
+            providerAccountID: "account-live",
+            managedHomePath: "/tmp/managed-a",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let hydratedAccount = ManagedCodexAccount(
+            id: accountID,
+            email: "user@example.com",
+            providerAccountID: "account-live",
+            workspaceLabel: "Team Alpha",
+            workspaceAccountID: "account-live",
+            managedHomePath: "/tmp/managed-a",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let baseSnapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [baseAccount],
+            activeStoredAccount: baseAccount,
+            liveSystemAccount: nil,
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .managedAccount(id: accountID),
+            hasUnreadableAddedAccountStore: false)
+        let hydratedSnapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [hydratedAccount],
+            activeStoredAccount: hydratedAccount,
+            liveSystemAccount: nil,
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .managedAccount(id: accountID),
+            hasUnreadableAddedAccountStore: false)
+
+        let baseProjection = CodexVisibleAccountProjection.make(from: baseSnapshot)
+        let hydratedProjection = CodexVisibleAccountProjection.make(from: hydratedSnapshot)
+
+        #expect(baseSnapshot != hydratedSnapshot)
+        #expect(baseProjection.visibleAccounts.first?.displayName == "user@example.com")
+        #expect(hydratedProjection.visibleAccounts.first?.displayName == "user@example.com — Team Alpha")
+    }
+
+    @Test
     func `matching live system account does not duplicate stored identity`() {
         let stored = ManagedCodexAccount(
             id: UUID(),
@@ -296,13 +343,90 @@ struct CodexAccountReconciliationTests {
         let reconciler = DefaultCodexAccountReconciler(
             storeLoader: { accounts },
             systemObserver: StubSystemObserver(account: live),
-            activeSource: .managedAccount(id: stored.id))
+            activeSource: .managedAccount(id: stored.id),
+            baseEnvironment: [:])
 
-        let projection = reconciler.loadVisibleAccounts(environment: [:])
+        let projection = reconciler.loadVisibleAccounts()
 
         #expect(projection.visibleAccounts.count == 1)
         #expect(projection.activeVisibleAccountID == "user@example.com")
         #expect(projection.liveVisibleAccountID == "user@example.com")
+    }
+
+    @Test
+    func `matching live system account prefers live workspace label and keeps stored fallback`() {
+        let stored = ManagedCodexAccount(
+            id: UUID(),
+            email: "user@example.com",
+            providerAccountID: "account-live",
+            workspaceLabel: "Saved Team",
+            workspaceAccountID: "account-live",
+            managedHomePath: "/tmp/managed-a",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let liveWithLabel = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            workspaceLabel: "Live Team",
+            workspaceAccountID: "account-live",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "account-live"))
+        let labeledSnapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [stored],
+            activeStoredAccount: stored,
+            liveSystemAccount: liveWithLabel,
+            matchingStoredAccountForLiveSystemAccount: stored,
+            activeSource: .managedAccount(id: stored.id),
+            hasUnreadableAddedAccountStore: false,
+            storedAccountRuntimeIdentities: [stored.id: .providerAccount(id: "account-live")],
+            storedAccountRuntimeEmails: [stored.id: "user@example.com"])
+        let liveWithoutLabel = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            workspaceLabel: nil,
+            workspaceAccountID: "account-live",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "account-live"))
+        let fallbackSnapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [stored],
+            activeStoredAccount: stored,
+            liveSystemAccount: liveWithoutLabel,
+            matchingStoredAccountForLiveSystemAccount: stored,
+            activeSource: .managedAccount(id: stored.id),
+            hasUnreadableAddedAccountStore: false,
+            storedAccountRuntimeIdentities: [stored.id: .providerAccount(id: "account-live")],
+            storedAccountRuntimeEmails: [stored.id: "user@example.com"])
+        let liveWithEmptyLabel = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            workspaceLabel: "   \n\t  ",
+            workspaceAccountID: "account-live",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "account-live"))
+        let emptyLabelSnapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [stored],
+            activeStoredAccount: stored,
+            liveSystemAccount: liveWithEmptyLabel,
+            matchingStoredAccountForLiveSystemAccount: stored,
+            activeSource: .managedAccount(id: stored.id),
+            hasUnreadableAddedAccountStore: false,
+            storedAccountRuntimeIdentities: [stored.id: .providerAccount(id: "account-live")],
+            storedAccountRuntimeEmails: [stored.id: "user@example.com"])
+
+        let labeledProjection = CodexVisibleAccountProjection.make(from: labeledSnapshot)
+        let fallbackProjection = CodexVisibleAccountProjection.make(from: fallbackSnapshot)
+        let emptyLabelProjection = CodexVisibleAccountProjection.make(from: emptyLabelSnapshot)
+
+        #expect(labeledProjection.visibleAccounts.count == 1)
+        #expect(labeledProjection.visibleAccounts.first?.workspaceLabel == "Live Team")
+        #expect(labeledProjection.visibleAccounts.first?.displayName == "user@example.com — Live Team")
+        #expect(fallbackProjection.visibleAccounts.count == 1)
+        #expect(fallbackProjection.visibleAccounts.first?.workspaceLabel == "Saved Team")
+        #expect(fallbackProjection.visibleAccounts.first?.displayName == "user@example.com — Saved Team")
+        #expect(emptyLabelProjection.visibleAccounts.count == 1)
+        #expect(emptyLabelProjection.visibleAccounts.first?.workspaceLabel == "Saved Team")
+        #expect(emptyLabelProjection.visibleAccounts.first?.displayName == "user@example.com — Saved Team")
     }
 
     @Test
@@ -334,6 +458,52 @@ struct CodexAccountReconciliationTests {
         #expect(resolution.requiresPersistenceCorrection)
         #expect(projection.activeVisibleAccountID == "user@example.com")
         #expect(projection.source(forVisibleAccountID: "user@example.com") == .liveSystem)
+    }
+
+    @Test
+    func `provider account does not collapse with email only live account on same email`() throws {
+        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: managedHome) }
+        try Self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "user@example.com",
+            plan: "pro",
+            accountID: "account-managed")
+
+        let stored = ManagedCodexAccount(
+            id: UUID(),
+            email: "user@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let accounts = ManagedCodexAccountSet(version: 1, accounts: [stored])
+        let live = ObservedSystemCodexAccount(
+            email: "USER@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .emailOnly(normalizedEmail: "user@example.com"))
+        let reconciler = DefaultCodexAccountReconciler(
+            storeLoader: { accounts },
+            systemObserver: StubSystemObserver(account: live),
+            activeSource: .managedAccount(id: stored.id),
+            baseEnvironment: [:])
+
+        let snapshot = reconciler.loadSnapshot()
+        let resolution = CodexActiveSourceResolver.resolve(from: snapshot)
+        let projection = CodexVisibleAccountProjection.make(from: snapshot)
+
+        #expect(snapshot.matchingStoredAccountForLiveSystemAccount == nil)
+        #expect(resolution.resolvedSource == .managedAccount(id: stored.id))
+        #expect(projection.visibleAccounts.count == 2)
+        #expect(Set(projection.visibleAccounts.map(\.email)) == Set(["user@example.com"]))
+        #expect(Set(projection.visibleAccounts.map(\.id)).count == 2)
+        #expect(projection.activeVisibleAccountID == projection.visibleAccounts
+            .first { $0.selectionSource == .managedAccount(id: stored.id) }?.id)
+        #expect(projection.liveVisibleAccountID == projection.visibleAccounts
+            .first { $0.selectionSource == .liveSystem }?.id)
     }
 
     @Test
@@ -426,9 +596,10 @@ struct CodexAccountReconciliationTests {
         let reconciler = DefaultCodexAccountReconciler(
             storeLoader: { accounts },
             systemObserver: StubSystemObserver(account: live),
-            activeSource: .managedAccount(id: active.id))
+            activeSource: .managedAccount(id: active.id),
+            baseEnvironment: [:])
 
-        let projection = reconciler.loadVisibleAccounts(environment: [:])
+        let projection = reconciler.loadVisibleAccounts()
 
         #expect(Set(projection.visibleAccounts.map(\.email)) == ["managed@example.com", "system@example.com"])
         #expect(projection.activeVisibleAccountID == "managed@example.com")
@@ -461,9 +632,10 @@ struct CodexAccountReconciliationTests {
         let reconciler = DefaultCodexAccountReconciler(
             storeLoader: { accounts },
             systemObserver: StubSystemObserver(account: live),
-            activeSource: .managedAccount(id: active.id))
+            activeSource: .managedAccount(id: active.id),
+            baseEnvironment: [:])
 
-        let projection = reconciler.loadVisibleAccounts(environment: [:])
+        let projection = reconciler.loadVisibleAccounts()
 
         #expect(Set(projection.visibleAccounts.map(\.email)) == [
             "active@example.com",
@@ -482,9 +654,10 @@ struct CodexAccountReconciliationTests {
             observedAt: Date())
         let reconciler = DefaultCodexAccountReconciler(
             storeLoader: { throw FileManagedCodexAccountStoreError.unsupportedVersion(999) },
-            systemObserver: StubSystemObserver(account: live))
+            systemObserver: StubSystemObserver(account: live),
+            baseEnvironment: [:])
 
-        let projection = reconciler.loadVisibleAccounts(environment: [:])
+        let projection = reconciler.loadVisibleAccounts()
 
         #expect(projection.visibleAccounts.map(\.email) == ["live@example.com"])
         #expect(projection.activeVisibleAccountID == "live@example.com")
@@ -501,9 +674,10 @@ struct CodexAccountReconciliationTests {
             observedAt: Date())
         let reconciler = DefaultCodexAccountReconciler(
             storeLoader: { accounts },
-            systemObserver: StubSystemObserver(account: live))
+            systemObserver: StubSystemObserver(account: live),
+            baseEnvironment: [:])
 
-        let projection = reconciler.loadVisibleAccounts(environment: [:])
+        let projection = reconciler.loadVisibleAccounts()
 
         #expect(projection.visibleAccounts.isEmpty)
         #expect(projection.activeVisibleAccountID == nil)
@@ -621,6 +795,61 @@ struct CodexAccountReconciliationTests {
         #expect(settings.codexActiveSource == .liveSystem)
         #expect(settings.codexResolvedActiveSource == .liveSystem)
     }
+
+    @Test
+    @MainActor
+    func `selecting authenticated managed account keeps managed source for split identity rows`() throws {
+        let suite = "CodexAccountReconciliationTests-select-authenticated-managed-split"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        let storeURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: managedHome)
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        try Self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "same@example.com",
+            plan: "pro",
+            accountID: "account-managed")
+        let managed = ManagedCodexAccount(
+            id: UUID(),
+            email: "same@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        try Self.writeManagedCodexStore(
+            ManagedCodexAccountSet(version: FileManagedCodexAccountStore.currentVersion, accounts: [managed]),
+            to: storeURL)
+
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "SAME@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .emailOnly(normalizedEmail: "same@example.com"))
+        settings.codexActiveSource = .liveSystem
+
+        let projection = settings.codexVisibleAccountProjection
+        #expect(projection.visibleAccounts.count == 2)
+
+        settings.selectAuthenticatedManagedCodexAccount(managed)
+
+        #expect(settings.codexActiveSource == .managedAccount(id: managed.id))
+        #expect(settings.codexResolvedActiveSource == .managedAccount(id: managed.id))
+    }
 }
 
 private struct StubSystemObserver: CodexSystemAccountObserving {
@@ -637,25 +866,38 @@ extension CodexAccountReconciliationTests {
         try store.storeAccounts(accounts)
     }
 
-    private static func writeCodexAuthFile(homeURL: URL, email: String, plan: String) throws {
+    private static func writeCodexAuthFile(
+        homeURL: URL,
+        email: String,
+        plan: String,
+        accountID: String? = nil) throws
+    {
         try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
-        let auth = [
-            "tokens": [
-                "accessToken": "access-token",
-                "refreshToken": "refresh-token",
-                "idToken": Self.fakeJWT(email: email, plan: plan),
-            ],
+        var tokens: [String: Any] = [
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "idToken": Self.fakeJWT(email: email, plan: plan, accountID: accountID),
         ]
+        if let accountID {
+            tokens["account_id"] = accountID
+        }
+        let auth = ["tokens": tokens]
         let data = try JSONSerialization.data(withJSONObject: auth)
         try data.write(to: homeURL.appendingPathComponent("auth.json"))
     }
 
-    private static func fakeJWT(email: String, plan: String) -> String {
+    private static func fakeJWT(email: String, plan: String, accountID: String? = nil) -> String {
         let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
-        let payload = (try? JSONSerialization.data(withJSONObject: [
+        var payloadObject: [String: Any] = [
             "email": email,
             "chatgpt_plan_type": plan,
-        ])) ?? Data()
+        ]
+        if let accountID {
+            payloadObject["https://api.openai.com/auth"] = [
+                "chatgpt_account_id": accountID,
+            ]
+        }
+        let payload = (try? JSONSerialization.data(withJSONObject: payloadObject)) ?? Data()
 
         func base64URL(_ data: Data) -> String {
             data.base64EncodedString()

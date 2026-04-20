@@ -82,6 +82,73 @@ struct MenuDescriptorCodexManagedFallbackTests {
         #expect(!lines.contains("Plan: Plus"))
     }
 
+    @Test
+    func `codex weekly only window renders without session row`() throws {
+        let suite = "MenuDescriptorCodexManagedFallbackTests-weekly-only"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            codexCookieStore: InMemoryCookieHeaderStore(),
+            claudeCookieStore: InMemoryCookieHeaderStore(),
+            cursorCookieStore: InMemoryCookieHeaderStore(),
+            opencodeCookieStore: InMemoryCookieHeaderStore(),
+            factoryCookieStore: InMemoryCookieHeaderStore(),
+            minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+            minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+            kimiTokenStore: InMemoryKimiTokenStore(),
+            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
+            augmentCookieStore: InMemoryCookieHeaderStore(),
+            ampCookieStore: InMemoryCookieHeaderStore(),
+            copilotTokenStore: InMemoryCopilotTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore())
+        settings.statusChecksEnabled = false
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: RateWindow(
+                    usedPercent: 20,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: "Apr 6, 2026"),
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "ratulanimation@gmail.com",
+                    accountOrganization: nil,
+                    loginMethod: "free")),
+            provider: .codex)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = descriptor.sections
+            .flatMap(\.entries)
+            .compactMap { entry -> String? in
+                guard case let .text(text, _) = entry else { return nil }
+                return text
+            }
+
+        #expect(!lines.contains(where: { $0.hasPrefix("Session:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("Weekly:") }))
+    }
+
     private static func writeCodexAuthFile(homeURL: URL, email: String, plan: String) throws {
         try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
         let auth = [

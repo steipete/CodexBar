@@ -478,10 +478,15 @@ struct UsageStorePlanUtilizationTests {
             ])
 
         store._setSnapshotForTesting(aliceSnapshot, provider: .codex)
-        #expect(store.planUtilizationHistory(for: .codex) == [bootstrap, aliceWeekly])
+        let aliceHistory = store.planUtilizationHistory(for: .codex)
+        #expect(store.planUtilizationHistory[.codex]?.preferredAccountKey == aliceKey)
+        #expect(aliceHistory == [aliceWeekly])
+        #expect(store.planUtilizationHistory[.codex]?.unscoped == [bootstrap])
 
         store._setSnapshotForTesting(bobSnapshot, provider: .codex)
-        #expect(store.planUtilizationHistory(for: .codex) == [bobWeekly])
+        let bobHistory = store.planUtilizationHistory(for: .codex)
+        #expect(store.planUtilizationHistory[.codex]?.preferredAccountKey == bobKey)
+        #expect(bobHistory == [bobWeekly])
     }
 
     @MainActor
@@ -529,7 +534,9 @@ struct UsageStorePlanUtilizationTests {
 
         #expect(!store.shouldShowRefreshingMenuCard(for: .codex))
         #expect(!store.shouldHidePlanUtilizationMenuItem(for: .codex))
-        #expect(store.planUtilizationHistory(for: .codex) == [weekly])
+        let histories = store.planUtilizationHistory(for: .codex)
+        #expect(store.planUtilizationHistory[.codex]?.preferredAccountKey == codexKey)
+        #expect(histories == [weekly])
     }
 
     @MainActor
@@ -578,6 +585,43 @@ struct UsageStorePlanUtilizationTests {
         #expect(findSeries(histories, name: .session, windowMinutes: 300)?.entries.last?.resetsAt == primaryReset)
         #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 0)
         #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.resetsAt == secondaryReset)
+    }
+
+    @MainActor
+    @Test
+    func `record plan history keeps semantic codex lanes when durations drift`() async {
+        let store = Self.makeStore()
+        let primaryReset = Date(timeIntervalSince1970: 1_710_000_000)
+        let secondaryReset = Date(timeIntervalSince1970: 1_710_086_400)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 18,
+                windowMinutes: 360,
+                resetsAt: primaryReset,
+                resetDescription: "6h"),
+            secondary: RateWindow(
+                usedPercent: 42,
+                windowMinutes: 11040,
+                resetsAt: secondaryReset,
+                resetDescription: "7.67d"),
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "plus"))
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: snapshot,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let histories = store.planUtilizationHistory(for: .codex)
+        #expect(findSeries(histories, name: .session, windowMinutes: 360)?.entries.last?.usedPercent == 18)
+        #expect(findSeries(histories, name: .session, windowMinutes: 360)?.entries.last?.resetsAt == primaryReset)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 11040)?.entries.last?.usedPercent == 42)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 11040)?.entries.last?.resetsAt == secondaryReset)
     }
 
     @MainActor
@@ -702,6 +746,12 @@ struct UsageStorePlanUtilizationTests {
 }
 
 extension UsageStorePlanUtilizationTests {
+    private struct FixtureDocument: Decodable {
+        let preferredAccountKey: String?
+        let unscoped: [PlanUtilizationSeriesHistory]
+        let accounts: [String: [PlanUtilizationSeriesHistory]]
+    }
+
     @MainActor
     static func makeStore() -> UsageStore {
         let suiteName = "UsageStorePlanUtilizationTests-\(UUID().uuidString)"
@@ -712,10 +762,21 @@ extension UsageStorePlanUtilizationTests {
         let configStore = testConfigStore(suiteName: suiteName)
         let planHistoryStore = testPlanUtilizationHistoryStore(suiteName: suiteName)
         let temporaryRoot = FileManager.default.temporaryDirectory.standardizedFileURL.path
+        let managedStoreURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(suiteName)-managed-codex-accounts.json")
         precondition(configStore.fileURL.standardizedFileURL.path.hasPrefix(temporaryRoot))
         precondition(configStore.fileURL.standardizedFileURL != CodexBarConfigStore.defaultURL().standardizedFileURL)
         if let historyURL = planHistoryStore.directoryURL?.standardizedFileURL {
             precondition(historyURL.path.hasPrefix(temporaryRoot))
+        }
+        let managedStore = FileManagedCodexAccountStore(fileURL: managedStoreURL)
+        try? FileManager.default.removeItem(at: managedStoreURL)
+        do {
+            try managedStore.storeAccounts(ManagedCodexAccountSet(
+                version: FileManagedCodexAccountStore.currentVersion,
+                accounts: []))
+        } catch {
+            fatalError("Failed to seed isolated managed Codex account store: \(error)")
         }
         let isolatedSettings = SettingsStore(
             userDefaults: defaults,
@@ -727,6 +788,8 @@ extension UsageStorePlanUtilizationTests {
             settings: isolatedSettings,
             planUtilizationHistoryStore: planHistoryStore,
             startupBehavior: .testing)
+        isolatedSettings._test_managedCodexAccountStoreURL = managedStoreURL
+        isolatedSettings.codexActiveSource = .liveSystem
         store.planUtilizationHistory = [:]
         return store
     }
@@ -741,6 +804,21 @@ extension UsageStorePlanUtilizationTests {
                 accountEmail: email,
                 accountOrganization: nil,
                 loginMethod: "plus"))
+    }
+
+    static func loadPlanUtilizationFixture(named name: String) throws -> PlanUtilizationHistoryBuckets {
+        let fixtureURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures", isDirectory: true)
+            .appendingPathComponent(name, isDirectory: false)
+        let data = try Data(contentsOf: fixtureURL)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let document = try decoder.decode(FixtureDocument.self, from: data)
+        return PlanUtilizationHistoryBuckets(
+            preferredAccountKey: document.preferredAccountKey,
+            unscoped: document.unscoped,
+            accounts: document.accounts)
     }
 }
 

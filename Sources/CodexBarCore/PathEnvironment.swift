@@ -52,8 +52,24 @@ public enum BinaryLocator {
             loginPATH: loginPATH,
             commandV: commandV,
             aliasResolver: aliasResolver,
+            wellKnownPaths: self.claudeWellKnownPaths(home: home),
             fileManager: fileManager,
             home: home)
+    }
+
+    /// Well-known installation paths for the Claude CLI binary.
+    /// Covers Anthropic's native installer (`~/.local/bin`), the `claude migrate-installer`
+    /// self-updating location (`~/.claude/local`), the legacy per-user installer
+    /// (`~/.claude/bin`), Homebrew, and the macOS Terminal installer (cmux.app).
+    static func claudeWellKnownPaths(home: String) -> [String] {
+        [
+            "\(home)/.local/bin/claude",
+            "\(home)/.claude/local/claude",
+            "\(home)/.claude/bin/claude",
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+            "/Applications/cmux.app/Contents/Resources/bin/claude",
+        ]
     }
 
     public static func resolveCodexBinary(
@@ -124,6 +140,7 @@ public enum BinaryLocator {
         loginPATH: [String]?,
         commandV: (String, String?, TimeInterval, FileManager) -> String?,
         aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String?,
+        wellKnownPaths: [String] = [],
         fileManager: FileManager,
         home: String) -> String?
     {
@@ -164,7 +181,14 @@ public enum BinaryLocator {
             return aliasHit
         }
 
-        // 5) Minimal fallback
+        // 5) Well-known installation paths (e.g. cmux.app bundle, ~/.claude/bin)
+        // macOS apps launched from Finder may not inherit the user's shell PATH,
+        // so check common install locations that the shell-based lookups above may miss.
+        for candidate in wellKnownPaths where fileManager.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+
+        // 6) Minimal fallback
         let fallback = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
         if let pathHit = self.find(name, in: fallback, fileManager: fileManager) {
             return pathHit

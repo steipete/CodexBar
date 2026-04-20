@@ -99,6 +99,20 @@ struct OpenAIDashboardParserTests {
     }
 
     @Test
+    func `parses prolite plan from client bootstrap`() {
+        let html = """
+        <html>
+        <body>
+        <script type="application/json" id="client-bootstrap">
+        {"session":{"user":{"email":"user@example.com"}},"planType":"prolite"}
+        </script>
+        </body>
+        </html>
+        """
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro Lite")
+    }
+
+    @Test
     func `parses credit events from table rows`() {
         let rows: [[String]] = [
             ["Dec 18, 2025", "CLI", "397.205 credits"],
@@ -155,5 +169,51 @@ struct OpenAIDashboardParserTests {
         decoder.dateDecodingStrategy = .iso8601
         let snapshot = try decoder.decode(OpenAIDashboardSnapshot.self, from: Data(json.utf8))
         #expect(snapshot.usageBreakdown.isEmpty)
+    }
+
+    @Test
+    func `weekly only dashboard usage projects into secondary slot`() {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondaryLimit: nil,
+            creditsRemaining: nil,
+            accountPlan: "pro",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let usage = snapshot.toUsageSnapshot(provider: .codex)
+
+        #expect(usage?.primary == nil)
+        #expect(usage?.secondary?.usedPercent == 25)
+        #expect(usage?.secondary?.windowMinutes == 10080)
+        #expect(usage?.identity?.providerID == .codex)
+        #expect(usage?.identity?.accountEmail == "user@example.com")
+    }
+
+    @Test
+    func `dashboard usage projection returns nil when all limits are absent`() {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: nil,
+            secondaryLimit: nil,
+            creditsRemaining: nil,
+            accountPlan: "pro",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        #expect(snapshot.toUsageSnapshot(provider: .codex) == nil)
     }
 }

@@ -37,11 +37,24 @@ struct MenuCardModelTests {
             tertiary: snapshot.tertiary,
             updatedAt: now,
             identity: identity)
+        let codexProjection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: updatedSnap,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
             snapshot: updatedSnap,
+            codexProjection: codexProjection,
             credits: CreditsSnapshot(remaining: 12, events: [], updatedAt: now),
             creditsError: nil,
             dashboard: nil,
@@ -65,123 +78,6 @@ struct MenuCardModelTests {
         #expect(model.subtitleText.hasPrefix("Updated"))
         #expect(model.progressColor != Color.clear)
         #expect(model.metrics[1].resetText?.isEmpty == false)
-    }
-
-    @Test
-    func `builds metrics using used percent when enabled`() throws {
-        let now = Date()
-        let identity = ProviderIdentitySnapshot(
-            providerID: .codex,
-            accountEmail: "codex@example.com",
-            accountOrganization: nil,
-            loginMethod: "Plus Plan")
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(
-                usedPercent: 22,
-                windowMinutes: 300,
-                resetsAt: now.addingTimeInterval(3000),
-                resetDescription: nil),
-            secondary: RateWindow(
-                usedPercent: 40,
-                windowMinutes: 10080,
-                resetsAt: now.addingTimeInterval(6000),
-                resetDescription: nil),
-            updatedAt: now,
-            identity: identity)
-        let metadata = try #require(ProviderDefaults.metadata[.codex])
-
-        let dashboard = OpenAIDashboardSnapshot(
-            signedInEmail: "codex@example.com",
-            codeReviewRemainingPercent: 73,
-            codeReviewLimit: RateWindow(
-                usedPercent: 27,
-                windowMinutes: nil,
-                resetsAt: now.addingTimeInterval(3600),
-                resetDescription: nil),
-            creditEvents: [],
-            dailyBreakdown: [],
-            usageBreakdown: [],
-            creditsPurchaseURL: nil,
-            updatedAt: now)
-
-        let model = UsageMenuCardView.Model.make(.init(
-            provider: .codex,
-            metadata: metadata,
-            snapshot: snapshot,
-            credits: nil,
-            creditsError: nil,
-            dashboard: dashboard,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: "codex@example.com", plan: "Plus Plan"),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: true,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
-            now: now))
-
-        #expect(model.metrics.first?.title == "Session")
-        #expect(model.metrics.first?.percent == 22)
-        #expect(model.metrics.first?.percentLabel.contains("used") == true)
-        #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 27 })
-    }
-
-    @Test
-    func `shows code review metric when dashboard present`() throws {
-        let now = Date()
-        let identity = ProviderIdentitySnapshot(
-            providerID: .codex,
-            accountEmail: "codex@example.com",
-            accountOrganization: nil,
-            loginMethod: nil)
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            tertiary: nil,
-            updatedAt: now,
-            identity: identity)
-        let metadata = try #require(ProviderDefaults.metadata[.codex])
-
-        let dashboard = OpenAIDashboardSnapshot(
-            signedInEmail: "codex@example.com",
-            codeReviewRemainingPercent: 73,
-            codeReviewLimit: RateWindow(
-                usedPercent: 27,
-                windowMinutes: nil,
-                resetsAt: now.addingTimeInterval(3600),
-                resetDescription: nil),
-            creditEvents: [],
-            dailyBreakdown: [],
-            usageBreakdown: [],
-            creditsPurchaseURL: nil,
-            updatedAt: now)
-        let model = UsageMenuCardView.Model.make(.init(
-            provider: .codex,
-            metadata: metadata,
-            snapshot: snapshot,
-            credits: nil,
-            creditsError: nil,
-            dashboard: dashboard,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: "codex@example.com", plan: nil),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: false,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
-            now: now))
-
-        #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 73 })
-        let codeReviewMetric = model.metrics.first { $0.id == "code-review" }
-        #expect(codeReviewMetric?.resetText?.contains("Resets") == true)
     }
 
     @Test
@@ -321,45 +217,6 @@ struct MenuCardModelTests {
 
         #expect(model.planText == nil)
         #expect(model.email.isEmpty)
-    }
-
-    @Test
-    func `hides codex credits when disabled`() throws {
-        let now = Date()
-        let identity = ProviderIdentitySnapshot(
-            providerID: .codex,
-            accountEmail: "codex@example.com",
-            accountOrganization: nil,
-            loginMethod: nil)
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            tertiary: nil,
-            updatedAt: now,
-            identity: identity)
-        let metadata = try #require(ProviderDefaults.metadata[.codex])
-
-        let model = UsageMenuCardView.Model.make(.init(
-            provider: .codex,
-            metadata: metadata,
-            snapshot: snapshot,
-            credits: CreditsSnapshot(remaining: 12, events: [], updatedAt: now),
-            creditsError: nil,
-            dashboard: nil,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: "codex@example.com", plan: nil),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: false,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: false,
-            hidePersonalInfo: false,
-            now: now))
-
-        #expect(model.creditsText == nil)
     }
 
     @Test

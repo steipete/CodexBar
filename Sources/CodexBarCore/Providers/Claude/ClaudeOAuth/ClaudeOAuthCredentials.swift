@@ -1702,9 +1702,21 @@ public enum ClaudeOAuthCredentialsStore {
     private static var keychainAccessAllowed: Bool {
         #if DEBUG
         if let override = self.taskKeychainAccessOverride { return !override }
+        if KeychainAccessGate.currentOverrideForTesting == true { return false }
+        if self.hasTaskKeychainTestingOverride { return true }
         #endif
         return !KeychainAccessGate.isDisabled
     }
+
+    #if DEBUG
+    private static var hasTaskKeychainTestingOverride: Bool {
+        self.taskClaudeKeychainOverrideStore != nil
+            || self.taskClaudeKeychainDataOverride != nil
+            || self.taskClaudeKeychainFingerprintOverride != nil
+            || self.taskSecurityCLIReadOverride != nil
+            || self.taskSecurityCLIReadAccountOverride != nil
+    }
+    #endif
 
     private static var isPromptPolicyApplicable: Bool {
         ClaudeOAuthKeychainPromptPreference.isApplicable()

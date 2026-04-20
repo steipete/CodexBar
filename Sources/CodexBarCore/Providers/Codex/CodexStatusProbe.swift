@@ -96,6 +96,8 @@ public struct CodexStatusProbe {
             default:
                 throw error
             }
+        } catch {
+            throw error
         }
     }
 
