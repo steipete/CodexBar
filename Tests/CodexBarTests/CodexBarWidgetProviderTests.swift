@@ -104,4 +104,15 @@ struct CodexBarWidgetProviderTests {
 
         #expect(rows == [WidgetUsageRow(id: "weekly", title: "Weekly", percentLeft: 75)])
     }
+
+    @Test
+    func `widget provider resolution falls back to codex when provider intent is nil`() {
+        #expect(resolvedWidgetProvider(nil) == UsageProvider.codex)
+    }
+
+    @Test
+    func `compact widget resolution falls back to defaults when intent values are nil`() {
+        #expect(resolvedWidgetProvider(nil) == UsageProvider.codex)
+        #expect(resolvedCompactMetric(nil) == CompactMetric.credits)
+    }
 }
