@@ -66,9 +66,11 @@ public struct CodebuffUsageSnapshot: Sendable {
         let total = self.resolvedTotal
         guard let total, total > 0 else {
             if self.creditsRemaining != nil || self.creditsUsed != nil {
-                // Degenerate case: show exhausted state so users notice missing configuration.
+                // Degenerate case: no usable quota in the payload. Surface the row as fully
+                // exhausted so missing quota data is visibly surfaced (matches Kilo's behaviour
+                // for zero/unknown totals) rather than rendering a misleading healthy bar.
                 return RateWindow(
-                    usedPercent: 0,
+                    usedPercent: 100,
                     windowMinutes: nil,
                     resetsAt: self.nextQuotaReset,
                     resetDescription: nil)
