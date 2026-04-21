@@ -173,6 +173,31 @@ struct CodebuffUsageFetcherTests {
     }
 
     @Test
+    func `snapshot surfaces exhausted state when quota is missing from payload`() {
+        // Only `creditsUsed` is populated (no total, no remaining) — the API response is
+        // degenerate but we still want the row to be visible so the user notices the
+        // missing configuration instead of seeing an empty/healthy-looking bar.
+        let usedOnly = CodebuffUsageSnapshot(
+            creditsUsed: 42,
+            creditsTotal: nil,
+            creditsRemaining: nil)
+        #expect(usedOnly.toUsageSnapshot().primary?.usedPercent == 100)
+
+        // Only `creditsRemaining` is populated — same fallback should apply.
+        let remainingOnly = CodebuffUsageSnapshot(
+            creditsUsed: nil,
+            creditsTotal: nil,
+            creditsRemaining: 17)
+        #expect(remainingOnly.toUsageSnapshot().primary?.usedPercent == 100)
+    }
+
+    @Test
+    func `snapshot hides credit window when no credit fields are present`() {
+        let empty = CodebuffUsageSnapshot()
+        #expect(empty.toUsageSnapshot().primary == nil)
+    }
+
+    @Test
     func `missing credentials fetch call throws missing credentials`() async {
         do {
             _ = try await CodebuffUsageFetcher.fetchUsage(apiKey: "   ")
