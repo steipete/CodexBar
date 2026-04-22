@@ -56,18 +56,59 @@ ensure_swift_version() {
   fail "Swift >= 5.5 required (found ${swift_ver:-none}). Install Xcode or update swiftly."
 }
 
+find_codesigning_identities() {
+  if [[ -n "${CODEXBAR_FIND_IDENTITY_OUTPUT:-}" ]]; then
+    printf '%s\n' "${CODEXBAR_FIND_IDENTITY_OUTPUT}"
+    return 0
+  fi
+  security find-identity -p codesigning -v 2>/dev/null
+}
+
 has_signing_identity() {
   local identity="${1:-}"
   if [[ -z "${identity}" ]]; then
     return 1
   fi
-  security find-identity -p codesigning -v 2>/dev/null | grep -F "${identity}" >/dev/null 2>&1
+  find_codesigning_identities | grep -F "${identity}" >/dev/null 2>&1
 }
 
-first_matching_identity() {
+matching_identities() {
   local pattern="$1"
-  security find-identity -p codesigning -v 2>/dev/null \
-    | awk -F'"' -v pattern="$pattern" '$2 ~ pattern { print $2; exit }'
+  local team_id="${2:-}"
+  find_codesigning_identities \
+    | awk -F'"' -v pattern="$pattern" -v team_id="$team_id" '
+        $2 ~ pattern && (team_id == "" || $2 ~ "\\(" team_id "\\)$") { print $2 }
+      '
+}
+
+MATCHING_IDENTITY=""
+
+resolve_matching_identity() {
+  local label="$1"
+  local pattern="$2"
+  local team_id="${3:-}"
+  local matches=()
+  local identity=""
+
+  MATCHING_IDENTITY=""
+  while IFS= read -r identity; do
+    if [[ -n "${identity}" ]]; then
+      matches+=("${identity}")
+    fi
+  done < <(matching_identities "$pattern" "$team_id")
+
+  case "${#matches[@]}" in
+    0)
+      return 1
+      ;;
+    1)
+      MATCHING_IDENTITY="${matches[0]}"
+      return 0
+      ;;
+    *)
+      fail "Multiple ${label} identities matched${team_id:+ for team ${team_id}}: ${matches[*]}. Set APP_IDENTITY to the exact certificate to use."
+      ;;
+  esac
 }
 
 extract_team_id_from_identity() {
@@ -79,39 +120,84 @@ extract_team_id_from_identity() {
   return 1
 }
 
+ensure_identity_team_matches() {
+  local identity="${1:-}"
+  local derived_team_id=""
+
+  if [[ -z "${identity}" ]]; then
+    return 0
+  fi
+
+  derived_team_id="$(extract_team_id_from_identity "${identity}" || true)"
+  if [[ -n "${APP_TEAM_ID:-}" ]]; then
+    if [[ -z "${derived_team_id}" ]]; then
+      fail "APP_IDENTITY '${identity}' does not encode a Team ID. Set CODEXBAR_SIGNING=adhoc or provide a codesigning identity with a Team ID."
+    fi
+    if [[ "${derived_team_id}" != "${APP_TEAM_ID}" ]]; then
+      fail "APP_IDENTITY '${identity}' belongs to team ${derived_team_id}, but APP_TEAM_ID is ${APP_TEAM_ID}."
+    fi
+    return 0
+  fi
+
+  if [[ -z "${derived_team_id}" ]]; then
+    fail "Unable to derive APP_TEAM_ID from APP_IDENTITY '${identity}'. Set APP_TEAM_ID explicitly or use adhoc signing."
+  fi
+
+  APP_TEAM_ID="${derived_team_id}"
+  export APP_TEAM_ID
+}
+
 resolve_signing_mode() {
   if [[ -n "${SIGNING_MODE}" ]]; then
+    if [[ "${SIGNING_MODE}" == "identity" ]]; then
+      if [[ -z "${APP_IDENTITY:-}" ]]; then
+        if resolve_matching_identity 'Developer ID Application' 'Developer ID Application: .+' "${APP_TEAM_ID:-}"; then
+          APP_IDENTITY="${MATCHING_IDENTITY}"
+        elif resolve_matching_identity 'Apple Development' 'Apple Development: .+' "${APP_TEAM_ID:-}"; then
+          APP_IDENTITY="${MATCHING_IDENTITY}"
+        else
+          fail "CODEXBAR_SIGNING=identity requires an unambiguous signing identity. Set APP_IDENTITY explicitly${APP_TEAM_ID:+ for team ${APP_TEAM_ID}}."
+        fi
+        export APP_IDENTITY
+      elif ! has_signing_identity "${APP_IDENTITY}"; then
+        fail "APP_IDENTITY '${APP_IDENTITY}' was not found in the keychain."
+      fi
+      ensure_identity_team_matches "${APP_IDENTITY}"
+    fi
     return
   fi
 
   if [[ -n "${APP_IDENTITY:-}" ]]; then
-    if has_signing_identity "${APP_IDENTITY}"; then
-      SIGNING_MODE="identity"
-      return
+    if ! has_signing_identity "${APP_IDENTITY}"; then
+      fail "APP_IDENTITY '${APP_IDENTITY}' was not found in the keychain."
     fi
-    log "WARN: APP_IDENTITY not found in Keychain; falling back to adhoc signing."
-    SIGNING_MODE="adhoc"
+    ensure_identity_team_matches "${APP_IDENTITY}"
+    SIGNING_MODE="identity"
     return
   fi
 
   local candidate=""
-  candidate="$(first_matching_identity 'Developer ID Application: .+')"
-  if [[ -z "${candidate}" ]]; then
-    candidate="$(first_matching_identity 'Apple Development: .+')"
+  if resolve_matching_identity 'Developer ID Application' 'Developer ID Application: .+' "${APP_TEAM_ID:-}"; then
+    candidate="${MATCHING_IDENTITY}"
+  elif resolve_matching_identity 'Apple Development' 'Apple Development: .+' "${APP_TEAM_ID:-}"; then
+    candidate="${MATCHING_IDENTITY}"
   fi
-  if [[ -z "${candidate}" ]]; then
-    candidate="CodexBar Development"
-  fi
-
-  if has_signing_identity "${candidate}"; then
+  if [[ -n "${candidate}" ]]; then
     APP_IDENTITY="${candidate}"
     export APP_IDENTITY
-    if [[ -z "${APP_TEAM_ID:-}" ]]; then
-      APP_TEAM_ID="$(extract_team_id_from_identity "${candidate}" || true)"
-      if [[ -n "${APP_TEAM_ID:-}" ]]; then
-        export APP_TEAM_ID
-      fi
-    fi
+    ensure_identity_team_matches "${candidate}"
+    SIGNING_MODE="identity"
+    return
+  fi
+
+  if [[ -n "${APP_TEAM_ID:-}" ]]; then
+    fail "No Developer ID Application or Apple Development identity matched team ${APP_TEAM_ID}. Set APP_IDENTITY explicitly or use adhoc signing."
+  fi
+
+  if has_signing_identity "CodexBar Development"; then
+    APP_IDENTITY="CodexBar Development"
+    export APP_IDENTITY
+    ensure_identity_team_matches "${APP_IDENTITY}"
     SIGNING_MODE="identity"
     return
   fi

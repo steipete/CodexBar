@@ -6,6 +6,19 @@ SIGNING_MODE=${CODEXBAR_SIGNING:-}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
+fail() {
+  echo "ERROR: $*" >&2
+  exit 1
+}
+
+find_codesigning_identities() {
+  if [[ -n "${CODEXBAR_FIND_IDENTITY_OUTPUT:-}" ]]; then
+    printf '%s\n' "${CODEXBAR_FIND_IDENTITY_OUTPUT}"
+    return 0
+  fi
+  security find-identity -p codesigning -v 2>/dev/null
+}
+
 extract_team_id_from_identity() {
   local identity="${1:-}"
   if [[ "${identity}" =~ \(([A-Z0-9]+)\)$ ]]; then
@@ -15,10 +28,104 @@ extract_team_id_from_identity() {
   return 1
 }
 
-first_matching_identity() {
+has_signing_identity() {
+  local identity="${1:-}"
+  if [[ -z "${identity}" ]]; then
+    return 1
+  fi
+  find_codesigning_identities | grep -F "${identity}" >/dev/null 2>&1
+}
+
+matching_identities() {
   local pattern="$1"
-  security find-identity -p codesigning -v 2>/dev/null \
-    | awk -F'"' -v pattern="$pattern" '$2 ~ pattern { print $2; exit }'
+  local team_id="${2:-}"
+  find_codesigning_identities \
+    | awk -F'"' -v pattern="$pattern" -v team_id="$team_id" '
+        $2 ~ pattern && (team_id == "" || $2 ~ "\\(" team_id "\\)$") { print $2 }
+      '
+}
+
+MATCHING_IDENTITY=""
+
+resolve_matching_identity() {
+  local label="$1"
+  local pattern="$2"
+  local team_id="${3:-}"
+  local matches=()
+  local identity=""
+
+  MATCHING_IDENTITY=""
+  while IFS= read -r identity; do
+    if [[ -n "${identity}" ]]; then
+      matches+=("${identity}")
+    fi
+  done < <(matching_identities "$pattern" "$team_id")
+
+  case "${#matches[@]}" in
+    0)
+      return 1
+      ;;
+    1)
+      MATCHING_IDENTITY="${matches[0]}"
+      return 0
+      ;;
+    *)
+      fail "Multiple ${label} identities matched${team_id:+ for team ${team_id}}: ${matches[*]}. Set APP_IDENTITY to the exact certificate to use."
+      ;;
+  esac
+}
+
+ensure_identity_team_matches() {
+  local identity="${1:-}"
+  local derived_team_id=""
+
+  if [[ -z "${identity}" ]]; then
+    return 0
+  fi
+
+  derived_team_id="$(extract_team_id_from_identity "${identity}" || true)"
+  if [[ -n "${APP_TEAM_ID:-}" ]]; then
+    if [[ -z "${derived_team_id}" ]]; then
+      fail "APP_IDENTITY '${identity}' does not encode a Team ID. Set CODEXBAR_SIGNING=adhoc or provide a codesigning identity with a Team ID."
+    fi
+    if [[ "${derived_team_id}" != "${APP_TEAM_ID}" ]]; then
+      fail "APP_IDENTITY '${identity}' belongs to team ${derived_team_id}, but APP_TEAM_ID is ${APP_TEAM_ID}."
+    fi
+    return 0
+  fi
+
+  if [[ -z "${derived_team_id}" ]]; then
+    fail "Unable to derive APP_TEAM_ID from APP_IDENTITY '${identity}'. Set APP_TEAM_ID explicitly or use adhoc signing."
+  fi
+
+  APP_TEAM_ID="${derived_team_id}"
+  export APP_TEAM_ID
+}
+
+resolve_signing_identity() {
+  if [[ "${SIGNING_MODE}" == "adhoc" || "${ALLOW_LLDB}" == "1" ]]; then
+    return
+  fi
+
+  if [[ -n "${APP_IDENTITY:-}" ]]; then
+    if ! has_signing_identity "${APP_IDENTITY}"; then
+      fail "APP_IDENTITY '${APP_IDENTITY}' was not found in the keychain."
+    fi
+    ensure_identity_team_matches "${APP_IDENTITY}"
+    return
+  fi
+
+  if resolve_matching_identity 'Developer ID Application' 'Developer ID Application: .+' "${APP_TEAM_ID:-}"; then
+    APP_IDENTITY="${MATCHING_IDENTITY}"
+  elif resolve_matching_identity 'Apple Development' 'Apple Development: .+' "${APP_TEAM_ID:-}"; then
+    APP_IDENTITY="${MATCHING_IDENTITY}"
+  fi
+  if [[ -z "${APP_IDENTITY:-}" ]]; then
+    fail "Could not resolve an unambiguous signing identity${APP_TEAM_ID:+ for team ${APP_TEAM_ID}}. Set APP_IDENTITY explicitly or use CODEXBAR_SIGNING=adhoc."
+  fi
+
+  export APP_IDENTITY
+  ensure_identity_team_matches "${APP_IDENTITY}"
 }
 
 # Load version info
@@ -229,13 +336,7 @@ if [[ "$SIGNING_MODE" == "adhoc" ]]; then
   AUTO_CHECKS=false
 fi
 WIDGET_BUNDLE_ID="${BUNDLE_ID}.widget"
-if [[ -z "${APP_IDENTITY:-}" && "$SIGNING_MODE" != "adhoc" && "$ALLOW_LLDB" != "1" ]]; then
-  APP_IDENTITY="$(first_matching_identity 'Developer ID Application: .+')"
-  if [[ -n "${APP_IDENTITY:-}" ]]; then
-    export APP_IDENTITY
-  fi
-fi
-APP_TEAM_ID="${APP_TEAM_ID:-$(extract_team_id_from_identity "${APP_IDENTITY:-}" || true)}"
+resolve_signing_identity
 APP_TEAM_ID="${APP_TEAM_ID:-Y5PE65HELJ}"
 APP_GROUP_ID="${APP_TEAM_ID}.com.steipete.codexbar"
 if [[ "$BUNDLE_ID" == *".debug"* ]]; then
@@ -422,7 +523,7 @@ elif [[ "$ALLOW_LLDB" == "1" ]]; then
   CODESIGN_ID="-"
   CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
 else
-  CODESIGN_ID="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y5PE65HELJ)}"
+  CODESIGN_ID="${APP_IDENTITY:?APP_IDENTITY is required for identity signing}"
   CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$CODESIGN_ID")
 fi
 function resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }

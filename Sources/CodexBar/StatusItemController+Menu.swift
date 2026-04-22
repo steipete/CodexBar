@@ -190,6 +190,10 @@ extension StatusItemController {
         let tokenSwitcherCompatible = tokenAccountDisplay == nil && !hasTokenSwitcher
         let codexSwitcherCompatible = codexAccountDisplay == self.lastCodexAccountMenuDisplay &&
             ((codexAccountDisplay == nil && !hasCodexSwitcher) || (codexAccountDisplay != nil && hasCodexSwitcher))
+        let reusableRowWidthsMatch = self.reusableFixedWidthRows(in: menu).allSatisfy { item in
+            guard let view = item.view else { return false }
+            return abs(view.frame.width - menuWidth) <= 0.5
+        }
         let canSmartUpdate = self.shouldMergeIcons &&
             enabledProviders.count > 1 &&
             !isOverviewSelected &&
@@ -199,6 +203,7 @@ extension StatusItemController {
             switcherOverviewAvailabilityMatches &&
             tokenSwitcherCompatible &&
             codexSwitcherCompatible &&
+            reusableRowWidthsMatch &&
             !menu.items.isEmpty &&
             menu.items.first?.view is ProviderSwitcherView
 
@@ -258,6 +263,29 @@ extension StatusItemController {
             }
         }
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
+    }
+
+    private func reusableFixedWidthRows(in menu: NSMenu) -> [NSMenuItem] {
+        guard !menu.items.isEmpty else { return [] }
+
+        var reusableRows: [NSMenuItem] = []
+        var index = 0
+        if menu.items.first?.view is ProviderSwitcherView {
+            reusableRows.append(menu.items[0])
+            index = 2
+        }
+        if menu.items.count > index,
+           menu.items[index].view is CodexAccountSwitcherView
+        {
+            reusableRows.append(menu.items[index])
+            index += 2
+        }
+        if menu.items.count > index,
+           menu.items[index].view is TokenAccountSwitcherView
+        {
+            reusableRows.append(menu.items[index])
+        }
+        return reusableRows
     }
 
     /// Smart update: only rebuild content sections when switching providers (keep the switcher intact).
