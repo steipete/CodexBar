@@ -965,6 +965,33 @@ extension UsageMenuCardView.Model {
                 percentStyle: percentStyle,
                 zaiTimeDetail: zaiTimeDetail))
         }
+        if input.metadata.supportsOpus, let opus = snapshot.tertiary {
+            var tertiaryDetailText: String?
+            if input.provider == .alibaba,
+               let detail = opus.resetDescription,
+               !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                tertiaryDetailText = detail
+            }
+            if input.provider == .zai, let detail = zaiSessionDetail {
+                tertiaryDetailText = detail
+            }
+            // Perplexity purchased credits don't reset; show balance without "Resets" prefix.
+            let opusResetText: String? = input.provider == .perplexity
+                ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                : Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now)
+            metrics.append(Metric(
+                id: "tertiary",
+                title: input.metadata.opusLabel ?? "Sonnet",
+                percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
+                percentStyle: percentStyle,
+                resetText: opusResetText,
+                detailText: tertiaryDetailText,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true))
+        }
         if let extraRateWindows = snapshot.extraRateWindows {
             metrics.append(contentsOf: extraRateWindows.map { namedWindow in
                 Metric(
@@ -997,33 +1024,6 @@ extension UsageMenuCardView.Model {
                 ]
                 return (kiloOrder[lhs.id] ?? Int.max) < (kiloOrder[rhs.id] ?? Int.max)
             }
-        }
-        if input.metadata.supportsOpus, let opus = snapshot.tertiary {
-            var tertiaryDetailText: String?
-            if input.provider == .alibaba,
-               let detail = opus.resetDescription,
-               !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            {
-                tertiaryDetailText = detail
-            }
-            if input.provider == .zai, let detail = zaiSessionDetail {
-                tertiaryDetailText = detail
-            }
-            // Perplexity purchased credits don't reset; show balance without "Resets" prefix.
-            let opusResetText: String? = input.provider == .perplexity
-                ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
-                : Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now)
-            metrics.append(Metric(
-                id: "tertiary",
-                title: input.metadata.opusLabel ?? "Sonnet",
-                percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
-                percentStyle: percentStyle,
-                resetText: opusResetText,
-                detailText: tertiaryDetailText,
-                detailLeftText: nil,
-                detailRightText: nil,
-                pacePercent: nil,
-                paceOnTop: true))
         }
 
         if let codexProjection = input.codexProjection,

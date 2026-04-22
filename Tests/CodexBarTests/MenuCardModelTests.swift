@@ -143,7 +143,11 @@ struct MenuCardModelTests {
                 windowMinutes: 10080,
                 resetsAt: now.addingTimeInterval(7200),
                 resetDescription: nil),
-            tertiary: nil,
+            tertiary: RateWindow(
+                usedPercent: 16,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7800),
+                resetDescription: nil),
             extraRateWindows: [
                 NamedRateWindow(
                     id: "claude-design",
@@ -185,8 +189,7 @@ struct MenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.map(\.title).contains("Designs"))
-        #expect(model.metrics.map(\.title).contains("Daily Routines"))
+        #expect(model.metrics.map(\.title) == ["Session", "Weekly", "Sonnet", "Designs", "Daily Routines"])
     }
 
     @Test
