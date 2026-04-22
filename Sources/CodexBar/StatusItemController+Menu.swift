@@ -615,7 +615,7 @@ extension StatusItemController {
     }
 
     private func makeWrappedSecondaryTextItem(text: String, width: CGFloat) -> NSMenuItem {
-        let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         let view = self.makeWrappedSecondaryTextView(text: text)
         let height = self.menuTextItemHeight(for: view, width: width)
         view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
