@@ -9,14 +9,9 @@ struct KimiProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .kimi
 
     @MainActor
-    func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "web" }
-    }
-
-    @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.kimiCookieSource
-        _ = settings.kimiManualCookieHeader
+        _ = settings.kimiUsageDataSource
+        _ = settings.kimiAPIToken
     }
 
     @MainActor
@@ -25,35 +20,43 @@ struct KimiProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.kimiCookieSource.rawValue },
-            set: { raw in
-                context.settings.kimiCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let options = ProviderCookieSourceUI.options(
-            allowsOff: true,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
+    func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
+        context.settings.kimiUsageDataSource.rawValue
+    }
 
-        let subtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.kimiCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a cookie header or the kimi-auth token value.",
-                off: "Kimi cookies are disabled.")
+    @MainActor
+    func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        switch context.settings.kimiUsageDataSource {
+        case .auto: .auto
+        case .oauth: .oauth
+        case .api: .api
         }
+    }
+
+    @MainActor
+    func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
+        let usageBinding = Binding(
+            get: { context.settings.kimiUsageDataSource.rawValue },
+            set: { raw in
+                context.settings.kimiUsageDataSource = KimiUsageDataSource(rawValue: raw) ?? .auto
+            })
 
         return [
             ProviderSettingsPickerDescriptor(
-                id: "kimi-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
-                dynamicSubtitle: subtitle,
-                binding: cookieBinding,
-                options: options,
+                id: "kimi-usage-source",
+                title: "Usage source",
+                subtitle: "Auto prefers the official Kimi CLI OAuth session, then falls back to KIMI_API_KEY.",
+                binding: usageBinding,
+                options: KimiUsageDataSource.allCases.map {
+                    ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+                },
                 isVisible: nil,
-                onChange: nil),
+                onChange: nil,
+                trailingText: {
+                    guard context.settings.kimiUsageDataSource == .auto else { return nil }
+                    let label = context.store.sourceLabel(for: .kimi)
+                    return label == "auto" ? nil : label
+                }),
         ]
     }
 
@@ -61,26 +64,26 @@ struct KimiProviderImplementation: ProviderImplementation {
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
             ProviderSettingsFieldDescriptor(
-                id: "kimi-cookie",
-                title: "",
-                subtitle: "",
+                id: "kimi-api-key",
+                title: "API key",
+                subtitle: "Optional. Auto mode uses ~/.kimi/credentials/kimi-code.json first, then this key.",
                 kind: .secure,
-                placeholder: "Cookie: \u{2026}\n\nor paste the kimi-auth token value",
-                binding: context.stringBinding(\.kimiManualCookieHeader),
+                placeholder: "sk-...",
+                binding: context.stringBinding(\.kimiAPIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(
-                        id: "kimi-open-console",
-                        title: "Open Console",
+                        id: "kimi-open-docs",
+                        title: "Open Kimi Code Docs",
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            if let url = URL(string: "https://www.kimi.com/code/console") {
+                            if let url = URL(string: "https://www.kimi.com/code/docs/en/") {
                                 NSWorkspace.shared.open(url)
                             }
                         }),
                 ],
-                isVisible: { context.settings.kimiCookieSource == .manual },
-                onActivate: { context.settings.ensureKimiAuthTokenLoaded() }),
+                isVisible: nil,
+                onActivate: { context.settings.ensureKimiAPIKeyLoaded() }),
         ]
     }
 }

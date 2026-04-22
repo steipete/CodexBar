@@ -11,11 +11,11 @@ public enum KimiAPIError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .missingToken:
-            "Kimi auth token is missing. Please add your JWT token from the Kimi console."
+            "Kimi Code credentials are missing. Sign into the Kimi CLI or provide KIMI_API_KEY."
         case .invalidToken:
-            "Kimi auth token is invalid or expired. Please refresh your token."
+            "Kimi Code credentials are invalid or expired."
         case let .invalidRequest(message):
-            "Invalid request: \(message)"
+            "Kimi request failed: \(message)"
         case let .networkError(message):
             "Kimi network error: \(message)"
         case let .apiError(message):

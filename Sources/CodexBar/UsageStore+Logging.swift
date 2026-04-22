@@ -13,7 +13,7 @@ extension UsageStore {
             "opencodegoCookieSource": self.settings.opencodegoCookieSource.rawValue,
             "factoryCookieSource": self.settings.factoryCookieSource.rawValue,
             "minimaxCookieSource": self.settings.minimaxCookieSource.rawValue,
-            "kimiCookieSource": self.settings.kimiCookieSource.rawValue,
+            "kimiUsageSource": self.settings.kimiUsageDataSource.rawValue,
             "augmentCookieSource": self.settings.augmentCookieSource.rawValue,
             "ampCookieSource": self.settings.ampCookieSource.rawValue,
             "ollamaCookieSource": self.settings.ollamaCookieSource.rawValue,
