@@ -9,6 +9,13 @@ import SwiftUI
 @MainActor
 protocol StatusItemControlling: AnyObject {
     func openMenuFromShortcut()
+    func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint?
+}
+
+extension StatusItemControlling {
+    func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {
+        nil
+    }
 }
 
 @MainActor

@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+// swiftlint:disable:next type_body_length
 struct UsageStorePlanUtilizationTests {
     @Test
     func `coalesces changed usage within hour into single entry`() throws {
@@ -649,6 +650,228 @@ struct UsageStorePlanUtilizationTests {
         #expect(findSeries(histories, name: .session, windowMinutes: 300)?.entries.last?.usedPercent == 10)
         #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 20)
         #expect(findSeries(histories, name: .opus, windowMinutes: 10080)?.entries.last?.usedPercent == 30)
+    }
+
+    @MainActor
+    @Test
+    func `weekly quota celebration posts when weekly usage resets to zero`() async {
+        let store = Self.makeStore()
+        var events: [WeeklyLimitResetEvent] = []
+        let token = NotificationCenter.default.addObserver(
+            forName: .codexbarWeeklyLimitReset,
+            object: nil,
+            queue: nil)
+        { notification in
+            if let event = notification.object as? WeeklyLimitResetEvent {
+                events.append(event)
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "max"))
+        let after = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_003_600),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "max"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: after, now: after.updatedAt)
+
+        #expect(events.count == 1)
+        #expect(events[0].provider == .claude)
+        #expect(events[0].accountLabel == "alice@example.com")
+        #expect(events[0].usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `weekly quota celebration posts when reset lands mid hour without history split`() async {
+        let store = Self.makeStore()
+        var events: [WeeklyLimitResetEvent] = []
+        let token = NotificationCenter.default.addObserver(
+            forName: .codexbarWeeklyLimitReset,
+            object: nil,
+            queue: nil)
+        { notification in
+            if let event = notification.object as? WeeklyLimitResetEvent {
+                events.append(event)
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 10080,
+                resetsAt: Date(timeIntervalSince1970: 1_700_100_000),
+                resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "max"))
+        let after = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 10080,
+                resetsAt: Date(timeIntervalSince1970: 1_700_100_030),
+                resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_001_800),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "max"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: after, now: after.updatedAt)
+
+        let histories = store.planUtilizationHistory(for: .claude)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.count == 1)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 40)
+        #expect(events.count == 1)
+        #expect(events[0].usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `weekly quota celebration ignores first seen reset sample`() async {
+        let store = Self.makeStore()
+        var eventCount = 0
+        let token = NotificationCenter.default.addObserver(
+            forName: .codexbarWeeklyLimitReset,
+            object: nil,
+            queue: nil)
+        { _ in
+            eventCount += 1
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "max"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: snapshot, now: snapshot.updatedAt)
+
+        #expect(eventCount == 0)
+    }
+
+    @MainActor
+    @Test
+    func `weekly quota celebration fires once across repeated low samples`() async {
+        let store = Self.makeStore()
+        var events: [WeeklyLimitResetEvent] = []
+        let token = NotificationCenter.default.addObserver(
+            forName: .codexbarWeeklyLimitReset,
+            object: nil,
+            queue: nil)
+        { notification in
+            if let event = notification.object as? WeeklyLimitResetEvent {
+                events.append(event)
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 60, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "max"))
+        let firstLow = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 1, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_001_800),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "max"))
+        let secondLow = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_002_100),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "max"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: firstLow, now: firstLow.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: secondLow, now: secondLow.updatedAt)
+
+        #expect(events.count == 1)
+        #expect(events[0].usedPercent == 1)
+    }
+
+    @MainActor
+    @Test
+    func `weekly quota celebration posts for generic provider weekly lane`() async {
+        let store = Self.makeStore()
+        var events: [WeeklyLimitResetEvent] = []
+        let token = NotificationCenter.default.addObserver(
+            forName: .codexbarWeeklyLimitReset,
+            object: nil,
+            queue: nil)
+        { notification in
+            if let event = notification.object as? WeeklyLimitResetEvent {
+                events.append(event)
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 92, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 15, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: "zai-org",
+                loginMethod: "pro"))
+        let after = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 15, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_003_600),
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: "zai-org",
+                loginMethod: "pro"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: after, now: after.updatedAt)
+
+        #expect(events.count == 1)
+        #expect(events[0].provider == .zai)
+        #expect(events[0].accountLabel == "zai-org")
+        #expect(events[0].usedPercent == 0)
     }
 
     @MainActor
