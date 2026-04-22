@@ -158,7 +158,7 @@ struct OAuthUsageResponse: Decodable {
         in container: KeyedDecodingContainer<DynamicCodingKey>,
         keys: [String]) -> OAuthUsageWindow?
     {
-        Self.decodeValue(in: container, keys: keys)
+        self.decodeValue(in: container, keys: keys)
     }
 
     private static func decodeWindowWithSource(
@@ -169,9 +169,7 @@ struct OAuthUsageResponse: Decodable {
         for keyName in keys {
             guard let key = DynamicCodingKey(stringValue: keyName) else { continue }
             guard container.contains(key) else { continue }
-            if let value = try? container.decodeIfPresent(OAuthUsageWindow.self, forKey: key),
-               value != nil
-            {
+            if let value = try? container.decodeIfPresent(OAuthUsageWindow.self, forKey: key) {
                 return (value, keyName)
             }
             if firstNullKey == nil {
@@ -205,7 +203,7 @@ private struct DynamicCodingKey: CodingKey {
     }
 
     init?(intValue: Int) {
-        return nil
+        nil
     }
 }
 

@@ -493,7 +493,7 @@ public enum ClaudeWebAPIFetcher {
         } else if let sevenDayOpus = json["seven_day_opus"] as? [String: Any] {
             opusPercent = Self.percentValue(from: sevenDayOpus["utilization"])
         }
-        let extraRateParse = Self.parseExtraRateWindows(from: json)
+        let extraRateParse = ClaudeWebExtraRateWindowParser.parse(from: json)
         if let sourceKey = extraRateParse.sourceKeys["claude-design"] {
             logger?("Usage API extra window key matched: design=\(sourceKey)")
         }
@@ -512,95 +512,6 @@ public enum ClaudeWebAPIFetcher {
             accountOrganization: nil,
             accountEmail: nil,
             loginMethod: nil)
-    }
-
-    private static func parseExtraRateWindows(
-        from json: [String: Any]) -> (windows: [NamedRateWindow], sourceKeys: [String: String])
-    {
-        let definitions: [(id: String, title: String, keys: [String])] = [
-            (
-                id: "claude-design",
-                title: "Designs",
-                keys: [
-                    "seven_day_design",
-                    "seven_day_claude_design",
-                    "claude_design",
-                    "design",
-                    "seven_day_omelette",
-                    "omelette",
-                    "omelette_promotional",
-                ]
-            ),
-            (
-                id: "claude-routines",
-                title: "Daily Routines",
-                keys: [
-                    "seven_day_routines",
-                    "seven_day_claude_routines",
-                    "claude_routines",
-                    "routines",
-                    "routine",
-                    "seven_day_cowork",
-                    "cowork",
-                ]
-            ),
-        ]
-
-        var windows: [NamedRateWindow] = []
-        var sourceKeys: [String: String] = [:]
-        windows.reserveCapacity(definitions.count)
-
-        for definition in definitions {
-            if let foundWindow = Self.firstUsageWindow(in: json, keys: definition.keys) {
-                let rawWindow = foundWindow.window
-                guard let utilization = Self.percentValue(from: rawWindow["utilization"]) else { continue }
-                let resetsAt = (rawWindow["resets_at"] as? String).flatMap(Self.parseISO8601Date)
-                windows.append(NamedRateWindow(
-                    id: definition.id,
-                    title: definition.title,
-                    window: RateWindow(
-                        usedPercent: utilization,
-                        windowMinutes: 7 * 24 * 60,
-                        resetsAt: resetsAt,
-                        resetDescription: nil)))
-                sourceKeys[definition.id] = foundWindow.sourceKey
-                continue
-            }
-
-            // Some accounts expose the key with null payloads (for example `seven_day_cowork: null`).
-            // Preserve the bar in that case with a 0% window so the product section remains visible.
-            if let key = Self.firstUsageKey(in: json, keys: definition.keys) {
-                windows.append(NamedRateWindow(
-                    id: definition.id,
-                    title: definition.title,
-                    window: RateWindow(
-                        usedPercent: 0,
-                        windowMinutes: 7 * 24 * 60,
-                        resetsAt: nil,
-                        resetDescription: nil)))
-                sourceKeys[definition.id] = key
-            }
-        }
-        return (windows, sourceKeys)
-    }
-
-    private static func firstUsageWindow(
-        in json: [String: Any],
-        keys: [String]) -> (window: [String: Any], sourceKey: String)?
-    {
-        for key in keys {
-            if let window = json[key] as? [String: Any] {
-                return (window, key)
-            }
-        }
-        return nil
-    }
-
-    private static func firstUsageKey(in json: [String: Any], keys: [String]) -> String? {
-        for key in keys where json.keys.contains(key) {
-            return key
-        }
-        return nil
     }
 
     private static func percentValue(from value: Any?) -> Double? {
