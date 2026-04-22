@@ -855,101 +855,6 @@ extension UsageStore {
         return false
     }
 
-    private struct OpenAIDashboardCookieImportRequest {
-        let normalizedTarget: String?
-        let allowAnyAccount: Bool
-        let cookieSource: ProviderCookieSource
-        let cacheScope: CookieHeaderCache.Scope?
-        let force: Bool
-    }
-
-    private func importOpenAIDashboardCookies(
-        request: OpenAIDashboardCookieImportRequest,
-        logger log: @escaping (String) -> Void) async throws
-        -> OpenAIDashboardBrowserCookieImporter.ImportResult
-    {
-        if let override = self._test_openAIDashboardCookieImportOverride {
-            return try await override(
-                request.normalizedTarget,
-                request.allowAnyAccount,
-                request.cookieSource,
-                request.cacheScope,
-                log)
-        }
-
-        let importer = OpenAIDashboardBrowserCookieImporter(browserDetection: self.browserDetection)
-        switch request.cookieSource {
-        case .manual:
-            return try await self.importManualOpenAIDashboardCookies(
-                importer: importer,
-                request: request,
-                logger: log)
-        case .auto:
-            return try await self.importAutoOpenAIDashboardCookies(
-                importer: importer,
-                request: request,
-                logger: log)
-        case .off:
-            return OpenAIDashboardBrowserCookieImporter.ImportResult(
-                sourceLabel: "Off",
-                cookieCount: 0,
-                signedInEmail: request.normalizedTarget,
-                matchesCodexEmail: true)
-        }
-    }
-
-    private func importManualOpenAIDashboardCookies(
-        importer: OpenAIDashboardBrowserCookieImporter,
-        request: OpenAIDashboardCookieImportRequest,
-        logger log: @escaping (String) -> Void) async throws
-        -> OpenAIDashboardBrowserCookieImporter.ImportResult
-    {
-        self.settings.ensureCodexCookieLoaded()
-        // Manual OpenAI cookies still come from one provider-level setting. Auto-imported cookies are
-        // isolated per managed account, but a manual header is an explicit override owned by settings,
-        // so switching managed accounts does not currently swap it underneath the user.
-        let manualHeader = self.settings.codexCookieHeader
-        guard CookieHeaderNormalizer.normalize(manualHeader) != nil else {
-            throw OpenAIDashboardBrowserCookieImporter.ImportError.manualCookieHeaderInvalid
-        }
-        return try await importer.importManualCookies(
-            cookieHeader: manualHeader,
-            intoAccountEmail: request.normalizedTarget,
-            allowAnyAccount: request.allowAnyAccount,
-            cacheScope: request.cacheScope,
-            logger: log)
-    }
-
-    private func importAutoOpenAIDashboardCookies(
-        importer: OpenAIDashboardBrowserCookieImporter,
-        request: OpenAIDashboardCookieImportRequest,
-        logger log: @escaping (String) -> Void) async throws
-        -> OpenAIDashboardBrowserCookieImporter.ImportResult
-    {
-        do {
-            return try await importer.importBestCookies(
-                intoAccountEmail: request.normalizedTarget,
-                allowAnyAccount: request.allowAnyAccount,
-                preferCachedCookieHeader: !request.force,
-                cacheScope: request.cacheScope,
-                logger: log)
-        } catch let error as OpenAIDashboardBrowserCookieImporter.ImportError {
-            let manualHeader = self.settings.codexCookieHeader
-            if case .browserAccessDenied = error,
-               let normalizedManual = CookieHeaderNormalizer.normalize(manualHeader)
-            {
-                log("Auto browser import blocked; retrying with manual cookie header fallback.")
-                return try await importer.importManualCookies(
-                    cookieHeader: normalizedManual,
-                    intoAccountEmail: request.normalizedTarget,
-                    allowAnyAccount: request.allowAnyAccount,
-                    cacheScope: request.cacheScope,
-                    logger: log)
-            }
-            throw error
-        }
-    }
-
     func importOpenAIDashboardCookiesIfNeeded(targetEmail: String?, force: Bool) async -> String? {
         if await self.openAIWebCookieImportShouldFailClosed() {
             return nil
@@ -991,15 +896,42 @@ extension UsageStore {
                 self.logOpenAIWeb(message)
             }
 
-            let request = OpenAIDashboardCookieImportRequest(
-                normalizedTarget: normalizedTarget,
-                allowAnyAccount: allowAnyAccount,
-                cookieSource: cookieSource,
-                cacheScope: cacheScope,
-                force: force)
-            let result = try await self.importOpenAIDashboardCookies(
-                request: request,
-                logger: log)
+            let result: OpenAIDashboardBrowserCookieImporter.ImportResult
+            if let override = self._test_openAIDashboardCookieImportOverride {
+                result = try await override(normalizedTarget, allowAnyAccount, cookieSource, cacheScope, log)
+            } else {
+                let importer = OpenAIDashboardBrowserCookieImporter(browserDetection: self.browserDetection)
+                switch cookieSource {
+                case .manual:
+                    self.settings.ensureCodexCookieLoaded()
+                    // Manual OpenAI cookies still come from one provider-level setting. Auto-imported cookies are
+                    // isolated per managed account, but a manual header is an explicit override owned by settings,
+                    // so switching managed accounts does not currently swap it underneath the user.
+                    let manualHeader = self.settings.codexCookieHeader
+                    guard CookieHeaderNormalizer.normalize(manualHeader) != nil else {
+                        throw OpenAIDashboardBrowserCookieImporter.ImportError.manualCookieHeaderInvalid
+                    }
+                    result = try await importer.importManualCookies(
+                        cookieHeader: manualHeader,
+                        intoAccountEmail: normalizedTarget,
+                        allowAnyAccount: allowAnyAccount,
+                        cacheScope: cacheScope,
+                        logger: log)
+                case .auto:
+                    result = try await importer.importBestCookies(
+                        intoAccountEmail: normalizedTarget,
+                        allowAnyAccount: allowAnyAccount,
+                        preferCachedCookieHeader: !force,
+                        cacheScope: cacheScope,
+                        logger: log)
+                case .off:
+                    result = OpenAIDashboardBrowserCookieImporter.ImportResult(
+                        sourceLabel: "Off",
+                        cookieCount: 0,
+                        signedInEmail: normalizedTarget,
+                        matchesCodexEmail: true)
+                }
+            }
             let effectiveEmail = result.signedInEmail?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty == false
@@ -1060,14 +992,8 @@ extension UsageStore {
                             targetEmail: normalizedTarget)
                     self.failClosedOpenAIDashboardSnapshot()
                 }
-            case let .browserAccessDenied(details):
-                self.logOpenAIWeb("[\(stamp)] import failed: \(err.localizedDescription)")
-                await MainActor.run {
-                    self.openAIDashboardCookieImportStatus = Self.conciseOpenAICookieAccessDeniedStatus(
-                        details: details)
-                    self.openAIDashboardRequiresLogin = true
-                }
             case .noCookiesFound,
+                 .browserAccessDenied,
                  .dashboardStillRequiresLogin,
                  .manualCookieHeaderInvalid:
                 self.logOpenAIWeb("[\(stamp)] import failed: \(err.localizedDescription)")
@@ -1301,19 +1227,5 @@ extension UsageStore {
             return "OpenAI cookies are for \(foundLabel)."
         }
         return "OpenAI cookies are for \(foundLabel), not \(targetLabel)."
-    }
-
-    private static func conciseOpenAICookieAccessDeniedStatus(details: String) -> String {
-        let lower = details.lowercased()
-        if lower.contains("safari") {
-            return [
-                "OpenAI cookie import is blocked by macOS privacy for Safari.",
-                "Enable Full Disk Access for CodexBar, or switch Codex cookie source to Manual.",
-            ].joined(separator: " ")
-        }
-        return [
-            "OpenAI cookie import is blocked by browser privacy permissions.",
-            "Enable cookie/keychain access for CodexBar, or switch Codex cookie source to Manual.",
-        ].joined(separator: " ")
     }
 }
