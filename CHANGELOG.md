@@ -7,6 +7,7 @@
 
 ### Fixes
 - Codex: clean up cached CLI status probes during app shutdown so `codex -s read-only` workers are not orphaned after restart.
+- Widgets: package `Metadata.appintents` for the widget extension and use App Intent parameter defaults so configurable widgets load correctly in WidgetKit. Thanks @vincentyangch!
 
 ## 0.22 — 2026-04-21
 
