@@ -64,6 +64,21 @@ has_signing_identity() {
   security find-identity -p codesigning -v 2>/dev/null | grep -F "${identity}" >/dev/null 2>&1
 }
 
+first_matching_identity() {
+  local pattern="$1"
+  security find-identity -p codesigning -v 2>/dev/null \
+    | awk -F'"' -v pattern="$pattern" '$2 ~ pattern { print $2; exit }'
+}
+
+extract_team_id_from_identity() {
+  local identity="${1:-}"
+  if [[ "${identity}" =~ \(([A-Z0-9]+)\)$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
 resolve_signing_mode() {
   if [[ -n "${SIGNING_MODE}" ]]; then
     return
@@ -80,17 +95,26 @@ resolve_signing_mode() {
   fi
 
   local candidate=""
-  for candidate in \
-    "Developer ID Application: Peter Steinberger (Y5PE65HELJ)" \
-    "CodexBar Development"
-  do
-    if has_signing_identity "${candidate}"; then
-      APP_IDENTITY="${candidate}"
-      export APP_IDENTITY
-      SIGNING_MODE="identity"
-      return
+  candidate="$(first_matching_identity 'Developer ID Application: .+')"
+  if [[ -z "${candidate}" ]]; then
+    candidate="$(first_matching_identity 'Apple Development: .+')"
+  fi
+  if [[ -z "${candidate}" ]]; then
+    candidate="CodexBar Development"
+  fi
+
+  if has_signing_identity "${candidate}"; then
+    APP_IDENTITY="${candidate}"
+    export APP_IDENTITY
+    if [[ -z "${APP_TEAM_ID:-}" ]]; then
+      APP_TEAM_ID="$(extract_team_id_from_identity "${candidate}" || true)"
+      if [[ -n "${APP_TEAM_ID:-}" ]]; then
+        export APP_TEAM_ID
+      fi
     fi
-  done
+    SIGNING_MODE="identity"
+    return
+  fi
 
   SIGNING_MODE="adhoc"
 }

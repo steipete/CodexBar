@@ -6,6 +6,21 @@ SIGNING_MODE=${CODEXBAR_SIGNING:-}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
+extract_team_id_from_identity() {
+  local identity="${1:-}"
+  if [[ "${identity}" =~ \(([A-Z0-9]+)\)$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+first_matching_identity() {
+  local pattern="$1"
+  security find-identity -p codesigning -v 2>/dev/null \
+    | awk -F'"' -v pattern="$pattern" '$2 ~ pattern { print $2; exit }'
+}
+
 # Load version info
 source "$ROOT/version.env"
 
@@ -214,6 +229,13 @@ if [[ "$SIGNING_MODE" == "adhoc" ]]; then
   AUTO_CHECKS=false
 fi
 WIDGET_BUNDLE_ID="${BUNDLE_ID}.widget"
+if [[ -z "${APP_IDENTITY:-}" && "$SIGNING_MODE" != "adhoc" && "$ALLOW_LLDB" != "1" ]]; then
+  APP_IDENTITY="$(first_matching_identity 'Developer ID Application: .+')"
+  if [[ -n "${APP_IDENTITY:-}" ]]; then
+    export APP_IDENTITY
+  fi
+fi
+APP_TEAM_ID="${APP_TEAM_ID:-$(extract_team_id_from_identity "${APP_IDENTITY:-}" || true)}"
 APP_TEAM_ID="${APP_TEAM_ID:-Y5PE65HELJ}"
 APP_GROUP_ID="${APP_TEAM_ID}.com.steipete.codexbar"
 if [[ "$BUNDLE_ID" == *".debug"* ]]; then
