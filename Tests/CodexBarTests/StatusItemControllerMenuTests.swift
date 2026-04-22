@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import Testing
@@ -148,5 +149,34 @@ struct StatusItemControllerMenuTests {
             provider: .openrouter,
             snapshot: snapshot))
         #expect(snapshot.primary?.usedPercent == 10)
+    }
+
+    @Test
+    @MainActor
+    func `menu card width reserves trailing accessory column when shortcuts or submenus are present`() {
+        let emptyMenu = NSMenu()
+        #expect(StatusItemController.shouldReserveTrailingAccessoryColumn(for: emptyMenu))
+
+        let plainMenu = NSMenu()
+        plainMenu.addItem(NSMenuItem(title: "Plain", action: nil, keyEquivalent: ""))
+        #expect(!StatusItemController.shouldReserveTrailingAccessoryColumn(for: plainMenu))
+
+        let shortcutMenu = NSMenu()
+        let refreshItem = NSMenuItem(title: "Refresh", action: nil, keyEquivalent: "r")
+        shortcutMenu.addItem(refreshItem)
+        #expect(StatusItemController.shouldReserveTrailingAccessoryColumn(for: shortcutMenu))
+
+        let submenuMenu = NSMenu()
+        let parentItem = NSMenuItem(title: "Session", action: nil, keyEquivalent: "")
+        parentItem.submenu = NSMenu(title: "Session")
+        submenuMenu.addItem(parentItem)
+        #expect(StatusItemController.shouldReserveTrailingAccessoryColumn(for: submenuMenu))
+
+        #expect(StatusItemController.resolvedMenuCardWidth(
+            baseWidth: 310,
+            reserveTrailingAccessoryColumn: false) == 310)
+        #expect(StatusItemController.resolvedMenuCardWidth(
+            baseWidth: 310,
+            reserveTrailingAccessoryColumn: true) == 350)
     }
 }
