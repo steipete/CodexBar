@@ -99,8 +99,8 @@ struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider"
     static let description = IntentDescription("Select the provider to display in the widget.")
 
-    @Parameter(title: "Provider")
-    var provider: ProviderChoice?
+    @Parameter(title: "Provider", default: .codex)
+    var provider: ProviderChoice
 
     init() {
         self.provider = .codex
@@ -131,11 +131,11 @@ struct CompactMetricSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider + Metric"
     static let description = IntentDescription("Select the provider and metric to display.")
 
-    @Parameter(title: "Provider")
-    var provider: ProviderChoice?
+    @Parameter(title: "Provider", default: .codex)
+    var provider: ProviderChoice
 
-    @Parameter(title: "Metric")
-    var metric: CompactMetric?
+    @Parameter(title: "Metric", default: .credits)
+    var metric: CompactMetric
 
     init() {
         self.provider = .codex
@@ -147,14 +147,6 @@ struct CodexBarWidgetEntry: TimelineEntry {
     let date: Date
     let provider: UsageProvider
     let snapshot: WidgetSnapshot
-}
-
-func resolvedWidgetProvider(_ choice: ProviderChoice?) -> UsageProvider {
-    choice?.provider ?? .codex
-}
-
-func resolvedCompactMetric(_ metric: CompactMetric?) -> CompactMetric {
-    metric ?? .credits
 }
 
 struct CodexBarCompactEntry: TimelineEntry {
@@ -180,7 +172,7 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: ProviderSelectionIntent, in context: Context) async -> CodexBarWidgetEntry {
-        let provider = resolvedWidgetProvider(configuration.provider)
+        let provider = configuration.provider.provider
         return CodexBarWidgetEntry(
             date: Date(),
             provider: provider,
@@ -191,7 +183,7 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
         for configuration: ProviderSelectionIntent,
         in context: Context) async -> Timeline<CodexBarWidgetEntry>
     {
-        let provider = resolvedWidgetProvider(configuration.provider)
+        let provider = configuration.provider.provider
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let entry = CodexBarWidgetEntry(date: Date(), provider: provider, snapshot: snapshot)
         let refresh = Date().addingTimeInterval(30 * 60)
@@ -257,8 +249,8 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: CompactMetricSelectionIntent, in context: Context) async -> CodexBarCompactEntry {
-        let provider = resolvedWidgetProvider(configuration.provider)
-        let metric = resolvedCompactMetric(configuration.metric)
+        let provider = configuration.provider.provider
+        let metric = configuration.metric
         return CodexBarCompactEntry(
             date: Date(),
             provider: provider,
@@ -270,8 +262,8 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
         for configuration: CompactMetricSelectionIntent,
         in context: Context) async -> Timeline<CodexBarCompactEntry>
     {
-        let provider = resolvedWidgetProvider(configuration.provider)
-        let metric = resolvedCompactMetric(configuration.metric)
+        let provider = configuration.provider.provider
+        let metric = configuration.metric
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let entry = CodexBarCompactEntry(
             date: Date(),

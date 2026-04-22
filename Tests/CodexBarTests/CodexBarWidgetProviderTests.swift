@@ -106,13 +106,12 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
-    func `widget provider resolution falls back to codex when provider intent is nil`() {
-        #expect(resolvedWidgetProvider(nil) == UsageProvider.codex)
-    }
+    func `widget configuration intents default to codex and credits`() {
+        let providerIntent = ProviderSelectionIntent()
+        let compactIntent = CompactMetricSelectionIntent()
 
-    @Test
-    func `compact widget resolution falls back to defaults when intent values are nil`() {
-        #expect(resolvedWidgetProvider(nil) == UsageProvider.codex)
-        #expect(resolvedCompactMetric(nil) == CompactMetric.credits)
+        #expect(providerIntent.provider == .codex)
+        #expect(compactIntent.provider == .codex)
+        #expect(compactIntent.metric == .credits)
     }
 }
