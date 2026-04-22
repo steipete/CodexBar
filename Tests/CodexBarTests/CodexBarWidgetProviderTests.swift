@@ -104,4 +104,14 @@ struct CodexBarWidgetProviderTests {
 
         #expect(rows == [WidgetUsageRow(id: "weekly", title: "Weekly", percentLeft: 75)])
     }
+
+    @Test
+    func `widget configuration intents default to codex and credits`() {
+        let providerIntent = ProviderSelectionIntent()
+        let compactIntent = CompactMetricSelectionIntent()
+
+        #expect(providerIntent.provider == .codex)
+        #expect(compactIntent.provider == .codex)
+        #expect(compactIntent.metric == .credits)
+    }
 }

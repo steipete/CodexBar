@@ -16,6 +16,19 @@ extension StatusItemController {
     static let costHistoryChartID = "costHistoryChart"
     static let usageHistoryChartID = "usageHistoryChart"
 
+    private func shortcut(for action: MenuDescriptor.MenuAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
+        switch action {
+        case .refresh:
+            ("r", [.command])
+        case .settings:
+            (",", [.command])
+        case .quit:
+            ("q", [.command])
+        default:
+            nil
+        }
+    }
+
     private func menuCardWidth(for providers: [UsageProvider], menu: NSMenu? = nil) -> CGFloat {
         _ = menu
         return Self.menuCardBaseWidth
@@ -506,6 +519,10 @@ extension StatusItemController {
                     let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
                     item.target = self
                     item.representedObject = represented
+                    if let shortcut = self.shortcut(for: action) {
+                        item.keyEquivalent = shortcut.key
+                        item.keyEquivalentModifierMask = shortcut.modifiers
+                    }
                     if let iconName = action.systemImageName,
                        let image = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)
                     {

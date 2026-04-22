@@ -1,6 +1,22 @@
 # Changelog
 
-## 0.22 — Unreleased
+## 0.23 — Unreleased
+
+### Changes
+- Development ongoing.
+
+### Fixes
+- Codex: clean up cached CLI status probes during app shutdown so `codex -s read-only` workers are not orphaned after restart.
+- Widgets: package `Metadata.appintents` for the widget extension and use App Intent parameter defaults so configurable widgets load correctly in WidgetKit. Thanks @vincentyangch!
+
+## 0.22 — 2026-04-21
+
+### Highlights
+- Codex: restore OpenAI web dashboard fetching on the new analytics route and tighten hidden WebView reuse/expiry.
+- Synthetic: parse live quota payloads for five-hour, weekly, and search limits, including continuous reset/regeneration details (#732). Thanks @baanish!
+- Antigravity: restore account/quota probing across newer localhost endpoint/token layouts and retry paths (#727). Thanks @icey-zhang!
+- Menu: add standard shortcuts for Refresh, Settings, and Quit while the status menu is open (#737). Thanks @anirudhvee!
+- Widgets: migrate app-group sharing to the Team-ID-prefixed container and carry widget state across the move (#701). Thanks @ngutman!
 
 ### Providers & Usage
 - Synthetic: parse live five-hour, weekly, and search quota payloads, including continuous reset/regeneration details (#732). Thanks @baanish!
@@ -11,6 +27,7 @@
 - Codex: restore OpenAI web dashboard fetching on the new analytics route and tighten hidden WebView reuse/expiry. @ratulsarna
 
 ### Menu & Settings
+- Menu: show and handle standard shortcuts for Refresh (⌘R), Settings (⌘,), and Quit (⌘Q) while the status menu is open (#737). Thanks @anirudhvee!
 - Widgets: migrate app-group sharing to the Team-ID-prefixed container and carry widget state across the move (#701). Thanks @ngutman!
 - Settings: fix provider-sidebar clipping on macOS Tahoe and resize the Preferences window when switching tabs (#580). Thanks @chadneal!
 

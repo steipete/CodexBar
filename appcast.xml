@@ -3,6 +3,45 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.22</title>
+            <pubDate>Tue, 21 Apr 2026 01:12:52 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>57</sparkle:version>
+            <sparkle:shortVersionString>0.22</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.22</h2>
+<h3>Highlights</h3>
+<ul>
+<li>Codex: restore OpenAI web dashboard fetching on the new analytics route and tighten hidden WebView reuse/expiry.</li>
+<li>Synthetic: parse live quota payloads for five-hour, weekly, and search limits, including continuous reset/regeneration details (#732). Thanks @baanish!</li>
+<li>Antigravity: restore account/quota probing across newer localhost endpoint/token layouts and retry paths (#727). Thanks @icey-zhang!</li>
+<li>Menu: add standard shortcuts for Refresh, Settings, and Quit while the status menu is open (#737). Thanks @anirudhvee!</li>
+<li>Widgets: migrate app-group sharing to the Team-ID-prefixed container and carry widget state across the move (#701). Thanks @ngutman!</li>
+</ul>
+<h3>Providers & Usage</h3>
+<ul>
+<li>Synthetic: parse live five-hour, weekly, and search quota payloads, including continuous reset/regeneration details (#732). Thanks @baanish!</li>
+<li>Antigravity: restore localhost probing with async TLS challenge handling, extension-token fallback, and best-effort port selection (#727). Thanks @icey-zhang!</li>
+<li>Gemini: discover OAuth config in fnm/Homebrew/bundled CLI layouts so expired-token refresh keeps working (#723). Thanks @Leechael!</li>
+<li>Copilot: open the complete device-login verification URL when available so the browser flow carries the user code (#739). Thanks @skhe!</li>
+<li>Alibaba: update the China mainland Coding Plan endpoint and browser-cookie domain while keeping older domains as fallbacks (#712). Thanks @hezhongtang!</li>
+<li>Codex: restore OpenAI web dashboard fetching on the new analytics route and tighten hidden WebView reuse/expiry. @ratulsarna</li>
+</ul>
+<h3>Menu & Settings</h3>
+<ul>
+<li>Menu: show and handle standard shortcuts for Refresh (⌘R), Settings (⌘,), and Quit (⌘Q) while the status menu is open (#737). Thanks @anirudhvee!</li>
+<li>Widgets: migrate app-group sharing to the Team-ID-prefixed container and carry widget state across the move (#701). Thanks @ngutman!</li>
+<li>Settings: fix provider-sidebar clipping on macOS Tahoe and resize the Preferences window when switching tabs (#580). Thanks @chadneal!</li>
+</ul>
+<h3>Fixes</h3>
+<ul>
+<li>Keychain cache: preserve cached credentials when macOS temporarily denies keychain UI after wake, avoiding repeated prompts (#594). Thanks @josepe98!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.22/CodexBar-0.22.zip" length="29948925" type="application/octet-stream" sparkle:edSignature="KtCfV+I0y3pF2Q1PrS5e2oc2U9ZY0d3QgjKvurmALzv7Il+rVoPmpwxCeAqwmwF8Z+9fhqVUJlJzxrwa9TBADQ=="/>
+        </item>
+        <item>
             <title>0.21</title>
             <pubDate>Sat, 18 Apr 2026 19:49:47 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -97,33 +136,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.20/CodexBar-0.20.zip" length="28820676" type="application/octet-stream" sparkle:edSignature="ms1BXCobJnD3hDWYVivEdhuReXQXtcKWK21w4VWPF90VsFcWTSg9vwyNCXba3VpAcpAkN0uHw93aGVpcRzihAg=="/>
-        </item>
-        <item sparkle:channel="beta">
-            <title>0.20.0-beta.1</title>
-            <pubDate>Wed, 01 Apr 2026 00:36:32 +0900</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>54</sparkle:version>
-            <sparkle:shortVersionString>0.20.0-beta.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.20.0-beta.1</h2>
-<h3>Highlights</h3>
-<ul>
-<li>Add basic multi-account support to Codex. Thanks @monterrr and @Rag30 for the initial effort and ideas!</li>
-<li>Add Perplexity provider with recurring, bonus, and purchased-credit tracking; plan detection (Pro/Max); and browser-cookie auto-import with manual-cookie fallback (#449). Thanks @BeelixGit!</li>
-</ul>
-<h3>Providers & Usage</h3>
-<ul>
-<li>Add the foundation for multi-account support to Codex and basic UX for adding and switching accounts. @ratulsarna</li>
-<li>Codex: normalize weekly-only rate limits across OAuth and CLI/RPC so free-plan accounts render as Weekly instead of a fake Session, preserve unknown single-window payloads in the primary lane, hide the empty Session lane in widgets, and accept weekly-only Codex CLI <code>/status</code>/RPC data without failing. @ratulsarna</li>
-<li>Perplexity: add provider support with credit tracking for recurring (monthly), bonus (promotional), and purchased on-demand credits; plan detection (Pro/Max); and browser-cookie auto-import with manual-cookie fallback (#449). Thanks @BeelixGit!</li>
-</ul>
-<h3>Menu & Settings</h3>
-<ul>
-<li>Fix alignment of menu chart hover coordinates on macOS. Thanks @cuidong233!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.20.0-beta.1/CodexBar-0.20.0-beta.1.zip" length="27000457" type="application/octet-stream" sparkle:edSignature="3w8bAWbYOKl5tshJ4vFg+upCSxPS+amG1+hxVz9glfpwaRsjVjI9Fo5AAC51HUl1QgAO9EWOjcEGOmiYTzxbBQ=="/>
         </item>
         <item>
             <title>0.14.0</title>

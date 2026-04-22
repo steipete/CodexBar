@@ -522,6 +522,21 @@ struct StatusMenuTests {
         #expect(titles.contains("Settings..."))
         #expect(titles.contains("About CodexBar"))
         #expect(titles.contains("Quit"))
+
+        let refreshItem = menu.items.first { $0.title == "Refresh" }
+        #expect(refreshItem != nil)
+        #expect(refreshItem?.keyEquivalent == "r")
+        #expect(refreshItem?.keyEquivalentModifierMask == [.command])
+
+        let settingsItem = menu.items.first { $0.title == "Settings..." }
+        #expect(settingsItem != nil)
+        #expect(settingsItem?.keyEquivalent == ",")
+        #expect(settingsItem?.keyEquivalentModifierMask == [.command])
+
+        let quitItem = menu.items.first { $0.title == "Quit" }
+        #expect(quitItem != nil)
+        #expect(quitItem?.keyEquivalent == "q")
+        #expect(quitItem?.keyEquivalentModifierMask == [.command])
     }
 }
 
