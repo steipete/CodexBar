@@ -184,8 +184,8 @@ public enum AntigravityCloudCodeClient {
             throw AntigravityOAuthCredentialsError.networkError("Invalid response")
         }
 
-        if http.statusCode == 401 || http.statusCode == 403 {
-            throw AntigravityOAuthCredentialsError.invalidGrant
+        if let error = self.credentialsError(statusCode: http.statusCode, data: data) {
+            throw error
         }
 
         guard http.statusCode == 200 else {
@@ -217,10 +217,39 @@ public enum AntigravityCloudCodeClient {
         if let projectString = project as? String, !projectString.isEmpty {
             return projectString
         }
-        if let projectDict = project as? [String: Any], let id = projectDict["id"] as? String, !id.isEmpty {
-            return id
+        if let projectDict = project as? [String: Any] {
+            if let id = projectDict["id"] as? String, !id.isEmpty {
+                return id
+            }
+            if let projectId = projectDict["projectId"] as? String, !projectId.isEmpty {
+                return projectId
+            }
         }
         return nil
+    }
+
+    private static func credentialsError(
+        statusCode: Int,
+        data: Data) -> AntigravityOAuthCredentialsError?
+    {
+        if statusCode == 401 {
+            return .invalidGrant
+        }
+        if statusCode != 403, self.oauthErrorCode(from: data) == "invalid_grant" {
+            return .invalidGrant
+        }
+        return nil
+    }
+
+    private static func oauthErrorCode(from data: Data) -> String? {
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let error = json["error"] as? String
+        {
+            return error
+        }
+
+        let body = String(data: data, encoding: .utf8)?.lowercased()
+        return body?.contains("invalid_grant") == true ? "invalid_grant" : nil
     }
 
     private static func parseQuotaResponse(data: Data) throws -> AntigravityCloudCodeQuota {
@@ -331,3 +360,18 @@ public enum AntigravityCloudCodeClient {
         return modelId
     }
 }
+
+#if DEBUG
+extension AntigravityCloudCodeClient {
+    static func _parseProjectInfoResponseForTesting(data: Data) throws -> AntigravityProjectInfo {
+        try self.parseProjectInfoResponse(data: data)
+    }
+
+    static func _credentialsErrorForTesting(
+        statusCode: Int,
+        data: Data) -> AntigravityOAuthCredentialsError?
+    {
+        self.credentialsError(statusCode: statusCode, data: data)
+    }
+}
+#endif

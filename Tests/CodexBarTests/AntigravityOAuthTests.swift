@@ -104,6 +104,55 @@ struct AntigravityManualTokenPayloadTests {
 }
 
 @Suite
+struct AntigravityCloudCodeClientTests {
+    @Test
+    func parsesProjectIdFromCloudCodeProjectObject() throws {
+        let data = Data(
+            """
+            {
+              "currentTier": {"id": "free-tier"},
+              "cloudaicompanionProject": {"projectId": "cloudaicompanion-123"}
+            }
+            """.utf8)
+
+        let info = try AntigravityCloudCodeClient._parseProjectInfoResponseForTesting(data: data)
+
+        #expect(info.projectId == "cloudaicompanion-123")
+        #expect(info.tierId == "free-tier")
+    }
+
+    @Test
+    func keepsForbiddenCloudCodeResponseAsNetworkError() {
+        let data = Data(#"{"error":"permission_denied"}"#.utf8)
+
+        let error = AntigravityCloudCodeClient._credentialsErrorForTesting(statusCode: 403, data: data)
+
+        #expect(error == nil)
+    }
+
+    @Test
+    func mapsUnauthorizedAndInvalidGrantToCredentialError() {
+        let invalidGrantData = Data(#"{"error":"invalid_grant"}"#.utf8)
+
+        let unauthorizedError = AntigravityCloudCodeClient._credentialsErrorForTesting(statusCode: 401, data: Data())
+        let invalidGrantError = AntigravityCloudCodeClient._credentialsErrorForTesting(
+            statusCode: 400,
+            data: invalidGrantData)
+
+        if case .invalidGrant = unauthorizedError {
+            #expect(true)
+        } else {
+            Issue.record("Expected 401 to map to invalidGrant")
+        }
+        if case .invalidGrant = invalidGrantError {
+            #expect(true)
+        } else {
+            Issue.record("Expected invalid_grant body to map to invalidGrant")
+        }
+    }
+}
+
+@Suite
 struct AntigravityUsageSourceTests {
     @Test
     func parsesRawValue() {
