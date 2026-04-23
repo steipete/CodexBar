@@ -772,6 +772,63 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `hosted chart submenu matches widened parent menu width`() {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        let previousMenuRefresh = StatusItemController.menuRefreshEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.menuRefreshEnabled = false
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.menuRefreshEnabled = previousMenuRefresh
+        }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let event = CreditEvent(date: Date(), service: "CLI", creditsUsed: 1)
+        let breakdown = OpenAIDashboardSnapshot.makeDailyBreakdown(from: [event], maxDays: 30)
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: 100,
+            creditEvents: [event],
+            dailyBreakdown: breakdown,
+            usageBreakdown: breakdown,
+            creditsPurchaseURL: nil,
+            updatedAt: Date())
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let parentMenu = NSMenu()
+        parentMenu.autoenablesItems = false
+        let wideItem = NSMenuItem(title: String(repeating: "W", count: 60), action: nil, keyEquivalent: "")
+        parentMenu.addItem(wideItem)
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(chartID: StatusItemController.usageBreakdownChartID)
+        let submenuItem = NSMenuItem(title: "Usage breakdown", action: nil, keyEquivalent: "")
+        submenuItem.submenu = submenu
+        parentMenu.addItem(submenuItem)
+
+        let parentWidth = ceil(parentMenu.size.width)
+        #expect(parentWidth > 310)
+
+        controller.hydrateHostedSubviewMenuIfNeeded(submenu)
+
+        let chartItem = submenu.items.first
+        #expect(chartItem?.representedObject as? String == StatusItemController.usageBreakdownChartID)
+        #expect(chartItem?.view != nil)
+        #expect(abs((chartItem?.view?.frame.width ?? 0) - parentWidth) <= 0.5)
+    }
+
+    @Test
     func `shows open AI web submenus when history exists`() throws {
         self.disableMenuCardsForTesting()
         let settings = SettingsStore(

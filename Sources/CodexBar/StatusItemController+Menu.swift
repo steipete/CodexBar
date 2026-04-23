@@ -45,7 +45,7 @@ extension StatusItemController {
         return ceil(measuringMenu.size.width)
     }
 
-    private func renderedMenuWidth(for menu: NSMenu) -> CGFloat {
+    func renderedMenuWidth(for menu: NSMenu) -> CGFloat {
         let measuredWidth = ceil(menu.size.width)
         return max(measuredWidth, Self.menuCardBaseWidth)
     }
