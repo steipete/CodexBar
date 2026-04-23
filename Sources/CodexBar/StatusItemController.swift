@@ -185,6 +185,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         switch preference {
         case .secondary, .tertiary:
             return second ?? first
+        case .extraUsage:
+            return first
         case .average:
             guard self.settings.menuBarMetricSupportsAverage(for: .codex),
                   let primary = first,

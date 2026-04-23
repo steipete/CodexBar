@@ -726,6 +726,92 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `menu bar extra usage preference uses cursor on demand budget`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-cursor-extra-usage-pref"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .cursor
+        settings.setMenuBarMetricPreference(.extraUsage, for: .cursor)
+
+        let registry = ProviderRegistry.shared
+        if let cursorMeta = registry.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: cursorMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 72, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            providerCost: ProviderCostSnapshot(
+                used: 15,
+                limit: 100,
+                currencyCode: "USD",
+                updatedAt: Date()),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let window = controller.menuBarMetricWindow(for: .cursor, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 15)
+    }
+
+    @Test
+    func `menu bar extra usage preference falls back to automatic when cursor on demand budget is missing`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-cursor-extra-usage-missing-budget"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .cursor
+        settings.setMenuBarMetricPreference(.extraUsage, for: .cursor)
+
+        let registry = ProviderRegistry.shared
+        if let cursorMeta = registry.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: cursorMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 72, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            providerCost: nil,
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let window = controller.menuBarMetricWindow(for: .cursor, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 72)
+    }
+
+    @Test
     func `menu bar display text formats percent and pace`() {
         let now = Date(timeIntervalSince1970: 0)
         let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
