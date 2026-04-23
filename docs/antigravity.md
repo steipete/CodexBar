@@ -1,16 +1,47 @@
 ---
-summary: "Antigravity provider notes: local LSP probing, port discovery, quota parsing, and UI mapping."
+summary: "Antigravity provider notes: OAuth credentials, local LSP probing, port discovery, quota parsing, and UI mapping."
 read_when:
   - Adding or modifying the Antigravity provider
   - Debugging Antigravity port detection or quota parsing
   - Adjusting Antigravity menu labels or model mapping
+  - Working with Antigravity OAuth credentials
 ---
 
 # Antigravity provider
 
-Antigravity is a local-only provider. We talk directly to the Antigravity language server running on the same machine.
+Antigravity supports OAuth-authorized Cloud Code quota and local language server probing.
 
-## Data sources + fallback order
+## Usage source modes
+
+- **Auto** (default): OAuth/manual first, fallback to local server
+- **OAuth**: OAuth/manual only
+- **Local**: Antigravity local server only
+
+## OAuth credentials
+
+- **Keychain**: stored from the OAuth browser flow
+- **Manual tokens**: stored in token accounts with `manual:` prefix (access `ya29.` + optional refresh `1//`) when Keychain is disabled; otherwise saved to Keychain under the account label.
+- **Local import**: `~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb`
+  - refresh token: `jetskiStateSync.agentManagerInitState` (base64 protobuf, field 6 contains nested OAuthTokenInfo)
+  - access token/email: `antigravityAuthStatus` JSON (`apiKey`, `email`)
+  - Import button always visible; storage adapts to Keychain setting (Keychain when enabled, config.json when disabled)
+- OAuth callback server listens on `http://127.0.0.1:11451+`
+
+## Cloud Code API endpoints
+
+- `POST https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels`
+- `POST https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels`
+- `POST https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:fetchAvailableModels` (fallback)
+- `POST https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist`
+- `POST https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota` (fallback for fetchAvailableModels)
+
+## Authorized fetch flow
+
+1. Best-effort `loadCodeAssist` to bootstrap `projectId`
+2. `fetchAvailableModels` with `projectId` (primary)
+3. `retrieveUserQuota` with `projectId` (fallback if primary returns empty or fails)
+
+## Local server data sources + fallback order
 
 1) **Process detection**
    - Command: `ps -ax -o pid=,command=`.
@@ -71,5 +102,27 @@ Antigravity is a local-only provider. We talk directly to the Antigravity langua
 - Local HTTPS uses a self-signed cert; the probe allows insecure TLS.
 
 ## Key files
+
+### OAuth/Credentials
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityOAuthCredentials.swift`
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityTokenRefresher.swift`
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityLocalImporter.swift`
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/antigravity_state.proto` (protobuf definition)
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/antigravity_state.pb.swift` (generated Swift)
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityCloudCodeClient.swift`
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityOAuthFlow.swift`
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityAuthorizedFetchStrategy.swift`
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityOAuth/AntigravityUsageSource.swift`
+
+### Local Server
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift`
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityProviderDescriptor.swift`
+
+### App Integration
 - `Sources/CodexBar/Providers/Antigravity/AntigravityProviderImplementation.swift`
+- `Sources/CodexBar/Providers/Antigravity/AntigravitySettingsStore.swift`
+- `Sources/CodexBar/Providers/Antigravity/AntigravityLoginFlow.swift`
+
+### Tests
+- `Tests/CodexBarTests/AntigravityOAuthTests.swift`
+- `Tests/CodexBarTests/AntigravityStatusProbeTests.swift`

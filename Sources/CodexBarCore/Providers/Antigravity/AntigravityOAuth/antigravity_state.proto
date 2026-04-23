@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+// Antigravity IDE state database protobuf definitions
+// These definitions match the structure stored in:
+// ~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb
+// Key: jetskiStateSync.agentManagerInitState (base64 encoded)
+
+message AgentManagerInitState {
+  // OAuth token information is stored in field 6
+  OAuthTokenInfo oauth_token = 6;
+}
+
+message OAuthTokenInfo {
+  // Field 1: Access token (short-lived API token)
+  string access_token = 1;
+  
+  // Field 2: Token type (typically "Bearer")
+  string token_type = 2;
+  
+  // Field 3: Refresh token (long-lived, used to get new access tokens)
+  string refresh_token = 3;
+  
+  // Field 4: Token expiry timestamp
+  Timestamp expiry = 4;
+}
+
+message Timestamp {
+  // Unix timestamp in seconds
+  int64 seconds = 1;
+}

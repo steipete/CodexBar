@@ -24,6 +24,8 @@ struct ProviderRegistry {
         codexFetcher: UsageFetcher,
         claudeFetcher: any ClaudeUsageFetching,
         browserDetection: BrowserDetection,
+        onAntigravityCredentialsRefreshed:
+        (@Sendable (String, AntigravityOAuthCredentials) -> Void)? = nil,
         environmentBase: [String: String] = ProcessInfo.processInfo.environment) -> [UsageProvider: ProviderSpec]
     {
         var specs: [UsageProvider: ProviderSpec] = [:]
@@ -59,7 +61,8 @@ struct ProviderRegistry {
                         settings: snapshot,
                         fetcher: fetcher,
                         claudeFetcher: claudeFetcher,
-                        browserDetection: browserDetection)
+                        browserDetection: browserDetection,
+                        onAntigravityCredentialsRefreshed: onAntigravityCredentialsRefreshed)
                 })
             specs[provider] = spec
         }

@@ -87,16 +87,26 @@ struct ProviderSettingsFieldDescriptor: Identifiable {
 /// Shared token account descriptor rendered in the Providers settings pane.
 @MainActor
 struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
+    struct ImportAction {
+        let title: String
+        let action: () async -> Void
+    }
+
     let id: String
     let title: String
     let subtitle: String
     let placeholder: String
+    let supportsManualEntry: Bool
+    let supportsTwoFieldEntry: Bool
+    let addActionTitle: String?
+    let addAction: (() async -> Void)?
+    let importAction: ImportAction?
     let provider: UsageProvider
     let isVisible: (() -> Bool)?
     let accounts: () -> [ProviderTokenAccount]
     let activeIndex: () -> Int
     let setActiveIndex: (Int) -> Void
-    let addAccount: (_ label: String, _ token: String) -> Void
+    let addAccount: (_ label: String, _ token: String, _ token2: String) -> Void
     let removeAccount: (_ accountID: UUID) -> Void
     let openConfigFile: () -> Void
     let reloadFromDisk: () -> Void

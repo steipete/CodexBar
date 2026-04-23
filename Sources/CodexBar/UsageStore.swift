@@ -80,6 +80,59 @@ extension UsageStore {
         }
     }
 
+    nonisolated static func debugAntigravityLog(
+        usageSource: AntigravityUsageSource,
+        accountLabel: String?,
+        tokenAccounts: ProviderTokenAccountData?) async -> String
+    {
+        await runWithTimeout(seconds: 15) {
+            var lines: [String] = []
+
+            let trimmedLabel = accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasAccountLabel = !(trimmedLabel?.isEmpty ?? true)
+
+            let keychainCreds = hasAccountLabel
+                ? AntigravityOAuthCredentialsStore.load(accountLabel: trimmedLabel ?? "")
+                : nil
+            let hasKeychainAccessToken = !(keychainCreds?.accessToken.isEmpty ?? true)
+            let hasKeychainRefreshToken = keychainCreds?.isRefreshable ?? false
+            let isKeychainExpired = keychainCreds?.isExpired ?? false
+
+            let normalizedLabel = trimmedLabel?.lowercased() ?? ""
+            let manualAccount = tokenAccounts?.accounts.first { $0.label.lowercased() == normalizedLabel }
+            let manualPayload = manualAccount.flatMap {
+                AntigravityOAuthCredentialsStore.manualTokenPayload(from: $0.token)
+            }
+            let hasManualAccessToken = manualPayload?.accessToken.isEmpty == false
+
+            let serverRunning = await AntigravityStatusProbe.isRunning()
+
+            let present = { $0 ? "present" : "missing" }
+            let available = { $0 ? "available" : "unavailable" }
+
+            lines.append("usageSource=\(usageSource.rawValue)")
+            lines.append("accountLabel=\(hasAccountLabel ? (trimmedLabel ?? "") : "none")")
+            lines.append("keychainCredentials=\(present(keychainCreds != nil))")
+            lines.append("keychainAccessToken=\(present(hasKeychainAccessToken))")
+            lines.append("keychainRefreshToken=\(present(hasKeychainRefreshToken))")
+            lines.append("keychainExpired=\(isKeychainExpired)")
+            if let email = keychainCreds?.email, !email.isEmpty {
+                lines.append("keychainEmail=\(email)")
+            }
+            lines.append("manualCredentials=\(present(manualPayload != nil))")
+            lines.append("manualAccessToken=\(present(hasManualAccessToken))")
+            lines.append("localServer=\(serverRunning ? "running" : "not_running")")
+
+            lines.append("")
+            let isAuthorizedAvailable = hasAccountLabel &&
+                (hasKeychainAccessToken || hasKeychainRefreshToken || manualPayload != nil)
+            lines.append("authorizedStrategy=\(available(isAuthorizedAvailable))")
+            lines.append("localStrategy=\(available(serverRunning))")
+
+            return lines.joined(separator: "\n")
+        }
+    }
+
     var attachedOpenAIDashboardSnapshot: OpenAIDashboardSnapshot? {
         guard self.openAIDashboardAttachmentAuthorized else { return nil }
         return self.openAIDashboard
@@ -251,6 +304,12 @@ final class UsageStore {
             codexFetcher: fetcher,
             claudeFetcher: self.claudeFetcher,
             browserDetection: browserDetection,
+            onAntigravityCredentialsRefreshed: { [weak self] accountLabel, credentials in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.saveRefreshedAntigravityCredentials(accountLabel: accountLabel, credentials: credentials)
+                }
+            },
             environmentBase: environmentBase)
         self.providerRuntimes = Dictionary(uniqueKeysWithValues: ProviderCatalog.all.compactMap { implementation in
             implementation.makeRuntime().map { (implementation.id, $0) }
@@ -777,6 +836,9 @@ extension UsageStore {
         }
         let cursorCookieSource = self.settings.cursorCookieSource
         let cursorCookieHeader = self.settings.cursorCookieHeader
+        let antigravityUsageSource = self.settings.antigravityUsageSource
+        let antigravityAccountLabel = self.settings.selectedTokenAccount(for: .antigravity)?.label
+        let antigravityTokenAccountsData = self.settings.tokenAccountsData(for: .antigravity)
         let ampCookieSource = self.settings.ampCookieSource
         let ampCookieHeader = self.settings.ampCookieHeader
         let ollamaCookieSource = self.settings.ollamaCookieSource
@@ -796,7 +858,6 @@ extension UsageStore {
         let text = await Task.detached(priority: .utility) { () -> String in
             let unimplementedDebugLogMessages: [UsageProvider: String] = [
                 .gemini: "Gemini debug log not yet implemented",
-                .antigravity: "Antigravity debug log not yet implemented",
                 .opencode: "OpenCode debug log not yet implemented",
                 .alibaba: "Alibaba Coding Plan debug log not yet implemented",
                 .factory: "Droid debug log not yet implemented",
@@ -879,7 +940,12 @@ extension UsageStore {
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-                case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
+                case .antigravity:
+                    return await Self.debugAntigravityLog(
+                        usageSource: antigravityUsageSource,
+                        accountLabel: antigravityAccountLabel,
+                        tokenAccounts: antigravityTokenAccountsData)
+                case .gemini, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .jetbrains, .perplexity, .abacus:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }

@@ -9,6 +9,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: "sessionKey"),
+        .antigravity: TokenAccountSupport(
+            title: "OAuth accounts",
+            subtitle: "Sign in with Google or paste tokens manually to add Antigravity accounts.",
+            placeholder: "OAuth account",
+            injection: .environment(key: AntigravityOAuthCredentialsStore.environmentAccountKey),
+            requiresManualCookieSource: true,
+            cookieName: nil),
         .zai: TokenAccountSupport(
             title: "API tokens",
             subtitle: "Stored in the CodexBar config file.",

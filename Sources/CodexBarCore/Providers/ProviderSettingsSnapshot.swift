@@ -20,6 +20,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         amp: AmpProviderSettings? = nil,
         ollama: OllamaProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil,
+        antigravity: AntigravityProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
@@ -42,6 +43,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             amp: amp,
             ollama: ollama,
             jetbrains: jetbrains,
+            antigravity: antigravity,
             perplexity: perplexity,
             abacus: abacus)
     }
@@ -224,6 +226,22 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct AntigravityProviderSettings: Sendable {
+        public let usageSource: AntigravityUsageSource
+        public let accountLabel: String?
+        public let tokenAccounts: ProviderTokenAccountData?
+
+        public init(
+            usageSource: AntigravityUsageSource,
+            accountLabel: String?,
+            tokenAccounts: ProviderTokenAccountData? = nil)
+        {
+            self.usageSource = usageSource
+            self.accountLabel = accountLabel
+            self.tokenAccounts = tokenAccounts
+        }
+    }
+
     public struct PerplexityProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -262,6 +280,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let amp: AmpProviderSettings?
     public let ollama: OllamaProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
+    public let antigravity: AntigravityProviderSettings?
     public let perplexity: PerplexityProviderSettings?
     public let abacus: AbacusProviderSettings?
 
@@ -288,6 +307,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         amp: AmpProviderSettings?,
         ollama: OllamaProviderSettings?,
         jetbrains: JetBrainsProviderSettings? = nil,
+        antigravity: AntigravityProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil)
     {
@@ -309,6 +329,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.amp = amp
         self.ollama = ollama
         self.jetbrains = jetbrains
+        self.antigravity = antigravity
         self.perplexity = perplexity
         self.abacus = abacus
     }
@@ -331,6 +352,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
+    case antigravity(ProviderSettingsSnapshot.AntigravityProviderSettings)
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
     case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
 }
@@ -354,6 +376,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
+    public var antigravity: ProviderSettingsSnapshot.AntigravityProviderSettings?
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
     public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
 
@@ -380,6 +403,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .amp(value): self.amp = value
         case let .ollama(value): self.ollama = value
         case let .jetbrains(value): self.jetbrains = value
+        case let .antigravity(value): self.antigravity = value
         case let .perplexity(value): self.perplexity = value
         case let .abacus(value): self.abacus = value
         }
@@ -405,6 +429,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             amp: self.amp,
             ollama: self.ollama,
             jetbrains: self.jetbrains,
+            antigravity: self.antigravity,
             perplexity: self.perplexity,
             abacus: self.abacus)
     }

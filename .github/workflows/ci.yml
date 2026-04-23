@@ -57,6 +57,9 @@ jobs:
           uname -a
           uname -m
 
+      - name: Install SQLite3
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
       - name: Install Swift 6.2.1 via swiftly
         shell: bash
         run: |

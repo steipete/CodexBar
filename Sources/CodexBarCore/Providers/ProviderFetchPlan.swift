@@ -29,6 +29,7 @@ public struct ProviderFetchContext: Sendable {
     public let fetcher: UsageFetcher
     public let claudeFetcher: any ClaudeUsageFetching
     public let browserDetection: BrowserDetection
+    public let onAntigravityCredentialsRefreshed: (@Sendable (String, AntigravityOAuthCredentials) -> Void)?
 
     public init(
         runtime: ProviderRuntime,
@@ -41,7 +42,8 @@ public struct ProviderFetchContext: Sendable {
         settings: ProviderSettingsSnapshot?,
         fetcher: UsageFetcher,
         claudeFetcher: any ClaudeUsageFetching,
-        browserDetection: BrowserDetection)
+        browserDetection: BrowserDetection,
+        onAntigravityCredentialsRefreshed: (@Sendable (String, AntigravityOAuthCredentials) -> Void)? = nil)
     {
         self.runtime = runtime
         self.sourceMode = sourceMode
@@ -54,6 +56,7 @@ public struct ProviderFetchContext: Sendable {
         self.fetcher = fetcher
         self.claudeFetcher = claudeFetcher
         self.browserDetection = browserDetection
+        self.onAntigravityCredentialsRefreshed = onAntigravityCredentialsRefreshed
     }
 }
 

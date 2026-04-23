@@ -100,16 +100,21 @@ struct DebugPane: View {
                     title: "Probe logs",
                     caption: "Fetch the latest probe output for debugging; Copy keeps the full text.")
                 {
-                    Picker("Provider", selection: self.$currentLogProvider) {
-                        Text("Codex").tag(UsageProvider.codex)
-                        Text("Claude").tag(UsageProvider.claude)
-                        Text("Cursor").tag(UsageProvider.cursor)
-                        Text("Augment").tag(UsageProvider.augment)
-                        Text("Amp").tag(UsageProvider.amp)
-                        Text("Ollama").tag(UsageProvider.ollama)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        Picker("Provider", selection: self.$currentLogProvider) {
+                            Text("Codex").tag(UsageProvider.codex)
+                            Text("Claude").tag(UsageProvider.claude)
+                            Text("Cursor").tag(UsageProvider.cursor)
+                            Text("Augment").tag(UsageProvider.augment)
+                            Text("Amp").tag(UsageProvider.amp)
+                            Text("Antigravity").tag(UsageProvider.antigravity)
+                            Text("Ollama").tag(UsageProvider.ollama)
+                        }
+                        .pickerStyle(.segmented)
+                        .controlSize(.small)
+                        .fixedSize()
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 460)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     HStack(spacing: 12) {
                         Button { self.loadLog(self.currentLogProvider) } label: {
