@@ -399,9 +399,7 @@ struct StatusMenuTests {
         #expect(updatedSwitcher != nil)
         if let initialSwitcherID, let updatedSwitcher {
             #expect(initialSwitcherID != ObjectIdentifier(updatedSwitcher))
-            #expect(updatedSwitcher.frame.width == StatusItemController.resolvedMenuCardWidth(
-                baseWidth: 310,
-                reserveTrailingAccessoryColumn: true))
+            #expect(updatedSwitcher.frame.width == 310)
         }
     }
 
@@ -636,9 +634,7 @@ extension StatusMenuTests {
         #expect(statusItem != nil)
         #expect(statusItem?.view != nil)
         #expect(statusItem?.title.isEmpty == true)
-        #expect(statusItem?.view?.frame.width == StatusItemController.resolvedMenuCardWidth(
-            baseWidth: 310,
-            reserveTrailingAccessoryColumn: true))
+        #expect(statusItem?.view?.frame.width == 310)
     }
 
     @Test

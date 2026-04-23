@@ -8,7 +8,6 @@ import SwiftUI
 
 extension StatusItemController {
     private static let menuCardBaseWidth: CGFloat = 310
-    private static let menuCardAccessoryColumnWidth: CGFloat = 40
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
     private static let overviewRowIdentifierPrefix = "overviewRow-"
     private static let menuOpenRefreshDelay: Duration = .seconds(1.2)
@@ -35,24 +34,8 @@ extension StatusItemController {
         sections: [MenuDescriptor.Section]) -> CGFloat
     {
         _ = providers
-        let baselineWidth = Self.resolvedMenuCardWidth(
-            baseWidth: Self.menuCardBaseWidth,
-            reserveTrailingAccessoryColumn: true)
+        let baselineWidth = Self.menuCardBaseWidth
         return max(baselineWidth, self.measuredStandardMenuWidth(for: sections, baseWidth: baselineWidth))
-    }
-
-    static func resolvedMenuCardWidth(baseWidth: CGFloat, reserveTrailingAccessoryColumn: Bool) -> CGFloat {
-        baseWidth + (reserveTrailingAccessoryColumn ? self.menuCardAccessoryColumnWidth : 0)
-    }
-
-    static func shouldReserveTrailingAccessoryColumn(for menu: NSMenu?) -> Bool {
-        guard let menu, !menu.items.isEmpty else { return true }
-
-        // AppKit widens menus to fit key equivalents and submenu arrows. Custom menu-card views need to
-        // reserve similar width up front or they render visibly inset against the right edge.
-        return menu.items.contains { item in
-            item.submenu != nil || !item.keyEquivalent.isEmpty
-        }
     }
 
     private func measuredStandardMenuWidth(for sections: [MenuDescriptor.Section], baseWidth: CGFloat) -> CGFloat {
@@ -64,10 +47,7 @@ extension StatusItemController {
 
     private func renderedMenuWidth(for menu: NSMenu) -> CGFloat {
         let measuredWidth = ceil(menu.size.width)
-        let baselineWidth = Self.resolvedMenuCardWidth(
-            baseWidth: Self.menuCardBaseWidth,
-            reserveTrailingAccessoryColumn: Self.shouldReserveTrailingAccessoryColumn(for: menu))
-        return max(measuredWidth, baselineWidth)
+        return max(measuredWidth, Self.menuCardBaseWidth)
     }
 
     func makeMenu() -> NSMenu {
