@@ -451,7 +451,20 @@ struct ProvidersPane: View {
                 hasAccessToken: \(credentials.hasAccessToken), hasRefreshToken: \(credentials.hasRefreshToken)
                 """)
 
-            guard let accessToken = credentials.accessToken, !accessToken.isEmpty else {
+            let resolvedCredentials: AntigravityOAuthCredentials
+            if let accessToken = credentials.accessToken, !accessToken.isEmpty {
+                resolvedCredentials = AntigravityOAuthCredentials(
+                    accessToken: accessToken,
+                    refreshToken: credentials.refreshToken,
+                    expiresAt: credentials.expiresAt,
+                    email: credentials.email,
+                    scopes: [])
+            } else if let refreshToken = credentials.refreshToken, !refreshToken.isEmpty {
+                log.debug("Import found refresh token only; refreshing access token")
+                resolvedCredentials = try await AntigravityTokenRefresher.buildCredentialsFromRefreshToken(
+                    refreshToken: refreshToken,
+                    fallbackEmail: credentials.email ?? credentials.name)
+            } else {
                 log.debug("Import failed: no access token found")
                 self.presentAlert(
                     title: "Import Failed",
@@ -459,14 +472,14 @@ struct ProvidersPane: View {
                 return
             }
 
-            let label = credentials.email ?? credentials.name ?? "Imported Account"
+            let label = resolvedCredentials.email ?? credentials.email ?? credentials.name ?? "Imported Account"
             log.debug("Creating manual token account with label: \(label)")
 
             guard let account = self.settings.addManualAntigravityTokenAccount(
                 label: label,
-                accessToken: accessToken,
-                refreshToken: credentials.refreshToken,
-                expiresAt: credentials.expiresAt)
+                accessToken: resolvedCredentials.accessToken,
+                refreshToken: resolvedCredentials.refreshToken,
+                expiresAt: resolvedCredentials.expiresAt)
             else {
                 log.debug("Import failed: unable to save imported credentials")
                 self.presentAlert(

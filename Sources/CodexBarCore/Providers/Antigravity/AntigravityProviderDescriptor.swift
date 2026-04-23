@@ -41,6 +41,17 @@ public enum AntigravityProviderDescriptor {
     }
 
     private static func resolveStrategies(_ context: ProviderFetchContext) -> [any ProviderFetchStrategy] {
+        switch context.sourceMode {
+        case .oauth:
+            return [AntigravityAuthorizedFetchStrategy()]
+        case .cli:
+            return [AntigravityLocalFetchStrategy()]
+        case .auto:
+            break
+        case .web, .api:
+            return []
+        }
+
         let usageSource = context.settings?.antigravity?.usageSource ?? .auto
 
         switch usageSource {
