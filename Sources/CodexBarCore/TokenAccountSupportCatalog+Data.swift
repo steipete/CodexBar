@@ -72,5 +72,12 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .mistral: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Mistral Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
     ]
 }

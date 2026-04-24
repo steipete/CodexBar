@@ -5,6 +5,7 @@
 ### Changes
 - Claude: show Designs and Daily Routines usage bars from live Claude OAuth/Web quota data, and restore the Web-mode Sonnet bar (#740). Thanks @AISupplyGuy!
 - Cursor: add an Extra usage menu bar metric for on-demand budgets (#789). Thanks @huiye98!
+- Mistral: add provider support with monthly spend tracking, browser-cookie import, manual cookies, and CLI/token-account support (#607). Thanks @welcoMattic!
 - Usage: add an opt-in confetti celebration when weekly limits reset after active use (#785). Thanks @zats!
 
 ### Fixes
