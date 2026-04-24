@@ -127,9 +127,11 @@ struct CodexAccountsSectionView: View {
     let state: CodexAccountsSectionState
     let setActiveVisibleAccount: (String) -> Void
     let reauthenticateAccount: (CodexVisibleAccount) -> Void
+    let reauthenticateAccountViaDeviceCode: (CodexVisibleAccount) -> Void
     let removeAccount: (CodexVisibleAccount) -> Void
     let requestSystemVisibleAccount: (String) -> Void
     let addAccount: () -> Void
+    let addAccountViaDeviceCode: () -> Void
 
     var body: some View {
         ProviderSettingsSection(title: "Accounts") {
@@ -194,6 +196,9 @@ struct CodexAccountsSectionView: View {
                             canReauthenticate: self.state.canReauthenticate(account),
                             canRemove: self.state.canRemove(account),
                             onReauthenticate: { self.reauthenticateAccount(account) },
+                            onReauthenticateViaDeviceCode: {
+                                self.reauthenticateAccountViaDeviceCode(account)
+                            },
                             onRemove: { self.removeAccount(account) })
                     }
                 }
@@ -206,11 +211,17 @@ struct CodexAccountsSectionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button(self.state.addAccountTitle) {
-                self.addAccount()
+            Menu(self.state.addAccountTitle) {
+                Button("Sign in with Browser") {
+                    self.addAccount()
+                }
+                Button("Sign in with Device Code") {
+                    self.addAccountViaDeviceCode()
+                }
             }
-            .buttonStyle(.bordered)
+            .menuStyle(.button)
             .controlSize(.small)
+            .fixedSize()
             .disabled(self.state.canAddAccount == false)
         }
     }
@@ -286,6 +297,7 @@ private struct CodexAccountsSectionRowView: View {
     let canReauthenticate: Bool
     let canRemove: Bool
     let onReauthenticate: () -> Void
+    let onReauthenticateViaDeviceCode: () -> Void
     let onRemove: () -> Void
 
     var body: some View {
@@ -303,11 +315,17 @@ private struct CodexAccountsSectionRowView: View {
             Spacer(minLength: 8)
 
             if self.account.canReauthenticate {
-                Button(self.reauthenticateTitle) {
-                    self.onReauthenticate()
+                Menu(self.reauthenticateTitle) {
+                    Button("Re-auth with Browser") {
+                        self.onReauthenticate()
+                    }
+                    Button("Re-auth with Device Code") {
+                        self.onReauthenticateViaDeviceCode()
+                    }
                 }
-                .buttonStyle(.bordered)
+                .menuStyle(.button)
                 .controlSize(.small)
+                .fixedSize()
                 .disabled(self.canReauthenticate == false)
             }
 

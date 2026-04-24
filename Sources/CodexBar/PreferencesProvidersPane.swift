@@ -83,6 +83,11 @@ struct ProvidersPane: View {
                                         await self.reauthenticateCodexAccount(account)
                                     }
                                 },
+                                reauthenticateAccountViaDeviceCode: { account in
+                                    Task { @MainActor in
+                                        await self.reauthenticateCodexAccountViaDeviceFlow(account)
+                                    }
+                                },
                                 removeAccount: { account in
                                     self.requestManagedCodexAccountRemoval(account)
                                 },
@@ -94,6 +99,11 @@ struct ProvidersPane: View {
                                 addAccount: {
                                     Task { @MainActor in
                                         await self.addManagedCodexAccount()
+                                    }
+                                },
+                                addAccountViaDeviceCode: {
+                                    Task { @MainActor in
+                                        await self.addManagedCodexAccountViaDeviceFlow()
                                     }
                                 })
                         }
@@ -135,6 +145,12 @@ struct ProvidersPane: View {
                     Text(active.message)
                 }
             })
+        .sheet(item: Binding<CodexDeviceAuthSession?>(
+            get: { self.managedCodexAccountCoordinator.activeDeviceAuthSession },
+            set: { _ in }))
+        { session in
+            CodexDeviceAuthSheetView(session: session)
+        }
     }
 
     private func ensureSelection() {
@@ -254,6 +270,24 @@ struct ProvidersPane: View {
         }
     }
 
+    func addManagedCodexAccountViaDeviceFlow() async {
+        self.codexAccountsNotice = nil
+        guard let state = self.codexAccountsSectionState(for: .codex), state.canAddAccount else {
+            return
+        }
+
+        do {
+            let account = try await self.managedCodexAccountCoordinator
+                .authenticateManagedAccountWithDeviceFlow()
+            self.selectCodexVisibleAccountForAuthenticatedManagedAccount(account)
+            await self.refreshCodexProvider()
+        } catch is CancellationError {
+            // User cancelled the sheet — no notice needed.
+        } catch {
+            self.codexAccountsNotice = self.codexAccountsNotice(for: error)
+        }
+    }
+
     func reauthenticateCodexAccount(_ account: CodexVisibleAccount) async {
         self.codexAccountsNotice = nil
         if let accountID = account.storedAccountID {
@@ -288,6 +322,48 @@ struct ProvidersPane: View {
         }
 
         await self.refreshCodexProvider()
+    }
+
+    func reauthenticateCodexAccountViaDeviceFlow(_ account: CodexVisibleAccount) async {
+        self.codexAccountsNotice = nil
+        guard let state = self.codexAccountsSectionState(for: .codex), state.canReauthenticate(account) else {
+            return
+        }
+
+        if let accountID = account.storedAccountID {
+            // Managed path — writes into the account's scoped managed home
+            // and reconciles with the managed account store.
+            do {
+                _ = try await self.managedCodexAccountCoordinator
+                    .authenticateManagedAccountWithDeviceFlow(existingAccountID: accountID)
+                await self.refreshCodexProvider()
+            } catch is CancellationError {
+                // User cancelled the sheet — no notice.
+            } catch {
+                self.codexAccountsNotice = self.codexAccountsNotice(for: error)
+            }
+            return
+        }
+
+        // Ambient / system path — rewrites `~/.codex/auth.json` in place,
+        // equivalent to what a successful `codex login` would produce but
+        // without invoking the CLI.
+        self.isAuthenticatingLiveCodexAccount = true
+        self.codexAccountPromotionCoordinator.setLiveReauthenticationInProgress(true)
+        defer {
+            self.isAuthenticatingLiveCodexAccount = false
+            self.codexAccountPromotionCoordinator.setLiveReauthenticationInProgress(false)
+        }
+
+        do {
+            try await self.managedCodexAccountCoordinator
+                .authenticateAmbientCodexAccountWithDeviceFlow()
+            await self.refreshCodexProvider()
+        } catch is CancellationError {
+            // User cancelled the sheet — no notice.
+        } catch {
+            self.codexAccountsNotice = self.codexAccountsNotice(for: error)
+        }
     }
 
     func removeManagedCodexAccount(id: UUID) async {
@@ -599,16 +675,34 @@ struct ProvidersPane: View {
         }
 
         if let error = error as? ManagedCodexAccountServiceError {
-            let message = switch error {
+            let tone: CodexAccountsSectionNotice.Tone
+            let message: String
+            switch error {
             case .loginFailed:
-                "Managed Codex login did not complete. Try again after finishing the browser login flow."
+                message = "Managed Codex login did not complete. Try again after finishing the browser login flow."
+                tone = .warning
             case .missingEmail:
-                "Codex login completed, but no account email was available. Try again after confirming "
+                message = "Codex login completed, but no account email was available. Try again after confirming "
                     + "the account is fully signed in."
+                tone = .warning
             case let .unsafeManagedHome(path):
-                "CodexBar refused to modify an unexpected managed home path: \(path)"
+                message = "CodexBar refused to modify an unexpected managed home path: \(path)"
+                tone = .warning
+            case .deviceFlowTimedOut:
+                message = "Device code expired. Please try again."
+                tone = .secondary
+            case let .deviceFlowRequestFailed(status):
+                message = "Codex device-auth server responded with status \(status). Please try again."
+                tone = .warning
+            case .deviceFlowInvalidResponse:
+                message = "Unexpected response from Codex device-auth server. Please try again."
+                tone = .warning
             }
-            return CodexAccountsSectionNotice(text: message, tone: .warning)
+            return CodexAccountsSectionNotice(text: message, tone: tone)
+        }
+
+        if error is CancellationError {
+            return CodexAccountsSectionNotice(text: "", tone: .secondary)
         }
 
         return CodexAccountsSectionNotice(

@@ -42,8 +42,17 @@ struct StatusMenuCodexSwitcherTests {
 
     private func actionLabels(in descriptor: MenuDescriptor) -> [String] {
         descriptor.sections.flatMap(\.entries).compactMap { entry in
-            guard case let .action(label, _) = entry else { return nil }
-            return label
+            switch entry {
+            case let .action(label, _):
+                return label
+            case let .submenu(label, _, _):
+                // Codex renders "Add Account…" as a submenu (browser vs. device code);
+                // treat the submenu title the same way as a top-level action label
+                // for the purposes of these assertions.
+                return label
+            case .text, .divider:
+                return nil
+            }
         }
     }
 
