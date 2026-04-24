@@ -31,6 +31,8 @@ public enum ProviderConfigEnvironment {
             }
         case .openrouter:
             env[OpenRouterSettingsReader.envKey] = apiKey
+        case .codebuff:
+            env[CodebuffSettingsReader.apiTokenKey] = apiKey
         default:
             break
         }
