@@ -326,6 +326,12 @@ struct ProviderSettingsTokenAccountsRowView: View {
             }
             .buttonStyle(.link)
             .controlSize(.small)
+
+            Button("Reload from disk") {
+                self.descriptor.reloadFromDisk()
+            }
+            .buttonStyle(.link)
+            .controlSize(.small)
         }
     }
 }
