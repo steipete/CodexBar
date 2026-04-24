@@ -82,7 +82,7 @@ struct MistralUsageParserTests {
 
 struct MistralUsageSnapshotConversionTests {
     @Test
-    func `converts cost to UsageSnapshot with provider cost`() {
+    func `converts cost into primary resetDescription so it surfaces as detail text`() {
         let snapshot = MistralUsageSnapshot(
             totalCost: 1.2345,
             currency: "EUR",
@@ -99,10 +99,10 @@ struct MistralUsageSnapshotConversionTests {
         #expect(usage.primary != nil)
         #expect(usage.primary?.usedPercent == 0)
         #expect(usage.primary?.resetDescription?.contains("€1.2345") == true)
-        #expect(usage.providerCost != nil)
-        #expect(usage.providerCost?.used == 1.2345)
-        #expect(usage.providerCost?.currencyCode == "EUR")
-        #expect(usage.providerCost?.period == "Monthly")
+        // providerCost is intentionally nil: the menu card's providerCostSection requires
+        // limit > 0 to render a bar, and Mistral is pay-as-you-go with no quota. The cost
+        // is surfaced via primary.resetDescription (rendered as detail text in the card).
+        #expect(usage.providerCost == nil)
     }
 
     @Test

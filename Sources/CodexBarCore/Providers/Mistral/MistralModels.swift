@@ -114,17 +114,10 @@ public struct MistralUsageSnapshot: Sendable {
             windowMinutes: nil,
             resetsAt: resetDate,
             resetDescription: costDescription)
-        let providerCost = ProviderCostSnapshot(
-            used: self.totalCost,
-            limit: 0,
-            currencyCode: self.currency,
-            period: "Monthly",
-            resetsAt: resetDate,
-            updatedAt: self.updatedAt)
         return UsageSnapshot(
             primary: primary,
             secondary: nil,
-            providerCost: providerCost,
+            providerCost: nil,
             updatedAt: self.updatedAt,
             identity: nil)
     }
