@@ -63,6 +63,48 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `cursor menu bar metric picker omits extra usage when on demand budget is missing`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-cursor-no-extra-usage-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 34, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                updatedAt: Date()),
+            provider: .cursor)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .cursor)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(!ids.contains(MenuBarMetricPreference.extraUsage.rawValue))
+    }
+
+    @Test
+    func `cursor menu bar metric picker includes extra usage when on demand budget is available`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-cursor-extra-usage-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 34, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                tertiary: RateWindow(usedPercent: 56, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                providerCost: ProviderCostSnapshot(
+                    used: 15,
+                    limit: 100,
+                    currencyCode: "USD",
+                    updatedAt: Date()),
+                updatedAt: Date()),
+            provider: .cursor)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .cursor)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(ids.contains(MenuBarMetricPreference.extraUsage.rawValue))
+        let option = picker?.options.first { $0.id == MenuBarMetricPreference.extraUsage.rawValue }
+        #expect(option?.title == "Extra usage")
+    }
+
+    @Test
     func `zai menu bar metric picker omits tertiary lane when snapshot has no 5-hour metric`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-zai-no-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)

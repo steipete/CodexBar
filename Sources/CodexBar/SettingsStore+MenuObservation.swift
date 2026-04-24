@@ -22,6 +22,7 @@ extension SettingsStore {
         _ = self.costUsageEnabled
         _ = self.hidePersonalInfo
         _ = self.randomBlinkEnabled
+        _ = self.confettiOnWeeklyLimitResetsEnabled
         _ = self.claudeOAuthKeychainPromptMode
         _ = self.claudeOAuthKeychainReadStrategy
         _ = self.claudeWebExtrasEnabled

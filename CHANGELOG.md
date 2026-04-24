@@ -4,6 +4,8 @@
 
 ### Changes
 - Claude: show Designs and Daily Routines usage bars from live Claude OAuth/Web quota data, and restore the Web-mode Sonnet bar (#740). Thanks @AISupplyGuy!
+- Cursor: add an Extra usage menu bar metric for on-demand budgets (#789). Thanks @huiye98!
+- Usage: add an opt-in confetti celebration when weekly limits reset after active use (#785). Thanks @zats!
 
 ### Fixes
 - Codex: clean up cached CLI status probes during app shutdown so `codex -s read-only` workers are not orphaned after restart.

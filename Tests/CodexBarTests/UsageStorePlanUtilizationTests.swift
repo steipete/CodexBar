@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+// swiftlint:disable:next type_body_length
 struct UsageStorePlanUtilizationTests {
     @Test
     func `coalesces changed usage within hour into single entry`() throws {
@@ -653,6 +654,194 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `weekly quota celebration posts when weekly usage resets to zero`() async {
+        let store = Self.makeStore()
+        let accountLabel = "reset-zero@example.com"
+        let recorder = WeeklyLimitResetEventRecorder(provider: .claude, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: accountLabel,
+                accountOrganization: nil,
+                loginMethod: "max"))
+        let after = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_003_600),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: accountLabel,
+                accountOrganization: nil,
+                loginMethod: "max"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: after, now: after.updatedAt)
+
+        let events = recorder.events
+        #expect(events.count == 1)
+        #expect(events[0].provider == .claude)
+        #expect(events[0].accountLabel == accountLabel)
+        #expect(events[0].usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `weekly quota celebration posts when reset lands mid hour without history split`() async {
+        let store = Self.makeStore()
+        let accountLabel = "mid-hour-reset@example.com"
+        let recorder = WeeklyLimitResetEventRecorder(provider: .claude, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 10080,
+                resetsAt: Date(timeIntervalSince1970: 1_700_100_000),
+                resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: accountLabel,
+                accountOrganization: nil,
+                loginMethod: "max"))
+        let after = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 10080,
+                resetsAt: Date(timeIntervalSince1970: 1_700_100_030),
+                resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_001_800),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: accountLabel,
+                accountOrganization: nil,
+                loginMethod: "max"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: after, now: after.updatedAt)
+
+        let histories = store.planUtilizationHistory(for: .claude)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.count == 1)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 40)
+        let events = recorder.events
+        #expect(events.count == 1)
+        #expect(events[0].usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `weekly quota celebration ignores first seen reset sample`() async {
+        let store = Self.makeStore()
+        let accountLabel = "first-seen-reset@example.com"
+        let recorder = WeeklyLimitResetEventRecorder(provider: .claude, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: accountLabel,
+                accountOrganization: nil,
+                loginMethod: "max"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: snapshot, now: snapshot.updatedAt)
+
+        #expect(recorder.events.isEmpty)
+    }
+
+    @MainActor
+    @Test
+    func `weekly quota celebration fires once across repeated low samples`() async {
+        let store = Self.makeStore()
+        let accountLabel = "repeated-low@example.com"
+        let recorder = WeeklyLimitResetEventRecorder(provider: .claude, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 60, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: accountLabel,
+                accountOrganization: nil,
+                loginMethod: "max"))
+        let firstLow = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 1, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_001_800),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: accountLabel,
+                accountOrganization: nil,
+                loginMethod: "max"))
+        let secondLow = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_002_100),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: accountLabel,
+                accountOrganization: nil,
+                loginMethod: "max"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: firstLow, now: firstLow.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: secondLow, now: secondLow.updatedAt)
+
+        let events = recorder.events
+        #expect(events.count == 1)
+        #expect(events[0].usedPercent == 1)
+    }
+
+    @MainActor
+    @Test
+    func `weekly quota celebration posts for generic provider weekly lane`() async {
+        let store = Self.makeStore()
+        let accountLabel = "zai-reset-org"
+        let recorder = WeeklyLimitResetEventRecorder(provider: .zai, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 92, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 15, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: accountLabel,
+                loginMethod: "pro"))
+        let after = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 15, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_003_600),
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: accountLabel,
+                loginMethod: "pro"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: after, now: after.updatedAt)
+
+        let events = recorder.events
+        #expect(events.count == 1)
+        #expect(events[0].provider == .zai)
+        #expect(events[0].accountLabel == accountLabel)
+        #expect(events[0].usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
     func `concurrent plan history writes coalesce within single hour bucket per series`() async throws {
         let store = Self.makeStore()
         let snapshot = Self.makeSnapshot(provider: .codex, email: "alice@example.com")
@@ -840,6 +1029,75 @@ func findSeries(
     windowMinutes: Int) -> PlanUtilizationSeriesHistory?
 {
     histories.first { $0.name == name && $0.windowMinutes == windowMinutes }
+}
+
+private final class WeeklyLimitResetEventRecorder: @unchecked Sendable {
+    struct Event: Sendable {
+        let provider: UsageProvider
+        let accountLabel: String?
+        let usedPercent: Double
+    }
+
+    private let provider: UsageProvider
+    private let accountLabel: String?
+    private let lock = NSLock()
+    private var observedEvents: [Event] = []
+    private var token: NSObjectProtocol?
+
+    init(provider: UsageProvider, accountLabel: String?) {
+        self.provider = provider
+        self.accountLabel = accountLabel
+        self.token = NotificationCenter.default.addObserver(
+            forName: .codexbarWeeklyLimitReset,
+            object: nil,
+            queue: nil)
+        { [weak self] notification in
+            guard let self,
+                  let event = notification.object as? WeeklyLimitResetEvent
+            else {
+                return
+            }
+
+            let recorded = MainActor.assumeIsolated { () -> Event? in
+                guard event.provider == self.provider,
+                      event.accountLabel == self.accountLabel
+                else {
+                    return nil
+                }
+                return Event(
+                    provider: event.provider,
+                    accountLabel: event.accountLabel,
+                    usedPercent: event.usedPercent)
+            }
+            guard let recorded else { return }
+
+            self.lock.lock()
+            self.observedEvents.append(recorded)
+            self.lock.unlock()
+        }
+    }
+
+    var events: [Event] {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.observedEvents
+    }
+
+    var count: Int {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.observedEvents.count
+    }
+
+    func invalidate() {
+        guard let token else { return }
+        NotificationCenter.default.removeObserver(token)
+        self.token = nil
+    }
+
+    deinit {
+        self.invalidate()
+    }
 }
 
 func formattedBoundary(_ date: Date) -> String {

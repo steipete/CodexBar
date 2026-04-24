@@ -14,6 +14,7 @@ public enum LogCategories {
     public static let codexRPC = "codex-rpc"
     public static let configMigration = "config-migration"
     public static let configStore = "config-store"
+    public static let confetti = "confetti"
     public static let cookieCache = "cookie-cache"
     public static let cookieHeaderStore = "cookie-header-store"
     public static let copilotTokenStore = "copilot-token-store"
