@@ -139,6 +139,13 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader,
                     apiRegion: self.resolveMiniMaxRegion(config)))
+        case .manus:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                manus: ProviderSettingsSnapshot.ManusProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .augment:
             let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
             let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
@@ -207,6 +214,7 @@ struct TokenAccountCLIContext {
         alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings? = nil,
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
+        manus: ProviderSettingsSnapshot.ManusProviderSettings? = nil,
         zai: ProviderSettingsSnapshot.ZaiProviderSettings? = nil,
         kilo: ProviderSettingsSnapshot.KiloProviderSettings? = nil,
         kimi: ProviderSettingsSnapshot.KimiProviderSettings? = nil,
@@ -226,6 +234,7 @@ struct TokenAccountCLIContext {
             alibaba: alibaba,
             factory: factory,
             minimax: minimax,
+            manus: manus,
             zai: zai,
             kilo: kilo,
             kimi: kimi,

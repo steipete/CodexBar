@@ -51,6 +51,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .manus: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Manus session_id cookies.",
+            placeholder: "session_id=…",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: "session_id"),
         .augment: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Augment Cookie headers.",

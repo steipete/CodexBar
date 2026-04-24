@@ -63,6 +63,7 @@ enum ProviderChoice: String, AppEnum {
         case .factory: return nil // Factory not yet supported in widgets
         case .copilot: self = .copilot
         case .minimax: self = .minimax
+        case .manus: return nil // Manus not yet supported in widgets
         case .vertexai: return nil // Vertex AI not yet supported in widgets
         case .kilo: self = .kilo
         case .kiro: return nil // Kiro not yet supported in widgets

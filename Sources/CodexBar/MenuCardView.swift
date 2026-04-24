@@ -1075,6 +1075,13 @@ extension UsageMenuCardView.Model {
         {
             primaryDetailText = detail
         }
+        if input.provider == .manus,
+           let detail = primary.resetDescription,
+           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            primaryDetailText = detail
+            primaryResetText = nil
+        }
         if input.provider == .warp || input.provider == .kilo, primary.resetsAt == nil {
             primaryResetText = nil
         }
@@ -1162,6 +1169,12 @@ extension UsageMenuCardView.Model {
             }
         }
         if input.provider == .alibaba,
+           let detail = weekly.resetDescription,
+           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            weeklyDetailText = detail
+        }
+        if input.provider == .manus,
            let detail = weekly.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -1482,6 +1495,9 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider,
         cost: ProviderCostSnapshot?) -> ProviderCostSection?
     {
+        if provider == .manus {
+            return nil
+        }
         guard let cost else { return nil }
         guard cost.limit > 0 else { return nil }
         guard provider != .synthetic else { return nil }

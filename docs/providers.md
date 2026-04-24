@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter, Abacus AI)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Manus, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter, Abacus AI)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -27,6 +27,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
 | z.ai | API token (Keychain/env) → quota API (`api`). |
+| Manus | Browser `session_id` cookie (auto/manual/env) → credits API (`web`). |
 | MiniMax | Manual cookie header (Keychain/env) → browser cookies (+ local storage access token) → coding plan page (HTML) with remains API fallback (`web`). |
 | Kimi | API token (JWT from `kimi-auth` cookie) → usage API (`api`). |
 | Kilo | API token (`KILO_API_KEY`) → usage API (`api`); auto falls back to CLI session auth (`cli`). |
@@ -62,6 +63,12 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Quota endpoint: `https://api.z.ai/api/monitor/usage/quota/limit` (global) or `https://open.bigmodel.cn/api/monitor/usage/quota/limit` (BigModel CN); override with `Z_AI_API_HOST` or `Z_AI_QUOTA_URL`.
 - Status: none yet.
 - Details: `docs/zai.md`.
+
+## Manus
+- Session token via browser `session_id` cookie, manual Settings entry, `MANUS_SESSION_TOKEN`, or `MANUS_COOKIE`.
+- Credits endpoint: `POST https://api.manus.im/user.v1.UserService/GetAvailableCredits`.
+- Auto mode prefers cached/browser cookies before env fallback; manual mode accepts either a bare `session_id` value or a full Cookie header.
+- Status: none yet.
 
 ## MiniMax
 - Session cookie header from Keychain or `MINIMAX_COOKIE`/`MINIMAX_COOKIE_HEADER` env var.

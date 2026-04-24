@@ -269,6 +269,7 @@ private struct ProviderSwitchChip: View {
         case .factory: "Droid"
         case .copilot: "Copilot"
         case .minimax: "MiniMax"
+        case .manus: "Manus"
         case .vertexai: "Vertex"
         case .kilo: "Kilo"
         case .kiro: "Kiro"
@@ -616,6 +617,8 @@ enum WidgetColors {
             Color(red: 168 / 255, green: 85 / 255, blue: 247 / 255) // Purple
         case .minimax:
             Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255)
+        case .manus:
+            Color(red: 24 / 255, green: 24 / 255, blue: 24 / 255)
         case .vertexai:
             Color(red: 66 / 255, green: 133 / 255, blue: 244 / 255) // Google Blue
         case .kilo:

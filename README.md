@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, JetBrains AI, OpenRouter, Perplexity, and Abacus AI limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode with a provider switcher and optional Overview tab); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Manus, Kiro, Vertex AI, Augment, Amp, JetBrains AI, OpenRouter, Perplexity, and Abacus AI limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode with a provider switcher and optional Overview tab); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
 
@@ -39,6 +39,7 @@ Linux support via Omarchy: community Waybar module and TUI, driven by the `codex
 - [Droid](docs/factory.md) — Browser cookies + WorkOS token flows for Factory usage + billing.
 - [Copilot](docs/copilot.md) — GitHub device flow + Copilot internal usage API.
 - [z.ai](docs/zai.md) — API token (Keychain) for quota + MCP windows.
+- [Manus](docs/manus.md) — Browser `session_id` auth for credit balance, monthly credits, and daily refresh tracking.
 - [Kimi](docs/kimi.md) — Auth token (JWT from `kimi-auth` cookie) for weekly quota + 5‑hour rate limit.
 - [Kimi K2](docs/kimi-k2.md) — API key for credit-based usage totals.
 - [Kiro](docs/kiro.md) — CLI-based usage via `kiro-cli /usage` command; monthly credits + bonus credits.
@@ -72,7 +73,7 @@ The menu bar icon is a tiny two-bar meter:
 Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it reads a small set of known locations (browser cookies/local storage, local JSONL logs) when the related features are enabled. See the discussion and audit notes in [issue #12](https://github.com/steipete/CodexBar/issues/12).
 
 ## macOS permissions (why they’re needed)
-- **Full Disk Access (optional)**: only required to read Safari cookies/local storage for web-based providers (Codex web, Claude web, Cursor, Droid/Factory). If you don’t grant it, use Chrome/Firefox cookies or CLI-only sources instead.
+- **Full Disk Access (optional)**: only required to read Safari cookies/local storage for web-based providers (Codex web, Claude web, Cursor, Droid/Factory, Manus, Abacus AI). If you don’t grant it, use Chrome/Firefox cookies or CLI-only sources instead.
 - **Keychain access (prompted by macOS)**:
   - Chrome cookie import needs the “Chrome Safe Storage” key to decrypt cookies.
   - Claude OAuth credentials (written by the Claude CLI) are read from Keychain when present.
