@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public enum MistralUsageFetcher {
     private static let baseURL = URL(string: "https://admin.mistral.ai")!
