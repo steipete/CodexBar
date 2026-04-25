@@ -22,7 +22,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
-        abacus: AbacusProviderSettings? = nil) -> ProviderSettingsSnapshot
+        abacus: AbacusProviderSettings? = nil,
+        mistral: MistralProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
             debugMenuEnabled: debugMenuEnabled,
@@ -45,7 +46,8 @@ public struct ProviderSettingsSnapshot: Sendable {
             jetbrains: jetbrains,
             windsurf: windsurf,
             perplexity: perplexity,
-            abacus: abacus)
+            abacus: abacus,
+            mistral: mistral)
     }
 
     public struct CodexProviderSettings: Sendable {
@@ -262,6 +264,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct MistralProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public let debugMenuEnabled: Bool
     public let debugKeepCLISessionsAlive: Bool
     public let codex: CodexProviderSettings?
@@ -283,6 +295,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let windsurf: WindsurfProviderSettings?
     public let perplexity: PerplexityProviderSettings?
     public let abacus: AbacusProviderSettings?
+    public let mistral: MistralProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
         self.jetbrains?.ideBasePath
@@ -309,7 +322,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
-        abacus: AbacusProviderSettings? = nil)
+        abacus: AbacusProviderSettings? = nil,
+        mistral: MistralProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
@@ -332,6 +346,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.windsurf = windsurf
         self.perplexity = perplexity
         self.abacus = abacus
+        self.mistral = mistral
     }
 }
 
@@ -355,6 +370,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case windsurf(ProviderSettingsSnapshot.WindsurfProviderSettings)
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
     case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
+    case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
 }
 
 public struct ProviderSettingsSnapshotBuilder: Sendable {
@@ -379,6 +395,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var windsurf: ProviderSettingsSnapshot.WindsurfProviderSettings?
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
     public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
+    public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
         self.debugMenuEnabled = debugMenuEnabled
@@ -406,6 +423,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .windsurf(value): self.windsurf = value
         case let .perplexity(value): self.perplexity = value
         case let .abacus(value): self.abacus = value
+        case let .mistral(value): self.mistral = value
         }
     }
 
@@ -431,6 +449,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             jetbrains: self.jetbrains,
             windsurf: self.windsurf,
             perplexity: self.perplexity,
-            abacus: self.abacus)
+            abacus: self.abacus,
+            mistral: self.mistral)
     }
 }

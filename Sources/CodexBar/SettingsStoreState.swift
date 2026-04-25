@@ -21,6 +21,7 @@ struct SettingsDefaultsState {
     var costUsageEnabled: Bool
     var hidePersonalInfo: Bool
     var randomBlinkEnabled: Bool
+    var confettiOnWeeklyLimitResetsEnabled: Bool
     var menuBarShowsHighestUsage: Bool
     var claudeOAuthKeychainPromptModeRaw: String?
     var claudeOAuthKeychainReadStrategyRaw: String?

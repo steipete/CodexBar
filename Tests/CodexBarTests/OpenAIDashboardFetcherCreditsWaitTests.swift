@@ -109,6 +109,32 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
     }
 
     @Test
+    func `probe handoff preserves page only after confirmed signed in email`() {
+        let result = OpenAIDashboardFetcher.ProbeResult(
+            href: "https://chatgpt.com/codex/cloud/settings/analytics#usage",
+            loginRequired: false,
+            workspacePicker: false,
+            cloudflareInterstitial: false,
+            signedInEmail: "user@example.com",
+            bodyText: "Credits remaining 42")
+
+        #expect(OpenAIDashboardFetcher.shouldPreserveLoadedPageAfterProbe(result))
+    }
+
+    @Test
+    func `probe handoff does not preserve timed out usage page without email`() {
+        let result = OpenAIDashboardFetcher.ProbeResult(
+            href: "https://chatgpt.com/codex/cloud/settings/analytics#usage",
+            loginRequired: false,
+            workspacePicker: false,
+            cloudflareInterstitial: false,
+            signedInEmail: nil,
+            bodyText: "Codex Analytics")
+
+        #expect(!OpenAIDashboardFetcher.shouldPreserveLoadedPageAfterProbe(result))
+    }
+
+    @Test
     func `probe grace restarts after route reload resets readiness timestamps`() {
         let now = Date()
         let shouldWait = OpenAIDashboardFetcher.shouldWaitForProbeReadiness(.init(
@@ -168,9 +194,20 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
     }
 
     @Test
+    func `usage route matcher accepts analytics route`() {
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/analytics"))
+    }
+
+    @Test
+    func `usage route matcher accepts analytics usage hash route`() {
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/analytics#usage"))
+    }
+
+    @Test
     func `usage route matcher accepts trailing slash variants`() {
         #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/settings/usage/"))
         #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/usage/"))
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/analytics/"))
     }
 
     @Test

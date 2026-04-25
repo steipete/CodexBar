@@ -78,6 +78,7 @@ enum ProviderChoice: String, AppEnum {
         case .windsurf: return nil // Windsurf not yet supported in widgets
         case .perplexity: return nil // Perplexity not yet supported in widgets
         case .abacus: return nil // Abacus AI not yet supported in widgets
+        case .mistral: return nil // Mistral not yet supported in widgets
         }
     }
 }
@@ -100,7 +101,7 @@ struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider"
     static let description = IntentDescription("Select the provider to display in the widget.")
 
-    @Parameter(title: "Provider")
+    @Parameter(title: "Provider", default: .codex)
     var provider: ProviderChoice
 
     init() {
@@ -132,10 +133,10 @@ struct CompactMetricSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider + Metric"
     static let description = IntentDescription("Select the provider and metric to display.")
 
-    @Parameter(title: "Provider")
+    @Parameter(title: "Provider", default: .codex)
     var provider: ProviderChoice
 
-    @Parameter(title: "Metric")
+    @Parameter(title: "Metric", default: .credits)
     var metric: CompactMetric
 
     init() {
@@ -251,10 +252,11 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: CompactMetricSelectionIntent, in context: Context) async -> CodexBarCompactEntry {
         let provider = configuration.provider.provider
+        let metric = configuration.metric
         return CodexBarCompactEntry(
             date: Date(),
             provider: provider,
-            metric: configuration.metric,
+            metric: metric,
             snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot())
     }
 
@@ -263,11 +265,12 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
         in context: Context) async -> Timeline<CodexBarCompactEntry>
     {
         let provider = configuration.provider.provider
+        let metric = configuration.metric
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let entry = CodexBarCompactEntry(
             date: Date(),
             provider: provider,
-            metric: configuration.metric,
+            metric: metric,
             snapshot: snapshot)
         let refresh = Date().addingTimeInterval(30 * 60)
         return Timeline(entries: [entry], policy: .after(refresh))

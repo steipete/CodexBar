@@ -407,7 +407,7 @@ public struct CursorStatusSnapshot: Sendable {
                 used: resolvedOnDemandUsed,
                 limit: resolvedOnDemandLimit ?? 0,
                 currencyCode: "USD",
-                period: "monthly",
+                period: "Monthly",
                 resetsAt: self.billingCycleEnd,
                 updatedAt: Date())
         } else {

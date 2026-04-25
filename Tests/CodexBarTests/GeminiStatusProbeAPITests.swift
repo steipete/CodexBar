@@ -231,7 +231,7 @@ struct GeminiStatusProbeAPITests {
         setenv("PATH", pathValue, 1)
 
         let previousGeminiPath = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
-        unsetenv("GEMINI_CLI_PATH")
+        setenv("GEMINI_CLI_PATH", binURL.path, 1)
         defer {
             if let previousPath {
                 setenv("PATH", previousPath, 1)

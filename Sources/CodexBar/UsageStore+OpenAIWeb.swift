@@ -921,6 +921,7 @@ extension UsageStore {
                     result = try await importer.importBestCookies(
                         intoAccountEmail: normalizedTarget,
                         allowAnyAccount: allowAnyAccount,
+                        preferCachedCookieHeader: !force,
                         cacheScope: cacheScope,
                         logger: log)
                 case .off:

@@ -1,6 +1,26 @@
 # Changelog
 
-## 0.22 — Unreleased
+## 0.23 — Unreleased
+
+### Changes
+- Claude: show Designs and Daily Routines usage bars from live Claude OAuth/Web quota data, and restore the Web-mode Sonnet bar (#740). Thanks @AISupplyGuy!
+- Cursor: add an Extra usage menu bar metric for on-demand budgets (#789). Thanks @huiye98!
+- Mistral: add provider support with monthly spend tracking, browser-cookie import, manual cookies, and CLI/token-account support (#607). Thanks @welcoMattic!
+- Usage: add an opt-in confetti celebration when weekly limits reset after active use (#785). Thanks @zats!
+
+### Fixes
+- Codex: clean up cached CLI status probes during app shutdown so `codex -s read-only` workers are not orphaned after restart.
+- Menu: keep merged-menu cards, switcher rows, wrapped status text, and hosted chart submenus aligned with the real AppKit menu width so menus no longer grow oversized or show narrower chart submenus after width changes. Thanks @ngutman!
+- Widgets: package App Intents metadata for the widget extension and use configuration defaults so configurable widgets load correctly in WidgetKit (#783). Thanks @ngutman and @vincentyangch!
+
+## 0.22 — 2026-04-21
+
+### Highlights
+- Codex: restore OpenAI web dashboard fetching on the new analytics route and tighten hidden WebView reuse/expiry.
+- Synthetic: parse live quota payloads for five-hour, weekly, and search limits, including continuous reset/regeneration details (#732). Thanks @baanish!
+- Antigravity: restore account/quota probing across newer localhost endpoint/token layouts and retry paths (#727). Thanks @icey-zhang!
+- Menu: add standard shortcuts for Refresh, Settings, and Quit while the status menu is open (#737). Thanks @anirudhvee!
+- Widgets: migrate app-group sharing to the Team-ID-prefixed container and carry widget state across the move (#701). Thanks @ngutman!
 
 ### Providers & Usage
 - Synthetic: parse live five-hour, weekly, and search quota payloads, including continuous reset/regeneration details (#732). Thanks @baanish!
@@ -8,8 +28,10 @@
 - Gemini: discover OAuth config in fnm/Homebrew/bundled CLI layouts so expired-token refresh keeps working (#723). Thanks @Leechael!
 - Copilot: open the complete device-login verification URL when available so the browser flow carries the user code (#739). Thanks @skhe!
 - Alibaba: update the China mainland Coding Plan endpoint and browser-cookie domain while keeping older domains as fallbacks (#712). Thanks @hezhongtang!
+- Codex: restore OpenAI web dashboard fetching on the new analytics route and tighten hidden WebView reuse/expiry. @ratulsarna
 
 ### Menu & Settings
+- Menu: show and handle standard shortcuts for Refresh (⌘R), Settings (⌘,), and Quit (⌘Q) while the status menu is open (#737). Thanks @anirudhvee!
 - Widgets: migrate app-group sharing to the Team-ID-prefixed container and carry widget state across the move (#701). Thanks @ngutman!
 - Settings: fix provider-sidebar clipping on macOS Tahoe and resize the Preferences window when switching tabs (#580). Thanks @chadneal!
 

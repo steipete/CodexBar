@@ -63,6 +63,16 @@ struct CLIWebFallbackTests {
     }
 
     @Test
+    func `codex retries fresh browser import for missing usage and no data`() {
+        #expect(CodexWebDashboardStrategy.shouldRetryWithFreshBrowserImport(
+            after: OpenAIWebCodexError.missingUsage))
+        #expect(CodexWebDashboardStrategy.shouldRetryWithFreshBrowserImport(
+            after: OpenAIDashboardFetcher.FetchError.noDashboardData(body: "missing")))
+        #expect(!CodexWebDashboardStrategy.shouldRetryWithFreshBrowserImport(
+            after: OpenAIDashboardFetcher.FetchError.loginRequired))
+    }
+
+    @Test
     func `codex display only falls back in auto`() {
         let strategy = CodexWebDashboardStrategy()
         let decision = self.makeCodexDisplayOnlyDecision()

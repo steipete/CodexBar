@@ -198,6 +198,26 @@ extension StatusItemController {
         item.button?.performClick(nil)
     }
 
+    func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {
+        let item: NSStatusItem = if self.shouldMergeIcons {
+            self.statusItem
+        } else if let provider, let existing = self.statusItems[provider], existing.isVisible {
+            existing
+        } else {
+            self.lazyStatusItem(for: provider ?? .codex)
+        }
+
+        guard let button = item.button,
+              let window = button.window
+        else {
+            return nil
+        }
+
+        let buttonFrameInWindow = button.convert(button.bounds, to: nil)
+        let screenFrame = window.convertToScreen(buttonFrameInWindow)
+        return CGPoint(x: screenFrame.midX, y: screenFrame.midY)
+    }
+
     private func openSettings(tab: PreferencesTab) {
         DispatchQueue.main.async {
             self.preferencesSelection.tab = tab

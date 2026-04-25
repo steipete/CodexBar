@@ -17,6 +17,8 @@ enum MenuBarMetricWindowResolver {
     {
         guard let snapshot else { return nil }
         switch preference {
+        case .extraUsage:
+            return Self.extraUsageWindow(snapshot: snapshot)
         case .tertiary:
             return Self.window(in: snapshot, following: Self.tertiaryOrder(for: provider))
         case .primary:
@@ -140,5 +142,15 @@ enum MenuBarMetricWindowResolver {
         let windows = [primary, secondary, tertiary].compactMap(\.self)
         guard !windows.isEmpty else { return nil }
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
+    }
+
+    private static func extraUsageWindow(snapshot: UsageSnapshot?) -> RateWindow? {
+        guard let cost = snapshot?.providerCost, cost.limit > 0 else { return nil }
+        let usedPercent = max(0, min(100, (cost.used / cost.limit) * 100))
+        return RateWindow(
+            usedPercent: usedPercent,
+            windowMinutes: nil,
+            resetsAt: cost.resetsAt,
+            resetDescription: nil)
     }
 }

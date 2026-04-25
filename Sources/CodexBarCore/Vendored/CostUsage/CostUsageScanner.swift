@@ -236,7 +236,7 @@ enum CostUsageScanner {
         case .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba, .factory, .copilot,
              .minimax, .kilo, .kiro, .kimi,
              .kimik2, .augment, .jetbrains, .amp, .ollama, .synthetic, .openrouter, .warp, .windsurf, .perplexity,
-             .abacus:
+             .abacus, .mistral:
             return emptyReport
         }
     }

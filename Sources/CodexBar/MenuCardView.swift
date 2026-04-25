@@ -965,18 +965,6 @@ extension UsageMenuCardView.Model {
                 percentStyle: percentStyle,
                 zaiTimeDetail: zaiTimeDetail))
         }
-        if input.provider == .kilo,
-           metrics.contains(where: { $0.id == "primary" }),
-           metrics.contains(where: { $0.id == "secondary" })
-        {
-            metrics.sort { lhs, rhs in
-                let kiloOrder: [String: Int] = [
-                    "secondary": 0,
-                    "primary": 1,
-                ]
-                return (kiloOrder[lhs.id] ?? Int.max) < (kiloOrder[rhs.id] ?? Int.max)
-            }
-        }
         if input.metadata.supportsOpus, let opus = snapshot.tertiary {
             var tertiaryDetailText: String?
             if input.provider == .alibaba,
@@ -1003,6 +991,39 @@ extension UsageMenuCardView.Model {
                 detailRightText: nil,
                 pacePercent: nil,
                 paceOnTop: true))
+        }
+        if let extraRateWindows = snapshot.extraRateWindows {
+            metrics.append(contentsOf: extraRateWindows.map { namedWindow in
+                Metric(
+                    id: namedWindow.id,
+                    title: namedWindow.title,
+                    percent: Self.clamped(
+                        input.usageBarsShowUsed
+                            ? namedWindow.window.usedPercent
+                            : namedWindow.window.remainingPercent),
+                    percentStyle: percentStyle,
+                    resetText: Self.resetText(
+                        for: namedWindow.window,
+                        style: input.resetTimeDisplayStyle,
+                        now: input.now),
+                    detailText: nil,
+                    detailLeftText: nil,
+                    detailRightText: nil,
+                    pacePercent: nil,
+                    paceOnTop: true)
+            })
+        }
+        if input.provider == .kilo,
+           metrics.contains(where: { $0.id == "primary" }),
+           metrics.contains(where: { $0.id == "secondary" })
+        {
+            metrics.sort { lhs, rhs in
+                let kiloOrder: [String: Int] = [
+                    "secondary": 0,
+                    "primary": 1,
+                ]
+                return (kiloOrder[lhs.id] ?? Int.max) < (kiloOrder[rhs.id] ?? Int.max)
+            }
         }
 
         if let codexProjection = input.codexProjection,
@@ -1048,7 +1069,7 @@ extension UsageMenuCardView.Model {
         {
             primaryDetailText = detail
         }
-        if input.provider == .alibaba,
+        if input.provider == .alibaba || input.provider == .mistral,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {

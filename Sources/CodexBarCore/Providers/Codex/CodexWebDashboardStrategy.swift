@@ -150,15 +150,43 @@ extension CodexWebDashboardStrategy {
         let log: @MainActor (String) -> Void = { line in
             logger.append(line)
         }
-        let result = try await Self.fetchOpenAIWebDashboard(
-            context: context,
-            options: options,
-            browserDetection: browserDetection,
-            logger: log)
-        return try Self.makeAuthorizedDashboardResult(
-            dashboard: result.dashboard,
-            context: context,
-            routingTargetEmail: result.routingTargetEmail)
+        do {
+            let result = try await Self.fetchOpenAIWebDashboard(
+                context: context,
+                options: options,
+                browserDetection: browserDetection,
+                preferCachedCookieHeader: true,
+                logger: log)
+            return try Self.makeAuthorizedDashboardResult(
+                dashboard: result.dashboard,
+                context: context,
+                routingTargetEmail: result.routingTargetEmail)
+        } catch {
+            guard Self.shouldRetryWithFreshBrowserImport(after: error) else {
+                throw error
+            }
+            log("Retrying OpenAI web dashboard with a fresh browser cookie import.")
+            let result = try await Self.fetchOpenAIWebDashboard(
+                context: context,
+                options: options,
+                browserDetection: browserDetection,
+                preferCachedCookieHeader: false,
+                logger: log)
+            return try Self.makeAuthorizedDashboardResult(
+                dashboard: result.dashboard,
+                context: context,
+                routingTargetEmail: result.routingTargetEmail)
+        }
+    }
+
+    nonisolated static func shouldRetryWithFreshBrowserImport(after error: Error) -> Bool {
+        if error is OpenAIWebCodexError {
+            return error as? OpenAIWebCodexError == .missingUsage
+        }
+        if case OpenAIDashboardFetcher.FetchError.noDashboardData = error {
+            return true
+        }
+        return false
     }
 
     @MainActor
@@ -222,6 +250,7 @@ extension CodexWebDashboardStrategy {
         context: ProviderFetchContext,
         options: OpenAIWebOptions,
         browserDetection: BrowserDetection,
+        preferCachedCookieHeader: Bool,
         logger: @MainActor @escaping (String) -> Void) async throws -> OpenAIWebDashboardFetchResult
     {
         let auth = context.fetcher.loadAuthBackedCodexAccount()
@@ -232,6 +261,7 @@ extension CodexWebDashboardStrategy {
             .importBestCookies(
                 intoAccountEmail: routingTargetEmail,
                 allowAnyAccount: allowAnyAccount,
+                preferCachedCookieHeader: preferCachedCookieHeader,
                 logger: logger)
         let effectiveEmail = routingTargetEmail ?? importResult.signedInEmail?
             .trimmingCharacters(in: .whitespacesAndNewlines)
