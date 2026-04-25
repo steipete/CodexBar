@@ -651,6 +651,7 @@ public struct FactoryStatusProbe: Sendable {
             } catch {
                 if case FactoryStatusProbeError.notLoggedIn = error {
                     CookieHeaderCache.clear(provider: .factory)
+                    await FactorySessionStore.shared.clearSession()
                 }
                 lastError = error
             }

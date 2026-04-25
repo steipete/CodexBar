@@ -5,6 +5,58 @@ import Testing
 @Suite(.serialized)
 struct FactoryStatusProbeFetchTests {
     @Test
+    func `clears stored Factory session when cached header is not logged in`() async throws {
+        let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(FactoryStubURLProtocol.self)
+            }
+            FactoryStubURLProtocol.handler = nil
+        }
+
+        FactoryStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 401)
+        }
+
+        let cookie = try #require(HTTPCookie(properties: [
+            .domain: "app.factory.ai",
+            .path: "/",
+            .name: "session",
+            .value: "stale-session",
+        ]))
+
+        await FactorySessionStore.shared.clearSession()
+        CookieHeaderCache.store(provider: .factory, cookieHeader: "session=stale-cache", sourceLabel: "Chrome")
+        await FactorySessionStore.shared.setCookies([cookie])
+        await FactorySessionStore.shared.setBearerToken("stale-bearer")
+        await FactorySessionStore.shared.setRefreshToken("stale-refresh")
+        defer {
+            CookieHeaderCache.clear(provider: .factory)
+        }
+
+        let probe = FactoryStatusProbe(
+            timeout: 0.1,
+            browserDetection: BrowserDetection(
+                homeDirectory: "/tmp/codexbar-empty-browser-home",
+                cacheTTL: 0,
+                fileExists: { _ in false },
+                directoryContents: { _ in nil }))
+
+        do {
+            _ = try await probe.fetch()
+        } catch FactoryStatusProbeError.notLoggedIn {
+        } catch FactoryStatusProbeError.noSessionCookie {
+        } catch {}
+
+        #expect(CookieHeaderCache.load(provider: .factory) == nil)
+        #expect(await FactorySessionStore.shared.getCookies().isEmpty)
+        #expect(await FactorySessionStore.shared.getBearerToken() == nil)
+        #expect(await FactorySessionStore.shared.getRefreshToken() == nil)
+        await FactorySessionStore.shared.clearSession()
+    }
+
+    @Test
     func `fetches snapshot using cookie header override`() async throws {
         let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
         defer {
