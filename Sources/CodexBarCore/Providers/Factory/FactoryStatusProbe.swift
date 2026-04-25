@@ -421,7 +421,7 @@ public actor FactorySessionStore {
     private var sessionCookies: [HTTPCookie] = []
     private var bearerToken: String?
     private var refreshToken: String?
-    private let fileURL: URL
+    private var fileURL: URL
     private var didLoadFromDisk = false
 
     private init() {
@@ -491,6 +491,15 @@ public actor FactorySessionStore {
         self.bearerToken = nil
         self.refreshToken = nil
         self.didLoadFromDisk = false
+    }
+
+    func useFileURLForTesting(_ fileURL: URL) {
+        self.fileURL = fileURL
+        self.sessionCookies = []
+        self.bearerToken = nil
+        self.refreshToken = nil
+        self.didLoadFromDisk = false
+        try? FileManager.default.removeItem(at: fileURL)
     }
 
     private func saveToDisk() {
@@ -666,7 +675,6 @@ public struct FactoryStatusProbe: Sendable {
             } catch {
                 if case FactoryStatusProbeError.notLoggedIn = error {
                     CookieHeaderCache.clear(provider: .factory)
-                    await FactorySessionStore.shared.clearCookies()
                 }
                 lastError = error
             }
@@ -748,8 +756,8 @@ public struct FactoryStatusProbe: Sendable {
             return try await .success(self.fetchWithCookies(storedCookies, logger: logger))
         } catch {
             if case FactoryStatusProbeError.notLoggedIn = error {
-                await FactorySessionStore.shared.clearSession()
-                logger("Stored session invalid, cleared")
+                await FactorySessionStore.shared.clearCookies()
+                logger("Stored session cookies invalid, cleared")
             } else {
                 logger("Stored session failed: \(error.localizedDescription)")
             }

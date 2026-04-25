@@ -5,7 +5,103 @@ import Testing
 @Suite(.serialized)
 struct FactoryStatusProbeFetchTests {
     @Test
-    func `preserves stored Factory refresh token when cached header is not logged in`() async throws {
+    func `keeps stored Factory cookies available when cached header is not logged in`() async throws {
+        let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(FactoryStubURLProtocol.self)
+            }
+            FactoryStubURLProtocol.handler = nil
+            FactoryStubURLProtocol.requests = []
+        }
+        FactoryStubURLProtocol.requests = []
+
+        FactoryStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.host == "app.factory.ai",
+               url.path == "/api/app/auth/me",
+               request.value(forHTTPHeaderField: "Cookie")?.contains("stale-cache") == true
+            {
+                return Self.makeResponse(url: url, body: "{}", statusCode: 401)
+            }
+            if url.host == "api.factory.ai", url.path == "/api/app/auth/me" {
+                let body = """
+                {
+                  "organization": {
+                    "id": "org_1",
+                    "name": "Acme",
+                    "subscription": {
+                      "factoryTier": "team",
+                      "orbSubscription": {
+                        "plan": { "name": "Team", "id": "plan_1" },
+                        "status": "active"
+                      }
+                    }
+                  }
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            if url.host == "api.factory.ai", url.path == "/api/organization/subscription/usage" {
+                let body = """
+                {
+                  "usage": {
+                    "standard": {
+                      "userTokens": 100,
+                      "totalAllowance": 1000
+                    }
+                  },
+                  "userId": "user-1"
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        let cookie = try #require(HTTPCookie(properties: [
+            .domain: "app.factory.ai",
+            .path: "/",
+            .name: "session",
+            .value: "valid-session",
+        ]))
+
+        let sessionFile = try await Self.isolateFactorySessionStore()
+        defer {
+            try? FileManager.default.removeItem(at: sessionFile)
+        }
+
+        await FactorySessionStore.shared.clearSession()
+        CookieHeaderCache.store(provider: .factory, cookieHeader: "session=stale-cache", sourceLabel: "Chrome")
+        await FactorySessionStore.shared.setCookies([cookie])
+        await FactorySessionStore.shared.resetInMemoryForTesting()
+        defer {
+            CookieHeaderCache.clear(provider: .factory)
+        }
+
+        let probe = FactoryStatusProbe(
+            timeout: 0.1,
+            browserDetection: BrowserDetection(
+                homeDirectory: "/tmp/codexbar-empty-browser-home",
+                cacheTTL: 0,
+                fileExists: { _ in false },
+                directoryContents: { _ in nil }))
+
+        let snapshot = try await probe.fetch()
+
+        #expect(CookieHeaderCache.load(provider: .factory) == nil)
+        #expect(snapshot.userId == "user-1")
+        #expect(await FactorySessionStore.shared.getCookies().map(\.value) == ["valid-session"])
+        #expect(Self.requestTrace() == [
+            "GET app.factory.ai/api/app/auth/me",
+            "GET api.factory.ai/api/app/auth/me",
+            "GET api.factory.ai/api/organization/subscription/usage?useCache=true",
+        ])
+        await FactorySessionStore.shared.clearSession()
+    }
+
+    @Test
+    func `preserves stored Factory refresh token when stored cookies are not logged in`() async throws {
         let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
         defer {
             if registered {
@@ -19,6 +115,12 @@ struct FactoryStatusProbeFetchTests {
         FactoryStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             if url.host == "app.factory.ai", url.path == "/api/app/auth/me" {
+                return Self.makeResponse(url: url, body: "{}", statusCode: 401)
+            }
+            if url.host == "api.factory.ai",
+               url.path == "/api/app/auth/me",
+               request.value(forHTTPHeaderField: "Cookie")?.contains("stale-session") == true
+            {
                 return Self.makeResponse(url: url, body: "{}", statusCode: 401)
             }
             if url.host == "api.workos.com", url.path == "/user_management/authenticate" {
@@ -76,6 +178,11 @@ struct FactoryStatusProbeFetchTests {
             .value: "stale-session",
         ]))
 
+        let sessionFile = try await Self.isolateFactorySessionStore()
+        defer {
+            try? FileManager.default.removeItem(at: sessionFile)
+        }
+
         await FactorySessionStore.shared.clearSession()
         CookieHeaderCache.store(provider: .factory, cookieHeader: "session=stale-cache", sourceLabel: "Chrome")
         await FactorySessionStore.shared.setCookies([cookie])
@@ -101,6 +208,8 @@ struct FactoryStatusProbeFetchTests {
         #expect(await FactorySessionStore.shared.getBearerToken() == "fresh-access")
         #expect(await FactorySessionStore.shared.getRefreshToken() == "fresh-refresh")
         #expect(Self.requestTrace() == [
+            "GET app.factory.ai/api/app/auth/me",
+            "GET api.factory.ai/api/app/auth/me",
             "GET app.factory.ai/api/app/auth/me",
             "POST api.workos.com/user_management/authenticate",
             "GET api.factory.ai/api/app/auth/me",
@@ -204,6 +313,15 @@ struct FactoryStatusProbeFetchTests {
             let query = url.query.map { "?\($0)" } ?? ""
             return "\(request.httpMethod ?? "?") \(url.host ?? "unknown")\(url.path)\(query)"
         }
+    }
+
+    private static func isolateFactorySessionStore() async throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-factory-tests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileURL = directory.appendingPathComponent("\(UUID().uuidString).json")
+        await FactorySessionStore.shared.useFileURLForTesting(fileURL)
+        return fileURL
     }
 
     private static func requestJSONBody(from request: URLRequest) throws -> [String: Any] {
