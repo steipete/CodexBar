@@ -402,7 +402,8 @@ public enum FactoryStatusProbeError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .notLoggedIn:
-            "No usable Droid session found. Log in to app.factory.ai in \(factoryCookieImportOrder.loginHint), then refresh Droid."
+            "No usable Droid session found. Log in to app.factory.ai in \(factoryCookieImportOrder.loginHint), " +
+                "then refresh Droid."
         case let .networkError(msg):
             "Factory API error: \(msg)"
         case let .parseFailed(msg):
