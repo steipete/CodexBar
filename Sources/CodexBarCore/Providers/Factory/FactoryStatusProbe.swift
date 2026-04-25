@@ -444,6 +444,13 @@ public actor FactorySessionStore {
         return self.sessionCookies
     }
 
+    public func clearCookies() {
+        self.loadFromDiskIfNeeded()
+        self.didLoadFromDisk = true
+        self.sessionCookies = []
+        self.saveToDisk()
+    }
+
     public func setBearerToken(_ token: String?) {
         self.didLoadFromDisk = true
         self.bearerToken = token
@@ -477,6 +484,13 @@ public actor FactorySessionStore {
     public func hasValidSession() -> Bool {
         self.loadFromDiskIfNeeded()
         return !self.sessionCookies.isEmpty || self.bearerToken != nil || self.refreshToken != nil
+    }
+
+    func resetInMemoryForTesting() {
+        self.sessionCookies = []
+        self.bearerToken = nil
+        self.refreshToken = nil
+        self.didLoadFromDisk = false
     }
 
     private func saveToDisk() {
@@ -516,6 +530,7 @@ public actor FactorySessionStore {
         guard !payload.isEmpty,
               let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted])
         else {
+            try? FileManager.default.removeItem(at: self.fileURL)
             return
         }
         try? data.write(to: self.fileURL)
@@ -651,7 +666,7 @@ public struct FactoryStatusProbe: Sendable {
             } catch {
                 if case FactoryStatusProbeError.notLoggedIn = error {
                     CookieHeaderCache.clear(provider: .factory)
-                    await FactorySessionStore.shared.clearSession()
+                    await FactorySessionStore.shared.clearCookies()
                 }
                 lastError = error
             }
@@ -660,19 +675,19 @@ public struct FactoryStatusProbe: Sendable {
         // Filter to only installed browsers to avoid unnecessary keychain prompts
         let installedChromiumAndFirefox = [.chrome, .firefox].cookieImportCandidates(using: self.browserDetection)
 
-        let attempts: [FetchAttemptResult] = await [
-            self.attemptStoredCookies(logger: log),
-            self.attemptStoredBearer(logger: log),
-            self.attemptStoredRefreshToken(logger: log),
-            self.attemptLocalStorageTokens(logger: log),
-            self.attemptBrowserCookies(logger: log, sources: [.safari]),
-            self.attemptWorkOSCookies(logger: log, sources: [.safari]),
-            self.attemptBrowserCookies(logger: log, sources: installedChromiumAndFirefox),
-            self.attemptWorkOSCookies(logger: log, sources: installedChromiumAndFirefox),
+        let attempts: [() async -> FetchAttemptResult] = [
+            { await self.attemptStoredCookies(logger: log) },
+            { await self.attemptStoredBearer(logger: log) },
+            { await self.attemptStoredRefreshToken(logger: log) },
+            { await self.attemptLocalStorageTokens(logger: log) },
+            { await self.attemptBrowserCookies(logger: log, sources: [.safari]) },
+            { await self.attemptWorkOSCookies(logger: log, sources: [.safari]) },
+            { await self.attemptBrowserCookies(logger: log, sources: installedChromiumAndFirefox) },
+            { await self.attemptWorkOSCookies(logger: log, sources: installedChromiumAndFirefox) },
         ]
 
-        for result in attempts {
-            switch result {
+        for attempt in attempts {
+            switch await attempt() {
             case let .success(snapshot):
                 return snapshot
             case let .failure(error):
