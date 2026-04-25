@@ -17,11 +17,18 @@ struct OverviewMenuCardRowView: View {
     let model: UsageMenuCardView.Model
     let width: CGFloat
     let onMiniMaxLayoutChange: (() -> Void)?
+    let miniMaxVisibleScreenHeight: CGFloat?
 
-    init(model: UsageMenuCardView.Model, width: CGFloat, onMiniMaxLayoutChange: (() -> Void)? = nil) {
+    init(
+        model: UsageMenuCardView.Model,
+        width: CGFloat,
+        onMiniMaxLayoutChange: (() -> Void)? = nil,
+        miniMaxVisibleScreenHeight: CGFloat? = nil)
+    {
         self.model = model
         self.width = width
         self.onMiniMaxLayoutChange = onMiniMaxLayoutChange
+        self.miniMaxVisibleScreenHeight = miniMaxVisibleScreenHeight
     }
 
     var body: some View {
@@ -36,7 +43,8 @@ struct OverviewMenuCardRowView: View {
                     showBottomDivider: false,
                     bottomPadding: 6,
                     width: self.width,
-                    onMiniMaxLayoutChange: self.onMiniMaxLayoutChange)
+                    onMiniMaxLayoutChange: self.onMiniMaxLayoutChange,
+                    miniMaxVisibleScreenHeight: self.miniMaxVisibleScreenHeight)
             }
         }
         .frame(width: self.width, alignment: .leading)

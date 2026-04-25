@@ -50,6 +50,16 @@ extension StatusItemController {
         return max(measuredWidth, Self.menuCardBaseWidth)
     }
 
+    private func menuVisibleScreenHeight(for menu: NSMenu) -> CGFloat? {
+        if let viewHeight = menu.items.lazy
+            .compactMap({ $0.view?.window?.screen?.visibleFrame.height })
+            .first
+        {
+            return viewHeight
+        }
+        return self.statusItem.button?.window?.screen?.visibleFrame.height
+    }
+
     func makeMenu() -> NSMenu {
         guard self.shouldMergeIcons else {
             return self.makeMenu(for: nil)
@@ -418,7 +428,8 @@ extension StatusItemController {
                 OverviewMenuCardRowView(
                     model: row.model,
                     width: menuWidth,
-                    onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu)),
+                    onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu),
+                    miniMaxVisibleScreenHeight: self.menuVisibleScreenHeight(for: menu)),
                 id: identifier,
                 width: menuWidth,
                 onClick: { [weak self, weak menu] in
@@ -467,7 +478,8 @@ extension StatusItemController {
                     UsageMenuCardView(
                         model: model,
                         width: context.menuWidth,
-                        onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu)),
+                        onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu),
+                        miniMaxVisibleScreenHeight: self.menuVisibleScreenHeight(for: menu)),
                     id: "menuCard",
                     width: context.menuWidth))
                 menu.addItem(.separator())
@@ -477,7 +489,8 @@ extension StatusItemController {
                         UsageMenuCardView(
                             model: model,
                             width: context.menuWidth,
-                            onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu)),
+                            onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu),
+                            miniMaxVisibleScreenHeight: self.menuVisibleScreenHeight(for: menu)),
                         id: "menuCard-\(index)",
                         width: context.menuWidth))
                     if index < cards.count - 1 {
@@ -511,7 +524,8 @@ extension StatusItemController {
             UsageMenuCardView(
                 model: model,
                 width: context.menuWidth,
-                onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu)),
+                onMiniMaxLayoutChange: self.makeMiniMaxLayoutRefreshAction(for: menu),
+                miniMaxVisibleScreenHeight: self.menuVisibleScreenHeight(for: menu)),
             id: "menuCard",
             width: context.menuWidth))
         if context.openAIContext.canShowBuyCredits {
@@ -1086,7 +1100,9 @@ extension StatusItemController {
                 model: model,
                 showBottomDivider: false,
                 bottomPadding: usageBottomPadding,
-                width: width)
+                width: width,
+                onMiniMaxLayoutChange: nil,
+                miniMaxVisibleScreenHeight: nil)
             let usageSubmenu = self.makeUsageSubmenu(
                 provider: provider,
                 snapshot: self.store.snapshot(for: provider),

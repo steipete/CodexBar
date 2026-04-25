@@ -127,23 +127,11 @@ struct UsageMenuCardView: View {
     let model: Model
     let width: CGFloat
     let onMiniMaxLayoutChange: (() -> Void)?
+    let miniMaxVisibleScreenHeight: CGFloat?
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
-    init(model: Model, width: CGFloat, onMiniMaxLayoutChange: (() -> Void)? = nil) {
-        self.model = model
-        self.width = width
-        self.onMiniMaxLayoutChange = onMiniMaxLayoutChange
-    }
-
     static func popupMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
-        if provider == .openrouter, metric.id == "primary" {
-            return "API key limit"
-        }
-        return metric.title
-    }
-
-    static func miniMaxUsageScrollMaxHeight() -> CGFloat {
-        MiniMaxUILayoutMetrics.menuUsageScrollMaxHeight(visibleScreenHeight: NSScreen.main?.visibleFrame.height)
+        provider == .openrouter && metric.id == "primary" ? "API key limit" : metric.title
     }
 
     var body: some View {
@@ -173,7 +161,10 @@ struct UsageMenuCardView: View {
                     if hasUsage {
                         Group {
                             if hasMiniMaxSections {
-                                MiniMaxCappedScrollView(maxHeight: Self.miniMaxUsageScrollMaxHeight()) {
+                                MiniMaxCappedScrollView(
+                                    maxHeight: MiniMaxUILayoutMetrics
+                                        .menuUsageScrollMaxHeight(visibleScreenHeight: self.miniMaxVisibleScreenHeight))
+                                {
                                     VStack(alignment: .leading, spacing: 12) {
                                         ForEach(self.model.metrics, id: \.id) { metric in
                                             MetricRow(
@@ -516,27 +507,17 @@ struct UsageMenuCardUsageSectionView: View {
     let bottomPadding: CGFloat
     let width: CGFloat
     let onMiniMaxLayoutChange: (() -> Void)?
+    let miniMaxVisibleScreenHeight: CGFloat?
     @Environment(\.menuItemHighlighted) private var isHighlighted
-
-    init(
-        model: UsageMenuCardView.Model,
-        showBottomDivider: Bool,
-        bottomPadding: CGFloat,
-        width: CGFloat,
-        onMiniMaxLayoutChange: (() -> Void)? = nil)
-    {
-        self.model = model
-        self.showBottomDivider = showBottomDivider
-        self.bottomPadding = bottomPadding
-        self.width = width
-        self.onMiniMaxLayoutChange = onMiniMaxLayoutChange
-    }
 
     var body: some View {
         let hasMiniMaxSections = self.model.minimaxSections?.isEmpty == false
         VStack(alignment: .leading, spacing: 12) {
             if hasMiniMaxSections {
-                MiniMaxCappedScrollView(maxHeight: UsageMenuCardView.miniMaxUsageScrollMaxHeight()) {
+                MiniMaxCappedScrollView(
+                    maxHeight: MiniMaxUILayoutMetrics
+                        .menuUsageScrollMaxHeight(visibleScreenHeight: self.miniMaxVisibleScreenHeight))
+                {
                     self.usageContent(hasMiniMaxSections: hasMiniMaxSections)
                 }
             } else {

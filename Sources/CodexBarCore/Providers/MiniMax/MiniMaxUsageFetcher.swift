@@ -647,16 +647,16 @@ enum MiniMaxUsageParser {
     }
 
     private static func modelIdentifier(row: MiniMaxModelRemains, index: Int) -> String {
-        let candidates = [
+        let primary = [
+            row.modelId,
             row.modelName,
             row.modelType,
-            row.modelId,
             row.modelTitle,
             row.displayName,
         ]
-        for candidate in candidates {
+        for candidate in primary {
             let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !trimmed.isEmpty { return trimmed }
+            if !trimmed.isEmpty { return "\(trimmed)#\(index)" }
         }
         return "model-\(index + 1)"
     }
