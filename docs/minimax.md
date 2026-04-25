@@ -85,6 +85,7 @@ either a Bearer API token or a session cookie header.
 
 - The remains API returns **one row per quota** (text, VLM, search, TTS HD, video, music, image, lyrics, coding-plan modules, etc.). CodexBar decodes **every** row into `MiniMaxUsageSnapshot.models` while keeping the **existing scalar fields** (`availablePrompts`, `usedPercent`, `resetsAt`, …) aligned with **`model_remains[0]`** for the menu bar icon / primary `UsageSnapshot`.
 - Field semantics match the existing parser: `current_interval_total_count` is the window cap, `current_interval_usage_count` is treated as **remaining** in this codebase, and **used = total − remaining** (same as before).
+- If interval counts are partially missing (for example, API omits `current_interval_usage_count`), the row keeps usage percent as **unknown** instead of coercing to `0% used` / `100% left`. Detail text can still show `—/total` when total is known.
 - Optional **weekly** columns (e.g. TTS): `current_weekly_total_count` and `current_weekly_usage_count` (weekly **remaining**, same naming convention as the interval fields). When present, the menu card shows a secondary “↳ Weekly …” line under that row.
 - When weekly fields are **absent-or-zero in aggregate** (at least one key present, and both numeric values are 0 when treating missing as 0), CodexBar treats that as **no weekly cap**: weekly quota fields are cleared and no weekly usage line is shown (avoids misleading `0/0`, `0/—`, etc.).
 - Rows are grouped in the menu card by inferred window: **5-hour** (`windowMinutes == 300`), **daily** (~24h window), **weekly** (weekly-only rows), **other**.
@@ -101,6 +102,7 @@ either a Bearer API token or a session cookie header.
 - Each grouped section (**5-hour window**, **Daily quota**, **Weekly quota**, **Other windows**) has a tappable header with a chevron. **Collapsed** headers show **`N items`** on the right. Default: **collapsed** when that section has **≥ 5** rows; **expanded** otherwise. The user’s toggle is stored in-process in `MiniMaxSectionCollapseStore` (keyed by section title); it resets on app quit.
 - Toggling a section invalidates and remeasures the hosting `NSMenuItem` view while the menu is open, so the MiniMax card **shrinks immediately when collapsing** and **grows immediately when expanding** instead of keeping the initial height.
 - This layout keeps the total `NSMenu` height bounded so app-level items below the card (e.g. Usage Dashboard, Refresh, Settings) remain reachable without relying on the menu’s own overflow chevrons.
+- In merged **Overview** mode, MiniMax section header taps (collapse/expand) are handled as in-card interactions and must not trigger the row-level provider-selection action.
 
 ## Key files
 

@@ -123,7 +123,24 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
 
     @objc private func handlePrimaryClick(_ recognizer: NSClickGestureRecognizer) {
         guard recognizer.state == .ended else { return }
+        let location = recognizer.location(in: self)
+        if let hitView = self.hitTest(location),
+           self.shouldSuppressRowSelection(for: hitView)
+        {
+            return
+        }
         self.onClick?()
+    }
+
+    private func shouldSuppressRowSelection(for hitView: NSView) -> Bool {
+        var current: NSView? = hitView
+        while let view = current, view !== self {
+            if view is NSButton || view is NSControl {
+                return true
+            }
+            current = view.superview
+        }
+        return false
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {

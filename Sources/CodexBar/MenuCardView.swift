@@ -97,7 +97,7 @@ struct UsageMenuCardView: View {
         struct MiniMaxRow: Identifiable, Equatable {
             let id: String
             let title: String
-            let percent: Double
+            let percent: Double?
             let percentStyle: PercentStyle
             let resetText: String?
             let detailText: String?
@@ -619,16 +619,13 @@ private struct CreditsBarContent: View {
     let hintCopyText: String?
     let progressColor: Color
     @Environment(\.menuItemHighlighted) private var isHighlighted
-
     private var percentLeft: Double? {
         guard let creditsRemaining else { return nil }
-        let percent = (creditsRemaining / Self.fullScaleTokens) * 100
-        return min(100, max(0, percent))
+        return min(100, max(0, (creditsRemaining / Self.fullScaleTokens) * 100))
     }
 
     private var scaleText: String {
-        let scale = UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))
-        return "\(scale) tokens"
+        "\(UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))) tokens"
     }
 
     var body: some View {

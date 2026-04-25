@@ -93,15 +93,28 @@ struct MiniMaxTokenPlanRowView: View {
                     .font(.caption2)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
             }
-            UsageProgressBar(
-                percent: self.row.percent,
-                tint: self.progressColor,
-                accessibilityLabel: self.row.percentStyle.accessibilityLabel)
-            HStack(alignment: .firstTextBaseline) {
-                Text(String(format: "%.0f%% %@", self.row.percent, self.row.percentStyle.labelSuffix))
-                    .font(.caption2)
-                Spacer()
-                if let reset = self.row.resetText {
+            if let percent = self.row.percent {
+                UsageProgressBar(
+                    percent: percent,
+                    tint: self.progressColor,
+                    accessibilityLabel: self.row.percentStyle.accessibilityLabel)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(String(format: "%.0f%% %@", percent, self.row.percentStyle.labelSuffix))
+                        .font(.caption2)
+                    Spacer()
+                    if let reset = self.row.resetText {
+                        Text(reset)
+                            .font(.caption2)
+                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                            .lineLimit(2)
+                    }
+                }
+            } else if let reset = self.row.resetText {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Usage unavailable")
+                        .font(.caption2)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    Spacer()
                     Text(reset)
                         .font(.caption2)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))

@@ -644,19 +644,31 @@ private struct ProviderMiniMaxRowInlineView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                UsageProgressBar(
-                    percent: self.row.percent,
-                    tint: self.progressColor,
-                    accessibilityLabel: self.row.percentStyle.accessibilityLabel)
-                    .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
+                if let percent = self.row.percent {
+                    UsageProgressBar(
+                        percent: percent,
+                        tint: self.progressColor,
+                        accessibilityLabel: self.row.percentStyle.accessibilityLabel)
+                        .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
 
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(String(format: "%.0f%% %@", self.row.percent, self.row.percentStyle.labelSuffix))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                    Spacer(minLength: 8)
-                    if let resetText = self.row.resetText, !resetText.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(String(format: "%.0f%% %@", percent, self.row.percentStyle.labelSuffix))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                        Spacer(minLength: 8)
+                        if let resetText = self.row.resetText, !resetText.isEmpty {
+                            Text(resetText)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else if let resetText = self.row.resetText, !resetText.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Usage unavailable")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
                         Text(resetText)
                             .font(.footnote)
                             .foregroundStyle(.secondary)

@@ -46,12 +46,12 @@ extension UsageMenuCardView.Model {
 
     static func miniMaxRow(model: MiniMaxModelUsage, input: Input) -> MiniMaxRow {
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
-        let used = model.usedPercent ?? 0
-        let barPercent = percentStyle == .used ? used : (100 - used)
+        let used = model.usedPercent
+        let barPercent = used.map { percentStyle == .used ? $0 : (100 - $0) }
         let resetText: String? = if let at = model.resetsAt {
             UsageFormatter.resetLine(
                 for: RateWindow(
-                    usedPercent: used,
+                    usedPercent: used ?? 0,
                     windowMinutes: model.windowMinutes,
                     resetsAt: at,
                     resetDescription: nil),
@@ -65,7 +65,7 @@ extension UsageMenuCardView.Model {
         return MiniMaxRow(
             id: model.identifier,
             title: model.displayName,
-            percent: Self.clamped(barPercent),
+            percent: barPercent.map { Self.clamped($0) },
             percentStyle: percentStyle,
             resetText: resetText,
             detailText: detailText,

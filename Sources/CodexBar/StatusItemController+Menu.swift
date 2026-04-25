@@ -988,7 +988,7 @@ extension StatusItemController {
             let represented = item.representedObject as? String
             let isOverviewRow = represented?.hasPrefix(Self.overviewRowIdentifierPrefix) == true
             let isMenuCard = represented?.hasPrefix("menuCard") == true
-            guard (isOverviewRow || isMenuCard), let view = item.view else { continue }
+            guard isOverviewRow || isMenuCard, let view = item.view else { continue }
             // Use instance-based remeasure here so dynamic collapse/expand state can shrink as well as grow.
             let height = self.remeasuredMenuCardHeight(for: view, width: width)
             view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
