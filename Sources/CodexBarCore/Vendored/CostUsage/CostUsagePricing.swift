@@ -112,6 +112,16 @@ enum CostUsagePricing {
             outputCostPerToken: 1.8e-4,
             cacheReadInputCostPerToken: nil,
             displayLabel: nil),
+        "gpt-5.5": CodexPricing(
+            inputCostPerToken: 5e-6,
+            outputCostPerToken: 3e-5,
+            cacheReadInputCostPerToken: 5e-7,
+            displayLabel: nil),
+        "gpt-5.5-pro": CodexPricing(
+            inputCostPerToken: 3e-5,
+            outputCostPerToken: 1.8e-4,
+            cacheReadInputCostPerToken: nil,
+            displayLabel: nil),
     ]
 
     private static let claude: [String: ClaudePricing] = [
@@ -175,7 +185,27 @@ enum CostUsagePricing {
             outputCostPerTokenAboveThreshold: nil,
             cacheCreationInputCostPerTokenAboveThreshold: nil,
             cacheReadInputCostPerTokenAboveThreshold: nil),
+        "claude-opus-4-7": ClaudePricing(
+            inputCostPerToken: 5e-6,
+            outputCostPerToken: 2.5e-5,
+            cacheCreationInputCostPerToken: 6.25e-6,
+            cacheReadInputCostPerToken: 5e-7,
+            thresholdTokens: nil,
+            inputCostPerTokenAboveThreshold: nil,
+            outputCostPerTokenAboveThreshold: nil,
+            cacheCreationInputCostPerTokenAboveThreshold: nil,
+            cacheReadInputCostPerTokenAboveThreshold: nil),
         "claude-sonnet-4-5": ClaudePricing(
+            inputCostPerToken: 3e-6,
+            outputCostPerToken: 1.5e-5,
+            cacheCreationInputCostPerToken: 3.75e-6,
+            cacheReadInputCostPerToken: 3e-7,
+            thresholdTokens: 200_000,
+            inputCostPerTokenAboveThreshold: 6e-6,
+            outputCostPerTokenAboveThreshold: 2.25e-5,
+            cacheCreationInputCostPerTokenAboveThreshold: 7.5e-6,
+            cacheReadInputCostPerTokenAboveThreshold: 6e-7),
+        "claude-sonnet-4-6": ClaudePricing(
             inputCostPerToken: 3e-6,
             outputCostPerToken: 1.5e-5,
             cacheCreationInputCostPerToken: 3.75e-6,

@@ -73,6 +73,80 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
     }
 
     @Test
+    func `probe waits briefly after reaching usage route without email or dashboard signals`() {
+        let now = Date()
+        let shouldWait = OpenAIDashboardFetcher.shouldWaitForProbeReadiness(.init(
+            now: now,
+            usageRouteSeenAt: now.addingTimeInterval(-1.0),
+            dashboardSignalSeenAt: nil,
+            signedInEmail: nil,
+            hasDashboardSignal: false))
+        #expect(shouldWait == true)
+    }
+
+    @Test
+    func `probe waits briefly for email after dashboard signals appear`() {
+        let now = Date()
+        let shouldWait = OpenAIDashboardFetcher.shouldWaitForProbeReadiness(.init(
+            now: now,
+            usageRouteSeenAt: now.addingTimeInterval(-3.0),
+            dashboardSignalSeenAt: now.addingTimeInterval(-1.0),
+            signedInEmail: nil,
+            hasDashboardSignal: true))
+        #expect(shouldWait == true)
+    }
+
+    @Test
+    func `probe stops waiting once signed in email is available`() {
+        let now = Date()
+        let shouldWait = OpenAIDashboardFetcher.shouldWaitForProbeReadiness(.init(
+            now: now,
+            usageRouteSeenAt: now.addingTimeInterval(-0.2),
+            dashboardSignalSeenAt: now.addingTimeInterval(-0.2),
+            signedInEmail: "user@example.com",
+            hasDashboardSignal: true))
+        #expect(shouldWait == false)
+    }
+
+    @Test
+    func `probe handoff preserves page only after confirmed signed in email`() {
+        let result = OpenAIDashboardFetcher.ProbeResult(
+            href: "https://chatgpt.com/codex/cloud/settings/analytics#usage",
+            loginRequired: false,
+            workspacePicker: false,
+            cloudflareInterstitial: false,
+            signedInEmail: "user@example.com",
+            bodyText: "Credits remaining 42")
+
+        #expect(OpenAIDashboardFetcher.shouldPreserveLoadedPageAfterProbe(result))
+    }
+
+    @Test
+    func `probe handoff does not preserve timed out usage page without email`() {
+        let result = OpenAIDashboardFetcher.ProbeResult(
+            href: "https://chatgpt.com/codex/cloud/settings/analytics#usage",
+            loginRequired: false,
+            workspacePicker: false,
+            cloudflareInterstitial: false,
+            signedInEmail: nil,
+            bodyText: "Codex Analytics")
+
+        #expect(!OpenAIDashboardFetcher.shouldPreserveLoadedPageAfterProbe(result))
+    }
+
+    @Test
+    func `probe grace restarts after route reload resets readiness timestamps`() {
+        let now = Date()
+        let shouldWait = OpenAIDashboardFetcher.shouldWaitForProbeReadiness(.init(
+            now: now,
+            usageRouteSeenAt: now,
+            dashboardSignalSeenAt: nil,
+            signedInEmail: nil,
+            hasDashboardSignal: false))
+        #expect(shouldWait == true)
+    }
+
+    @Test
     func `sanitized timeout preserves positive caller deadline`() {
         #expect(OpenAIDashboardFetcher.sanitizedTimeout(60) == 60)
         #expect(OpenAIDashboardFetcher.sanitizedTimeout(25) == 25)
@@ -107,5 +181,39 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
             until: deadline,
             now: deadline.addingTimeInterval(3))
         #expect(remaining == 0)
+    }
+
+    @Test
+    func `usage route matcher accepts legacy settings route`() {
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/settings/usage"))
+    }
+
+    @Test
+    func `usage route matcher accepts cloud settings route`() {
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/usage"))
+    }
+
+    @Test
+    func `usage route matcher accepts analytics route`() {
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/analytics"))
+    }
+
+    @Test
+    func `usage route matcher accepts analytics usage hash route`() {
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/analytics#usage"))
+    }
+
+    @Test
+    func `usage route matcher accepts trailing slash variants`() {
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/settings/usage/"))
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/usage/"))
+        #expect(OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex/cloud/settings/analytics/"))
+    }
+
+    @Test
+    func `usage route matcher rejects unrelated routes`() {
+        #expect(!OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/"))
+        #expect(!OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex"))
+        #expect(!OpenAIDashboardFetcher.isUsageRoute(nil))
     }
 }

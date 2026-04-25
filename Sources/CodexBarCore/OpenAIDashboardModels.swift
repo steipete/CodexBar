@@ -120,21 +120,12 @@ extension OpenAIDashboardSnapshot {
         accountEmail: String? = nil,
         accountPlan: String? = nil) -> UsageSnapshot?
     {
-        guard let primaryLimit else { return nil }
-        let resolvedEmail = accountEmail ?? self.signedInEmail
-        let resolvedPlan = accountPlan ?? self.accountPlan
-        let identity = ProviderIdentitySnapshot(
-            providerID: provider,
-            accountEmail: resolvedEmail,
-            accountOrganization: nil,
-            loginMethod: resolvedPlan)
-        return UsageSnapshot(
-            primary: primaryLimit,
-            secondary: self.secondaryLimit,
-            tertiary: nil,
-            providerCost: nil,
-            updatedAt: self.updatedAt,
-            identity: identity)
+        CodexReconciledState.fromAttachedDashboard(
+            snapshot: self,
+            provider: provider,
+            accountEmail: accountEmail,
+            accountPlan: accountPlan)?
+            .toUsageSnapshot()
     }
 
     public func toCreditsSnapshot() -> CreditsSnapshot? {

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import SweetCookieKit
 
 #if os(macOS)
@@ -108,7 +111,7 @@ public enum CursorCookieImporter {
 
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let sources = try Self.cookieClient.records(
+            let sources = try Self.cookieClient.codexBarRecords(
                 matching: query,
                 in: browser,
                 logger: log)
@@ -404,7 +407,7 @@ public struct CursorStatusSnapshot: Sendable {
                 used: resolvedOnDemandUsed,
                 limit: resolvedOnDemandLimit ?? 0,
                 currencyCode: "USD",
-                period: "monthly",
+                period: "Monthly",
                 resetsAt: self.billingCycleEnd,
                 updatedAt: Date())
         } else {
@@ -610,15 +613,18 @@ public struct CursorStatusProbe: Sendable {
     public let baseURL: URL
     public var timeout: TimeInterval = 15.0
     private let browserDetection: BrowserDetection
+    private let urlSession: URLSession
 
     public init(
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
-        browserDetection: BrowserDetection)
+        browserDetection: BrowserDetection,
+        urlSession: URLSession = .shared)
     {
         self.baseURL = baseURL
         self.timeout = timeout
         self.browserDetection = browserDetection
+        self.urlSession = urlSession
     }
 
     /// Fetch Cursor usage with manual cookie header (for debugging).
@@ -807,11 +813,41 @@ public struct CursorStatusProbe: Sendable {
     }
 
     private func fetchWithCookieHeader(_ cookieHeader: String) async throws -> CursorStatusSnapshot {
-        async let usageSummaryTask = self.fetchUsageSummary(cookieHeader: cookieHeader)
-        async let userInfoTask = self.fetchUserInfo(cookieHeader: cookieHeader)
+        enum FetchPart: Sendable {
+            case usageSummary((CursorUsageSummary, String))
+            case userInfo(Result<CursorUserInfo, Error>)
+        }
 
-        let (usageSummary, rawJSON) = try await usageSummaryTask
-        let userInfo = try? await userInfoTask
+        var usageSummaryResult: (CursorUsageSummary, String)?
+        var userInfo: CursorUserInfo?
+
+        try await withThrowingTaskGroup(of: FetchPart.self) { group in
+            group.addTask {
+                try await .usageSummary(self.fetchUsageSummary(cookieHeader: cookieHeader))
+            }
+            group.addTask {
+                do {
+                    return try await .userInfo(.success(self.fetchUserInfo(cookieHeader: cookieHeader)))
+                } catch {
+                    return .userInfo(.failure(error))
+                }
+            }
+
+            while let result = try await group.next() {
+                switch result {
+                case let .usageSummary(value):
+                    usageSummaryResult = value
+                case let .userInfo(value):
+                    userInfo = try? value.get()
+                }
+            }
+        }
+
+        guard let usageSummaryResult else {
+            throw CursorStatusProbeError.networkError("Cursor usage summary fetch did not complete")
+        }
+
+        let (usageSummary, rawJSON) = usageSummaryResult
 
         // Fetch legacy request usage only if user has a sub ID.
         // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
@@ -847,7 +883,7 @@ public struct CursorStatusProbe: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await self.urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw CursorStatusProbeError.networkError("Invalid response")
@@ -880,7 +916,7 @@ public struct CursorStatusProbe: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await self.urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw CursorStatusProbeError.networkError("Failed to fetch user info")
@@ -901,7 +937,7 @@ public struct CursorStatusProbe: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await self.urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw CursorStatusProbeError.networkError("Failed to fetch request usage")
@@ -1025,11 +1061,13 @@ public struct CursorStatusProbe: Sendable {
     public init(
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
-        browserDetection: BrowserDetection)
+        browserDetection: BrowserDetection,
+        urlSession: URLSession = .shared)
     {
         _ = baseURL
         _ = timeout
         _ = browserDetection
+        _ = urlSession
     }
 
     public func fetch(logger: ((String) -> Void)? = nil) async throws -> CursorStatusSnapshot {

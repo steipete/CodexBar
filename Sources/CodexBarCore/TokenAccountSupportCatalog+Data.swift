@@ -30,6 +30,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .opencodego: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple OpenCode Go Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
         .factory: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Factory Cookie headers.",
@@ -64,6 +71,19 @@ extension TokenAccountSupportCatalog {
             placeholder: "Paste GitHub token…",
             injection: .environment(key: "COPILOT_API_TOKEN"),
             requiresManualCookieSource: false,
+        .abacus: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Abacus AI Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
+        .mistral: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Mistral Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
             cookieName: nil),
     ]
 }

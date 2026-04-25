@@ -164,6 +164,53 @@ struct StatusMenuCodexSwitcherTests {
     }
 
     @Test
+    func `codex switcher suppresses personal labels while preserving team workspace tooltips`() {
+        let accounts = [
+            CodexVisibleAccount(
+                id: "live:provider:account-personal",
+                email: "pl.fr@yandex.com",
+                workspaceLabel: "Personal",
+                workspaceAccountID: "account-personal",
+                storedAccountID: nil,
+                selectionSource: .liveSystem,
+                isActive: true,
+                isLive: true,
+                canReauthenticate: true,
+                canRemove: false),
+            CodexVisibleAccount(
+                id: "managed:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                email: "pl.fr@yandex.com",
+                workspaceLabel: "IDconcepts",
+                workspaceAccountID: "account-team",
+                storedAccountID: UUID(),
+                selectionSource: .managedAccount(id: UUID()),
+                isActive: false,
+                isLive: false,
+                canReauthenticate: true,
+                canRemove: true),
+        ]
+
+        let view = CodexAccountSwitcherView(
+            accounts: accounts,
+            selectedAccountID: accounts.first?.id,
+            width: 220,
+            onSelect: { _ in })
+
+        let titles = view._test_buttonTitles()
+        let toolTips = view._test_buttonToolTips()
+
+        #expect(titles.count == 2)
+        #expect(titles[0] != titles[1])
+        #expect(titles.allSatisfy { $0.lowercased().contains("pl.") })
+        #expect(titles[0].contains("|") == false)
+        #expect(titles[0].lowercased().contains("pers") == false)
+        #expect(titles[1].lowercased().contains("id"))
+        #expect(toolTips == accounts.map(\.menuDisplayName))
+        #expect(accounts[0].displayName == "pl.fr@yandex.com — Personal")
+        #expect(accounts[0].menuDisplayName == "pl.fr@yandex.com")
+    }
+
+    @Test
     func `codex menu switcher selection activates the visible managed account`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -542,7 +589,7 @@ private final class InMemoryManagedCodexAccountStoreForStatusMenuTests: ManagedC
     }
 }
 
-private struct TestManagedCodexHomeFactoryForStatusMenuTests: ManagedCodexHomeProducing, Sendable {
+private struct TestManagedCodexHomeFactoryForStatusMenuTests: ManagedCodexHomeProducing {
     let root: URL
 
     func makeHomeURL() -> URL {
@@ -554,7 +601,7 @@ private struct TestManagedCodexHomeFactoryForStatusMenuTests: ManagedCodexHomePr
     }
 }
 
-private struct StubManagedCodexIdentityReaderForStatusMenuTests: ManagedCodexIdentityReading, Sendable {
+private struct StubManagedCodexIdentityReaderForStatusMenuTests: ManagedCodexIdentityReading {
     let email: String
 
     func loadAccountIdentity(homePath _: String) throws -> CodexAuthBackedAccount {

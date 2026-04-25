@@ -192,6 +192,14 @@ extension SettingsStore {
         }
     }
 
+    var confettiOnWeeklyLimitResetsEnabled: Bool {
+        get { self.defaultsState.confettiOnWeeklyLimitResetsEnabled }
+        set {
+            self.defaultsState.confettiOnWeeklyLimitResetsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "confettiOnWeeklyLimitResetsEnabled")
+        }
+    }
+
     var menuBarShowsHighestUsage: Bool {
         get { self.defaultsState.menuBarShowsHighestUsage }
         set {
@@ -213,8 +221,10 @@ extension SettingsStore {
 
     var claudeOAuthKeychainReadStrategy: ClaudeOAuthKeychainReadStrategy {
         get {
-            let raw = self.defaultsState.claudeOAuthKeychainReadStrategyRaw
-            return ClaudeOAuthKeychainReadStrategy(rawValue: raw ?? "") ?? .securityFramework
+            guard let raw = self.defaultsState.claudeOAuthKeychainReadStrategyRaw else {
+                return .securityCLIExperimental
+            }
+            return ClaudeOAuthKeychainReadStrategy(rawValue: raw) ?? .securityFramework
         }
         set {
             self.defaultsState.claudeOAuthKeychainReadStrategyRaw = newValue.rawValue
@@ -262,6 +272,17 @@ extension SettingsStore {
             self.userDefaults.set(newValue, forKey: "openAIWebAccessEnabled")
             CodexBarLog.logger(LogCategories.settings).info(
                 "OpenAI web access updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+        }
+    }
+
+    var openAIWebBatterySaverEnabled: Bool {
+        get { self.defaultsState.openAIWebBatterySaverEnabled }
+        set {
+            self.defaultsState.openAIWebBatterySaverEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "openAIWebBatterySaverEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "OpenAI web battery saver updated",
                 metadata: ["enabled": newValue ? "1" : "0"])
         }
     }

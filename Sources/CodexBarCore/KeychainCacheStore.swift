@@ -21,6 +21,7 @@ public enum KeychainCacheStore {
     public enum LoadResult<Entry> {
         case found(Entry)
         case missing
+        case temporarilyUnavailable
         case invalid
     }
 
@@ -29,6 +30,9 @@ public enum KeychainCacheStore {
     private static let cacheLabel = "CodexBar Cache"
     private nonisolated(unsafe) static var globalServiceOverride: String?
     @TaskLocal private static var serviceOverride: String?
+    #if DEBUG && os(macOS)
+    @TaskLocal private static var loadFailureStatusOverride: OSStatus?
+    #endif
     private static let testStoreLock = NSLock()
     private struct TestStoreKey: Hashable {
         let service: String
@@ -42,17 +46,23 @@ public enum KeychainCacheStore {
         key: Key,
         as type: Entry.Type = Entry.self) -> LoadResult<Entry>
     {
+        #if DEBUG && os(macOS)
+        if let status = self.loadFailureStatusOverride {
+            return self.loadResultForKeychainReadFailure(status: status, key: key)
+        }
+        #endif
         if let testResult = loadFromTestStore(key: key, as: type) {
             return testResult
         }
         #if os(macOS)
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.serviceName,
             kSecAttrAccount as String: key.account,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true,
         ]
+        KeychainNoUIQuery.apply(to: &query)
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -68,11 +78,8 @@ public enum KeychainCacheStore {
                 return .invalid
             }
             return .found(decoded)
-        case errSecItemNotFound:
-            return .missing
         default:
-            self.log.error("Keychain cache read failed (\(key.account)): \(status)")
-            return .invalid
+            return self.loadResultForKeychainReadFailure(status: status, key: key)
         }
         #else
         return .missing
@@ -172,6 +179,17 @@ public enum KeychainCacheStore {
         self.serviceOverride
     }
 
+    #if DEBUG && os(macOS)
+    public static func withLoadFailureStatusOverrideForTesting<T>(
+        _ status: OSStatus?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$loadFailureStatusOverride.withValue(status) {
+            try operation()
+        }
+    }
+    #endif
+
     static func setTestStoreForTesting(_ enabled: Bool) {
         self.testStoreLock.lock()
         defer { self.testStoreLock.unlock() }
@@ -203,6 +221,25 @@ public enum KeychainCacheStore {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }
+
+    #if os(macOS)
+    static func loadResultForKeychainReadFailure<Entry>(
+        status: OSStatus,
+        key: Key) -> LoadResult<Entry>
+    {
+        switch status {
+        case errSecItemNotFound:
+            return .missing
+        case errSecInteractionNotAllowed:
+            // Keychain is temporarily locked, e.g. immediately after wake from sleep.
+            self.log.info("Keychain cache temporarily locked (\(key.account)), will retry on next access")
+            return .temporarilyUnavailable
+        default:
+            self.log.error("Keychain cache read failed (\(key.account)): \(status)")
+            return .invalid
+        }
+    }
+    #endif
 
     private static func loadFromTestStore<Entry: Codable>(
         key: Key,

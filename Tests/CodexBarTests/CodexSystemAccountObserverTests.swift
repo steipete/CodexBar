@@ -65,6 +65,34 @@ struct CodexSystemAccountObserverTests {
         #expect(account.identity == .providerAccount(id: "account-live-123"))
     }
 
+    @Test
+    func `observer uses cached workspace label for provider account`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let cacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-openai-workspaces-\(UUID().uuidString).json")
+        defer {
+            try? FileManager.default.removeItem(at: home)
+            try? FileManager.default.removeItem(at: cacheURL)
+        }
+        try Self.writeCodexAuthFile(
+            homeURL: home,
+            email: "user@example.com",
+            plan: "team",
+            accountId: "account-live-123")
+
+        try CodexOpenAIWorkspaceIdentityCache.withFileURLOverrideForTesting(cacheURL) {
+            try CodexOpenAIWorkspaceIdentityCache().store(CodexOpenAIWorkspaceIdentity(
+                workspaceAccountID: "account-live-123",
+                workspaceLabel: "Team Alpha"))
+
+            let observer = DefaultCodexSystemAccountObserver()
+            let account = try #require(try observer.loadSystemAccount(environment: ["CODEX_HOME": home.path]))
+
+            #expect(account.workspaceAccountID == "account-live-123")
+            #expect(account.workspaceLabel == "Team Alpha")
+        }
+    }
+
     private static func writeCodexAuthFile(
         homeURL: URL,
         email: String,

@@ -106,8 +106,8 @@ extension StatusItemController {
     }
 
     @objc func addManagedCodexAccountFromMenu(_: NSMenuItem) {
-        guard self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount == false else {
-            self.loginLogger.info("Add Account tap ignored: managed Codex login already in-flight")
+        guard self.codexAccountPromotionCoordinator.isInteractionBlocked() == false else {
+            self.loginLogger.info("Add Account tap ignored: Codex account change already in-flight")
             return
         }
         guard self.settings.hasUnreadableManagedCodexAccountStore == false else {
@@ -128,6 +128,22 @@ extension StatusItemController {
                 }
             } catch {
                 self.presentManagedCodexAccountError(error)
+            }
+        }
+    }
+
+    @objc func requestCodexSystemPromotionFromMenu(_ sender: NSMenuItem) {
+        guard let rawManagedAccountID = sender.representedObject as? String,
+              let managedAccountID = UUID(uuidString: rawManagedAccountID)
+        else {
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await self.codexAccountPromotionCoordinator.promote(managedAccountID: managedAccountID)
+            if case let .failure(error) = result {
+                self.presentLoginAlert(title: error.title, message: error.message)
             }
         }
     }
@@ -180,6 +196,26 @@ extension StatusItemController {
         // Use the lazy accessor to ensure the item exists
         let item = self.lazyStatusItem(for: provider)
         item.button?.performClick(nil)
+    }
+
+    func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {
+        let item: NSStatusItem = if self.shouldMergeIcons {
+            self.statusItem
+        } else if let provider, let existing = self.statusItems[provider], existing.isVisible {
+            existing
+        } else {
+            self.lazyStatusItem(for: provider ?? .codex)
+        }
+
+        guard let button = item.button,
+              let window = button.window
+        else {
+            return nil
+        }
+
+        let buttonFrameInWindow = button.convert(button.bounds, to: nil)
+        let screenFrame = window.convertToScreen(buttonFrameInWindow)
+        return CGPoint(x: screenFrame.midX, y: screenFrame.midY)
     }
 
     private func openSettings(tab: PreferencesTab) {

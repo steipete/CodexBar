@@ -96,6 +96,42 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
+    func `Codex menu humanizes prolite plan from snapshot identity`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-prolite")
+        settings.statusChecksEnabled = false
+
+        let fetcher = UsageFetcher(environment: [:])
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "codex@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "prolite")),
+            provider: .codex)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(lines.contains("Plan: Pro Lite"))
+        #expect(!lines.contains("Plan: Prolite"))
+    }
+
+    @Test
     func `Codex menu prefers snapshot identity over conflicting fallback account info`() throws {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-snapshot-precedence")
         settings.statusChecksEnabled = false
@@ -344,6 +380,56 @@ struct CodexPresentationCharacterizationTests {
         #expect(store.codexAccountEmailForOpenAIDashboard() == nil)
         #expect(store.codexAccountEmailForOpenAIDashboard() != managedAccount.email)
         #expect(store.codexCookieCacheScopeForOpenAIWeb() == nil)
+    }
+
+    @Test
+    func `zai menu descriptor includes Tokens MCP and 5-hour rows`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-zai-three-quota")
+        settings.statusChecksEnabled = false
+
+        let fetcher = UsageFetcher(environment: [:])
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 9,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 50,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                tertiary: RateWindow(
+                    usedPercent: 25,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .zai,
+                    accountEmail: nil,
+                    accountOrganization: nil,
+                    loginMethod: "pro")),
+            provider: .zai)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .zai,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(lines.contains(where: { $0.hasPrefix("Tokens:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("MCP:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("5-hour:") }))
     }
 
     private func makeSettingsStore(suite: String) -> SettingsStore {

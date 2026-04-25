@@ -36,10 +36,11 @@ struct CopilotProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "copilot-add-account",
                 title: "GitHub Login",
-                subtitle: "Add accounts via GitHub OAuth Device Flow.",
-                kind: .plain,
-                placeholder: nil,
-                binding: .constant(""),
+                subtitle: "Requires authentication via GitHub Device Flow.",
+                footerText: "The device code is copied to your clipboard. Paste it into the GitHub page with ⌘V.",
+                kind: .secure,
+                placeholder: "Sign in via button below",
+                binding: context.stringBinding(\.copilotAPIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "copilot-add-account-action",

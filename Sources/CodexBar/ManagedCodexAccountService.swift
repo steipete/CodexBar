@@ -14,13 +14,17 @@ protocol ManagedCodexIdentityReading: Sendable {
     func loadAccountIdentity(homePath: String) throws -> CodexAuthBackedAccount
 }
 
-enum ManagedCodexAccountServiceError: Error, Equatable, Sendable {
+protocol ManagedCodexWorkspaceResolving: Sendable {
+    func resolveWorkspaceIdentity(homePath: String, providerAccountID: String) async -> CodexOpenAIWorkspaceIdentity?
+}
+
+enum ManagedCodexAccountServiceError: Error, Equatable {
     case loginFailed
     case missingEmail
     case unsafeManagedHome(String)
 }
 
-struct ManagedCodexHomeFactory: ManagedCodexHomeProducing, Sendable {
+struct ManagedCodexHomeFactory: ManagedCodexHomeProducing {
     let root: URL
 
     init(root: URL = Self.defaultRootURL(), fileManager: FileManager = .default) {
@@ -70,12 +74,43 @@ struct DefaultManagedCodexIdentityReader: ManagedCodexIdentityReading {
     }
 }
 
+struct DefaultManagedCodexWorkspaceResolver: ManagedCodexWorkspaceResolving {
+    private let workspaceCache: CodexOpenAIWorkspaceIdentityCache
+
+    init(
+        workspaceCache: CodexOpenAIWorkspaceIdentityCache = CodexOpenAIWorkspaceIdentityCache())
+    {
+        self.workspaceCache = workspaceCache
+    }
+
+    func resolveWorkspaceIdentity(homePath: String, providerAccountID: String) async -> CodexOpenAIWorkspaceIdentity? {
+        let normalizedProviderAccountID = ManagedCodexAccount.normalizeProviderAccountID(providerAccountID)
+            ?? providerAccountID
+        let env = CodexHomeScope.scopedEnvironment(
+            base: ProcessInfo.processInfo.environment,
+            codexHome: homePath)
+
+        if let credentials = try? CodexOAuthCredentialsStore.load(env: env),
+           let authoritativeIdentity = try? await CodexOpenAIWorkspaceResolver.resolve(credentials: credentials)
+        {
+            try? self.workspaceCache.store(authoritativeIdentity)
+            return authoritativeIdentity
+        }
+
+        let cachedLabel = self.workspaceCache.workspaceLabel(for: normalizedProviderAccountID)
+        return CodexOpenAIWorkspaceIdentity(
+            workspaceAccountID: normalizedProviderAccountID,
+            workspaceLabel: cachedLabel)
+    }
+}
+
 @MainActor
 final class ManagedCodexAccountService {
     private let store: any ManagedCodexAccountStoring
     private let homeFactory: any ManagedCodexHomeProducing
     private let loginRunner: any ManagedCodexLoginRunning
     private let identityReader: any ManagedCodexIdentityReading
+    private let workspaceResolver: any ManagedCodexWorkspaceResolving
     private let fileManager: FileManager
 
     init(
@@ -83,12 +118,14 @@ final class ManagedCodexAccountService {
         homeFactory: any ManagedCodexHomeProducing,
         loginRunner: any ManagedCodexLoginRunning,
         identityReader: any ManagedCodexIdentityReading,
+        workspaceResolver: any ManagedCodexWorkspaceResolving = DefaultManagedCodexWorkspaceResolver(),
         fileManager: FileManager = .default)
     {
         self.store = store
         self.homeFactory = homeFactory
         self.loginRunner = loginRunner
         self.identityReader = identityReader
+        self.workspaceResolver = workspaceResolver
         self.fileManager = fileManager
     }
 
@@ -98,6 +135,7 @@ final class ManagedCodexAccountService {
             homeFactory: ManagedCodexHomeFactory(fileManager: fileManager),
             loginRunner: DefaultManagedCodexLoginRunner(),
             identityReader: DefaultManagedCodexIdentityReader(),
+            workspaceResolver: DefaultManagedCodexWorkspaceResolver(),
             fileManager: fileManager)
     }
 
@@ -110,7 +148,7 @@ final class ManagedCodexAccountService {
         let homeURL = self.homeFactory.makeHomeURL()
         try self.fileManager.createDirectory(at: homeURL, withIntermediateDirectories: true)
         let account: ManagedCodexAccount
-        let existingHomePathToDelete: String?
+        let existingHomePathsToDelete: [String]
 
         do {
             let result = await self.loginRunner.run(homePath: homeURL.path, timeout: timeout)
@@ -122,32 +160,61 @@ final class ManagedCodexAccountService {
             else {
                 throw ManagedCodexAccountServiceError.missingEmail
             }
+            let providerAccountID: String? = switch identity.identity {
+            case let .providerAccount(id):
+                ManagedCodexAccount.normalizeProviderAccountID(id)
+            case .emailOnly, .unresolved:
+                nil
+            }
+            let workspaceIdentity: CodexOpenAIWorkspaceIdentity? = if let providerAccountID {
+                await self.workspaceResolver.resolveWorkspaceIdentity(
+                    homePath: homeURL.path,
+                    providerAccountID: providerAccountID)
+            } else {
+                nil
+            }
 
             let now = Date().timeIntervalSince1970
             let existing = self.reconciledExistingAccount(
                 authenticatedEmail: rawEmail,
+                providerAccountID: providerAccountID,
                 existingAccountID: existingAccountID,
                 snapshot: snapshot)
+            let persistedMetadata = self.persistedProviderMetadata(
+                authenticatedProviderAccountID: providerAccountID,
+                resolvedWorkspaceIdentity: workspaceIdentity,
+                existingAccount: existing)
 
             account = ManagedCodexAccount(
                 id: existing?.id ?? UUID(),
                 email: rawEmail,
+                providerAccountID: persistedMetadata.providerAccountID,
+                workspaceLabel: persistedMetadata.workspaceLabel,
+                workspaceAccountID: persistedMetadata.workspaceAccountID,
                 managedHomePath: homeURL.path,
                 createdAt: existing?.createdAt ?? now,
                 updatedAt: now,
                 lastAuthenticatedAt: now)
-            existingHomePathToDelete = existing?.managedHomePath
+            let replacedAccountIDs = self.replacedAccountIDs(
+                authenticatedEmail: rawEmail,
+                providerAccountID: providerAccountID,
+                existingAccountID: existingAccountID,
+                matchedAccountID: existing?.id,
+                snapshot: snapshot)
+            existingHomePathsToDelete = snapshot.accounts
+                .filter { replacedAccountIDs.contains($0.id) }
+                .map(\.managedHomePath)
 
             let updatedSnapshot = ManagedCodexAccountSet(
                 version: snapshot.version,
-                accounts: snapshot.accounts.filter { $0.id != account.id && $0.email != account.email } + [account])
+                accounts: snapshot.accounts.filter { replacedAccountIDs.contains($0.id) == false } + [account])
             try self.store.storeAccounts(updatedSnapshot)
         } catch {
             try? self.removeManagedHomeIfSafe(atPath: homeURL.path)
             throw error
         }
 
-        if let existingHomePathToDelete, existingHomePathToDelete != homeURL.path {
+        for existingHomePathToDelete in existingHomePathsToDelete where existingHomePathToDelete != homeURL.path {
             try? self.removeManagedHomeIfSafe(atPath: existingHomePathToDelete)
         }
         return account
@@ -180,19 +247,103 @@ final class ManagedCodexAccountService {
 
     private func reconciledExistingAccount(
         authenticatedEmail: String,
+        providerAccountID: String?,
         existingAccountID: UUID?,
         snapshot: ManagedCodexAccountSet)
         -> ManagedCodexAccount?
     {
-        if let existingByEmail = snapshot.account(email: authenticatedEmail) {
-            return existingByEmail
+        if let providerAccountID,
+           let existingByProviderAccountID = snapshot.account(
+               email: authenticatedEmail,
+               providerAccountID: providerAccountID)
+        {
+            return existingByProviderAccountID
         }
-        guard let existingAccountID else { return nil }
-        guard let existingByID = snapshot.account(id: existingAccountID) else { return nil }
-        return existingByID.email == Self.normalizeEmail(authenticatedEmail) ? existingByID : nil
+        if let existingAccountID,
+           let existingByID = snapshot.account(id: existingAccountID),
+           existingByID.email == Self.normalizeEmail(authenticatedEmail),
+           providerAccountID == nil || existingByID.providerAccountID == nil
+        {
+            return existingByID
+        }
+        guard providerAccountID == nil else {
+            return nil
+        }
+        // Email-only reconciliation is a legacy/hardening fallback. Once an auth payload carries a
+        // provider account ID, matching must stay on that ID so same-email workspaces can coexist.
+        return snapshot.account(email: authenticatedEmail)
+    }
+
+    private func replacedAccountIDs(
+        authenticatedEmail: String,
+        providerAccountID: String?,
+        existingAccountID: UUID?,
+        matchedAccountID: UUID?,
+        snapshot: ManagedCodexAccountSet) -> Set<UUID>
+    {
+        var ids: Set<UUID> = []
+        let normalizedEmail = Self.normalizeEmail(authenticatedEmail)
+        if let matchedAccountID {
+            ids.insert(matchedAccountID)
+        }
+
+        if providerAccountID != nil {
+            let legacySameEmailIDs = snapshot.accounts
+                .filter {
+                    $0.id != matchedAccountID &&
+                        $0.providerAccountID == nil &&
+                        $0.email == normalizedEmail
+                }
+                .map(\.id)
+            ids.formUnion(legacySameEmailIDs)
+        }
+
+        guard let existingAccountID,
+              existingAccountID != matchedAccountID,
+              let existingByID = snapshot.account(id: existingAccountID)
+        else {
+            return ids
+        }
+
+        if existingByID.providerAccountID == nil,
+           existingByID.email == normalizedEmail,
+           providerAccountID != nil
+        {
+            ids.insert(existingAccountID)
+        }
+        return ids
     }
 
     private static func normalizeEmail(_ email: String) -> String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func persistedProviderMetadata(
+        authenticatedProviderAccountID: String?,
+        resolvedWorkspaceIdentity: CodexOpenAIWorkspaceIdentity?,
+        existingAccount: ManagedCodexAccount?) -> (
+        providerAccountID: String?,
+        workspaceLabel: String?,
+        workspaceAccountID: String?)
+    {
+        if let authenticatedProviderAccountID {
+            let isExistingProviderMatch = existingAccount?.providerAccountID == authenticatedProviderAccountID
+            return (
+                providerAccountID: authenticatedProviderAccountID,
+                workspaceLabel: resolvedWorkspaceIdentity?.workspaceLabel
+                    ?? (isExistingProviderMatch ? existingAccount?.workspaceLabel : nil),
+                workspaceAccountID: resolvedWorkspaceIdentity?.workspaceAccountID ??
+                    (isExistingProviderMatch ? existingAccount?.workspaceAccountID : nil) ??
+                    authenticatedProviderAccountID)
+        }
+
+        guard let existingAccount, existingAccount.providerAccountID != nil else {
+            return (providerAccountID: nil, workspaceLabel: nil, workspaceAccountID: nil)
+        }
+
+        return (
+            providerAccountID: existingAccount.providerAccountID,
+            workspaceLabel: existingAccount.workspaceLabel,
+            workspaceAccountID: existingAccount.workspaceAccountID ?? existingAccount.providerAccountID)
     }
 }

@@ -95,6 +95,20 @@ actor HistoricalUsageHistoryStore {
         return self.buildDataset(accountKey: accountKey)
     }
 
+    func loadCodexDataset(
+        canonicalAccountKey: String?,
+        canonicalEmailHashKey: String?,
+        legacyEmailHash: String?,
+        hasAdjacentMultiAccountVeto: Bool) -> CodexHistoricalDataset?
+    {
+        self.ensureLoaded()
+        return self.buildDataset(
+            canonicalAccountKey: canonicalAccountKey,
+            canonicalEmailHashKey: canonicalEmailHashKey,
+            legacyEmailHash: legacyEmailHash,
+            hasAdjacentMultiAccountVeto: hasAdjacentMultiAccountVeto)
+    }
+
     func recordCodexWeekly(
         window: RateWindow,
         sampledAt: Date = .init(),
@@ -349,21 +363,54 @@ actor HistoricalUsageHistoryStore {
     }
 
     private func buildDataset(accountKey: String?) -> CodexHistoricalDataset? {
+        let scoped = self.records.filter { record in
+            guard Self.isCodexSecondaryRecord(record) else { return false }
+            if let accountKey {
+                return record.accountKey == accountKey
+            }
+            return record.accountKey == nil
+        }
+        return self.buildDataset(from: scoped)
+    }
+
+    private func buildDataset(
+        canonicalAccountKey: String?,
+        canonicalEmailHashKey: String?,
+        legacyEmailHash: String?,
+        hasAdjacentMultiAccountVeto: Bool) -> CodexHistoricalDataset?
+    {
+        guard let canonicalAccountKey else {
+            return self.buildDataset(accountKey: nil)
+        }
+
+        let shouldIncludeUnscoped = CodexHistoryOwnership.hasStrictSingleAccountContinuity(
+            scopedRawKeys: Self.scopedRawKeysRelevantToCodexUnscopedHistory(self.records),
+            targetCanonicalKey: canonicalAccountKey,
+            canonicalEmailHashKey: canonicalEmailHashKey,
+            legacyEmailHash: legacyEmailHash,
+            hasAdjacentMultiAccountVeto: hasAdjacentMultiAccountVeto)
+
+        let scoped = self.records.filter { record in
+            guard Self.isCodexSecondaryRecord(record) else { return false }
+            guard let rawKey = record.accountKey else {
+                return shouldIncludeUnscoped
+            }
+
+            let owner = CodexHistoryOwnership.classifyPersistedKey(rawKey, legacyEmailHash: legacyEmailHash)
+            return CodexHistoryOwnership.belongsToTargetContinuity(
+                owner,
+                targetCanonicalKey: canonicalAccountKey,
+                canonicalEmailHashKey: canonicalEmailHashKey)
+        }
+        return self.buildDataset(from: scoped)
+    }
+
+    private func buildDataset(from scoped: [HistoricalUsageRecord]) -> CodexHistoricalDataset? {
         struct WeekKey: Hashable {
             let resetsAt: Date
             let windowMinutes: Int
         }
 
-        let scoped = self.records
-            .filter { record in
-                guard record.provider == .codex, record.windowKind == .secondary, record.windowMinutes > 0 else {
-                    return false
-                }
-                if let accountKey {
-                    return record.accountKey == accountKey
-                }
-                return record.accountKey == nil
-            }
         if scoped.isEmpty { return nil }
 
         let grouped = Dictionary(grouping: scoped) {
@@ -399,6 +446,10 @@ actor HistoricalUsageHistoryStore {
         weeks.sort { $0.resetsAt < $1.resetsAt }
         if weeks.isEmpty { return nil }
         return CodexHistoricalDataset(weeks: weeks)
+    }
+
+    private nonisolated static func isCodexSecondaryRecord(_ record: HistoricalUsageRecord) -> Bool {
+        record.provider == .codex && record.windowKind == .secondary && record.windowMinutes > 0
     }
 
     private static func reconstructWeekCurve(
@@ -502,6 +553,40 @@ actor HistoricalUsageHistoryStore {
             sample.sampledAt >= endBoundary && sample.sampledAt <= resetsAt
         }
         return hasStartCoverage && hasEndCoverage
+    }
+
+    private nonisolated static func scopedRawKeysRelevantToCodexUnscopedHistory(
+        _ records: [HistoricalUsageRecord]) -> [String]
+    {
+        let unscopedRecords = records.filter { record in
+            Self.isCodexSecondaryRecord(record) && record.accountKey == nil
+        }
+        guard let continuityWindow = self.historicalContinuityWindow(for: unscopedRecords) else {
+            return []
+        }
+
+        return records.compactMap { record in
+            guard Self.isCodexSecondaryRecord(record),
+                  let accountKey = record.accountKey,
+                  continuityWindow.contains(record.sampledAt)
+            else {
+                return nil
+            }
+            return accountKey
+        }
+    }
+
+    private nonisolated static func historicalContinuityWindow(
+        for records: [HistoricalUsageRecord]) -> ClosedRange<Date>?
+    {
+        let sampledDates = records.map(\.sampledAt)
+        guard let lowerBound = sampledDates.min(),
+              let upperBound = sampledDates.max()
+        else {
+            return nil
+        }
+        let expansion = TimeInterval(records.map(\.windowMinutes).max() ?? 0) * 60
+        return lowerBound.addingTimeInterval(-expansion)...upperBound.addingTimeInterval(expansion)
     }
 
     private struct DayUsage {

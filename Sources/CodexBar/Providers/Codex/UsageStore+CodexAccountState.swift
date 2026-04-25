@@ -1,7 +1,7 @@
 import CodexBarCore
 import Foundation
 
-enum CodexAccountScopedRefreshPhase: Sendable {
+enum CodexAccountScopedRefreshPhase {
     case invalidated
     case usage
     case credits
@@ -9,7 +9,7 @@ enum CodexAccountScopedRefreshPhase: Sendable {
     case completed
 }
 
-struct CodexAccountScopedRefreshGuard: Equatable, Sendable {
+struct CodexAccountScopedRefreshGuard: Equatable {
     let source: CodexActiveSource
     let identity: CodexIdentity
     let accountKey: String?
@@ -34,7 +34,7 @@ extension UsageStore {
         phaseDidChange?(.credits)
 
         if self.settings.codexCookieSource.isEnabled {
-            let expectedGuard = self.currentCodexAccountScopedRefreshGuard()
+            let expectedGuard = self.currentCodexOpenAIWebRefreshGuard()
             await self.refreshOpenAIDashboardIfNeeded(
                 force: true,
                 expectedGuard: expectedGuard,
@@ -76,6 +76,7 @@ extension UsageStore {
         self.lastCreditsError = nil
         self.lastCreditsSnapshot = nil
         self.lastCreditsSnapshotAccountKey = nil
+        self.lastCreditsSource = .none
         self.creditsFailureStreak = 0
 
         self.clearCodexOpenAIWebStateForAccountTransition(targetEmail: self.codexAccountEmailForOpenAIDashboard())
@@ -179,31 +180,93 @@ extension UsageStore {
         return currentGuard.identity == expectedGuard.identity
     }
 
-    func shouldApplyOpenAIDashboardResult(
+    func shouldApplyOpenAIDashboardRefreshGuard(
         expectedGuard: CodexAccountScopedRefreshGuard,
-        dashboardAccountEmail: String?) -> Bool
+        routingTargetEmail: String?) -> Bool
     {
+        let normalizedRoutingTargetEmail = CodexIdentityResolver.normalizeEmail(routingTargetEmail)
+        let currentGuard = self.currentCodexOpenAIWebRefreshGuard()
+        guard currentGuard.source == expectedGuard.source else { return false }
+
         if expectedGuard.identity != .unresolved {
-            let currentGuard = self.currentCodexAccountScopedRefreshGuard()
-            guard currentGuard.source == expectedGuard.source else { return false }
             return currentGuard.identity == expectedGuard.identity
         }
 
-        let currentGuard = self.currentCodexOpenAIWebRefreshGuard()
-        guard currentGuard.source == expectedGuard.source else { return false }
         guard case .liveSystem = expectedGuard.source else { return false }
         guard currentGuard.identity == .unresolved else { return false }
-        let dashboardIdentity = CodexIdentityResolver.resolve(accountId: nil, email: dashboardAccountEmail)
-        guard dashboardIdentity != .unresolved else { return false }
-        let currentTargetIdentity = CodexIdentityResolver.resolve(
-            accountId: nil,
-            email: self.currentCodexOpenAIWebTargetEmail(
+        return CodexIdentityResolver.normalizeEmail(
+            self.currentCodexOpenAIWebTargetEmail(
                 allowCurrentSnapshotFallback: true,
-                allowLastKnownLiveFallback: false))
-        if currentTargetIdentity != .unresolved {
-            return dashboardIdentity == currentTargetIdentity
+                allowLastKnownLiveFallback: false)) == normalizedRoutingTargetEmail
+    }
+
+    func shouldApplyOpenAIWebNonSuccessResult(
+        expectedGuard: CodexAccountScopedRefreshGuard,
+        routingTargetEmail: String?) -> Bool
+    {
+        self.shouldApplyOpenAIDashboardRefreshGuard(
+            expectedGuard: expectedGuard,
+            routingTargetEmail: routingTargetEmail)
+    }
+
+    func codexDashboardKnownOwnerCandidates() -> [CodexDashboardKnownOwnerCandidate] {
+        CodexKnownOwnerCatalog.candidates(from: self.settings.codexAccountReconciliationSnapshot)
+    }
+
+    func trustedCurrentCodexUsageEmailForDashboardAuthority() -> String? {
+        guard let sourceLabel = self.lastSourceLabels[.codex], sourceLabel != "openai-web" else {
+            return nil
         }
-        return true
+        return CodexIdentityResolver.normalizeEmail(self.snapshots[.codex]?.accountEmail(for: .codex))
+    }
+
+    func currentCodexDashboardExpectedScopedEmail() -> String? {
+        switch self.settings.codexResolvedActiveSource {
+        case .liveSystem:
+            CodexIdentityResolver.normalizeEmail(
+                self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?.email)
+        case .managedAccount:
+            CodexIdentityResolver.normalizeEmail(self.currentManagedCodexRuntimeEmail())
+        }
+    }
+
+    func makeCodexDashboardAuthorityInput(
+        dashboard: OpenAIDashboardSnapshot,
+        sourceKind: CodexDashboardSourceKind,
+        routingTargetEmail: String?) -> CodexDashboardAuthorityInput
+    {
+        let source = self.settings.codexResolvedActiveSource
+        return CodexDashboardAuthorityInput(
+            sourceKind: sourceKind,
+            proof: CodexDashboardOwnershipProofContext(
+                currentIdentity: self.currentCodexOpenAIWebIdentity(source: source),
+                expectedScopedEmail: self.currentCodexDashboardExpectedScopedEmail(),
+                trustedCurrentUsageEmail: self.trustedCurrentCodexUsageEmailForDashboardAuthority(),
+                dashboardSignedInEmail: dashboard.signedInEmail,
+                knownOwners: self.codexDashboardKnownOwnerCandidates()),
+            routing: CodexDashboardRoutingHints(
+                targetEmail: CodexIdentityResolver.normalizeEmail(routingTargetEmail),
+                lastKnownDashboardRoutingEmail: CodexIdentityResolver.normalizeEmail(
+                    self.lastKnownLiveSystemCodexEmail)))
+    }
+
+    func evaluateCodexDashboardAuthority(
+        dashboard: OpenAIDashboardSnapshot,
+        sourceKind: CodexDashboardSourceKind,
+        routingTargetEmail: String?) -> (input: CodexDashboardAuthorityInput, decision: CodexDashboardAuthorityDecision)
+    {
+        let input = self.makeCodexDashboardAuthorityInput(
+            dashboard: dashboard,
+            sourceKind: sourceKind,
+            routingTargetEmail: routingTargetEmail)
+        return (input, CodexDashboardAuthority.evaluate(input))
+    }
+
+    func codexDashboardAttachmentEmail(from input: CodexDashboardAuthorityInput) -> String? {
+        CodexIdentityResolver.normalizeEmail(
+            input.proof.expectedScopedEmail ??
+                input.proof.trustedCurrentUsageEmail ??
+                input.proof.dashboardSignedInEmail)
     }
 
     func rememberLiveSystemCodexEmailIfNeeded(_ email: String?) {
@@ -346,7 +409,9 @@ extension UsageStore {
         }
 
         self.openAIDashboard = nil
+        self.openAIDashboardAttachmentAuthorized = false
         self.lastOpenAIDashboardSnapshot = nil
+        self.lastOpenAIDashboardAttachmentAuthorized = false
         self.lastOpenAIDashboardError = nil
         self.openAIDashboardCookieImportDebugLog = nil
         self.lastOpenAIDashboardCookieImportAttemptAt = nil

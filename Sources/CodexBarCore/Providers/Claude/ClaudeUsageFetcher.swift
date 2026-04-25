@@ -10,6 +10,7 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let primary: RateWindow
     public let secondary: RateWindow?
     public let opus: RateWindow?
+    public let extraRateWindows: [NamedRateWindow]
     public let providerCost: ProviderCostSnapshot?
     public let updatedAt: Date
     public let accountEmail: String?
@@ -21,6 +22,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         primary: RateWindow,
         secondary: RateWindow?,
         opus: RateWindow?,
+        extraRateWindows: [NamedRateWindow] = [],
         providerCost: ProviderCostSnapshot? = nil,
         updatedAt: Date,
         accountEmail: String?,
@@ -31,6 +33,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.primary = primary
         self.secondary = secondary
         self.opus = opus
+        self.extraRateWindows = extraRateWindows
         self.providerCost = providerCost
         self.updatedAt = updatedAt
         self.accountEmail = accountEmail
@@ -146,20 +149,27 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
     }
 
-    private static func currentClaudeOAuthKeychainPromptPolicy() -> ClaudeOAuthKeychainPromptPolicy {
-        let isApplicable = ClaudeOAuthKeychainPromptPreference.isApplicable()
+    private static func currentClaudeOAuthInteractivePromptPolicy() -> ClaudeOAuthKeychainPromptPolicy {
         let policy = ClaudeOAuthKeychainPromptPolicy(
-            mode: ClaudeOAuthKeychainPromptPreference.current(),
-            isApplicable: isApplicable,
+            mode: ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode(),
+            isApplicable: true,
             interaction: ProviderInteractionContext.current)
 
-        // User actions should be able to immediately retry a repair after a background cooldown was recorded.
-        if policy.isApplicable, policy.interaction == .userInitiated {
+        // User actions should be able to immediately retry a Security.framework fallback repair after a background
+        // cooldown was recorded, even when /usr/bin/security is the primary reader.
+        if policy.interaction == .userInitiated {
             if ClaudeOAuthKeychainAccessGate.clearDenied() {
                 Self.log.info("Claude OAuth keychain cooldown cleared by user action")
             }
         }
         return policy
+    }
+
+    private static func currentClaudeOAuthDelegatedRefreshPolicy() -> ClaudeOAuthKeychainPromptPolicy {
+        ClaudeOAuthKeychainPromptPolicy(
+            mode: ClaudeOAuthKeychainPromptPreference.current(),
+            isApplicable: ClaudeOAuthKeychainPromptPreference.isApplicable(),
+            interaction: ProviderInteractionContext.current)
     }
 
     private static func assertDelegatedRefreshAllowedInCurrentInteraction(
@@ -228,7 +238,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
         func load(allowDelegatedRetry: Bool) async throws -> ClaudeUsageSnapshot {
             do {
-                let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthKeychainPromptPolicy()
+                let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthInteractivePromptPolicy()
 
                 #if DEBUG
                 let hasCache = ClaudeUsageFetcher.hasCachedCredentialsOverride
@@ -288,10 +298,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             policy: ClaudeOAuthKeychainPromptPolicy,
             hasCache: Bool) -> Bool
         {
-            guard policy.isApplicable else { return false }
             guard self.fetcher.allowStartupBootstrapPrompt else { return false }
             guard !hasCache else { return false }
-            guard policy.mode == .onlyOnUserAction else { return false }
+            guard ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode() == .onlyOnUserAction else {
+                return false
+            }
             guard policy.interaction == .background else { return false }
             return ProviderRefreshContext.current == .startup
         }
@@ -305,7 +316,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
             try Task.checkCancellation()
 
-            let delegatedPromptPolicy = ClaudeUsageFetcher.currentClaudeOAuthKeychainPromptPolicy()
+            let delegatedPromptPolicy = ClaudeUsageFetcher.currentClaudeOAuthDelegatedRefreshPolicy()
             try ClaudeUsageFetcher.assertDelegatedRefreshAllowedInCurrentInteraction(
                 policy: delegatedPromptPolicy,
                 allowBackgroundDelegatedRefresh: self.fetcher.allowBackgroundDelegatedRefresh)
@@ -337,7 +348,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 let didSyncSilently = delegatedOutcome == .attemptedSucceeded
                     && ClaudeOAuthCredentialsStore.syncFromClaudeKeychainWithoutPrompt(now: Date())
 
-                let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthKeychainPromptPolicy()
+                let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthInteractivePromptPolicy()
                 ClaudeUsageFetcher.logDeferredBackgroundDelegatedRecoveryIfNeeded(
                     delegatedOutcome: delegatedOutcome,
                     didSyncSilently: didSyncSilently,
@@ -833,6 +844,7 @@ extension ClaudeUsageFetcher {
         let modelSpecific = makeWindow(
             usage.sevenDaySonnet ?? usage.sevenDayOpus,
             windowMinutes: 7 * 24 * 60)
+        let extraRateWindows = Self.oauthExtraRateWindows(from: usage)
 
         let loginMethod = ClaudePlan.oauthLoginMethod(rateLimitTier: credentials.rateLimitTier)
         let providerCost = Self.oauthExtraUsageCost(usage.extraUsage, loginMethod: loginMethod)
@@ -841,6 +853,7 @@ extension ClaudeUsageFetcher {
             primary: primary,
             secondary: weekly,
             opus: modelSpecific,
+            extraRateWindows: extraRateWindows,
             providerCost: providerCost,
             updatedAt: Date(),
             accountEmail: nil,
@@ -877,6 +890,50 @@ extension ClaudeUsageFetcher {
         // Always convert to dollars (major units) for display consistency.
         // See: ClaudeWebAPIFetcher.swift which always divides by 100.
         (used: used / 100.0, limit: limit / 100.0)
+    }
+
+    private static func oauthExtraRateWindows(from usage: OAuthUsageResponse) -> [NamedRateWindow] {
+        let definitions: [(id: String, title: String, window: OAuthUsageWindow?, sourceKey: String?)] = [
+            (
+                id: "claude-design",
+                title: "Designs",
+                window: usage.sevenDayDesign,
+                sourceKey: usage.sevenDayDesignSourceKey),
+            (
+                id: "claude-routines",
+                title: "Daily Routines",
+                window: usage.sevenDayRoutines,
+                sourceKey: usage.sevenDayRoutinesSourceKey),
+        ]
+        if let designKey = usage.sevenDayDesignSourceKey {
+            Self.log.debug("Claude OAuth extra usage key matched: design=\(designKey)")
+        }
+        if let routinesKey = usage.sevenDayRoutinesSourceKey {
+            Self.log.debug("Claude OAuth extra usage key matched: routines=\(routinesKey)")
+        }
+        return definitions.compactMap { definition in
+            let utilization: Double
+            let resetDate: Date?
+            if let window = definition.window, let parsedUtilization = window.utilization {
+                utilization = parsedUtilization
+                resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(window.resetsAt)
+            } else if definition.sourceKey != nil {
+                // Keep product bars visible when the API returns a known key with null payload.
+                utilization = 0
+                resetDate = nil
+            } else {
+                return nil
+            }
+            let resetDescription = resetDate.map(Self.formatResetDate)
+            return NamedRateWindow(
+                id: definition.id,
+                title: definition.title,
+                window: RateWindow(
+                    usedPercent: utilization,
+                    windowMinutes: Self.weeklyWindowMinutes,
+                    resetsAt: resetDate,
+                    resetDescription: resetDescription))
+        }
     }
 
     // MARK: - Web API path (uses browser cookies)
@@ -919,6 +976,7 @@ extension ClaudeUsageFetcher {
             primary: primary,
             secondary: secondary,
             opus: opus,
+            extraRateWindows: webData.extraRateWindows,
             providerCost: webData.extraUsageCost,
             updatedAt: Date(),
             accountEmail: webData.accountEmail,
@@ -978,6 +1036,7 @@ extension ClaudeUsageFetcher {
             primary: primary,
             secondary: weekly,
             opus: opus,
+            extraRateWindows: [],
             providerCost: nil,
             updatedAt: Date(),
             accountEmail: snap.accountEmail,
@@ -1001,13 +1060,17 @@ extension ClaudeUsageFetcher {
                         Self.log.debug(msg)
                     }
                 }
-            // Only merge cost extras; keep identity fields from the primary data source.
-            if snapshot.providerCost == nil, let extra = webData.extraUsageCost {
+            // Only merge usage/cost extras; keep identity fields from the primary data source.
+            let mergedExtraRateWindows = snapshot.extraRateWindows.isEmpty ? webData.extraRateWindows : snapshot
+                .extraRateWindows
+            let mergedProviderCost = snapshot.providerCost ?? webData.extraUsageCost
+            if mergedProviderCost != snapshot.providerCost || mergedExtraRateWindows != snapshot.extraRateWindows {
                 return ClaudeUsageSnapshot(
                     primary: snapshot.primary,
                     secondary: snapshot.secondary,
                     opus: snapshot.opus,
-                    providerCost: extra,
+                    extraRateWindows: mergedExtraRateWindows,
+                    providerCost: mergedProviderCost,
                     updatedAt: snapshot.updatedAt,
                     accountEmail: snapshot.accountEmail,
                     accountOrganization: snapshot.accountOrganization,

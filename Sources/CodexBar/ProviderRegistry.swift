@@ -23,7 +23,8 @@ struct ProviderRegistry {
         metadata: [UsageProvider: ProviderMetadata],
         codexFetcher: UsageFetcher,
         claudeFetcher: any ClaudeUsageFetching,
-        browserDetection: BrowserDetection) -> [UsageProvider: ProviderSpec]
+        browserDetection: BrowserDetection,
+        environmentBase: [String: String] = ProcessInfo.processInfo.environment) -> [UsageProvider: ProviderSpec]
     {
         var specs: [UsageProvider: ProviderSpec] = [:]
         specs.reserveCapacity(UsageProvider.allCases.count)
@@ -41,7 +42,7 @@ struct ProviderRegistry {
                         ?? .auto
                     let snapshot = Self.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
                     let env = Self.makeEnvironment(
-                        base: ProcessInfo.processInfo.environment,
+                        base: environmentBase,
                         provider: provider,
                         settings: settings,
                         tokenOverride: nil)
@@ -115,7 +116,10 @@ struct ProviderRegistry {
         // Mac's Codex sessions, not as account-owned remote state. If we later want
         // account-scoped token history in the UI, that needs an explicit product decision and
         // presentation change so the two concepts are not conflated.
-        if provider == .codex, let managedHomePath = settings.activeManagedCodexRemoteHomePath {
+        if provider == .codex,
+           case .managedAccount = settings.codexActiveSource,
+           let managedHomePath = settings.activeManagedCodexRemoteHomePath
+        {
             env = CodexHomeScope.scopedEnvironment(base: env, codexHome: managedHomePath)
         }
         return env

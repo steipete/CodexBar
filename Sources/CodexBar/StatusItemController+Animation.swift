@@ -217,8 +217,10 @@ extension StatusItemController {
         return false
     }
 
-    func applyIcon(phase: Double?) {
-        guard let button = self.statusItem.button else { return }
+    // swiftlint:disable function_body_length
+    @discardableResult
+    func applyIcon(phase: Double?) -> Bool {
+        guard let button = self.statusItem.button else { return false }
 
         let style = self.store.iconStyle
         let showUsed = self.settings.usageBarsShowUsed
@@ -228,8 +230,14 @@ extension StatusItemController {
 
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
-        var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
-        var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        let resolved = snapshot.map {
+            IconRemainingResolver.resolvedPercents(
+                snapshot: $0,
+                style: style,
+                showUsed: showUsed)
+        }
+        var primary = resolved?.primary
+        var weekly = resolved?.secondary
         if showUsed,
            primaryProvider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,
@@ -247,7 +255,16 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        var credits: Double? = primaryProvider == .codex ? self.store.credits?.remaining : nil
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: primaryProvider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: snapshot?.updatedAt ?? Date())
+        var credits: Double? = codexProjection?.menuBarFallback == .creditsBalance
+            ? self.store.codexMenuBarCreditsRemaining(
+                snapshotOverride: snapshot,
+                now: snapshot?.updatedAt ?? Date())
+            : nil
         var stale = self.store.isStale(provider: primaryProvider)
         var morphProgress: Double?
 
@@ -284,31 +301,92 @@ extension StatusItemController {
             }
             return .none
         }()
+        let debugDouble: (Double?) -> String = { value in
+            guard let value else { return "nil" }
+            return String(format: "%.3f", value)
+        }
 
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
             let displayText = self.menuBarDisplayText(for: primaryProvider, snapshot: snapshot)
+            let signature = [
+                "mode=brandPercent",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(debugDouble(primary))",
+                "weekly=\(debugDouble(weekly))",
+                "credits=\(debugDouble(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "text=\(displayText ?? "nil")",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             self.setButtonImage(brand, for: button)
             self.setButtonTitle(displayText, for: button)
-            return
+            return false
         }
 
         if Self.shouldUseOpenRouterBrandFallback(provider: primaryProvider, snapshot: snapshot),
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
+            let signature = [
+                "mode=openRouterFallback",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(debugDouble(primary))",
+                "weekly=\(debugDouble(weekly))",
+                "credits=\(debugDouble(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             self.setButtonTitle(nil, for: button)
             self.setButtonImage(
                 Self.brandImageWithStatusOverlay(brand: brand, statusIndicator: statusIndicator),
                 for: button)
-            return
+            return false
         }
 
         self.setButtonTitle(nil, for: button)
         if let morphProgress {
+            let signature = [
+                "mode=morph",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "morph=\(debugDouble(morphProgress))",
+                "status=\(statusIndicator.rawValue)",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
             self.setButtonImage(image, for: button)
         } else {
+            let signature = [
+                "mode=icon",
+                "provider=\(primaryProvider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(debugDouble(primary))",
+                "weekly=\(debugDouble(weekly))",
+                "credits=\(debugDouble(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "blink=\(debugDouble(Double(blink)))",
+                "wiggle=\(debugDouble(Double(wiggle)))",
+                "tilt=\(debugDouble(Double(tilt)))",
+                "anim=\(needsAnimation ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipMergedIconRender(signature) {
+                return true
+            }
             let image = IconRenderer.makeIcon(
                 primaryRemaining: primary,
                 weeklyRemaining: weekly,
@@ -321,6 +399,21 @@ extension StatusItemController {
                 statusIndicator: statusIndicator)
             self.setButtonImage(image, for: button)
         }
+        return false
+    }
+
+    // swiftlint:enable function_body_length
+
+    private func shouldSkipMergedIconRender(_ signature: String) -> Bool {
+        guard self.shouldMergeIcons else {
+            self.lastAppliedMergedIconRenderSignature = signature
+            return false
+        }
+        if self.lastAppliedMergedIconRenderSignature == signature {
+            return true
+        }
+        self.lastAppliedMergedIconRenderSignature = signature
+        return false
     }
 
     func applyIcon(for provider: UsageProvider, phase: Double?) {
@@ -330,6 +423,7 @@ extension StatusItemController {
         // user setting we pass either "percent left" or "percent used".
         let showUsed = self.settings.usageBarsShowUsed
         let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
+        let style: IconStyle = self.store.style(for: provider)
 
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: provider)
@@ -351,8 +445,14 @@ extension StatusItemController {
                 for: button)
             return
         }
-        var primary = showUsed ? snapshot?.primary?.usedPercent : snapshot?.primary?.remainingPercent
-        var weekly = showUsed ? snapshot?.secondary?.usedPercent : snapshot?.secondary?.remainingPercent
+        let resolved = snapshot.map {
+            IconRemainingResolver.resolvedPercents(
+                snapshot: $0,
+                style: style,
+                showUsed: showUsed)
+        }
+        var primary = resolved?.primary
+        var weekly = resolved?.secondary
         if showUsed,
            provider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,
@@ -370,7 +470,16 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        var credits: Double? = provider == .codex ? self.store.credits?.remaining : nil
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: snapshot?.updatedAt ?? Date())
+        var credits: Double? = codexProjection?.menuBarFallback == .creditsBalance
+            ? self.store.codexMenuBarCreditsRemaining(
+                snapshotOverride: snapshot,
+                now: snapshot?.updatedAt ?? Date())
+            : nil
         var stale = self.store.isStale(provider: provider)
         var morphProgress: Double?
 
@@ -394,7 +503,6 @@ extension StatusItemController {
             }
         }
 
-        let style: IconStyle = self.store.style(for: provider)
         let isLoading = phase != nil && self.shouldAnimate(provider: provider)
         let blink: CGFloat = {
             guard isLoading, style == .warp, let phase else {
@@ -444,11 +552,21 @@ extension StatusItemController {
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
         let mode = self.settings.menuBarDisplayMode
         let now = Date()
-        let pace: UsagePace? = switch mode {
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)
+        let pace: UsagePace?
+        switch mode {
         case .percent:
-            nil
+            pace = nil
         case .pace, .both:
-            snapshot?.secondary.flatMap { window in
+            let weeklyWindow = codexProjection?.rateWindow(for: .weekly)
+                ?? snapshot?.secondary
+                // Abacus has no secondary window; pace is computed on primary monthly credits
+                ?? (provider == .abacus ? snapshot?.primary : nil)
+            pace = weeklyWindow.flatMap { window in
                 self.store.weeklyPace(provider: provider, window: window, now: now)
             }
         }
@@ -458,14 +576,10 @@ extension StatusItemController {
             pace: pace,
             showUsed: self.settings.usageBarsShowUsed)
 
-        let sessionExhausted = (snapshot?.primary?.remainingPercent ?? 100) <= 0
-        let weeklyExhausted = (snapshot?.secondary?.remainingPercent ?? 100) <= 0
-
-        if provider == .codex,
-           mode == .percent,
+        if mode == .percent,
            !self.settings.usageBarsShowUsed,
-           sessionExhausted || weeklyExhausted,
-           let creditsRemaining = self.store.credits?.remaining,
+           codexProjection?.menuBarFallback == .creditsBalance,
+           let creditsRemaining = codexProjection?.credits?.remaining,
            creditsRemaining > 0
         {
             return UsageFormatter
@@ -487,6 +601,15 @@ extension StatusItemController {
            let highest = self.store.providerWithHighestUsage()
         {
             return highest.provider
+        }
+        if self.shouldMergeIcons, self.settings.mergedMenuLastSelectedWasOverview {
+            let enabledProviders = self.store.enabledProvidersForDisplay()
+            let overviewProviders = self.settings.resolvedMergedOverviewProviders(
+                activeProviders: enabledProviders,
+                maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+            if let provider = overviewProviders.first(where: { self.store.isEnabled($0) }) {
+                return provider
+            }
         }
         if self.shouldMergeIcons,
            let selected = self.selectedMenuProvider,
