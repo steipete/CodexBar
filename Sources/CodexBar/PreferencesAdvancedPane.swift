@@ -1,3 +1,4 @@
+import CodexBarCore
 import KeyboardShortcuts
 import SwiftUI
 
@@ -51,6 +52,84 @@ struct AdvancedPane: View {
                     Text("Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.")
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
+                }
+
+                Divider()
+
+                SettingsSection(
+                    title: "Network proxy",
+                    caption: "Routes provider HTTP requests through an HTTP or SOCKS5 proxy.")
+                {
+                    VStack(alignment: .leading, spacing: 10) {
+                        PreferenceToggleRow(
+                            title: "Enable proxy",
+                            subtitle: "Applies to provider requests made by the app.",
+                            binding: self.$settings.networkProxyEnabled)
+
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Scheme")
+                                    .font(.body)
+                                Text("Select HTTP for standard proxies or SOCKS5 for tunneling.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Picker("Proxy scheme", selection: self.$settings.networkProxyScheme) {
+                                ForEach(NetworkProxyScheme.allCases, id: \.self) { scheme in
+                                    Text(scheme.displayName).tag(scheme)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 200)
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 12) {
+                                Text("Host")
+                                    .frame(width: 88, alignment: .leading)
+                                TextField("proxy.example.com", text: self.$settings.networkProxyHost)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            HStack(spacing: 12) {
+                                Text("Port")
+                                    .frame(width: 88, alignment: .leading)
+                                TextField("8080", text: self.$settings.networkProxyPort)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(maxWidth: 120)
+                            }
+                            HStack(spacing: 12) {
+                                Text("Username")
+                                    .frame(width: 88, alignment: .leading)
+                                TextField("optional", text: self.$settings.networkProxyUsername)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            HStack(spacing: 12) {
+                                Text("Password")
+                                    .frame(width: 88, alignment: .leading)
+                                SecureField("stored in Keychain", text: self.$settings.networkProxyPassword)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        }
+
+                        Text("Leave host empty to disable the proxy. Password is stored in Keychain.")
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Label {
+                            Text(self.settings.networkProxyStatusText)
+                                .font(.footnote)
+                                .foregroundStyle(self.settings.networkProxyStatusIsActive ? .secondary : .tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } icon: {
+                            Image(systemName: self.settings.networkProxyStatusIsActive
+                                ? "checkmark.circle.fill"
+                                : "exclamationmark.triangle.fill")
+                            .foregroundStyle(self.settings.networkProxyStatusIsActive ? .green : .orange)
+                        }
+                    }
                 }
 
                 Divider()

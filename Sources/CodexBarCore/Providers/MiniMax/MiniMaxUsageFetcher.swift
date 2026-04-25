@@ -142,7 +142,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             self.resolveCodingPlanRefererURL(region: region, environment: environment).absoluteString,
             forHTTPHeaderField: "referer")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MiniMaxUsageError.networkError("Invalid response")
         }
@@ -201,7 +201,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             self.resolveCodingPlanRefererURL(region: region, environment: environment).absoluteString,
             forHTTPHeaderField: "referer")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MiniMaxUsageError.networkError("Invalid response")
         }

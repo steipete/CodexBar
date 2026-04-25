@@ -27,6 +27,7 @@ public struct ProviderFetchContext: Sendable {
     public let env: [String: String]
     public let settings: ProviderSettingsSnapshot?
     public let fetcher: UsageFetcher
+    public let httpClient: ProviderHTTPClient
     public let claudeFetcher: any ClaudeUsageFetching
     public let browserDetection: BrowserDetection
 
@@ -40,6 +41,7 @@ public struct ProviderFetchContext: Sendable {
         env: [String: String],
         settings: ProviderSettingsSnapshot?,
         fetcher: UsageFetcher,
+        httpClient: ProviderHTTPClient = .shared,
         claudeFetcher: any ClaudeUsageFetching,
         browserDetection: BrowserDetection)
     {
@@ -52,6 +54,7 @@ public struct ProviderFetchContext: Sendable {
         self.env = env
         self.settings = settings
         self.fetcher = fetcher
+        self.httpClient = httpClient
         self.claudeFetcher = claudeFetcher
         self.browserDetection = browserDetection
     }
