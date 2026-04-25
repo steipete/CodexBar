@@ -101,10 +101,10 @@ struct FactoryStatusProbeFetchTests {
         #expect(await FactorySessionStore.shared.getBearerToken() == "fresh-access")
         #expect(await FactorySessionStore.shared.getRefreshToken() == "fresh-refresh")
         #expect(Self.requestTrace() == [
-            "app.factory.ai/api/app/auth/me",
-            "api.workos.com/user_management/authenticate",
-            "api.factory.ai/api/app/auth/me",
-            "api.factory.ai/api/organization/subscription/usage",
+            "GET app.factory.ai/api/app/auth/me",
+            "POST api.workos.com/user_management/authenticate",
+            "GET api.factory.ai/api/app/auth/me",
+            "GET api.factory.ai/api/organization/subscription/usage?useCache=true",
         ])
         await FactorySessionStore.shared.clearSession()
     }
@@ -201,7 +201,8 @@ struct FactoryStatusProbeFetchTests {
     private static func requestTrace() -> [String] {
         FactoryStubURLProtocol.requests.compactMap { request in
             guard let url = request.url else { return nil }
-            return "\(url.host ?? "unknown")\(url.path)"
+            let query = url.query.map { "?\($0)" } ?? ""
+            return "\(request.httpMethod ?? "?") \(url.host ?? "unknown")\(url.path)\(query)"
         }
     }
 

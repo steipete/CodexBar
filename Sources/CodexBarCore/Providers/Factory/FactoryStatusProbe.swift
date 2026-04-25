@@ -1080,10 +1080,19 @@ public struct FactoryStatusProbe: Sendable {
         userId: String?,
         baseURL: URL) async throws -> FactoryUsageResponse
     {
-        let url = baseURL.appendingPathComponent("/api/organization/subscription/usage")
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/api/organization/subscription/usage"),
+            resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "useCache", value: "true"),
+        ]
+        if let userId {
+            components?.queryItems?.append(URLQueryItem(name: "userId", value: userId))
+        }
+        let url = components?.url ?? baseURL.appendingPathComponent("/api/organization/subscription/usage")
         var request = URLRequest(url: url)
         request.timeoutInterval = self.timeout
-        request.httpMethod = "POST"
+        request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("https://app.factory.ai", forHTTPHeaderField: "Origin")
@@ -1095,13 +1104,6 @@ public struct FactoryStatusProbe: Sendable {
         if let bearerToken {
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
-
-        // Build request body
-        var body: [String: Any] = ["useCache": true]
-        if let userId {
-            body["userId"] = userId
-        }
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
