@@ -402,7 +402,7 @@ public enum FactoryStatusProbeError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .notLoggedIn:
-            "Not logged in to Factory. Please log in via the CodexBar menu."
+            "No usable Droid session found. Log in to app.factory.ai in \(factoryCookieImportOrder.loginHint), then refresh Droid."
         case let .networkError(msg):
             "Factory API error: \(msg)"
         case let .parseFailed(msg):
