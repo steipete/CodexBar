@@ -567,8 +567,21 @@ enum MiniMaxUsageParser {
             nil
         }
 
+        let baseIdentifiers = rows.enumerated().map { index, row in
+            self.modelIdentifierBase(row: row, index: index)
+        }
+        var seenIdentifierCounts: [String: Int] = [:]
+        let identifiers = baseIdentifiers.map { baseIdentifier in
+            let seen = seenIdentifierCounts[baseIdentifier, default: 0]
+            seenIdentifierCounts[baseIdentifier] = seen + 1
+            return seen == 0 ? baseIdentifier : "\(baseIdentifier)#\(seen)"
+        }
+
         let models = rows.enumerated().map { index, row in
-            self.buildModelUsage(row: row, index: index, now: now)
+            self.buildModelUsage(
+                row: row,
+                identifier: identifiers[index],
+                now: now)
         }
 
         return MiniMaxUsageSnapshot(
@@ -583,7 +596,11 @@ enum MiniMaxUsageParser {
             models: models)
     }
 
-    private static func buildModelUsage(row: MiniMaxModelRemains, index: Int, now: Date) -> MiniMaxModelUsage {
+    private static func buildModelUsage(
+        row: MiniMaxModelRemains,
+        identifier: String,
+        now: Date) -> MiniMaxModelUsage
+    {
         let total = row.currentIntervalTotalCount
         let remaining = row.currentIntervalUsageCount
         let usedPercent = self.usedPercent(total: total, remaining: remaining)
@@ -620,7 +637,6 @@ enum MiniMaxUsageParser {
             self.resetsAt(end: weeklyEndDate, remains: row.weeklyRemainsTime, now: now)
         }
 
-        let identifier = self.modelIdentifier(row: row, index: index)
         let displayName = self.modelDisplayName(row: row, identifier: identifier)
         let windowKind = self.classifyWindowKind(
             windowMinutes: windowMinutes,
@@ -646,7 +662,7 @@ enum MiniMaxUsageParser {
             window: windowKind)
     }
 
-    private static func modelIdentifier(row: MiniMaxModelRemains, index: Int) -> String {
+    private static func modelIdentifierBase(row: MiniMaxModelRemains, index: Int) -> String {
         let primary = [
             row.modelId,
             row.modelName,
@@ -656,7 +672,7 @@ enum MiniMaxUsageParser {
         ]
         for candidate in primary {
             let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !trimmed.isEmpty { return "\(trimmed)#\(index)" }
+            if !trimmed.isEmpty { return trimmed }
         }
         return "model-\(index + 1)"
     }
