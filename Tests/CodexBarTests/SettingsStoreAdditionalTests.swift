@@ -36,6 +36,11 @@ struct SettingsStoreAdditionalTests {
         #expect(settings.menuBarMetricPreference(for: .cursor, snapshot: nil) == .automatic)
         #expect(settings.menuBarMetricSupportsTertiary(for: .cursor, snapshot: nil) == false)
 
+        settings.setMenuBarMetricPreference(.extraUsage, for: .cursor)
+        #expect(settings.menuBarMetricPreference(for: .cursor) == .extraUsage)
+        #expect(settings.menuBarMetricPreference(for: .cursor, snapshot: nil) == .automatic)
+        #expect(settings.menuBarMetricSupportsExtraUsage(for: .cursor, snapshot: nil) == false)
+
         settings.setMenuBarMetricPreference(.tertiary, for: .perplexity)
         #expect(settings.menuBarMetricPreference(for: .perplexity) == .tertiary)
         #expect(settings.menuBarMetricPreference(for: .perplexity, snapshot: nil) == .tertiary)
@@ -59,6 +64,9 @@ struct SettingsStoreAdditionalTests {
         #expect(settings.menuBarMetricPreference(for: .openrouter) == .primary)
 
         settings.setMenuBarMetricPreference(.tertiary, for: .openrouter)
+        #expect(settings.menuBarMetricPreference(for: .openrouter) == .automatic)
+
+        settings.setMenuBarMetricPreference(.extraUsage, for: .openrouter)
         #expect(settings.menuBarMetricPreference(for: .openrouter) == .automatic)
     }
 

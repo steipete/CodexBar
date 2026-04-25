@@ -6,6 +6,7 @@ import Testing
 
 @Suite(.serialized)
 @MainActor
+// swiftlint:disable:next type_body_length
 struct SettingsStoreTests {
     private final class ObservationFlag: @unchecked Sendable {
         private let lock = NSLock()
@@ -83,6 +84,31 @@ struct SettingsStoreTests {
 
         #expect(storeB.refreshFrequency == .fifteenMinutes)
         #expect(storeB.refreshFrequency.seconds == 900)
+    }
+
+    @Test
+    func `weekly confetti setting defaults off and persists`() throws {
+        let suite = "SettingsStoreTests-weekly-confetti"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.confettiOnWeeklyLimitResetsEnabled == false)
+        storeA.confettiOnWeeklyLimitResetsEnabled = true
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.confettiOnWeeklyLimitResetsEnabled == true)
     }
 
     @Test
@@ -912,6 +938,7 @@ struct SettingsStoreTests {
             .openrouter,
             .perplexity,
             .abacus,
+            .mistral,
         ])
 
         // Move one provider; ensure it's persisted across instances.

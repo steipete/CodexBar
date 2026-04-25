@@ -1,10 +1,10 @@
 ---
-
-## summary: "MiniMax provider data sources: API token or browser cookies + coding plan remains API."
+summary: "MiniMax provider data sources: API token or browser cookies + coding plan remains API."
 read_when:
   - Debugging MiniMax usage parsing
   - Updating MiniMax cookie handling or coding plan scraping
   - Adjusting MiniMax provider UI/menu behavior
+---
 
 # MiniMax provider
 

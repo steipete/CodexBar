@@ -10,6 +10,8 @@ struct CostUsagePricingTests {
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.4-pro-2026-03-05") == "gpt-5.4-pro")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.4-mini-2026-03-17") == "gpt-5.4-mini")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.4-nano-2026-03-17") == "gpt-5.4-nano")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.5-2026-04-23") == "gpt-5.5")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.5-pro-2026-04-23") == "gpt-5.5-pro")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.3-codex-2026-03-05") == "gpt-5.3-codex")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.3-codex-spark") == "gpt-5.3-codex-spark")
     }
@@ -49,6 +51,28 @@ struct CostUsagePricingTests {
 
         #expect(mini != nil)
         #expect(nano != nil)
+    }
+
+    @Test
+    func `codex cost supports gpt55`() {
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "openai/gpt-5.5-2026-04-23",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5)
+
+        #expect(cost == 90 * 5e-6 + 10 * 5e-7 + 5 * 3e-5)
+    }
+
+    @Test
+    func `codex cost supports gpt55 pro`() {
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "openai/gpt-5.5-pro-2026-04-23",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5)
+
+        #expect(cost == 100 * 3e-5 + 5 * 1.8e-4)
     }
 
     @Test

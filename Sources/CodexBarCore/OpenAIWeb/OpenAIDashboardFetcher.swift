@@ -19,7 +19,7 @@ public struct OpenAIDashboardFetcher {
         }
     }
 
-    private let usageURL = URL(string: "https://chatgpt.com/codex/settings/usage")!
+    private let usageURL = URL(string: "https://chatgpt.com/codex/cloud/settings/analytics#usage")!
 
     public init() {}
 
@@ -95,6 +95,22 @@ public struct OpenAIDashboardFetcher {
             self.signedInEmail = signedInEmail
             self.bodyText = bodyText
         }
+    }
+
+    nonisolated static func shouldPreserveLoadedPageAfterProbe(_ result: ProbeResult) -> Bool {
+        guard !result.loginRequired, !result.workspacePicker, !result.cloudflareInterstitial else {
+            return false
+        }
+
+        guard self.isUsageRoute(result.href) else { return false }
+
+        guard let signedInEmail = result.signedInEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !signedInEmail.isEmpty
+        else {
+            return false
+        }
+
+        return true
     }
 
     public func loadLatestDashboard(
@@ -342,13 +358,15 @@ public struct OpenAIDashboardFetcher {
     public func probeUsagePage(
         websiteDataStore: WKWebsiteDataStore,
         logger: ((String) -> Void)? = nil,
-        timeout: TimeInterval = 30) async throws -> ProbeResult
+        timeout: TimeInterval = 30,
+        preserveLoadedPageForReuse: Bool = false) async throws -> ProbeResult
     {
         let deadline = Self.deadline(startingAt: Date(), timeout: timeout)
         let lease = try await self.makeWebView(
             websiteDataStore: websiteDataStore,
             logger: logger,
-            timeout: Self.remainingTimeout(until: deadline))
+            timeout: Self.remainingTimeout(until: deadline),
+            preserveLoadedPageOnRelease: preserveLoadedPageForReuse)
         defer { lease.release() }
         let webView = lease.webView
         let log = lease.log
@@ -410,23 +428,28 @@ public struct OpenAIDashboardFetcher {
                 continue
             }
 
-            return ProbeResult(
+            let result = ProbeResult(
                 href: scrape.href,
                 loginRequired: scrape.loginRequired,
                 workspacePicker: scrape.workspacePicker,
                 cloudflareInterstitial: scrape.cloudflareInterstitial,
                 signedInEmail: normalizedEmail,
                 bodyText: scrape.bodyText)
+            lease.setPreserveLoadedPageOnRelease(
+                preserveLoadedPageForReuse && Self.shouldPreserveLoadedPageAfterProbe(result))
+            return result
         }
 
         log("Probe timed out (href=\(lastHref ?? "nil"))")
-        return ProbeResult(
+        let result = ProbeResult(
             href: lastHref,
             loginRequired: false,
             workspacePicker: false,
             cloudflareInterstitial: false,
             signedInEmail: nil,
             bodyText: lastBody)
+        lease.setPreserveLoadedPageOnRelease(false)
+        return result
     }
 
     // MARK: - JS scrape
@@ -530,13 +553,15 @@ public struct OpenAIDashboardFetcher {
     private func makeWebView(
         websiteDataStore: WKWebsiteDataStore,
         logger: ((String) -> Void)?,
-        timeout: TimeInterval) async throws -> OpenAIDashboardWebViewLease
+        timeout: TimeInterval,
+        preserveLoadedPageOnRelease: Bool = false) async throws -> OpenAIDashboardWebViewLease
     {
         try await OpenAIDashboardWebViewCache.shared.acquire(
             websiteDataStore: websiteDataStore,
             usageURL: self.usageURL,
             logger: logger,
-            navigationTimeout: timeout)
+            navigationTimeout: timeout,
+            preserveLoadedPageOnRelease: preserveLoadedPageOnRelease)
     }
 
     nonisolated static func sanitizedTimeout(_ timeout: TimeInterval) -> TimeInterval {
@@ -556,7 +581,10 @@ public struct OpenAIDashboardFetcher {
         guard let href, !href.isEmpty else { return false }
         let path = (URL(string: href)?.path ?? href)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return path.hasSuffix("codex/settings/usage") || path.hasSuffix("codex/cloud/settings/usage")
+        return path.hasSuffix("codex/settings/usage")
+            || path.hasSuffix("codex/cloud/settings/usage")
+            || path.hasSuffix("codex/settings/analytics")
+            || path.hasSuffix("codex/cloud/settings/analytics")
     }
 
     private static func writeDebugArtifacts(html: String, bodyText: String?, logger: (String) -> Void) {
