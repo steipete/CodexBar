@@ -32,6 +32,88 @@ struct MoonshotSettingsReaderTests {
 
         #expect(MoonshotSettingsReader.region(environment: env) == .international)
     }
+
+    // MARK: - Kimi CLI config parsing
+
+    @Test
+    func `parseKimiConfigAPIKey extracts key from managed moonshot section`() {
+        let toml = """
+        [providers."managed:moonshot-ai"]
+        type = "kimi"
+        base_url = "https://api.moonshot.ai/v1"
+        api_key = "sk-from-config"
+        """
+
+        #expect(MoonshotSettingsReader.parseKimiConfigAPIKey(toml) == "sk-from-config")
+    }
+
+    @Test
+    func `parseKimiConfigAPIKey strips quotes`() {
+        let toml = """
+        [providers."managed:moonshot-ai"]
+        api_key = 'sk-single-quoted'
+        """
+
+        #expect(MoonshotSettingsReader.parseKimiConfigAPIKey(toml) == "sk-single-quoted")
+    }
+
+    @Test
+    func `parseKimiConfigAPIKey respects section boundaries`() {
+        let toml = """
+        [providers."managed:moonshot-ai"]
+        type = "kimi"
+        api_key = "sk-correct"
+
+        [providers."other"]
+        api_key = "sk-wrong"
+        """
+
+        #expect(MoonshotSettingsReader.parseKimiConfigAPIKey(toml) == "sk-correct")
+    }
+
+    @Test
+    func `parseKimiConfigAPIKey ignores keys in other sections`() {
+        let toml = """
+        [providers."other"]
+        api_key = "sk-wrong"
+
+        [providers."managed:moonshot-ai"]
+        api_key = "sk-correct"
+        """
+
+        #expect(MoonshotSettingsReader.parseKimiConfigAPIKey(toml) == "sk-correct")
+    }
+
+    @Test
+    func `parseKimiConfigAPIKey ignores comments`() {
+        let toml = """
+        [providers."managed:moonshot-ai"]
+        # api_key = "sk-commented"
+        api_key = "sk-real"
+        """
+
+        #expect(MoonshotSettingsReader.parseKimiConfigAPIKey(toml) == "sk-real")
+    }
+
+    @Test
+    func `parseKimiConfigAPIKey returns nil when section missing`() {
+        let toml = """
+        [other]
+        api_key = "sk-wrong"
+        """
+
+        #expect(MoonshotSettingsReader.parseKimiConfigAPIKey(toml) == nil)
+    }
+
+    @Test
+    func `parseKimiConfigAPIKey returns nil when key missing`() {
+        let toml = """
+        [providers."managed:moonshot-ai"]
+        type = "kimi"
+        """
+
+        #expect(MoonshotSettingsReader.parseKimiConfigAPIKey(toml) == nil)
+    }
 }
 
 struct MoonshotProviderTokenResolverTests {

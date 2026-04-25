@@ -21,6 +21,14 @@ public struct MoonshotSettingsReader: Sendable {
                 return cleaned
             }
         }
+
+        // Fall back to Kimi CLI config file
+        if let configContents = Self.loadKimiConfigContents() {
+            if let key = Self.parseKimiConfigAPIKey(configContents) {
+                return key
+            }
+        }
+
         return nil
     }
 
@@ -43,5 +51,41 @@ public struct MoonshotSettingsReader: Sendable {
             value.removeLast()
         }
         return value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: - Kimi CLI config fallback
+
+    static func parseKimiConfigAPIKey(_ contents: String) -> String? {
+        let lines = contents.split(whereSeparator: \.isNewline)
+        var inMoonshotSection = false
+
+        for rawLine in lines {
+            let line = rawLine.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first
+            let trimmed = line?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !trimmed.isEmpty else { continue }
+
+            if trimmed.hasPrefix("[") {
+                inMoonshotSection = (trimmed == "[providers.\"managed:moonshot-ai\"]")
+                continue
+            }
+
+            guard inMoonshotSection else { continue }
+
+            let parts = trimmed.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: true)
+            guard parts.count == 2 else { continue }
+            let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard key == "api_key" else { continue }
+            var value = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            value = Self.cleaned(value)
+            return value.isEmpty ? nil : value
+        }
+
+        return nil
+    }
+
+    private static func loadKimiConfigContents() -> String? {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let url = home.appendingPathComponent(".kimi/config.toml")
+        return try? String(contentsOf: url, encoding: .utf8)
     }
 }
