@@ -157,13 +157,29 @@ public enum WindsurfWebFetcher {
         let sessionInfos = WindsurfDevinSessionImporter.importSessions(
             browserDetection: browserDetection,
             logger: logger)
-        guard let sessionInfo = sessionInfos.first else {
+        guard !sessionInfos.isEmpty else {
             throw WindsurfWebFetcherError.noSessionData
         }
 
-        log("Using devin session from \(sessionInfo.sourceLabel)")
-        let response = try await self.fetchPlanStatus(auth: sessionInfo.session, timeout: timeout, session: session)
-        return response.toUsageSnapshot()
+        var lastError: Error?
+        for sessionInfo in sessionInfos {
+            do {
+                log("Using devin session from \(sessionInfo.sourceLabel)")
+                let response = try await self.fetchPlanStatus(
+                    auth: sessionInfo.session,
+                    timeout: timeout,
+                    session: session)
+                return response.toUsageSnapshot()
+            } catch {
+                guard self.isRecoverableImportedSessionError(error) else {
+                    throw error
+                }
+                lastError = error
+                log("Windsurf devin session from \(sessionInfo.sourceLabel) failed; trying next imported session")
+            }
+        }
+
+        throw lastError ?? WindsurfWebFetcherError.noSessionData
     }
 
     static func parseManualSessionInput(_ raw: String) throws -> WindsurfDevinSessionAuth {
@@ -212,6 +228,14 @@ public enum WindsurfWebFetcher {
 
         guard !values.isEmpty else { return nil }
         return self.sessionAuth(from: values)
+    }
+
+    private static func isRecoverableImportedSessionError(_ error: Error) -> Bool {
+        guard case let WindsurfWebFetcherError.apiCallFailed(message) = error else {
+            return false
+        }
+
+        return ["HTTP 400", "HTTP 401", "HTTP 403"].contains { message.hasPrefix($0) }
     }
 
     private static func sessionAuth(from values: [String: Any]) -> WindsurfDevinSessionAuth? {

@@ -5,6 +5,9 @@ import SweetCookieKit
 
 #if os(macOS)
 enum WindsurfDevinSessionImporter {
+    nonisolated(unsafe) static var importSessionsOverrideForTesting:
+        ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?
+
     struct SessionInfo: Sendable, Equatable {
         let session: WindsurfDevinSessionAuth
         let sourceLabel: String
@@ -14,6 +17,10 @@ enum WindsurfDevinSessionImporter {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> [SessionInfo]
     {
+        if let override = self.importSessionsOverrideForTesting {
+            return override(browserDetection, logger)
+        }
+
         let log: (String) -> Void = { msg in logger?("[windsurf-storage] \(msg)") }
         var sessions: [SessionInfo] = []
 
