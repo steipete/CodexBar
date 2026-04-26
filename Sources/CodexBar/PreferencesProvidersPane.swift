@@ -611,6 +611,8 @@ struct ProvidersPane: View {
             case .missingEmail:
                 "Codex login completed, but no account email was available. Try again after confirming "
                     + "the account is fully signed in."
+            case .workspaceSelectionCancelled:
+                "CodexBar found multiple workspaces, but no workspace was selected."
             case let .unsafeManagedHome(path):
                 "CodexBar refused to modify an unexpected managed home path: \(path)"
             }

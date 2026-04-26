@@ -58,7 +58,11 @@ struct CodexDisplacedLivePreservationPlanner {
         }
 
         if let targetAuthIdentity = context.target.authIdentity,
-           CodexIdentityMatcher.matches(targetAuthIdentity.identity, liveAuthIdentity.identity)
+           CodexIdentityMatcher.matches(
+               targetAuthIdentity.identity,
+               lhsEmail: targetAuthIdentity.email,
+               liveAuthIdentity.identity,
+               rhsEmail: liveAuthIdentity.email)
         {
             return .none(reason: .targetMatchesLiveAuthIdentity)
         }
@@ -96,7 +100,11 @@ struct CodexDisplacedLivePreservationPlanner {
     {
         candidates.first { candidate in
             guard let candidateAuthIdentity = candidate.authIdentity else { return false }
-            return CodexIdentityMatcher.matches(candidateAuthIdentity.identity, liveAuthIdentity.identity)
+            return CodexIdentityMatcher.matches(
+                candidateAuthIdentity.identity,
+                lhsEmail: candidateAuthIdentity.email,
+                liveAuthIdentity.identity,
+                rhsEmail: liveAuthIdentity.email)
         }
     }
 
@@ -108,8 +116,12 @@ struct CodexDisplacedLivePreservationPlanner {
         switch liveAuthIdentity.identity {
         case let .providerAccount(id):
             let providerAccountID = ManagedCodexAccount.normalizeProviderAccountID(id)
-            if let destination = candidates.first(where: { $0.persisted.providerAccountID == providerAccountID }),
-               let reason = self.providerRepairReason(for: destination)
+            if let destination = candidates.first(where: {
+                guard $0.persisted.providerAccountID == providerAccountID else { return false }
+                guard let liveEmail = liveAuthIdentity.email else { return true }
+                return $0.persisted.email == liveEmail
+            }),
+                let reason = self.providerRepairReason(for: destination)
             {
                 return (destination, reason)
             }
@@ -149,9 +161,16 @@ struct CodexDisplacedLivePreservationPlanner {
         let providerAccountID = ManagedCodexAccount.normalizeProviderAccountID(id)
         return candidates.contains { candidate in
             guard candidate.persisted.providerAccountID == providerAccountID else { return false }
+            if let liveEmail = liveAuthIdentity.email, candidate.persisted.email != liveEmail {
+                return false
+            }
             guard case .readable = candidate.homeState else { return false }
             guard let candidateAuthIdentity = candidate.authIdentity else { return false }
-            return !CodexIdentityMatcher.matches(candidateAuthIdentity.identity, liveAuthIdentity.identity)
+            return !CodexIdentityMatcher.matches(
+                candidateAuthIdentity.identity,
+                lhsEmail: candidateAuthIdentity.email,
+                liveAuthIdentity.identity,
+                rhsEmail: liveAuthIdentity.email)
         }
     }
 

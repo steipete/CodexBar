@@ -44,13 +44,29 @@ public enum CodexOpenAIWorkspaceResolver {
             return nil
         }
 
+        let identities = try await self.listWorkspaces(credentials: credentials, session: session)
+        if let identity = identities.first(where: { $0.workspaceAccountID == workspaceAccountID }) {
+            return identity
+        }
+
+        return CodexOpenAIWorkspaceIdentity(
+            workspaceAccountID: workspaceAccountID,
+            workspaceLabel: nil)
+    }
+
+    public static func listWorkspaces(
+        credentials: CodexOAuthCredentials,
+        session: URLSession = .shared) async throws -> [CodexOpenAIWorkspaceIdentity]
+    {
         var request = URLRequest(url: self.accountsURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 20
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("codex-cli", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(workspaceAccountID, forHTTPHeaderField: "ChatGPT-Account-Id")
+        if let workspaceAccountID = normalizeWorkspaceAccountID(credentials.accountId) {
+            request.setValue(workspaceAccountID, forHTTPHeaderField: "ChatGPT-Account-Id")
+        }
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
@@ -60,17 +76,12 @@ public enum CodexOpenAIWorkspaceResolver {
         }
 
         let decoded = try JSONDecoder().decode(AccountsResponse.self, from: data)
-        if let account = decoded.items.first(where: {
-            Self.normalizeWorkspaceAccountID($0.id) == workspaceAccountID
-        }) {
+        return decoded.items.compactMap { account in
+            guard let workspaceAccountID = self.normalizeWorkspaceAccountID(account.id) else { return nil }
             return CodexOpenAIWorkspaceIdentity(
                 workspaceAccountID: workspaceAccountID,
                 workspaceLabel: self.resolveWorkspaceLabel(from: account))
         }
-
-        return CodexOpenAIWorkspaceIdentity(
-            workspaceAccountID: workspaceAccountID,
-            workspaceLabel: nil)
     }
 
     public static func normalizeWorkspaceAccountID(_ value: String?) -> String? {

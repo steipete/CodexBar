@@ -259,7 +259,12 @@ final class CodexAccountPromotionService {
     private func convergedActiveSource(for context: PreparedPromotionContext) -> CodexActiveSource? {
         if let liveAuthIdentity = context.live.authIdentity {
             let targetIdentity = context.target.authIdentity ?? context.target.persistedIdentity
-            guard CodexIdentityMatcher.matches(targetIdentity.identity, liveAuthIdentity.identity) else {
+            guard CodexIdentityMatcher.matches(
+                targetIdentity.identity,
+                lhsEmail: targetIdentity.email,
+                liveAuthIdentity.identity,
+                rhsEmail: liveAuthIdentity.email)
+            else {
                 return nil
             }
 
@@ -280,7 +285,9 @@ final class CodexAccountPromotionService {
 
         guard CodexIdentityMatcher.matches(
             context.snapshot.runtimeIdentity(for: context.target.persisted),
-            context.snapshot.runtimeIdentity(for: liveSystemAccount))
+            lhsEmail: context.snapshot.runtimeEmail(for: context.target.persisted),
+            context.snapshot.runtimeIdentity(for: liveSystemAccount),
+            rhsEmail: liveSystemAccount.email)
         else {
             return nil
         }

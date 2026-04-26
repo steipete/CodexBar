@@ -86,7 +86,9 @@ public struct ManagedCodexAccountSet: Codable, Sendable {
     public func account(email: String, providerAccountID: String? = nil) -> ManagedCodexAccount? {
         let normalizedEmail = ManagedCodexAccount.normalizeEmail(email)
         if let normalizedProviderAccountID = ManagedCodexAccount.normalizeProviderAccountID(providerAccountID),
-           let exactMatch = self.accounts.first(where: { $0.providerAccountID == normalizedProviderAccountID })
+           let exactMatch = self.accounts.first(where: {
+               $0.email == normalizedEmail && $0.providerAccountID == normalizedProviderAccountID
+           })
         {
             return exactMatch
         }
@@ -104,7 +106,7 @@ public struct ManagedCodexAccountSet: Codable, Sendable {
 
     private static func sanitizedAccounts(_ accounts: [ManagedCodexAccount]) -> [ManagedCodexAccount] {
         var seenIDs: Set<UUID> = []
-        var seenProviderAccountIDs: Set<String> = []
+        var seenProviderAccountKeys: Set<String> = []
         var seenLegacyEmails: Set<String> = []
         var sanitized: [ManagedCodexAccount] = []
         sanitized.reserveCapacity(accounts.count)
@@ -112,7 +114,9 @@ public struct ManagedCodexAccountSet: Codable, Sendable {
         for account in accounts {
             guard seenIDs.insert(account.id).inserted else { continue }
             if let providerAccountID = account.providerAccountID {
-                guard seenProviderAccountIDs.insert(providerAccountID).inserted else { continue }
+                guard seenProviderAccountKeys.insert("\(account.email)\u{0}\(providerAccountID)").inserted else {
+                    continue
+                }
             } else {
                 guard seenLegacyEmails.insert(account.email).inserted else { continue }
             }
