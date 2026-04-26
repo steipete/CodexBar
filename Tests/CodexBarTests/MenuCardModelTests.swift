@@ -302,12 +302,26 @@ struct MenuCardModelTests {
             updatedAt: now,
             identity: identity)
         let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let credits = CreditsSnapshot(remaining: 12, events: [], updatedAt: now)
+        let codexProjection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: credits,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: true,
+                dashboardRequiresLogin: false,
+                now: now))
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
             snapshot: snapshot,
-            credits: CreditsSnapshot(remaining: 12, events: [], updatedAt: now),
+            codexProjection: codexProjection,
+            credits: credits,
             creditsError: nil,
             dashboard: nil,
             dashboardError: nil,
