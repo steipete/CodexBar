@@ -936,6 +936,7 @@ struct SettingsStoreTests {
             .synthetic,
             .warp,
             .openrouter,
+            .windsurf,
             .perplexity,
             .abacus,
             .mistral,
