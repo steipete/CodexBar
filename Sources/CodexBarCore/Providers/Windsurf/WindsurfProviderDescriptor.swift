@@ -81,8 +81,8 @@ struct WindsurfLocalFetchStrategy: ProviderFetchStrategy {
     let id: String = "windsurf.local"
     let kind: ProviderFetchKind = .localProbe
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool {
-        true
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        context.sourceMode != .web
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
