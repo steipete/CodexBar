@@ -81,7 +81,9 @@ final class CodexAccountPromotionTestContainer {
         store: (any ManagedCodexAccountStoring)? = nil,
         liveAuthSwapper: (any CodexLiveAuthSwapping)? = nil,
         activeSourceWriter: (any CodexActiveSourceWriting)? = nil,
-        accountScopedRefresher: (any CodexAccountScopedRefreshing)? = nil)
+        accountScopedRefresher: (any CodexAccountScopedRefreshing)? = nil,
+        restartCodexAppOnSystemAccountSwitch: @MainActor @Sendable @escaping () -> Bool = { false },
+        codexAppRestarter: (any CodexAppRestarting)? = nil)
         -> CodexAccountPromotionService
     {
         CodexAccountPromotionService(
@@ -96,6 +98,8 @@ final class CodexAccountPromotionTestContainer {
                 ?? SettingsStoreCodexActiveSourceWriter(settingsStore: self.settings),
             accountScopedRefresher: accountScopedRefresher
                 ?? UsageStoreCodexAccountScopedRefresher(usageStore: self.usageStore),
+            restartCodexAppOnSystemAccountSwitch: restartCodexAppOnSystemAccountSwitch,
+            codexAppRestarter: codexAppRestarter ?? RecordingCodexAppRestarter(),
             baseEnvironment: self.baseEnvironment,
             fileManager: .default)
     }
@@ -446,10 +450,41 @@ final class RecordingCodexLiveAuthSwapper: CodexLiveAuthSwapping, @unchecked Sen
     }
 }
 
+@MainActor
+final class RecordingCodexAppRestarter: CodexAppRestarting {
+    var stopCallCount = 0
+    var relaunchCallCount = 0
+    var stoppedURLs: [URL]
+    var relaunchedURLs: [URL] = []
+    var stopError: Error?
+
+    init(
+        stoppedURLs: [URL] = [],
+        stopError: Error? = nil)
+    {
+        self.stoppedURLs = stoppedURLs
+        self.stopError = stopError
+    }
+
+    func stopRunningCodexAppsForAccountSwitch() async throws -> [URL] {
+        self.stopCallCount += 1
+        if let stopError {
+            throw stopError
+        }
+        return self.stoppedURLs
+    }
+
+    func relaunchCodexApps(at appURLs: [URL]) async {
+        self.relaunchCallCount += 1
+        self.relaunchedURLs.append(contentsOf: appURLs)
+    }
+}
+
 enum PromotionTestError: Error, Equatable {
     case storeWriteFailed
     case swapFailed
     case unexpectedDisposition
+    case appStopFailed
 }
 
 private struct StubManagedCodexWorkspaceResolver: ManagedCodexWorkspaceResolving {

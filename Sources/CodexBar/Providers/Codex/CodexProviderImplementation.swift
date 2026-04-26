@@ -20,6 +20,7 @@ struct CodexProviderImplementation: ProviderImplementation {
         _ = settings.codexUsageDataSource
         _ = settings.codexCookieSource
         _ = settings.codexCookieHeader
+        _ = settings.codexRestartAppOnSystemAccountSwitch
     }
 
     @MainActor
@@ -77,6 +78,20 @@ struct CodexProviderImplementation: ProviderImplementation {
                 title: "Historical tracking",
                 subtitle: "Stores local Codex usage history (8 weeks) to personalize Pace predictions.",
                 binding: context.boolBinding(\.historicalTrackingEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "codex-restart-app-on-system-account-switch",
+                title: "Restart Codex app on system switch",
+                subtitle: [
+                    "Quit any running Codex.app before replacing the system account,",
+                    "then reopen it from the same path.",
+                ].joined(separator: " "),
+                binding: context.boolBinding(\.codexRestartAppOnSystemAccountSwitch),
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
