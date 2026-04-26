@@ -12,6 +12,7 @@ public enum ClaudePeakHours: Sendable {
 
     public static func status(at date: Date) -> Status {
         let calendar = self.calendar()
+        let date = calendar.dateInterval(of: .minute, for: date)?.start ?? date
         let components = calendar.dateComponents([.hour, .minute, .weekday], from: date)
 
         guard let hour = components.hour,

@@ -10,13 +10,14 @@ struct ClaudePeakHoursTests {
         month: Int = 3,
         day: Int,
         hour: Int,
-        minute: Int = 0
+        minute: Int = 0,
+        second: Int = 0
     ) -> Date {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = Self.eastern
         return cal.date(from: DateComponents(
             year: year, month: month, day: day,
-            hour: hour, minute: minute))!
+            hour: hour, minute: minute, second: second))!
     }
 
     @Test
@@ -122,5 +123,33 @@ struct ClaudePeakHoursTests {
         let status = ClaudePeakHours.status(at: self.date(day: 28, hour: 0))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 56h")
+    }
+
+    @Test
+    func weekdayJustBeforePeakWithSeconds() {
+        let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 7, minute: 45, second: 30))
+        #expect(!status.isPeak)
+        #expect(status.label == "Off-peak · peak in 15m")
+    }
+
+    @Test
+    func weekdayOneMinuteBeforePeakWithSeconds() {
+        let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 7, minute: 59, second: 30))
+        #expect(!status.isPeak)
+        #expect(status.label == "Off-peak · peak in 1m")
+    }
+
+    @Test
+    func weekdayLastSecondBeforePeak() {
+        let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 7, minute: 59, second: 59))
+        #expect(!status.isPeak)
+        #expect(status.label == "Off-peak · peak in 1m")
+    }
+
+    @Test
+    func weekdayPeakStartWithSeconds() {
+        let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 8, minute: 0, second: 30))
+        #expect(status.isPeak)
+        #expect(status.label == "Peak · ends in 6h")
     }
 }
