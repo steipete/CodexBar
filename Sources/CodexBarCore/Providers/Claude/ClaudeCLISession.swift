@@ -298,9 +298,21 @@ actor ClaudeCLISession {
         }
 
         let pid = proc.processIdentifier
+        guard TTYCommandRunner.registerActiveProcessForAppShutdown(
+            pid: pid,
+            binary: URL(fileURLWithPath: binary).lastPathComponent)
+        else {
+            proc.terminate()
+            kill(pid, SIGKILL)
+            try? primaryHandle.close()
+            try? secondaryHandle.close()
+            throw SessionError.launchFailed("App shutdown in progress")
+        }
+
         var processGroup: pid_t?
         if setpgid(pid, pid) == 0 {
             processGroup = pid
+            TTYCommandRunner.updateActiveProcessGroupForAppShutdown(pid: pid, processGroup: processGroup)
         }
 
         self.process = proc
@@ -354,6 +366,7 @@ actor ClaudeCLISession {
                 }
                 kill(proc.processIdentifier, SIGKILL)
             }
+            TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: proc.processIdentifier)
         }
 
         self.process = nil

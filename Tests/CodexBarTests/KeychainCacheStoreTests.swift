@@ -24,7 +24,7 @@ struct KeychainCacheStoreTests {
         switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
         case let .found(loaded):
             #expect(loaded == entry)
-        case .missing, .invalid:
+        case .missing, .temporarilyUnavailable, .invalid:
             #expect(Bool(false), "Expected keychain cache entry")
         }
     }
@@ -45,7 +45,7 @@ struct KeychainCacheStoreTests {
         switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
         case let .found(loaded):
             #expect(loaded == second)
-        case .missing, .invalid:
+        case .missing, .temporarilyUnavailable, .invalid:
             #expect(Bool(false), "Expected overwritten keychain cache entry")
         }
     }
@@ -64,8 +64,52 @@ struct KeychainCacheStoreTests {
         switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
         case .missing:
             #expect(true)
-        case .found, .invalid:
+        case .found, .temporarilyUnavailable, .invalid:
             #expect(Bool(false), "Expected keychain cache entry to be cleared")
         }
     }
+
+    #if os(macOS)
+    @Test
+    func `interaction not allowed is treated as temporarily unavailable`() {
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let result: KeychainCacheStore.LoadResult<TestEntry> = KeychainCacheStore.loadResultForKeychainReadFailure(
+            status: errSecInteractionNotAllowed,
+            key: key)
+
+        switch result {
+        case .temporarilyUnavailable:
+            #expect(true)
+        case .found, .missing, .invalid:
+            #expect(Bool(false), "Expected temporary keychain lock to be retry-later")
+        }
+    }
+
+    @Test
+    func `load failure override bypasses test store without affecting store or clear`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let entry = TestEntry(value: "stored", storedAt: Date(timeIntervalSince1970: 0))
+        KeychainCacheStore.store(key: key, entry: entry)
+        defer { KeychainCacheStore.clear(key: key) }
+
+        KeychainCacheStore.withLoadFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+            switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
+            case .temporarilyUnavailable:
+                #expect(true)
+            case .found, .missing, .invalid:
+                #expect(Bool(false), "Expected override to run before test store")
+            }
+        }
+
+        switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
+        case let .found(loaded):
+            #expect(loaded == entry)
+        case .missing, .temporarilyUnavailable, .invalid:
+            #expect(Bool(false), "Expected override not to mutate test store")
+        }
+    }
+    #endif
 }

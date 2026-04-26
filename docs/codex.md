@@ -32,7 +32,12 @@ Usage source picker:
 - Refreshes access tokens when `last_refresh` is older than 8 days.
 - Calls `GET https://chatgpt.com/backend-api/wham/usage` (default) with `Authorization: Bearer <token>`.
 
-### OpenAI web dashboard (optional)
+### OpenAI web dashboard (optional, off by default)
+- Enable it in Preferences -> Providers -> Codex -> OpenAI web extras.
+- It exists for dashboard-only extras such as code review remaining, usage breakdown, and credits history.
+- It is intentionally opt-in because it loads `chatgpt.com` in a hidden WebView and can materially increase battery or network usage.
+- OpenAI web battery saver is a separate toggle. When enabled, routine background/settings-driven refreshes are reduced, but explicit manual refreshes still run.
+- OpenAI web battery saver currently defaults to off.
 - Preferences → Providers → Codex → OpenAI cookies (Automatic or Manual).
 - URL: `https://chatgpt.com/codex/settings/usage`.
 - Uses an off-screen `WKWebView` with a per-account `WKWebsiteDataStore`.
@@ -97,14 +102,20 @@ Usage source picker:
 
 ## Cost usage (local log scan)
 - Source files:
-  - `~/.codex/sessions/YYYY/MM/DD/*.jsonl`
-  - `~/.codex/archived_sessions/*.jsonl` (flat; date inferred from filename when present)
-  - Or `$CODEX_HOME/sessions/...` + `$CODEX_HOME/archived_sessions/...` if `CODEX_HOME` is set.
+  - Native Codex logs:
+    - `~/.codex/sessions/YYYY/MM/DD/*.jsonl`
+    - `~/.codex/archived_sessions/*.jsonl` (flat; date inferred from filename when present)
+    - Or `$CODEX_HOME/sessions/...` + `$CODEX_HOME/archived_sessions/...` if `CODEX_HOME` is set.
+  - Supported pi sessions:
+    - `~/.pi/agent/sessions/**/*.jsonl`
 - Scanner:
-  - Parses `event_msg` token_count entries and `turn_context` model markers.
-  - Computes input/cached/output token deltas and per-model cost.
+  - Native Codex logs parse `event_msg` token_count entries and `turn_context` model markers.
+  - pi sessions count assistant-message usage rows and attribute `openai-codex` assistant usage to Codex.
+  - pi assistant usage is bucketed by assistant-turn timestamp, so mixed-model pi sessions can contribute to multiple
+    days/models correctly.
 - Cache:
-  - `~/Library/Caches/CodexBar/cost-usage/codex-v1.json`
+  - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/codex-v2.json`
+  - pi session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v1.json`
 - Window: last 30 days (rolling), with a 60s minimum refresh interval.
 
 ## Key files
@@ -112,4 +123,6 @@ Usage source picker:
 - CLI RPC + PTY: `Sources/CodexBarCore/UsageFetcher.swift`,
   `Sources/CodexBarCore/Providers/Codex/CodexStatusProbe.swift`
 - Cost usage: `Sources/CodexBarCore/CostUsageFetcher.swift`,
+  `Sources/CodexBarCore/PiSessionCostScanner.swift`,
+  `Sources/CodexBarCore/PiSessionCostCache.swift`,
   `Sources/CodexBarCore/Vendored/CostUsage/*`

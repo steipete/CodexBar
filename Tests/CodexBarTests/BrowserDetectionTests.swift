@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 #if os(macOS)
 import SweetCookieKit
@@ -65,6 +65,34 @@ struct BrowserDetectionTests {
         FileManager.default.createFile(atPath: cookiesDir.appendingPathComponent("Cookies").path, contents: Data())
 
         #expect(detection.isCookieSourceAvailable(.chrome) == true)
+    }
+
+    @Test
+    func `process filters chromium candidates despite false global keychain override`() throws {
+        guard ProcessInfo.processInfo.environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1" else { return }
+        KeychainAccessGate.resetOverrideForTesting()
+        defer { KeychainAccessGate.resetOverrideForTesting() }
+
+        KeychainAccessGate.isDisabled = false
+
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let profile = temp
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Application Support")
+            .appendingPathComponent("Google")
+            .appendingPathComponent("Chrome")
+            .appendingPathComponent("Default")
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        let cookiesDir = profile.appendingPathComponent("Network")
+        try FileManager.default.createDirectory(at: cookiesDir, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: cookiesDir.appendingPathComponent("Cookies").path, contents: Data())
+
+        let detection = BrowserDetection(homeDirectory: temp.path, cacheTTL: 0)
+        let browsers: [Browser] = [.chrome, .safari]
+        #expect(browsers.cookieImportCandidates(using: detection) == [.safari])
     }
 
     @Test

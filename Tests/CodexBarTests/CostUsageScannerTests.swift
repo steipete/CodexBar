@@ -644,6 +644,7 @@ struct CostUsageTestEnvironment {
     let codexSessionsRoot: URL
     let codexArchivedSessionsRoot: URL
     let claudeProjectsRoot: URL
+    let piSessionsRoot: URL
 
     init() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -657,10 +658,12 @@ struct CostUsageTestEnvironment {
         self.codexArchivedSessionsRoot = self.codexHomeRoot
             .appendingPathComponent("archived_sessions", isDirectory: true)
         self.claudeProjectsRoot = root.appendingPathComponent("claude-projects", isDirectory: true)
+        self.piSessionsRoot = root.appendingPathComponent("pi-sessions", isDirectory: true)
         try FileManager.default.createDirectory(at: self.cacheRoot, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: self.codexSessionsRoot, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: self.codexArchivedSessionsRoot, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: self.claudeProjectsRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: self.piSessionsRoot, withIntermediateDirectories: true)
     }
 
     func cleanup() {
@@ -713,6 +716,13 @@ struct CostUsageTestEnvironment {
 
     func writeCodexArchivedSessionFile(filename: String, contents: String) throws -> URL {
         let url = self.codexArchivedSessionsRoot.appendingPathComponent(filename, isDirectory: false)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func writePiSessionFile(relativePath: String, contents: String) throws -> URL {
+        let url = self.piSessionsRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try contents.write(to: url, atomically: true, encoding: .utf8)
         return url
     }

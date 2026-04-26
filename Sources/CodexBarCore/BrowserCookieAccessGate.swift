@@ -18,7 +18,7 @@ public enum BrowserCookieAccessGate {
     public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool {
         guard browser.usesKeychainForCookieDecryption else { return true }
         guard !KeychainAccessGate.isDisabled else { return false }
-        return self.lock.withLock { state in
+        let shouldCheckKeychain = self.lock.withLock { state in
             self.loadIfNeeded(&state)
             if let blockedUntil = state.deniedUntilByBrowser[browser.rawValue] {
                 if blockedUntil > now {
@@ -30,7 +30,14 @@ public enum BrowserCookieAccessGate {
                 state.deniedUntilByBrowser.removeValue(forKey: browser.rawValue)
                 self.persist(state)
             }
-            if self.chromiumKeychainRequiresInteraction() {
+            return true
+        }
+        guard shouldCheckKeychain else { return false }
+
+        let requiresInteraction = self.chromiumKeychainRequiresInteraction()
+        return self.lock.withLock { state in
+            self.loadIfNeeded(&state)
+            if requiresInteraction {
                 state.deniedUntilByBrowser[browser.rawValue] = now.addingTimeInterval(self.cooldownInterval)
                 self.persist(state)
                 self.log.info(
@@ -102,6 +109,17 @@ public enum BrowserCookieAccessGate {
     private static func persist(_ state: State) {
         let raw = state.deniedUntilByBrowser.mapValues { $0.timeIntervalSince1970 }
         UserDefaults.standard.set(raw, forKey: self.defaultsKey)
+    }
+}
+
+extension BrowserCookieClient {
+    public func codexBarRecords(
+        matching query: BrowserCookieQuery,
+        in browser: Browser,
+        logger: ((String) -> Void)? = nil) throws -> [BrowserCookieStoreRecords]
+    {
+        guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
+        return try self.records(matching: query, in: browser, logger: logger)
     }
 }
 #else

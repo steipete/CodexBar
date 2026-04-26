@@ -21,6 +21,7 @@ struct SettingsDefaultsState {
     var costUsageEnabled: Bool
     var hidePersonalInfo: Bool
     var randomBlinkEnabled: Bool
+    var confettiOnWeeklyLimitResetsEnabled: Bool
     var menuBarShowsHighestUsage: Bool
     var claudeOAuthKeychainPromptModeRaw: String?
     var claudeOAuthKeychainReadStrategyRaw: String?
@@ -28,6 +29,7 @@ struct SettingsDefaultsState {
     var claudePeakHoursEnabled: Bool
     var showOptionalCreditsAndExtraUsage: Bool
     var openAIWebAccessEnabled: Bool
+    var openAIWebBatterySaverEnabled: Bool
     var jetbrainsIDEBasePath: String
     var mergeIcons: Bool
     var switcherShowsIcons: Bool

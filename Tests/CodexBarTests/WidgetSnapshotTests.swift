@@ -11,6 +11,10 @@ struct WidgetSnapshotTests {
             primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             tertiary: nil,
+            usageRows: [
+                WidgetSnapshot.WidgetUsageRowSnapshot(id: "session", title: "Session", percentLeft: 90),
+                WidgetSnapshot.WidgetUsageRowSnapshot(id: "weekly", title: "Weekly", percentLeft: 80),
+            ],
             creditsRemaining: 123.4,
             codeReviewRemainingPercent: 80,
             tokenUsage: WidgetSnapshot.TokenUsageSummary(
@@ -38,6 +42,7 @@ struct WidgetSnapshotTests {
         #expect(decoded.entries.count == 1)
         #expect(decoded.entries.first?.provider == .codex)
         #expect(decoded.entries.first?.tokenUsage?.sessionTokens == 1200)
+        #expect(decoded.entries.first?.usageRows?.map(\.id) == ["session", "weekly"])
         #expect(decoded.enabledProviders == [.codex, .claude])
     }
 
@@ -119,5 +124,41 @@ struct WidgetSnapshotTests {
         #expect(decoded.entries.first?.primary?.remainingPercent == 0)
         #expect(decoded.entries.first?.primary?.resetDescription == "0/0 credits")
         #expect(decoded.enabledProviders == [.kilo])
+    }
+
+    @Test
+    func `widget snapshot decodes legacy payload without usage rows`() throws {
+        let json = """
+        {
+          "entries": [
+            {
+              "provider": "codex",
+              "updatedAt": "2026-04-04T06:30:00Z",
+              "primary": null,
+              "secondary": {
+                "usedPercent": 25,
+                "windowMinutes": 10080,
+                "resetsAt": null,
+                "resetDescription": null
+              },
+              "tertiary": null,
+              "creditsRemaining": null,
+              "codeReviewRemainingPercent": null,
+              "tokenUsage": null,
+              "dailyUsage": []
+            }
+          ],
+          "enabledProviders": ["codex"],
+          "generatedAt": "2026-04-04T06:30:00Z"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(WidgetSnapshot.self, from: Data(json.utf8))
+
+        #expect(decoded.entries.count == 1)
+        #expect(decoded.entries.first?.usageRows == nil)
+        #expect(decoded.entries.first?.secondary?.usedPercent == 25)
     }
 }

@@ -61,7 +61,6 @@ struct UsageProgressBar: View {
             if self.isHighlighted {
                 bar
                     .compositingGroup()
-                    .drawingGroup()
             } else if needsPunchCompositing {
                 bar
                     .compositingGroup()

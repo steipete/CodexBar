@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import Testing
@@ -7,12 +8,14 @@ struct StatusItemControllerMenuTests {
     private func makeSnapshot(
         primary: RateWindow?,
         secondary: RateWindow?,
+        tertiary: RateWindow? = nil,
         providerCost: ProviderCostSnapshot? = nil)
         -> UsageSnapshot
     {
         UsageSnapshot(
             primary: primary,
             secondary: secondary,
+            tertiary: tertiary,
             providerCost: providerCost,
             updatedAt: Date())
     }
@@ -79,6 +82,21 @@ struct StatusItemControllerMenuTests {
     }
 
     @Test
+    func `perplexity switcher falls back after recurring credits are exhausted`() {
+        let primary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let secondary = RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let tertiary = RateWindow(usedPercent: 24, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let snapshot = self.makeSnapshot(primary: primary, secondary: secondary, tertiary: tertiary)
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .perplexity,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 76)
+    }
+
+    @Test
     func `open router brand fallback enabled when no key limit configured`() {
         let snapshot = OpenRouterUsageSnapshot(
             totalCredits: 50,
@@ -131,5 +149,20 @@ struct StatusItemControllerMenuTests {
             provider: .openrouter,
             snapshot: snapshot))
         #expect(snapshot.primary?.usedPercent == 10)
+    }
+
+    @Test
+    @MainActor
+    func `menu card width stays at base width when menu accessories are present`() {
+        let shortcutMenu = NSMenu()
+        let refreshItem = NSMenuItem(title: "Refresh", action: nil, keyEquivalent: "r")
+        shortcutMenu.addItem(refreshItem)
+        #expect(ceil(shortcutMenu.size.width) < 310)
+
+        let submenuMenu = NSMenu()
+        let parentItem = NSMenuItem(title: "Session", action: nil, keyEquivalent: "")
+        parentItem.submenu = NSMenu(title: "Session")
+        submenuMenu.addItem(parentItem)
+        #expect(ceil(submenuMenu.size.width) < 310)
     }
 }

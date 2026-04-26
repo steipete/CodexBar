@@ -54,7 +54,7 @@ public enum KimiCookieImporter {
     {
         let query = BrowserCookieQuery(domains: self.cookieDomains)
         let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
-        let sources = try Self.cookieClient.records(
+        let sources = try Self.cookieClient.codexBarRecords(
             matching: query,
             in: browserSource,
             logger: log)

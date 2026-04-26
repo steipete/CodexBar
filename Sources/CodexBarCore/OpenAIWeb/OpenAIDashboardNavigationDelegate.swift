@@ -9,7 +9,9 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
     private let completion: (Result<Void, Error>) -> Void
     private var hasCompleted: Bool = false
     private var timeoutTask: Task<Void, Never>?
+    private var postCommitTask: Task<Void, Never>?
     static var associationKey: UInt8 = 0
+    nonisolated static let postCommitSuccessDelay: TimeInterval = 0.75
 
     init(completion: @escaping (Result<Void, Error>) -> Void) {
         self.completion = completion
@@ -29,6 +31,17 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
         self.completeOnce(.success(()))
     }
 
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        guard !self.hasCompleted else { return }
+        self.postCommitTask?.cancel()
+        self.postCommitTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let nanoseconds = UInt64(Self.postCommitSuccessDelay * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            self.completeOnce(.success(()))
+        }
+    }
+
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         if Self.shouldIgnoreNavigationError(error) { return }
         self.completeOnce(.failure(error))
@@ -41,7 +54,15 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
 
     nonisolated static func shouldIgnoreNavigationError(_ error: Error) -> Bool {
         let nsError = error as NSError
-        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+        if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled {
+            return true
+        }
+
+        if nsError.domain == "WebKitErrorDomain", nsError.code == 102 {
+            return true
+        }
+
+        return false
     }
 
     private func completeOnce(_ result: Result<Void, Error>) {
@@ -49,6 +70,8 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
         self.hasCompleted = true
         self.timeoutTask?.cancel()
         self.timeoutTask = nil
+        self.postCommitTask?.cancel()
+        self.postCommitTask = nil
         self.completion(result)
     }
 }

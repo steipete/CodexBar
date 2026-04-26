@@ -82,4 +82,11 @@ struct FactoryProviderImplementation: ProviderImplementation {
         await context.controller.runFactoryLoginFlow()
         return true
     }
+
+    @MainActor
+    func loginMenuAction(context _: ProviderMenuLoginContext)
+        -> (label: String, action: MenuDescriptor.MenuAction)?
+    {
+        ("Open Droid in Browser...", .loginToProvider(url: "https://app.factory.ai"))
+    }
 }

@@ -125,7 +125,7 @@ struct ClaudeDebugDiagnosticsTests {
                 return await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                     await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
                         await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(missingCredentialsURL) {
-                            await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(false) {
+                            await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                                 await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
                                     data: nil,
                                     fingerprint: nil)
@@ -207,7 +207,7 @@ struct ClaudeDebugDiagnosticsTests {
                 return await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                     await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
                         await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(missingCredentialsURL) {
-                            await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(false) {
+                            await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                                 await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
                                     data: nil,
                                     fingerprint: nil)
@@ -276,7 +276,7 @@ struct ClaudeDebugDiagnosticsTests {
                 return await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                     await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
                         await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(missingCredentialsURL) {
-                            await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(false) {
+                            await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                                 await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
                                     data: nil,
                                     fingerprint: nil)
@@ -441,7 +441,7 @@ struct ClaudeDebugDiagnosticsTests {
                 return await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                     await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
                         await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(missingCredentialsURL) {
-                            await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(false) {
+                            await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                                 await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
                                     data: nil,
                                     fingerprint: nil)

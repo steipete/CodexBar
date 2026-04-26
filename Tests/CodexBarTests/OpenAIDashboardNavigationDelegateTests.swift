@@ -3,10 +3,34 @@ import Testing
 import WebKit
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct OpenAIDashboardNavigationDelegateTests {
+    final class DelegateBox: @unchecked Sendable {
+        var delegate: NavigationDelegate?
+    }
+
+    @MainActor
+    private func waitForResult(
+        _ result: @escaping () -> Result<Void, Error>?,
+        timeout: TimeInterval = NavigationDelegate.postCommitSuccessDelay + 10.0) async -> Result<Void, Error>?
+    {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let result = result() { return result }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return result()
+    }
+
     @Test
     func `ignores NSURLErrorCancelled`() {
         let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)
+        #expect(NavigationDelegate.shouldIgnoreNavigationError(error))
+    }
+
+    @Test
+    func `ignores WebKit frame load interrupted by policy change`() {
+        let error = NSError(domain: "WebKitErrorDomain", code: 102)
         #expect(NavigationDelegate.shouldIgnoreNavigationError(error))
     }
 
@@ -37,6 +61,52 @@ struct OpenAIDashboardNavigationDelegateTests {
 
     @MainActor
     @Test
+    func `commit completes navigation successfully after grace period`() async {
+        let webView = WKWebView()
+        var result: Result<Void, Error>?
+        let box = DelegateBox()
+        box.delegate = NavigationDelegate { result = $0 }
+
+        box.delegate?.webView(webView, didCommit: nil)
+        #expect(result == nil)
+
+        let completed = await self.waitForResult { result }
+        box.delegate = nil
+
+        switch completed {
+        case .success?:
+            #expect(Bool(true))
+        default:
+            #expect(Bool(false))
+        }
+    }
+
+    @MainActor
+    @Test
+    func `post commit failure wins before delayed success`() async {
+        let webView = WKWebView()
+        var result: Result<Void, Error>?
+        let box = DelegateBox()
+        box.delegate = NavigationDelegate { result = $0 }
+
+        box.delegate?.webView(webView, didCommit: nil)
+        let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
+        box.delegate?.webView(webView, didFail: nil, withError: timeout)
+
+        let completed = await self.waitForResult { result }
+        box.delegate = nil
+
+        switch completed {
+        case let .failure(error as NSError)?:
+            #expect(error.domain == NSURLErrorDomain)
+            #expect(error.code == NSURLErrorTimedOut)
+        default:
+            #expect(Bool(false))
+        }
+    }
+
+    @MainActor
+    @Test
     func `cancelled provisional failure is ignored until real failure`() {
         let webView = WKWebView()
         var result: Result<Void, Error>?
@@ -60,12 +130,31 @@ struct OpenAIDashboardNavigationDelegateTests {
         }
     }
 
+    @MainActor
+    @Test
+    func `frame load interrupted provisional failure is ignored until finish`() {
+        let webView = WKWebView()
+        var result: Result<Void, Error>?
+        let delegate = NavigationDelegate { result = $0 }
+
+        delegate.webView(
+            webView,
+            didFailProvisionalNavigation: nil,
+            withError: NSError(domain: "WebKitErrorDomain", code: 102))
+        #expect(result == nil)
+
+        delegate.webView(webView, didFinish: nil)
+
+        switch result {
+        case .success?:
+            #expect(Bool(true))
+        default:
+            #expect(Bool(false))
+        }
+    }
+
     @Test
     func `navigation timeout fails with timed out error`() async {
-        final class DelegateBox: @unchecked Sendable {
-            var delegate: NavigationDelegate?
-        }
-
         let result = await withCheckedContinuation { (continuation: CheckedContinuation<Result<Void, Error>, Never>) in
             Task { @MainActor in
                 let box = DelegateBox()

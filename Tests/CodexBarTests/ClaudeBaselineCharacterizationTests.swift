@@ -81,7 +81,7 @@ struct ClaudeBaselineCharacterizationTests {
             return try await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                 try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
                     try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(missingCredentialsURL) {
-                        try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(false) {
+                        try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                             try await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
                                 data: nil,
                                 fingerprint: nil)

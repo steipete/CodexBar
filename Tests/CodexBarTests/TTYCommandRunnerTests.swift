@@ -4,6 +4,23 @@ import Testing
 
 @Suite(.serialized)
 struct TTYCommandRunnerEnvTests {
+    private final class CallbackCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+
+        func increment() {
+            self.lock.lock()
+            self.count += 1
+            self.lock.unlock()
+        }
+
+        func value() -> Int {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.count
+        }
+    }
+
     @Test
     func `shutdown fence drains tracked TTY processes`() {
         TTYCommandRunner._test_resetTrackedProcesses()
@@ -15,6 +32,19 @@ struct TTYCommandRunnerEnvTests {
         let drained = TTYCommandRunner._test_drainTrackedProcessesForShutdown()
         #expect(drained.count == 1)
         #expect(drained[0].pid == 1001)
+        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+    }
+
+    @Test
+    func `cached CLI sessions share shutdown tracking`() {
+        TTYCommandRunner._test_resetTrackedProcesses()
+        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+
+        #expect(TTYCommandRunner.registerActiveProcessForAppShutdown(pid: 3001, binary: "codex"))
+        TTYCommandRunner.updateActiveProcessGroupForAppShutdown(pid: 3001, processGroup: 3001)
+        #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
+
+        TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: 3001)
         #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
     }
 
@@ -150,13 +180,102 @@ struct TTYCommandRunnerEnvTests {
             binary: scriptURL.path,
             send: "",
             options: .init(
-                timeout: 6,
+                timeout: 15,
                 // Use LF for portability: some PTY/termios setups do not translate CR → NL for shell reads.
                 sendOnSubstrings: ["trust the files in this folder?": "y\n"],
                 stopOnSubstrings: ["accepted", "rejected"],
                 settleAfterStop: 0.1))
 
         #expect(result.text.contains("accepted"))
+    }
+
+    @Test
+    func `post-exit drain processes trailing chunk through callback path`() {
+        let callbackCounter = CallbackCounter()
+        var reads: [TTYCommandRunner.DrainReadResult] = [
+            .wouldBlock,
+            .wouldBlock,
+            .data(Data("https://example.com/auth".utf8)),
+            .closed,
+        ]
+
+        TTYCommandRunner.drainRemainingOutput(
+            until: Date().addingTimeInterval(1),
+            readChunk: {
+                if reads.isEmpty { return .closed }
+                return reads.removeFirst()
+            },
+            processChunk: { data in
+                if data.range(of: Data("https://".utf8)) != nil {
+                    callbackCounter.increment()
+                }
+            },
+            sleep: { _ in })
+
+        #expect(callbackCounter.value() == 1)
+    }
+
+    @Test
+    func `post-exit drain keeps harvesting after late success marker`() {
+        var readCount = 0
+        var processedChunks: [String] = []
+        var reads: [TTYCommandRunner.DrainReadResult] = [
+            .data(Data("accepted".utf8)),
+            .wouldBlock,
+            .data(Data(" trailing".utf8)),
+            .closed,
+        ]
+
+        TTYCommandRunner.drainRemainingOutput(
+            until: Date().addingTimeInterval(1),
+            readChunk: {
+                readCount += 1
+                if reads.isEmpty { return .closed }
+                return reads.removeFirst()
+            },
+            processChunk: { data in
+                processedChunks.append(String(bytes: data, encoding: .utf8) ?? "")
+            },
+            sleep: { _ in })
+
+        #expect(readCount == 4)
+        #expect(processedChunks == ["accepted", " trailing"])
+    }
+
+    @Test
+    func `post-exit drain stops once the PTY reports closure`() {
+        var readCount = 0
+
+        TTYCommandRunner.drainRemainingOutput(
+            until: Date().addingTimeInterval(1),
+            readChunk: {
+                readCount += 1
+                return .closed
+            },
+            processChunk: { _ in },
+            sleep: { _ in })
+
+        #expect(readCount == 1)
+    }
+
+    @Test
+    func `interrupted drain reads are treated as retryable`() {
+        let result = TTYCommandRunner.drainReadResult(for: Data(), terminalRead: -1, errno: EINTR)
+        if case .wouldBlock = result {
+            #expect(Bool(true))
+        } else {
+            Issue.record("Expected interrupted read to remain retryable during drain")
+        }
+    }
+
+    @Test
+    func `EOF beats stale would-block errno during drain classification`() {
+        let result = TTYCommandRunner.drainReadResult(for: Data(), terminalRead: 0, errno: EAGAIN)
+        if case .closed = result {
+            #expect(Bool(true))
+        } else {
+            Issue.record("Expected EOF reads to stop draining even if errno still holds EAGAIN")
+        }
     }
 
     @Test

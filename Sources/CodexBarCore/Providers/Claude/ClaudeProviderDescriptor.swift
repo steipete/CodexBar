@@ -241,16 +241,16 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
 
         guard sourceMode == .auto else { return true }
 
+        let fallbackPromptMode = ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode()
         let promptPolicyApplicable = ClaudeOAuthKeychainPromptPreference.isApplicable()
-        if promptPolicyApplicable, ProviderInteractionContext.current == .userInitiated {
+        if ProviderInteractionContext.current == .userInitiated {
             _ = ClaudeOAuthKeychainAccessGate.clearDenied()
         }
 
-        let shouldAllowStartupBootstrap = promptPolicyApplicable &&
-            runtime == .app &&
+        let shouldAllowStartupBootstrap = runtime == .app &&
             ProviderRefreshContext.current == .startup &&
             ProviderInteractionContext.current == .background &&
-            ClaudeOAuthKeychainPromptPreference.current() == .onlyOnUserAction &&
+            fallbackPromptMode == .onlyOnUserAction &&
             !ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: environment)
         if shouldAllowStartupBootstrap {
             return ClaudeOAuthKeychainAccessGate.shouldAllowPrompt()
@@ -303,6 +303,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             primary: usage.primary,
             secondary: usage.secondary,
             tertiary: usage.opus,
+            extraRateWindows: usage.extraRateWindows.isEmpty ? nil : usage.extraRateWindows,
             providerCost: usage.providerCost,
             updatedAt: usage.updatedAt,
             identity: identity)

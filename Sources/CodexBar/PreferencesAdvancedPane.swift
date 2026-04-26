@@ -64,6 +64,10 @@ struct AdvancedPane: View {
                         title: "Surprise me",
                         subtitle: "Check if you like your agents having some fun up there.",
                         binding: self.$settings.randomBlinkEnabled)
+                    PreferenceToggleRow(
+                        title: "Weekly limit confetti",
+                        subtitle: "Play full-screen confetti when weekly usage resets.",
+                        binding: self.$settings.confettiOnWeeklyLimitResetsEnabled)
                 }
 
                 Divider()

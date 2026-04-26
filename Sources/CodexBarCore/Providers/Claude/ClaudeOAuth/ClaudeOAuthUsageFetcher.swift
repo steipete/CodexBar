@@ -114,17 +114,96 @@ struct OAuthUsageResponse: Decodable {
     let sevenDayOAuthApps: OAuthUsageWindow?
     let sevenDayOpus: OAuthUsageWindow?
     let sevenDaySonnet: OAuthUsageWindow?
+    let sevenDayDesign: OAuthUsageWindow?
+    let sevenDayRoutines: OAuthUsageWindow?
+    let sevenDayDesignSourceKey: String?
+    let sevenDayRoutinesSourceKey: String?
     let iguanaNecktie: OAuthUsageWindow?
     let extraUsage: OAuthExtraUsage?
 
-    enum CodingKeys: String, CodingKey {
-        case fiveHour = "five_hour"
-        case sevenDay = "seven_day"
-        case sevenDayOAuthApps = "seven_day_oauth_apps"
-        case sevenDayOpus = "seven_day_opus"
-        case sevenDaySonnet = "seven_day_sonnet"
-        case iguanaNecktie = "iguana_necktie"
-        case extraUsage = "extra_usage"
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+        self.fiveHour = Self.decodeWindow(in: container, keys: ["five_hour"])
+        self.sevenDay = Self.decodeWindow(in: container, keys: ["seven_day"])
+        self.sevenDayOAuthApps = Self.decodeWindow(in: container, keys: ["seven_day_oauth_apps"])
+        self.sevenDayOpus = Self.decodeWindow(in: container, keys: ["seven_day_opus"])
+        self.sevenDaySonnet = Self.decodeWindow(in: container, keys: ["seven_day_sonnet"])
+        let design = Self.decodeWindowWithSource(in: container, keys: [
+            "seven_day_design",
+            "seven_day_claude_design",
+            "claude_design",
+            "design",
+            "seven_day_omelette",
+            "omelette",
+            "omelette_promotional",
+        ])
+        self.sevenDayDesign = design.window
+        self.sevenDayDesignSourceKey = design.sourceKey
+        let routines = Self.decodeWindowWithSource(in: container, keys: [
+            "seven_day_routines",
+            "seven_day_claude_routines",
+            "claude_routines",
+            "routines",
+            "routine",
+            "seven_day_cowork",
+            "cowork",
+        ])
+        self.sevenDayRoutines = routines.window
+        self.sevenDayRoutinesSourceKey = routines.sourceKey
+        self.iguanaNecktie = Self.decodeWindow(in: container, keys: ["iguana_necktie"])
+        self.extraUsage = Self.decodeValue(in: container, keys: ["extra_usage"])
+    }
+
+    private static func decodeWindow(
+        in container: KeyedDecodingContainer<DynamicCodingKey>,
+        keys: [String]) -> OAuthUsageWindow?
+    {
+        self.decodeValue(in: container, keys: keys)
+    }
+
+    private static func decodeWindowWithSource(
+        in container: KeyedDecodingContainer<DynamicCodingKey>,
+        keys: [String]) -> (window: OAuthUsageWindow?, sourceKey: String?)
+    {
+        var firstNullKey: String?
+        for keyName in keys {
+            guard let key = DynamicCodingKey(stringValue: keyName) else { continue }
+            guard container.contains(key) else { continue }
+            if let value = try? container.decodeIfPresent(OAuthUsageWindow.self, forKey: key) {
+                return (value, keyName)
+            }
+            if firstNullKey == nil {
+                firstNullKey = keyName
+            }
+        }
+        return (nil, firstNullKey)
+    }
+
+    private static func decodeValue<T: Decodable>(
+        in container: KeyedDecodingContainer<DynamicCodingKey>,
+        keys: [String]) -> T?
+    {
+        for keyName in keys {
+            guard let key = DynamicCodingKey(stringValue: keyName) else { continue }
+            if let value = try? container.decodeIfPresent(T.self, forKey: key) {
+                return value
+            }
+        }
+        return nil
+    }
+}
+
+private struct DynamicCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue: Int) {
+        nil
     }
 }
 
