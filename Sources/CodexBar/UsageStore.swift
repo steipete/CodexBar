@@ -51,7 +51,11 @@ extension UsageStore {
         withObservationTracking {
             _ = self.settings.refreshFrequency
             _ = self.settings.statusChecksEnabled
+            _ = self.settings.notificationsEnabled
             _ = self.settings.sessionQuotaNotificationsEnabled
+            for event in AppNotificationEvent.allCases {
+                _ = self.settings.notificationSettings(for: event)
+            }
             _ = self.settings.usageBarsShowUsed
             _ = self.settings.costUsageEnabled
             _ = self.settings.randomBlinkEnabled
@@ -219,7 +223,7 @@ final class UsageStore {
         registry: ProviderRegistry = .shared,
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
         planUtilizationHistoryStore: PlanUtilizationHistoryStore = .defaultAppSupport(),
-        sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
+        sessionQuotaNotifier: (any SessionQuotaNotifying)? = nil,
         startupBehavior: StartupBehavior = .automatic)
     {
         self.codexFetcher = fetcher
@@ -230,7 +234,7 @@ final class UsageStore {
         self.registry = registry
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.planUtilizationHistoryStore = planUtilizationHistoryStore
-        self.sessionQuotaNotifier = sessionQuotaNotifier
+        self.sessionQuotaNotifier = sessionQuotaNotifier ?? SessionQuotaNotifier(settings: settings)
         self.startupBehavior = startupBehavior.resolved(isRunningTests: Self.isRunningTestsProcess())
         self.planUtilizationPersistenceCoordinator = PlanUtilizationHistoryPersistenceCoordinator(
             store: planUtilizationHistoryStore)
@@ -641,7 +645,12 @@ final class UsageStore {
             self.lastKnownSessionWindowSource[provider] = currentSource
         }
 
-        guard self.settings.sessionQuotaNotificationsEnabled else {
+        let depletedEnabled = self.settings.notificationsEnabled &&
+            self.settings.notificationSettings(for: .sessionQuotaDepleted).enabled
+        let restoredEnabled = self.settings.notificationsEnabled &&
+            self.settings.notificationSettings(for: .sessionQuotaRestored).enabled
+
+        guard depletedEnabled || restoredEnabled else {
             if SessionQuotaNotificationLogic.isDepleted(currentRemaining) ||
                 SessionQuotaNotificationLogic.isDepleted(previousRemaining)
             {
@@ -655,7 +664,7 @@ final class UsageStore {
         }
 
         guard previousRemaining != nil else {
-            if SessionQuotaNotificationLogic.isDepleted(currentRemaining) {
+            if SessionQuotaNotificationLogic.isDepleted(currentRemaining), depletedEnabled {
                 let providerText = provider.rawValue
                 let message = "startup depleted: provider=\(providerText) curr=\(currentRemaining)"
                 self.sessionQuotaLogger.info(message)
@@ -687,6 +696,8 @@ final class UsageStore {
             "prev=\(previousRemaining ?? -1) curr=\(currentRemaining)"
         self.sessionQuotaLogger.info(message)
 
+        if transition == .depleted, !depletedEnabled { return }
+        if transition == .restored, !restoredEnabled { return }
         self.sessionQuotaNotifier.post(transition: transition, provider: provider, badge: nil)
     }
 

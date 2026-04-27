@@ -450,22 +450,6 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `defaults session quota notifications to enabled`() throws {
-        let key = "sessionQuotaNotificationsEnabled"
-        let suite = "SettingsStoreTests-sessionQuotaNotifications"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let store = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        #expect(store.sessionQuotaNotificationsEnabled == true)
-        #expect(defaults.bool(forKey: key) == true)
-    }
-
-    @Test
     func `defaults claude usage source to auto`() throws {
         let suite = "SettingsStoreTests-claude-source"
         let defaults = try #require(UserDefaults(suiteName: suite))

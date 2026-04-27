@@ -5,6 +5,7 @@ enum PreferencesTab: String, Hashable {
     case general
     case providers
     case display
+    case notifications
     case advanced
     case about
     case debug
@@ -14,7 +15,12 @@ enum PreferencesTab: String, Hashable {
     static let windowHeight: CGFloat = 580
 
     var preferredWidth: CGFloat {
-        self == .providers ? PreferencesTab.providersWidth : PreferencesTab.defaultWidth
+        switch self {
+        case .providers:
+            PreferencesTab.providersWidth
+        default:
+            PreferencesTab.defaultWidth
+        }
     }
 
     var preferredHeight: CGFloat {
@@ -70,6 +76,10 @@ struct PreferencesView: View {
             DisplayPane(settings: self.settings, store: self.store)
                 .tabItem { Label("Display", systemImage: "eye") }
                 .tag(PreferencesTab.display)
+
+            NotificationsPane(settings: self.settings)
+                .tabItem { Label("Notifications", systemImage: "bell.badge") }
+                .tag(PreferencesTab.notifications)
 
             AdvancedPane(settings: self.settings)
                 .tabItem { Label("Advanced", systemImage: "slider.horizontal.3") }

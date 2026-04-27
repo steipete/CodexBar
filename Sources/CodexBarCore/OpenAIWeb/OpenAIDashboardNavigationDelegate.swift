@@ -12,6 +12,9 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
     private var postCommitTask: Task<Void, Never>?
     static var associationKey: UInt8 = 0
     nonisolated static let postCommitSuccessDelay: TimeInterval = 0.75
+    #if DEBUG
+    static var testPostCommitSuccessDelayOverride: TimeInterval?
+    #endif
 
     init(completion: @escaping (Result<Void, Error>) -> Void) {
         self.completion = completion
@@ -34,9 +37,14 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         guard !self.hasCompleted else { return }
         self.postCommitTask?.cancel()
+        let delay = Self.resolvedPostCommitSuccessDelay
+        guard delay > 0 else {
+            self.completeOnce(.success(()))
+            return
+        }
         self.postCommitTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let nanoseconds = UInt64(Self.postCommitSuccessDelay * 1_000_000_000)
+            let nanoseconds = UInt64(delay * 1_000_000_000)
             try? await Task.sleep(nanoseconds: nanoseconds)
             self.completeOnce(.success(()))
         }
@@ -63,6 +71,14 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
         }
 
         return false
+    }
+
+    private static var resolvedPostCommitSuccessDelay: TimeInterval {
+        #if DEBUG
+        self.testPostCommitSuccessDelayOverride ?? self.postCommitSuccessDelay
+        #else
+        self.postCommitSuccessDelay
+        #endif
     }
 
     private func completeOnce(_ result: Result<Void, Error>) {

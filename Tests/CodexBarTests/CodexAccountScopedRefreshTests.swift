@@ -252,6 +252,13 @@ struct CodexAccountScopedRefreshTests {
             return self.credits(remaining: 1)
         }
         defer { store._test_codexCreditsLoaderOverride = nil }
+        store.lastFetchAttempts[.codex] = [
+            ProviderFetchAttempt(
+                strategyID: "test-no-live-account",
+                kind: .oauth,
+                wasAvailable: false,
+                errorDescription: nil),
+        ]
 
         let startedAt = ContinuousClock.now
         await store.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: Date())

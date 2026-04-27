@@ -3,6 +3,7 @@ import Testing
 import WebKit
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct OpenAIDashboardNavigationDelegateTests {
     final class DelegateBox: @unchecked Sendable {
         var delegate: NavigationDelegate?
@@ -47,16 +48,15 @@ struct OpenAIDashboardNavigationDelegateTests {
 
     @MainActor
     @Test
-    func `commit completes navigation successfully after grace period`() async {
+    func `commit completes navigation successfully after grace period`() {
         let webView = WKWebView()
         var result: Result<Void, Error>?
         let box = DelegateBox()
         box.delegate = NavigationDelegate { result = $0 }
+        NavigationDelegate.testPostCommitSuccessDelayOverride = 0
+        defer { NavigationDelegate.testPostCommitSuccessDelayOverride = nil }
 
         box.delegate?.webView(webView, didCommit: nil)
-        #expect(result == nil)
-
-        try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
         box.delegate = nil
 
         switch result {

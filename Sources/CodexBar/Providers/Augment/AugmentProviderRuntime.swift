@@ -75,7 +75,23 @@ final class AugmentProviderRuntime: ProviderRuntime {
             await store.refreshProvider(.augment)
         }
 
-        self.keepalive = AugmentSessionKeepalive(logger: logger, onSessionRecovered: onSessionRecovered)
+        let onLoginRequired: () -> Void = { [settings = context.settings] in
+            let providerName = ProviderDescriptorRegistry.descriptor(for: .augment).metadata.displayName
+            AppNotifications.shared.post(
+                idPrefix: "augment-session-expired",
+                title: "Augment Session Expired",
+                body: "Please log in to app.augmentcode.com to restore your session.",
+                event: .augmentSessionExpired,
+                provider: providerName,
+                notificationsEnabled: settings.notificationsEnabled,
+                notificationVolume: settings.notificationVolume,
+                settings: settings.notificationSettings(for: .augmentSessionExpired))
+        }
+
+        self.keepalive = AugmentSessionKeepalive(
+            logger: logger,
+            onSessionRecovered: onSessionRecovered,
+            onLoginRequired: onLoginRequired)
         self.keepalive?.start()
         context.store.augmentLogger.info("Augment keepalive started")
         #endif

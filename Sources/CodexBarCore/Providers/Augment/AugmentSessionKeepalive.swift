@@ -2,7 +2,6 @@ import Foundation
 
 #if os(macOS)
 import AppKit
-import UserNotifications
 
 /// Manages automatic session keepalive for Augment to prevent cookie expiration.
 ///
@@ -32,6 +31,7 @@ public final class AugmentSessionKeepalive {
     private var isRefreshing = false
     private let logger: ((String) -> Void)?
     private var onSessionRecovered: (() async -> Void)?
+    private let onLoginRequired: (() -> Void)?
 
     /// Track consecutive failures to stop retrying after too many failures
     private var consecutiveFailures = 0
@@ -40,9 +40,14 @@ public final class AugmentSessionKeepalive {
 
     // MARK: - Initialization
 
-    public init(logger: ((String) -> Void)? = nil, onSessionRecovered: (() async -> Void)? = nil) {
+    public init(
+        logger: ((String) -> Void)? = nil,
+        onSessionRecovered: (() async -> Void)? = nil,
+        onLoginRequired: (() -> Void)? = nil)
+    {
         self.logger = logger
         self.onSessionRecovered = onSessionRecovered
+        self.onLoginRequired = onLoginRequired
     }
 
     deinit {
@@ -297,45 +302,8 @@ public final class AugmentSessionKeepalive {
 
     /// Notify the user that they need to log in to Augment
     private func notifyUserLoginRequired() {
-        #if os(macOS)
         self.log("📢 Sending notification: Augment session expired")
-
-        Task {
-            let center = UNUserNotificationCenter.current()
-
-            // Request authorization if needed
-            do {
-                let granted = try await center.requestAuthorization(options: [.alert, .sound])
-                guard granted else {
-                    self.log("⚠️ Notification permission denied")
-                    return
-                }
-            } catch {
-                self.log("✗ Failed to request notification permission: \(error)")
-                return
-            }
-
-            // Create notification content
-            let content = UNMutableNotificationContent()
-            content.title = "Augment Session Expired"
-            content.body = "Please log in to app.augmentcode.com to restore your session."
-            content.sound = .default
-
-            // Create trigger (deliver immediately)
-            let request = UNNotificationRequest(
-                identifier: "augment-session-expired-\(UUID().uuidString)",
-                content: content,
-                trigger: nil)
-
-            // Deliver notification
-            do {
-                try await center.add(request)
-                self.log("✅ Notification delivered successfully")
-            } catch {
-                self.log("✗ Failed to deliver notification: \(error)")
-            }
-        }
-        #endif
+        self.onLoginRequired?()
     }
 
     /// Ping Augment's session endpoint to trigger cookie refresh

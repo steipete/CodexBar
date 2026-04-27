@@ -26,6 +26,78 @@ struct PreferenceToggleRow: View {
 }
 
 @MainActor
+struct NotificationSettingsRow: View {
+    let title: String
+    let subtitle: String
+    let hookPlaceholder: String
+    let shortcutPlaceholder: String
+    let globalEnabled: Bool
+    let onSoundChange: @MainActor (NotificationSoundOption) -> Void
+    @Binding var isEnabled: Bool
+    @Binding var sound: NotificationSoundOption
+    @Binding var hookCallURL: String
+    @Binding var shortcutName: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(isOn: self.$isEnabled) {
+                Text(self.title)
+                    .font(.body)
+            }
+            .toggleStyle(.checkbox)
+
+            Text(self.subtitle)
+                .font(.footnote)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Sound")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Picker("Sound", selection: self.$sound) {
+                        ForEach(NotificationSoundOption.allCases) { option in
+                            Text(option.label).tag(option)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Hook URL")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    TextField(self.hookPlaceholder, text: self.$hookCallURL)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Use {provider} anywhere in the URL to insert the provider name.")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Shortcut")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    TextField(self.shortcutPlaceholder, text: self.$shortcutName)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Shortcuts receive JSON input with a provider field, for example {\"provider\":\"Codex\"}.")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .disabled(!self.globalEnabled || !self.isEnabled)
+        }
+        .onChange(of: self.sound) { _, newValue in
+            self.onSoundChange(newValue)
+        }
+    }
+}
+
+@MainActor
 struct SettingsSection<Content: View>: View {
     let title: String?
     let caption: String?

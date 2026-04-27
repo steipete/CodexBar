@@ -10,6 +10,8 @@ struct SettingsDefaultsState {
     var debugLoadingPatternRaw: String?
     var debugKeepCLISessionsAlive: Bool
     var statusChecksEnabled: Bool
+    var notificationsEnabled: Bool
+    var notificationVolume: Double
     var sessionQuotaNotificationsEnabled: Bool
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
@@ -35,4 +37,5 @@ struct SettingsDefaultsState {
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
+    var notificationSettings: [AppNotificationEvent: NotificationDeliverySettings]
 }

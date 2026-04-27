@@ -376,7 +376,15 @@ extension StatusItemController {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         let title = "\(name) login successful"
         let body = "You can return to the app; authentication finished."
-        AppNotifications.shared.post(idPrefix: "login-\(provider.rawValue)", title: title, body: body)
+        AppNotifications.shared.post(
+            idPrefix: "login-\(provider.rawValue)",
+            title: title,
+            body: body,
+            event: .providerLogin,
+            provider: name,
+            notificationsEnabled: self.settings.notificationsEnabled,
+            notificationVolume: self.settings.notificationVolume,
+            settings: self.settings.notificationSettings(for: .providerLogin))
     }
 
     func presentCursorLoginResult(_ result: CursorLoginRunner.Result) {

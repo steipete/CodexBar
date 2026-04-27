@@ -77,4 +77,46 @@ struct UsageStoreSessionQuotaTransitionTests {
 
         #expect(notifier.posts.isEmpty)
     }
+
+    @Test
+    func `split session quota toggles only notify for enabled transition`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreSessionQuotaTransitionTests-split-events"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.notificationsEnabled = true
+
+        var depleted = settings.notificationSettings(for: .sessionQuotaDepleted)
+        depleted.enabled = false
+        settings.setNotificationSettings(depleted, for: .sessionQuotaDepleted)
+
+        var restored = settings.notificationSettings(for: .sessionQuotaRestored)
+        restored.enabled = true
+        settings.setNotificationSettings(restored, for: .sessionQuotaRestored)
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+
+        let depletedSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        store.handleSessionQuotaTransition(provider: .codex, snapshot: depletedSnapshot)
+
+        let restoredSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        store.handleSessionQuotaTransition(provider: .codex, snapshot: restoredSnapshot)
+
+        #expect(notifier.posts.count == 1)
+        #expect(notifier.posts.first?.transition == .restored)
+        #expect(notifier.posts.first?.provider == .codex)
+    }
 }

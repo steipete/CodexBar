@@ -40,18 +40,19 @@ extension UsageStore {
         return resolved
     }
 
-    func recordCodexHistoricalSampleIfNeeded(snapshot: UsageSnapshot) {
-        guard self.settings.historicalTrackingEnabled else { return }
+    @discardableResult
+    func recordCodexHistoricalSampleIfNeeded(snapshot: UsageSnapshot) -> Task<Void, Never>? {
+        guard self.settings.historicalTrackingEnabled else { return nil }
         let projection = self.codexConsumerProjection(
             surface: .liveCard,
             snapshotOverride: snapshot,
             now: snapshot.updatedAt)
-        guard let weekly = projection.rateWindow(for: .weekly) else { return }
+        guard let weekly = projection.rateWindow(for: .weekly) else { return nil }
 
         let sampledAt = snapshot.updatedAt
         let ownership = self.codexOwnershipContext(preferredEmail: snapshot.accountEmail(for: .codex))
         let historyStore = self.historicalUsageHistoryStore
-        Task.detached(priority: .utility) { [weak self] in
+        return Task.detached(priority: .utility) { [weak self] in
             _ = await historyStore.recordCodexWeekly(
                 window: weekly,
                 sampledAt: sampledAt,

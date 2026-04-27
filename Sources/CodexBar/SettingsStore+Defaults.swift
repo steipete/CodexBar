@@ -95,12 +95,51 @@ extension SettingsStore {
         }
     }
 
-    var sessionQuotaNotificationsEnabled: Bool {
-        get { self.defaultsState.sessionQuotaNotificationsEnabled }
+    var notificationsEnabled: Bool {
+        get { self.defaultsState.notificationsEnabled }
         set {
-            self.defaultsState.sessionQuotaNotificationsEnabled = newValue
-            self.userDefaults.set(newValue, forKey: "sessionQuotaNotificationsEnabled")
+            self.defaultsState.notificationsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "notificationsEnabled")
         }
+    }
+
+    var notificationVolume: Double {
+        get { self.defaultsState.notificationVolume }
+        set {
+            let normalized = min(max(newValue, 0.0), 1.0)
+            self.defaultsState.notificationVolume = normalized
+            self.userDefaults.set(normalized, forKey: "notificationVolume")
+        }
+    }
+
+    var sessionQuotaNotificationsEnabled: Bool {
+        get {
+            self.notificationSettings(for: .sessionQuotaDepleted).enabled ||
+                self.notificationSettings(for: .sessionQuotaRestored).enabled
+        }
+        set {
+            var depleted = self.notificationSettings(for: .sessionQuotaDepleted)
+            depleted.enabled = newValue
+            self.setNotificationSettings(depleted, for: .sessionQuotaDepleted)
+
+            var restored = self.notificationSettings(for: .sessionQuotaRestored)
+            restored.enabled = newValue
+            self.setNotificationSettings(restored, for: .sessionQuotaRestored)
+        }
+    }
+
+    func notificationSettings(for event: AppNotificationEvent) -> NotificationDeliverySettings {
+        self.defaultsState.notificationSettings[event] ?? event.defaultSettings
+    }
+
+    func setNotificationSettings(_ settings: NotificationDeliverySettings, for event: AppNotificationEvent) {
+        let normalized = settings.normalized
+        self.defaultsState.notificationSettings[event] = normalized
+        self.userDefaults.set(normalized.enabled, forKey: event.enabledDefaultsKey)
+        self.userDefaults.set(normalized.sound.rawValue, forKey: event.soundDefaultsKey)
+        self.persistNotificationString(normalized.hookCallURL, key: event.hookCallURLDefaultsKey)
+        self.persistNotificationString(normalized.shortcutName, key: event.shortcutNameDefaultsKey)
+        self.persistLegacySessionQuotaNotificationsFlag()
     }
 
     var usageBarsShowUsed: Bool {
@@ -109,6 +148,21 @@ extension SettingsStore {
             self.defaultsState.usageBarsShowUsed = newValue
             self.userDefaults.set(newValue, forKey: "usageBarsShowUsed")
         }
+    }
+
+    private func persistNotificationString(_ value: String, key: String) {
+        if value.isEmpty {
+            self.userDefaults.removeObject(forKey: key)
+        } else {
+            self.userDefaults.set(value, forKey: key)
+        }
+    }
+
+    private func persistLegacySessionQuotaNotificationsFlag() {
+        let enabled = self.notificationSettings(for: .sessionQuotaDepleted).enabled ||
+            self.notificationSettings(for: .sessionQuotaRestored).enabled
+        self.defaultsState.sessionQuotaNotificationsEnabled = enabled
+        self.userDefaults.set(enabled, forKey: "sessionQuotaNotificationsEnabled")
     }
 
     var resetTimesShowAbsolute: Bool {
