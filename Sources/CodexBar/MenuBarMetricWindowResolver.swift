@@ -95,7 +95,7 @@ enum MenuBarMetricWindowResolver {
                 secondary: snapshot.tertiary,
                 tertiary: nil) ?? snapshot.secondary
         }
-        if provider == .factory || provider == .kimi {
+        if provider == .factory {
             return snapshot.secondary ?? snapshot.primary
         }
         if provider == .copilot,

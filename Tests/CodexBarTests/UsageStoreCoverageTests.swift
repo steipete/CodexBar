@@ -95,10 +95,12 @@ struct UsageStoreCoverageTests {
                 secondary: nil,
                 updatedAt: now),
             provider: .codex)
+        // With the fix, Kimi's primary is now rate limit and secondary is weekly.
+        // In automatic mode, Kimi uses primary like other providers.
         store._setSnapshotForTesting(
             UsageSnapshot(
-                primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-                secondary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                primary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
                 updatedAt: now),
             provider: .kimi)
 

@@ -80,7 +80,7 @@ struct UsageStoreHighestUsageTests {
     }
 
     @Test
-    func `automatic metric uses secondary for kimi when ranking highest usage`() {
+    func `automatic metric uses primary for kimi when ranking highest usage`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-kimi-automatic"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -104,9 +104,11 @@ struct UsageStoreHighestUsageTests {
             primary: RateWindow(usedPercent: 70, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             updatedAt: Date())
+        // With the fix, Kimi's primary is now rate limit (typically lower usage %)
+        // and secondary is weekly. In automatic mode, Kimi uses primary like other providers.
         let kimiSnapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 90, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 90, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             updatedAt: Date())
 
         store._setSnapshotForTesting(codexSnapshot, provider: .codex)
