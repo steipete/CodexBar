@@ -2,6 +2,15 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    private nonisolated static let weeklyLimitResetThreshold = 1.0
+    private nonisolated static let weeklyLimitResetDetectorDefaultsKey = "weeklyLimitResetDetectorStates"
+    private nonisolated static let weeklyWindowMinutes = 7 * 24 * 60
+
+    struct WeeklyLimitResetDetectorState: Codable, Equatable {
+        let wasAboveThreshold: Bool
+        let lastObservedAt: Date
+    }
+
     func supportsPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
         switch provider {
         case .codex, .claude:
@@ -65,6 +74,22 @@ extension UsageStore {
         now: Date = Date())
         async
     {
+        let samples = self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
+        guard !samples.isEmpty else { return }
+
+        let detectorAccountKey = self.planUtilizationAccountKey(
+            for: provider,
+            snapshot: snapshot,
+            preferredAccount: account)
+        await MainActor.run {
+            self.postWeeklyLimitResetCelebrationIfNeeded(
+                provider: provider,
+                account: account,
+                snapshot: snapshot,
+                accountKey: detectorAccountKey,
+                samples: samples)
+        }
+
         guard self.supportsPlanUtilizationHistory(for: provider) else { return }
         guard !self.shouldDeferClaudePlanUtilizationHistory(provider: provider) else { return }
 
@@ -80,7 +105,6 @@ extension UsageStore {
                 shouldAdoptUnscopedHistory: shouldAdoptUnscopedHistory,
                 providerBuckets: &providerBuckets)
             let histories = providerBuckets.histories(for: accountKey)
-            let samples = self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
 
             guard let updatedHistories = Self.updatedPlanUtilizationHistories(
                 existingHistories: histories,
@@ -195,6 +219,62 @@ extension UsageStore {
         return max(0, min(100, value))
     }
 
+    private func postWeeklyLimitResetCelebrationIfNeeded(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?,
+        snapshot: UsageSnapshot,
+        accountKey: String?,
+        samples: [PlanUtilizationSeriesSample])
+    {
+        guard let weeklySample = samples.last(where: { $0.name == .weekly }) else { return }
+
+        let accountIdentifier = self.weeklyLimitResetAccountIdentifier(
+            provider: provider,
+            account: account,
+            snapshot: snapshot,
+            accountKey: accountKey)
+        let detectorKey = Self.weeklyLimitResetDetectorStateKey(
+            provider: provider,
+            accountIdentifier: accountIdentifier)
+        let currentUsed = weeklySample.entry.usedPercent
+        let currentObservedAt = weeklySample.entry.capturedAt
+        let wasAboveThreshold = currentUsed > Self.weeklyLimitResetThreshold
+        if let existingState = self.weeklyLimitResetDetectorStates[detectorKey],
+           currentObservedAt <= existingState.lastObservedAt
+        {
+            return
+        }
+
+        let shouldPost = self.weeklyLimitResetDetectorStates[detectorKey]?.wasAboveThreshold == true
+            && !wasAboveThreshold
+        self.weeklyLimitResetDetectorStates[detectorKey] = WeeklyLimitResetDetectorState(
+            wasAboveThreshold: wasAboveThreshold,
+            lastObservedAt: currentObservedAt)
+        self.persistWeeklyLimitResetDetectorStates()
+
+        guard shouldPost else { return }
+        let accountLabel = self.weeklyLimitResetAccountLabel(
+            provider: provider,
+            account: account,
+            snapshot: snapshot)
+        let event = WeeklyLimitResetEvent(
+            provider: provider,
+            accountIdentifier: accountIdentifier,
+            accountLabel: accountLabel,
+            usedPercent: currentUsed)
+
+        CodexBarLog.logger(LogCategories.confetti).info(
+            "Weekly limit reset",
+            metadata: [
+                "provider": provider.rawValue,
+                "accountIdentifier": accountIdentifier,
+                "accountLabel": accountLabel ?? "",
+                "usedPercent": String(format: "%.2f", currentUsed),
+                "observedAt": String(format: "%.0f", currentObservedAt.timeIntervalSince1970),
+            ])
+        NotificationCenter.default.post(name: .codexbarWeeklyLimitReset, object: event)
+    }
+
     private func planUtilizationSeriesSamples(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
@@ -206,6 +286,7 @@ extension UsageStore {
             guard let name,
                   let window,
                   let windowMinutes = window.windowMinutes,
+                  windowMinutes > 0,
                   let usedPercent = Self.clampedPercent(window.usedPercent)
             else {
                 return
@@ -235,7 +316,10 @@ extension UsageStore {
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .opus)
         default:
-            break
+            for window in [snapshot.primary, snapshot.secondary, snapshot.tertiary] {
+                guard let window, window.windowMinutes == Self.weeklyWindowMinutes else { continue }
+                appendWindow(window, name: .weekly)
+            }
         }
 
         return samplesByKey.values.sorted { lhs, rhs in
@@ -424,6 +508,63 @@ extension UsageStore {
 
     private func shouldDeferClaudePlanUtilizationHistory(provider: UsageProvider) -> Bool {
         provider == .claude && self.shouldHidePlanUtilizationMenuItem(for: .claude)
+    }
+
+    private func weeklyLimitResetAccountIdentifier(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?,
+        snapshot: UsageSnapshot,
+        accountKey: String?) -> String
+    {
+        let identity = snapshot.identity(for: provider)
+        return account?.id.uuidString.lowercased()
+            ?? accountKey
+            ?? identity?.accountEmail
+            ?? identity?.accountOrganization
+            ?? provider.rawValue
+    }
+
+    private func weeklyLimitResetAccountLabel(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?,
+        snapshot: UsageSnapshot) -> String?
+    {
+        let identity = snapshot.identity(for: provider)
+        return account?.label
+            ?? identity?.accountEmail
+            ?? identity?.accountOrganization
+    }
+
+    private nonisolated static func weeklyLimitResetDetectorStateKey(
+        provider: UsageProvider,
+        accountIdentifier: String) -> String
+    {
+        "\(provider.rawValue):\(accountIdentifier)"
+    }
+
+    nonisolated static func loadWeeklyLimitResetDetectorStates(from userDefaults: UserDefaults)
+        -> [String: WeeklyLimitResetDetectorState]
+    {
+        guard let data = userDefaults.data(forKey: self.weeklyLimitResetDetectorDefaultsKey) else { return [:] }
+        do {
+            return try JSONDecoder().decode([String: WeeklyLimitResetDetectorState].self, from: data)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to decode weekly limit reset detector state",
+                metadata: ["error": String(describing: error)])
+            return [:]
+        }
+    }
+
+    private func persistWeeklyLimitResetDetectorStates() {
+        do {
+            let data = try JSONEncoder().encode(self.weeklyLimitResetDetectorStates)
+            self.settings.userDefaults.set(data, forKey: Self.weeklyLimitResetDetectorDefaultsKey)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to encode weekly limit reset detector state",
+                metadata: ["error": String(describing: error)])
+        }
     }
 
     private func resolvePlanUtilizationAccountKey(

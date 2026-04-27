@@ -43,6 +43,7 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
     case primary
     case secondary
     case tertiary
+    case extraUsage
     case average
 
     var id: String {
@@ -55,6 +56,7 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
         case .primary: "Primary"
         case .secondary: "Secondary"
         case .tertiary: "Tertiary"
+        case .extraUsage: "Extra usage"
         case .average: "Average"
         }
     }
@@ -63,13 +65,15 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class SettingsStore {
-    static let sharedDefaults = UserDefaults(suiteName: "group.com.steipete.codexbar")
+    static let sharedDefaults = AppGroupSupport.sharedDefaults()
     static let mergedOverviewProviderLimit = 3
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
         if env["XCTestConfigurationFilePath"] != nil { return true }
         if env["TESTING_LIBRARY_VERSION"] != nil { return true }
         if env["SWIFT_TESTING"] != nil { return true }
+        if Bundle.main.bundlePath.contains(".xctest") { return true }
+        if ProcessInfo.processInfo.arguments.contains(where: { $0.contains(".xctest") }) { return true }
         return NSClassFromString("XCTestCase") != nil
     }()
 
@@ -124,6 +128,25 @@ final class SettingsStore {
         copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore())
     {
+        let appGroupID = AppGroupSupport.currentGroupID()
+        let appGroupMigration = if Self.isRunningTests {
+            AppGroupSupport.MigrationResult(status: .alreadyCompleted)
+        } else {
+            AppGroupSupport.migrateLegacyDataIfNeeded(standardDefaults: userDefaults)
+        }
+        let sharedDefaultsAvailable = Self.sharedDefaults != nil
+        if !Self.isRunningTests {
+            CodexBarLog.logger(LogCategories.settings).info(
+                "App group resolved",
+                metadata: [
+                    "groupID": appGroupID,
+                    "sharedDefaultsAvailable": sharedDefaultsAvailable ? "1" : "0",
+                    "migrationStatus": appGroupMigration.status.rawValue,
+                    "migratedSnapshot": appGroupMigration.copiedSnapshot ? "1" : "0",
+                    "migratedDefaults": "\(appGroupMigration.copiedDefaults)",
+                ])
+        }
+
         let hasStoredOpenAIWebAccessPreference = userDefaults.object(forKey: "openAIWebAccessEnabled") != nil
         let hadExistingConfig = (try? configStore.load()) != nil
         let legacyStores = CodexBarConfigMigrator.LegacyStores(
@@ -253,6 +276,8 @@ extension SettingsStore {
         let costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
         let hidePersonalInfo = userDefaults.object(forKey: "hidePersonalInfo") as? Bool ?? false
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
+        let confettiOnWeeklyLimitResetsEnabled = userDefaults.object(
+            forKey: "confettiOnWeeklyLimitResetsEnabled") as? Bool ?? false
         let menuBarShowsHighestUsage = userDefaults.object(forKey: "menuBarShowsHighestUsage") as? Bool ?? false
         let claudeOAuthKeychainPromptModeRaw = userDefaults.string(forKey: "claudeOAuthKeychainPromptMode")
         let claudeOAuthKeychainReadStrategyRaw = userDefaults.string(forKey: "claudeOAuthKeychainReadStrategy")
@@ -303,6 +328,7 @@ extension SettingsStore {
             costUsageEnabled: costUsageEnabled,
             hidePersonalInfo: hidePersonalInfo,
             randomBlinkEnabled: randomBlinkEnabled,
+            confettiOnWeeklyLimitResetsEnabled: confettiOnWeeklyLimitResetsEnabled,
             menuBarShowsHighestUsage: menuBarShowsHighestUsage,
             claudeOAuthKeychainPromptModeRaw: claudeOAuthKeychainPromptModeRaw,
             claudeOAuthKeychainReadStrategyRaw: claudeOAuthKeychainReadStrategyRaw,

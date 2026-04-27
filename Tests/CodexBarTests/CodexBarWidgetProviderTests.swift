@@ -17,6 +17,13 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `supported providers fall back to codex when snapshot is empty`() {
+        let snapshot = WidgetSnapshot(entries: [], enabledProviders: [], generatedAt: Date())
+
+        #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.codex])
+    }
+
+    @Test
     func `supported providers keep alibaba when it is the only enabled provider`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let entry = WidgetSnapshot.ProviderEntry(
@@ -96,5 +103,15 @@ struct CodexBarWidgetProviderTests {
         let rows = WidgetUsageRow.rows(for: entry)
 
         #expect(rows == [WidgetUsageRow(id: "weekly", title: "Weekly", percentLeft: 75)])
+    }
+
+    @Test
+    func `widget configuration intents default to codex and credits`() {
+        let providerIntent = ProviderSelectionIntent()
+        let compactIntent = CompactMetricSelectionIntent()
+
+        #expect(providerIntent.provider == .codex)
+        #expect(compactIntent.provider == .codex)
+        #expect(compactIntent.metric == .credits)
     }
 }

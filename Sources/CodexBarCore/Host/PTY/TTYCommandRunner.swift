@@ -102,6 +102,7 @@ public struct TTYCommandRunner {
         public var stopOnURL: Bool
         public var stopOnSubstrings: [String]
         public var settleAfterStop: TimeInterval
+        public var forceCodexStatusMode: Bool
 
         public init(
             rows: UInt16 = 50,
@@ -116,7 +117,8 @@ public struct TTYCommandRunner {
             sendOnSubstrings: [String: String] = [:],
             stopOnURL: Bool = false,
             stopOnSubstrings: [String] = [],
-            settleAfterStop: TimeInterval = 0.25)
+            settleAfterStop: TimeInterval = 0.25,
+            forceCodexStatusMode: Bool = false)
         {
             self.rows = rows
             self.cols = cols
@@ -131,6 +133,7 @@ public struct TTYCommandRunner {
             self.stopOnURL = stopOnURL
             self.stopOnSubstrings = stopOnSubstrings
             self.settleAfterStop = settleAfterStop
+            self.forceCodexStatusMode = forceCodexStatusMode
         }
     }
 
@@ -173,6 +176,19 @@ public struct TTYCommandRunner {
             }
             kill(target.pid, SIGKILL)
         }
+    }
+
+    @discardableResult
+    static func registerActiveProcessForAppShutdown(pid: pid_t, binary: String) -> Bool {
+        TTYCommandRunnerActiveProcessRegistry.register(pid: pid, binary: binary)
+    }
+
+    static func updateActiveProcessGroupForAppShutdown(pid: pid_t, processGroup: pid_t?) {
+        TTYCommandRunnerActiveProcessRegistry.updateProcessGroup(pid: pid, processGroup: processGroup)
+    }
+
+    static func unregisterActiveProcessForAppShutdown(pid: pid_t) {
+        TTYCommandRunnerActiveProcessRegistry.unregister(pid: pid)
     }
 
     private static func resolveShutdownTargets(
@@ -510,7 +526,7 @@ public struct TTYCommandRunner {
 
         let deadline = Date().addingTimeInterval(options.timeout)
         let trimmed = script.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isCodex = (binaryName == "codex")
+        let isCodex = (binaryName == "codex") || options.forceCodexStatusMode
         let isCodexStatus = isCodex && trimmed == "/status"
 
         var buffer = Data()

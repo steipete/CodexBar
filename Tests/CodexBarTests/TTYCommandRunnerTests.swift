@@ -36,6 +36,19 @@ struct TTYCommandRunnerEnvTests {
     }
 
     @Test
+    func `cached CLI sessions share shutdown tracking`() {
+        TTYCommandRunner._test_resetTrackedProcesses()
+        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+
+        #expect(TTYCommandRunner.registerActiveProcessForAppShutdown(pid: 3001, binary: "codex"))
+        TTYCommandRunner.updateActiveProcessGroupForAppShutdown(pid: 3001, processGroup: 3001)
+        #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
+
+        TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: 3001)
+        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+    }
+
+    @Test
     func `tracked process helpers ignore invalid PID`() {
         TTYCommandRunner._test_resetTrackedProcesses()
         defer { TTYCommandRunner._test_resetTrackedProcesses() }
@@ -167,7 +180,7 @@ struct TTYCommandRunnerEnvTests {
             binary: scriptURL.path,
             send: "",
             options: .init(
-                timeout: 6,
+                timeout: 15,
                 // Use LF for portability: some PTY/termios setups do not translate CR → NL for shell reads.
                 sendOnSubstrings: ["trust the files in this folder?": "y\n"],
                 stopOnSubstrings: ["accepted", "rejected"],

@@ -105,6 +105,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
     public func importBestCookies(
         intoAccountEmail targetEmail: String?,
         allowAnyAccount: Bool = false,
+        preferCachedCookieHeader: Bool = true,
         cacheScope: CookieHeaderCache.Scope? = nil,
         logger: ((String) -> Void)? = nil) async throws -> ImportResult
     {
@@ -130,27 +131,31 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         var diagnostics = ImportDiagnostics()
 
-        if let cached = CookieHeaderCache.load(provider: .codex, scope: cacheScope),
-           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            log("Using cached cookie header from \(cached.sourceLabel)")
-            do {
-                return try await self.importManualCookies(
-                    cookieHeader: cached.cookieHeader,
-                    intoAccountEmail: context.targetEmail,
-                    allowAnyAccount: context.allowAnyAccount,
-                    cacheScope: cacheScope,
-                    logger: log)
-            } catch let error as ImportError {
-                switch error {
-                case .manualCookieHeaderInvalid, .noMatchingAccount, .dashboardStillRequiresLogin:
-                    CookieHeaderCache.clear(provider: .codex, scope: cacheScope)
-                default:
+        if preferCachedCookieHeader {
+            if let cached = CookieHeaderCache.load(provider: .codex, scope: cacheScope),
+               !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                log("Using cached cookie header from \(cached.sourceLabel)")
+                do {
+                    return try await self.importManualCookies(
+                        cookieHeader: cached.cookieHeader,
+                        intoAccountEmail: context.targetEmail,
+                        allowAnyAccount: context.allowAnyAccount,
+                        cacheScope: cacheScope,
+                        logger: log)
+                } catch let error as ImportError {
+                    switch error {
+                    case .manualCookieHeaderInvalid, .noMatchingAccount, .dashboardStillRequiresLogin:
+                        CookieHeaderCache.clear(provider: .codex, scope: cacheScope)
+                    default:
+                        throw error
+                    }
+                } catch {
                     throw error
                 }
-            } catch {
-                throw error
             }
+        } else {
+            log("Skipping cached cookie header; forcing fresh browser import")
         }
 
         // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
@@ -606,15 +611,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
         // Validate against the persistent store (login + email sync).
         do {
-            defer {
-                // The probe is only a validation step. Start the real dashboard scrape with a
-                // fresh WKWebView instead of reusing the probe instance.
-                OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
-            }
             let probe = try await OpenAIDashboardFetcher().probeUsagePage(
                 websiteDataStore: persistent,
                 logger: logger,
-                timeout: 20)
+                timeout: 20,
+                preserveLoadedPageForReuse: true)
             let signed = probe.signedInEmail?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             let matches = signed?.lowercased() == targetEmail.lowercased()
             logger("Persistent session signed in as: \(signed ?? "unknown")")
@@ -630,8 +631,12 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 signedInEmail: signed,
                 matchesCodexEmail: matches)
         } catch OpenAIDashboardFetcher.FetchError.loginRequired {
+            OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
             logger("Selected \(candidate.label) but dashboard still requires login.")
             throw ImportError.dashboardStillRequiresLogin
+        } catch {
+            OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
+            throw error
         }
     }
 
@@ -644,15 +649,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
         await self.setCookies(candidate.cookies, into: persistent)
 
         do {
-            defer {
-                // The probe is only a validation step. Start the real dashboard scrape with a
-                // fresh WKWebView instead of reusing the probe instance.
-                OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
-            }
             let probe = try await OpenAIDashboardFetcher().probeUsagePage(
                 websiteDataStore: persistent,
                 logger: logger,
-                timeout: 20)
+                timeout: 20,
+                preserveLoadedPageForReuse: true)
             let signed = probe.signedInEmail?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             logger("Persistent session signed in as: \(signed ?? "unknown")")
             return ImportResult(
@@ -661,8 +662,12 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 signedInEmail: signed,
                 matchesCodexEmail: false)
         } catch OpenAIDashboardFetcher.FetchError.loginRequired {
+            OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
             logger("Selected \(candidate.label) but dashboard still requires login.")
             throw ImportError.dashboardStillRequiresLogin
+        } catch {
+            OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
+            throw error
         }
     }
 
@@ -816,6 +821,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
     public func importBestCookies(
         intoAccountEmail _: String?,
         allowAnyAccount _: Bool = false,
+        preferCachedCookieHeader _: Bool = true,
         cacheScope _: CookieHeaderCache.Scope? = nil,
         logger _: ((String) -> Void)? = nil) async throws -> ImportResult
     {

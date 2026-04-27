@@ -138,6 +138,109 @@ struct OpenAIDashboardWebViewCacheTests {
         cache.clearAllForTesting()
     }
 
+    @Test
+    func `Preserved page handoff is consumed only once`() {
+        if self.shouldSkipOnCI() { return }
+        let cache = OpenAIDashboardWebViewCache()
+        let store = WKWebsiteDataStore.nonPersistent()
+        cache.cacheEntryForTesting(websiteDataStore: store)
+        cache.markPreservedPageForTesting(
+            websiteDataStore: store,
+            expiresAt: Date().addingTimeInterval(cache.preservedPageHandoffTimeoutForTesting))
+
+        #expect(cache.hasPreservedPageForTesting(for: store), "Expected preserved page handoff to be armed")
+        #expect(cache.consumePreservedPageForTesting(websiteDataStore: store), "First acquire should reuse handoff")
+        #expect(
+            !cache.consumePreservedPageForTesting(websiteDataStore: store),
+            "Second acquire should not keep reusing preserved page")
+
+        cache.clearAllForTesting()
+    }
+
+    @Test
+    func `Expired preserved page is cleared before idle eviction`() {
+        if self.shouldSkipOnCI() { return }
+        let cache = OpenAIDashboardWebViewCache()
+        let store = WKWebsiteDataStore.nonPersistent()
+        cache.cacheEntryForTesting(websiteDataStore: store)
+        cache.markPreservedPageForTesting(
+            websiteDataStore: store,
+            expiresAt: Date().addingTimeInterval(1))
+
+        let afterExpiry = Date().addingTimeInterval(cache.preservedPageHandoffTimeoutForTesting + 1)
+        cache.pruneForTesting(now: afterExpiry)
+
+        #expect(!cache.hasPreservedPageForTesting(for: store), "Expired preserved page should be cleared")
+        #expect(cache.hasCachedEntry(for: store), "Entry should remain cached after page handoff expires")
+
+        cache.clearAllForTesting()
+    }
+
+    @Test
+    func `Preserved page expiry is scheduled without future cache activity`() async throws {
+        if self.shouldSkipOnCI() { return }
+        let cache = OpenAIDashboardWebViewCache()
+        let store = WKWebsiteDataStore.nonPersistent()
+        let webView = cache.cacheEntryForTesting(websiteDataStore: store)
+
+        _ = webView.loadHTMLString("<html><body>alive</body></html>", baseURL: nil)
+        try? await Task.sleep(for: .milliseconds(150))
+
+        cache.markPreservedPageForTesting(
+            websiteDataStore: store,
+            expiresAt: Date().addingTimeInterval(0.2))
+
+        #expect(cache.hasPreservedPageForTesting(for: store), "Expected preserved page handoff to be armed")
+
+        var bodyText: String?
+        let deadline = Date().addingTimeInterval(2)
+        repeat {
+            try? await Task.sleep(for: .milliseconds(100))
+            bodyText = try await webView.evaluateJavaScript(
+                "document.body ? String(document.body.innerText || '') : ''") as? String
+        } while (cache.hasPreservedPageForTesting(for: store) || bodyText?.isEmpty != true) && Date() < deadline
+
+        #expect(!cache.hasPreservedPageForTesting(for: store), "Expected scheduled expiry to clear preserved page")
+        #expect(bodyText?.isEmpty == true, "Expected scheduled expiry to detach the preserved page to about:blank")
+
+        cache.clearAllForTesting()
+    }
+
+    @Test
+    func `Reused page reset clears one shot scraper globals`() async throws {
+        if self.shouldSkipOnCI() { return }
+        let cache = OpenAIDashboardWebViewCache()
+        let store = WKWebsiteDataStore.nonPersistent()
+        let url = try #require(URL(string: "about:blank"))
+
+        let lease = try await cache.acquire(
+            websiteDataStore: store,
+            usageURL: url,
+            logger: nil)
+
+        _ = try await lease.webView.evaluateJavaScript(
+            """
+            window.__codexbarDidScrollToCredits = true;
+            window.__codexbarUsageBreakdownJSON = '[{"day":"2026-04-19"}]';
+            window.__codexbarUsageBreakdownDebug = 'debug';
+            true;
+            """)
+
+        #expect(await cache.resetReusablePageStateForTesting(lease.webView))
+
+        let reset = try await lease.webView.evaluateJavaScript(
+            """
+            typeof window.__codexbarDidScrollToCredits === 'undefined' &&
+            typeof window.__codexbarUsageBreakdownJSON === 'undefined' &&
+            typeof window.__codexbarUsageBreakdownDebug === 'undefined'
+            """) as? Bool
+
+        #expect(reset == true, "Expected one-shot scraper globals to be cleared before reuse")
+
+        lease.release()
+        cache.clearAllForTesting()
+    }
+
     // MARK: - Eviction Tests
 
     @Test
@@ -188,8 +291,8 @@ struct OpenAIDashboardWebViewCacheTests {
         cache.clearAllForTesting()
     }
 
-    @Test("Evict all should remove every cached WebView")
-    func evictAllRemovesAllEntries() async throws {
+    @Test
+    func `Evict all should remove every cached WebView`() async throws {
         if self.shouldSkipOnCI() { return }
         let cache = OpenAIDashboardWebViewCache()
         let store1 = WKWebsiteDataStore.nonPersistent()

@@ -9,6 +9,19 @@ struct OpenAIDashboardNavigationDelegateTests {
         var delegate: NavigationDelegate?
     }
 
+    @MainActor
+    private func waitForResult(
+        _ result: @escaping () -> Result<Void, Error>?,
+        timeout: TimeInterval = NavigationDelegate.postCommitSuccessDelay + 10.0) async -> Result<Void, Error>?
+    {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let result = result() { return result }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return result()
+    }
+
     @Test
     func `ignores NSURLErrorCancelled`() {
         let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)
@@ -48,18 +61,21 @@ struct OpenAIDashboardNavigationDelegateTests {
 
     @MainActor
     @Test
-    func `commit completes navigation successfully after grace period`() {
+    func `commit completes navigation successfully after grace period`() async {
         let webView = WKWebView()
         var result: Result<Void, Error>?
         let box = DelegateBox()
         box.delegate = NavigationDelegate { result = $0 }
-        NavigationDelegate.testPostCommitSuccessDelayOverride = 0
+        NavigationDelegate.testPostCommitSuccessDelayOverride = 0.01
         defer { NavigationDelegate.testPostCommitSuccessDelayOverride = nil }
 
         box.delegate?.webView(webView, didCommit: nil)
+        #expect(result == nil)
+
+        let completed = await self.waitForResult { result }
         box.delegate = nil
 
-        switch result {
+        switch completed {
         case .success?:
             #expect(Bool(true))
         default:
@@ -79,10 +95,10 @@ struct OpenAIDashboardNavigationDelegateTests {
         let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
         box.delegate?.webView(webView, didFail: nil, withError: timeout)
 
-        try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
+        let completed = await self.waitForResult { result }
         box.delegate = nil
 
-        switch result {
+        switch completed {
         case let .failure(error as NSError)?:
             #expect(error.domain == NSURLErrorDomain)
             #expect(error.code == NSURLErrorTimedOut)

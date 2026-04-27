@@ -196,6 +196,13 @@ struct ProviderSettingsFieldRowView: View {
                     }
                 }
             }
+
+            if let footer = self.field.footerText, !footer.isEmpty {
+                Text(footer)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

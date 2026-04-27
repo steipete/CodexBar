@@ -98,6 +98,86 @@ path.write_text(text)
 PY
 }
 
+generate_widget_appintents_metadata() {
+  local widget_resources_dir="$1"
+  local xcode_conf
+  local host_arch
+  local derived_dir
+  local build_dir
+  local object_dir
+  local source_file_list
+  local const_values_list
+  local dependency_metadata
+  local static_dependency_metadata
+  local appintents_tool
+  local sdk_root
+  local swiftc_path
+  local toolchain_dir
+  local xcode_version
+
+  xcode_conf="Release"
+  if [[ "$LOWER_CONF" == "debug" ]]; then
+    xcode_conf="Debug"
+  fi
+
+  host_arch=$(uname -m)
+  derived_dir="$ROOT/.build/xcode-widget-metadata-${LOWER_CONF}"
+  build_dir="$derived_dir/Build/Intermediates.noindex/CodexBar.build/${xcode_conf}/CodexBarWidget.build"
+  object_dir="$build_dir/Objects-normal/${host_arch}"
+  source_file_list="$object_dir/CodexBarWidget.SwiftFileList"
+  const_values_list="$object_dir/CodexBarWidget.SwiftConstValuesFileList"
+  dependency_metadata="$build_dir/CodexBarWidget.DependencyMetadataFileList"
+  static_dependency_metadata="$build_dir/CodexBarWidget.DependencyStaticMetadataFileList"
+
+  appintents_tool=$(xcrun --find appintentsmetadataprocessor)
+  sdk_root=$(xcrun --sdk macosx --show-sdk-path)
+  swiftc_path=$(xcrun --find swiftc)
+  toolchain_dir=$(dirname "$(dirname "$(dirname "$swiftc_path")")")
+  xcode_version=$(xcodebuild -version | awk '/Build version/ { print $3 }')
+
+  rm -rf "$derived_dir"
+  xcodebuild \
+    -workspace "$ROOT/.swiftpm/xcode/package.xcworkspace" \
+    -scheme CodexBarWidget \
+    -configuration "$xcode_conf" \
+    -destination "platform=macOS,arch=${host_arch}" \
+    -derivedDataPath "$derived_dir" \
+    build >/dev/null
+
+  if [[ ! -f "$source_file_list" ]]; then
+    echo "ERROR: Missing App Intents metadata inputs for CodexBarWidget." >&2
+    exit 1
+  fi
+
+  find "$object_dir" -name '*.swiftconstvalues' | sort > "$const_values_list"
+  if [[ ! -s "$const_values_list" ]]; then
+    echo "ERROR: Missing App Intents const-values outputs for CodexBarWidget." >&2
+    exit 1
+  fi
+  rm -rf "$widget_resources_dir/Metadata.appintents"
+  mkdir -p "$widget_resources_dir"
+
+  "$appintents_tool" \
+    --output "$widget_resources_dir" \
+    --toolchain-dir "$toolchain_dir" \
+    --module-name CodexBarWidget \
+    --sdk-root "$sdk_root" \
+    --xcode-version "$xcode_version" \
+    --platform-family macOS \
+    --deployment-target 14.0 \
+    --target-triple "${host_arch}-apple-macos14.0" \
+    --source-file-list "$source_file_list" \
+    --swift-const-vals-list "$const_values_list" \
+    --metadata-file-list "$dependency_metadata" \
+    --static-metadata-file-list "$static_dependency_metadata" \
+    --force >/dev/null
+
+  if [[ ! -f "$widget_resources_dir/Metadata.appintents/extract.actionsdata" ]]; then
+    echo "ERROR: Failed to generate App Intents metadata for CodexBarWidget." >&2
+    exit 1
+  fi
+}
+
 KEYBOARD_SHORTCUTS_UTIL="$ROOT/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift"
 if [[ ! -f "$KEYBOARD_SHORTCUTS_UTIL" ]]; then
   swift build -c "$CONF" --arch "${ARCH_LIST[0]}"
@@ -134,9 +214,10 @@ if [[ "$SIGNING_MODE" == "adhoc" ]]; then
   AUTO_CHECKS=false
 fi
 WIDGET_BUNDLE_ID="${BUNDLE_ID}.widget"
-APP_GROUP_ID="group.com.steipete.codexbar"
+APP_TEAM_ID="${APP_TEAM_ID:-Y5PE65HELJ}"
+APP_GROUP_ID="${APP_TEAM_ID}.com.steipete.codexbar"
 if [[ "$BUNDLE_ID" == *".debug"* ]]; then
-  APP_GROUP_ID="group.com.steipete.codexbar.debug"
+  APP_GROUP_ID="${APP_TEAM_ID}.com.steipete.codexbar.debug"
 fi
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"
@@ -197,6 +278,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>SUEnableAutomaticChecks</key><${AUTO_CHECKS}/>
     <key>CodexBuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>CodexGitCommit</key><string>${GIT_COMMIT}</string>
+    <key>CodexBarTeamID</key><string>${APP_TEAM_ID}</string>
 </dict>
 </plist>
 PLIST
@@ -292,6 +374,7 @@ if [[ -n "$(resolve_binary_path "CodexBarWidget" "${ARCH_LIST[0]}")" ]]; then
     <key>CFBundleShortVersionString</key><string>${MARKETING_VERSION}</string>
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>CodexBarTeamID</key><string>${APP_TEAM_ID}</string>
     <key>NSExtension</key>
     <dict>
         <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>
@@ -301,6 +384,7 @@ if [[ -n "$(resolve_binary_path "CodexBarWidget" "${ARCH_LIST[0]}")" ]]; then
 </plist>
 PLIST
   install_binary "CodexBarWidget" "$WIDGET_APP/Contents/MacOS/CodexBarWidget"
+  generate_widget_appintents_metadata "$WIDGET_APP/Contents/Resources"
 fi
 # Embed Sparkle.framework
 if [[ -d ".build/$CONF/Sparkle.framework" ]]; then

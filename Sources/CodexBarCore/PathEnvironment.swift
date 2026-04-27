@@ -58,9 +58,13 @@ public enum BinaryLocator {
     }
 
     /// Well-known installation paths for the Claude CLI binary.
-    /// Covers the macOS Terminal installer (cmux.app), ~/.claude/bin, and Homebrew.
+    /// Covers Anthropic's native installer (`~/.local/bin`), the `claude migrate-installer`
+    /// self-updating location (`~/.claude/local`), the legacy per-user installer
+    /// (`~/.claude/bin`), Homebrew, and the macOS Terminal installer (cmux.app).
     static func claudeWellKnownPaths(home: String) -> [String] {
         [
+            "\(home)/.local/bin/claude",
+            "\(home)/.claude/local/claude",
             "\(home)/.claude/bin/claude",
             "/opt/homebrew/bin/claude",
             "/usr/local/bin/claude",

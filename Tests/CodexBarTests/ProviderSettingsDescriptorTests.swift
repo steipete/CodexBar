@@ -125,7 +125,7 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func codexExposesOpenAIWebExtrasToggleAsDefaultOffOptIn() throws {
+    func `codex exposes open AI web extras toggle as default off opt in`() throws {
         let suite = "ProviderSettingsDescriptorTests-codex-openai-toggle"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)

@@ -6,6 +6,7 @@ import Testing
 
 @Suite(.serialized)
 @MainActor
+// swiftlint:disable:next type_body_length
 struct SettingsStoreTests {
     private final class ObservationFlag: @unchecked Sendable {
         private let lock = NSLock()
@@ -83,6 +84,31 @@ struct SettingsStoreTests {
 
         #expect(storeB.refreshFrequency == .fifteenMinutes)
         #expect(storeB.refreshFrequency.seconds == 900)
+    }
+
+    @Test
+    func `weekly confetti setting defaults off and persists`() throws {
+        let suite = "SettingsStoreTests-weekly-confetti"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.confettiOnWeeklyLimitResetsEnabled == false)
+        storeA.confettiOnWeeklyLimitResetsEnabled = true
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.confettiOnWeeklyLimitResetsEnabled == true)
     }
 
     @Test
@@ -633,7 +659,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func defaultsOpenAIWebAccessToDisabled() throws {
+    func `defaults open AI web access to disabled`() throws {
         let suite = "SettingsStoreTests-openai-web"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -654,7 +680,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func infersOpenAIWebAccessEnabledForLegacyConfiguredCodexCookies() throws {
+    func `infers open AI web access enabled for legacy configured codex cookies`() throws {
         let suite = "SettingsStoreTests-openai-web-legacy"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -679,7 +705,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func infersOpenAIWebAccessEnabledForLegacyCodexConfigWithImplicitAutoCookies() throws {
+    func `infers open AI web access enabled for legacy codex config with implicit auto cookies`() throws {
         let suite = "SettingsStoreTests-openai-web-legacy-implicit-auto"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -704,7 +730,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func disablingOpenAIWebAccessTurnsCodexCookieSourceOff() throws {
+    func `disabling open AI web access turns codex cookie source off`() throws {
         let suite = "SettingsStoreTests-openai-web-toggle"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -730,7 +756,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func openAIWebBatterySaverPersistsSeparatelyFromExtrasAvailability() throws {
+    func `open AI web battery saver persists separately from extras availability`() throws {
         let suite = "SettingsStoreTests-openai-web-battery-saver"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -896,6 +922,7 @@ struct SettingsStoreTests {
             .openrouter,
             .perplexity,
             .abacus,
+            .mistral,
         ])
 
         // Move one provider; ensure it's persisted across instances.

@@ -405,7 +405,10 @@ extension StatusItemController {
     // swiftlint:enable function_body_length
 
     private func shouldSkipMergedIconRender(_ signature: String) -> Bool {
-        guard self.shouldMergeIcons else { return false }
+        guard self.shouldMergeIcons else {
+            self.lastAppliedMergedIconRenderSignature = signature
+            return false
+        }
         if self.lastAppliedMergedIconRenderSignature == signature {
             return true
         }
@@ -598,6 +601,15 @@ extension StatusItemController {
            let highest = self.store.providerWithHighestUsage()
         {
             return highest.provider
+        }
+        if self.shouldMergeIcons, self.settings.mergedMenuLastSelectedWasOverview {
+            let enabledProviders = self.store.enabledProvidersForDisplay()
+            let overviewProviders = self.settings.resolvedMergedOverviewProviders(
+                activeProviders: enabledProviders,
+                maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+            if let provider = overviewProviders.first(where: { self.store.isEnabled($0) }) {
+                return provider
+            }
         }
         if self.shouldMergeIcons,
            let selected = self.selectedMenuProvider,

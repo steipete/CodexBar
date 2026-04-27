@@ -16,8 +16,10 @@ struct UsageStoreSessionQuotaTransitionTests {
 
     @Test
     func `copilot switch from primary to secondary resets baseline`() {
+        let suite = "UsageStoreSessionQuotaTransitionTests-primary-secondary"
         let settings = SettingsStore(
-            configStore: testConfigStore(suiteName: "UsageStoreSessionQuotaTransitionTests-primary-secondary"),
+            userDefaults: Self.testDefaults(suiteName: suite),
+            configStore: testConfigStore(suiteName: suite),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
         settings.refreshFrequency = .manual
@@ -29,7 +31,8 @@ struct UsageStoreSessionQuotaTransitionTests {
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
-            sessionQuotaNotifier: notifier)
+            sessionQuotaNotifier: notifier,
+            startupBehavior: .testing)
 
         let primarySnapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
@@ -48,8 +51,10 @@ struct UsageStoreSessionQuotaTransitionTests {
 
     @Test
     func `copilot switch from secondary to primary resets baseline`() {
+        let suite = "UsageStoreSessionQuotaTransitionTests-secondary-primary"
         let settings = SettingsStore(
-            configStore: testConfigStore(suiteName: "UsageStoreSessionQuotaTransitionTests-secondary-primary"),
+            userDefaults: Self.testDefaults(suiteName: suite),
+            configStore: testConfigStore(suiteName: suite),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
         settings.refreshFrequency = .manual
@@ -61,7 +66,8 @@ struct UsageStoreSessionQuotaTransitionTests {
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
-            sessionQuotaNotifier: notifier)
+            sessionQuotaNotifier: notifier,
+            startupBehavior: .testing)
 
         let secondarySnapshot = UsageSnapshot(
             primary: nil,
@@ -80,8 +86,10 @@ struct UsageStoreSessionQuotaTransitionTests {
 
     @Test
     func `split session quota toggles only notify for enabled transition`() {
+        let suite = "UsageStoreSessionQuotaTransitionTests-split-events"
         let settings = SettingsStore(
-            configStore: testConfigStore(suiteName: "UsageStoreSessionQuotaTransitionTests-split-events"),
+            userDefaults: Self.testDefaults(suiteName: suite),
+            configStore: testConfigStore(suiteName: suite),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
         settings.refreshFrequency = .manual
@@ -101,7 +109,8 @@ struct UsageStoreSessionQuotaTransitionTests {
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
-            sessionQuotaNotifier: notifier)
+            sessionQuotaNotifier: notifier,
+            startupBehavior: .testing)
 
         let depletedSnapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
@@ -118,5 +127,14 @@ struct UsageStoreSessionQuotaTransitionTests {
         #expect(notifier.posts.count == 1)
         #expect(notifier.posts.first?.transition == .restored)
         #expect(notifier.posts.first?.provider == .codex)
+    }
+
+    private static func testDefaults(suiteName: String) -> UserDefaults {
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            preconditionFailure("Could not create defaults suite \(suiteName)")
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(AppGroupSupport.migrationVersion, forKey: AppGroupSupport.migrationVersionKey)
+        return defaults
     }
 }

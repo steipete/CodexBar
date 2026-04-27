@@ -10,9 +10,8 @@ private final class UsageHistoryMenuHostingView<Content: View>: NSHostingView<Co
 
 extension StatusItemController {
     @discardableResult
-    func addUsageHistoryMenuItemIfNeeded(to menu: NSMenu, provider: UsageProvider) -> Bool {
+    func addUsageHistoryMenuItemIfNeeded(to menu: NSMenu, provider: UsageProvider, width: CGFloat) -> Bool {
         guard let submenu = self.makeUsageHistorySubmenu(provider: provider) else { return false }
-        let width: CGFloat = 310
         let item = self.makeMenuCardItem(
             HStack(spacing: 0) {
                 Text("Subscription Utilization")
