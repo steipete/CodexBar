@@ -105,7 +105,7 @@ struct CopilotAPIKeyFallbackTests {
 @MainActor
 struct CopilotEnvironmentPrecedenceTests {
     @Test
-    func `token account overrides config API key`() {
+    func `token account overrides config API key`() throws {
         let settings = Self.makeSettingsStore(suite: "copilot-env-override")
         settings.copilotAPIToken = "old_config_token"
         settings.addTokenAccount(provider: .copilot, label: "new", token: "new_account_token")

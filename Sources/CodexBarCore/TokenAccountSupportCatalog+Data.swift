@@ -71,6 +71,7 @@ extension TokenAccountSupportCatalog {
             placeholder: "Paste GitHub token…",
             injection: .environment(key: "COPILOT_API_TOKEN"),
             requiresManualCookieSource: false,
+            cookieName: nil),
         .abacus: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Abacus AI Cookie headers.",
