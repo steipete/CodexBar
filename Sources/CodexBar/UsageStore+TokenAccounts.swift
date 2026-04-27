@@ -18,6 +18,8 @@ struct TokenAccountUsageSnapshot: Identifiable {
 }
 
 extension UsageStore {
+    static let tokenAccountMenuSnapshotLimit = 6
+
     func tokenAccounts(for provider: UsageProvider) -> [ProviderTokenAccount] {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return [] }
         return self.settings.tokenAccounts(for: provider)
@@ -76,7 +78,7 @@ extension UsageStore {
         _ accounts: [ProviderTokenAccount],
         selected: ProviderTokenAccount?) -> [ProviderTokenAccount]
     {
-        let limit = 6
+        let limit = Self.tokenAccountMenuSnapshotLimit
         if accounts.count <= limit { return accounts }
         var limited = Array(accounts.prefix(limit))
         if let selected, !limited.contains(where: { $0.id == selected.id }) {

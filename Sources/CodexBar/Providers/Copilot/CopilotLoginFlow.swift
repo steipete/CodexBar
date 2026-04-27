@@ -80,8 +80,11 @@ struct CopilotLoginFlow {
 
             switch tokenResult {
             case let .success(token):
-                // Fetch username for account label
-                var label: String
+                // Fetch username for account label.
+                // If accounts already exist, fail closed when identity lookup fails so re-auth cannot create
+                // an anonymous duplicate with stale credentials left on the original account.
+                let existingAccounts = settings.tokenAccounts(for: .copilot)
+                let label: String
                 do {
                     let username = try await CopilotUsageFetcher.fetchGitHubUsername(token: token)
                     let planSuffix: String
@@ -95,12 +98,18 @@ struct CopilotLoginFlow {
                     }
                     label = "\(username)\(planSuffix)"
                 } catch {
-                    let count = settings.tokenAccounts(for: .copilot).count
-                    label = "Account \(count + 1)"
+                    guard existingAccounts.isEmpty else {
+                        let err = NSAlert()
+                        err.messageText = "Could Not Identify GitHub Account"
+                        err.informativeText = "GitHub login succeeded, but CodexBar could not verify which " +
+                            "account it belongs to. Please try again."
+                        err.runModal()
+                        return
+                    }
+                    label = "Account 1"
                 }
 
                 // Check for duplicate — same username means same GitHub user
-                let existingAccounts = settings.tokenAccounts(for: .copilot)
                 let usernamePrefix = label.components(separatedBy: " (").first ?? label
                 let wasRefresh = existingAccounts.contains(where: {
                     let existingPrefix = $0.label.components(separatedBy: " (").first ?? $0.label
