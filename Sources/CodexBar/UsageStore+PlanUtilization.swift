@@ -286,6 +286,7 @@ extension UsageStore {
             guard let name,
                   let window,
                   let windowMinutes = window.windowMinutes,
+                  windowMinutes > 0,
                   let usedPercent = Self.clampedPercent(window.usedPercent)
             else {
                 return

@@ -129,7 +129,9 @@ struct PlanUtilizationHistoryStore {
             for provider in UsageProvider.allCases {
                 let fileURL = self.providerFileURL(for: provider)
                 let buckets = providers[provider] ?? PlanUtilizationHistoryBuckets()
-                guard !buckets.isEmpty else {
+                let unscoped = Self.sortedHistories(buckets.unscoped)
+                let accounts = Self.sortedAccounts(buckets.accounts)
+                guard !unscoped.isEmpty || !accounts.isEmpty else {
                     try? FileManager.default.removeItem(at: fileURL)
                     continue
                 }
@@ -137,8 +139,8 @@ struct PlanUtilizationHistoryStore {
                 let payload = ProviderHistoryDocument(
                     version: Self.providerSchemaVersion,
                     preferredAccountKey: buckets.preferredAccountKey,
-                    unscoped: Self.sortedHistories(buckets.unscoped),
-                    accounts: Self.sortedAccounts(buckets.accounts))
+                    unscoped: unscoped,
+                    accounts: accounts)
                 let data = try encoder.encode(payload)
                 try data.write(to: fileURL, options: Data.WritingOptions.atomic)
             }
@@ -209,11 +211,18 @@ struct PlanUtilizationHistoryStore {
     }
 
     private static func sortedHistories(_ histories: [PlanUtilizationSeriesHistory]) -> [PlanUtilizationSeriesHistory] {
-        histories.sorted { lhs, rhs in
+        self.sanitizedHistories(histories).sorted { lhs, rhs in
             if lhs.windowMinutes != rhs.windowMinutes {
                 return lhs.windowMinutes < rhs.windowMinutes
             }
             return lhs.name.rawValue < rhs.name.rawValue
+        }
+    }
+
+    private static func sanitizedHistories(_ histories: [PlanUtilizationSeriesHistory])
+    -> [PlanUtilizationSeriesHistory] {
+        histories.filter { history in
+            history.windowMinutes > 0 && !history.entries.isEmpty
         }
     }
 

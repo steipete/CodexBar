@@ -1,7 +1,8 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
+@Suite(.serialized)
 struct CodexUsageFetcherFallbackTests {
     @Test
     func `CLI usage recovers from RPC decode mismatch body payload`() {
@@ -36,7 +37,9 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.decodeMismatchMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = UsageFetcher(
+            environment: ["CODEX_CLI_PATH": stubCLIPath],
+            codexStatusFetcher: Self.stubTTYStatus)
         let snapshot = try await fetcher.loadLatestUsage()
 
         #expect(snapshot.primary?.usedPercent == 12)
@@ -50,7 +53,9 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.decodeMismatchMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = UsageFetcher(
+            environment: ["CODEX_CLI_PATH": stubCLIPath],
+            codexStatusFetcher: Self.stubTTYStatus)
         let credits = try await fetcher.loadLatestCredits()
 
         #expect(credits.remaining == 42)
@@ -61,7 +66,9 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.partialDecodeBodyMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = UsageFetcher(
+            environment: ["CODEX_CLI_PATH": stubCLIPath],
+            codexStatusFetcher: Self.stubTTYStatus)
         let snapshot = try await fetcher.loadLatestUsage()
 
         #expect(snapshot.primary?.usedPercent == 12)
@@ -132,6 +139,21 @@ struct CodexUsageFetcherFallbackTests {
     }
     """
 
+    private static func stubTTYStatus(
+        environment _: [String: String],
+        keepCLISessionsAlive _: Bool) async throws -> CodexStatusSnapshot
+    {
+        CodexStatusSnapshot(
+            credits: 42,
+            fiveHourPercentLeft: 88,
+            weeklyPercentLeft: 75,
+            fiveHourResetDescription: nil,
+            weeklyResetDescription: nil,
+            fiveHourResetsAt: nil,
+            weeklyResetsAt: nil,
+            rawText: "Credits: 42 credits\n5h limit: [#####] 88% left\nWeekly limit: [##] 75% left\n")
+    }
+
     private func makeDecodeMismatchStubCodexCLI(
         message: String = Self.decodeMismatchBodyMessage)
         throws -> String
@@ -178,12 +200,8 @@ struct CodexUsageFetcherFallbackTests {
 
                 print(json.dumps(payload), flush=True)
         else:
-            for line in sys.stdin:
-                if "/status" in line:
-                    break
-            print("Credits: 42 credits", flush=True)
-            print("5h limit: [#####] 88% left", flush=True)
-            print("Weekly limit: [##] 75% left", flush=True)
+            sys.stdout.write("Credits: 42 credits\\n5h limit: [#####] 88% left\\nWeekly limit: [##] 75% left\\n")
+            sys.stdout.flush()
         """
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-fallback-stub-\(UUID().uuidString)", isDirectory: false)
