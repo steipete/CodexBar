@@ -80,7 +80,7 @@ struct UsageStoreHighestUsageTests {
     }
 
     @Test
-    func `automatic metric uses primary for kimi when ranking highest usage`() {
+    func `automatic metric for kimi picks most constrained ranking`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-kimi-automatic"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -104,8 +104,8 @@ struct UsageStoreHighestUsageTests {
             primary: RateWindow(usedPercent: 70, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             updatedAt: Date())
-        // With the fix, Kimi's primary is now rate limit (typically lower usage %)
-        // and secondary is weekly. In automatic mode, Kimi uses primary like other providers.
+        // Kimi: Rate Limit (primary) 20%, Weekly (secondary) 90%
+        // In automatic mode, it should pick the most constrained (90%).
         let kimiSnapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: RateWindow(usedPercent: 90, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
@@ -115,8 +115,86 @@ struct UsageStoreHighestUsageTests {
         store._setSnapshotForTesting(kimiSnapshot, provider: .kimi)
 
         let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .kimi)
+        #expect(highest?.usedPercent == 90)
+    }
+
+    @Test
+    func `automatic metric does not exclude partially available kimi at hundred percent`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-kimi-partial-100"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.setMenuBarMetricPreference(.automatic, for: .kimi)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let kimiMeta = registry.metadata[.kimi] {
+            settings.setProviderEnabled(provider: .kimi, metadata: kimiMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let codexSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 90, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        // Rate Limit is exhausted (100%), but Weekly still has quota (20%).
+        // It should still be included in the selection.
+        let kimiSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(codexSnapshot, provider: .codex)
+        store._setSnapshotForTesting(kimiSnapshot, provider: .kimi)
+
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .kimi)
+        #expect(highest?.usedPercent == 100)
+    }
+
+    @Test
+    func `automatic metric excludes kimi when both lanes are exhausted`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-kimi-both-100"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.setMenuBarMetricPreference(.automatic, for: .kimi)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let kimiMeta = registry.metadata[.kimi] {
+            settings.setProviderEnabled(provider: .kimi, metadata: kimiMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let codexSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 80, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        let kimiSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(codexSnapshot, provider: .codex)
+        store._setSnapshotForTesting(kimiSnapshot, provider: .kimi)
+
+        let highest = store.providerWithHighestUsage()
         #expect(highest?.provider == .codex)
-        #expect(highest?.usedPercent == 70)
+        #expect(highest?.usedPercent == 80)
     }
 
     @Test

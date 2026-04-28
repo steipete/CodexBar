@@ -49,7 +49,7 @@ extension UsageStore {
             // In automatic mode Copilot can have one depleted lane while another still has quota.
             return primary.usedPercent >= 100 && secondary.usedPercent >= 100
         }
-        if provider == .cursor,
+        if (provider == .cursor || provider == .kimi),
            effectivePreference == .automatic
         {
             let percents = [
