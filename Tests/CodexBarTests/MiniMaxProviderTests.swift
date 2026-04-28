@@ -315,3 +315,124 @@ struct MiniMaxAPIRegionTests {
         #expect(origin.absoluteString == "https://api.minimaxi.com")
     }
 }
+
+@Suite(.serialized)
+struct MiniMaxWebFetchTests {
+    @Test
+    func ignoresLoginStringsInsideScriptDataAndFallsBackToRemainsAPI() async throws {
+        let registered = URLProtocol.registerClass(MiniMaxWebFetchStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(MiniMaxWebFetchStubURLProtocol.self)
+            }
+            MiniMaxWebFetchStubURLProtocol.handler = nil
+            MiniMaxWebFetchStubURLProtocol.requests = []
+        }
+
+        MiniMaxWebFetchStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            switch url.path {
+            case "/user-center/payment/coding-plan":
+                let html = """
+                <html>
+                  <body><div id="__next"></div></body>
+                  <script id="__NEXT_DATA__" type="application/json">
+                    {"props":{"pageProps":{"_nextI18Next":{"initialI18nStore":{"zh":{"common":{"landing_common_login":"登录"}}}}}}
+                  </script>
+                </html>
+                """
+                return Self.makeHTMLResponse(url: url, body: html)
+            case "/v1/api/openplatform/coding_plan/remains":
+                let start = 1_700_000_000_000
+                let end = start + 5 * 60 * 60 * 1000
+                let body = """
+                {
+                  "base_resp": { "status_code": 0 },
+                  "current_subscribe_title": "Tag",
+                  "model_remains": [
+                    {
+                      "current_interval_total_count": 1000,
+                      "current_interval_usage_count": 1000,
+                      "start_time": \(start),
+                      "end_time": \(end),
+                      "remains_time": 240000
+                    }
+                  ]
+                }
+                """
+                return Self.makeJSONResponse(url: url, body: body)
+            default:
+                return Self.makeHTMLResponse(url: url, body: "", statusCode: 404)
+            }
+        }
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
+            cookieHeader: "HERTZ-SESSION=test-session",
+            region: .chinaMainland,
+            now: now)
+
+        #expect(snapshot.planName == "Tag")
+        #expect(MiniMaxWebFetchStubURLProtocol.requests.count == 2)
+        #expect(MiniMaxWebFetchStubURLProtocol.requests.first?.url?.path == "/user-center/payment/coding-plan")
+        #expect(MiniMaxWebFetchStubURLProtocol.requests.last?.url?.path == "/v1/api/openplatform/coding_plan/remains")
+    }
+
+    private static func makeHTMLResponse(
+        url: URL,
+        body: String,
+        statusCode: Int = 200) -> (HTTPURLResponse, Data)
+    {
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "text/html; charset=utf-8"])!
+        return (response, Data(body.utf8))
+    }
+
+    private static func makeJSONResponse(
+        url: URL,
+        body: String,
+        statusCode: Int = 200) -> (HTTPURLResponse, Data)
+    {
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"])!
+        return (response, Data(body.utf8))
+    }
+}
+
+final class MiniMaxWebFetchStubURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    nonisolated(unsafe) static var requests: [URLRequest] = []
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        guard let host = request.url?.host else { return false }
+        return host == "platform.minimaxi.com" || host == "platform.minimax.io"
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Self.requests.append(self.request)
+        guard let handler = Self.handler else {
+            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        do {
+            let (response, data) = try handler(self.request)
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: data)
+            self.client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            self.client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
