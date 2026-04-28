@@ -65,7 +65,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 source: context.settings.minimaxCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
                 auto: "Automatic imports browser cookies and local storage tokens.",
-                manual: "Paste a Cookie header or cURL capture from the Coding Plan page.",
+                manual: "Paste a Cookie header or cURL capture from the Token Plan page.",
                 off: "MiniMax cookies are disabled.")
         }
 
@@ -122,7 +122,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "minimax-open-dashboard",
-                        title: "Open Coding Plan",
+                        title: "Open Token Plan",
                         style: .link,
                         isVisible: nil,
                         perform: {
@@ -141,7 +141,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "minimax-open-dashboard-cookie",
-                        title: "Open Coding Plan",
+                        title: "Open Token Plan",
                         style: .link,
                         isVisible: nil,
                         perform: {
