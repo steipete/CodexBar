@@ -38,6 +38,27 @@ jobs:
       - name: Swift Test
         run: swift test --no-parallel
 
+      - name: Compile for x86_64
+        run: |
+          set -euo pipefail
+          # KeyboardShortcuts 2.x added #Preview blocks in Recorder.swift that use
+          # PreviewsMacros — a plugin unavailable in command-line swift build.
+          # Strip them before building (same patch applied in package_app.sh).
+          recorder=".build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Recorder.swift"
+          if [[ -f "$recorder" ]] && grep -q '#Preview' "$recorder"; then
+            chmod +w "$recorder"
+            perl -0777 -i -pe 's/\n#Preview \{[^}]*\}//g' "$recorder"
+          fi
+          swift build -c release --arch x86_64 --product CodexBar
+          swift build -c release --arch x86_64 --product CodexBarCLI
+          swift build -c release --arch x86_64 --product CodexBarClaudeWatchdog
+
+      - name: Build + package universal binary (ad-hoc signed)
+        run: |
+          set -euo pipefail
+          ARCHES="arm64 x86_64" CODEXBAR_SIGNING=adhoc ./Scripts/package_app.sh release
+          lipo -archs CodexBar.app/Contents/MacOS/CodexBar
+
   build-linux-cli:
     strategy:
       fail-fast: false
