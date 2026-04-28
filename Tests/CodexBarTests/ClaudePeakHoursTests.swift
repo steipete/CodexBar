@@ -11,13 +11,17 @@ struct ClaudePeakHoursTests {
         day: Int,
         hour: Int,
         minute: Int = 0,
-        second: Int = 0
-    ) -> Date {
+        second: Int = 0) -> Date
+    {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = Self.eastern
         return cal.date(from: DateComponents(
-            year: year, month: month, day: day,
-            hour: hour, minute: minute, second: second))!
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: second))!
     }
 
     @Test

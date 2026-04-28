@@ -28,7 +28,7 @@ public enum ClaudePeakHours: Sendable {
         let peakEndMinutes = self.peakEndHour * 60
         let isInPeakWindow = nowMinutes >= peakStartMinutes && nowMinutes < peakEndMinutes
 
-        if isWeekday && isInPeakWindow {
+        if isWeekday, isInPeakWindow {
             let remaining = peakEndMinutes - nowMinutes
             return Status(
                 isPeak: true,
@@ -53,11 +53,10 @@ public enum ClaudePeakHours: Sendable {
         let anchor = todayPeak > date ? todayPeak : calendar.date(byAdding: .day, value: 1, to: todayPeak) ?? date
         let weekday = calendar.component(.weekday, from: anchor)
 
-        let skip: Int
-        switch weekday {
-        case 1: skip = 1
-        case 7: skip = 2
-        default: skip = 0
+        let skip = switch weekday {
+        case 1: 1
+        case 7: 2
+        default: 0
         }
 
         if skip == 0 { return anchor }
