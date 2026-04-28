@@ -94,6 +94,9 @@ jobs:
       - name: Build CodexBarCLI (release, static Swift stdlib)
         run: swift build -c release --product CodexBarCLI --static-swift-stdlib
 
+      - name: Build CodexBarLinuxTray (release)
+        run: swift build -c release --product CodexBarLinuxTray
+
       - name: Swift Test (Linux only)
         run: swift test --parallel
 
@@ -111,3 +114,15 @@ jobs:
           fi
           "$BIN" usage --provider codex --web 2>&1 | tee /tmp/codexbarcli-stderr.txt >/dev/null || true
           grep -q "macOS" /tmp/codexbarcli-stderr.txt
+
+      - name: Smoke test CodexBarLinuxTray
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(swift build -c release --product CodexBarLinuxTray --show-bin-path)"
+          BIN="$BIN_DIR/CodexBarLinuxTray"
+          timeout 5s env CODEXBAR_TRAY_STDOUT_ONLY=1 "$BIN" || rc=$?
+          if [[ "${rc:-0}" -ne 0 && "${rc:-0}" -ne 124 ]]; then
+            echo "CodexBarLinuxTray exited unexpectedly: ${rc}"
+            exit "${rc}"
+          fi

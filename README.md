@@ -17,12 +17,18 @@ Download: <https://github.com/steipete/CodexBar/releases>
 brew install --cask steipete/tap/codexbar
 ```
 
-### Linux (CLI only)
+### Linux (CLI + native tray MVP)
 ```bash
 brew install steipete/tap/codexbar
 ```
 Or download `CodexBarCLI-v<tag>-linux-<arch>.tar.gz` from GitHub Releases.
 Linux support via Omarchy: community Waybar module and TUI, driven by the `codexbar` executable.
+
+Build native tray MVP from source:
+```bash
+swift build -c release --product CodexBarLinuxTray
+./.build/release/CodexBarLinuxTray
+```
 
 ### First run
 - Open Settings → Providers and enable what you use.
@@ -65,6 +71,7 @@ The menu bar icon is a tiny two-bar meter:
 - Merge Icons mode to combine providers into one status item + switcher, with an optional Overview tab for up to three providers.
 - Refresh cadence presets (manual, 1m, 2m, 5m, 15m).
 - Bundled CLI (`codexbar`) for scripts and CI (including `codexbar cost --provider codex|claude` for local cost usage); Linux CLI builds available.
+- Linux tray host executable (`CodexBarLinuxTray`) for native tray + tooltip refresh view.
 - WidgetKit widget mirrors the menu card snapshot.
 - Privacy-first: on-device parsing by default; browser cookies are opt-in and reused (no passwords stored).
 
@@ -95,6 +102,7 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 - Provider authoring: [docs/provider.md](docs/provider.md)
 - Issue labeling guide: [docs/ISSUE_LABELING.md](docs/ISSUE_LABELING.md)
 - UI & icon notes: [docs/ui.md](docs/ui.md)
+- Linux tray notes: [docs/linux-tray.md](docs/linux-tray.md)
 - CLI reference: [docs/cli.md](docs/cli.md)
 - Architecture: [docs/architecture.md](docs/architecture.md)
 - Refresh loop: [docs/refresh-loop.md](docs/refresh-loop.md)

@@ -125,5 +125,17 @@ let package = Package(
             ]))
         #endif
 
+        #if os(Linux)
+        targets.append(.executableTarget(
+            name: "CodexBarLinuxTray",
+            dependencies: [
+                "CodexBarCore",
+            ],
+            path: "Sources/CodexBarLinuxTray",
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]))
+        #endif
+
         return targets
     }())
