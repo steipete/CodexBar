@@ -23,6 +23,9 @@ final class AppNotifications {
     private let allowsPostingWhenRunningUnderTests: Bool
     private let logger = CodexBarLog.logger(LogCategories.notifications)
     private var authorizationTask: Task<Bool, Never>?
+    private nonisolated static var shortcutRunTimeout: TimeInterval {
+        60
+    }
 
     init(
         authorizationStatusProvider: @escaping @Sendable () async -> UNAuthorizationStatus? = {
@@ -104,13 +107,7 @@ final class AppNotifications {
         guard self.canPostInCurrentEnvironment else { return nil }
 
         return Task { @MainActor in
-            let deliverySettings = settings ?? .localDefault
-            await self.deliverExternalActions(
-                event: event,
-                idPrefix: idPrefix,
-                provider: provider,
-                notificationsEnabled: notificationsEnabled,
-                settings: deliverySettings)
+            let deliverySettings = (settings ?? .localDefault).normalized
             guard notificationsEnabled, deliverySettings.enabled else {
                 self.logger.debug(
                     "disabled; skipping notification",
@@ -119,38 +116,46 @@ final class AppNotifications {
             }
 
             let granted = await self.ensureAuthorized()
-            guard granted else {
+            if granted {
+                let content = UNMutableNotificationContent()
+                content.title = title
+                content.body = body
+                content.sound = deliverySettings.sound == .systemDefault ? .default : nil
+                content.badge = badge
+
+                let request = UNNotificationRequest(
+                    identifier: "codexbar-\(idPrefix)-\(UUID().uuidString)",
+                    content: content,
+                    trigger: nil)
+
+                self.logger.info(
+                    "posting",
+                    metadata: self.metadata(event: event, idPrefix: idPrefix, provider: provider))
+                do {
+                    try await self.requestPoster(request)
+                    self.playSoundIfNeeded(
+                        event: event,
+                        idPrefix: idPrefix,
+                        provider: provider,
+                        settings: deliverySettings,
+                        notificationVolume: notificationVolume)
+                } catch {
+                    var metadata = self.metadata(event: event, idPrefix: idPrefix, provider: provider)
+                    metadata["error"] = "\(error)"
+                    self.logger.error("failed to post", metadata: metadata)
+                }
+            } else {
                 self.logger.debug(
                     "not authorized; skipping notification",
                     metadata: self.metadata(event: event, idPrefix: idPrefix, provider: provider))
-                return
             }
 
-            let content = UNMutableNotificationContent()
-            content.title = title
-            content.body = body
-            content.sound = deliverySettings.sound == .systemDefault ? .default : nil
-            content.badge = badge
-
-            let request = UNNotificationRequest(
-                identifier: "codexbar-\(idPrefix)-\(UUID().uuidString)",
-                content: content,
-                trigger: nil)
-
-            self.logger.info("posting", metadata: self.metadata(event: event, idPrefix: idPrefix, provider: provider))
-            do {
-                try await self.requestPoster(request)
-                self.playSoundIfNeeded(
-                    event: event,
-                    idPrefix: idPrefix,
-                    provider: provider,
-                    settings: deliverySettings,
-                    notificationVolume: notificationVolume)
-            } catch {
-                var metadata = self.metadata(event: event, idPrefix: idPrefix, provider: provider)
-                metadata["error"] = "\(error)"
-                self.logger.error("failed to post", metadata: metadata)
-            }
+            await self.deliverExternalActions(
+                event: event,
+                idPrefix: idPrefix,
+                provider: provider,
+                notificationsEnabled: notificationsEnabled,
+                settings: deliverySettings)
         }
     }
 
@@ -324,54 +329,47 @@ final class AppNotifications {
     }
 
     private nonisolated static func runShortcutCommand(name: String, provider: String?) async -> ShortcutRunResult {
-        await Task.detached(priority: .utility) {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
-
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            let inputURL: URL?
-            if let provider = self.normalizedProvider(provider) {
-                do {
-                    let payload = ["provider": provider]
-                    let data = try JSONSerialization.data(withJSONObject: payload, options: [])
-                    let url = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("codexbar-shortcut-\(UUID().uuidString)")
-                        .appendingPathExtension("json")
-                    try data.write(to: url, options: .atomic)
-                    inputURL = url
-                    process.arguments = ["run", name, "--input-path", url.path]
-                } catch {
-                    return ShortcutRunResult(
-                        succeeded: false,
-                        output: "Failed to prepare shortcut input: \(error)")
-                }
-            } else {
-                inputURL = nil
-                process.arguments = ["run", name]
-            }
-            defer {
-                if let inputURL {
-                    try? FileManager.default.removeItem(at: inputURL)
-                }
-            }
-
+        let inputURL: URL?
+        let arguments: [String]
+        if let provider = self.normalizedProvider(provider) {
             do {
-                try process.run()
-                process.waitUntilExit()
+                let payload = ["provider": provider]
+                let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("codexbar-shortcut-\(UUID().uuidString)")
+                    .appendingPathExtension("json")
+                try data.write(to: url, options: .atomic)
+                inputURL = url
+                arguments = ["run", name, "--input-path", url.path]
             } catch {
-                return ShortcutRunResult(succeeded: false, output: "\(error)")
+                return ShortcutRunResult(
+                    succeeded: false,
+                    output: "Failed to prepare shortcut input: \(error)")
             }
+        } else {
+            inputURL = nil
+            arguments = ["run", name]
+        }
+        defer {
+            if let inputURL {
+                try? FileManager.default.removeItem(at: inputURL)
+            }
+        }
 
-            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: outputData + errorData, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        do {
+            let result = try await SubprocessRunner.run(
+                binary: "/usr/bin/shortcuts",
+                arguments: arguments,
+                environment: ProcessInfo.processInfo.environment,
+                timeout: self.shortcutRunTimeout,
+                label: "notification-shortcut")
 
-            return ShortcutRunResult(succeeded: process.terminationStatus == 0, output: output)
-        }.value
+            let output = (result.stdout + result.stderr)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            return ShortcutRunResult(succeeded: true, output: output)
+        } catch {
+            return ShortcutRunResult(succeeded: false, output: "\(error)")
+        }
     }
 }

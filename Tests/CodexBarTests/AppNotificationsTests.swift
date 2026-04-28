@@ -17,34 +17,40 @@ struct AppNotificationsTests {
         private var openedURLs: [URL] = []
         private var shortcuts: [ShortcutRun] = []
         private var sounds: [(sound: NotificationSoundOption, volume: Double)] = []
+        private var deliveryEvents: [String] = []
 
         func record(request: UNNotificationRequest) {
             self.lock.withLock {
                 self.requests.append(request)
+                self.deliveryEvents.append("request")
             }
         }
 
         func record(hook: URL) {
             self.lock.withLock {
                 self.hooks.append(hook)
+                self.deliveryEvents.append("hook")
             }
         }
 
         func record(openedURL: URL) {
             self.lock.withLock {
                 self.openedURLs.append(openedURL)
+                self.deliveryEvents.append("openURL")
             }
         }
 
         func record(shortcut: String, provider: String?) {
             self.lock.withLock {
                 self.shortcuts.append(ShortcutRun(name: shortcut, provider: provider))
+                self.deliveryEvents.append("shortcut")
             }
         }
 
         func record(sound: NotificationSoundOption, volume: Double) {
             self.lock.withLock {
                 self.sounds.append((sound: sound, volume: volume))
+                self.deliveryEvents.append("sound")
             }
         }
 
@@ -75,6 +81,12 @@ struct AppNotificationsTests {
         func soundsSnapshot() -> [(sound: NotificationSoundOption, volume: Double)] {
             self.lock.withLock {
                 self.sounds
+            }
+        }
+
+        func deliveryEventsSnapshot() -> [String] {
+            self.lock.withLock {
+                self.deliveryEvents
             }
         }
     }
@@ -150,6 +162,25 @@ struct AppNotificationsTests {
         #expect(recorder.soundsSnapshot().count == 1)
         #expect(recorder.soundsSnapshot().first?.sound == .submarine)
         #expect(recorder.soundsSnapshot().first?.volume == 0.35)
+    }
+
+    @Test
+    func `local notification posts before external actions`() async {
+        let recorder = Recorder()
+        let notifications = Self.makeNotifications(recorder: recorder, authorizationStatus: .authorized)
+
+        await Self.post(
+            notifications,
+            event: .providerLogin,
+            notificationsEnabled: true,
+            notificationVolume: 0.8,
+            settings: NotificationDeliverySettings(
+                enabled: true,
+                sound: .none,
+                hookCallURL: "https://example.com/hook",
+                shortcutName: "Provider Login"))
+
+        #expect(recorder.deliveryEventsSnapshot() == ["request", "hook", "shortcut"])
     }
 
     @Test
