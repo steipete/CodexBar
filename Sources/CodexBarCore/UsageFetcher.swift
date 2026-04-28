@@ -26,6 +26,16 @@ public struct RateWindow: Codable, Equatable, Sendable {
     public var remainingPercent: Double {
         max(0, 100 - self.usedPercent)
     }
+
+    public func backfillingResetTime(from cached: RateWindow?, now: Date = .init()) -> RateWindow {
+        if self.resetsAt != nil { return self }
+        guard let cachedReset = cached?.resetsAt, cachedReset > now else { return self }
+        return RateWindow(
+            usedPercent: self.usedPercent,
+            windowMinutes: self.windowMinutes ?? cached?.windowMinutes,
+            resetsAt: cachedReset,
+            resetDescription: self.resetDescription ?? cached?.resetDescription)
+    }
 }
 
 public struct NamedRateWindow: Codable, Equatable, Sendable {
@@ -264,6 +274,38 @@ public struct UsageSnapshot: Codable, Sendable {
         let usableFallback = fallbackWindows.filter { $0.remainingPercent > 0 }
         let exhaustedFallback = fallbackWindows.filter { $0.remainingPercent <= 0 }
         return usableFallback + exhaustedFallback
+    }
+
+    public func backfillingResetTimes(from cached: UsageSnapshot?, now: Date = .init()) -> UsageSnapshot {
+        guard let cached else { return self }
+        if !Self.identitiesMatch(self.identity, cached.identity) { return self }
+        let bp = self.primary?.backfillingResetTime(from: cached.primary, now: now)
+        let bs = self.secondary?.backfillingResetTime(from: cached.secondary, now: now)
+        let bt = self.tertiary?.backfillingResetTime(from: cached.tertiary, now: now)
+        if bp?.resetsAt == self.primary?.resetsAt,
+           bs?.resetsAt == self.secondary?.resetsAt,
+           bt?.resetsAt == self.tertiary?.resetsAt
+        { return self }
+        return UsageSnapshot(
+            primary: bp,
+            secondary: bs,
+            tertiary: bt,
+            providerCost: self.providerCost,
+            zaiUsage: self.zaiUsage,
+            minimaxUsage: self.minimaxUsage,
+            openRouterUsage: self.openRouterUsage,
+            cursorRequests: self.cursorRequests,
+            updatedAt: self.updatedAt,
+            identity: self.identity)
+    }
+
+    private static func identitiesMatch(_ a: ProviderIdentitySnapshot?, _ b: ProviderIdentitySnapshot?) -> Bool {
+        if a == nil, b == nil { return true }
+        if a == nil || b == nil { return false }
+        if let emailA = a?.accountEmail, let emailB = b?.accountEmail, !emailA.isEmpty, !emailB.isEmpty {
+            return emailA == emailB
+        }
+        return true
     }
 }
 

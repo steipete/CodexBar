@@ -189,7 +189,9 @@ extension UsageStore {
             }
             await MainActor.run {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: labeled)
-                self.snapshots[provider] = labeled
+                let backfilled = labeled.backfillingResetTimes(from: self.lastKnownResetTimes[provider])
+                self.lastKnownResetTimes[provider] = backfilled
+                self.snapshots[provider] = backfilled
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
