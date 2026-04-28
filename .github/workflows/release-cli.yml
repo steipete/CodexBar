@@ -1,4 +1,4 @@
-name: Release Linux CLI
+name: Release CLI
 
 on:
   release:
@@ -9,15 +9,31 @@ permissions:
   contents: write
 
 jobs:
-  build-linux-cli:
+  build-cli:
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: linux-x64
             runs-on: ubuntu-24.04
+            platform: linux
+            arch: x86_64
+            static-swift-stdlib: true
           - name: linux-arm64
             runs-on: ubuntu-24.04-arm
+            platform: linux
+            arch: aarch64
+            static-swift-stdlib: true
+          - name: macos-arm64
+            runs-on: macos-14
+            platform: macos
+            arch: arm64
+            static-swift-stdlib: false
+          - name: macos-x64
+            runs-on: macos-13
+            platform: macos
+            arch: x86_64
+            static-swift-stdlib: false
     runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v6
@@ -27,6 +43,7 @@ jobs:
           set -euo pipefail
           uname -a
           uname -m
+          swift --version
 
       - name: Install Swift 6.2.1 via swiftly
         shell: bash
@@ -63,7 +80,15 @@ jobs:
           swift --version
 
       - name: Build CodexBarCLI (release)
-        run: swift build -c release --product CodexBarCLI --static-swift-stdlib
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_ARGS=(swift build -c release --product CodexBarCLI)
+          if [[ "${{ matrix.static-swift-stdlib }}" == "true" ]]; then
+            BUILD_ARGS+=(--static-swift-stdlib)
+          fi
+          "${BUILD_ARGS[@]}"
 
       - name: Package
         id: pkg
@@ -77,20 +102,19 @@ jobs:
             exit 1
           fi
 
-          ARCH="$(uname -m)"
-          case "$ARCH" in
-            x86_64) ARCH="x86_64" ;;
-            aarch64|arm64) ARCH="aarch64" ;;
-          esac
+          SHOW_BIN_ARGS=(swift build -c release --product CodexBarCLI --show-bin-path)
+          if [[ "${{ matrix.static-swift-stdlib }}" == "true" ]]; then
+            SHOW_BIN_ARGS+=(--static-swift-stdlib)
+          fi
 
-          BIN_DIR="$(swift build -c release --product CodexBarCLI --static-swift-stdlib --show-bin-path)"
+          BIN_DIR="$("${SHOW_BIN_ARGS[@]}")"
           OUT_DIR="$(mktemp -d)"
           install -m 0755 "$BIN_DIR/CodexBarCLI" "$OUT_DIR/CodexBarCLI"
           ln -s "CodexBarCLI" "$OUT_DIR/codexbar"
 
-          ASSET="CodexBarCLI-${TAG}-linux-${ARCH}.tar.gz"
+          ASSET="CodexBarCLI-${TAG}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz"
           (cd "$OUT_DIR" && tar czf "$ASSET" CodexBarCLI codexbar)
-          sha256sum "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
+          shasum -a 256 "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
 
           echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
@@ -111,7 +135,7 @@ jobs:
         if: github.event_name != 'release'
         uses: actions/upload-artifact@v6
         with:
-          name: codexbar-linux-cli-${{ matrix.name }}
+          name: codexbar-cli-${{ matrix.name }}
           path: |
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}.sha256
