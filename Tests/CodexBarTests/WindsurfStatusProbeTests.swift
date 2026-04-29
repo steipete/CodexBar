@@ -1,5 +1,6 @@
 import CodexBarCore
 import Foundation
+import SQLite3
 import Testing
 
 struct WindsurfStatusProbeTests {
@@ -182,6 +183,30 @@ struct WindsurfStatusProbeTests {
         #expect(snapshot.identity?.accountOrganization?.hasPrefix("Expires ") == true)
     }
 
+    // MARK: - Probe Database Decoding
+
+    @Test
+    func `probe decodes UTF-8 JSON blob`() throws {
+        let dbURL = try Self.makeTemporaryDatabase(
+            jsonData: Data(#"{"planName":"UTF-8 Pro"}"#.utf8))
+        defer { try? FileManager.default.removeItem(at: dbURL.deletingLastPathComponent()) }
+
+        let info = try WindsurfStatusProbe(dbPath: dbURL.path).fetch()
+
+        #expect(info.planName == "UTF-8 Pro")
+    }
+
+    @Test
+    func `probe decodes UTF-16LE JSON blob`() throws {
+        let jsonData = try #require(#"{"planName":"UTF-16 Pro"}"#.data(using: .utf16LittleEndian))
+        let dbURL = try Self.makeTemporaryDatabase(jsonData: jsonData)
+        defer { try? FileManager.default.removeItem(at: dbURL.deletingLastPathComponent()) }
+
+        let info = try WindsurfStatusProbe(dbPath: dbURL.path).fetch()
+
+        #expect(info.planName == "UTF-16 Pro")
+    }
+
     // MARK: - Probe Error Cases
 
     @Test
@@ -191,5 +216,69 @@ struct WindsurfStatusProbeTests {
         #expect(throws: WindsurfStatusProbeError.self) {
             _ = try probe.fetch()
         }
+    }
+
+    private static func makeTemporaryDatabase(jsonData: Data) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("windsurf-status-probe-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("state.vscdb")
+
+        var db: OpaquePointer?
+        guard sqlite3_open(dbURL.path, &db) == SQLITE_OK else {
+            throw TestSQLiteError.openFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_close(db) }
+
+        try self.execute(
+            """
+            CREATE TABLE ItemTable(
+                key TEXT PRIMARY KEY,
+                value BLOB
+            );
+            """,
+            db: db)
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(
+            db,
+            "INSERT INTO ItemTable(key, value) VALUES('windsurf.settings.cachedPlanInfo', ?);",
+            -1,
+            &stmt,
+            nil) == SQLITE_OK
+        else {
+            throw TestSQLiteError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        let bindResult = jsonData.withUnsafeBytes { buffer in
+            sqlite3_bind_blob(stmt, 1, buffer.baseAddress, Int32(jsonData.count), transient)
+        }
+        guard bindResult == SQLITE_OK else {
+            throw TestSQLiteError.bindFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw TestSQLiteError.stepFailed(String(cString: sqlite3_errmsg(db)))
+        }
+
+        return dbURL
+    }
+
+    private static func execute(_ sql: String, db: OpaquePointer?) throws {
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        guard sqlite3_exec(db, sql, nil, nil, &errorMessage) == SQLITE_OK else {
+            defer { sqlite3_free(errorMessage) }
+            let message = errorMessage.map { String(cString: $0) } ?? "unknown error"
+            throw TestSQLiteError.execFailed(message)
+        }
+    }
+
+    private enum TestSQLiteError: Error {
+        case openFailed(String)
+        case execFailed(String)
+        case prepareFailed(String)
+        case bindFailed(String)
+        case stepFailed(String)
     }
 }

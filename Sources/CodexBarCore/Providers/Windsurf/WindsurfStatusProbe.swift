@@ -122,17 +122,25 @@ public struct WindsurfStatusProbe: Sendable {
             guard let bytes = sqlite3_column_blob(stmt, index) else { return nil }
             let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, index)))
             // VSCode/Windsurf state.vscdb schema declares value as BLOB;
-            // try UTF-16LE first (common for VSCode derivatives), then UTF-8.
-            if let decoded = String(data: data, encoding: .utf16LittleEndian) {
-                return decoded.trimmingCharacters(in: .controlCharacters)
-            }
-            if let decoded = String(data: data, encoding: .utf8) {
-                return decoded.trimmingCharacters(in: .controlCharacters)
-            }
-            return nil
+            // only accept decodes that still parse as JSON to avoid UTF-16 mojibake.
+            return self.decodeJSONBlob(data)
         default:
             return nil
         }
+    }
+
+    private static func decodeJSONBlob(_ data: Data) -> String? {
+        for encoding in [String.Encoding.utf8, .utf16LittleEndian] {
+            guard let decoded = String(data: data, encoding: encoding) else { continue }
+            let trimmed = decoded.trimmingCharacters(in: .controlCharacters)
+            guard let jsonData = trimmed.data(using: .utf8),
+                  (try? JSONSerialization.jsonObject(with: jsonData)) != nil
+            else {
+                continue
+            }
+            return trimmed
+        }
+        return nil
     }
 }
 
