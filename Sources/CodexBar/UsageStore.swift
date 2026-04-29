@@ -610,13 +610,28 @@ final class UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> (window: RateWindow, source: SessionQuotaWindowSource)?
     {
-        if let primary = snapshot.primary {
+        if let primary = snapshot.primary, Self.isSessionWindow(primary) {
             return (primary, .primary)
         }
         if provider == .copilot, let secondary = snapshot.secondary {
             return (secondary, .copilotSecondaryFallback)
         }
         return nil
+    }
+
+    /// A "session" window is the short (~5h) rolling lane that session-quota
+    /// notifications are designed for. When Claude's OAuth response omits the
+    /// five-hour block, `ClaudeUsageFetcher` promotes a weekly window into
+    /// `primary` so the menu bar still renders usable data — but that weekly
+    /// window must not drive session-quota depleted/restored transitions.
+    /// Treat anything up to ~6 hours as a session lane; longer windows are
+    /// weekly/model-specific fallbacks and are ignored here.
+    private static func isSessionWindow(_ window: RateWindow) -> Bool {
+        guard let minutes = window.windowMinutes else {
+            // Unknown duration — preserve legacy behaviour (treat as session).
+            return true
+        }
+        return minutes <= 360
     }
 
     func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {

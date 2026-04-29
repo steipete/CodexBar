@@ -836,7 +836,19 @@ extension ClaudeUsageFetcher {
                 resetDescription: resetDescription)
         }
 
-        guard let primary = makeWindow(usage.fiveHour, windowMinutes: 5 * 60) else {
+        // Fall back through the available windows when the five-hour session
+        // window is missing from the response (observed in the wild for some
+        // organisations — see https://github.com/steipete/CodexBar/issues/726).
+        // Previously we threw away the entire snapshot, discarding weekly and
+        // model-specific data the user could still see. Now we surface the
+        // most relevant available window as `primary` so the menu bar renders
+        // something useful instead of an "unavailable" state.
+        guard let primary = makeWindow(usage.fiveHour, windowMinutes: 5 * 60)
+            ?? makeWindow(usage.sevenDay, windowMinutes: 7 * 24 * 60)
+            ?? makeWindow(usage.sevenDaySonnet, windowMinutes: 7 * 24 * 60)
+            ?? makeWindow(usage.sevenDayOpus, windowMinutes: 7 * 24 * 60)
+            ?? makeWindow(usage.sevenDayOAuthApps, windowMinutes: 7 * 24 * 60)
+        else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }
 
