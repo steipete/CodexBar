@@ -31,6 +31,8 @@ public enum ProviderConfigEnvironment {
             }
         case .openrouter:
             env[OpenRouterSettingsReader.envKey] = apiKey
+        case .deepseek:
+            env[DeepSeekSettingsReader.apiKeyEnvironmentKey] = apiKey
         default:
             break
         }

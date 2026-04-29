@@ -1,5 +1,5 @@
 ---
-summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter, Abacus AI, Mistral)."
+summary: "Provider data sources and parsing overview (Codex, Claude, Gemini, Antigravity, Cursor, OpenCode, Alibaba Coding Plan, Droid/Factory, z.ai, Copilot, Kimi, Kilo, Kimi K2, Kiro, Warp, Vertex AI, Augment, Amp, Ollama, JetBrains AI, OpenRouter, Abacus AI, Mistral, DeepSeek)."
 read_when:
   - Adding or modifying provider fetch/parsing
   - Adjusting provider labels, toggles, or metadata
@@ -41,6 +41,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
 | Mistral | Console billing API via Ory Kratos session cookies (`web`). |
+| DeepSeek | API key (config, overrides env) → balance endpoint (`api`). |
 
 ## Codex
 - Web dashboard (optional, off by default): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
@@ -203,5 +204,12 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Currency from response (typically EUR).
 - Resets at end of calendar month.
 - Status: `https://status.mistral.ai` (link only, no auto-polling).
+
+## DeepSeek
+- API key via Settings (`~/.codexbar/config.json`) or `DEEPSEEK_API_KEY` / `DEEPSEEK_KEY` env var.
+- `GET https://api.deepseek.com/user/balance`.
+- Shows total balance with paid vs. granted breakdown; USD preferred when multiple currencies present.
+- Status: `https://status.deepseek.com` (link only, no auto-polling).
+- Details: `docs/deepseek.md`.
 
 See also: `docs/provider.md` for architecture notes.
