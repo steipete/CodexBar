@@ -143,7 +143,12 @@ public enum WindsurfWebFetcher {
     {
         let log: (String) -> Void = { msg in logger?("[windsurf-web] \(msg)") }
 
-        if let manualSessionInput, !manualSessionInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if cookieSource == .manual {
+            guard let manualSessionInput,
+                  !manualSessionInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                throw WindsurfWebFetcherError.invalidManualSession("empty input")
+            }
             log("Using manual Windsurf session bundle")
             let auth = try self.parseManualSessionInput(manualSessionInput)
             let response = try await self.fetchPlanStatus(auth: auth, timeout: timeout, session: session)

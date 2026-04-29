@@ -148,6 +148,41 @@ struct WindsurfWebFetcherTests {
     }
 
     @Test
+    func `manual mode with empty session does not fall back to imported session`() async {
+        defer {
+            WindsurfDevinSessionImporter.importSessionsOverrideForTesting = nil
+            WindsurfWebFetcherStubURLProtocol.requests = []
+            WindsurfWebFetcherStubURLProtocol.handler = nil
+        }
+
+        WindsurfDevinSessionImporter.importSessionsOverrideForTesting = { _, _ in
+            [
+                WindsurfDevinSessionImporter.SessionInfo(
+                    session: WindsurfDevinSessionAuth(
+                        sessionToken: "auto-token",
+                        auth1Token: "auto-auth1",
+                        accountID: "auto-account",
+                        primaryOrgID: "auto-org"),
+                    sourceLabel: "Chrome Default"),
+            ]
+        }
+        WindsurfWebFetcherStubURLProtocol.requests = []
+
+        await #expect {
+            _ = try await WindsurfWebFetcher.fetchUsage(
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                cookieSource: .manual,
+                manualSessionInput: "   \n",
+                timeout: 2,
+                session: self.makeSession())
+        } throws: { error in
+            guard case let WindsurfWebFetcherError.invalidManualSession(message) = error else { return false }
+            return message == "empty input"
+        }
+        #expect(WindsurfWebFetcherStubURLProtocol.requests.isEmpty)
+    }
+
+    @Test
     func `manual key value session input is accepted`() throws {
         let parsed = try WindsurfWebFetcher.parseManualSessionInput(
             """
