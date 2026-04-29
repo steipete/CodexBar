@@ -33,6 +33,14 @@ extension SettingsStore {
         }
     }
 
+    var opencodegoDashboardURL: URL? {
+        let workspaceID = OpenCodeGoUsageFetcher.normalizeWorkspaceID(self.opencodegoWorkspaceID)
+        if let workspaceID {
+            return URL(string: "https://opencode.ai/workspace/\(workspaceID)/go")
+        }
+        return URL(string: "https://opencode.ai")
+    }
+
     func ensureOpenCodeGoCookieLoaded() {}
 }
 
