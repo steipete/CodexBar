@@ -59,6 +59,7 @@ struct WindsurfWebFetchStrategy: ProviderFetchStrategy {
             browserDetection: context.browserDetection,
             cookieSource: cookieSource,
             manualSessionInput: manualToken,
+            timeout: context.webTimeout,
             logger: context.verbose ? { print($0) } : nil)
         return self.makeResult(usage: usage, sourceLabel: "windsurf-web")
         #else
