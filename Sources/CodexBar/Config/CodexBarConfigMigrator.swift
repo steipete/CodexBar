@@ -104,7 +104,6 @@ struct CodexBarConfigMigrator {
             state: &state)
 
         self.migrateMiniMax(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
-        self.migrateKimi(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
         self.migrateOpenCode(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
     }
 
@@ -120,7 +119,6 @@ struct CodexBarConfigMigrator {
             (.opencode, "opencodeCookieSource"),
             (.factory, "factoryCookieSource"),
             (.minimax, "minimaxCookieSource"),
-            (.kimi, "kimiCookieSource"),
             (.augment, "augmentCookieSource"),
             (.amp, "ampCookieSource"),
         ]
@@ -194,22 +192,6 @@ struct CodexBarConfigMigrator {
             }
             changed = self.setIfEmpty(&entry.cookieHeader, header) || changed
             return changed
-        }
-    }
-
-    private static func migrateKimi(
-        userDefaults: UserDefaults,
-        stores: LegacyStores,
-        config: inout CodexBarConfig,
-        state: inout MigrationState)
-    {
-        var token = try? stores.kimiTokenStore.loadToken()
-        if token?.isEmpty ?? true {
-            token = userDefaults.string(forKey: "kimiManualCookieHeader")
-        }
-        if token != nil { state.sawLegacySecrets = true }
-        self.updateProvider(.kimi, config: &config, state: &state) { entry in
-            self.setIfEmpty(&entry.cookieHeader, token)
         }
     }
 

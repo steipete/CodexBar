@@ -194,7 +194,7 @@ struct SettingsStoreCoverageTests {
         settings.ensureFactoryCookieLoaded()
         settings.ensureMiniMaxCookieLoaded()
         settings.ensureMiniMaxAPITokenLoaded()
-        settings.ensureKimiAuthTokenLoaded()
+        settings.ensureKimiAPIKeyLoaded()
         settings.ensureKimiK2APITokenLoaded()
         settings.ensureAugmentCookieLoaded()
         settings.ensureAmpCookieLoaded()
@@ -216,12 +216,11 @@ struct SettingsStoreCoverageTests {
 
         settings.codexCookieSource = .auto
         settings.claudeCookieSource = .auto
-        settings.kimiCookieSource = .off
         settings.debugDisableKeychainAccess = true
 
         #expect(settings.codexCookieSource == .manual)
         #expect(settings.claudeCookieSource == .manual)
-        #expect(settings.kimiCookieSource == .off)
+        #expect(settings.kimiUsageDataSource == .auto)
     }
 
     @Test

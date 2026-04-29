@@ -28,7 +28,7 @@ until the session is invalid, to avoid repeated Keychain prompts.
 | Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
 | z.ai | API token (Keychain/env) → quota API (`api`). |
 | MiniMax | Manual cookie header (Keychain/env) → browser cookies (+ local storage access token) → coding plan page (HTML) with remains API fallback (`web`). |
-| Kimi | API token (JWT from `kimi-auth` cookie) → usage API (`api`). |
+| Kimi | Kimi CLI OAuth → Kimi Code usage API (`oauth`); optional API key fallback (`api`). |
 | Kilo | API token (`KILO_API_KEY`) → usage API (`api`); auto falls back to CLI session auth (`cli`). |
 | Copilot | API token (device flow/env) → copilot_internal API (`api`). |
 | Kimi K2 | API key (Keychain/env) → credit endpoint (`api`). |
@@ -72,9 +72,10 @@ until the session is invalid, to avoid repeated Keychain prompts.
 - Details: `docs/minimax.md`.
 
 ## Kimi
-- Auth token (JWT from `kimi-auth` cookie) via manual entry or `KIMI_AUTH_TOKEN` env var.
-- `POST https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages`.
-- Shows weekly quota and 5-hour rate limit (300 minutes).
+- Official Kimi CLI OAuth from `~/.kimi/credentials/kimi-code.json`, with refresh through `auth.kimi.com`.
+- Optional API key via Settings, `KIMI_CODE_API_KEY`, or `KIMI_API_KEY`.
+- `GET https://api.kimi.com/coding/v1/usages`.
+- Shows the primary weekly quota plus rolling limits returned by Kimi Code.
 - Status: none yet.
 - Details: `docs/kimi.md`.
 

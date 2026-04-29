@@ -39,7 +39,7 @@ Linux support via Omarchy: community Waybar module and TUI, driven by the `codex
 - [Droid](docs/factory.md) — Browser cookies + WorkOS token flows for Factory usage + billing.
 - [Copilot](docs/copilot.md) — GitHub device flow + Copilot internal usage API.
 - [z.ai](docs/zai.md) — API token (Keychain) for quota + MCP windows.
-- [Kimi](docs/kimi.md) — Auth token (JWT from `kimi-auth` cookie) for weekly quota + 5‑hour rate limit.
+- [Kimi](docs/kimi.md) — Kimi Code OAuth or API-key usage for weekly quota + rolling rate limits.
 - [Kimi K2](docs/kimi-k2.md) — API key for credit-based usage totals.
 - [Kiro](docs/kiro.md) — CLI-based usage via `kiro-cli /usage` command; monthly credits + bonus credits.
 - [Vertex AI](docs/vertexai.md) — Google Cloud gcloud OAuth with token cost tracking from local Claude logs.

@@ -4,305 +4,190 @@ import Testing
 
 struct KimiSettingsReaderTests {
     @Test
-    func `reads token from environment variable`() {
-        let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
-        let token = KimiSettingsReader.authToken(environment: env)
-        #expect(token == "test.jwt.token")
+    func `reads API key from preferred environment variable`() {
+        let env = ["KIMI_CODE_API_KEY": "kimi-code-key"]
+        #expect(KimiSettingsReader.apiKey(environment: env) == "kimi-code-key")
     }
 
     @Test
-    func `normalizes quoted token`() {
-        let env = ["KIMI_AUTH_TOKEN": "\"test.jwt.token\""]
-        let token = KimiSettingsReader.authToken(environment: env)
-        #expect(token == "test.jwt.token")
+    func `falls back to KIMI API key`() {
+        let env = ["KIMI_API_KEY": "\"kimi-api-key\""]
+        #expect(KimiSettingsReader.apiKey(environment: env) == "kimi-api-key")
     }
 
     @Test
-    func `returns nil when missing`() {
-        let env: [String: String] = [:]
-        let token = KimiSettingsReader.authToken(environment: env)
-        #expect(token == nil)
+    func `returns nil when API key missing`() {
+        #expect(KimiSettingsReader.apiKey(environment: [:]) == nil)
     }
 
     @Test
-    func `returns nil when empty`() {
-        let env = ["KIMI_AUTH_TOKEN": ""]
-        let token = KimiSettingsReader.authToken(environment: env)
-        #expect(token == nil)
-    }
-
-    @Test
-    func `normalizes lowercase environment key`() {
-        let env = ["kimi_auth_token": "test.jwt.token"]
-        let token = KimiSettingsReader.authToken(environment: env)
-        #expect(token == "test.jwt.token")
+    func `builds credentials file URL under kimi home`() {
+        let env = ["KIMI_HOME": "/tmp/custom-kimi"]
+        let url = KimiSettingsReader.credentialsFileURL(environment: env)
+        #expect(url.path == "/tmp/custom-kimi/credentials/kimi-code.json")
     }
 }
 
-struct KimiUsageResponseParsingTests {
+struct KimiOAuthCredentialsTests {
     @Test
-    func `parses valid response`() throws {
+    func `loads credentials from file`() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kimi-oauth-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        let env = ["KIMI_HOME": home.path]
+
+        let credentials = KimiOAuthCredentials(
+            accessToken: "access-token",
+            refreshToken: "refresh-token",
+            expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970,
+            scope: "openid profile",
+            tokenType: "Bearer",
+            expiresIn: 3600)
+        try KimiOAuthCredentialsStore.save(credentials, env: env)
+
+        let loaded = try KimiOAuthCredentialsStore.load(env: env)
+        #expect(loaded == credentials)
+    }
+
+    @Test
+    func `credentials need refresh near expiry`() {
+        let expiring = KimiOAuthCredentials(
+            accessToken: "token",
+            refreshToken: "refresh",
+            expiresAt: Date().addingTimeInterval(240).timeIntervalSince1970,
+            scope: "",
+            tokenType: "Bearer",
+            expiresIn: 3600)
+
+        #expect(expiring.needsRefresh == true)
+    }
+}
+
+struct KimiUsageParsingTests {
+    @Test
+    func `parses Kimi Code usage payload`() throws {
         let json = """
         {
-          "usages": [
+          "usage": {
+            "limit": "2048",
+            "used": "375",
+            "remaining": "1673",
+            "resetAt": "2026-01-09T15:23:13.373329235Z"
+          },
+          "limits": [
             {
-              "scope": "FEATURE_CODING",
-              "detail": {
-                "limit": "2048",
-                "used": "375",
-                "remaining": "1673",
-                "resetTime": "2026-01-09T15:23:13.373329235Z"
+              "window": {
+                "duration": 300,
+                "timeUnit": "TIME_UNIT_MINUTE"
               },
-              "limits": [
-                {
-                  "window": {
-                    "duration": 300,
-                    "timeUnit": "TIME_UNIT_MINUTE"
-                  },
-                  "detail": {
-                    "limit": "200",
-                    "used": "200",
-                    "resetTime": "2026-01-06T15:05:24.374187075Z"
-                  }
-                }
-              ]
-            }
-          ]
-        }
-        """
-
-        let response = try JSONDecoder().decode(KimiUsageResponse.self, from: Data(json.utf8))
-
-        #expect(response.usages.count == 1)
-        let usage = response.usages[0]
-        #expect(usage.scope == "FEATURE_CODING")
-        #expect(usage.detail.limit == "2048")
-        #expect(usage.detail.used == "375")
-        #expect(usage.detail.remaining == "1673")
-        #expect(usage.detail.resetTime == "2026-01-09T15:23:13.373329235Z")
-
-        #expect(usage.limits?.count == 1)
-        let rateLimit = usage.limits?.first
-        #expect(rateLimit?.window.duration == 300)
-        #expect(rateLimit?.window.timeUnit == "TIME_UNIT_MINUTE")
-        #expect(rateLimit?.detail.limit == "200")
-        #expect(rateLimit?.detail.used == "200")
-    }
-
-    @Test
-    func `parses response without rate limits`() throws {
-        let json = """
-        {
-          "usages": [
-            {
-              "scope": "FEATURE_CODING",
               "detail": {
-                "limit": "2048",
-                "used": "375",
-                "remaining": "1673",
-                "resetTime": "2026-01-09T15:23:13.373329235Z"
-              },
-              "limits": []
-            }
-          ]
-        }
-        """
-
-        let response = try JSONDecoder().decode(KimiUsageResponse.self, from: Data(json.utf8))
-        #expect(response.usages.first?.limits?.isEmpty == true)
-    }
-
-    @Test
-    func `parses response with null limits`() throws {
-        let json = """
-        {
-          "usages": [
-            {
-              "scope": "FEATURE_CODING",
-              "detail": {
-                "limit": "2048",
-                "used": "375",
-                "remaining": "1673",
-                "resetTime": "2026-01-09T15:23:13.373329235Z"
-              },
-              "limits": null
-            }
-          ]
-        }
-        """
-
-        let response = try JSONDecoder().decode(KimiUsageResponse.self, from: Data(json.utf8))
-        #expect(response.usages.first?.limits == nil)
-    }
-
-    @Test
-    func `throws on invalid json`() {
-        let invalidJson = "{ invalid json }"
-
-        #expect(throws: DecodingError.self) {
-            try JSONDecoder().decode(KimiUsageResponse.self, from: Data(invalidJson.utf8))
-        }
-    }
-
-    @Test
-    func `throws on missing feature coding scope`() throws {
-        let json = """
-        {
-          "usages": [
-            {
-              "scope": "OTHER_SCOPE",
-              "detail": {
-                "limit": "100",
-                "used": "50",
-                "remaining": "50",
-                "resetTime": "2026-01-09T15:23:13.373329235Z"
+                "limit": "200",
+                "used": "139",
+                "remaining": "61",
+                "resetAt": "2026-01-06T13:33:02.717479433Z"
               }
             }
           ]
         }
         """
 
-        let response = try JSONDecoder().decode(KimiUsageResponse.self, from: Data(json.utf8))
-        let codingUsage = response.usages.first { $0.scope == "FEATURE_CODING" }
-        #expect(codingUsage == nil)
+        let payload = try KimiUsageFetcher._parsePayloadForTesting(Data(json.utf8))
+
+        #expect(payload.summary?.label == "Weekly limit")
+        #expect(payload.summary?.used == 375)
+        #expect(payload.summary?.limit == 2048)
+        #expect(payload.summary?.windowMinutes == nil)
+        #expect(payload.limits.count == 1)
+        #expect(payload.limits.first?.label == "5h limit")
+        #expect(payload.limits.first?.used == 139)
+        #expect(payload.limits.first?.limit == 200)
+        #expect(payload.limits.first?.windowMinutes == 300)
+    }
+
+    @Test
+    func `parses limit from remaining when used is absent`() throws {
+        let json = """
+        {
+          "usage": {
+            "limit": "2048",
+            "remaining": "2000"
+          },
+          "limits": []
+        }
+        """
+
+        let payload = try KimiUsageFetcher._parsePayloadForTesting(Data(json.utf8))
+        #expect(payload.summary?.used == 48)
+    }
+
+    @Test
+    func `throws when no rows are present`() {
+        let json = #"{"usage": null, "limits": []}"#
+
+        #expect(throws: KimiAPIError.self) {
+            try KimiUsageFetcher._parsePayloadForTesting(Data(json.utf8))
+        }
     }
 }
 
 struct KimiUsageSnapshotConversionTests {
     @Test
-    func `converts to usage snapshot with both windows`() {
+    func `converts summary and first two limits`() {
         let now = Date()
-        let weeklyDetail = KimiUsageDetail(
-            limit: "2048",
-            used: "375",
-            remaining: "1673",
-            resetTime: "2026-01-09T15:23:13.373329235Z")
-        let rateLimitDetail = KimiUsageDetail(
-            limit: "200",
-            used: "200",
-            remaining: "0",
-            resetTime: "2026-01-06T15:05:24.374187075Z")
-
         let snapshot = KimiUsageSnapshot(
-            weekly: weeklyDetail,
-            rateLimit: rateLimitDetail,
+            summary: KimiUsageRow(
+                label: "Weekly limit",
+                used: 375,
+                limit: 2048,
+                windowMinutes: nil,
+                resetAt: "2026-01-09T15:23:13.373329235Z"),
+            limits: [
+                KimiUsageRow(
+                    label: "5h limit",
+                    used: 139,
+                    limit: 200,
+                    windowMinutes: 300,
+                    resetAt: "2026-01-06T13:33:02.717479433Z"),
+                KimiUsageRow(
+                    label: "24h limit",
+                    used: 80,
+                    limit: 100,
+                    windowMinutes: 1440,
+                    resetAt: "2026-01-07T13:33:02.717479433Z"),
+            ],
             updatedAt: now)
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
-        #expect(usageSnapshot.primary != nil)
-        let weeklyExpected = 375.0 / 2048.0 * 100.0
-        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
-        #expect(usageSnapshot.primary?.resetDescription == "375/2048 requests")
+        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0) - (375.0 / 2048.0 * 100.0)) < 0.01)
         #expect(usageSnapshot.primary?.windowMinutes == nil)
+        #expect(usageSnapshot.primary?.resetDescription == "375/2048")
 
-        #expect(usageSnapshot.secondary != nil)
-        let rateExpected = 200.0 / 200.0 * 100.0
-        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - rateExpected) < 0.01)
-        #expect(usageSnapshot.secondary?.windowMinutes == 300) // 5 hours
-        #expect(usageSnapshot.secondary?.resetDescription == "Rate: 200/200 per 5 hours")
+        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0) - 69.5) < 0.01)
+        #expect(usageSnapshot.secondary?.windowMinutes == 300)
+        #expect(usageSnapshot.secondary?.resetDescription == "5h limit: 139/200")
 
-        #expect(usageSnapshot.tertiary == nil)
+        #expect(usageSnapshot.tertiary?.windowMinutes == 1440)
         #expect(usageSnapshot.updatedAt == now)
-    }
-
-    @Test
-    func `converts to usage snapshot without rate limit`() {
-        let now = Date()
-        let weeklyDetail = KimiUsageDetail(
-            limit: "2048",
-            used: "375",
-            remaining: "1673",
-            resetTime: "2026-01-09T15:23:13.373329235Z")
-
-        let snapshot = KimiUsageSnapshot(
-            weekly: weeklyDetail,
-            rateLimit: nil,
-            updatedAt: now)
-
-        let usageSnapshot = snapshot.toUsageSnapshot()
-
-        #expect(usageSnapshot.primary != nil)
-        let weeklyExpected = 375.0 / 2048.0 * 100.0
-        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
-        #expect(usageSnapshot.secondary == nil)
-        #expect(usageSnapshot.tertiary == nil)
-    }
-
-    @Test
-    func `handles zero values correctly`() {
-        let now = Date()
-        let weeklyDetail = KimiUsageDetail(
-            limit: "2048",
-            used: "0",
-            remaining: "2048",
-            resetTime: "2026-01-09T15:23:13.373329235Z")
-
-        let snapshot = KimiUsageSnapshot(
-            weekly: weeklyDetail,
-            rateLimit: nil,
-            updatedAt: now)
-
-        let usageSnapshot = snapshot.toUsageSnapshot()
-        #expect(usageSnapshot.primary?.usedPercent == 0.0)
-    }
-
-    @Test
-    func `handles hundred percent correctly`() {
-        let now = Date()
-        let weeklyDetail = KimiUsageDetail(
-            limit: "2048",
-            used: "2048",
-            remaining: "0",
-            resetTime: "2026-01-09T15:23:13.373329235Z")
-
-        let snapshot = KimiUsageSnapshot(
-            weekly: weeklyDetail,
-            rateLimit: nil,
-            updatedAt: now)
-
-        let usageSnapshot = snapshot.toUsageSnapshot()
-        #expect(usageSnapshot.primary?.usedPercent == 100.0)
     }
 }
 
 struct KimiTokenResolverTests {
     @Test
-    func `resolves token from environment`() {
-        KeychainAccessGate.withTaskOverrideForTesting(true) {
-            let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
-            let token = ProviderTokenResolver.kimiAuthToken(environment: env)
-            #expect(token == "test.jwt.token")
-        }
-    }
+    func `resolves API key from environment`() {
+        let env = ["KIMI_API_KEY": "test-api-key"]
+        let resolution = ProviderTokenResolver.kimiAPIKeyResolution(environment: env)
 
-    @Test
-    func `resolves token from keychain first`() {
-        // This test would require mocking the keychain.
-        KeychainAccessGate.withTaskOverrideForTesting(true) {
-            let env = ["KIMI_AUTH_TOKEN": "test.env.token"]
-            let token = ProviderTokenResolver.kimiAuthToken(environment: env)
-            #expect(token == "test.env.token")
-        }
-    }
-
-    @Test
-    func `resolution includes source`() {
-        KeychainAccessGate.withTaskOverrideForTesting(true) {
-            let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
-            let resolution = ProviderTokenResolver.kimiAuthResolution(environment: env)
-
-            #expect(resolution?.token == "test.jwt.token")
-            #expect(resolution?.source == .environment)
-        }
+        #expect(resolution?.token == "test-api-key")
+        #expect(resolution?.source == .environment)
     }
 }
 
 struct KimiAPIErrorTests {
     @Test
     func `error descriptions are helpful`() {
-        #expect(KimiAPIError.missingToken.errorDescription?.contains("missing") == true)
-        #expect(KimiAPIError.invalidToken.errorDescription?.contains("invalid") == true)
+        #expect(KimiAPIError.missingToken.errorDescription?.contains("credentials") == true)
+        #expect(KimiAPIError.invalidToken.errorDescription?.contains("expired") == true)
         #expect(KimiAPIError.invalidRequest("Bad request").errorDescription?.contains("Bad request") == true)
         #expect(KimiAPIError.networkError("Timeout").errorDescription?.contains("Timeout") == true)
         #expect(KimiAPIError.apiError("HTTP 500").errorDescription?.contains("HTTP 500") == true)

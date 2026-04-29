@@ -179,12 +179,10 @@ public struct ProviderSettingsSnapshot: Sendable {
     }
 
     public struct KimiProviderSettings: Sendable {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
+        public let usageDataSource: KimiUsageDataSource
 
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
+        public init(usageDataSource: KimiUsageDataSource) {
+            self.usageDataSource = usageDataSource
         }
     }
 

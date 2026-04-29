@@ -161,12 +161,9 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .kimi:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 kimi: ProviderSettingsSnapshot.KimiProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
+                    usageDataSource: Self.kimiUsageDataSource(from: config?.source)))
         case .zai:
             return self.makeSnapshot(
                 zai: ProviderSettingsSnapshot.ZaiProviderSettings(apiRegion: self.resolveZaiRegion(config)))
@@ -413,5 +410,19 @@ struct TokenAccountCLIContext {
         return ClaudeCredentialRouting.resolve(
             tokenAccountToken: account?.token,
             manualCookieHeader: manualCookieHeader)
+    }
+}
+
+private extension TokenAccountCLIContext {
+    static func kimiUsageDataSource(from source: ProviderSourceMode?) -> KimiUsageDataSource {
+        guard let source else { return .auto }
+        switch source {
+        case .auto, .web, .cli:
+            return .auto
+        case .oauth:
+            return .oauth
+        case .api:
+            return .api
+        }
     }
 }

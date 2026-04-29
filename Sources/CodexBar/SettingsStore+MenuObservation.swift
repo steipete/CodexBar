@@ -42,7 +42,7 @@ extension SettingsStore {
         _ = self.factoryCookieSource
         _ = self.minimaxCookieSource
         _ = self.minimaxAPIRegion
-        _ = self.kimiCookieSource
+        _ = self.kimiUsageDataSource
         _ = self.augmentCookieSource
         _ = self.ampCookieSource
         _ = self.ollamaCookieSource
@@ -62,7 +62,7 @@ extension SettingsStore {
         _ = self.factoryCookieHeader
         _ = self.minimaxCookieHeader
         _ = self.minimaxAPIToken
-        _ = self.kimiManualCookieHeader
+        _ = self.kimiAPIToken
         _ = self.kimiK2APIToken
         _ = self.kiloAPIToken
         _ = self.augmentCookieHeader
