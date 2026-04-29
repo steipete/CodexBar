@@ -40,7 +40,7 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
-    func `applies API key override for deepseek`() {
+    func `ignores legacy API key override for deepseek`() {
         let config = ProviderConfig(id: .deepseek, apiKey: "ds-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
@@ -51,8 +51,8 @@ struct ProviderConfigEnvironmentTests {
         #expect(key != nil)
         guard let key else { return }
 
-        #expect(env[key] == "ds-token")
-        #expect(ProviderTokenResolver.deepseekToken(environment: env) == "ds-token")
+        #expect(env[key] == nil)
+        #expect(ProviderTokenResolver.deepseekToken(environment: env) == nil)
     }
 
     @Test
@@ -80,7 +80,7 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
-    func `deepseek config override wins over environment token`() {
+    func `deepseek config override leaves environment token alone`() {
         let config = ProviderConfig(id: .deepseek, apiKey: "config-token")
         let envKey = DeepSeekSettingsReader.apiKeyEnvironmentKeys[0]
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
@@ -88,8 +88,8 @@ struct ProviderConfigEnvironmentTests {
             provider: .deepseek,
             config: config)
 
-        #expect(env[envKey] == "config-token")
-        #expect(ProviderTokenResolver.deepseekToken(environment: env) == "config-token")
+        #expect(env[envKey] == "env-token")
+        #expect(ProviderTokenResolver.deepseekToken(environment: env) == "env-token")
     }
 
     @Test
