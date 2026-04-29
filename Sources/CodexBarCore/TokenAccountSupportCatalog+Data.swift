@@ -16,6 +16,13 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: ZaiSettingsReader.apiTokenKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .deepseek: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Store multiple DeepSeek API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: DeepSeekSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .cursor: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Cursor Cookie headers.",

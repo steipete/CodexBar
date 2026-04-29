@@ -40,6 +40,30 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies API key override for deep seek`() {
+        let config = ProviderConfig(id: .deepseek, apiKey: "ds-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .deepseek,
+            config: config)
+
+        #expect(env[DeepSeekSettingsReader.apiKeyEnvironmentKey] == "ds-token")
+        #expect(ProviderTokenResolver.deepSeekToken(environment: env) == "ds-token")
+    }
+
+    @Test
+    func `deep seek config override wins over environment token`() {
+        let config = ProviderConfig(id: .deepseek, apiKey: "config-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [DeepSeekSettingsReader.apiKeyEnvironmentKey: "env-token"],
+            provider: .deepseek,
+            config: config)
+
+        #expect(env[DeepSeekSettingsReader.apiKeyEnvironmentKey] == "config-token")
+        #expect(ProviderTokenResolver.deepSeekToken(environment: env) == "config-token")
+    }
+
+    @Test
     func `applies API key override for kilo`() {
         let config = ProviderConfig(id: .kilo, apiKey: "kilo-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

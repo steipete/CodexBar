@@ -784,14 +784,24 @@ extension UsageStore {
         let ollamaCookieSource = self.settings.ollamaCookieSource
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
         let processEnvironment = self.environmentBase
-        let openRouterConfigToken = self.settings.providerConfig(for: .openrouter)?.sanitizedAPIKey
-        let openRouterHasConfigToken = !(openRouterConfigToken?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty ?? true)
-        let openRouterHasEnvToken = OpenRouterSettingsReader.apiToken(environment: processEnvironment) != nil
         let openRouterEnvironment = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: processEnvironment,
             provider: .openrouter,
             config: self.settings.providerConfig(for: .openrouter))
+        let deepSeekEnvironment = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: processEnvironment,
+            provider: .deepseek,
+            config: self.settings.providerConfig(for: .deepseek))
+        let openRouterDebugLine = Self.apiKeyDebugLine(
+            label: "OPENROUTER_API_KEY",
+            resolution: ProviderTokenResolver.openRouterResolution(environment: openRouterEnvironment),
+            configToken: self.settings.providerConfig(for: .openrouter)?.sanitizedAPIKey,
+            hasEnvToken: OpenRouterSettingsReader.apiToken(environment: processEnvironment) != nil)
+        let deepSeekDebugLine = Self.apiKeyDebugLine(
+            label: "DEEPSEEK_API_KEY",
+            resolution: ProviderTokenResolver.deepSeekResolution(environment: deepSeekEnvironment),
+            configToken: self.settings.providerConfig(for: .deepseek)?.sanitizedAPIKey,
+            hasEnvToken: DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil)
         let codexFetcher = self.codexFetcher
         let browserDetection = self.browserDetection
         let claudeDebugExecutionContext = self.currentClaudeDebugExecutionContext()
@@ -864,18 +874,9 @@ extension UsageStore {
                         ollamaCookieSource: ollamaCookieSource,
                         ollamaCookieHeader: ollamaCookieHeader)
                 case .openrouter:
-                    let resolution = ProviderTokenResolver.openRouterResolution(environment: openRouterEnvironment)
-                    let hasAny = resolution != nil
-                    let source: String = if resolution == nil {
-                        "none"
-                    } else if openRouterHasConfigToken, openRouterHasEnvToken {
-                        "settings-config (overrides env)"
-                    } else if openRouterHasConfigToken {
-                        "settings-config"
-                    } else {
-                        resolution?.source.rawValue ?? "environment"
-                    }
-                    return "OPENROUTER_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                    return openRouterDebugLine
+                case .deepseek:
+                    return deepSeekDebugLine
                 case .warp:
                     let resolution = ProviderTokenResolver.warpResolution()
                     let hasAny = resolution != nil
@@ -892,6 +893,26 @@ extension UsageStore {
         }.value
         self.probeLogs[provider] = text
         return text
+    }
+
+    private static func apiKeyDebugLine(
+        label: String,
+        resolution: ProviderTokenResolution?,
+        configToken: String?,
+        hasEnvToken: Bool) -> String
+    {
+        let hasAny = resolution != nil
+        let hasConfigToken = !(configToken?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        let source: String = if resolution == nil {
+            "none"
+        } else if hasConfigToken, hasEnvToken {
+            "settings-config (overrides env)"
+        } else if hasConfigToken {
+            "settings-config"
+        } else {
+            resolution?.source.rawValue ?? "environment"
+        }
+        return "\(label)=\(hasAny ? "present" : "missing") source=\(source)"
     }
 
     private func makeClaudeDebugConfiguration(

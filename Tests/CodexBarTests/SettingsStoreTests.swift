@@ -939,6 +939,7 @@ struct SettingsStoreTests {
             .perplexity,
             .abacus,
             .mistral,
+            .deepseek,
         ])
 
         // Move one provider; ensure it's persisted across instances.
