@@ -343,6 +343,90 @@ struct CodexAccountPromotionServiceTests {
     }
 
     @Test
+    func `restart enabled stops Codex app before swap and relaunches after promotion`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionServiceTests-restart-enabled")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        try container.persistAccounts([target])
+        _ = try container.writeLiveOAuthAuthFile(
+            email: "alpha@example.com",
+            accountID: "acct-alpha")
+        let codexAppURL = URL(fileURLWithPath: "/Applications/Codex.app")
+        let restarter = RecordingCodexAppRestarter(stoppedURLs: [codexAppURL])
+        let swapper = RecordingCodexLiveAuthSwapper()
+
+        let result = try await container.makeService(
+            liveAuthSwapper: swapper,
+            restartCodexAppOnSystemAccountSwitch: { true },
+            codexAppRestarter: restarter)
+            .promoteManagedAccount(id: target.id)
+
+        #expect(result.outcome == .promoted)
+        #expect(restarter.stopCallCount == 1)
+        #expect(swapper.swapCallCount == 1)
+        #expect(restarter.relaunchCallCount == 1)
+        #expect(restarter.relaunchedURLs == [codexAppURL])
+    }
+
+    @Test
+    func `restart disabled leaves Codex app restarter idle`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionServiceTests-restart-disabled")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        try container.persistAccounts([target])
+        _ = try container.writeLiveOAuthAuthFile(
+            email: "alpha@example.com",
+            accountID: "acct-alpha")
+        let restarter = RecordingCodexAppRestarter(
+            stoppedURLs: [URL(fileURLWithPath: "/Applications/Codex.app")])
+
+        let result = try await container.makeService(codexAppRestarter: restarter)
+            .promoteManagedAccount(id: target.id)
+
+        #expect(result.outcome == .promoted)
+        #expect(restarter.stopCallCount == 0)
+        #expect(restarter.relaunchCallCount == 0)
+    }
+
+    @Test
+    func `restart failure leaves live auth untouched`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionServiceTests-restart-failure")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        try container.persistAccounts([target])
+        let liveAuthData = try container.writeLiveOAuthAuthFile(
+            email: "alpha@example.com",
+            accountID: "acct-alpha")
+        let restarter = RecordingCodexAppRestarter(stopError: PromotionTestError.appStopFailed)
+        let swapper = RecordingCodexLiveAuthSwapper()
+
+        await #expect(throws: CodexAccountPromotionError.codexAppRestartFailed) {
+            try await container.makeService(
+                liveAuthSwapper: swapper,
+                restartCodexAppOnSystemAccountSwitch: { true },
+                codexAppRestarter: restarter)
+                .promoteManagedAccount(id: target.id)
+        }
+
+        #expect(restarter.stopCallCount == 1)
+        #expect(restarter.relaunchCallCount == 0)
+        #expect(swapper.swapCallCount == 0)
+        #expect(try container.liveAuthData() == liveAuthData)
+    }
+
+    @Test
     func `refresh store failure leaves existing managed metadata stale after auth copy`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexAccountPromotionServiceTests-refresh-store-failure")

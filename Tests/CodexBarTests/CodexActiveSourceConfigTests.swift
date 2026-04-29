@@ -95,4 +95,19 @@ struct CodexActiveSourceConfigTests {
 
         #expect(decoded.providerConfig(for: .codex)?.codexActiveSource == .managedAccount(id: accountID))
     }
+
+    @Test
+    func `provider config round trips Codex app restart preference`() throws {
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .codex,
+                    codexRestartAppOnSystemAccountSwitch: true),
+            ])
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: data)
+
+        #expect(decoded.providerConfig(for: .codex)?.codexRestartAppOnSystemAccountSwitch == true)
+    }
 }

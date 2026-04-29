@@ -131,6 +131,21 @@ extension SettingsStore {
         }
     }
 
+    var codexRestartAppOnSystemAccountSwitch: Bool {
+        get {
+            self.configSnapshot.providerConfig(for: .codex)?.codexRestartAppOnSystemAccountSwitch ?? false
+        }
+        set {
+            self.updateProviderConfig(provider: .codex) { entry in
+                entry.codexRestartAppOnSystemAccountSwitch = newValue
+            }
+            self.logProviderModeChange(
+                provider: .codex,
+                field: "restartAppOnSystemAccountSwitch",
+                value: String(newValue))
+        }
+    }
+
     var codexResolvedActiveSource: CodexActiveSource {
         self.codexResolvedActiveSourceState.resolvedSource
     }

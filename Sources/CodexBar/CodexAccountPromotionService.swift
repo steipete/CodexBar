@@ -144,6 +144,7 @@ enum CodexAccountPromotionError: Error, Equatable {
     case displacedLiveImportFailed
     case managedStoreCommitFailed
     case liveAuthSwapFailed
+    case codexAppRestartFailed
 }
 
 @MainActor
@@ -157,6 +158,8 @@ final class CodexAccountPromotionService {
     private let liveAuthSwapper: any CodexLiveAuthSwapping
     private let activeSourceWriter: any CodexActiveSourceWriting
     private let accountScopedRefresher: any CodexAccountScopedRefreshing
+    private let restartCodexAppOnSystemAccountSwitch: @MainActor @Sendable () -> Bool
+    private let codexAppRestarter: any CodexAppRestarting
     private let baseEnvironment: [String: String]
     private let fileManager: FileManager
 
@@ -170,6 +173,8 @@ final class CodexAccountPromotionService {
         liveAuthSwapper: any CodexLiveAuthSwapping,
         activeSourceWriter: any CodexActiveSourceWriting,
         accountScopedRefresher: any CodexAccountScopedRefreshing,
+        restartCodexAppOnSystemAccountSwitch: @MainActor @Sendable @escaping () -> Bool = { false },
+        codexAppRestarter: any CodexAppRestarting = DefaultCodexAppRestarter(),
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default)
     {
@@ -182,6 +187,8 @@ final class CodexAccountPromotionService {
         self.liveAuthSwapper = liveAuthSwapper
         self.activeSourceWriter = activeSourceWriter
         self.accountScopedRefresher = accountScopedRefresher
+        self.restartCodexAppOnSystemAccountSwitch = restartCodexAppOnSystemAccountSwitch
+        self.codexAppRestarter = codexAppRestarter
         self.baseEnvironment = baseEnvironment
         self.fileManager = fileManager
     }
@@ -202,6 +209,8 @@ final class CodexAccountPromotionService {
             liveAuthSwapper: DefaultCodexLiveAuthSwapper(),
             activeSourceWriter: SettingsStoreCodexActiveSourceWriter(settingsStore: settingsStore),
             accountScopedRefresher: UsageStoreCodexAccountScopedRefresher(usageStore: usageStore),
+            restartCodexAppOnSystemAccountSwitch: { settingsStore.codexRestartAppOnSystemAccountSwitch },
+            codexAppRestarter: DefaultCodexAppRestarter(),
             baseEnvironment: baseEnvironment,
             fileManager: fileManager)
     }
@@ -228,28 +237,37 @@ final class CodexAccountPromotionService {
         }
 
         let targetAuthMaterial = try self.requiredTargetAuthMaterial(from: context.target)
-        let preservationPlan = CodexDisplacedLivePreservationPlanner().makePlan(context: context)
-        let executionResult = try CodexDisplacedLivePreservationExecutor(
-            store: self.store,
-            homeFactory: self.homeFactory,
-            fileManager: self.fileManager)
-            .execute(plan: preservationPlan, context: context)
+        let codexAppURLs = try await self.stopCodexAppsIfRequested()
 
         do {
-            try self.liveAuthSwapper.swapLiveAuthData(targetAuthMaterial.rawData, liveHomeURL: context.live.homeURL)
+            let preservationPlan = CodexDisplacedLivePreservationPlanner().makePlan(context: context)
+            let executionResult = try CodexDisplacedLivePreservationExecutor(
+                store: self.store,
+                homeFactory: self.homeFactory,
+                fileManager: self.fileManager)
+                .execute(plan: preservationPlan, context: context)
+
+            do {
+                try self.liveAuthSwapper.swapLiveAuthData(targetAuthMaterial.rawData, liveHomeURL: context.live.homeURL)
+            } catch {
+                throw CodexAccountPromotionError.liveAuthSwapFailed
+            }
+
+            self.activeSourceWriter.writeCodexActiveSource(.liveSystem)
+            await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
+
+            await self.relaunchCodexAppsIfNeeded(codexAppURLs)
+
+            return CodexAccountPromotionResult(
+                targetManagedAccountID: id,
+                outcome: .promoted,
+                displacedLiveDisposition: executionResult.displacedLiveDisposition,
+                didMutateLiveAuth: true,
+                resultingActiveSource: .liveSystem)
         } catch {
-            throw CodexAccountPromotionError.liveAuthSwapFailed
+            await self.relaunchCodexAppsIfNeeded(codexAppURLs)
+            throw error
         }
-
-        self.activeSourceWriter.writeCodexActiveSource(.liveSystem)
-        await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
-
-        return CodexAccountPromotionResult(
-            targetManagedAccountID: id,
-            outcome: .promoted,
-            displacedLiveDisposition: executionResult.displacedLiveDisposition,
-            didMutateLiveAuth: true,
-            resultingActiveSource: .liveSystem)
     }
 
     nonisolated static func authFileURL(for homeURL: URL) -> URL {
@@ -307,5 +325,22 @@ final class CodexAccountPromotionService {
         case .unreadable:
             throw CodexAccountPromotionError.targetManagedAccountAuthUnreadable
         }
+    }
+
+    private func stopCodexAppsIfRequested() async throws -> [URL] {
+        guard self.restartCodexAppOnSystemAccountSwitch() else {
+            return []
+        }
+
+        do {
+            return try await self.codexAppRestarter.stopRunningCodexAppsForAccountSwitch()
+        } catch {
+            throw CodexAccountPromotionError.codexAppRestartFailed
+        }
+    }
+
+    private func relaunchCodexAppsIfNeeded(_ appURLs: [URL]) async {
+        guard !appURLs.isEmpty else { return }
+        await self.codexAppRestarter.relaunchCodexApps(at: appURLs)
     }
 }

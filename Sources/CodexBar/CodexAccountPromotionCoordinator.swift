@@ -103,6 +103,8 @@ final class CodexAccountPromotionCoordinator {
                 "CodexBar could not update managed account storage."
             case .liveAuthSwapFailed:
                 "CodexBar could not replace the live Codex auth on this Mac."
+            case .codexAppRestartFailed:
+                "CodexBar could not quit the running Codex app before switching accounts."
             }
 
             return CodexSystemAccountPromotionUserFacingError(title: title, message: message)
