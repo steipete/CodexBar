@@ -91,13 +91,7 @@ struct GeneralPane: View {
                         subtitle: "Polls OpenAI/Claude status pages and Google Workspace for " +
                             "Gemini/Antigravity, surfacing incidents in the icon and menu.",
                         binding: self.$settings.statusChecksEnabled)
-                    PreferenceToggleRow(
-                        title: "Session quota notifications",
-                        subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +
-                            "available again.",
-                        binding: self.$settings.sessionQuotaNotificationsEnabled)
                 }
-
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {

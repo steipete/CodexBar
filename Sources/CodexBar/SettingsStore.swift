@@ -72,6 +72,8 @@ final class SettingsStore {
         if env["XCTestConfigurationFilePath"] != nil { return true }
         if env["TESTING_LIBRARY_VERSION"] != nil { return true }
         if env["SWIFT_TESTING"] != nil { return true }
+        if Bundle.main.bundlePath.contains(".xctest") { return true }
+        if ProcessInfo.processInfo.arguments.contains(where: { $0.contains(".xctest") }) { return true }
         return NSClassFromString("XCTestCase") != nil
     }()
 
@@ -127,7 +129,11 @@ final class SettingsStore {
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore())
     {
         let appGroupID = AppGroupSupport.currentGroupID()
-        let appGroupMigration = AppGroupSupport.migrateLegacyDataIfNeeded(standardDefaults: userDefaults)
+        let appGroupMigration = if Self.isRunningTests {
+            AppGroupSupport.MigrationResult(status: .alreadyCompleted)
+        } else {
+            AppGroupSupport.migrateLegacyDataIfNeeded(standardDefaults: userDefaults)
+        }
         let sharedDefaultsAvailable = Self.sharedDefaults != nil
         if !Self.isRunningTests {
             CodexBarLog.logger(LogCategories.settings).info(
@@ -232,6 +238,19 @@ extension SettingsStore {
         let debugLoadingPatternRaw = userDefaults.string(forKey: "debugLoadingPattern")
         let debugKeepCLISessionsAlive = userDefaults.object(forKey: "debugKeepCLISessionsAlive") as? Bool ?? false
         let statusChecksEnabled = userDefaults.object(forKey: "statusChecksEnabled") as? Bool ?? true
+        let notificationsEnabledDefault = userDefaults.object(forKey: "notificationsEnabled") as? Bool
+        let notificationsEnabled = notificationsEnabledDefault ?? true
+        if notificationsEnabledDefault == nil {
+            userDefaults.set(true, forKey: "notificationsEnabled")
+        }
+        let notificationVolume: Double = {
+            let stored = userDefaults.object(forKey: "notificationVolume") as? Double
+            let resolved = min(max(stored ?? 1.0, 0.0), 1.0)
+            if stored == nil || stored != resolved {
+                userDefaults.set(resolved, forKey: "notificationVolume")
+            }
+            return resolved
+        }()
         let sessionQuotaDefault = userDefaults.object(forKey: "sessionQuotaNotificationsEnabled") as? Bool
         let sessionQuotaNotificationsEnabled = sessionQuotaDefault ?? true
         if sessionQuotaDefault == nil {
@@ -282,6 +301,10 @@ extension SettingsStore {
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
+        let notificationSettings = Dictionary(
+            uniqueKeysWithValues: AppNotificationEvent.allCases.map { event in
+                (event, Self.loadNotificationSettings(event: event, userDefaults: userDefaults))
+            })
 
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -293,6 +316,8 @@ extension SettingsStore {
             debugLoadingPatternRaw: debugLoadingPatternRaw,
             debugKeepCLISessionsAlive: debugKeepCLISessionsAlive,
             statusChecksEnabled: statusChecksEnabled,
+            notificationsEnabled: notificationsEnabled,
+            notificationVolume: notificationVolume,
             sessionQuotaNotificationsEnabled: sessionQuotaNotificationsEnabled,
             usageBarsShowUsed: usageBarsShowUsed,
             resetTimesShowAbsolute: resetTimesShowAbsolute,
@@ -319,7 +344,47 @@ extension SettingsStore {
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
-            providerDetectionCompleted: providerDetectionCompleted)
+            providerDetectionCompleted: providerDetectionCompleted,
+            notificationSettings: notificationSettings)
+    }
+
+    private static func loadNotificationSettings(
+        event: AppNotificationEvent,
+        userDefaults: UserDefaults) -> NotificationDeliverySettings
+    {
+        let enabled: Bool = {
+            if let stored = userDefaults.object(forKey: event.enabledDefaultsKey) as? Bool {
+                return stored
+            }
+            if event == .sessionQuotaDepleted || event == .sessionQuotaRestored,
+               let legacy = userDefaults.object(forKey: "sessionQuotaNotificationsEnabled") as? Bool
+            {
+                userDefaults.set(legacy, forKey: event.enabledDefaultsKey)
+                return legacy
+            }
+            let defaultValue = event.defaultSettings.enabled
+            userDefaults.set(defaultValue, forKey: event.enabledDefaultsKey)
+            return defaultValue
+        }()
+
+        let sound: NotificationSoundOption = {
+            if let raw = userDefaults.string(forKey: event.soundDefaultsKey),
+               let option = NotificationSoundOption(rawValue: raw)
+            {
+                return option
+            }
+            let defaultValue = event.defaultSettings.sound
+            userDefaults.set(defaultValue.rawValue, forKey: event.soundDefaultsKey)
+            return defaultValue
+        }()
+
+        return NotificationDeliverySettings(
+            enabled: enabled,
+            sound: sound,
+            hookCallURL: userDefaults.string(forKey: event.hookCallURLDefaultsKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            shortcutName: userDefaults.string(forKey: event.shortcutNameDefaultsKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
     }
 }
 

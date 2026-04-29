@@ -314,7 +314,8 @@ extension HistoricalUsagePaceTests {
             resetsAt: updatedAt.addingTimeInterval(2 * 24 * 60 * 60),
             updatedAt: updatedAt)
 
-        store.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
+        let writeTask = store.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
+        await writeTask?.value
         let expectedKey = try #require(CodexHistoryOwnership.canonicalKey(for: .providerAccount(id: "acct-123")))
         let records = try await Self.waitForHistoricalWrite(
             store: store,
@@ -343,7 +344,8 @@ extension HistoricalUsagePaceTests {
             resetsAt: updatedAt.addingTimeInterval(2 * 24 * 60 * 60),
             updatedAt: updatedAt)
 
-        store.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
+        let writeTask = store.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
+        await writeTask?.value
         let expectedKey = CodexHistoryOwnership.canonicalEmailHashKey(for: "person@example.com")
         let records = try await Self.waitForHistoricalWrite(
             store: store,

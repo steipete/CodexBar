@@ -10,7 +10,11 @@ extension SettingsStore {
         _ = self.debugDisableKeychainAccess
         _ = self.debugKeepCLISessionsAlive
         _ = self.statusChecksEnabled
+        _ = self.notificationsEnabled
         _ = self.sessionQuotaNotificationsEnabled
+        for event in AppNotificationEvent.allCases {
+            _ = self.notificationSettings(for: event)
+        }
         _ = self.usageBarsShowUsed
         _ = self.resetTimesShowAbsolute
         _ = self.menuBarShowsBrandIconWithPercent

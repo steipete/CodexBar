@@ -66,6 +66,8 @@ struct OpenAIDashboardNavigationDelegateTests {
         var result: Result<Void, Error>?
         let box = DelegateBox()
         box.delegate = NavigationDelegate { result = $0 }
+        NavigationDelegate.testPostCommitSuccessDelayOverride = 0.01
+        defer { NavigationDelegate.testPostCommitSuccessDelayOverride = nil }
 
         box.delegate?.webView(webView, didCommit: nil)
         #expect(result == nil)

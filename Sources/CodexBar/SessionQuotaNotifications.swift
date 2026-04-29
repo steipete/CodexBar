@@ -1,6 +1,5 @@
 import CodexBarCore
 import Foundation
-@preconcurrency import UserNotifications
 
 enum SessionQuotaTransition: Equatable {
     case none
@@ -37,27 +36,47 @@ protocol SessionQuotaNotifying: AnyObject {
 @MainActor
 final class SessionQuotaNotifier: SessionQuotaNotifying {
     private let logger = CodexBarLog.logger(LogCategories.sessionQuotaNotifications)
+    private let settings: SettingsStore
 
-    init() {}
+    init(settings: SettingsStore) {
+        self.settings = settings
+    }
 
     func post(transition: SessionQuotaTransition, provider: UsageProvider, badge: NSNumber? = nil) {
         guard transition != .none else { return }
 
         let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-
-        let (title, body) = switch transition {
+        let event: AppNotificationEvent
+        let title: String
+        let body: String
+        switch transition {
         case .none:
-            ("", "")
+            event = .sessionQuotaDepleted
+            title = ""
+            body = ""
         case .depleted:
-            ("\(providerName) session depleted", "0% left. Will notify when it's available again.")
+            event = .sessionQuotaDepleted
+            title = "\(providerName) session depleted"
+            body = "0% left. Will notify when it's available again."
         case .restored:
-            ("\(providerName) session restored", "Session quota is available again.")
+            event = .sessionQuotaRestored
+            title = "\(providerName) session restored"
+            body = "Session quota is available again."
         }
 
         let providerText = provider.rawValue
         let transitionText = String(describing: transition)
         let idPrefix = "session-\(providerText)-\(transitionText)"
         self.logger.info("enqueuing", metadata: ["prefix": idPrefix])
-        AppNotifications.shared.post(idPrefix: idPrefix, title: title, body: body, badge: badge)
+        AppNotifications.shared.post(
+            idPrefix: idPrefix,
+            title: title,
+            body: body,
+            badge: badge,
+            event: event,
+            provider: providerName,
+            notificationsEnabled: self.settings.notificationsEnabled,
+            notificationVolume: self.settings.notificationVolume,
+            settings: self.settings.notificationSettings(for: event))
     }
 }

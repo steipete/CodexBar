@@ -91,6 +91,11 @@ struct AppGroupSupportTests {
 
     @Test
     func `legacy migration preserves existing target shared defaults`() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+
         let standardSuite = "AppGroupSupportTests-standard-existing-\(UUID().uuidString)"
         let currentSuite = "AppGroupSupportTests-current-existing-\(UUID().uuidString)"
         let legacySuite = "AppGroupSupportTests-legacy-existing-\(UUID().uuidString)"
@@ -111,7 +116,9 @@ struct AppGroupSupportTests {
             bundleID: "com.steipete.codexbar",
             standardDefaults: standardDefaults,
             currentDefaultsOverride: currentDefaults,
-            legacyDefaultsOverride: legacyDefaults)
+            legacyDefaultsOverride: legacyDefaults,
+            currentSnapshotURLOverride: root.appendingPathComponent("current/widget-snapshot.json"),
+            legacySnapshotURLOverride: root.appendingPathComponent("legacy/widget-snapshot.json"))
 
         #expect(result.status == .noChangesNeeded)
         #expect(result.copiedDefaults == 0)

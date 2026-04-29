@@ -303,7 +303,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        AppNotifications.shared.requestAuthorizationOnStartup()
+        AppNotifications.shared.requestAuthorizationOnStartup(
+            notificationsEnabled: self.settings?.notificationsEnabled ?? true)
         self.ensureStatusController()
         KeyboardShortcuts.onKeyUp(for: .openMenu) { [weak self] in
             Task { @MainActor [weak self] in

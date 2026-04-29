@@ -243,7 +243,7 @@ struct DebugPane: View {
 
                 SettingsSection(
                     title: "Notifications",
-                    caption: "Trigger test notifications for the 5-hour session window (depleted/restored).")
+                    caption: "Trigger test notifications for the configured notification events.")
                 {
                     Picker("Provider", selection: self.$currentLogProvider) {
                         Text("Codex").tag(UsageProvider.codex)
@@ -264,6 +264,22 @@ struct DebugPane: View {
                             self.postSessionNotification(.restored, provider: self.currentLogProvider)
                         } label: {
                             Label("Post restored", systemImage: "bell")
+                        }
+                        .controlSize(.small)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            self.postProviderLoginNotification(provider: self.currentLogProvider)
+                        } label: {
+                            Label("Post login", systemImage: "person.crop.circle.badge.checkmark")
+                        }
+                        .controlSize(.small)
+
+                        Button {
+                            self.postAugmentExpiredNotification()
+                        } label: {
+                            Label("Post Augment expired", systemImage: "exclamationmark.triangle")
                         }
                         .controlSize(.small)
                     }
@@ -490,7 +506,32 @@ struct DebugPane: View {
     }
 
     private func postSessionNotification(_ transition: SessionQuotaTransition, provider: UsageProvider) {
-        SessionQuotaNotifier().post(transition: transition, provider: provider, badge: 1)
+        SessionQuotaNotifier(settings: self.settings).post(transition: transition, provider: provider, badge: 1)
+    }
+
+    private func postProviderLoginNotification(provider: UsageProvider) {
+        let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        AppNotifications.shared.post(
+            idPrefix: "debug-login-\(provider.rawValue)",
+            title: "\(providerName) login successful",
+            body: "You can return to the app; authentication finished.",
+            event: .providerLogin,
+            provider: providerName,
+            notificationsEnabled: self.settings.notificationsEnabled,
+            notificationVolume: self.settings.notificationVolume,
+            settings: self.settings.notificationSettings(for: .providerLogin))
+    }
+
+    private func postAugmentExpiredNotification() {
+        AppNotifications.shared.post(
+            idPrefix: "debug-augment-session-expired",
+            title: "Augment Session Expired",
+            body: "Please log in to app.augmentcode.com to restore your session.",
+            event: .augmentSessionExpired,
+            provider: ProviderDescriptorRegistry.descriptor(for: .augment).metadata.displayName,
+            notificationsEnabled: self.settings.notificationsEnabled,
+            notificationVolume: self.settings.notificationVolume,
+            settings: self.settings.notificationSettings(for: .augmentSessionExpired))
     }
 
     private func clearCostCache() async {

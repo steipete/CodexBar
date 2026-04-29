@@ -15,6 +15,9 @@ extension UsageStore {
                 await override(snapshot)
                 return
             }
+            if SettingsStore.isRunningTests {
+                return
+            }
 
             await Task.detached(priority: .utility) {
                 WidgetSnapshotStore.save(snapshot)
