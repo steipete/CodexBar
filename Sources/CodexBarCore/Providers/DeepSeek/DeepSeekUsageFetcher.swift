@@ -58,26 +58,35 @@ public struct DeepSeekUsageSnapshot: Sendable {
     public func toUsageSnapshot() -> UsageSnapshot {
         let symbol = self.currency == "CNY" ? "¥" : "$"
 
-        let loginMethod: String
-        if !self.isAvailable {
-            loginMethod = "Account unavailable"
-        } else if self.totalBalance <= 0 {
-            loginMethod = "\(symbol)0.00 — add credits at platform.deepseek.com"
+        let balanceDetail: String
+        let usedPercent: Double
+        if self.totalBalance <= 0 {
+            balanceDetail = "\(symbol)0.00 — add credits at platform.deepseek.com"
+            usedPercent = 100
+        } else if !self.isAvailable {
+            balanceDetail = "Balance unavailable for API calls"
+            usedPercent = 100
         } else {
             let total = String(format: "\(symbol)%.2f", self.totalBalance)
             let paid = String(format: "\(symbol)%.2f", self.toppedUpBalance)
             let granted = String(format: "\(symbol)%.2f", self.grantedBalance)
-            loginMethod = "\(total) (Paid: \(paid) / Granted: \(granted))"
+            balanceDetail = "\(total) (Paid: \(paid) / Granted: \(granted))"
+            usedPercent = 0
         }
 
         let identity = ProviderIdentitySnapshot(
             providerID: .deepseek,
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: loginMethod)
+            loginMethod: nil)
+        let balanceWindow = RateWindow(
+            usedPercent: usedPercent,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: balanceDetail)
 
         return UsageSnapshot(
-            primary: nil,
+            primary: balanceWindow,
             secondary: nil,
             tertiary: nil,
             providerCost: nil,

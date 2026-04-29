@@ -74,7 +74,7 @@ struct DeepSeekUsageFetcherTests {
     }
 
     @Test
-    func `depleted icon when is_available false`() throws {
+    func `zero balance prompts top up even when unavailable`() throws {
         let json = """
         {
           "is_available": false,
@@ -91,8 +91,9 @@ struct DeepSeekUsageFetcherTests {
         let snapshot = try DeepSeekUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
         #expect(snapshot.isAvailable == false)
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.primary == nil)
-        #expect(usage.identity?.loginMethod == "Account unavailable")
+        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.primary?.resetDescription == "$0.00 — add credits at platform.deepseek.com")
+        #expect(usage.identity?.loginMethod == nil)
     }
 
     @Test
@@ -112,8 +113,9 @@ struct DeepSeekUsageFetcherTests {
         """
         let snapshot = try DeepSeekUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.primary == nil)
-        #expect(usage.identity?.loginMethod?.contains("$5.00") == true)
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.primary?.resetDescription?.contains("$5.00") == true)
+        #expect(usage.identity?.loginMethod == nil)
     }
 
     @Test
@@ -180,10 +182,10 @@ struct DeepSeekUsageFetcherTests {
         """
         let snapshot = try DeepSeekUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
         let usage = snapshot.toUsageSnapshot()
-        let loginMethod = usage.identity?.loginMethod ?? ""
-        #expect(loginMethod.contains("$50.00"))
-        #expect(loginMethod.contains("$40.00"))
-        #expect(loginMethod.contains("$10.00"))
+        let detail = usage.primary?.resetDescription ?? ""
+        #expect(detail.contains("$50.00"))
+        #expect(detail.contains("$40.00"))
+        #expect(detail.contains("$10.00"))
     }
 
     @Test
@@ -203,7 +205,7 @@ struct DeepSeekUsageFetcherTests {
         """
         let snapshot = try DeepSeekUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
         let usage = snapshot.toUsageSnapshot()
-        let loginMethod = usage.identity?.loginMethod ?? ""
-        #expect(loginMethod.contains("¥"))
+        let detail = usage.primary?.resetDescription ?? ""
+        #expect(detail.contains("¥"))
     }
 }

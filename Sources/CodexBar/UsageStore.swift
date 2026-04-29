@@ -1006,7 +1006,7 @@ extension UsageStore {
         #endif
     }
 
-    nonisolated private static func apiKeyDebugLine(
+    private nonisolated static func apiKeyDebugLine(
         label: String,
         resolution: ProviderTokenResolution?,
         configToken: String?,
