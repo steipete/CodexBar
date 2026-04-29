@@ -790,12 +790,13 @@ extension UsageStore {
             base: processEnvironment,
             provider: .openrouter,
             config: self.settings.providerConfig(for: .openrouter))
-        let deepSeekConfigToken = self.settings.providerConfig(for: .deepseek)?.sanitizedAPIKey
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
-        let deepSeekEnvironment = ProviderConfigEnvironment.applyAPIKeyOverride(
+        let deepSeekHasTokenAccount = self.settings.selectedTokenAccount(for: .deepseek) != nil
+        let deepSeekEnvironment = ProviderRegistry.makeEnvironment(
             base: processEnvironment,
             provider: .deepseek,
-            config: self.settings.providerConfig(for: .deepseek))
+            settings: self.settings,
+            tokenOverride: nil)
         let codexFetcher = self.codexFetcher
         let browserDetection = self.browserDetection
         let claudeDebugExecutionContext = self.currentClaudeDebugExecutionContext()
@@ -882,8 +883,9 @@ extension UsageStore {
                     return Self.apiKeyDebugLine(
                         label: "DEEPSEEK_API_KEY",
                         resolution: ProviderTokenResolver.deepseekResolution(environment: deepSeekEnvironment),
-                        configToken: deepSeekConfigToken,
-                        hasEnvToken: deepSeekHasEnvToken)
+                        configToken: nil,
+                        hasEnvToken: deepSeekHasEnvToken,
+                        hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .jetbrains, .perplexity, .abacus, .mistral:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
@@ -1010,12 +1012,17 @@ extension UsageStore {
         label: String,
         resolution: ProviderTokenResolution?,
         configToken: String?,
-        hasEnvToken: Bool) -> String
+        hasEnvToken: Bool,
+        hasTokenAccount: Bool = false) -> String
     {
         let hasAny = resolution != nil
         let hasConfigToken = !(configToken?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         let source: String = if resolution == nil {
             "none"
+        } else if hasTokenAccount, hasEnvToken {
+            "settings-token-account (overrides env)"
+        } else if hasTokenAccount {
+            "settings-token-account"
         } else if hasConfigToken, hasEnvToken {
             "settings-config (overrides env)"
         } else if hasConfigToken {
