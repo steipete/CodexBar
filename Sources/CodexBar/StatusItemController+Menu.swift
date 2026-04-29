@@ -728,14 +728,19 @@ extension StatusItemController {
             onSelect: { [weak self, weak menu] index in
                 guard let self, let menu else { return }
                 self.settings.setActiveTokenAccountIndex(index, for: display.provider)
-                Task { @MainActor in
-                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        await self.store.refresh()
-                    }
-                }
+                // Immediately rebuild to show the new selection, then refresh data
+                // and rebuild again once fresh data arrives.
                 self.populateMenu(menu, provider: display.provider)
                 self.markMenuFresh(menu)
                 self.applyIcon(phase: nil)
+                Task { @MainActor [weak self, weak menu] in
+                    guard let self else { return }
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refresh()
+                    }
+                    guard let menu else { return }
+                    self.rebuildOpenMenuIfStillVisible(menu, provider: display.provider)
+                }
             })
         let item = NSMenuItem()
         item.view = view
@@ -817,7 +822,9 @@ extension StatusItemController {
         let accounts = self.settings.tokenAccounts(for: provider)
         guard accounts.count > 1 else { return nil }
         let activeIndex = self.settings.tokenAccountsData(for: provider)?.clampedActiveIndex() ?? 0
-        let showAll = self.settings.showAllTokenAccountsInMenu
+        let canShowAllCopilotAccounts = provider == .copilot &&
+            accounts.count <= UsageStore.tokenAccountMenuSnapshotLimit
+        let showAll = canShowAllCopilotAccounts || self.settings.showAllTokenAccountsInMenu
         let snapshots = showAll ? (self.store.accountSnapshots[provider] ?? []) : []
         return TokenAccountMenuDisplay(
             provider: provider,

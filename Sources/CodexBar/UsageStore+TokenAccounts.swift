@@ -18,6 +18,8 @@ struct TokenAccountUsageSnapshot: Identifiable {
 }
 
 extension UsageStore {
+    static let tokenAccountMenuSnapshotLimit = 6
+
     func tokenAccounts(for provider: UsageProvider) -> [ProviderTokenAccount] {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return [] }
         return self.settings.tokenAccounts(for: provider)
@@ -25,6 +27,9 @@ extension UsageStore {
 
     func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
+        if provider == .copilot {
+            return accounts.count > 1
+        }
         return self.settings.showAllTokenAccountsInMenu && accounts.count > 1
     }
 
@@ -73,7 +78,7 @@ extension UsageStore {
         _ accounts: [ProviderTokenAccount],
         selected: ProviderTokenAccount?) -> [ProviderTokenAccount]
     {
-        let limit = 6
+        let limit = Self.tokenAccountMenuSnapshotLimit
         if accounts.count <= limit { return accounts }
         var limited = Array(accounts.prefix(limit))
         if let selected, !limited.contains(where: { $0.id == selected.id }) {
@@ -130,6 +135,12 @@ extension UsageStore {
         let usage: UsageSnapshot?
     }
 
+    func tokenAccountErrorMessage(_ error: any Error) -> String? {
+        guard !(error is CancellationError) else { return nil }
+        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? nil : message
+    }
+
     func recordFetchedTokenAccountPlanUtilizationHistory(
         provider: UsageProvider,
         samples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)],
@@ -164,7 +175,7 @@ extension UsageStore {
             let snapshot = TokenAccountUsageSnapshot(
                 account: account,
                 snapshot: nil,
-                error: error.localizedDescription,
+                error: self.tokenAccountErrorMessage(error),
                 sourceLabel: nil)
             return ResolvedAccountOutcome(snapshot: snapshot, usage: nil)
         }
@@ -200,11 +211,15 @@ extension UsageStore {
                 account: account)
         case let .failure(error):
             await MainActor.run {
+                guard let message = self.tokenAccountErrorMessage(error) else {
+                    self.errors[provider] = nil
+                    return
+                }
                 let hadPriorData = self.snapshots[provider] != nil || fallbackSnapshot != nil
                 let shouldSurface = self.failureGates[provider]?
                     .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
                 if shouldSurface {
-                    self.errors[provider] = error.localizedDescription
+                    self.errors[provider] = message
                     self.snapshots.removeValue(forKey: provider)
                 } else {
                     self.errors[provider] = nil

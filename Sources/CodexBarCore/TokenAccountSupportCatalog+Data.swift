@@ -65,6 +65,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .copilot: TokenAccountSupport(
+            title: "GitHub accounts",
+            subtitle: "Sign in with multiple GitHub accounts via OAuth.",
+            placeholder: "Paste GitHub token…",
+            injection: .environment(key: "COPILOT_API_TOKEN"),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .abacus: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Abacus AI Cookie headers.",

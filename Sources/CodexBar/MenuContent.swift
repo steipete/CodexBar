@@ -110,6 +110,8 @@ struct MenuContent: View {
             self.actions.openStatusPage()
         case .addCodexAccount:
             self.actions.addCodexAccount()
+        case let .addProviderAccount(provider):
+            self.actions.switchAccount(provider)
         case .requestCodexSystemPromotion:
             return
         case let .switchAccount(provider):

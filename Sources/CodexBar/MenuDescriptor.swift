@@ -56,6 +56,7 @@ struct MenuDescriptor {
         case dashboard
         case statusPage
         case addCodexAccount
+        case addProviderAccount(UsageProvider)
         case requestCodexSystemPromotion(UUID)
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
@@ -501,7 +502,7 @@ extension MenuDescriptor.MenuAction {
         case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
-        case .addCodexAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
+        case .addCodexAccount, .addProviderAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
         case .requestCodexSystemPromotion:
             nil
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
