@@ -88,6 +88,27 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
     - Find the browser’s “Safe Storage” key (e.g., “Chrome Safe Storage”, “Brave Safe Storage”, “Firefox”, “Microsoft Edge Safe Storage”).
     - Open the item → **Access Control** → add `CodexBar.app` under “Always allow access by these applications”.
     - This removes the prompt when CodexBar decrypts cookies for that browser.
+  - **How do I disable Keychain access instead?**
+    - Quit CodexBar first. If a prompt loop prevents using Preferences, set the defaults before reopening:
+      ```bash
+      pkill -x CodexBar || pkill -f CodexBar.app || true
+      defaults write com.steipete.codexbar debugDisableKeychainAccess -bool true
+      defaults write com.steipete.codexbar.debug debugDisableKeychainAccess -bool true
+      defaults write com.steipete.codexbar openAIWebAccessEnabled -bool false
+      defaults write com.steipete.codexbar claudeWebExtrasEnabled -bool false
+      defaults write com.steipete.codexbar claudeOAuthKeychainPromptMode -string never
+      ```
+    - For a keychain-less Codex + Claude setup, use CLI sources and disable web cookies in `~/.codexbar/config.json` (merge these fields into an existing config if you already have one):
+      ```json
+      {
+        "version": 1,
+        "providers": [
+          { "id": "codex", "enabled": true, "source": "cli", "cookieSource": "off" },
+          { "id": "claude", "enabled": true, "source": "cli", "cookieSource": "off" }
+        ]
+      }
+      ```
+    - This uses the official `codex` and `claude` CLIs for usage data and disables Codex/Claude browser-cookie paths. If the underlying CLI itself needs credentials, macOS may still prompt for that CLI rather than CodexBar.
 - **Files & Folders prompts (folder/volume access)**: CodexBar launches provider CLIs (codex/claude/gemini/antigravity). If those CLIs read a project directory or external drive, macOS may ask CodexBar for that folder/volume (e.g., Desktop or an external volume). This is driven by the CLI’s working directory, not background disk scanning.
 - **What we do not request**: no Screen Recording, Accessibility, or Automation permissions; no passwords are stored (browser cookies are reused when you opt in).
 
