@@ -730,8 +730,9 @@ extension StatusItemController {
                 self.settings.setActiveTokenAccountIndex(index, for: display.provider)
                 Task { @MainActor in
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        await self.store.refresh()
+                        await self.store.refreshProvider(display.provider)
                     }
+                    self.refreshOpenMenuIfStillVisible(menu, provider: display.provider)
                 }
                 self.populateMenu(menu, provider: display.provider)
                 self.markMenuFresh(menu)
