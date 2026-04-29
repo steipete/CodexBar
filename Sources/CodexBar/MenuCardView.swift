@@ -88,6 +88,22 @@ struct UsageMenuCardView: View {
             let spendLine: String
         }
 
+        /// Grouped Token Plan rows (`model_remains[]`) for MiniMax menu card.
+        struct MiniMaxSection {
+            let title: String
+            let rows: [MiniMaxRow]
+        }
+
+        struct MiniMaxRow: Identifiable, Equatable {
+            let id: String
+            let title: String
+            let percent: Double?
+            let percentStyle: PercentStyle
+            let resetText: String?
+            let detailText: String?
+            let secondaryLine: String?
+        }
+
         let provider: UsageProvider
         let providerName: String
         let email: String
@@ -95,6 +111,8 @@ struct UsageMenuCardView: View {
         let subtitleStyle: SubtitleStyle
         let planText: String?
         let metrics: [Metric]
+        /// Non-nil only for MiniMax when `model_remains` has more than one row or weekly detail.
+        let minimaxSections: [MiniMaxSection]?
         let usageNotes: [String]
         let creditsText: String?
         let creditsRemaining: Double?
@@ -108,13 +126,12 @@ struct UsageMenuCardView: View {
 
     let model: Model
     let width: CGFloat
+    let onMiniMaxLayoutChange: (() -> Void)?
+    let miniMaxVisibleScreenHeight: CGFloat?
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     static func popupMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
-        if provider == .openrouter, metric.id == "primary" {
-            return "API key limit"
-        }
-        return metric.title
+        provider == .openrouter && metric.id == "primary" ? "API key limit" : metric.title
     }
 
     var body: some View {
@@ -125,7 +142,8 @@ struct UsageMenuCardView: View {
                 Divider()
             }
 
-            if self.model.metrics.isEmpty {
+            let hasMiniMaxSections = self.model.minimaxSections?.isEmpty == false
+            if self.model.metrics.isEmpty, !hasMiniMaxSections {
                 if !self.model.usageNotes.isEmpty {
                     UsageNotesContent(notes: self.model.usageNotes)
                 } else if let placeholder = self.model.placeholder {
@@ -134,22 +152,53 @@ struct UsageMenuCardView: View {
                         .font(.subheadline)
                 }
             } else {
-                let hasUsage = !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty
+                let hasUsage = !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty || hasMiniMaxSections
                 let hasCredits = self.model.creditsText != nil
                 let hasProviderCost = self.model.providerCost != nil
                 let hasCost = self.model.tokenUsage != nil || hasProviderCost
 
                 VStack(alignment: .leading, spacing: 12) {
                     if hasUsage {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(self.model.metrics, id: \.id) { metric in
-                                MetricRow(
-                                    metric: metric,
-                                    title: Self.popupMetricTitle(provider: self.model.provider, metric: metric),
-                                    progressColor: self.model.progressColor)
-                            }
-                            if !self.model.usageNotes.isEmpty {
-                                UsageNotesContent(notes: self.model.usageNotes)
+                        Group {
+                            if hasMiniMaxSections {
+                                MiniMaxCappedScrollView(
+                                    maxHeight: MiniMaxUILayoutMetrics
+                                        .menuUsageScrollMaxHeight(visibleScreenHeight: self.miniMaxVisibleScreenHeight))
+                                {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        ForEach(self.model.metrics, id: \.id) { metric in
+                                            MetricRow(
+                                                metric: metric,
+                                                title: Self.popupMetricTitle(
+                                                    provider: self.model.provider,
+                                                    metric: metric),
+                                                progressColor: self.model.progressColor)
+                                        }
+                                        if !self.model.usageNotes.isEmpty {
+                                            UsageNotesContent(notes: self.model.usageNotes)
+                                        }
+                                        if let sections = self.model.minimaxSections, !sections.isEmpty {
+                                            MiniMaxTokenPlanSectionsView(
+                                                sections: sections,
+                                                progressColor: self.model.progressColor,
+                                                onLayoutChange: self.onMiniMaxLayoutChange)
+                                        }
+                                    }
+                                }
+                            } else {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    ForEach(self.model.metrics, id: \.id) { metric in
+                                        MetricRow(
+                                            metric: metric,
+                                            title: Self.popupMetricTitle(
+                                                provider: self.model.provider,
+                                                metric: metric),
+                                            progressColor: self.model.progressColor)
+                                    }
+                                    if !self.model.usageNotes.isEmpty {
+                                        UsageNotesContent(notes: self.model.usageNotes)
+                                    }
+                                }
                             }
                         }
                     }
@@ -216,7 +265,8 @@ struct UsageMenuCardView: View {
     private var hasDetails: Bool {
         !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty || self.model.placeholder != nil ||
             self.model.tokenUsage != nil ||
-            self.model.providerCost != nil
+            self.model.providerCost != nil ||
+            (self.model.minimaxSections?.isEmpty == false)
     }
 }
 
@@ -456,28 +506,22 @@ struct UsageMenuCardUsageSectionView: View {
     let showBottomDivider: Bool
     let bottomPadding: CGFloat
     let width: CGFloat
+    let onMiniMaxLayoutChange: (() -> Void)?
+    let miniMaxVisibleScreenHeight: CGFloat?
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
+        let hasMiniMaxSections = self.model.minimaxSections?.isEmpty == false
         VStack(alignment: .leading, spacing: 12) {
-            if self.model.metrics.isEmpty {
-                if !self.model.usageNotes.isEmpty {
-                    UsageNotesContent(notes: self.model.usageNotes)
-                } else if let placeholder = self.model.placeholder {
-                    Text(placeholder)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .font(.subheadline)
+            if hasMiniMaxSections {
+                MiniMaxCappedScrollView(
+                    maxHeight: MiniMaxUILayoutMetrics
+                        .menuUsageScrollMaxHeight(visibleScreenHeight: self.miniMaxVisibleScreenHeight))
+                {
+                    self.usageContent(hasMiniMaxSections: hasMiniMaxSections)
                 }
             } else {
-                ForEach(self.model.metrics, id: \.id) { metric in
-                    MetricRow(
-                        metric: metric,
-                        title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
-                        progressColor: self.model.progressColor)
-                }
-                if !self.model.usageNotes.isEmpty {
-                    UsageNotesContent(notes: self.model.usageNotes)
-                }
+                self.usageContent(hasMiniMaxSections: hasMiniMaxSections)
             }
             if self.showBottomDivider {
                 Divider()
@@ -487,6 +531,35 @@ struct UsageMenuCardUsageSectionView: View {
         .padding(.top, 10)
         .padding(.bottom, self.bottomPadding)
         .frame(width: self.width, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func usageContent(hasMiniMaxSections: Bool) -> some View {
+        if self.model.metrics.isEmpty, !hasMiniMaxSections {
+            if !self.model.usageNotes.isEmpty {
+                UsageNotesContent(notes: self.model.usageNotes)
+            } else if let placeholder = self.model.placeholder {
+                Text(placeholder)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .font(.subheadline)
+            }
+        } else {
+            ForEach(self.model.metrics, id: \.id) { metric in
+                MetricRow(
+                    metric: metric,
+                    title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
+                    progressColor: self.model.progressColor)
+            }
+            if !self.model.usageNotes.isEmpty {
+                UsageNotesContent(notes: self.model.usageNotes)
+            }
+        }
+        if let sections = self.model.minimaxSections, !sections.isEmpty {
+            MiniMaxTokenPlanSectionsView(
+                sections: sections,
+                progressColor: self.model.progressColor,
+                onLayoutChange: self.onMiniMaxLayoutChange)
+        }
     }
 }
 
@@ -527,16 +600,13 @@ private struct CreditsBarContent: View {
     let hintCopyText: String?
     let progressColor: Color
     @Environment(\.menuItemHighlighted) private var isHighlighted
-
     private var percentLeft: Double? {
         guard let creditsRemaining else { return nil }
-        let percent = (creditsRemaining / Self.fullScaleTokens) * 100
-        return min(100, max(0, percent))
+        return min(100, max(0, (creditsRemaining / Self.fullScaleTokens) * 100))
     }
 
     private var scaleText: String {
-        let scale = UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))
-        return "\(scale) tokens"
+        "\(UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))) tokens"
     }
 
     var body: some View {
@@ -756,6 +826,7 @@ extension UsageMenuCardView.Model {
             lastError: input.lastError)
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
         let placeholder = input.snapshot == nil && !input.isRefreshing && input.lastError == nil ? "No usage yet" : nil
+        let minimaxSections = Self.miniMaxSections(input: input)
 
         return UsageMenuCardView.Model(
             provider: input.provider,
@@ -765,6 +836,7 @@ extension UsageMenuCardView.Model {
             subtitleStyle: subtitle.style,
             planText: planText,
             metrics: metrics,
+            minimaxSections: minimaxSections,
             usageNotes: usageNotes,
             creditsText: creditsText,
             creditsRemaining: input.credits?.remaining,
@@ -1517,7 +1589,7 @@ extension UsageMenuCardView.Model {
             spendLine: "\(periodLabel): \(used) / \(limit)")
     }
 
-    private static func clamped(_ value: Double) -> Double {
+    static func clamped(_ value: Double) -> Double {
         min(100, max(0, value))
     }
 
@@ -1532,45 +1604,5 @@ extension UsageMenuCardView.Model {
         now: Date) -> String?
     {
         UsageFormatter.resetLine(for: window, style: style, now: now)
-    }
-}
-
-// MARK: - Copy-on-click overlay
-
-private struct ClickToCopyOverlay: NSViewRepresentable {
-    let copyText: String
-
-    func makeNSView(context: Context) -> ClickToCopyView {
-        ClickToCopyView(copyText: self.copyText)
-    }
-
-    func updateNSView(_ nsView: ClickToCopyView, context: Context) {
-        nsView.copyText = self.copyText
-    }
-}
-
-private final class ClickToCopyView: NSView {
-    var copyText: String
-
-    init(copyText: String) {
-        self.copyText = copyText
-        super.init(frame: .zero)
-        self.wantsLayer = false
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        true
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        _ = event
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(self.copyText, forType: .string)
     }
 }

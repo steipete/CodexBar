@@ -393,6 +393,15 @@ struct MiniMaxModelRemains: Decodable {
     let startTime: Int?
     let endTime: Int?
     let remainsTime: Int?
+    let currentWeeklyTotalCount: Int?
+    let currentWeeklyUsageCount: Int?
+    let weeklyEndTime: Int?
+    let weeklyRemainsTime: Int?
+    let modelName: String?
+    let modelType: String?
+    let modelId: String?
+    let modelTitle: String?
+    let displayName: String?
 
     private enum CodingKeys: String, CodingKey {
         case currentIntervalTotalCount = "current_interval_total_count"
@@ -400,6 +409,16 @@ struct MiniMaxModelRemains: Decodable {
         case startTime = "start_time"
         case endTime = "end_time"
         case remainsTime = "remains_time"
+        case currentWeeklyTotalCount = "current_weekly_total_count"
+        case currentWeeklyUsageCount = "current_weekly_usage_count"
+        case weeklyEndTime = "weekly_end_time"
+        case weeklyRemainsTime = "weekly_remains_time"
+        case modelName = "model_name"
+        case modelType = "model_type"
+        case modelId = "model_id"
+        case modelTitle = "model_title"
+        case displayName = "name"
+        case title
     }
 
     init(from decoder: Decoder) throws {
@@ -409,6 +428,19 @@ struct MiniMaxModelRemains: Decodable {
         self.startTime = MiniMaxDecoding.decodeInt(container, forKey: .startTime)
         self.endTime = MiniMaxDecoding.decodeInt(container, forKey: .endTime)
         self.remainsTime = MiniMaxDecoding.decodeInt(container, forKey: .remainsTime)
+        self.currentWeeklyTotalCount = MiniMaxDecoding.decodeInt(container, forKey: .currentWeeklyTotalCount)
+        self.currentWeeklyUsageCount = MiniMaxDecoding.decodeInt(container, forKey: .currentWeeklyUsageCount)
+        self.weeklyEndTime = MiniMaxDecoding.decodeInt(container, forKey: .weeklyEndTime)
+        self.weeklyRemainsTime = MiniMaxDecoding.decodeInt(container, forKey: .weeklyRemainsTime)
+        self.modelName = try container.decodeIfPresent(String.self, forKey: .modelName)
+        self.modelType = try container.decodeIfPresent(String.self, forKey: .modelType)
+        self.modelId = try container.decodeIfPresent(String.self, forKey: .modelId)
+        self.modelTitle = try container.decodeIfPresent(String.self, forKey: .modelTitle)
+        if let name = try container.decodeIfPresent(String.self, forKey: .displayName) {
+            self.displayName = name
+        } else {
+            self.displayName = try container.decodeIfPresent(String.self, forKey: .title)
+        }
     }
 }
 
@@ -487,7 +519,8 @@ enum MiniMaxUsageParser {
             windowMinutes: available?.windowMinutes,
             usedPercent: usedPercent,
             resetsAt: resetsAt,
-            updatedAt: now)
+            updatedAt: now,
+            models: [])
     }
 
     static func parseCodingPlanRemains(
@@ -504,7 +537,8 @@ enum MiniMaxUsageParser {
             throw MiniMaxUsageError.apiError(message)
         }
 
-        guard let first = payload.data.modelRemains.first else {
+        let rows = payload.data.modelRemains
+        guard let first = rows.first else {
             throw MiniMaxUsageError.parseFailed("Missing coding plan data.")
         }
 
@@ -533,6 +567,23 @@ enum MiniMaxUsageParser {
             nil
         }
 
+        let baseIdentifiers = rows.enumerated().map { index, row in
+            self.modelIdentifierBase(row: row, index: index)
+        }
+        var seenIdentifierCounts: [String: Int] = [:]
+        let identifiers = baseIdentifiers.map { baseIdentifier in
+            let seen = seenIdentifierCounts[baseIdentifier, default: 0]
+            seenIdentifierCounts[baseIdentifier] = seen + 1
+            return seen == 0 ? baseIdentifier : "\(baseIdentifier)#\(seen)"
+        }
+
+        let models = rows.enumerated().map { index, row in
+            self.buildModelUsage(
+                row: row,
+                identifier: identifiers[index],
+                now: now)
+        }
+
         return MiniMaxUsageSnapshot(
             planName: planName,
             availablePrompts: total,
@@ -541,7 +592,129 @@ enum MiniMaxUsageParser {
             windowMinutes: windowMinutes,
             usedPercent: usedPercent,
             resetsAt: resetsAt,
-            updatedAt: now)
+            updatedAt: now,
+            models: models)
+    }
+
+    private static func buildModelUsage(
+        row: MiniMaxModelRemains,
+        identifier: String,
+        now: Date) -> MiniMaxModelUsage
+    {
+        let total = row.currentIntervalTotalCount
+        let remaining = row.currentIntervalUsageCount
+        let usedPercent = self.usedPercent(total: total, remaining: remaining)
+        let startDate = self.dateFromEpoch(row.startTime)
+        let endDate = self.dateFromEpoch(row.endTime)
+        let windowMinutes = self.windowMinutes(start: startDate, end: endDate)
+        let resetsAt = self.resetsAt(end: endDate, remains: row.remainsTime, now: now)
+
+        let currentPrompts: Int? = if let total, let remaining {
+            max(0, total - remaining)
+        } else {
+            nil
+        }
+
+        // API 在无周限套餐上可能返回周限占位 0（仅 total、仅 remaining、或两者均为 0）。双 nil 表示未提供周限字段，不归一化。
+        let rawWeeklyTotal = row.currentWeeklyTotalCount
+        let rawWeeklyRemaining = row.currentWeeklyUsageCount
+        let hasAnyWeeklyField = rawWeeklyTotal != nil || rawWeeklyRemaining != nil
+        let noWeeklyCap = hasAnyWeeklyField
+            && (rawWeeklyTotal ?? 0) == 0
+            && (rawWeeklyRemaining ?? 0) == 0
+        let weeklyTotal: Int? = noWeeklyCap ? nil : rawWeeklyTotal
+        let weeklyRemaining: Int? = noWeeklyCap ? nil : rawWeeklyRemaining
+        let weeklyUsed: Int? = if let weeklyTotal, let weeklyRemaining {
+            max(0, weeklyTotal - weeklyRemaining)
+        } else {
+            nil
+        }
+        let weeklyUsedPercent = self.usedPercent(total: weeklyTotal, remaining: weeklyRemaining)
+        let weeklyEndDate = self.dateFromEpoch(row.weeklyEndTime)
+        let weeklyResetsAt: Date? = if noWeeklyCap {
+            nil
+        } else {
+            self.resetsAt(end: weeklyEndDate, remains: row.weeklyRemainsTime, now: now)
+        }
+
+        let displayName = self.modelDisplayName(row: row, identifier: identifier)
+        let windowKind = self.classifyWindowKind(
+            windowMinutes: windowMinutes,
+            start: startDate,
+            end: endDate,
+            hasWeeklyQuota: weeklyTotal != nil || weeklyRemaining != nil,
+            hasIntervalQuota: total != nil || remaining != nil)
+
+        return MiniMaxModelUsage(
+            identifier: identifier,
+            displayName: displayName,
+            availablePrompts: total,
+            currentPrompts: currentPrompts,
+            remainingPrompts: remaining,
+            windowMinutes: windowMinutes,
+            usedPercent: usedPercent,
+            resetsAt: resetsAt,
+            weeklyTotal: weeklyTotal,
+            weeklyUsed: weeklyUsed,
+            weeklyRemaining: weeklyRemaining,
+            weeklyUsedPercent: weeklyUsedPercent,
+            weeklyResetsAt: weeklyResetsAt,
+            window: windowKind)
+    }
+
+    private static func modelIdentifierBase(row: MiniMaxModelRemains, index: Int) -> String {
+        let primary = [
+            row.modelId,
+            row.modelName,
+            row.modelType,
+            row.modelTitle,
+            row.displayName,
+        ]
+        for candidate in primary {
+            let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return "model-\(index + 1)"
+    }
+
+    private static func modelDisplayName(row: MiniMaxModelRemains, identifier: String) -> String {
+        let candidates = [
+            row.modelName,
+            row.displayName,
+            row.modelTitle,
+            row.modelType,
+            row.modelId,
+        ]
+        for candidate in candidates {
+            let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return identifier
+    }
+
+    private static func classifyWindowKind(
+        windowMinutes: Int?,
+        start: Date?,
+        end: Date?,
+        hasWeeklyQuota: Bool,
+        hasIntervalQuota: Bool) -> MiniMaxModelUsage.WindowKind
+    {
+        if let windowMinutes, windowMinutes == 300 {
+            return .fiveHour
+        }
+        if let windowMinutes, windowMinutes == 24 * 60 {
+            return .daily
+        }
+        if let start, let end {
+            let mins = Int(end.timeIntervalSince(start) / 60)
+            if mins >= 1380, mins <= 1500 {
+                return .daily
+            }
+        }
+        if hasWeeklyQuota, !hasIntervalQuota {
+            return .weekly
+        }
+        return .other(minutes: windowMinutes)
     }
 
     private static func usedPercent(total: Int?, remaining: Int?) -> Double? {
