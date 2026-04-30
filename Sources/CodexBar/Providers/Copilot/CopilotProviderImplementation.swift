@@ -20,7 +20,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .copilot(context.settings.copilotSettingsSnapshot())
+        .copilot(context.settings.copilotSettingsSnapshot(tokenOverride: context.tokenOverride))
     }
 
     @MainActor

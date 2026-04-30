@@ -165,7 +165,11 @@ public struct ProviderSettingsSnapshot: Sendable {
     }
 
     public struct CopilotProviderSettings: Sendable {
-        public init() {}
+        public let apiToken: String?
+
+        public init(apiToken: String? = nil) {
+            self.apiToken = apiToken
+        }
     }
 
     public struct KiloProviderSettings: Sendable {

@@ -117,8 +117,21 @@ struct CopilotEnvironmentPrecedenceTests {
             provider: .copilot,
             settings: settings,
             tokenOverride: override)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: override)
 
         #expect(env["COPILOT_API_TOKEN"] == "new_account_token")
+        #expect(snapshot.copilot?.apiToken == "new_account_token")
+    }
+
+    @Test
+    func `selected token account is included in copilot settings snapshot`() {
+        let settings = Self.makeSettingsStore(suite: "copilot-settings-snapshot-account")
+        settings.copilotAPIToken = "old_config_token"
+        settings.addTokenAccount(provider: .copilot, label: "new", token: "new_account_token")
+
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+
+        #expect(snapshot.copilot?.apiToken == "new_account_token")
     }
 
     @Test
@@ -131,8 +144,10 @@ struct CopilotEnvironmentPrecedenceTests {
             provider: .copilot,
             settings: settings,
             tokenOverride: nil)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
 
         #expect(env["COPILOT_API_TOKEN"] == "config_token")
+        #expect(snapshot.copilot?.apiToken == "config_token")
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {
