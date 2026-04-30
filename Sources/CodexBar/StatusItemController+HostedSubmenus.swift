@@ -62,7 +62,8 @@ extension StatusItemController {
 
     @discardableResult
     func appendUsageBreakdownChartItem(to submenu: NSMenu, width: CGFloat) -> Bool {
-        let breakdown = self.store.openAIDashboard?.usageBreakdown ?? []
+        let breakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+            from: self.store.openAIDashboard?.usageBreakdown ?? [])
         guard !breakdown.isEmpty else { return false }
 
         if !Self.menuCardRenderingEnabled {

@@ -1295,7 +1295,9 @@ extension StatusItemController {
     }
 
     private func makeUsageBreakdownSubmenu() -> NSMenu? {
-        guard !(self.store.openAIDashboard?.usageBreakdown ?? []).isEmpty else { return nil }
+        let breakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+            from: self.store.openAIDashboard?.usageBreakdown ?? [])
+        guard !breakdown.isEmpty else { return nil }
         return self.makeHostedSubviewPlaceholderMenu(chartID: Self.usageBreakdownChartID)
     }
 

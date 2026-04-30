@@ -98,6 +98,22 @@ final class OpenAIDashboardWebViewCache {
       }
     })();
     """
+    private let preferredLanguageScript = """
+    (() => {
+      const define = (target, name, value) => {
+        try {
+          Object.defineProperty(target, name, {
+            get: () => value,
+            configurable: true
+          });
+        } catch {}
+      };
+      define(Navigator.prototype, 'language', 'en-US');
+      define(Navigator.prototype, 'languages', ['en-US', 'en']);
+      define(navigator, 'language', 'en-US');
+      define(navigator, 'languages', ['en-US', 'en']);
+    })();
+    """
 
     private func releaseCachedEntry(_ entry: Entry, preserveLoadedPage: Bool) {
         entry.isBusy = false
@@ -431,6 +447,12 @@ final class OpenAIDashboardWebViewCache {
     private func makeWebView(websiteDataStore: WKWebsiteDataStore) -> (WKWebView, OffscreenWebViewHost) {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = websiteDataStore
+        let userContentController = WKUserContentController()
+        userContentController.addUserScript(WKUserScript(
+            source: self.preferredLanguageScript,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false))
+        config.userContentController = userContentController
         if #available(macOS 14.0, *) {
             config.preferences.inactiveSchedulingPolicy = .suspend
         }
@@ -471,7 +493,7 @@ final class OpenAIDashboardWebViewCache {
             webView.navigationDelegate = delegate
             webView.codexNavigationDelegate = delegate
             delegate.armTimeout(seconds: timeout)
-            _ = webView.load(URLRequest(url: usageURL))
+            _ = webView.load(OpenAIDashboardFetcher.usageURLRequest(url: usageURL))
         }
     }
 

@@ -216,4 +216,81 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         #expect(!OpenAIDashboardFetcher.isUsageRoute("https://chatgpt.com/codex"))
         #expect(!OpenAIDashboardFetcher.isUsageRoute(nil))
     }
+
+    @Test
+    func `dashboard requests prefer English localization`() throws {
+        let url = try #require(URL(string: "https://chatgpt.com/codex/cloud/settings/analytics#usage"))
+        let request = OpenAIDashboardFetcher.usageURLRequest(url: url)
+        #expect(request.value(forHTTPHeaderField: "Accept-Language") == "en-US,en;q=0.9")
+    }
+
+    @Test
+    func `usage api request carries cookies and English localization`() {
+        let request = OpenAIDashboardFetcher.dashboardUsageAPIRequest(cookieHeader: "a=b")
+        #expect(request.url?.absoluteString == "https://chatgpt.com/backend-api/wham/usage")
+        #expect(request.value(forHTTPHeaderField: "Cookie") == "a=b")
+        #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+        #expect(request.value(forHTTPHeaderField: "Accept-Language") == "en-US,en;q=0.9")
+    }
+
+    @Test
+    func `identity api request carries cookies and English localization`() throws {
+        let url = try #require(URL(string: "https://chatgpt.com/backend-api/me"))
+        let request = OpenAIDashboardFetcher.dashboardIdentityAPIRequest(url: url, cookieHeader: "a=b")
+
+        #expect(request.url?.absoluteString == "https://chatgpt.com/backend-api/me")
+        #expect(request.value(forHTTPHeaderField: "Cookie") == "a=b")
+        #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+        #expect(request.value(forHTTPHeaderField: "Accept-Language") == "en-US,en;q=0.9")
+    }
+
+    @Test
+    func `usage api data maps language independent rate limits and credits`() throws {
+        let json = """
+        {
+          "plan_type": "pro",
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 12,
+              "reset_at": 1700003600,
+              "limit_window_seconds": 18000
+            },
+            "secondary_window": {
+              "used_percent": 34,
+              "reset_at": 1700604800,
+              "limit_window_seconds": 604800
+            }
+          },
+          "credits": {
+            "has_credits": true,
+            "unlimited": false,
+            "balance": 42.5
+          }
+        }
+        """
+        let response = try CodexOAuthUsageFetcher._decodeUsageResponseForTesting(Data(json.utf8))
+        let data = OpenAIDashboardFetcher.dashboardAPIData(from: response)
+
+        #expect(data.primaryLimit?.usedPercent == 12)
+        #expect(data.primaryLimit?.windowMinutes == 300)
+        #expect(data.secondaryLimit?.usedPercent == 34)
+        #expect(data.secondaryLimit?.windowMinutes == 10080)
+        #expect(data.creditsRemaining == 42.5)
+        #expect(data.accountPlan == "pro")
+        #expect(data.hasUsageData)
+    }
+
+    @Test
+    func `find first email searches nested api payloads`() {
+        let json = """
+        {
+          "accounts": [
+            { "profile": { "name": "Test" } },
+            { "profile": { "email": "nested@example.com" } }
+          ]
+        }
+        """
+
+        #expect(OpenAIDashboardFetcher.findFirstEmail(inJSONData: Data(json.utf8)) == "nested@example.com")
+    }
 }

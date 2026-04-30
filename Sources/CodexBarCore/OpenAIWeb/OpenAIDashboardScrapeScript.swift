@@ -227,9 +227,14 @@ let openAIDashboardScrapeScript = """
         }
         return null;
       };
+      const isSkillUsageServiceKey = (raw) => {
+        const key = raw === null || raw === undefined ? '' : String(raw).trim().toLowerCase();
+        return key.startsWith('skillusage:');
+      };
       const displayNameForUsageServiceKey = (raw) => {
         const key = raw === null || raw === undefined ? '' : String(raw).trim();
         if (!key) return key;
+        if (isSkillUsageServiceKey(key)) return null;
         if (key.toUpperCase() === key && key.length <= 6) return key;
         const lower = key.toLowerCase();
         if (lower === 'cli') return 'CLI';
@@ -237,20 +242,46 @@ let openAIDashboardScrapeScript = """
         const words = lower.replace(/[_-]+/g, ' ').split(' ').filter(Boolean);
         return words.map(w => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       };
-      const usageBreakdownJSON = (() => {
-        try {
-          if (window.__codexbarUsageBreakdownJSON) return window.__codexbarUsageBreakdownJSON;
-
-          const sections = Array.from(document.querySelectorAll('section'));
-          const usageSection = sections.find(s => {
-            const h2 = s.querySelector('h2');
-            return h2 && textOf(h2).toLowerCase().startsWith('usage breakdown');
-          });
-          if (!usageSection) return null;
-
-          const legendMap = {};
+      const isLikelyCodexUsageService = (raw) => {
+        const service = raw === null || raw === undefined ? '' : String(raw).trim().toLowerCase();
+        return (
+          service === 'cli' ||
+          service === 'desktop' ||
+          service === 'desktop app' ||
+          service === 'vscode' ||
+          service === 'vs code' ||
+          service === 'unknown' ||
+          (service.includes('github') && service.includes('review'))
+        );
+      };
+      const usageChartRootForPath = (path) => {
+        if (!path || !path.closest) return null;
+        return (
+          path.closest('.recharts-wrapper') ||
+          path.closest('svg.recharts-surface') ||
+          path.closest('section') ||
+          path.parentElement ||
+          null
+        );
+      };
+      const uniqueUsageChartRoots = (paths) => {
+        const roots = [];
+        for (const path of paths) {
+          const root = usageChartRootForPath(path);
+          if (root && !roots.includes(root)) roots.push(root);
+        }
+        return roots;
+      };
+      const legendMapForUsageChartRoot = (root) => {
+        const legendMap = {};
+        const scopes = [
+          root,
+          root && root.parentElement,
+          root && root.closest ? root.closest('section') : null
+        ].filter(Boolean);
+        for (const scope of scopes) {
           try {
-            const legendItems = Array.from(usageSection.querySelectorAll('div[title]'));
+            const legendItems = Array.from(scope.querySelectorAll('div[title]'));
             for (const item of legendItems) {
               const title = item.getAttribute('title') ? String(item.getAttribute('title')).trim() : '';
               const square = item.querySelector('div[style*=\"background-color\"]');
@@ -261,11 +292,90 @@ let openAIDashboardScrapeScript = """
               if (title && hex) legendMap[hex] = title;
             }
           } catch {}
+          if (Object.keys(legendMap).length > 0) break;
+        }
+        return legendMap;
+      };
+      const parseUsageBreakdownFromChartPaths = (paths, legendMap) => {
+        const totalsByDay = {}; // day -> service -> value
+        const addValue = (day, service, value) => {
+          if (!day || !service || isSkillUsageServiceKey(service)) return false;
+          if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return false;
+          if (!totalsByDay[day]) totalsByDay[day] = {};
+          totalsByDay[day][service] = (totalsByDay[day][service] || 0) + value;
+          return true;
+        };
+        let pointCount = 0;
+        for (const path of paths) {
+          const meta = barMetaFromElement(path) || barMetaFromElement(path.parentElement) || null;
+          if (!meta) continue;
 
-          const totalsByDay = {}; // day -> service -> value
-          const paths = Array.from(usageSection.querySelectorAll('g.recharts-bar-rectangle path.recharts-rectangle'));
+          const payload = meta.payload || null;
+          const day = dayKeyFromPayload(payload);
+          if (!day) continue;
+
+          const valuesObj = (payload && payload.values && typeof payload.values === 'object') ? payload.values : null;
+          if (valuesObj) {
+            for (const [k, v] of Object.entries(valuesObj)) {
+              const service = displayNameForUsageServiceKey(k);
+              if (addValue(day, service, v)) pointCount++;
+            }
+            continue;
+          }
+
+          let value = null;
+          if (typeof meta.value === 'number' && Number.isFinite(meta.value)) value = meta.value;
+          if (value === null && typeof meta.value === 'string') {
+            const v = parseFloat(meta.value.replace(/,/g, ''));
+            if (Number.isFinite(v)) value = v;
+          }
+          if (value === null) continue;
+
+          const fill = parseHexColor(meta.fill || path.getAttribute('fill'));
+          const service =
+            (fill && legendMap[fill]) ||
+            (typeof meta.name === 'string' && meta.name) ||
+            null;
+          if (addValue(day, service, value)) pointCount++;
+        }
+
+        const dayKeys = Object.keys(totalsByDay)
+          .filter(day => Object.keys(totalsByDay[day] || {}).length > 0)
+          .sort((a, b) => b.localeCompare(a))
+          .slice(0, 30);
+        const breakdown = dayKeys.map(day => {
+          const servicesMap = totalsByDay[day] || {};
+          const services = Object.keys(servicesMap).map(service => ({
+            service,
+            creditsUsed: servicesMap[service]
+          })).sort((a, b) => {
+            if (a.creditsUsed === b.creditsUsed) return a.service.localeCompare(b.service);
+            return b.creditsUsed - a.creditsUsed;
+          });
+          const totalCreditsUsed = services.reduce((sum, s) => sum + (Number(s.creditsUsed) || 0), 0);
+          return { day, services, totalCreditsUsed };
+        });
+        const services = Array.from(new Set(breakdown.flatMap(day => day.services.map(service => service.service))));
+        const totalCreditsUsed = breakdown.reduce((sum, day) => sum + (Number(day.totalCreditsUsed) || 0), 0);
+        const likelyCodexServiceCount = services.filter(isLikelyCodexUsageService).length;
+        return {
+          breakdown,
+          pointCount,
+          services,
+          totalCreditsUsed,
+          likelyCodexServiceCount,
+          score: likelyCodexServiceCount * 1000 + services.length * 100 + pointCount + totalCreditsUsed / 1000
+        };
+      };
+      const usageBreakdownJSON = (() => {
+        try {
+          if (window.__codexbarUsageBreakdownJSON) return window.__codexbarUsageBreakdownJSON;
+
+          const paths = Array.from(document.querySelectorAll('g.recharts-bar-rectangle path.recharts-rectangle'));
           let debug = {
             pathCount: paths.length,
+            chartCount: 0,
+            candidateSummaries: [],
             sampleReactKeys: null,
             sampleMetaKeys: null,
             samplePayloadKeys: null,
@@ -292,59 +402,29 @@ let openAIDashboardScrapeScript = """
               }
             }
           } catch {}
-          for (const path of paths) {
-            const meta = barMetaFromElement(path) || barMetaFromElement(path.parentElement) || null;
-            if (!meta) continue;
 
-            const payload = meta.payload || null;
-            const day = dayKeyFromPayload(payload);
-            if (!day) continue;
+          const roots = uniqueUsageChartRoots(paths);
+          debug.chartCount = roots.length;
+          const candidates = roots.map(root => {
+            const chartPaths = paths.filter(path => usageChartRootForPath(path) === root);
+            const parsed = parseUsageBreakdownFromChartPaths(chartPaths, legendMapForUsageChartRoot(root));
+            return {
+              root,
+              pathCount: chartPaths.length,
+              ...parsed
+            };
+          }).filter(candidate => candidate.breakdown.length > 0);
+          candidates.sort((a, b) => b.score - a.score);
+          debug.candidateSummaries = candidates.slice(0, 6).map(candidate => ({
+            pathCount: candidate.pathCount,
+            dayCount: candidate.breakdown.length,
+            pointCount: candidate.pointCount,
+            serviceCount: candidate.services.length,
+            likelyCodexServiceCount: candidate.likelyCodexServiceCount,
+            services: candidate.services.slice(0, 8)
+          }));
 
-            const valuesObj = (payload && payload.values && typeof payload.values === 'object') ? payload.values : null;
-            if (valuesObj) {
-              if (!totalsByDay[day]) totalsByDay[day] = {};
-              for (const [k, v] of Object.entries(valuesObj)) {
-                if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) continue;
-                const service = displayNameForUsageServiceKey(k);
-                if (!service) continue;
-                totalsByDay[day][service] = (totalsByDay[day][service] || 0) + v;
-              }
-              continue;
-            }
-
-            let value = null;
-            if (typeof meta.value === 'number' && Number.isFinite(meta.value)) value = meta.value;
-            if (value === null && typeof meta.value === 'string') {
-              const v = parseFloat(meta.value.replace(/,/g, ''));
-              if (Number.isFinite(v)) value = v;
-            }
-            if (value === null) continue;
-
-            const fill = parseHexColor(meta.fill || path.getAttribute('fill'));
-            const service =
-              (fill && legendMap[fill]) ||
-              (typeof meta.name === 'string' && meta.name) ||
-              null;
-            if (!service) continue;
-
-            if (!totalsByDay[day]) totalsByDay[day] = {};
-            totalsByDay[day][service] = (totalsByDay[day][service] || 0) + value;
-          }
-
-          const dayKeys = Object.keys(totalsByDay).sort((a, b) => b.localeCompare(a)).slice(0, 30);
-          const breakdown = dayKeys.map(day => {
-            const servicesMap = totalsByDay[day] || {};
-            const services = Object.keys(servicesMap).map(service => ({
-              service,
-              creditsUsed: servicesMap[service]
-            })).sort((a, b) => {
-              if (a.creditsUsed === b.creditsUsed) return a.service.localeCompare(b.service);
-              return b.creditsUsed - a.creditsUsed;
-            });
-            const totalCreditsUsed = services.reduce((sum, s) => sum + (Number(s.creditsUsed) || 0), 0);
-            return { day, services, totalCreditsUsed };
-          });
-
+          const breakdown = candidates[0] ? candidates[0].breakdown : [];
           const json = (breakdown.length > 0) ? JSON.stringify(breakdown) : null;
           window.__codexbarUsageBreakdownJSON = json;
           window.__codexbarUsageBreakdownDebug = json ? null : JSON.stringify(debug);
@@ -395,6 +475,16 @@ let openAIDashboardScrapeScript = """
       let didScrollToCredits = false;
       let rows = [];
       try {
+        const looksLikeCreditsEventRow = (cells) => {
+          if (!cells || cells.length < 3) return false;
+          const first = String(cells[0] || '');
+          const amount = String(cells[2] || '');
+          return /\\d{4}|\\d{1,2}[\\/.\\-]\\d{1,2}/.test(first) && /\\d/.test(amount);
+        };
+        const allTableRows = () => Array.from(document.querySelectorAll('tbody tr')).map(tr => {
+          const cells = Array.from(tr.querySelectorAll('td')).map(td => textOf(td));
+          return cells;
+        }).filter(looksLikeCreditsEventRow);
         const headings = Array.from(document.querySelectorAll('h1,h2,h3'));
         const header = headings.find(h => textOf(h).toLowerCase() === 'credits usage history');
         if (header) {
@@ -411,6 +501,9 @@ let openAIDashboardScrapeScript = """
             const cells = Array.from(tr.querySelectorAll('td')).map(td => textOf(td));
             return cells;
           }).filter(r => r.length >= 3);
+          if (rows.length === 0) {
+            rows = allTableRows();
+          }
           if (rows.length === 0 && !window.__codexbarDidScrollToCredits) {
             window.__codexbarDidScrollToCredits = true;
             // If the table is virtualized/lazy-loaded, we need to scroll to trigger rendering even if the
@@ -422,6 +515,13 @@ let openAIDashboardScrapeScript = """
             didScrollToCredits = true;
           }
         } else if (rows.length === 0 && !window.__codexbarDidScrollToCredits && scrollHeight > viewportHeight * 1.5) {
+          rows = allTableRows();
+          if (rows.length > 0) {
+            creditsHeaderPresent = true;
+            creditsHeaderInViewport = true;
+          }
+        }
+        if (rows.length === 0 && !window.__codexbarDidScrollToCredits && scrollHeight > viewportHeight * 1.5) {
           // The credits history section often isn't part of the DOM until you scroll down. Nudge the page
           // once so subsequent scrapes can find the header and rows.
           window.__codexbarDidScrollToCredits = true;

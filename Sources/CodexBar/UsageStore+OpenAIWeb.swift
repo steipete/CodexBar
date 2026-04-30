@@ -29,7 +29,7 @@ extension UsageStore {
     }
 
     private static let openAIWebRefreshMultiplier: TimeInterval = 5
-    private static let openAIWebPrimaryFetchTimeout: TimeInterval = 15
+    private static let openAIWebPrimaryFetchTimeout: TimeInterval = 25
     private static let openAIWebRetryFetchTimeout: TimeInterval = 8
     private static let openAIWebPostImportFetchTimeout: TimeInterval = 25
 
@@ -494,6 +494,13 @@ extension UsageStore {
                 latestCookieImportStatus: &latestCookieImportStatus,
                 logger: log)
         } catch {
+            if Self.isOpenAIDashboardTimeout(error) {
+                await self.retryOpenAIDashboardAfterTimeout(
+                    context: context,
+                    latestCookieImportStatus: &latestCookieImportStatus,
+                    logger: log)
+                return
+            }
             let message = self.preferredOpenAIDashboardFailureMessage(
                 error: error,
                 targetEmail: context.targetEmail,
@@ -503,6 +510,56 @@ extension UsageStore {
                 expectedGuard: context.expectedGuard,
                 refreshTaskToken: context.refreshTaskToken,
                 routingTargetEmail: context.targetEmail)
+        }
+    }
+
+    private func retryOpenAIDashboardAfterTimeout(
+        context: OpenAIDashboardRefreshContext,
+        latestCookieImportStatus: inout String?,
+        logger: @escaping (String) -> Void) async
+    {
+        let targetEmail = self.currentCodexOpenAIWebTargetEmail(
+            allowCurrentSnapshotFallback: context.allowCurrentSnapshotFallback,
+            allowLastKnownLiveFallback: context.expectedGuard?.identity != .unresolved)
+        var effectiveEmail = targetEmail
+        let imported = await self.importOpenAIDashboardCookiesIfNeeded(
+            targetEmail: targetEmail,
+            force: true,
+            preferCachedCookieHeader: true)
+        latestCookieImportStatus = self.currentOpenAIDashboardCookieImportStatus()
+        if await self.abortOpenAIDashboardRetryAfterImportFailure(
+            importedEmail: imported,
+            targetEmail: targetEmail,
+            expectedGuard: context.expectedGuard,
+            cookieImportStatus: latestCookieImportStatus,
+            refreshTaskToken: context.refreshTaskToken)
+        {
+            return
+        }
+        if let imported {
+            effectiveEmail = imported
+        }
+        do {
+            let dash = try await self.loadLatestOpenAIDashboard(
+                accountEmail: effectiveEmail,
+                logger: logger,
+                timeout: Self.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true))
+            await self.applyOpenAIDashboard(
+                dash,
+                targetEmail: effectiveEmail,
+                expectedGuard: context.expectedGuard,
+                refreshTaskToken: context.refreshTaskToken,
+                allowCodexUsageBackfill: context.allowCodexUsageBackfill)
+        } catch {
+            let message = self.preferredOpenAIDashboardFailureMessage(
+                error: error,
+                targetEmail: targetEmail,
+                cookieImportStatus: latestCookieImportStatus)
+            await self.applyOpenAIDashboardFailure(
+                message: message,
+                expectedGuard: context.expectedGuard,
+                refreshTaskToken: context.refreshTaskToken,
+                routingTargetEmail: targetEmail)
         }
     }
 
@@ -752,6 +809,11 @@ extension UsageStore {
         return error.localizedDescription
     }
 
+    private static func isOpenAIDashboardTimeout(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut
+    }
+
     private func abortOpenAIDashboardRetryAfterImportFailure(
         importedEmail: String?,
         targetEmail: String?,
@@ -855,7 +917,11 @@ extension UsageStore {
         return false
     }
 
-    func importOpenAIDashboardCookiesIfNeeded(targetEmail: String?, force: Bool) async -> String? {
+    func importOpenAIDashboardCookiesIfNeeded(
+        targetEmail: String?,
+        force: Bool,
+        preferCachedCookieHeader: Bool? = nil) async -> String?
+    {
         if await self.openAIWebCookieImportShouldFailClosed() {
             return nil
         }
@@ -921,7 +987,7 @@ extension UsageStore {
                     result = try await importer.importBestCookies(
                         intoAccountEmail: normalizedTarget,
                         allowAnyAccount: allowAnyAccount,
-                        preferCachedCookieHeader: !force,
+                        preferCachedCookieHeader: preferCachedCookieHeader ?? !force,
                         cacheScope: cacheScope,
                         logger: log)
                 case .off:

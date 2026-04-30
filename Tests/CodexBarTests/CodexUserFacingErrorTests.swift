@@ -75,6 +75,28 @@ struct CodexUserFacingErrorTests {
     }
 
     @Test
+    func `open A I web timeout becomes retry guidance`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-openai-web-timeout")
+        store.lastOpenAIDashboardError = "The operation couldn’t be completed. (NSURLErrorDomain error -1001.)"
+
+        #expect(
+            store.userFacingLastOpenAIDashboardError ==
+                "OpenAI web refresh timed out. Refresh OpenAI cookies and try again.")
+    }
+
+    @Test
+    func `open A I web network error becomes connection guidance`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-openai-web-network")
+        store.lastOpenAIDashboardError = "The operation couldn’t be completed. (NSURLErrorDomain error -1004.)"
+        let expected = [
+            "OpenAI web refresh hit a network error.",
+            "Check your connection, then refresh OpenAI cookies and try again.",
+        ].joined(separator: " ")
+
+        #expect(store.userFacingLastOpenAIDashboardError == expected)
+    }
+
+    @Test
     func `non codex providers keep raw errors`() {
         let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-non-codex")
         store.errors[.claude] = "Claude probe failed with debug detail"
