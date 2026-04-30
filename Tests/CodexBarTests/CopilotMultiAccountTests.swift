@@ -36,19 +36,19 @@ func `copilot env override uses correct key`() {
 // MARK: - Username Fetch (parsing only)
 
 @Test
-func `GitHub user response parses login`() throws {
+func `GitHub user response parses stable id and login`() throws {
     let json = #"{"login": "testuser", "id": 123, "name": "Test User"}"#
-    struct GitHubUser: Decodable { let login: String }
-    let user = try JSONDecoder().decode(GitHubUser.self, from: Data(json.utf8))
+    let user = try JSONDecoder().decode(CopilotUsageFetcher.GitHubUserIdentity.self, from: Data(json.utf8))
+    #expect(user.id == 123)
     #expect(user.login == "testuser")
 }
 
 @Test
-func `GitHub user response parses login with minimal fields`() throws {
+func `GitHub user response requires stable id`() throws {
     let json = #"{"login": "minimaluser"}"#
-    struct GitHubUser: Decodable { let login: String }
-    let user = try JSONDecoder().decode(GitHubUser.self, from: Data(json.utf8))
-    #expect(user.login == "minimaluser")
+    #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(CopilotUsageFetcher.GitHubUserIdentity.self, from: Data(json.utf8))
+    }
 }
 
 // MARK: - API Key Fallback
@@ -235,10 +235,10 @@ struct CopilotExternalIdentifierTests {
         let legacy = Self.makeAccount(label: "Account 1", token: "old-token", externalIdentifier: nil)
         let matched = await CopilotLoginFlow.matchExistingAccount(
             existingAccounts: [legacy],
-            username: "octocat",
+            identity: Self.identity(id: 123, login: "octocat"),
             label: "octocat (Pro)",
             legacyIdentityResolver: { account in
-                account.token == "old-token" ? "octocat" : nil
+                account.token == "old-token" ? Self.identity(id: 123, login: "octocat") : nil
             })
 
         #expect(matched?.id == legacy.id)
@@ -249,22 +249,25 @@ struct CopilotExternalIdentifierTests {
         let legacy = Self.makeAccount(label: "Work GitHub", token: "old-token", externalIdentifier: nil)
         let matched = await CopilotLoginFlow.matchExistingAccount(
             existingAccounts: [legacy],
-            username: "octocat",
+            identity: Self.identity(id: 123, login: "octocat"),
             label: "octocat (Pro)",
             legacyIdentityResolver: { account in
-                account.token == "old-token" ? "OctoCat" : nil
+                account.token == "old-token" ? Self.identity(id: 123, login: "OctoCat") : nil
             })
 
         #expect(matched?.id == legacy.id)
     }
 
     @Test
-    func `external identifier match is case insensitive and preferred`() async {
-        let identified = Self.makeAccount(label: "Personal", token: "identified", externalIdentifier: "OctoCat")
+    func `stable external identifier match is preferred`() async {
+        let identified = Self.makeAccount(
+            label: "Personal",
+            token: "identified",
+            externalIdentifier: "github:user:123")
         let legacy = Self.makeAccount(label: "octocat", token: "legacy", externalIdentifier: nil)
         let matched = await CopilotLoginFlow.matchExistingAccount(
             existingAccounts: [legacy, identified],
-            username: "octocat",
+            identity: Self.identity(id: 123, login: "octocat"),
             label: "octocat (Pro)",
             legacyIdentityResolver: { _ in
                 Issue.record("Resolver should not run when externalIdentifier matches")
@@ -272,6 +275,22 @@ struct CopilotExternalIdentifierTests {
             })
 
         #expect(matched?.id == identified.id)
+    }
+
+    @Test
+    func `legacy login external identifier still matches and can be backfilled`() async {
+        let identified = Self.makeAccount(label: "Personal", token: "identified", externalIdentifier: "OctoCat")
+        let matched = await CopilotLoginFlow.matchExistingAccount(
+            existingAccounts: [identified],
+            identity: Self.identity(id: 123, login: "octocat"),
+            label: "octocat (Pro)",
+            legacyIdentityResolver: { _ in
+                Issue.record("Resolver should not run when legacy externalIdentifier matches")
+                return nil
+            })
+
+        #expect(matched?.id == identified.id)
+        #expect(CopilotLoginFlow.externalIdentifier(for: Self.identity(id: 123, login: "octocat")) == "github:user:123")
     }
 
     @Test
@@ -288,6 +307,10 @@ struct CopilotExternalIdentifierTests {
         #expect(account.label == "octocat")
         #expect(account.externalIdentifier == nil)
         #expect(account.lastUsed == nil)
+    }
+
+    private nonisolated static func identity(id: Int64, login: String) -> CopilotUsageFetcher.GitHubUserIdentity {
+        CopilotUsageFetcher.GitHubUserIdentity(id: id, login: login)
     }
 
     private static func makeAccount(

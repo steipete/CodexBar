@@ -4,6 +4,16 @@ import FoundationNetworking
 #endif
 
 public struct CopilotUsageFetcher: Sendable {
+    public struct GitHubUserIdentity: Decodable, Equatable, Sendable {
+        public let id: Int64
+        public let login: String
+
+        public init(id: Int64, login: String) {
+            self.id = id
+            self.login = login
+        }
+    }
+
     private let token: String
 
     public init(token: String) {
@@ -67,6 +77,10 @@ public struct CopilotUsageFetcher: Sendable {
     }
 
     public static func fetchGitHubUsername(token: String) async throws -> String {
+        try await self.fetchGitHubIdentity(token: token).login
+    }
+
+    public static func fetchGitHubIdentity(token: String) async throws -> GitHubUserIdentity {
         guard let url = URL(string: "https://api.github.com/user") else {
             throw URLError(.badURL)
         }
@@ -85,11 +99,7 @@ public struct CopilotUsageFetcher: Sendable {
             throw URLError(.badServerResponse)
         }
 
-        struct GitHubUser: Decodable {
-            let login: String
-        }
-        let user = try JSONDecoder().decode(GitHubUser.self, from: data)
-        return user.login
+        return try JSONDecoder().decode(GitHubUserIdentity.self, from: data)
     }
 
     private func addCommonHeaders(to request: inout URLRequest) {

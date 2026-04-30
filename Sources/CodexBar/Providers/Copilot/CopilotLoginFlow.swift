@@ -85,9 +85,10 @@ struct CopilotLoginFlow {
                 // an anonymous duplicate with stale credentials left on the original account.
                 let existingAccounts = settings.tokenAccounts(for: .copilot)
                 let label: String
-                let username: String?
+                let identity: CopilotUsageFetcher.GitHubUserIdentity?
                 do {
-                    let resolvedUsername = try await CopilotUsageFetcher.fetchGitHubUsername(token: token)
+                    let resolvedIdentity = try await CopilotUsageFetcher.fetchGitHubIdentity(token: token)
+                    let resolvedUsername = resolvedIdentity.login
                     let planSuffix: String
                     do {
                         let fetcher = CopilotUsageFetcher(token: token)
@@ -97,7 +98,7 @@ struct CopilotLoginFlow {
                     } catch {
                         planSuffix = ""
                     }
-                    username = resolvedUsername
+                    identity = resolvedIdentity
                     label = "\(resolvedUsername)\(planSuffix)"
                 } catch {
                     guard existingAccounts.isEmpty else {
@@ -108,17 +109,18 @@ struct CopilotLoginFlow {
                         err.runModal()
                         return
                     }
-                    username = nil
+                    identity = nil
                     label = "Account 1"
                 }
 
-                // Match existing account by stable GitHub identity (login). For legacy accounts that pre-date
-                // externalIdentifier, resolve the stored token's GitHub identity before falling back to labels so
-                // generic/user-edited labels such as "Account 1" can still be updated in place.
+                // Match existing account by stable GitHub user ID. For legacy accounts that pre-date stable
+                // identifiers, also accept login-based externalIdentifier values and resolve stored token identity
+                // before falling back to labels.
                 let matchedExisting = await Self.matchExistingAccount(
                     existingAccounts: existingAccounts,
-                    username: username,
+                    identity: identity,
                     label: label)
+                let externalIdentifier = identity.map(Self.externalIdentifier)
                 let wasRefresh = matchedExisting != nil
                 if let existing = matchedExisting {
                     settings.updateTokenAccount(
@@ -126,13 +128,13 @@ struct CopilotLoginFlow {
                         accountID: existing.id,
                         label: label,
                         token: token,
-                        externalIdentifier: .some(username))
+                        externalIdentifier: .some(externalIdentifier))
                 } else {
                     settings.addTokenAccount(
                         provider: .copilot,
                         label: label,
                         token: token,
-                        externalIdentifier: username)
+                        externalIdentifier: externalIdentifier)
                 }
                 settings.setProviderEnabled(
                     provider: .copilot,
@@ -161,24 +163,37 @@ struct CopilotLoginFlow {
 
     static func matchExistingAccount(
         existingAccounts: [ProviderTokenAccount],
-        username: String?,
+        identity: CopilotUsageFetcher.GitHubUserIdentity?,
         label: String,
-        legacyIdentityResolver: @escaping @Sendable (ProviderTokenAccount) async -> String? = { account in
-            try? await CopilotUsageFetcher.fetchGitHubUsername(token: account.token)
-        }) async -> ProviderTokenAccount?
+        legacyIdentityResolver: @escaping @Sendable (ProviderTokenAccount) async
+            -> CopilotUsageFetcher.GitHubUserIdentity? = { account in
+                try? await CopilotUsageFetcher.fetchGitHubIdentity(token: account.token)
+            }) async -> ProviderTokenAccount?
     {
-        guard let username = self.normalizedGitHubLogin(username), !existingAccounts.isEmpty else { return nil }
+        guard let identity, !existingAccounts.isEmpty else { return nil }
+        let stableIdentifier = self.externalIdentifier(for: identity)
+        let login = self.normalizedGitHubLogin(identity.login)
 
-        if let byID = existingAccounts.first(where: {
-            self.normalizedGitHubLogin($0.externalIdentifier) == username
+        if let byID = existingAccounts.first(where: { account in
+            self.normalizedExternalIdentifier(account.externalIdentifier) == stableIdentifier
         }) {
             return byID
         }
 
+        // Previous PR revisions stored GitHub login in externalIdentifier. Keep matching those
+        // accounts case-insensitively, then write back the stable ID on update.
+        if let byLegacyLogin = existingAccounts.first(where: { account in
+            self.normalizedGitHubLogin(account.externalIdentifier) == login
+        }) {
+            return byLegacyLogin
+        }
+
         let legacyAccounts = existingAccounts.filter { $0.externalIdentifier == nil }
         for account in legacyAccounts {
-            guard let resolvedLogin = await legacyIdentityResolver(account) else { continue }
-            if self.normalizedGitHubLogin(resolvedLogin) == username {
+            guard let resolvedIdentity = await legacyIdentityResolver(account) else { continue }
+            if resolvedIdentity.id == identity.id ||
+                self.normalizedGitHubLogin(resolvedIdentity.login) == login
+            {
                 return account
             }
         }
@@ -189,9 +204,22 @@ struct CopilotLoginFlow {
         }
     }
 
+    static func externalIdentifier(for identity: CopilotUsageFetcher.GitHubUserIdentity) -> String {
+        "github:user:\(identity.id)"
+    }
+
+    private static func normalizedExternalIdentifier(_ identifier: String?) -> String? {
+        let trimmed = identifier?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed.lowercased()
+    }
+
     private static func normalizedGitHubLogin(_ login: String?) -> String? {
         let trimmed = login?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed.lowercased()
+        guard !trimmed.isEmpty else { return nil }
+        // Stable IDs are not valid GitHub logins; do not let a numeric-looking login fallback
+        // match the "github:user:<id>" identifier path accidentally.
+        guard !trimmed.lowercased().hasPrefix("github:user:") else { return nil }
+        return trimmed.lowercased()
     }
 
     private static func displayLabelPrefix(_ label: String) -> String {
