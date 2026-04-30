@@ -73,6 +73,29 @@ public struct StepFunRateLimitResponse: Decodable, Sendable {
     }
 }
 
+// MARK: - Plan status response types
+
+struct StepFunPlanStatusResponse: Decodable, Sendable {
+    let status: Int?
+    let subscription: StepFunSubscription?
+
+    var planName: String? {
+        subscription?.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+struct StepFunSubscription: Decodable, Sendable {
+    let name: String?
+    let planType: Int?
+    let planStatus: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case planType = "plan_type"
+        case planStatus = "status"
+    }
+}
+
 // MARK: - Auth response types
 
 struct StepFunRegisterDeviceResponse: Decodable, Sendable {
@@ -96,6 +119,7 @@ public struct StepFunUsageSnapshot: Sendable {
     public let weeklyUsageLeftRate: Double
     public let fiveHourUsageResetTime: Date
     public let weeklyUsageResetTime: Date
+    public let planName: String?
     public let updatedAt: Date
 
     public init(
@@ -103,12 +127,14 @@ public struct StepFunUsageSnapshot: Sendable {
         weeklyUsageLeftRate: Double,
         fiveHourUsageResetTime: Date,
         weeklyUsageResetTime: Date,
+        planName: String? = nil,
         updatedAt: Date)
     {
         self.fiveHourUsageLeftRate = fiveHourUsageLeftRate
         self.weeklyUsageLeftRate = weeklyUsageLeftRate
         self.fiveHourUsageResetTime = fiveHourUsageResetTime
         self.weeklyUsageResetTime = weeklyUsageResetTime
+        self.planName = planName
         self.updatedAt = updatedAt
     }
 
@@ -131,11 +157,14 @@ public struct StepFunUsageSnapshot: Sendable {
             resetsAt: self.weeklyUsageResetTime,
             resetDescription: weeklyResetDescription)
 
+        let trimmedPlan = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let loginMethod = (trimmedPlan?.isEmpty ?? true) ? "password" : trimmedPlan
+
         let identity = ProviderIdentitySnapshot(
             providerID: .stepfun,
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: "password")
+            loginMethod: loginMethod)
 
         return UsageSnapshot(
             primary: fiveHourWindow,
@@ -183,6 +212,7 @@ public struct StepFunUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.stepfunUsage)
     private static let platformURL = URL(string: "https://platform.stepfun.com")!
     private static let apiURL = URL(string: "https://platform.stepfun.com/api/step.openapi.devcenter.Dashboard/QueryStepPlanRateLimit")!
+    private static let planStatusURL = URL(string: "https://platform.stepfun.com/api/step.openapi.devcenter.Dashboard/GetStepPlanStatus")!
     private static let registerDeviceURL = URL(string: "https://platform.stepfun.com/passport/proto.api.passport.v1.PassportService/RegisterDevice")!
     private static let loginURL = URL(string: "https://platform.stepfun.com/passport/proto.api.passport.v1.PassportService/SignInByPassword")!
     private static let timeoutSeconds: TimeInterval = 15
@@ -392,7 +422,51 @@ public struct StepFunUsageFetcher: Sendable {
             Self.log.debug("StepFun API response: \(jsonString)")
         }
 
-        return try self.parseSnapshot(data: data)
+        var snapshot = try self.parseSnapshot(data: data)
+
+        // Fetch plan name in parallel is not needed — just do it sequentially.
+        // If plan status fails, we still return usage data without plan name.
+        if let planName = try? await self.queryPlanStatus(token: token) {
+            snapshot = StepFunUsageSnapshot(
+                fiveHourUsageLeftRate: snapshot.fiveHourUsageLeftRate,
+                weeklyUsageLeftRate: snapshot.weeklyUsageLeftRate,
+                fiveHourUsageResetTime: snapshot.fiveHourUsageResetTime,
+                weeklyUsageResetTime: snapshot.weeklyUsageResetTime,
+                planName: planName,
+                updatedAt: snapshot.updatedAt)
+        }
+
+        return snapshot
+    }
+
+    // MARK: - Plan Status
+
+    private static func queryPlanStatus(token: String) async throws -> String? {
+        var request = URLRequest(url: self.planStatusURL)
+        request.httpMethod = "POST"
+        request.httpBody = Data("{}".utf8)
+        for (key, value) in self.baseHeaders {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        request.setValue("Oasis-Token=\(token); Oasis-Webid=\(webID)", forHTTPHeaderField: "Cookie")
+        request.timeoutInterval = self.timeoutSeconds
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            Self.log.debug("StepFun plan status request failed, skipping plan name")
+            return nil
+        }
+
+        let decoded: StepFunPlanStatusResponse
+        do {
+            decoded = try JSONDecoder().decode(StepFunPlanStatusResponse.self, from: data)
+        } catch {
+            Self.log.debug("StepFun plan status parse failed: \(error.localizedDescription)")
+            return nil
+        }
+
+        return decoded.planName
     }
 
     public static func _parseSnapshotForTesting(_ data: Data) throws -> StepFunUsageSnapshot {
