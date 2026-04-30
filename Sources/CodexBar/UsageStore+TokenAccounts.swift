@@ -37,6 +37,14 @@ extension UsageStore {
         let selectedAccount = self.settings.selectedTokenAccount(for: provider)
         let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
         let effectiveSelected = selectedAccount ?? limitedAccounts.first
+
+        // Capture the prior per-account snapshot state so we can preserve last-good
+        // data when an in-flight refresh is cancelled (e.g. menu tab switches). Without
+        // this, cancellation produces empty/error snapshots and the menu briefly shows
+        // misleading cards for accounts that previously had valid data.
+        let priorSnapshots = await MainActor.run { self.accountSnapshots[provider] ?? [] }
+        let priorByAccountID = Dictionary(uniqueKeysWithValues: priorSnapshots.map { ($0.account.id, $0) })
+
         var snapshots: [TokenAccountUsageSnapshot] = []
         var historySamples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)] = []
         var selectedOutcome: ProviderFetchOutcome?
@@ -45,7 +53,11 @@ extension UsageStore {
         for account in limitedAccounts {
             let override = TokenAccountOverride(provider: provider, account: account)
             let outcome = await self.fetchOutcome(provider: provider, override: override)
-            let resolved = self.resolveAccountOutcome(outcome, provider: provider, account: account)
+            let resolved = self.resolveAccountOutcome(
+                outcome,
+                provider: provider,
+                account: account,
+                priorSnapshot: priorByAccountID[account.id])
             snapshots.append(resolved.snapshot)
             if let usage = resolved.usage {
                 historySamples.append((account: account, snapshot: usage))
@@ -171,7 +183,8 @@ extension UsageStore {
     private func resolveAccountOutcome(
         _ outcome: ProviderFetchOutcome,
         provider: UsageProvider,
-        account: ProviderTokenAccount) -> ResolvedAccountOutcome
+        account: ProviderTokenAccount,
+        priorSnapshot: TokenAccountUsageSnapshot? = nil) -> ResolvedAccountOutcome
     {
         switch outcome.result {
         case let .success(result):
@@ -184,6 +197,12 @@ extension UsageStore {
                 sourceLabel: result.sourceLabel)
             return ResolvedAccountOutcome(snapshot: snapshot, usage: labeled)
         case let .failure(error):
+            // Preserve the last-good snapshot when the refresh was cancelled (e.g. the
+            // user switched menu tabs mid-flight). Without this the per-account list
+            // would briefly render error chips for accounts that already had data.
+            if error is CancellationError, let priorSnapshot, priorSnapshot.snapshot != nil {
+                return ResolvedAccountOutcome(snapshot: priorSnapshot, usage: priorSnapshot.snapshot)
+            }
             let snapshot = TokenAccountUsageSnapshot(
                 account: account,
                 snapshot: nil,

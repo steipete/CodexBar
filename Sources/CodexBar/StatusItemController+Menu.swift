@@ -1361,11 +1361,19 @@ extension StatusItemController {
         let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
-        let snapshot = snapshotOverride ?? self.store.snapshot(for: target)
         let surface: CodexConsumerProjection.Surface = if snapshotOverride != nil || errorOverride != nil {
             .overrideCard
         } else {
             .liveCard
+        }
+        // Override cards belong to a specific account/context (e.g. a per-account
+        // refresh result). Never fall back to the provider-level live snapshot here —
+        // that data belongs to a *different* account and would render misleading
+        // duplicate cards when an account refresh failed or was cancelled.
+        let snapshot: UsageSnapshot? = if surface == .overrideCard {
+            snapshotOverride
+        } else {
+            snapshotOverride ?? self.store.snapshot(for: target)
         }
         let now = Date()
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
