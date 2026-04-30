@@ -141,6 +141,18 @@ extension UsageStore {
         return message.isEmpty ? nil : message
     }
 
+    /// Per-account snapshot error text. Unlike ``tokenAccountErrorMessage``,
+    /// cancellations are preserved as a non-empty marker so the menu does not
+    /// silently fall back to the live (selected-account) snapshot when an
+    /// individual account refresh is cancelled.
+    func tokenAccountSnapshotErrorMessage(_ error: any Error) -> String {
+        if error is CancellationError {
+            return "Refresh cancelled"
+        }
+        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? "Refresh failed" : message
+    }
+
     func recordFetchedTokenAccountPlanUtilizationHistory(
         provider: UsageProvider,
         samples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)],
@@ -175,7 +187,7 @@ extension UsageStore {
             let snapshot = TokenAccountUsageSnapshot(
                 account: account,
                 snapshot: nil,
-                error: self.tokenAccountErrorMessage(error),
+                error: self.tokenAccountSnapshotErrorMessage(error),
                 sourceLabel: nil)
             return ResolvedAccountOutcome(snapshot: snapshot, usage: nil)
         }

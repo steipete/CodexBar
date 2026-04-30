@@ -170,3 +170,154 @@ struct CopilotEnvironmentPrecedenceTests {
             tokenAccountStore: InMemoryTokenAccountStore())
     }
 }
+
+// MARK: - External Identifier Dedup
+
+@MainActor
+struct CopilotExternalIdentifierTests {
+    @Test
+    func `addTokenAccount persists external identifier`() throws {
+        let settings = Self.makeSettingsStore(suite: "copilot-ext-id-add")
+        settings.addTokenAccount(
+            provider: .copilot,
+            label: "octocat (Pro)",
+            token: "gh_token_1",
+            externalIdentifier: "octocat")
+
+        let account = try #require(settings.tokenAccounts(for: .copilot).first)
+        #expect(account.externalIdentifier == "octocat")
+    }
+
+    @Test
+    func `updateTokenAccount preserves identifier when not provided`() throws {
+        let settings = Self.makeSettingsStore(suite: "copilot-ext-id-preserve")
+        settings.addTokenAccount(
+            provider: .copilot,
+            label: "octocat (Pro)",
+            token: "gh_token_1",
+            externalIdentifier: "octocat")
+        let original = try #require(settings.tokenAccounts(for: .copilot).first)
+
+        settings.updateTokenAccount(
+            provider: .copilot,
+            accountID: original.id,
+            label: "octocat (Business)",
+            token: "gh_token_2")
+
+        let updated = try #require(settings.tokenAccounts(for: .copilot).first)
+        #expect(updated.id == original.id)
+        #expect(updated.token == "gh_token_2")
+        #expect(updated.externalIdentifier == "octocat")
+    }
+
+    @Test
+    func `updateTokenAccount writes identifier back for legacy accounts`() throws {
+        let settings = Self.makeSettingsStore(suite: "copilot-ext-id-backfill")
+        // Legacy account: no externalIdentifier (pre-feature).
+        settings.addTokenAccount(provider: .copilot, label: "octocat (Pro)", token: "gh_legacy")
+        let legacy = try #require(settings.tokenAccounts(for: .copilot).first)
+        #expect(legacy.externalIdentifier == nil)
+
+        settings.updateTokenAccount(
+            provider: .copilot,
+            accountID: legacy.id,
+            label: "octocat (Pro)",
+            token: "gh_refreshed",
+            externalIdentifier: .some("octocat"))
+
+        let updated = try #require(settings.tokenAccounts(for: .copilot).first)
+        #expect(updated.id == legacy.id)
+        #expect(updated.externalIdentifier == "octocat")
+    }
+
+    @Test
+    func `decoding legacy token account JSON yields nil identifier`() throws {
+        let json = """
+        {
+          "id": "11111111-1111-1111-1111-111111111111",
+          "label": "octocat",
+          "token": "gh_legacy",
+          "addedAt": 1700000000.0
+        }
+        """
+        let account = try JSONDecoder().decode(ProviderTokenAccount.self, from: Data(json.utf8))
+        #expect(account.label == "octocat")
+        #expect(account.externalIdentifier == nil)
+        #expect(account.lastUsed == nil)
+    }
+
+    private static func makeSettingsStore(suite: String) -> SettingsStore {
+        SettingsStore(
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            codexCookieStore: InMemoryCookieHeaderStore(),
+            claudeCookieStore: InMemoryCookieHeaderStore(),
+            cursorCookieStore: InMemoryCookieHeaderStore(),
+            opencodeCookieStore: InMemoryCookieHeaderStore(),
+            factoryCookieStore: InMemoryCookieHeaderStore(),
+            minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+            minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+            kimiTokenStore: InMemoryKimiTokenStore(),
+            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
+            augmentCookieStore: InMemoryCookieHeaderStore(),
+            ampCookieStore: InMemoryCookieHeaderStore(),
+            copilotTokenStore: InMemoryCopilotTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore())
+    }
+}
+
+// MARK: - Token Account Snapshot Error Messages
+
+@MainActor
+struct TokenAccountSnapshotErrorMessageTests {
+    @Test
+    func `cancellation produces non-empty marker for per-account snapshot`() {
+        let store = Self.makeUsageStore()
+        let message = store.tokenAccountSnapshotErrorMessage(CancellationError())
+        #expect(!message.isEmpty)
+        #expect(message.lowercased().contains("cancel"))
+    }
+
+    @Test
+    func `cancellation is suppressed for global error path`() {
+        let store = Self.makeUsageStore()
+        #expect(store.tokenAccountErrorMessage(CancellationError()) == nil)
+    }
+
+    @Test
+    func `non-cancellation error preserves localized message`() {
+        let store = Self.makeUsageStore()
+        struct Boom: LocalizedError {
+            var errorDescription: String? {
+                "kaboom"
+            }
+        }
+        #expect(store.tokenAccountSnapshotErrorMessage(Boom()) == "kaboom")
+        #expect(store.tokenAccountErrorMessage(Boom()) == "kaboom")
+    }
+
+    private static func makeUsageStore() -> UsageStore {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "copilot-snapshot-error-\(UUID().uuidString)"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            codexCookieStore: InMemoryCookieHeaderStore(),
+            claudeCookieStore: InMemoryCookieHeaderStore(),
+            cursorCookieStore: InMemoryCookieHeaderStore(),
+            opencodeCookieStore: InMemoryCookieHeaderStore(),
+            factoryCookieStore: InMemoryCookieHeaderStore(),
+            minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+            minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+            kimiTokenStore: InMemoryKimiTokenStore(),
+            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
+            augmentCookieStore: InMemoryCookieHeaderStore(),
+            ampCookieStore: InMemoryCookieHeaderStore(),
+            copilotTokenStore: InMemoryCopilotTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore())
+        return UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+    }
+}

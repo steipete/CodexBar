@@ -85,8 +85,9 @@ struct CopilotLoginFlow {
                 // an anonymous duplicate with stale credentials left on the original account.
                 let existingAccounts = settings.tokenAccounts(for: .copilot)
                 let label: String
+                let username: String?
                 do {
-                    let username = try await CopilotUsageFetcher.fetchGitHubUsername(token: token)
+                    let resolvedUsername = try await CopilotUsageFetcher.fetchGitHubUsername(token: token)
                     let planSuffix: String
                     do {
                         let fetcher = CopilotUsageFetcher(token: token)
@@ -96,7 +97,8 @@ struct CopilotLoginFlow {
                     } catch {
                         planSuffix = ""
                     }
-                    label = "\(username)\(planSuffix)"
+                    username = resolvedUsername
+                    label = "\(resolvedUsername)\(planSuffix)"
                 } catch {
                     guard existingAccounts.isEmpty else {
                         let err = NSAlert()
@@ -106,26 +108,40 @@ struct CopilotLoginFlow {
                         err.runModal()
                         return
                     }
+                    username = nil
                     label = "Account 1"
                 }
 
-                // Check for duplicate — same username means same GitHub user
+                // Match existing account by stable GitHub identity (login). Fall back to label-prefix
+                // matching only for legacy accounts that pre-date the externalIdentifier field; in that
+                // case write the identifier back on update so future re-auths use the stable path.
                 let usernamePrefix = label.components(separatedBy: " (").first ?? label
-                let wasRefresh = existingAccounts.contains(where: {
-                    let existingPrefix = $0.label.components(separatedBy: " (").first ?? $0.label
-                    return existingPrefix == usernamePrefix
-                })
-                if let existing = existingAccounts.first(where: {
-                    let existingPrefix = $0.label.components(separatedBy: " (").first ?? $0.label
-                    return existingPrefix == usernamePrefix
-                }) {
+                let matchedExisting: ProviderTokenAccount? = {
+                    if let username, !username.isEmpty,
+                       let byID = existingAccounts.first(where: { $0.externalIdentifier == username })
+                    {
+                        return byID
+                    }
+                    return existingAccounts.first(where: { account in
+                        guard account.externalIdentifier == nil else { return false }
+                        let existingPrefix = account.label.components(separatedBy: " (").first ?? account.label
+                        return existingPrefix == usernamePrefix
+                    })
+                }()
+                let wasRefresh = matchedExisting != nil
+                if let existing = matchedExisting {
                     settings.updateTokenAccount(
                         provider: .copilot,
                         accountID: existing.id,
                         label: label,
-                        token: token)
+                        token: token,
+                        externalIdentifier: .some(username))
                 } else {
-                    settings.addTokenAccount(provider: .copilot, label: label, token: token)
+                    settings.addTokenAccount(
+                        provider: .copilot,
+                        label: label,
+                        token: token,
+                        externalIdentifier: username)
                 }
                 settings.setProviderEnabled(
                     provider: .copilot,

@@ -36,11 +36,18 @@ extension SettingsStore {
             ])
     }
 
-    func addTokenAccount(provider: UsageProvider, label: String, token: String) {
+    func addTokenAccount(
+        provider: UsageProvider,
+        label: String,
+        token: String,
+        externalIdentifier: String? = nil)
+    {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return }
         let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedToken.isEmpty else { return }
         let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedIdentifier = externalIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalisedIdentifier = (trimmedIdentifier?.isEmpty ?? true) ? nil : trimmedIdentifier
         let existing = self.tokenAccountsData(for: provider)
         let accounts = existing?.accounts ?? []
         let fallbackLabel = trimmedLabel.isEmpty ? "Account \(accounts.count + 1)" : trimmedLabel
@@ -49,7 +56,8 @@ extension SettingsStore {
             label: fallbackLabel,
             token: trimmedToken,
             addedAt: Date().timeIntervalSince1970,
-            lastUsed: nil)
+            lastUsed: nil,
+            externalIdentifier: normalisedIdentifier)
         let updated = ProviderTokenAccountData(
             version: existing?.version ?? 1,
             accounts: accounts + [account],
@@ -70,7 +78,8 @@ extension SettingsStore {
         provider: UsageProvider,
         accountID: UUID,
         label: String? = nil,
-        token: String? = nil)
+        token: String? = nil,
+        externalIdentifier: String?? = nil)
     {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         guard let index = data.accounts.firstIndex(where: { $0.id == accountID }) else { return }
@@ -80,12 +89,20 @@ extension SettingsStore {
         if let trimmedToken, trimmedToken.isEmpty { return }
 
         let existing = data.accounts[index]
+        let resolvedIdentifier: String?
+        if let externalIdentifier {
+            let trimmed = externalIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
+            resolvedIdentifier = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        } else {
+            resolvedIdentifier = existing.externalIdentifier
+        }
         let updatedAccount = ProviderTokenAccount(
             id: existing.id,
             label: (trimmedLabel?.isEmpty == false) ? trimmedLabel! : existing.label,
             token: trimmedToken ?? existing.token,
             addedAt: existing.addedAt,
-            lastUsed: existing.lastUsed)
+            lastUsed: existing.lastUsed,
+            externalIdentifier: resolvedIdentifier)
 
         var accounts = data.accounts
         accounts[index] = updatedAccount
