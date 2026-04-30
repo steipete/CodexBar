@@ -375,7 +375,7 @@
 "extra_usage_format" = "额外用量：%1$@ / %2$@";
 "jetbrains_detected_generate" = "检测到：%@。使用一次 AI 助手以生成配额数据，然后刷新 CodexBar。";
 "jetbrains_detected_select" = "检测到：%@。在设置中选择您偏好的 IDE，然后刷新 CodexBar。";
-"last_fetch_failed" = "上次获取 %1$@ 失败：";
+"last_fetch_failed_with_provider" = "上次获取 %1$@ 失败：";
 "last_spend" = "上次消耗：%@";
 "mcp_model_usage" = "%1$@：%2$@";
 "mcp_resets" = "重置：%@";

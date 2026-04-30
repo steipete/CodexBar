@@ -10,12 +10,20 @@ private func appLanguageDefaults() -> UserDefaults {
 
 private func localizedBundle() -> Bundle {
     let language = appLanguageDefaults().string(forKey: "appLanguage") ?? ""
-    let target = language.isEmpty ? "en" : language.lowercased()
-    if let path = Bundle.module.path(forResource: target, ofType: "lproj"),
-       let bundle = Bundle(path: path) {
-        return bundle
+    if !language.isEmpty {
+        if let path = Bundle.module.path(forResource: language, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle
+        }
+    } else {
+        // System mode: follow macOS language preferences
+        if let preferred = Bundle.module.preferredLocalizations.first,
+           let path = Bundle.module.path(forResource: preferred, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle
+        }
     }
-    // Fallback to en.lproj to avoid following system language
+    // Fallback to en.lproj
     if let path = Bundle.module.path(forResource: "en", ofType: "lproj"),
        let bundle = Bundle(path: path) {
         return bundle

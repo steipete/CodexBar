@@ -43,7 +43,7 @@ struct GeneralPane: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             Spacer()
-                            Picker("Language", selection: self.$settings.appLanguage) {
+                            Picker(L("language_title"), selection: self.$settings.appLanguage) {
                                 ForEach(AppLanguage.allCases) { option in
                                     Text(option.label).tag(option.rawValue)
                                 }
