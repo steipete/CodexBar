@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 public enum PathPurpose: Hashable, Sendable {
     case rpc
@@ -256,34 +261,119 @@ public enum ShellCommandLocator {
         return nil
     }
 
-    private static func runShellCapture(_ shell: String?, _ timeout: TimeInterval, _ command: String) -> String? {
-        let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"
-        let isCI = ["1", "true"].contains(ProcessInfo.processInfo.environment["CI"]?.lowercased())
+    /// Thread-safe buffer for collecting pipe output from a readability handler.
+    private final class CapturedData: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+
+        func append(_ other: Data) {
+            self.lock.lock()
+            self.data.append(other)
+            self.lock.unlock()
+        }
+
+        func drain() -> Data {
+            self.lock.lock()
+            let result = self.data
+            self.lock.unlock()
+            return result
+        }
+    }
+
+    /// Runs a shell command, draining both stdout and stderr concurrently so that
+    /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
+    /// a full pipe buffer.  Kills the process group on timeout (SIGTERM → SIGKILL)
+    /// and also sends SIGTERM to the process group after normal completion to clean
+    /// up any background children spawned by shell init.  The process is reaped via
+    /// its termination handler.
+    fileprivate static func runShellCommand(
+        shell: String,
+        arguments: [String],
+        timeout: TimeInterval) -> Data?
+    {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: shellPath)
-        // Interactive login shell to pick up PATH mutations from shell init (nvm/fnm/mise).
-        // CI runners can have shell init hooks that emit missing CLI errors; avoid them in CI.
-        process.arguments = isCI ? ["-c", command] : ["-l", "-i", "-c", command]
+        process.executableURL = URL(fileURLWithPath: shell)
+        process.arguments = arguments
+        process.standardInput = nil
+
         let stdout = Pipe()
+        let stderr = Pipe()
         process.standardOutput = stdout
-        process.standardError = Pipe()
+        process.standardError = stderr
+
         do {
             try process.run()
         } catch {
             return nil
         }
 
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
+        let pid = process.processIdentifier
+        let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
+
+        let stdoutCollector = CapturedData()
+        let stdoutHandle = stdout.fileHandleForReading
+        stdoutHandle.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+            } else {
+                stdoutCollector.append(data)
+            }
         }
 
-        if process.isRunning {
+        let stderrHandle = stderr.fileHandleForReading
+        stderrHandle.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+            }
+        }
+
+        let exitSemaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exitSemaphore.signal() }
+
+        let finishedInTime = exitSemaphore.wait(timeout: .now() + timeout) == .success
+
+        if !finishedInTime {
             process.terminate()
+            if let pgid = processGroup {
+                kill(-pgid, SIGTERM)
+            }
+            if exitSemaphore.wait(timeout: .now() + 0.4) != .success {
+                if process.isRunning {
+                    if let pgid = processGroup {
+                        kill(-pgid, SIGKILL)
+                    }
+                    kill(process.processIdentifier, SIGKILL)
+                }
+                _ = exitSemaphore.wait(timeout: .now() + 1.0)
+            }
+            usleep(80000)
+            stdoutHandle.readabilityHandler = nil
+            stderrHandle.readabilityHandler = nil
             return nil
         }
 
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        // Normal completion — clean up any background children spawned by shell init.
+        if let pgid = processGroup {
+            kill(-pgid, SIGTERM)
+        }
+        // Let readability handlers drain remaining buffered pipe data.
+        usleep(80000)
+        stdoutHandle.readabilityHandler = nil
+        stderrHandle.readabilityHandler = nil
+        return stdoutCollector.drain()
+    }
+
+    private static func runShellCapture(_ shell: String?, _ timeout: TimeInterval, _ command: String) -> String? {
+        let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"
+        let isCI = ["1", "true"].contains(ProcessInfo.processInfo.environment["CI"]?.lowercased())
+        // Interactive login shell to pick up PATH mutations from shell init (nvm/fnm/mise).
+        // CI runners can have shell init hooks that emit missing CLI errors; avoid them in CI.
+        let args = isCI ? ["-c", command] : ["-l", "-i", "-c", command]
+        guard let data = runShellCommand(shell: shellPath, arguments: args, timeout: timeout) else {
+            return nil
+        }
         return String(data: data, encoding: .utf8)
     }
 
@@ -419,33 +509,15 @@ enum LoginShellPathCapturer {
         let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"
         let isCI = ["1", "true"].contains(ProcessInfo.processInfo.environment["CI"]?.lowercased())
         let marker = "__CODEXBAR_PATH__"
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: shellPath)
         // Skip interactive login shells in CI to avoid noisy init hooks.
-        process.arguments = isCI
+        let args = isCI
             ? ["-c", "printf '\(marker)%s\(marker)' \"$PATH\""]
             : ["-l", "-i", "-c", "printf '\(marker)%s\(marker)' \"$PATH\""]
-        let stdout = Pipe()
-        process.standardOutput = stdout
-        process.standardError = Pipe()
-        do {
-            try process.run()
-        } catch {
-            return nil
-        }
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-
-        if process.isRunning {
-            process.terminate()
-            return nil
-        }
-
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        guard let raw = String(data: data, encoding: .utf8),
+        guard let data = ShellCommandLocator.runShellCommand(
+            shell: shellPath,
+            arguments: args,
+            timeout: timeout),
+              let raw = String(data: data, encoding: .utf8),
               !raw.isEmpty else { return nil }
 
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
