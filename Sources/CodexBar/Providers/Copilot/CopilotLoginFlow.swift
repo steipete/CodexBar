@@ -112,22 +112,13 @@ struct CopilotLoginFlow {
                     label = "Account 1"
                 }
 
-                // Match existing account by stable GitHub identity (login). Fall back to label-prefix
-                // matching only for legacy accounts that pre-date the externalIdentifier field; in that
-                // case write the identifier back on update so future re-auths use the stable path.
-                let usernamePrefix = label.components(separatedBy: " (").first ?? label
-                let matchedExisting: ProviderTokenAccount? = {
-                    if let username, !username.isEmpty,
-                       let byID = existingAccounts.first(where: { $0.externalIdentifier == username })
-                    {
-                        return byID
-                    }
-                    return existingAccounts.first(where: { account in
-                        guard account.externalIdentifier == nil else { return false }
-                        let existingPrefix = account.label.components(separatedBy: " (").first ?? account.label
-                        return existingPrefix == usernamePrefix
-                    })
-                }()
+                // Match existing account by stable GitHub identity (login). For legacy accounts that pre-date
+                // externalIdentifier, resolve the stored token's GitHub identity before falling back to labels so
+                // generic/user-edited labels such as "Account 1" can still be updated in place.
+                let matchedExisting = await Self.matchExistingAccount(
+                    existingAccounts: existingAccounts,
+                    username: username,
+                    label: label)
                 let wasRefresh = matchedExisting != nil
                 if let existing = matchedExisting {
                     settings.updateTokenAccount(
@@ -166,6 +157,47 @@ struct CopilotLoginFlow {
             err.informativeText = error.localizedDescription
             err.runModal()
         }
+    }
+
+    static func matchExistingAccount(
+        existingAccounts: [ProviderTokenAccount],
+        username: String?,
+        label: String,
+        legacyIdentityResolver: @escaping @Sendable (ProviderTokenAccount) async -> String? = { account in
+            try? await CopilotUsageFetcher.fetchGitHubUsername(token: account.token)
+        }) async -> ProviderTokenAccount?
+    {
+        guard let username = self.normalizedGitHubLogin(username), !existingAccounts.isEmpty else { return nil }
+
+        if let byID = existingAccounts.first(where: {
+            self.normalizedGitHubLogin($0.externalIdentifier) == username
+        }) {
+            return byID
+        }
+
+        let legacyAccounts = existingAccounts.filter { $0.externalIdentifier == nil }
+        for account in legacyAccounts {
+            guard let resolvedLogin = await legacyIdentityResolver(account) else { continue }
+            if self.normalizedGitHubLogin(resolvedLogin) == username {
+                return account
+            }
+        }
+
+        let usernamePrefix = self.displayLabelPrefix(label)
+        return legacyAccounts.first { account in
+            self.displayLabelPrefix(account.label) == usernamePrefix
+        }
+    }
+
+    private static func normalizedGitHubLogin(_ login: String?) -> String? {
+        let trimmed = login?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed.lowercased()
+    }
+
+    private static func displayLabelPrefix(_ label: String) -> String {
+        (label.components(separatedBy: " (").first ?? label)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 
     @MainActor

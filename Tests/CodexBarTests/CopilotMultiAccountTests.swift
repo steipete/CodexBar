@@ -231,6 +231,50 @@ struct CopilotExternalIdentifierTests {
     }
 
     @Test
+    func `legacy Account N account matches reauth by stored token identity`() async {
+        let legacy = Self.makeAccount(label: "Account 1", token: "old-token", externalIdentifier: nil)
+        let matched = await CopilotLoginFlow.matchExistingAccount(
+            existingAccounts: [legacy],
+            username: "octocat",
+            label: "octocat (Pro)",
+            legacyIdentityResolver: { account in
+                account.token == "old-token" ? "octocat" : nil
+            })
+
+        #expect(matched?.id == legacy.id)
+    }
+
+    @Test
+    func `user renamed legacy account matches reauth by stored token identity`() async {
+        let legacy = Self.makeAccount(label: "Work GitHub", token: "old-token", externalIdentifier: nil)
+        let matched = await CopilotLoginFlow.matchExistingAccount(
+            existingAccounts: [legacy],
+            username: "octocat",
+            label: "octocat (Pro)",
+            legacyIdentityResolver: { account in
+                account.token == "old-token" ? "OctoCat" : nil
+            })
+
+        #expect(matched?.id == legacy.id)
+    }
+
+    @Test
+    func `external identifier match is case insensitive and preferred`() async {
+        let identified = Self.makeAccount(label: "Personal", token: "identified", externalIdentifier: "OctoCat")
+        let legacy = Self.makeAccount(label: "octocat", token: "legacy", externalIdentifier: nil)
+        let matched = await CopilotLoginFlow.matchExistingAccount(
+            existingAccounts: [legacy, identified],
+            username: "octocat",
+            label: "octocat (Pro)",
+            legacyIdentityResolver: { _ in
+                Issue.record("Resolver should not run when externalIdentifier matches")
+                return nil
+            })
+
+        #expect(matched?.id == identified.id)
+    }
+
+    @Test
     func `decoding legacy token account JSON yields nil identifier`() throws {
         let json = """
         {
@@ -244,6 +288,20 @@ struct CopilotExternalIdentifierTests {
         #expect(account.label == "octocat")
         #expect(account.externalIdentifier == nil)
         #expect(account.lastUsed == nil)
+    }
+
+    private static func makeAccount(
+        label: String,
+        token: String,
+        externalIdentifier: String?) -> ProviderTokenAccount
+    {
+        ProviderTokenAccount(
+            id: UUID(),
+            label: label,
+            token: token,
+            addedAt: 1_700_000_000,
+            lastUsed: nil,
+            externalIdentifier: externalIdentifier)
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {
