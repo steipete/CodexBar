@@ -670,6 +670,7 @@ extension UsageMenuCardView.Model {
         let sourceLabel: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
+        let claudePeakHoursEnabled: Bool
         let weeklyPace: UsagePace?
         let now: Date
 
@@ -694,6 +695,7 @@ extension UsageMenuCardView.Model {
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
+            claudePeakHoursEnabled: Bool = true,
             weeklyPace: UsagePace? = nil,
             now: Date)
         {
@@ -717,6 +719,7 @@ extension UsageMenuCardView.Model {
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
+            self.claudePeakHoursEnabled = claudePeakHoursEnabled
             self.weeklyPace = weeklyPace
             self.now = now
         }
@@ -786,6 +789,11 @@ extension UsageMenuCardView.Model {
                 notes.append("Using CLI fallback")
             }
             return notes
+        }
+
+        if input.provider == .claude, input.claudePeakHoursEnabled {
+            let peakStatus = ClaudePeakHours.status(at: input.now)
+            return [peakStatus.label]
         }
 
         guard input.provider == .openrouter,
@@ -965,18 +973,6 @@ extension UsageMenuCardView.Model {
                 percentStyle: percentStyle,
                 zaiTimeDetail: zaiTimeDetail))
         }
-        if input.provider == .kilo,
-           metrics.contains(where: { $0.id == "primary" }),
-           metrics.contains(where: { $0.id == "secondary" })
-        {
-            metrics.sort { lhs, rhs in
-                let kiloOrder: [String: Int] = [
-                    "secondary": 0,
-                    "primary": 1,
-                ]
-                return (kiloOrder[lhs.id] ?? Int.max) < (kiloOrder[rhs.id] ?? Int.max)
-            }
-        }
         if input.metadata.supportsOpus, let opus = snapshot.tertiary {
             var tertiaryDetailText: String?
             if input.provider == .alibaba,
@@ -1003,6 +999,39 @@ extension UsageMenuCardView.Model {
                 detailRightText: nil,
                 pacePercent: nil,
                 paceOnTop: true))
+        }
+        if let extraRateWindows = snapshot.extraRateWindows {
+            metrics.append(contentsOf: extraRateWindows.map { namedWindow in
+                Metric(
+                    id: namedWindow.id,
+                    title: namedWindow.title,
+                    percent: Self.clamped(
+                        input.usageBarsShowUsed
+                            ? namedWindow.window.usedPercent
+                            : namedWindow.window.remainingPercent),
+                    percentStyle: percentStyle,
+                    resetText: Self.resetText(
+                        for: namedWindow.window,
+                        style: input.resetTimeDisplayStyle,
+                        now: input.now),
+                    detailText: nil,
+                    detailLeftText: nil,
+                    detailRightText: nil,
+                    pacePercent: nil,
+                    paceOnTop: true)
+            })
+        }
+        if input.provider == .kilo,
+           metrics.contains(where: { $0.id == "primary" }),
+           metrics.contains(where: { $0.id == "secondary" })
+        {
+            metrics.sort { lhs, rhs in
+                let kiloOrder: [String: Int] = [
+                    "secondary": 0,
+                    "primary": 1,
+                ]
+                return (kiloOrder[lhs.id] ?? Int.max) < (kiloOrder[rhs.id] ?? Int.max)
+            }
         }
 
         if let codexProjection = input.codexProjection,
@@ -1042,19 +1071,19 @@ extension UsageMenuCardView.Model {
         {
             primaryResetText = openRouterQuotaDetail
         }
-        if input.provider == .warp || input.provider == .kilo,
+        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
         }
-        if input.provider == .alibaba,
+        if input.provider == .alibaba || input.provider == .mistral,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
         }
-        if input.provider == .warp || input.provider == .kilo, primary.resetsAt == nil {
+        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek, primary.resetsAt == nil {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window

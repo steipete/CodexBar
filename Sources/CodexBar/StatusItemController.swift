@@ -9,6 +9,13 @@ import SwiftUI
 @MainActor
 protocol StatusItemControlling: AnyObject {
     func openMenuFromShortcut()
+    func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint?
+}
+
+extension StatusItemControlling {
+    func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {
+        nil
+    }
 }
 
 @MainActor
@@ -185,6 +192,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         switch preference {
         case .secondary, .tertiary:
             return second ?? first
+        case .extraUsage:
+            return first
         case .average:
             guard self.settings.menuBarMetricSupportsAverage(for: .codex),
                   let primary = first,

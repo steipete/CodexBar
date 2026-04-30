@@ -370,6 +370,7 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.providerCost != nil)
         #expect(usageSnapshot.providerCost?.used == 0.0)
         #expect(usageSnapshot.providerCost?.limit == 75.0)
+        #expect(usageSnapshot.providerCost?.period == "Monthly")
     }
 
     @Test

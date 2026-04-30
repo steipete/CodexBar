@@ -192,6 +192,14 @@ extension SettingsStore {
         }
     }
 
+    var confettiOnWeeklyLimitResetsEnabled: Bool {
+        get { self.defaultsState.confettiOnWeeklyLimitResetsEnabled }
+        set {
+            self.defaultsState.confettiOnWeeklyLimitResetsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "confettiOnWeeklyLimitResetsEnabled")
+        }
+    }
+
     var menuBarShowsHighestUsage: Bool {
         get { self.defaultsState.menuBarShowsHighestUsage }
         set {
@@ -246,6 +254,14 @@ extension SettingsStore {
             CodexBarLog.logger(LogCategories.settings).info(
                 "Claude web extras updated",
                 metadata: ["enabled": newValue ? "1" : "0"])
+        }
+    }
+
+    var claudePeakHoursEnabled: Bool {
+        get { self.defaultsState.claudePeakHoursEnabled }
+        set {
+            self.defaultsState.claudePeakHoursEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "claudePeakHoursEnabled")
         }
     }
 

@@ -465,6 +465,7 @@ struct ProvidersPane: View {
             let snapshot = self.store.snapshot(for: provider)
             let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
             let supportsTertiary = self.settings.menuBarMetricSupportsTertiary(for: provider, snapshot: snapshot)
+            let supportsExtraUsage = self.settings.menuBarMetricSupportsExtraUsage(for: provider, snapshot: snapshot)
             var metricOptions: [ProviderSettingsPickerOption] = [
                 ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
                 ProviderSettingsPickerOption(
@@ -479,6 +480,11 @@ struct ProvidersPane: View {
                 metricOptions.append(ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.tertiary.rawValue,
                     title: "Tertiary (\(tertiaryTitle))"))
+            }
+            if supportsExtraUsage {
+                metricOptions.append(ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.extraUsage.rawValue,
+                    title: MenuBarMetricPreference.extraUsage.label))
             }
             if supportsAverage {
                 metricOptions.append(ProviderSettingsPickerOption(
@@ -573,6 +579,7 @@ struct ProvidersPane: View {
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             hidePersonalInfo: self.settings.hidePersonalInfo,
+            claudePeakHoursEnabled: self.settings.claudePeakHoursEnabled,
             weeklyPace: weeklyPace,
             now: now)
         return UsageMenuCardView.Model.make(input)
@@ -605,6 +612,8 @@ struct ProvidersPane: View {
             case .missingEmail:
                 "Codex login completed, but no account email was available. Try again after confirming "
                     + "the account is fully signed in."
+            case .workspaceSelectionCancelled:
+                "CodexBar found multiple workspaces, but no workspace was selected."
             case let .unsafeManagedHome(path):
                 "CodexBar refused to modify an unexpected managed home path: \(path)"
             }

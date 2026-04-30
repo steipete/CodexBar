@@ -56,6 +56,8 @@ extension UsageStore {
             return ZaiSettingsError.missingToken.errorDescription
         case .openrouter:
             return OpenRouterSettingsError.missingToken.errorDescription
+        case .deepseek:
+            return DeepSeekUsageError.missingCredentials.errorDescription
         case .perplexity:
             return PerplexityAPIError.missingToken.errorDescription
         case .minimax:

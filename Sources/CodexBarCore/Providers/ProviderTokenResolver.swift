@@ -78,6 +78,18 @@ public enum ProviderTokenResolver {
         self.codebuffResolution(environment: environment, authFileURL: authFileURL)?.token
     }
 
+    public static func deepseekToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.deepseekResolution(environment: environment)?.token
+    }
+
+    public static func deepseekResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(DeepSeekSettingsReader.apiKey(environment: environment))
+    }
+
     public static func zaiResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {

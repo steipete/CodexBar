@@ -28,6 +28,18 @@ public struct RateWindow: Codable, Equatable, Sendable {
     }
 }
 
+public struct NamedRateWindow: Codable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let window: RateWindow
+
+    public init(id: String, title: String, window: RateWindow) {
+        self.id = id
+        self.title = title
+        self.window = window
+    }
+}
+
 public struct ProviderIdentitySnapshot: Codable, Sendable {
     public let providerID: UsageProvider?
     public let accountEmail: String?
@@ -60,6 +72,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let primary: RateWindow?
     public let secondary: RateWindow?
     public let tertiary: RateWindow?
+    public let extraRateWindows: [NamedRateWindow]?
     public let providerCost: ProviderCostSnapshot?
     public let zaiUsage: ZaiUsageSnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
@@ -72,6 +85,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case primary
         case secondary
         case tertiary
+        case extraRateWindows
         case providerCost
         case openRouterUsage
         case updatedAt
@@ -85,6 +99,7 @@ public struct UsageSnapshot: Codable, Sendable {
         primary: RateWindow?,
         secondary: RateWindow?,
         tertiary: RateWindow? = nil,
+        extraRateWindows: [NamedRateWindow]? = nil,
         providerCost: ProviderCostSnapshot? = nil,
         zaiUsage: ZaiUsageSnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
@@ -96,6 +111,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.primary = primary
         self.secondary = secondary
         self.tertiary = tertiary
+        self.extraRateWindows = extraRateWindows
         self.providerCost = providerCost
         self.zaiUsage = zaiUsage
         self.minimaxUsage = minimaxUsage
@@ -110,6 +126,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
         self.secondary = try container.decodeIfPresent(RateWindow.self, forKey: .secondary)
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
+        self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.zaiUsage = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
@@ -140,6 +157,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encode(self.primary, forKey: .primary)
         try container.encode(self.secondary, forKey: .secondary)
         try container.encode(self.tertiary, forKey: .tertiary)
+        try container.encodeIfPresent(self.extraRateWindows, forKey: .extraRateWindows)
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
         try container.encode(self.updatedAt, forKey: .updatedAt)
@@ -224,6 +242,7 @@ public struct UsageSnapshot: Codable, Sendable {
             primary: self.primary,
             secondary: self.secondary,
             tertiary: self.tertiary,
+            extraRateWindows: self.extraRateWindows,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
@@ -575,10 +594,26 @@ private final class CodexRPCClient: @unchecked Sendable {
 // MARK: - Public fetcher used by the app
 
 public struct UsageFetcher: Sendable {
+    typealias CodexStatusFetcher = @Sendable ([String: String], Bool) async throws -> CodexStatusSnapshot
+
     private let environment: [String: String]
+    private let codexStatusFetcher: CodexStatusFetcher
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        self.init(environment: environment) { environment, keepCLISessionsAlive in
+            try await CodexStatusProbe(
+                keepCLISessionsAlive: keepCLISessionsAlive,
+                environment: environment)
+                .fetch()
+        }
+    }
+
+    init(
+        environment: [String: String],
+        codexStatusFetcher: @escaping CodexStatusFetcher)
+    {
         self.environment = environment
+        self.codexStatusFetcher = codexStatusFetcher
         LoginShellPathCache.shared.captureOnce()
     }
 
@@ -625,10 +660,7 @@ public struct UsageFetcher: Sendable {
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
         do {
-            let status = try await CodexStatusProbe(
-                keepCLISessionsAlive: keepCLISessionsAlive,
-                environment: self.environment)
-                .fetch()
+            let status = try await self.codexStatusFetcher(self.environment, keepCLISessionsAlive)
             guard let state = CodexReconciledState.fromCLI(
                 primary: Self.makeTTYWindow(
                     percentLeft: status.fiveHourPercentLeft,
@@ -675,10 +707,7 @@ public struct UsageFetcher: Sendable {
 
     private func loadTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
         do {
-            let status = try await CodexStatusProbe(
-                keepCLISessionsAlive: keepCLISessionsAlive,
-                environment: self.environment)
-                .fetch()
+            let status = try await self.codexStatusFetcher(self.environment, keepCLISessionsAlive)
             guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
             return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
         } catch {

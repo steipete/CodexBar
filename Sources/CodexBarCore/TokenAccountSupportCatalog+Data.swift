@@ -9,6 +9,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: "sessionKey"),
+        .deepseek: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Store multiple DeepSeek API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: DeepSeekSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .zai: TokenAccountSupport(
             title: "API tokens",
             subtitle: "Stored in the CodexBar config file.",
@@ -68,6 +75,13 @@ extension TokenAccountSupportCatalog {
         .abacus: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Abacus AI Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
+        .mistral: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Mistral Cookie headers.",
             placeholder: "Cookie: …",
             injection: .cookieHeader,
             requiresManualCookieSource: true,

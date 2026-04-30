@@ -3,6 +3,36 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.23</title>
+            <pubDate>Sun, 26 Apr 2026 04:51:49 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>58</sparkle:version>
+            <sparkle:shortVersionString>0.23</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.23</h2>
+<h3>Highlights</h3>
+<ul>
+<li>Mistral: add provider support with monthly spend tracking, browser-cookie import, manual cookies, and CLI/token-account support (#607). Thanks @welcoMattic!</li>
+<li>Claude: show Designs and Daily Routines usage bars from live Claude OAuth/Web quota data, and restore the Web-mode Sonnet bar (#740). Thanks @AISupplyGuy!</li>
+<li>Cursor: add an Extra usage menu bar metric for on-demand budgets (#789). Thanks @huiye98!</li>
+<li>Usage: add an opt-in confetti celebration when weekly limits reset after active use (#785). Thanks @zats!</li>
+<li>Codex: add GPT-5.5 and GPT-5.5 Pro pricing so local cost scanning recognizes the new models.</li>
+<li>Copilot: show a clearer GitHub Device Flow hint in Settings when the copied device code needs to be pasted into GitHub (#369). Thanks @amoranio!</li>
+</ul>
+<h3>Fixes</h3>
+<ul>
+<li>Droid: preserve Factory session fallbacks, use the current usage endpoint, and clarify browser-login messaging (#792). Thanks @JosephDoUrden for the original stale-session fix!</li>
+<li>Widgets: package App Intents metadata for the widget extension and use configuration defaults so configurable widgets load correctly in WidgetKit (#783). Thanks @ngutman and @vincentyangch!</li>
+<li>Menu: keep merged-menu cards, switcher rows, wrapped status text, and hosted chart submenus aligned with the real AppKit menu width so menus no longer grow oversized or show narrower chart submenus after width changes. Thanks @ngutman!</li>
+<li>Codex: ignore invalid zero-minute subscription history so the utilization submenu no longer shows duplicate Session tabs.</li>
+<li>CLI: report the app bundle version correctly when the bundled helper is launched through a symlink.</li>
+<li>Codex/Claude: clean up cached CLI status probes during app shutdown so <code>codex -s read-only</code> workers are not orphaned after restart.</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.23/CodexBar-0.23.zip" length="30631794" type="application/octet-stream" sparkle:edSignature="GNX7nts8CsKNPu5v6IRpAO41hY8HJHb5MkRep09uei0q7MbA/KH97//+4nVGum7JTnOMMigxoKcI+q98eqYlAQ=="/>
+        </item>
+        <item>
             <title>0.22</title>
             <pubDate>Tue, 21 Apr 2026 01:12:52 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -98,44 +128,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.21/CodexBar-0.21.zip" length="29629137" type="application/octet-stream" sparkle:edSignature="AVZRGIJP48INFFn2IcDxnde+Qz5TwzMM4nVXWs6J1qQ3CIr6ExOj7vIJg/+lg+FrKgHJbkPw8q4+XcFs9P9bBQ=="/>
-        </item>
-        <item>
-            <title>0.20</title>
-            <pubDate>Wed, 08 Apr 2026 04:42:18 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>55</sparkle:version>
-            <sparkle:shortVersionString>0.20</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.20</h2>
-<h3>Highlights</h3>
-<ul>
-<li>Codex: switch between system accounts/profiles without manually logging out and back in. @ratulsarna</li>
-<li>Add Perplexity provider support with recurring, bonus, and purchased-credit tracking, Pro/Max plan detection, browser-cookie auto-import, and manual-cookie fallback (#449). Thanks @BeelixGit!</li>
-<li>Add OpenCode Go as a separate provider with 5-hour, weekly, and monthly web usage tracking, widget integration, and browser-cookie support.</li>
-<li>Claude: fix token and cost inflation caused by cross-file double counting of subagent JSONL logs, fix streaming chunk deduplication, and add <code>claude-sonnet-4-6</code> pricing. Thanks @enzonaute for the investigation!</li>
-<li>Cost history: merge supported pi session usage into Codex/Claude provider history (#653). Thanks @ngutman!</li>
-</ul>
-<h3>Providers & Usage</h3>
-<ul>
-<li>Perplexity: add recurring, bonus, and purchased-credit tracking; plan detection for Pro/Max; browser-cookie auto-import; and manual-cookie fallback (#449). Thanks @BeelixGit!</li>
-<li>OpenCode Go: add a dedicated provider, parse live authenticated workspace Go usage from the web app, keep monthly optional and honor workspace env overrides.</li>
-<li>Codex: add workspace attribution for account labels and same-email multi-workspace accounts.</li>
-<li>Codex: reconcile live-system and managed accounts by canonical identity, preserve account-scoped usage/history/dashboard state, allow OAuth CLI fallback, and tighten OpenAI web ownership gating so quota and credits only attach to the matching account. Thanks @monterrr and @Rag30 for the initial effort and ideas!</li>
-<li>Codex: normalize weekly-only rate limits across OAuth and CLI/RPC so free-plan accounts render as Weekly instead of a fake Session, preserve unknown single-window payloads in the primary lane, hide the empty Session lane in widgets, and accept weekly-only Codex CLI <code>/status</code>/RPC data without failing. @ratulsarna</li>
-<li>Codex: refactor the provider end to end into clearer components and better division of responsibilities.</li>
-<li>OpenCode: preserve product separation between Zen and Go, improve null/unsupported usage handling, and harden cookie/domain behavior for authenticated web fetches.</li>
-<li>Cost history: merge supported pi session usage into Codex/Claude provider history (#653). Thanks @ngutman!</li>
-</ul>
-<h3>Menu & Settings</h3>
-<ul>
-<li>Codex: add UI for switching the system-level Codex account and promoting a managed account into the live system slot.</li>
-<li>Codex: hide display-only OpenAI web extras in widgets and fix buy-credits / credits-only presentation regressions.</li>
-<li>Claude: enable “Avoid Keychain prompts” by default, remove the experimental label, and preserve user-action cooldown clearing plus startup bootstrap when Security.framework fallback is still needed.</li>
-<li>Fix alignment of menu chart hover coordinates on macOS. Thanks @cuidong233!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.20/CodexBar-0.20.zip" length="28820676" type="application/octet-stream" sparkle:edSignature="ms1BXCobJnD3hDWYVivEdhuReXQXtcKWK21w4VWPF90VsFcWTSg9vwyNCXba3VpAcpAkN0uHw93aGVpcRzihAg=="/>
         </item>
         <item>
             <title>0.14.0</title>

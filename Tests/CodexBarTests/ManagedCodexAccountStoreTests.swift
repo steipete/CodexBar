@@ -205,6 +205,36 @@ func `FileManagedCodexAccountStore keeps same email rows when hydrated provider 
 }
 
 @Test
+func `managed account set keeps same provider account I D when emails differ`() {
+    let firstID = UUID()
+    let secondID = UUID()
+    let first = ManagedCodexAccount(
+        id: firstID,
+        email: "mi.chaelfmk5542@gmail.com",
+        providerAccountID: "team-4107",
+        managedHomePath: "/tmp/managed-home-1",
+        createdAt: 10,
+        updatedAt: 20,
+        lastAuthenticatedAt: nil)
+    let second = ManagedCodexAccount(
+        id: secondID,
+        email: "mich.aelfmk5542@gmail.com",
+        providerAccountID: "team-4107",
+        managedHomePath: "/tmp/managed-home-2",
+        createdAt: 30,
+        updatedAt: 40,
+        lastAuthenticatedAt: nil)
+
+    let set = ManagedCodexAccountSet(
+        version: FileManagedCodexAccountStore.currentVersion,
+        accounts: [first, second])
+
+    #expect(set.accounts.count == 2)
+    #expect(set.account(email: "mi.chaelfmk5542@gmail.com", providerAccountID: "team-4107")?.id == firstID)
+    #expect(set.account(email: "mich.aelfmk5542@gmail.com", providerAccountID: "team-4107")?.id == secondID)
+}
+
+@Test
 func `FileManagedCodexAccountStore hydrates provider account I D from id token when account field is absent`() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }

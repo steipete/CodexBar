@@ -9,7 +9,7 @@ extension SettingsStore {
             switch preference {
             case .automatic, .primary:
                 return preference
-            case .secondary, .average, .tertiary:
+            case .secondary, .average, .tertiary, .extraUsage:
                 return .automatic
             }
         }
@@ -21,6 +21,9 @@ extension SettingsStore {
         if preference == .tertiary, !self.menuBarMetricSupportsTertiary(for: provider) {
             return .automatic
         }
+        if preference == .extraUsage, !self.menuBarMetricSupportsExtraUsage(for: provider) {
+            return .automatic
+        }
         return preference
     }
 
@@ -29,12 +32,16 @@ extension SettingsStore {
             switch preference {
             case .automatic, .primary:
                 self.menuBarMetricPreferencesRaw[provider.rawValue] = preference.rawValue
-            case .secondary, .average, .tertiary:
+            case .secondary, .average, .tertiary, .extraUsage:
                 self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
             }
             return
         }
         if preference == .tertiary, !self.menuBarMetricSupportsTertiary(for: provider) {
+            self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
+            return
+        }
+        if preference == .extraUsage, !self.menuBarMetricSupportsExtraUsage(for: provider) {
             self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
             return
         }
@@ -56,10 +63,25 @@ extension SettingsStore {
         return self.menuBarMetricSupportsTertiary(for: provider)
     }
 
+    func menuBarMetricSupportsExtraUsage(for provider: UsageProvider) -> Bool {
+        provider == .cursor
+    }
+
+    func menuBarMetricSupportsExtraUsage(for provider: UsageProvider, snapshot: UsageSnapshot?) -> Bool {
+        guard self.menuBarMetricSupportsExtraUsage(for: provider) else { return false }
+        guard let cost = snapshot?.providerCost else { return false }
+        return cost.limit > 0
+    }
+
     func menuBarMetricPreference(for provider: UsageProvider, snapshot: UsageSnapshot?) -> MenuBarMetricPreference {
         let preference = self.menuBarMetricPreference(for: provider)
         if preference == .tertiary,
            !self.menuBarMetricSupportsTertiary(for: provider, snapshot: snapshot)
+        {
+            return .automatic
+        }
+        if preference == .extraUsage,
+           !self.menuBarMetricSupportsExtraUsage(for: provider, snapshot: snapshot)
         {
             return .automatic
         }

@@ -49,6 +49,7 @@ Linux support via Omarchy: community Waybar module and TUI, driven by the `codex
 - [OpenRouter](docs/openrouter.md) — API token for credit-based usage tracking across multiple AI providers.
 - [Abacus AI](docs/abacus.md) — Browser cookie auth for ChatLLM/RouteLLM compute credit tracking.
 - [Codebuff](docs/codebuff.md) — API token (or `~/.config/manicode/credentials.json`) for credit balance + weekly rate limit.
+- [DeepSeek](docs/deepseek.md) — API key for credit balance tracking (paid vs. granted breakdown).
 - Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot

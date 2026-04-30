@@ -125,6 +125,74 @@ struct MenuCardModelTests {
     }
 
     @Test
+    func `claude model includes design and routines bars when present`() throws {
+        let now = Date()
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "Max")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 2,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 8,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7200),
+                resetDescription: nil),
+            tertiary: RateWindow(
+                usedPercent: 16,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7800),
+                resetDescription: nil),
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "claude-design",
+                    title: "Designs",
+                    window: RateWindow(
+                        usedPercent: 31,
+                        windowMinutes: 10080,
+                        resetsAt: now.addingTimeInterval(8200),
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "claude-routines",
+                    title: "Daily Routines",
+                    window: RateWindow(
+                        usedPercent: 7,
+                        windowMinutes: 10080,
+                        resetsAt: now.addingTimeInterval(9200),
+                        resetDescription: nil)),
+            ],
+            updatedAt: now,
+            identity: identity)
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "codex@example.com", plan: "plus"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.map(\.title) == ["Session", "Weekly", "Sonnet", "Designs", "Daily Routines"])
+    }
+
+    @Test
     func `shows error subtitle when present`() throws {
         let metadata = try #require(ProviderDefaults.metadata[.codex])
         let model = UsageMenuCardView.Model.make(.init(
@@ -706,5 +774,51 @@ struct MenuCardModelTests {
         let primary = try #require(model.metrics.first)
         #expect(primary.resetText == nil)
         #expect(primary.detailText == "10/100 credits")
+    }
+
+    @Test
+    func `mistral model surfaces monthly cost as primary detail text`() throws {
+        let now = Date()
+        let resetsAt = now.addingTimeInterval(3 * 24 * 60 * 60)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .mistral,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: nil)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: resetsAt,
+                resetDescription: "€1.2345 this month"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+        let metadata = try #require(ProviderDefaults.metadata[.mistral])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .mistral,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let primary = try #require(model.metrics.first)
+        #expect(primary.detailText == "€1.2345 this month")
+        #expect(primary.resetText?.hasPrefix("Resets") == true)
     }
 }

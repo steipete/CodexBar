@@ -303,6 +303,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             primary: usage.primary,
             secondary: usage.secondary,
             tertiary: usage.opus,
+            extraRateWindows: usage.extraRateWindows.isEmpty ? nil : usage.extraRateWindows,
             providerCost: usage.providerCost,
             updatedAt: usage.updatedAt,
             identity: identity)
