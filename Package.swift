@@ -13,6 +13,7 @@ let sweetCookieKitDependency: Package.Dependency =
 
 let package = Package(
     name: "CodexBar",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v14),
     ],

@@ -28,12 +28,12 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .manual: "Manual"
-        case .oneMinute: "1 min"
-        case .twoMinutes: "2 min"
-        case .fiveMinutes: "5 min"
-        case .fifteenMinutes: "15 min"
-        case .thirtyMinutes: "30 min"
+        case .manual: L("refresh_manual")
+        case .oneMinute: L("refresh_1min")
+        case .twoMinutes: L("refresh_2min")
+        case .fiveMinutes: L("refresh_5min")
+        case .fifteenMinutes: L("refresh_15min")
+        case .thirtyMinutes: L("refresh_30min")
         }
     }
 }
@@ -52,12 +52,12 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .automatic: "Automatic"
-        case .primary: "Primary"
-        case .secondary: "Secondary"
-        case .tertiary: "Tertiary"
-        case .extraUsage: "Extra usage"
-        case .average: "Average"
+        case .automatic: L("metric_pref_automatic")
+        case .primary: L("metric_pref_primary")
+        case .secondary: L("metric_pref_secondary")
+        case .tertiary: L("metric_pref_tertiary")
+        case .extraUsage: L("metric_pref_extra_usage")
+        case .average: L("metric_pref_average")
         }
     }
 }
@@ -282,6 +282,7 @@ extension SettingsStore {
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
+        let appLanguageRaw = userDefaults.string(forKey: "appLanguage")
 
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -319,7 +320,8 @@ extension SettingsStore {
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
-            providerDetectionCompleted: providerDetectionCompleted)
+            providerDetectionCompleted: providerDetectionCompleted,
+            appLanguageRaw: appLanguageRaw)
     }
 }
 
