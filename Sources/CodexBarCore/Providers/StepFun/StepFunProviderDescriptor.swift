@@ -47,6 +47,10 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        // Respect the "Off" auth source — if explicitly disabled, don't fetch.
+        if let settings = context.settings?.stepfun, settings.cookieSource == .off {
+            return false
+        }
         // Available if any auth method is configured:
         // 1. Username + password from Settings UI
         // 2. Manual token from Settings UI

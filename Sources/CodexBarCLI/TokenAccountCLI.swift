@@ -200,8 +200,17 @@ struct TokenAccountCLIContext {
                 mistral: ProviderSettingsSnapshot.MistralProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
-        case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp,
-             .deepseek, .codebuff, .crof, .venice, .commandcode, .stepfun:
+        case .stepfun:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                stepfun: ProviderSettingsSnapshot.StepFunProviderSettings(
+                    cookieSource: cookieSource,
+                    manualToken: cookieHeader ?? "",
+                    username: config?.sanitizedAPIKey ?? "",
+                    password: ""))
+        case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp, .deepseek,
+             .codebuff, .crof, .venice, .commandcode:
             return nil
         case .windsurf:
             return nil

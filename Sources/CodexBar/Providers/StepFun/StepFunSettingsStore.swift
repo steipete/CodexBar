@@ -56,10 +56,30 @@ extension SettingsStore {
     }
 
     private func stepfunSnapshotToken(tokenOverride: TokenAccountOverride?) -> String {
-        self.stepfunToken
+        let fallback = self.stepfunToken
+        guard let support = TokenAccountSupportCatalog.support(for: .stepfun),
+              case .cookieHeader = support.injection
+        else {
+            return fallback
+        }
+        guard let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: .stepfun,
+            settings: self,
+            override: tokenOverride)
+        else {
+            return fallback
+        }
+        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
     }
 
     private func stepfunSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        self.stepfunCookieSource
+        let fallback = self.stepfunCookieSource
+        guard let support = TokenAccountSupportCatalog.support(for: .stepfun),
+              support.requiresManualCookieSource
+        else {
+            return fallback
+        }
+        if self.tokenAccounts(for: .stepfun).isEmpty { return fallback }
+        return .manual
     }
 }
