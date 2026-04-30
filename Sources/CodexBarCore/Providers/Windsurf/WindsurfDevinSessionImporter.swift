@@ -7,6 +7,29 @@ import SweetCookieKit
 enum WindsurfDevinSessionImporter {
     nonisolated(unsafe) static var importSessionsOverrideForTesting:
         ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?
+    nonisolated(unsafe) static var importPreferredSessionsOverrideForTesting:
+        ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?
+    nonisolated(unsafe) static var importFallbackSessionsOverrideForTesting:
+        ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?
+    static let defaultPreferredBrowsers: [Browser] = [.chrome]
+    static let fallbackBrowsers: [Browser] = [
+        .chromeBeta,
+        .chromeCanary,
+        .edge,
+        .edgeBeta,
+        .edgeCanary,
+        .brave,
+        .braveBeta,
+        .braveNightly,
+        .vivaldi,
+        .arc,
+        .arcBeta,
+        .arcCanary,
+        .dia,
+        .chatgptAtlas,
+        .chromium,
+        .helium,
+    ]
 
     struct SessionInfo: Sendable, Equatable {
         let session: WindsurfDevinSessionAuth
@@ -22,27 +45,58 @@ enum WindsurfDevinSessionImporter {
         }
 
         let log: (String) -> Void = { msg in logger?("[windsurf-storage] \(msg)") }
-        var sessions: [SessionInfo] = []
-
-        let candidates = self.chromeLocalStorageCandidates(browserDetection: browserDetection)
-        if !candidates.isEmpty {
-            log("Chrome local storage candidates: \(candidates.count)")
+        let preferredSessions = self.importSessions(
+            browserDetection: browserDetection,
+            browsers: self.defaultPreferredBrowsers,
+            logger: log)
+        if !preferredSessions.isEmpty {
+            return preferredSessions
         }
 
-        for candidate in candidates {
-            let storage = self.readLocalStorage(from: candidate.url, logger: log)
-            guard let session = self.session(from: storage, sourceLabel: candidate.label) else { continue }
-            log("Found Windsurf devin session in \(candidate.label)")
-            sessions.append(session)
-        }
-
-        sessions = self.deduplicateSessions(sessions)
+        log("No Windsurf devin session found in Chrome; trying fallback Chromium browsers")
+        let sessions = self.importSessions(
+            browserDetection: browserDetection,
+            browsers: self.fallbackBrowsersExcluding(self.defaultPreferredBrowsers),
+            logger: log)
 
         if sessions.isEmpty {
             log("No Windsurf devin session found in browser local storage")
         }
 
         return sessions
+    }
+
+    static func importPreferredSessions(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> [SessionInfo]
+    {
+        if let override = self.importPreferredSessionsOverrideForTesting {
+            return override(browserDetection, logger)
+        }
+        let log: (String) -> Void = { msg in logger?("[windsurf-storage] \(msg)") }
+        return self.importSessions(
+            browserDetection: browserDetection,
+            browsers: self.defaultPreferredBrowsers,
+            logger: log)
+    }
+
+    static func importFallbackSessions(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) -> [SessionInfo]
+    {
+        if let override = self.importFallbackSessionsOverrideForTesting {
+            return override(browserDetection, logger)
+        }
+        let log: (String) -> Void = { msg in logger?("[windsurf-storage] \(msg)") }
+        return self.importSessions(
+            browserDetection: browserDetection,
+            browsers: self.fallbackBrowsersExcluding(self.defaultPreferredBrowsers),
+            logger: log)
+    }
+
+    static func fallbackBrowsersExcluding(_ preferredBrowsers: [Browser]) -> [Browser] {
+        let preferred = Set(preferredBrowsers)
+        return self.fallbackBrowsers.filter { !preferred.contains($0) }
     }
 
     static func deduplicateSessions(_ sessions: [SessionInfo]) -> [SessionInfo] {
@@ -89,32 +143,38 @@ enum WindsurfDevinSessionImporter {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private struct LocalStorageCandidate {
+    struct LocalStorageCandidate {
         let label: String
         let url: URL
     }
 
-    private static func chromeLocalStorageCandidates(browserDetection: BrowserDetection) -> [LocalStorageCandidate] {
-        let browsers: [Browser] = [
-            .chrome,
-            .chromeBeta,
-            .chromeCanary,
-            .edge,
-            .edgeBeta,
-            .edgeCanary,
-            .brave,
-            .braveBeta,
-            .braveNightly,
-            .vivaldi,
-            .arc,
-            .arcBeta,
-            .arcCanary,
-            .dia,
-            .chatgptAtlas,
-            .chromium,
-            .helium,
-        ]
+    private static func importSessions(
+        browserDetection: BrowserDetection,
+        browsers: [Browser],
+        logger: @escaping (String) -> Void) -> [SessionInfo]
+    {
+        var sessions: [SessionInfo] = []
+        let candidates = self.chromeLocalStorageCandidates(
+            browserDetection: browserDetection,
+            browsers: browsers)
+        if !candidates.isEmpty {
+            logger("Chrome local storage candidates: \(candidates.count)")
+        }
 
+        for candidate in candidates {
+            let storage = self.readLocalStorage(from: candidate.url, logger: logger)
+            guard let session = self.session(from: storage, sourceLabel: candidate.label) else { continue }
+            logger("Found Windsurf devin session in \(candidate.label)")
+            sessions.append(session)
+        }
+
+        return self.deduplicateSessions(sessions)
+    }
+
+    static func chromeLocalStorageCandidates(
+        browserDetection: BrowserDetection,
+        browsers: [Browser]) -> [LocalStorageCandidate]
+    {
         let installedBrowsers = browsers.browsersWithProfileData(using: browserDetection)
         let roots = ChromiumProfileLocator
             .roots(for: installedBrowsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())

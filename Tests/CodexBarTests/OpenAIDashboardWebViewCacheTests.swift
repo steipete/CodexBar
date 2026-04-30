@@ -192,10 +192,13 @@ struct OpenAIDashboardWebViewCacheTests {
 
         #expect(cache.hasPreservedPageForTesting(for: store), "Expected preserved page handoff to be armed")
 
-        try? await Task.sleep(for: .milliseconds(450))
-
-        let bodyText = try await webView.evaluateJavaScript(
-            "document.body ? String(document.body.innerText || '') : ''") as? String
+        var bodyText: String?
+        let deadline = Date().addingTimeInterval(2)
+        repeat {
+            try? await Task.sleep(for: .milliseconds(100))
+            bodyText = try await webView.evaluateJavaScript(
+                "document.body ? String(document.body.innerText || '') : ''") as? String
+        } while (cache.hasPreservedPageForTesting(for: store) || bodyText?.isEmpty != true) && Date() < deadline
 
         #expect(!cache.hasPreservedPageForTesting(for: store), "Expected scheduled expiry to clear preserved page")
         #expect(bodyText?.isEmpty == true, "Expected scheduled expiry to detach the preserved page to about:blank")

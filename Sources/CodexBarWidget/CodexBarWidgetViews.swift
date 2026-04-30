@@ -285,6 +285,7 @@ private struct ProviderSwitchChip: View {
         case .perplexity: "Pplx"
         case .abacus: "Abacus"
         case .mistral: "Mistral"
+        case .deepseek: "DeepSeek"
         }
     }
 }
@@ -650,6 +651,8 @@ enum WidgetColors {
             Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
         case .mistral:
             Color(red: 255 / 255, green: 80 / 255, blue: 15 / 255) // Mistral orange
+        case .deepseek:
+            Color(red: 82 / 255, green: 125 / 255, blue: 240 / 255)
         }
     }
 }

@@ -159,32 +159,42 @@ public enum WindsurfWebFetcher {
             throw WindsurfWebFetcherError.noSessionData
         }
 
-        let sessionInfos = WindsurfDevinSessionImporter.importSessions(
+        let preferredSessionInfos = WindsurfDevinSessionImporter.importPreferredSessions(
             browserDetection: browserDetection,
             logger: logger)
+        let sessionInfos = preferredSessionInfos.isEmpty
+            ? WindsurfDevinSessionImporter.importFallbackSessions(
+                browserDetection: browserDetection,
+                logger: logger)
+            : preferredSessionInfos
         guard !sessionInfos.isEmpty else {
             throw WindsurfWebFetcherError.noSessionData
         }
 
-        var lastError: Error?
-        for sessionInfo in sessionInfos {
-            do {
-                log("Using devin session from \(sessionInfo.sourceLabel)")
-                let response = try await self.fetchPlanStatus(
-                    auth: sessionInfo.session,
-                    timeout: timeout,
-                    session: session)
-                return response.toUsageSnapshot()
-            } catch {
-                guard self.isRecoverableImportedSessionError(error) else {
-                    throw error
-                }
-                lastError = error
-                log("Windsurf devin session from \(sessionInfo.sourceLabel) failed; trying next imported session")
+        do {
+            return try await self.fetchUsage(
+                sessionInfos: sessionInfos,
+                timeout: timeout,
+                logger: log,
+                session: session)
+        } catch {
+            guard !preferredSessionInfos.isEmpty, self.isRecoverableImportedSessionError(error) else {
+                throw error
             }
         }
 
-        throw lastError ?? WindsurfWebFetcherError.noSessionData
+        log("Chrome Windsurf sessions failed; trying fallback Chromium browser sessions")
+        let fallbackSessionInfos = WindsurfDevinSessionImporter.importFallbackSessions(
+            browserDetection: browserDetection,
+            logger: logger)
+        guard !fallbackSessionInfos.isEmpty else {
+            throw WindsurfWebFetcherError.noSessionData
+        }
+        return try await self.fetchUsage(
+            sessionInfos: fallbackSessionInfos,
+            timeout: timeout,
+            logger: log,
+            session: session)
     }
 
     static func parseManualSessionInput(_ raw: String) throws -> WindsurfDevinSessionAuth {
@@ -241,6 +251,33 @@ public enum WindsurfWebFetcher {
         }
 
         return ["HTTP 400", "HTTP 401", "HTTP 403"].contains { message.hasPrefix($0) }
+    }
+
+    private static func fetchUsage(
+        sessionInfos: [WindsurfDevinSessionImporter.SessionInfo],
+        timeout: TimeInterval,
+        logger log: (String) -> Void,
+        session: URLSession) async throws -> UsageSnapshot
+    {
+        var lastError: Error?
+        for sessionInfo in sessionInfos {
+            do {
+                log("Using devin session from \(sessionInfo.sourceLabel)")
+                let response = try await self.fetchPlanStatus(
+                    auth: sessionInfo.session,
+                    timeout: timeout,
+                    session: session)
+                return response.toUsageSnapshot()
+            } catch {
+                guard self.isRecoverableImportedSessionError(error) else {
+                    throw error
+                }
+                lastError = error
+                log("Windsurf devin session from \(sessionInfo.sourceLabel) failed; trying next imported session")
+            }
+        }
+
+        throw lastError ?? WindsurfWebFetcherError.noSessionData
     }
 
     private static func sessionAuth(from values: [String: Any]) -> WindsurfDevinSessionAuth? {

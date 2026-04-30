@@ -594,10 +594,26 @@ private final class CodexRPCClient: @unchecked Sendable {
 // MARK: - Public fetcher used by the app
 
 public struct UsageFetcher: Sendable {
+    typealias CodexStatusFetcher = @Sendable ([String: String], Bool) async throws -> CodexStatusSnapshot
+
     private let environment: [String: String]
+    private let codexStatusFetcher: CodexStatusFetcher
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        self.init(environment: environment) { environment, keepCLISessionsAlive in
+            try await CodexStatusProbe(
+                keepCLISessionsAlive: keepCLISessionsAlive,
+                environment: environment)
+                .fetch()
+        }
+    }
+
+    init(
+        environment: [String: String],
+        codexStatusFetcher: @escaping CodexStatusFetcher)
+    {
         self.environment = environment
+        self.codexStatusFetcher = codexStatusFetcher
         LoginShellPathCache.shared.captureOnce()
     }
 
@@ -644,10 +660,7 @@ public struct UsageFetcher: Sendable {
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
         do {
-            let status = try await CodexStatusProbe(
-                keepCLISessionsAlive: keepCLISessionsAlive,
-                environment: self.environment)
-                .fetch()
+            let status = try await self.codexStatusFetcher(self.environment, keepCLISessionsAlive)
             guard let state = CodexReconciledState.fromCLI(
                 primary: Self.makeTTYWindow(
                     percentLeft: status.fiveHourPercentLeft,
@@ -694,10 +707,7 @@ public struct UsageFetcher: Sendable {
 
     private func loadTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
         do {
-            let status = try await CodexStatusProbe(
-                keepCLISessionsAlive: keepCLISessionsAlive,
-                environment: self.environment)
-                .fetch()
+            let status = try await self.codexStatusFetcher(self.environment, keepCLISessionsAlive)
             guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
             return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
         } catch {

@@ -670,6 +670,7 @@ extension UsageMenuCardView.Model {
         let sourceLabel: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
+        let claudePeakHoursEnabled: Bool
         let weeklyPace: UsagePace?
         let now: Date
 
@@ -694,6 +695,7 @@ extension UsageMenuCardView.Model {
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
+            claudePeakHoursEnabled: Bool = true,
             weeklyPace: UsagePace? = nil,
             now: Date)
         {
@@ -717,6 +719,7 @@ extension UsageMenuCardView.Model {
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
+            self.claudePeakHoursEnabled = claudePeakHoursEnabled
             self.weeklyPace = weeklyPace
             self.now = now
         }
@@ -786,6 +789,11 @@ extension UsageMenuCardView.Model {
                 notes.append("Using CLI fallback")
             }
             return notes
+        }
+
+        if input.provider == .claude, input.claudePeakHoursEnabled {
+            let peakStatus = ClaudePeakHours.status(at: input.now)
+            return [peakStatus.label]
         }
 
         guard input.provider == .openrouter,
@@ -1063,7 +1071,7 @@ extension UsageMenuCardView.Model {
         {
             primaryResetText = openRouterQuotaDetail
         }
-        if input.provider == .warp || input.provider == .kilo,
+        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -1075,7 +1083,7 @@ extension UsageMenuCardView.Model {
         {
             primaryDetailText = detail
         }
-        if input.provider == .warp || input.provider == .kilo, primary.resetsAt == nil {
+        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek, primary.resetsAt == nil {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window

@@ -123,6 +123,9 @@ struct UsageStorePlanUtilizationTests {
     @Test
     func `native chart shows visible series tabs only`() {
         let histories = [
+            planSeries(name: .session, windowMinutes: 0, entries: [
+                planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 90),
+            ]),
             planSeries(name: .session, windowMinutes: 300, entries: [
                 planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 20),
             ]),
@@ -590,6 +593,39 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `record plan history skips invalid zero minute windows`() async {
+        let store = Self.makeStore()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 0,
+                resetsAt: Date(timeIntervalSince1970: 1_710_000_000),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 44,
+                windowMinutes: 10080,
+                resetsAt: Date(timeIntervalSince1970: 1_710_086_400),
+                resetDescription: nil),
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "plus"))
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: snapshot,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let histories = store.planUtilizationHistory(for: .codex)
+        #expect(findSeries(histories, name: .session, windowMinutes: 0) == nil)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 44)
+    }
+
+    @MainActor
+    @Test
     func `record plan history keeps semantic codex lanes when durations drift`() async {
         let store = Self.makeStore()
         let primaryReset = Date(timeIntervalSince1970: 1_710_000_000)
@@ -902,6 +938,64 @@ struct UsageStorePlanUtilizationTests {
     }
 
     @Test
+    func `store drops invalid zero minute and empty histories when loading and saving`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let directoryURL = root
+            .appendingPathComponent("com.steipete.codexbar", isDirectory: true)
+            .appendingPathComponent("history", isDirectory: true)
+        let providerURL = directoryURL.appendingPathComponent("codex.json")
+        let store = PlanUtilizationHistoryStore(directoryURL: directoryURL)
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true)
+
+        let validUnscoped = planSeries(name: .session, windowMinutes: 300, entries: [
+            planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 12),
+        ])
+        let validAccount = planSeries(name: .weekly, windowMinutes: 10080, entries: [
+            planEntry(at: Date(timeIntervalSince1970: 1_700_086_400), usedPercent: 64),
+        ])
+        let document = PersistedFixtureDocument(
+            version: 1,
+            preferredAccountKey: "alice",
+            unscoped: [
+                planSeries(name: .session, windowMinutes: 0, entries: [
+                    planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 99),
+                ]),
+                planSeries(name: .weekly, windowMinutes: 10080, entries: []),
+                validUnscoped,
+            ],
+            accounts: [
+                "alice": [
+                    planSeries(name: .session, windowMinutes: 0, entries: [
+                        planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 88),
+                    ]),
+                    validAccount,
+                ],
+                "empty": [
+                    planSeries(name: .weekly, windowMinutes: 10080, entries: []),
+                ],
+            ])
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(document).write(to: providerURL, options: Data.WritingOptions.atomic)
+
+        let loaded = store.load()
+        let loadedBuckets = try #require(loaded[.codex])
+        #expect(loadedBuckets.unscoped == [validUnscoped])
+        #expect(loadedBuckets.accounts == ["alice": [validAccount]])
+
+        store.save(loaded)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let rewritten = try decoder.decode(PersistedFixtureDocument.self, from: Data(contentsOf: providerURL))
+        #expect(rewritten.unscoped == [validUnscoped])
+        #expect(rewritten.accounts == ["alice": [validAccount]])
+    }
+
+    @Test
     func `store round trips account buckets with series entries`() {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -935,6 +1029,13 @@ struct UsageStorePlanUtilizationTests {
 }
 
 extension UsageStorePlanUtilizationTests {
+    private struct PersistedFixtureDocument: Codable {
+        let version: Int
+        let preferredAccountKey: String?
+        let unscoped: [PlanUtilizationSeriesHistory]
+        let accounts: [String: [PlanUtilizationSeriesHistory]]
+    }
+
     private struct FixtureDocument: Decodable {
         let preferredAccountKey: String?
         let unscoped: [PlanUtilizationSeriesHistory]
@@ -1032,7 +1133,7 @@ func findSeries(
 }
 
 private final class WeeklyLimitResetEventRecorder: @unchecked Sendable {
-    struct Event: Sendable {
+    struct Event {
         let provider: UsageProvider
         let accountLabel: String?
         let usedPercent: Double

@@ -102,7 +102,11 @@ extension CodexVisibleAccountProjection {
             let normalizedEmail = Self.normalizeVisibleEmail(liveSystemAccount.email)
             let liveIdentity = snapshot.runtimeIdentity(for: liveSystemAccount)
             if let existingIndex = drafts.firstIndex(where: { draft in
-                CodexIdentityMatcher.matches(draft.identity, liveIdentity)
+                CodexIdentityMatcher.matches(
+                    draft.identity,
+                    lhsEmail: draft.email,
+                    liveIdentity,
+                    rhsEmail: normalizedEmail)
             }) {
                 let existingDraft = drafts[existingIndex]
                 let liveWorkspaceLabel = Self.normalizeWorkspaceLabel(liveSystemAccount.workspaceLabel)

@@ -48,6 +48,7 @@ Linux support via Omarchy: community Waybar module and TUI, driven by the `codex
 - [JetBrains AI](docs/jetbrains.md) — Local XML-based quota from JetBrains IDE configuration; monthly credits tracking.
 - [OpenRouter](docs/openrouter.md) — API token for credit-based usage tracking across multiple AI providers.
 - [Abacus AI](docs/abacus.md) — Browser cookie auth for ChatLLM/RouteLLM compute credit tracking.
+- [DeepSeek](docs/deepseek.md) — API key for credit balance tracking (paid vs. granted breakdown).
 - Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot

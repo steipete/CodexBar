@@ -4,6 +4,14 @@ import Testing
 
 struct WindsurfDevinSessionImporterTests {
     @Test
+    func `defaults to Chrome before fallback Chromium browsers`() {
+        #expect(WindsurfDevinSessionImporter.defaultPreferredBrowsers == [.chrome])
+        #expect(!WindsurfDevinSessionImporter.fallbackBrowsers.contains(.chrome))
+        #expect(WindsurfDevinSessionImporter.fallbackBrowsersExcluding([.chrome, .edge]).first == .chromeBeta)
+        #expect(!WindsurfDevinSessionImporter.fallbackBrowsersExcluding([.chrome, .edge]).contains(.edge))
+    }
+
+    @Test
     func `decodes quoted local storage strings`() {
         #expect(WindsurfDevinSessionImporter
             .decodedStorageValue(#""devin-session-token$abc""#) == "devin-session-token$abc")

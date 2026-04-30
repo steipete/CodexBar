@@ -185,6 +185,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         return histories
             .filter { history in
                 guard !history.entries.isEmpty else { return false }
+                guard history.windowMinutes > 0 else { return false }
                 guard let allowedNames else { return true }
                 return allowedNames.contains(history.name)
             }

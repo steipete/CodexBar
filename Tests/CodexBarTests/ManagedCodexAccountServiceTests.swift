@@ -114,6 +114,101 @@ struct ManagedCodexAccountServiceTests {
     }
 
     @Test
+    func `same workspace provider id with different emails does not overwrite existing account`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let existingHome = root.appendingPathComponent("accounts/existing", isDirectory: true)
+        try FileManager.default.createDirectory(at: existingHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let existingID = try #require(UUID(uuidString: "10101010-2020-3030-4040-505050505050"))
+        let existingAccount = ManagedCodexAccount(
+            id: existingID,
+            email: "mi.chaelfmk5542@gmail.com",
+            providerAccountID: "team-4107",
+            workspaceLabel: "4107",
+            workspaceAccountID: "team-4107",
+            managedHomePath: existingHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let store = InMemoryManagedCodexAccountStore(
+            accounts: ManagedCodexAccountSet(
+                version: FileManagedCodexAccountStore.currentVersion,
+                accounts: [existingAccount]))
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.accounts([
+                .init(identity: .providerAccount(id: "team-4107"), email: "mich.aelfmk5542@gmail.com", plan: "Team"),
+            ]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver(identities: [
+                "team-4107": CodexOpenAIWorkspaceIdentity(
+                    workspaceAccountID: "team-4107",
+                    workspaceLabel: "4107"),
+            ]))
+
+        let added = try await service.authenticateManagedAccount()
+
+        let original = try #require(
+            store.snapshot.account(email: "mi.chaelfmk5542@gmail.com", providerAccountID: "team-4107"))
+        let newAccount = try #require(
+            store.snapshot.account(email: "mich.aelfmk5542@gmail.com", providerAccountID: "team-4107"))
+        #expect(store.snapshot.accounts.count == 2)
+        #expect(original.id == existingID)
+        #expect(original.managedHomePath == existingHome.path)
+        #expect(newAccount.id == added.id)
+        #expect(newAccount.id != existingID)
+        #expect(newAccount.workspaceLabel == "4107")
+        #expect(FileManager.default.fileExists(atPath: existingHome.path))
+        #expect(FileManager.default.fileExists(atPath: newAccount.managedHomePath))
+    }
+
+    @Test
+    func `selected workspace is persisted and used as account identity`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = InMemoryManagedCodexAccountStore(
+            accounts: ManagedCodexAccountSet(
+                version: FileManagedCodexAccountStore.currentVersion,
+                accounts: []))
+        let workspaces = [
+            CodexOpenAIWorkspaceIdentity(
+                workspaceAccountID: "workspace-personal",
+                workspaceLabel: "Personal"),
+            CodexOpenAIWorkspaceIdentity(
+                workspaceAccountID: "workspace-team",
+                workspaceLabel: "Team"),
+        ]
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: WritingManagedCodexLoginRunner(
+                credentials: CodexOAuthCredentials(
+                    accessToken: "access-token",
+                    refreshToken: "refresh-token",
+                    idToken: nil,
+                    accountId: "workspace-personal",
+                    lastRefresh: nil)),
+            identityReader: StubManagedCodexIdentityReader.accounts([
+                .init(identity: .providerAccount(id: "workspace-personal"), email: "alice@example.com", plan: "Pro"),
+            ]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver(
+                identities: Dictionary(uniqueKeysWithValues: workspaces.map { ($0.workspaceAccountID, $0) }),
+                availableIdentities: workspaces),
+            workspaceSelector: StubManagedCodexWorkspaceSelector(selectedWorkspaceID: "workspace-team"))
+
+        let account = try await service.authenticateManagedAccount()
+        let credentials = try CodexOAuthCredentialsStore.load(env: ["CODEX_HOME": account.managedHomePath])
+
+        #expect(account.providerAccountID == "workspace-team")
+        #expect(account.workspaceLabel == "Team")
+        #expect(credentials.accountId == "workspace-team")
+        #expect(store.snapshot.accounts.count == 1)
+    }
+
+    @Test
     func `reauth keeps previous home when store write fails`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let existingHome = root.appendingPathComponent("accounts/existing", isDirectory: true)
@@ -750,6 +845,19 @@ private struct StubManagedCodexLoginRunner: ManagedCodexLoginRunning {
         result: CodexLoginRunner.Result(outcome: .success, output: "ok"))
 }
 
+private struct WritingManagedCodexLoginRunner: ManagedCodexLoginRunning {
+    let credentials: CodexOAuthCredentials
+
+    func run(homePath: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
+        do {
+            try CodexOAuthCredentialsStore.save(self.credentials, env: ["CODEX_HOME": homePath])
+            return CodexLoginRunner.Result(outcome: .success, output: "ok")
+        } catch {
+            return CodexLoginRunner.Result(outcome: .failed(status: 1), output: String(describing: error))
+        }
+    }
+}
+
 private enum TestManagedCodexAccountStoreError: Error, Equatable {
     case writeFailed
 }
@@ -787,9 +895,14 @@ private final class StubManagedCodexIdentityReader: ManagedCodexIdentityReading,
 
 private struct StubManagedCodexWorkspaceResolver: ManagedCodexWorkspaceResolving {
     let identities: [String: CodexOpenAIWorkspaceIdentity]
+    let availableIdentities: [CodexOpenAIWorkspaceIdentity]
 
-    init(identities: [String: CodexOpenAIWorkspaceIdentity] = [:]) {
+    init(
+        identities: [String: CodexOpenAIWorkspaceIdentity] = [:],
+        availableIdentities: [CodexOpenAIWorkspaceIdentity] = [])
+    {
         self.identities = identities
+        self.availableIdentities = availableIdentities
     }
 
     func resolveWorkspaceIdentity(
@@ -797,5 +910,21 @@ private struct StubManagedCodexWorkspaceResolver: ManagedCodexWorkspaceResolving
         providerAccountID: String) async -> CodexOpenAIWorkspaceIdentity?
     {
         self.identities[providerAccountID]
+    }
+
+    func availableWorkspaceIdentities(homePath _: String) async -> [CodexOpenAIWorkspaceIdentity] {
+        self.availableIdentities
+    }
+}
+
+private struct StubManagedCodexWorkspaceSelector: ManagedCodexWorkspaceSelecting {
+    let selectedWorkspaceID: String?
+
+    func selectWorkspace(
+        email _: String,
+        currentWorkspaceID _: String?,
+        workspaces: [CodexOpenAIWorkspaceIdentity]) async -> CodexOpenAIWorkspaceIdentity?
+    {
+        workspaces.first { $0.workspaceAccountID == self.selectedWorkspaceID }
     }
 }

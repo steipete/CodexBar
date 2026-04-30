@@ -9,6 +9,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: "sessionKey"),
+        .deepseek: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Store multiple DeepSeek API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: DeepSeekSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .zai: TokenAccountSupport(
             title: "API tokens",
             subtitle: "Stored in the CodexBar config file.",
