@@ -201,7 +201,7 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp,
-             .deepseek, .codebuff, .crof, .venice, .commandcode:
+             .deepseek, .codebuff, .crof, .venice, .commandcode, .stepfun:
             return nil
         case .windsurf:
             return nil
@@ -226,7 +226,8 @@ struct TokenAccountCLIContext {
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
         perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings? = nil,
         abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil,
-        mistral: ProviderSettingsSnapshot.MistralProviderSettings? = nil) -> ProviderSettingsSnapshot
+        mistral: ProviderSettingsSnapshot.MistralProviderSettings? = nil,
+        stepfun: ProviderSettingsSnapshot.StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
@@ -246,7 +247,8 @@ struct TokenAccountCLIContext {
             jetbrains: jetbrains,
             perplexity: perplexity,
             abacus: abacus,
-            mistral: mistral)
+            mistral: mistral,
+            stepfun: stepfun)
     }
 
     private func makeCodexSettingsSnapshot(account: ProviderTokenAccount?) ->

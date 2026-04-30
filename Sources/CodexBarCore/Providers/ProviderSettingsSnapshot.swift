@@ -23,7 +23,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
-        mistral: MistralProviderSettings? = nil) -> ProviderSettingsSnapshot
+        mistral: MistralProviderSettings? = nil,
+        stepfun: StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
             debugMenuEnabled: debugMenuEnabled,
@@ -47,7 +48,8 @@ public struct ProviderSettingsSnapshot: Sendable {
             windsurf: windsurf,
             perplexity: perplexity,
             abacus: abacus,
-            mistral: mistral)
+            mistral: mistral,
+            stepfun: stepfun)
     }
 
     public struct CodexProviderSettings: Sendable {
@@ -290,6 +292,25 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct StepFunProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualToken: String
+        public let username: String
+        public let password: String
+
+        public init(
+            cookieSource: ProviderCookieSource = .auto,
+            manualToken: String = "",
+            username: String = "",
+            password: String = "")
+        {
+            self.cookieSource = cookieSource
+            self.manualToken = manualToken
+            self.username = username
+            self.password = password
+        }
+    }
+
     public let debugMenuEnabled: Bool
     public let debugKeepCLISessionsAlive: Bool
     public let codex: CodexProviderSettings?
@@ -313,6 +334,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let perplexity: PerplexityProviderSettings?
     public let abacus: AbacusProviderSettings?
     public let mistral: MistralProviderSettings?
+    public let stepfun: StepFunProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
         self.jetbrains?.ideBasePath
@@ -341,7 +363,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
-        mistral: MistralProviderSettings? = nil)
+        mistral: MistralProviderSettings? = nil,
+        stepfun: StepFunProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
@@ -366,6 +389,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.perplexity = perplexity
         self.abacus = abacus
         self.mistral = mistral
+        self.stepfun = stepfun
     }
 }
 
@@ -391,6 +415,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
     case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
     case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
+    case stepfun(ProviderSettingsSnapshot.StepFunProviderSettings)
 }
 
 public struct ProviderSettingsSnapshotBuilder: Sendable {
@@ -417,6 +442,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
     public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
     public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
+    public var stepfun: ProviderSettingsSnapshot.StepFunProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
         self.debugMenuEnabled = debugMenuEnabled
@@ -447,6 +473,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .perplexity(value): self.perplexity = value
         case let .abacus(value): self.abacus = value
         case let .mistral(value): self.mistral = value
+        case let .stepfun(value): self.stepfun = value
         }
     }
 
@@ -474,6 +501,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             windsurf: self.windsurf,
             perplexity: self.perplexity,
             abacus: self.abacus,
-            mistral: self.mistral)
+            mistral: self.mistral,
+            stepfun: self.stepfun)
     }
 }

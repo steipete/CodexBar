@@ -46,6 +46,7 @@ enum ProviderImplementationRegistry {
         case .crof: CrofProviderImplementation()
         case .venice: VeniceProviderImplementation()
         case .commandcode: CommandCodeProviderImplementation()
+        case .stepfun: StepFunProviderImplementation()
         }
     }
 
