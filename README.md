@@ -64,6 +64,7 @@ Or download release tarballs from GitHub Releases:
 - [Codebuff](docs/codebuff.md) — API token (or `~/.config/manicode/credentials.json`) for credit balance + weekly rate limit.
 - [Crof](docs/crof.md) — API key for dollar credit balance and request quota tracking.
 - [Command Code](docs/command-code.md) — Browser cookies for monthly USD credits from Command Code billing.
+- [StepFun](docs/stepfun.md) — Username + password login for Step Plan rate limits (5‑hour + weekly windows) and subscription plan name.
 - Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot
