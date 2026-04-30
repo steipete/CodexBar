@@ -49,16 +49,23 @@ extension UsageStore {
         var historySamples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)] = []
         var selectedOutcome: ProviderFetchOutcome?
         var selectedSnapshot: UsageSnapshot?
+        var sawAnyNonCancellationOutcome = false
 
         for account in limitedAccounts {
             let override = TokenAccountOverride(provider: provider, account: account)
             let outcome = await self.fetchOutcome(provider: provider, override: override)
+            let isCancellation = Self.outcomeIsCancellation(outcome)
+            if !isCancellation {
+                sawAnyNonCancellationOutcome = true
+            }
             let resolved = self.resolveAccountOutcome(
                 outcome,
                 provider: provider,
                 account: account,
                 priorSnapshot: priorByAccountID[account.id])
-            snapshots.append(resolved.snapshot)
+            if let snapshot = resolved.snapshot {
+                snapshots.append(snapshot)
+            }
             if let usage = resolved.usage {
                 historySamples.append((account: account, snapshot: usage))
             }
@@ -68,8 +75,15 @@ extension UsageStore {
             }
         }
 
-        await MainActor.run {
-            self.accountSnapshots[provider] = snapshots
+        // If every fetch was cancelled (e.g. the user closed/reopened the menu mid-flight)
+        // and we have no usable snapshots, leave the prior per-account state alone.
+        // Wiping it would produce a menu of useless "cancelled" placeholders.
+        let shouldPreservePriorState = !sawAnyNonCancellationOutcome &&
+            snapshots.allSatisfy { $0.snapshot == nil }
+        if !shouldPreservePriorState {
+            await MainActor.run {
+                self.accountSnapshots[provider] = snapshots
+            }
         }
 
         if let selectedOutcome {
@@ -84,6 +98,13 @@ extension UsageStore {
             provider: provider,
             samples: historySamples,
             selectedAccount: effectiveSelected)
+    }
+
+    private static func outcomeIsCancellation(_ outcome: ProviderFetchOutcome) -> Bool {
+        if case let .failure(error) = outcome.result, error is CancellationError {
+            return true
+        }
+        return false
     }
 
     func limitedTokenAccounts(
@@ -143,7 +164,7 @@ extension UsageStore {
     }
 
     private struct ResolvedAccountOutcome {
-        let snapshot: TokenAccountUsageSnapshot
+        let snapshot: TokenAccountUsageSnapshot?
         let usage: UsageSnapshot?
     }
 
@@ -200,8 +221,15 @@ extension UsageStore {
             // Preserve the last-good snapshot when the refresh was cancelled (e.g. the
             // user switched menu tabs mid-flight). Without this the per-account list
             // would briefly render error chips for accounts that already had data.
-            if error is CancellationError, let priorSnapshot, priorSnapshot.snapshot != nil {
-                return ResolvedAccountOutcome(snapshot: priorSnapshot, usage: priorSnapshot.snapshot)
+            if error is CancellationError {
+                if let priorSnapshot, priorSnapshot.snapshot != nil {
+                    return ResolvedAccountOutcome(snapshot: priorSnapshot, usage: priorSnapshot.snapshot)
+                }
+                // No usable prior data: skip this row entirely. The caller will
+                // either preserve the existing per-account state or fall back to
+                // the single live card. Rendering a "cancelled" placeholder here
+                // produces visually duplicate cards with no useful data.
+                return ResolvedAccountOutcome(snapshot: nil, usage: nil)
             }
             let snapshot = TokenAccountUsageSnapshot(
                 account: account,
