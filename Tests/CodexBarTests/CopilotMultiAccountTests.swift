@@ -67,7 +67,7 @@ struct CopilotAPIKeyFallbackTests {
     }
 
     @Test
-    func `config token remains when token accounts already exist`() {
+    func `token accounts clear legacy config token`() {
         let settings = Self.makeSettingsStore(suite: "copilot-api-key-with-accounts")
         settings.copilotAPIToken = "gh_token_old"
         settings.addTokenAccount(provider: .copilot, label: "existing", token: "gh_token_existing")
@@ -75,7 +75,8 @@ struct CopilotAPIKeyFallbackTests {
         settings.ensureCopilotAPITokenLoaded()
 
         #expect(settings.tokenAccounts(for: .copilot).count == 1)
-        #expect(settings.copilotAPIToken == "gh_token_old")
+        #expect(settings.copilotAPIToken.isEmpty)
+        #expect(settings.copilotSettingsSnapshot(tokenOverride: nil).apiToken == "gh_token_existing")
         #expect(settings.tokenAccounts(for: .copilot).first?.label == "existing")
     }
 

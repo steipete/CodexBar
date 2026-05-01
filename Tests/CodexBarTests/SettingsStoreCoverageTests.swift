@@ -104,6 +104,25 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `copilot token accounts clear legacy api key fallback`() throws {
+        let settings = Self.makeSettingsStore()
+        settings.copilotAPIToken = "legacy-token"
+
+        settings.addTokenAccount(provider: .copilot, label: "Primary", token: "token-1")
+
+        #expect(settings.copilotAPIToken.isEmpty)
+        #expect(settings.copilotSettingsSnapshot(tokenOverride: nil).apiToken == "token-1")
+
+        settings.copilotAPIToken = "legacy-token"
+        let account = try #require(settings.selectedTokenAccount(for: .copilot))
+        settings.removeTokenAccount(provider: .copilot, accountID: account.id)
+
+        #expect(settings.tokenAccounts(for: .copilot).isEmpty)
+        #expect(settings.copilotAPIToken.isEmpty)
+        #expect(settings.copilotSettingsSnapshot(tokenOverride: nil).apiToken == nil)
+    }
+
+    @Test
     func `removing another token account preserves active selection`() throws {
         let settings = Self.makeSettingsStore()
 
