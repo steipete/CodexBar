@@ -153,9 +153,13 @@ struct CodebuffUsageFetcherTests {
 
         let unified = snapshot.toUsageSnapshot()
         #expect(unified.primary?.usedPercent == 25)
-        #expect(unified.primary?.resetDescription == "250/1,000 credits")
+        // The credit balance is intentionally NOT stored in `resetDescription` —
+        // generic renderers prepend "Resets " when `resetsAt` is absent, which would
+        // surface misleading text like "Resets 250/1,000 credits".
+        #expect(unified.primary?.resetDescription == nil)
         #expect(unified.secondary?.usedPercent == 20)
         #expect(unified.secondary?.windowMinutes == 7 * 24 * 60)
+        #expect(unified.secondary?.resetDescription == nil)
         #expect(unified.identity?.providerID == .codebuff)
         #expect(unified.identity?.loginMethod?.contains("Pro") == true)
         #expect(unified.identity?.loginMethod?.contains("auto top-up") == true)

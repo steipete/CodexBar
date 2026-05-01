@@ -79,24 +79,27 @@ public struct CodebuffUsageSnapshot: Sendable {
         }
         let used = self.resolvedUsed
         let percent = min(100, max(0, (used / total) * 100))
-        let usedText = Self.compactNumber(used)
-        let totalText = Self.compactNumber(total)
+        // Note: do not stuff the credit balance ("X/Y credits") into `resetDescription` —
+        // generic renderers (UsageFormatter.resetLine) prepend "Resets " when `resetsAt`
+        // is absent, which would surface misleading text like "Resets 250/1,000 credits".
+        // The credits detail is shown via the dedicated Codebuff account panel instead.
         return RateWindow(
             usedPercent: percent,
             windowMinutes: nil,
             resetsAt: self.nextQuotaReset,
-            resetDescription: "\(usedText)/\(totalText) credits")
+            resetDescription: nil)
     }
 
     private func makeWeeklyWindow() -> RateWindow? {
         guard let limit = self.weeklyLimit, limit > 0 else { return nil }
         let used = max(0, self.weeklyUsed ?? 0)
         let percent = min(100, max(0, (used / limit) * 100))
+        // Same reasoning as above: avoid encoding non-reset detail in `resetDescription`.
         return RateWindow(
             usedPercent: percent,
             windowMinutes: 7 * 24 * 60,
             resetsAt: nil,
-            resetDescription: "\(Self.compactNumber(used))/\(Self.compactNumber(limit)) weekly")
+            resetDescription: nil)
     }
 
     private var resolvedTotal: Double? {

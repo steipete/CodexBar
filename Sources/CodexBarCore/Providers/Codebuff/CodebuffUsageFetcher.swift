@@ -8,6 +8,10 @@ import FoundationNetworking
 /// the dashboard + the `codebuff` CLI.
 public enum CodebuffUsageFetcher {
     private static let requestTimeoutSeconds: TimeInterval = 15
+    /// Extra grace period to wait for the optional subscription endpoint after the
+    /// primary usage call returns. Keeps the menu responsive when `/api/user/subscription`
+    /// is slow or hangs while `/api/v1/usage` succeeds quickly.
+    private static let subscriptionGraceSeconds: TimeInterval = 2
 
     public static func fetchUsage(
         apiKey: String,
@@ -20,14 +24,33 @@ public enum CodebuffUsageFetcher {
         }
 
         let baseURL = CodebuffSettingsReader.apiURL(environment: environment)
-        async let usage = self.fetchUsagePayload(apiKey: trimmed, baseURL: baseURL, session: session)
-        async let subscription = self.fetchSubscriptionPayload(
-            apiKey: trimmed,
-            baseURL: baseURL,
-            session: session)
 
-        let usageValues = try await usage
-        let subscriptionValues = try? await subscription
+        // Run usage and subscription in parallel. Usage data is required;
+        // subscription is best-effort and must never block the primary refresh.
+        let usageTask = Task {
+            try await self.fetchUsagePayload(apiKey: trimmed, baseURL: baseURL, session: session)
+        }
+        let subscriptionTask = Task {
+            try? await self.fetchSubscriptionPayload(
+                apiKey: trimmed,
+                baseURL: baseURL,
+                session: session)
+        }
+
+        let usageValues: UsagePayload
+        do {
+            usageValues = try await usageTask.value
+        } catch {
+            subscriptionTask.cancel()
+            throw error
+        }
+
+        // Once usage is in hand, only wait a short grace period for the optional
+        // subscription payload. If it isn't ready we proceed without it rather than
+        // letting users wait up to the full 15 s request timeout.
+        let subscriptionValues = await Self.awaitSubscription(
+            task: subscriptionTask,
+            graceSeconds: Self.subscriptionGraceSeconds)
 
         return CodebuffUsageSnapshot(
             creditsUsed: usageValues.used,
@@ -42,6 +65,28 @@ public enum CodebuffUsageFetcher {
             autoTopUpEnabled: usageValues.autoTopupEnabled,
             accountEmail: subscriptionValues?.email,
             updatedAt: Date())
+    }
+
+    /// Awaits the subscription task with a bounded grace period. Returns `nil`
+    /// (and cancels the task) if the grace window elapses before completion.
+    private static func awaitSubscription(
+        task: Task<SubscriptionPayload?, Never>,
+        graceSeconds: TimeInterval) async -> SubscriptionPayload?
+    {
+        await withTaskGroup(of: SubscriptionPayload?.self) { group in
+            group.addTask { await task.value }
+            group.addTask {
+                let nanos = UInt64(max(0, graceSeconds) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: nanos)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            // Cancel whichever task is still running so we don't leak work or
+            // (in the timeout case) keep the URLSession request open longer than needed.
+            group.cancelAll()
+            task.cancel()
+            return first ?? nil
+        }
     }
 
     // MARK: - Endpoint helpers
