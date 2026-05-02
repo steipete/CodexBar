@@ -12,6 +12,7 @@ extension UsageStore {
         self.accountSnapshots.removeValue(forKey: provider)
         self.tokenSnapshots.removeValue(forKey: provider)
         self.tokenErrors[provider] = nil
+        self.providerStorageFootprints.removeValue(forKey: provider)
         self.failureGates[provider]?.reset()
         self.tokenFailureGates[provider]?.reset()
         self.statuses.removeValue(forKey: provider)

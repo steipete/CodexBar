@@ -394,7 +394,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
     }
 
-    private func invalidateMenus() {
+    func invalidateMenus() {
         self.menuContentVersion &+= 1
         // Don't refresh menus while they're open - wait until they close and reopen
         // This prevents expensive rebuilds while user is navigating the menu

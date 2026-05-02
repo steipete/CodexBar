@@ -145,6 +145,25 @@ public enum UsageFormatter {
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
+    public static func byteCountString(_ bytes: Int64) -> String {
+        let sign = bytes < 0 ? "-" : ""
+        let absBytes = Double(Swift.abs(bytes))
+        let units: [(threshold: Double, divisor: Double, suffix: String)] = [
+            (1024 * 1024 * 1024, 1024 * 1024 * 1024, "GB"),
+            (1024 * 1024, 1024 * 1024, "MB"),
+            (1024, 1024, "KB"),
+        ]
+
+        for unit in units where absBytes >= unit.threshold {
+            let scaled = absBytes / unit.divisor
+            let format = scaled >= 10 || scaled.rounded(.towardZero) == scaled ? "%.0f" : "%.1f"
+            let formatted = String(format: format, scaled)
+            return "\(sign)\(formatted) \(unit.suffix)"
+        }
+
+        return "\(bytes) B"
+    }
+
     public static func creditEventSummary(_ event: CreditEvent) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium

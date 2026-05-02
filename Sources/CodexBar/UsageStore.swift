@@ -29,6 +29,7 @@ extension UsageStore {
         _ = self.statuses
         _ = self.probeLogs
         _ = self.historicalPaceRevision
+        _ = self.providerStorageFootprints
         return 0
     }
 
@@ -142,6 +143,7 @@ final class UsageStore {
     var statuses: [UsageProvider: ProviderStatus] = [:]
     var probeLogs: [UsageProvider: String] = [:]
     var historicalPaceRevision: Int = 0
+    var providerStorageFootprints: [UsageProvider: ProviderStorageFootprint] = [:]
     @ObservationIgnored var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored var lastCreditsSnapshotAccountKey: String?
     @ObservationIgnored var lastCreditsSource: CodexCreditsSource = .none
@@ -195,6 +197,7 @@ final class UsageStore {
     @ObservationIgnored private var timerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
+    @ObservationIgnored var storageRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored var codexPlanHistoryBackfillTask: Task<Void, Never>?
     @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
@@ -477,6 +480,7 @@ final class UsageStore {
             self.clearUnavailableProviderState(
                 displayEnabledProviders: enabledProviderSet,
                 availableProviders: availableRefreshProviders)
+            self.scheduleStorageFootprintRefresh(for: displayEnabledProviders)
 
             await withTaskGroup(of: Void.self) { group in
                 for provider in refreshProviders {
@@ -598,6 +602,7 @@ final class UsageStore {
         self.timerTask?.cancel()
         self.tokenTimerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
+        self.storageRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
     }
 

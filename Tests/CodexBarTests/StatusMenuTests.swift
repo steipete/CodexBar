@@ -829,6 +829,61 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `hosted storage submenu is height capped and scroll enabled`() {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        let previousMenuRefresh = StatusItemController.menuRefreshEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.menuRefreshEnabled = false
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.menuRefreshEnabled = previousMenuRefresh
+        }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let root = "/Users/test/.claude"
+        store.providerStorageFootprints[.claude] = ProviderStorageFootprint(
+            provider: .claude,
+            totalBytes: 1_756_000_000,
+            paths: [root],
+            missingPaths: [],
+            unreadablePaths: [],
+            components: [
+                .init(path: "\(root)/projects", totalBytes: 1_500_000_000),
+                .init(path: "\(root)/file-history", totalBytes: 103_000_000),
+                .init(path: "\(root)/telemetry", totalBytes: 51_000_000),
+                .init(path: "\(root)/plugins", totalBytes: 33_000_000),
+                .init(path: "\(root)/history.jsonl", totalBytes: 3_800_000),
+                .init(path: "\(root)/shell-snapshots", totalBytes: 1_500_000),
+                .init(path: "\(root)/plans", totalBytes: 1_100_000),
+                .init(path: "\(root)/paste-cache", totalBytes: 541_000),
+                .init(path: "\(root)/session-env", totalBytes: 208_000),
+                .init(path: "\(root)/todos", totalBytes: 6700),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let submenu = NSMenu()
+        let didAppend = controller.appendStorageBreakdownItem(to: submenu, provider: .claude, width: 310)
+
+        #expect(didAppend)
+        let item = submenu.items.first
+        #expect(item?.isEnabled == true)
+        #expect((item?.view?.frame.height ?? 0) <= 620)
+    }
+
+    @Test
     func `shows open AI web submenus when history exists`() throws {
         self.disableMenuCardsForTesting()
         let settings = SettingsStore(
