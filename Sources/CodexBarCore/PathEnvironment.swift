@@ -322,8 +322,14 @@ public enum ShellCommandLocator {
         }
 
         // Build file actions: redirect stdin from /dev/null, dup pipe write ends to
-        // fds 1 and 2, and close every pipe fd in the child.
-        var fileActions = posix_spawn_file_actions_t(nil as OpaquePointer?)
+        // fds 1 and 2, and close every pipe fd in the child.  The init pattern
+        // differs between platforms because the typedef is an opaque pointer on
+        // Darwin and a struct on Glibc.
+        #if canImport(Darwin)
+        var fileActions: posix_spawn_file_actions_t? = nil
+        #else
+        var fileActions = posix_spawn_file_actions_t()
+        #endif
         guard posix_spawn_file_actions_init(&fileActions) == 0 else {
             close(stdoutFds.read); close(stdoutFds.write)
             close(stderrFds.read); close(stderrFds.write)
@@ -340,7 +346,11 @@ public enum ShellCommandLocator {
 
         // Build attributes: set the child's process group to itself in the child,
         // before exec, eliminating the race that an after-launch setpgid(2) has.
-        var attr = posix_spawnattr_t(nil as OpaquePointer?)
+        #if canImport(Darwin)
+        var attr: posix_spawnattr_t? = nil
+        #else
+        var attr = posix_spawnattr_t()
+        #endif
         guard posix_spawnattr_init(&attr) == 0 else {
             close(stdoutFds.read); close(stdoutFds.write)
             close(stderrFds.read); close(stderrFds.write)
