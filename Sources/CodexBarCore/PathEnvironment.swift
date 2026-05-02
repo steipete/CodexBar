@@ -297,37 +297,96 @@ public enum ShellCommandLocator {
 
     /// Runs a shell command, draining both stdout and stderr concurrently so that
     /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
-    /// a full pipe buffer.  Kills the process group on timeout (SIGTERM → SIGKILL)
-    /// and also sends SIGTERM to the process group after normal completion to clean
-    /// up any background children spawned by shell init.  The process is reaped via
-    /// its termination handler.
+    /// a full pipe buffer.  The child is launched via `posix_spawn` with
+    /// `POSIX_SPAWN_SETPGROUP` so it becomes its own process-group leader *before*
+    /// `exec` — this guarantees that subsequent `kill(-pgid, …)` calls reach any
+    /// background helpers spawned by shell init, on both the timeout-kill path and
+    /// after normal completion.
     fileprivate static func runShellCommand(
         shell: String,
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: shell)
-        process.arguments = arguments
-        process.standardInput = nil
-
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-
-        do {
-            try process.run()
-        } catch {
+        // Pipes for stdout/stderr.  stdin is redirected from /dev/null in the child
+        // via posix_spawn_file_actions_addopen below.
+        var stdoutFds: (read: Int32, write: Int32) = (-1, -1)
+        var stderrFds: (read: Int32, write: Int32) = (-1, -1)
+        guard withUnsafeMutablePointer(to: &stdoutFds, {
+            $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe($0) == 0 }
+        }) else { return nil }
+        guard withUnsafeMutablePointer(to: &stderrFds, {
+            $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe($0) == 0 }
+        }) else {
+            close(stdoutFds.read); close(stdoutFds.write)
             return nil
         }
 
-        let pid = process.processIdentifier
-        let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
+        // Build file actions: redirect stdin from /dev/null, dup pipe write ends to
+        // fds 1 and 2, and close every pipe fd in the child.
+        var fileActions = posix_spawn_file_actions_t(nil as OpaquePointer?)
+        guard posix_spawn_file_actions_init(&fileActions) == 0 else {
+            close(stdoutFds.read); close(stdoutFds.write)
+            close(stderrFds.read); close(stderrFds.write)
+            return nil
+        }
+        defer { posix_spawn_file_actions_destroy(&fileActions) }
+        posix_spawn_file_actions_addopen(&fileActions, 0, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_adddup2(&fileActions, stdoutFds.write, 1)
+        posix_spawn_file_actions_adddup2(&fileActions, stderrFds.write, 2)
+        posix_spawn_file_actions_addclose(&fileActions, stdoutFds.read)
+        posix_spawn_file_actions_addclose(&fileActions, stdoutFds.write)
+        posix_spawn_file_actions_addclose(&fileActions, stderrFds.read)
+        posix_spawn_file_actions_addclose(&fileActions, stderrFds.write)
+
+        // Build attributes: set the child's process group to itself in the child,
+        // before exec, eliminating the race that an after-launch setpgid(2) has.
+        var attr = posix_spawnattr_t(nil as OpaquePointer?)
+        guard posix_spawnattr_init(&attr) == 0 else {
+            close(stdoutFds.read); close(stdoutFds.write)
+            close(stderrFds.read); close(stderrFds.write)
+            return nil
+        }
+        defer { posix_spawnattr_destroy(&attr) }
+        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
+        posix_spawnattr_setpgroup(&attr, 0) // 0 = child becomes its own pgid leader
+
+        // Build argv (argv[0] is conventionally the executable path).
+        var cArgs: [UnsafeMutablePointer<CChar>?] = []
+        cArgs.append(strdup(shell))
+        for arg in arguments { cArgs.append(strdup(arg)) }
+        cArgs.append(nil)
+        defer { for p in cArgs { if let p { free(p) } } }
+
+        // Inherit the parent environment.  Build a NULL-terminated `KEY=VALUE`
+        // array since `extern char **environ` isn't directly visible from Swift.
+        var cEnv: [UnsafeMutablePointer<CChar>?] = []
+        for (key, value) in ProcessInfo.processInfo.environment {
+            cEnv.append(strdup("\(key)=\(value)"))
+        }
+        cEnv.append(nil)
+        defer { for p in cEnv { if let p { free(p) } } }
+
+        var pid: pid_t = 0
+        let spawnResult = shell.withCString { execPath in
+            posix_spawn(&pid, execPath, &fileActions, &attr, cArgs, cEnv)
+        }
+
+        // Close the write ends in the parent so EOF will arrive on the read ends
+        // once every descendant in the process group also closes them.
+        close(stdoutFds.write)
+        close(stderrFds.write)
+
+        guard spawnResult == 0 else {
+            close(stdoutFds.read); close(stderrFds.read)
+            return nil
+        }
+
+        // POSIX_SPAWN_SETPGROUP with pgroup=0 guarantees the child's pgid == its pid.
+        let pgid: pid_t = pid
 
         // Track EOF on each pipe so we can wait for full drain instead of sleeping.
-        // The readability handler fires with empty data when the writer closes its
-        // end (i.e. the child has exited and the buffered bytes have been delivered).
+        // The readability handler fires with empty data when every writer end is
+        // closed (i.e. the child *and* any inheriting background helpers are gone).
         let drainGroup = DispatchGroup()
         drainGroup.enter()
         drainGroup.enter()
@@ -335,7 +394,7 @@ public enum ShellCommandLocator {
         let stderrDone = OnceFlag()
 
         let stdoutCollector = CapturedData()
-        let stdoutHandle = stdout.fileHandleForReading
+        let stdoutHandle = FileHandle(fileDescriptor: stdoutFds.read, closeOnDealloc: true)
         stdoutHandle.readabilityHandler = { handle in
             let data = handle.availableData
             if data.isEmpty {
@@ -346,7 +405,7 @@ public enum ShellCommandLocator {
             }
         }
 
-        let stderrHandle = stderr.fileHandleForReading
+        let stderrHandle = FileHandle(fileDescriptor: stderrFds.read, closeOnDealloc: true)
         stderrHandle.readabilityHandler = { handle in
             let data = handle.availableData
             if data.isEmpty {
@@ -355,23 +414,23 @@ public enum ShellCommandLocator {
             }
         }
 
+        // Reap the child on a background queue and signal a semaphore on exit.
         let exitSemaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in exitSemaphore.signal() }
+        let waitPid = pid
+        DispatchQueue.global(qos: .userInitiated).async {
+            var status: Int32 = 0
+            while waitpid(waitPid, &status, 0) == -1 && errno == EINTR { /* retry */ }
+            exitSemaphore.signal()
+        }
 
         let finishedInTime = exitSemaphore.wait(timeout: .now() + timeout) == .success
 
         if !finishedInTime {
-            process.terminate()
-            if let pgid = processGroup {
-                kill(-pgid, SIGTERM)
-            }
+            kill(-pgid, SIGTERM)
+            kill(pid, SIGTERM)
             if exitSemaphore.wait(timeout: .now() + 0.4) != .success {
-                if process.isRunning {
-                    if let pgid = processGroup {
-                        kill(-pgid, SIGKILL)
-                    }
-                    kill(process.processIdentifier, SIGKILL)
-                }
+                kill(-pgid, SIGKILL)
+                kill(pid, SIGKILL)
                 _ = exitSemaphore.wait(timeout: .now() + 1.0)
             }
             stdoutHandle.readabilityHandler = nil
@@ -382,9 +441,10 @@ public enum ShellCommandLocator {
         }
 
         // Normal completion — clean up any background children spawned by shell init.
-        if let pgid = processGroup {
-            kill(-pgid, SIGTERM)
-        }
+        // Without this, helpers that inherited stdout/stderr keep the pipe write ends
+        // open and we never see EOF on the read ends.
+        kill(-pgid, SIGTERM)
+
         // Wait for both pipes to deliver EOF so no buffered bytes are lost.
         // Bounded so a stuck handler can't hang the caller indefinitely.
         if drainGroup.wait(timeout: .now() + 1.0) != .success {
