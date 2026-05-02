@@ -73,6 +73,24 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
     }
 
     @Test
+    func `usage breakdown recovery waits briefly after chart classification error`() {
+        let now = Date()
+        let shouldWait = OpenAIDashboardFetcher.shouldWaitForUsageBreakdownRecovery(.init(
+            now: now,
+            errorFirstSeenAt: now.addingTimeInterval(-1.0)))
+        #expect(shouldWait == true)
+    }
+
+    @Test
+    func `usage breakdown recovery stops blocking partial snapshots`() {
+        let now = Date()
+        let shouldWait = OpenAIDashboardFetcher.shouldWaitForUsageBreakdownRecovery(.init(
+            now: now,
+            errorFirstSeenAt: now.addingTimeInterval(-5.0)))
+        #expect(shouldWait == false)
+    }
+
+    @Test
     func `probe waits briefly after reaching usage route without email or dashboard signals`() {
         let now = Date()
         let shouldWait = OpenAIDashboardFetcher.shouldWaitForProbeReadiness(.init(
