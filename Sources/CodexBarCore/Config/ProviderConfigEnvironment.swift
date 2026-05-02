@@ -32,7 +32,12 @@ public enum ProviderConfigEnvironment {
         case .openrouter:
             env[OpenRouterSettingsReader.envKey] = apiKey
         case .codebuff:
-            env[CodebuffSettingsReader.apiTokenKey] = apiKey
+            // Preserve a token already present in the process environment so that
+            // runtime/CI overrides win over a key saved in Settings (matches the
+            // precedence used by `ProviderTokenResolver.codebuffResolution`).
+            if CodebuffSettingsReader.apiKey(environment: base) == nil {
+                env[CodebuffSettingsReader.apiTokenKey] = apiKey
+            }
         default:
             break
         }
