@@ -280,6 +280,21 @@ public enum ShellCommandLocator {
         }
     }
 
+    /// Idempotent one-shot flag — `fire()` returns true exactly once.
+    /// Used to make `DispatchGroup.leave()` safe to attempt from multiple paths.
+    private final class OnceFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var fired = false
+
+        func fire() -> Bool {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            if self.fired { return false }
+            self.fired = true
+            return true
+        }
+    }
+
     /// Runs a shell command, draining both stdout and stderr concurrently so that
     /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
     /// a full pipe buffer.  Kills the process group on timeout (SIGTERM → SIGKILL)
@@ -310,12 +325,22 @@ public enum ShellCommandLocator {
         let pid = process.processIdentifier
         let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
 
+        // Track EOF on each pipe so we can wait for full drain instead of sleeping.
+        // The readability handler fires with empty data when the writer closes its
+        // end (i.e. the child has exited and the buffered bytes have been delivered).
+        let drainGroup = DispatchGroup()
+        drainGroup.enter()
+        drainGroup.enter()
+        let stdoutDone = OnceFlag()
+        let stderrDone = OnceFlag()
+
         let stdoutCollector = CapturedData()
         let stdoutHandle = stdout.fileHandleForReading
         stdoutHandle.readabilityHandler = { handle in
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
+                if stdoutDone.fire() { drainGroup.leave() }
             } else {
                 stdoutCollector.append(data)
             }
@@ -326,6 +351,7 @@ public enum ShellCommandLocator {
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
+                if stderrDone.fire() { drainGroup.leave() }
             }
         }
 
@@ -348,9 +374,10 @@ public enum ShellCommandLocator {
                 }
                 _ = exitSemaphore.wait(timeout: .now() + 1.0)
             }
-            usleep(80000)
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
+            if stdoutDone.fire() { drainGroup.leave() }
+            if stderrDone.fire() { drainGroup.leave() }
             return nil
         }
 
@@ -358,10 +385,14 @@ public enum ShellCommandLocator {
         if let pgid = processGroup {
             kill(-pgid, SIGTERM)
         }
-        // Let readability handlers drain remaining buffered pipe data.
-        usleep(80000)
-        stdoutHandle.readabilityHandler = nil
-        stderrHandle.readabilityHandler = nil
+        // Wait for both pipes to deliver EOF so no buffered bytes are lost.
+        // Bounded so a stuck handler can't hang the caller indefinitely.
+        if drainGroup.wait(timeout: .now() + 1.0) != .success {
+            stdoutHandle.readabilityHandler = nil
+            stderrHandle.readabilityHandler = nil
+            if stdoutDone.fire() { drainGroup.leave() }
+            if stderrDone.fire() { drainGroup.leave() }
+        }
         return stdoutCollector.drain()
     }
 
