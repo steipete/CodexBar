@@ -6,6 +6,31 @@ extension SettingsStore {
         self.configSnapshot.providerConfig(for: provider)
     }
 
+    func quotaWarningConfig(for provider: UsageProvider) -> QuotaWarningConfig {
+        self.configSnapshot.providerConfig(for: provider)?.quotaWarnings ?? QuotaWarningConfig()
+    }
+
+    func resolvedQuotaWarningThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
+        self.quotaWarningConfig(for: provider).thresholds(for: window, global: self.quotaWarningThresholds)
+    }
+
+    func hasQuotaWarningOverride(provider: UsageProvider, window: QuotaWarningWindow) -> Bool {
+        self.quotaWarningConfig(for: provider).hasOverride(for: window)
+    }
+
+    func setQuotaWarningThresholds(provider: UsageProvider, window: QuotaWarningWindow, thresholds: [Int]?) {
+        self.updateProviderConfig(provider: provider) { entry in
+            var config = entry.quotaWarnings ?? QuotaWarningConfig()
+            switch window {
+            case .session:
+                config.session = thresholds.map { QuotaWarningWindowConfig(thresholds: $0) }
+            case .weekly:
+                config.weekly = thresholds.map { QuotaWarningWindowConfig(thresholds: $0) }
+            }
+            entry.quotaWarnings = config.isEmpty ? nil : config
+        }
+    }
+
     var tokenAccountsByProvider: [UsageProvider: ProviderTokenAccountData] {
         get {
             Dictionary(uniqueKeysWithValues: self.configSnapshot.providers.compactMap { entry in

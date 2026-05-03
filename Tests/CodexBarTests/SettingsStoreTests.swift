@@ -492,6 +492,64 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `defaults quota warnings to disabled with global thresholds and sound`() throws {
+        let suite = "SettingsStoreTests-quota-warning-defaults"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.quotaWarningNotificationsEnabled == false)
+        #expect(store.quotaWarningThresholds == [50, 20])
+        #expect(store.quotaWarningSoundEnabled == true)
+        #expect(defaults.array(forKey: "quotaWarningThresholds") as? [Int] == [50, 20])
+        #expect(defaults.bool(forKey: "quotaWarningSoundEnabled") == true)
+    }
+
+    @Test
+    func `sanitizes invalid quota warning thresholds from defaults`() throws {
+        let suite = "SettingsStoreTests-quota-warning-sanitize"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set([120, 20, 20, 0, 50], forKey: "quotaWarningThresholds")
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.quotaWarningThresholds == [50, 20])
+        #expect(defaults.array(forKey: "quotaWarningThresholds") as? [Int] == [50, 20])
+    }
+
+    @Test
+    func `provider quota warning override resolves before global thresholds`() throws {
+        let suite = "SettingsStoreTests-quota-warning-provider-override"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        store.quotaWarningThresholds = [50, 20]
+
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [50, 20])
+        store.setQuotaWarningThresholds(provider: .codex, window: .session, thresholds: [10])
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [10])
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .weekly) == [50, 20])
+
+        store.setQuotaWarningThresholds(provider: .codex, window: .session, thresholds: nil)
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [50, 20])
+    }
+
+    @Test
     func `defaults claude usage source to auto`() throws {
         let suite = "SettingsStoreTests-claude-source"
         let defaults = try #require(UserDefaults(suiteName: suite))

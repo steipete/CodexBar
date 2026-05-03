@@ -237,6 +237,19 @@ extension SettingsStore {
         if sessionQuotaDefault == nil {
             userDefaults.set(true, forKey: "sessionQuotaNotificationsEnabled")
         }
+        let quotaWarningNotificationsEnabled = userDefaults.object(
+            forKey: "quotaWarningNotificationsEnabled") as? Bool ?? false
+        let rawQuotaWarningThresholds = userDefaults.array(forKey: "quotaWarningThresholds") as? [Int]
+        let quotaWarningThresholdsRaw = QuotaWarningThresholds.sanitized(
+            rawQuotaWarningThresholds ?? QuotaWarningThresholds.defaults)
+        if rawQuotaWarningThresholds != quotaWarningThresholdsRaw {
+            userDefaults.set(quotaWarningThresholdsRaw, forKey: "quotaWarningThresholds")
+        }
+        let quotaWarningSoundDefault = userDefaults.object(forKey: "quotaWarningSoundEnabled") as? Bool
+        let quotaWarningSoundEnabled = quotaWarningSoundDefault ?? true
+        if quotaWarningSoundDefault == nil {
+            userDefaults.set(true, forKey: "quotaWarningSoundEnabled")
+        }
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
         let menuBarShowsBrandIconWithPercent = userDefaults.object(
@@ -294,6 +307,9 @@ extension SettingsStore {
             debugKeepCLISessionsAlive: debugKeepCLISessionsAlive,
             statusChecksEnabled: statusChecksEnabled,
             sessionQuotaNotificationsEnabled: sessionQuotaNotificationsEnabled,
+            quotaWarningNotificationsEnabled: quotaWarningNotificationsEnabled,
+            quotaWarningThresholdsRaw: quotaWarningThresholdsRaw,
+            quotaWarningSoundEnabled: quotaWarningSoundEnabled,
             usageBarsShowUsed: usageBarsShowUsed,
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,

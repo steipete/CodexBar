@@ -258,6 +258,7 @@ extension UsageStore {
                 scoped
             }
             await MainActor.run {
+                self.handleQuotaWarningTransitions(provider: provider, snapshot: labeled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: labeled)
                 self.snapshots[provider] = labeled
                 self.lastSourceLabels[provider] = result.sourceLabel

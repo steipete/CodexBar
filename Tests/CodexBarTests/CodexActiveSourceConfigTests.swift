@@ -22,6 +22,26 @@ struct CodexActiveSourceConfigTests {
             from: Data(legacyJSON.utf8))
 
         #expect(decoded.providerConfig(for: .codex)?.codexActiveSource == nil)
+        #expect(decoded.providerConfig(for: .codex)?.quotaWarnings == nil)
+    }
+
+    @Test
+    func `provider config round trips quota warning overrides`() throws {
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .codex,
+                    quotaWarnings: QuotaWarningConfig(
+                        session: QuotaWarningWindowConfig(thresholds: [10]),
+                        weekly: QuotaWarningWindowConfig(thresholds: [50, 20]))),
+            ])
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: data)
+        let quotaWarnings = try #require(decoded.providerConfig(for: .codex)?.quotaWarnings)
+
+        #expect(quotaWarnings.thresholds(for: .session, global: [80]) == [10])
+        #expect(quotaWarnings.thresholds(for: .weekly, global: [80]) == [50, 20])
     }
 
     @Test

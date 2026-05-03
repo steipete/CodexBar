@@ -84,6 +84,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var workspaceID: String?
     public var tokenAccounts: ProviderTokenAccountData?
     public var codexActiveSource: CodexActiveSource?
+    public var quotaWarnings: QuotaWarningConfig?
 
     public init(
         id: UsageProvider,
@@ -96,7 +97,8 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         region: String? = nil,
         workspaceID: String? = nil,
         tokenAccounts: ProviderTokenAccountData? = nil,
-        codexActiveSource: CodexActiveSource? = nil)
+        codexActiveSource: CodexActiveSource? = nil,
+        quotaWarnings: QuotaWarningConfig? = nil)
     {
         self.id = id
         self.enabled = enabled
@@ -109,6 +111,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.workspaceID = workspaceID
         self.tokenAccounts = tokenAccounts
         self.codexActiveSource = codexActiveSource
+        self.quotaWarnings = quotaWarnings
     }
 
     public var sanitizedAPIKey: String? {
@@ -131,5 +134,78 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         }
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
+    }
+}
+
+public enum QuotaWarningWindow: String, Codable, Sendable, CaseIterable {
+    case session
+    case weekly
+
+    public var displayName: String {
+        switch self {
+        case .session:
+            "session"
+        case .weekly:
+            "weekly"
+        }
+    }
+}
+
+public struct QuotaWarningWindowConfig: Codable, Sendable, Equatable {
+    public var thresholds: [Int]?
+
+    public init(thresholds: [Int]? = nil) {
+        self.thresholds = thresholds.map(QuotaWarningThresholds.sanitized)
+    }
+
+    public var hasOverride: Bool {
+        self.thresholds != nil
+    }
+}
+
+public struct QuotaWarningConfig: Codable, Sendable, Equatable {
+    public var session: QuotaWarningWindowConfig?
+    public var weekly: QuotaWarningWindowConfig?
+
+    public init(
+        session: QuotaWarningWindowConfig? = nil,
+        weekly: QuotaWarningWindowConfig? = nil)
+    {
+        self.session = session
+        self.weekly = weekly
+    }
+
+    public func thresholds(for window: QuotaWarningWindow, global: [Int]) -> [Int] {
+        switch window {
+        case .session:
+            QuotaWarningThresholds.sanitized(self.session?.thresholds ?? global)
+        case .weekly:
+            QuotaWarningThresholds.sanitized(self.weekly?.thresholds ?? global)
+        }
+    }
+
+    public func hasOverride(for window: QuotaWarningWindow) -> Bool {
+        switch window {
+        case .session:
+            self.session?.hasOverride ?? false
+        case .weekly:
+            self.weekly?.hasOverride ?? false
+        }
+    }
+
+    public var isEmpty: Bool {
+        self.session?.hasOverride != true && self.weekly?.hasOverride != true
+    }
+}
+
+public enum QuotaWarningThresholds {
+    public static let defaults = [50, 20]
+    public static let allowedRange = 1...99
+
+    public static func sanitized(_ raw: [Int]) -> [Int] {
+        let filtered = raw.filter { self.allowedRange.contains($0) }
+        let unique = Set(filtered)
+        let sorted = unique.sorted(by: >)
+        return sorted.isEmpty ? self.defaults : sorted
     }
 }
