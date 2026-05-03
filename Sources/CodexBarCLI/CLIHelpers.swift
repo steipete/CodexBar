@@ -17,9 +17,12 @@ extension CodexBarCLI {
         if let rawOverride, let parsed = ProviderSelection(argument: rawOverride) {
             return parsed
         }
-        if enabled.count >= 3 { return .all }
-        if enabled.count == 2 {
-            let enabledSet = Set(enabled)
+        let allProviders = Set(ProviderDescriptorRegistry.all.map(\ .id))
+        let enabledSet = Set(enabled)
+        if !enabled.isEmpty, enabledSet == allProviders {
+            return .all
+        }
+        if enabled.count >= 2 {
             let primary = Set(ProviderDescriptorRegistry.all.filter(\ .metadata.isPrimaryProvider).map(\ .id))
             if !primary.isEmpty, enabledSet == primary {
                 return .both
@@ -372,6 +375,10 @@ extension CodexBarCLI {
 
     static func _decodeSourceModeForTesting(from values: ParsedValues) -> ProviderSourceMode? {
         self.decodeSourceMode(from: values)
+    }
+
+    static func _providerSelectionForTesting(rawOverride: String?, enabled: [UsageProvider]) -> ProviderSelection {
+        self.providerSelection(rawOverride: rawOverride, enabled: enabled)
     }
 }
 #endif
