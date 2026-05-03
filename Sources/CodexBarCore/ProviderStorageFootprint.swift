@@ -340,6 +340,7 @@ public struct ProviderStorageScanner: @unchecked Sendable {
         var components: [ProviderStorageFootprint.Component] = []
 
         for path in candidatePaths {
+            if Task.isCancelled { break }
             var isDirectory: ObjCBool = false
             guard self.fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
                 missingPaths.append(path)
@@ -349,6 +350,7 @@ public struct ProviderStorageScanner: @unchecked Sendable {
             existingPaths.append(path)
             let url = URL(fileURLWithPath: path, isDirectory: isDirectory.boolValue)
             let result = self.sizeOfItem(at: url)
+            if Task.isCancelled { break }
             totalBytes += result.bytes
             unreadablePaths.append(contentsOf: result.unreadablePaths)
             components.append(contentsOf: self.components(for: url, isDirectory: isDirectory.boolValue))
@@ -370,6 +372,7 @@ public struct ProviderStorageScanner: @unchecked Sendable {
     }
 
     private func components(for url: URL, isDirectory: Bool) -> [ProviderStorageFootprint.Component] {
+        if Task.isCancelled { return [] }
         guard isDirectory else {
             let result = self.sizeOfItem(at: url)
             return result.bytes > 0 ? [.init(path: url.path, totalBytes: result.bytes)] : []
@@ -390,6 +393,7 @@ public struct ProviderStorageScanner: @unchecked Sendable {
         }
 
         return children.compactMap { childURL in
+            if Task.isCancelled { return nil }
             let result = self.sizeOfItem(at: childURL)
             guard result.bytes > 0 else { return nil }
             return ProviderStorageFootprint.Component(path: childURL.path, totalBytes: result.bytes)
@@ -397,6 +401,7 @@ public struct ProviderStorageScanner: @unchecked Sendable {
     }
 
     private func sizeOfItem(at url: URL) -> (bytes: Int64, unreadablePaths: [String]) {
+        if Task.isCancelled { return (0, []) }
         let keys: Set<URLResourceKey> = [
             .isDirectoryKey,
             .isRegularFileKey,
@@ -435,6 +440,10 @@ public struct ProviderStorageScanner: @unchecked Sendable {
 
         var totalBytes: Int64 = 0
         for case let itemURL as URL in enumerator {
+            if Task.isCancelled {
+                enumerator.skipDescendants()
+                break
+            }
             guard let itemValues = try? itemURL.resourceValues(forKeys: keys) else {
                 unreadableCollector.append(itemURL.path)
                 continue

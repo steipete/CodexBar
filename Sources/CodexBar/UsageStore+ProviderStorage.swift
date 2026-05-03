@@ -31,10 +31,12 @@ extension UsageStore {
 
         let environment = self.environmentBase
         let managedAccounts = self.loadManagedCodexAccountsForStorage()
-        let footprints = await Self.scanStorageFootprints(
-            for: uniqueProviders,
-            environment: environment,
-            managedAccounts: managedAccounts)
+        let footprints = await Task.detached(priority: .utility) {
+            Self.scanStorageFootprints(
+                for: uniqueProviders,
+                environment: environment,
+                managedAccounts: managedAccounts)
+        }.value
 
         for provider in uniqueProviders {
             self.providerStorageFootprints[provider] = footprints[provider]
@@ -49,7 +51,7 @@ extension UsageStore {
         let managedAccounts = self.loadManagedCodexAccountsForStorage()
 
         self.storageRefreshTask = Task.detached(priority: .utility) { [weak self] in
-            let footprints = await Self.scanStorageFootprints(
+            let footprints = Self.scanStorageFootprints(
                 for: uniqueProviders,
                 environment: environment,
                 managedAccounts: managedAccounts)
@@ -71,22 +73,20 @@ extension UsageStore {
         for providers: [UsageProvider],
         environment: [String: String],
         managedAccounts: [ManagedCodexAccount])
-        async -> [UsageProvider: ProviderStorageFootprint]
+        -> [UsageProvider: ProviderStorageFootprint]
     {
-        await Task.detached(priority: .utility) {
-            let scanner = ProviderStorageScanner()
-            var footprints: [UsageProvider: ProviderStorageFootprint] = [:]
+        let scanner = ProviderStorageScanner()
+        var footprints: [UsageProvider: ProviderStorageFootprint] = [:]
 
-            for provider in providers {
-                if Task.isCancelled { return footprints }
-                let candidatePaths = ProviderStoragePathCatalog.candidatePaths(
-                    for: provider,
-                    environment: environment,
-                    managedCodexAccounts: managedAccounts)
-                footprints[provider] = scanner.scan(provider: provider, candidatePaths: candidatePaths)
-            }
+        for provider in providers {
+            if Task.isCancelled { return footprints }
+            let candidatePaths = ProviderStoragePathCatalog.candidatePaths(
+                for: provider,
+                environment: environment,
+                managedCodexAccounts: managedAccounts)
+            footprints[provider] = scanner.scan(provider: provider, candidatePaths: candidatePaths)
+        }
 
-            return footprints
-        }.value
+        return footprints
     }
 }
