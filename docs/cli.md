@@ -27,6 +27,16 @@ tar -xzf CodexBarCLI-v0.17.0-linux-x86_64.tar.gz
 ./codexbar usage --format json --pretty
 ```
 
+### macOS Apple Silicon install (CLI tarball)
+- Download `CodexBarCLI-<tag>-macos-arm64.tar.gz` from GitHub Releases.
+- Extract; run `./codexbar` (symlink) or `./CodexBarCLI`.
+
+```
+tar -xzf CodexBarCLI-v0.17.0-macos-arm64.tar.gz
+./codexbar --version
+./codexbar usage --format json --pretty
+```
+
 ## Build
 - `./Scripts/package_app.sh` (or `./Scripts/compile_and_run.sh`) bundles `CodexBarCLI` into `CodexBar.app/Contents/Helpers/CodexBarCLI`.
 - Standalone: `swift build -c release --product CodexBarCLI` (binary at `./.build/release/CodexBarCLI`).
