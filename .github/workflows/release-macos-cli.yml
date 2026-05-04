@@ -40,18 +40,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          if [[ -z "$TAG" ]]; then
+          REF_NAME="${GITHUB_REF_NAME}"
+          if [[ -z "$REF_NAME" ]]; then
             echo "Missing tag (GITHUB_REF_NAME)." >&2
             exit 1
           fi
+          SAFE_REF_NAME="${REF_NAME//\//-}"
 
           BIN_DIR="$(swift build -c release --arch arm64 --product CodexBarCLI --show-bin-path)"
           OUT_DIR="$(mktemp -d)"
           install -m 0755 "$BIN_DIR/CodexBarCLI" "$OUT_DIR/CodexBarCLI"
           ln -s "CodexBarCLI" "$OUT_DIR/codexbar"
 
-          ASSET="CodexBarCLI-${TAG}-macos-arm64.tar.gz"
+          ASSET="CodexBarCLI-${SAFE_REF_NAME}-macos-arm64.tar.gz"
           (cd "$OUT_DIR" && tar czf "$ASSET" CodexBarCLI codexbar)
           shasum -a 256 "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
 
