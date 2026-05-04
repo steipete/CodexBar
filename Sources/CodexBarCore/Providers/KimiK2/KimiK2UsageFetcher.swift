@@ -3,15 +3,29 @@ import Foundation
 import FoundationNetworking
 #endif
 
+public struct KimiK2BalanceInfo: Sendable {
+    public let availableBalance: Double
+    public let voucherBalance: Double
+    public let cashBalance: Double
+
+    public init(availableBalance: Double, voucherBalance: Double, cashBalance: Double) {
+        self.availableBalance = availableBalance
+        self.voucherBalance = voucherBalance
+        self.cashBalance = cashBalance
+    }
+}
+
 public struct KimiK2UsageSnapshot: Sendable {
     public let summary: KimiK2UsageSummary
+    public let balanceInfo: KimiK2BalanceInfo?
 
-    public init(summary: KimiK2UsageSummary) {
+    public init(summary: KimiK2UsageSummary, balanceInfo: KimiK2BalanceInfo? = nil) {
         self.summary = summary
+        self.balanceInfo = balanceInfo
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        self.summary.toUsageSnapshot()
+        self.summary.toUsageSnapshot(balanceInfo: self.balanceInfo)
     }
 }
 
@@ -28,7 +42,7 @@ public struct KimiK2UsageSummary: Sendable {
         self.updatedAt = updatedAt
     }
 
-    public func toUsageSnapshot() -> UsageSnapshot {
+    public func toUsageSnapshot(balanceInfo: KimiK2BalanceInfo? = nil) -> UsageSnapshot {
         let total = max(0, self.consumed + self.remaining)
         let usedPercent: Double = if total > 0 {
             min(100, max(0, (self.consumed / total) * 100))
@@ -42,6 +56,20 @@ public struct KimiK2UsageSummary: Sendable {
             windowMinutes: nil,
             resetsAt: nil,
             resetDescription: total > 0 ? "Credits: \(usedText)/\(totalText)" : nil)
+
+        var balanceWindow: RateWindow?
+        if let balance = balanceInfo {
+            let balancePercent = balance.availableBalance > 0
+                ? min(100, max(0, (balance.cashBalance / (balance.cashBalance + balance.availableBalance)) * 100))
+                : 0
+            let balanceText = String(format: "%.2f", balance.availableBalance)
+            balanceWindow = RateWindow(
+                usedPercent: balancePercent,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "Balance: ¥\(balanceText)")
+        }
+
         let identity = ProviderIdentitySnapshot(
             providerID: .kimik2,
             accountEmail: nil,
@@ -49,7 +77,7 @@ public struct KimiK2UsageSummary: Sendable {
             loginMethod: nil)
         return UsageSnapshot(
             primary: rateWindow,
-            secondary: nil,
+            secondary: balanceWindow,
             tertiary: nil,
             providerCost: nil,
             updatedAt: self.updatedAt,
@@ -80,6 +108,7 @@ public enum KimiK2UsageError: LocalizedError, Sendable {
 public struct KimiK2UsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.kimiK2Usage)
     private static let creditsURL = URL(string: "https://kimi-k2.ai/api/user/credits")!
+    private static let balanceURL = URL(string: "https://api.moonshot.cn/v1/users/me/balance")!
     private static let jsonSerializer = JSONSerialization.self
     private static let consumedPaths: [[String]] = [
         ["total_credits_consumed"],
@@ -153,11 +182,86 @@ public struct KimiK2UsageFetcher: Sendable {
         }
 
         let summary = try Self.parseSummary(data: data, headers: httpResponse.allHeaderFields)
-        return KimiK2UsageSnapshot(summary: summary)
+
+        var balanceInfo: KimiK2BalanceInfo?
+        do {
+            balanceInfo = try await Self.fetchBalance(apiKey: apiKey)
+        } catch {
+            Self.log.debug("Kimi balance fetch failed (non-fatal): \(error)")
+        }
+
+        return KimiK2UsageSnapshot(summary: summary, balanceInfo: balanceInfo)
+    }
+
+    public static func fetchBalance(apiKey: String) async throws -> KimiK2BalanceInfo? {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        var request = URLRequest(url: self.balanceURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw KimiK2UsageError.networkError("Invalid balance response")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
+            Self.log.error("Kimi balance API returned \(httpResponse.statusCode): \(body)")
+            return nil
+        }
+
+        return try Self.parseBalance(data: data)
+    }
+
+    private static func parseBalance(data: Data) throws -> KimiK2BalanceInfo? {
+        guard let json = try? jsonSerializer.jsonObject(with: data),
+              let dict = json as? [String: Any]
+        else {
+            throw KimiK2UsageError.parseFailed("Balance JSON is not an object")
+        }
+
+        let dataContext: [String: Any]
+        if let data = dict["data"] as? [String: Any] {
+            dataContext = data
+        } else {
+            dataContext = dict
+        }
+
+        let availableBalancePaths: [[String]] = [
+            ["available_balance"],
+            ["availableBalance"],
+        ]
+        let voucherBalancePaths: [[String]] = [
+            ["voucher_balance"],
+            ["voucherBalance"],
+        ]
+        let cashBalancePaths: [[String]] = [
+            ["cash_balance"],
+            ["cashBalance"],
+        ]
+
+        let allContexts = [dataContext, dict]
+        let available = Self.doubleValue(for: availableBalancePaths, in: allContexts) ?? 0
+        let voucher = Self.doubleValue(for: voucherBalancePaths, in: allContexts) ?? 0
+        let cash = Self.doubleValue(for: cashBalancePaths, in: allContexts) ?? 0
+
+        return KimiK2BalanceInfo(
+            availableBalance: available,
+            voucherBalance: voucher,
+            cashBalance: cash)
     }
 
     static func _parseSummaryForTesting(_ data: Data, headers: [AnyHashable: Any] = [:]) throws -> KimiK2UsageSummary {
         try self.parseSummary(data: data, headers: headers)
+    }
+
+    static func _parseBalanceForTesting(_ data: Data) throws -> KimiK2BalanceInfo? {
+        try self.parseBalance(data: data)
     }
 
     private static func parseSummary(data: Data, headers: [AnyHashable: Any]) throws -> KimiK2UsageSummary {

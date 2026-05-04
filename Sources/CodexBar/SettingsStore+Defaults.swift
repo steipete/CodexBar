@@ -532,4 +532,23 @@ extension SettingsStore {
         }
         return self.normalizeProviders(providers, maxCount: maxCount)
     }
+
+    // MARK: - Proxy
+
+    var proxyEnabled: Bool {
+        get { self.defaultsState.proxyEnabled }
+        set {
+            self.defaultsState.proxyEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "proxyEnabled")
+        }
+    }
+
+    var proxyPort: UInt16 {
+        get { self.defaultsState.proxyPort }
+        set {
+            let clamped = max(1024, min(65535, newValue))
+            self.defaultsState.proxyPort = clamped
+            self.userDefaults.set(Int(clamped), forKey: "proxyPort")
+        }
+    }
 }

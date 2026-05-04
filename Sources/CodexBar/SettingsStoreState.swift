@@ -37,4 +37,6 @@ struct SettingsDefaultsState {
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
+    var proxyEnabled: Bool
+    var proxyPort: UInt16
 }

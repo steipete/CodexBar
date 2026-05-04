@@ -22,7 +22,11 @@ public struct ProviderSettingsSnapshot: Sendable {
         jetbrains: JetBrainsProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
-        mistral: MistralProviderSettings? = nil) -> ProviderSettingsSnapshot
+        mistral: MistralProviderSettings? = nil,
+        zhipu: ZhipuProviderSettings? = nil,
+        doubao: DoubaoProviderSettings? = nil,
+        ernie: ErnieProviderSettings? = nil,
+        mimo: MiMoProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
             debugMenuEnabled: debugMenuEnabled,
@@ -45,7 +49,11 @@ public struct ProviderSettingsSnapshot: Sendable {
             jetbrains: jetbrains,
             perplexity: perplexity,
             abacus: abacus,
-            mistral: mistral)
+            mistral: mistral,
+            zhipu: zhipu,
+            doubao: doubao,
+            ernie: ernie,
+            mimo: mimo)
     }
 
     public struct CodexProviderSettings: Sendable {
@@ -192,6 +200,46 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct ZhipuProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
+    public struct DoubaoProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
+    public struct ErnieProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
+    public struct MiMoProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct AugmentProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -281,6 +329,10 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let perplexity: PerplexityProviderSettings?
     public let abacus: AbacusProviderSettings?
     public let mistral: MistralProviderSettings?
+    public let zhipu: ZhipuProviderSettings?
+    public let doubao: DoubaoProviderSettings?
+    public let ernie: ErnieProviderSettings?
+    public let mimo: MiMoProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
         self.jetbrains?.ideBasePath
@@ -307,7 +359,11 @@ public struct ProviderSettingsSnapshot: Sendable {
         jetbrains: JetBrainsProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
-        mistral: MistralProviderSettings? = nil)
+        mistral: MistralProviderSettings? = nil,
+        zhipu: ZhipuProviderSettings? = nil,
+        doubao: DoubaoProviderSettings? = nil,
+        ernie: ErnieProviderSettings? = nil,
+        mimo: MiMoProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
@@ -330,6 +386,10 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.perplexity = perplexity
         self.abacus = abacus
         self.mistral = mistral
+        self.zhipu = zhipu
+        self.doubao = doubao
+        self.ernie = ernie
+        self.mimo = mimo
     }
 }
 
@@ -353,6 +413,10 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
     case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
     case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
+    case zhipu(ProviderSettingsSnapshot.ZhipuProviderSettings)
+    case doubao(ProviderSettingsSnapshot.DoubaoProviderSettings)
+    case ernie(ProviderSettingsSnapshot.ErnieProviderSettings)
+    case mimo(ProviderSettingsSnapshot.MiMoProviderSettings)
 }
 
 public struct ProviderSettingsSnapshotBuilder: Sendable {
@@ -377,6 +441,10 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
     public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
     public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
+    public var zhipu: ProviderSettingsSnapshot.ZhipuProviderSettings?
+    public var doubao: ProviderSettingsSnapshot.DoubaoProviderSettings?
+    public var ernie: ProviderSettingsSnapshot.ErnieProviderSettings?
+    public var mimo: ProviderSettingsSnapshot.MiMoProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
         self.debugMenuEnabled = debugMenuEnabled
@@ -404,6 +472,10 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .perplexity(value): self.perplexity = value
         case let .abacus(value): self.abacus = value
         case let .mistral(value): self.mistral = value
+        case let .zhipu(value): self.zhipu = value
+        case let .doubao(value): self.doubao = value
+        case let .ernie(value): self.ernie = value
+        case let .mimo(value): self.mimo = value
         }
     }
 
@@ -429,6 +501,10 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             jetbrains: self.jetbrains,
             perplexity: self.perplexity,
             abacus: self.abacus,
-            mistral: self.mistral)
+            mistral: self.mistral,
+            zhipu: self.zhipu,
+            doubao: self.doubao,
+            ernie: self.ernie,
+            mimo: self.mimo)
     }
 }

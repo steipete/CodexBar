@@ -1,3 +1,4 @@
+import CodexBarCore
 import KeyboardShortcuts
 import SwiftUI
 
@@ -6,6 +7,7 @@ struct AdvancedPane: View {
     @Bindable var settings: SettingsStore
     @State private var isInstallingCLI = false
     @State private var cliStatus: String?
+    @StateObject private var proxyManager = ProxyManager()
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -91,6 +93,60 @@ struct AdvancedPane: View {
                             title: "Disable Keychain access",
                             subtitle: "Prevents any Keychain access while enabled.",
                             binding: self.$settings.debugDisableKeychainAccess)
+                    }
+
+                Divider()
+
+                SettingsSection(
+                    title: "Local Proxy",
+                    caption: """
+                    Run a local HTTP proxy to intercept API responses and track token usage. \
+                    Set your API client's base URL to http://127.0.0.1:<port>.
+                    """) {
+                        PreferenceToggleRow(
+                            title: "Enable local proxy",
+                            subtitle: self.proxyManager.isRunning
+                                ? "Running on port \(self.proxyManager.activePort)"
+                                : "Not running",
+                            binding: Binding(
+                                get: { self.settings.proxyEnabled },
+                                set: { newValue in
+                                    self.settings.proxyEnabled = newValue
+                                    if newValue {
+                                        self.proxyManager.start(port: self.settings.proxyPort)
+                                    } else {
+                                        self.proxyManager.stop()
+                                    }
+                                }))
+
+                        HStack(spacing: 12) {
+                            Text("Port")
+                                .font(.body)
+                            Spacer()
+                            TextField("9876", value: self.$settings.proxyPort, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 80)
+                                .multilineTextAlignment(.trailing)
+                        }
+
+                        if self.proxyManager.isRunning {
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(.green)
+                                    .frame(width: 8, height: 8)
+                                Text("Listening on 127.0.0.1:\(self.proxyManager.activePort)")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Copy URL") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(
+                                        "http://127.0.0.1:\(self.proxyManager.activePort)",
+                                        forType: .string)
+                                }
+                                .controlSize(.small)
+                            }
+                        }
                     }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -282,6 +282,9 @@ extension SettingsStore {
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
+        let proxyEnabled = userDefaults.object(forKey: "proxyEnabled") as? Bool ?? false
+        let proxyPortRaw = userDefaults.object(forKey: "proxyPort") as? Int ?? 9876
+        let proxyPort = UInt16(max(1024, min(65535, proxyPortRaw)))
 
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -319,7 +322,9 @@ extension SettingsStore {
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
-            providerDetectionCompleted: providerDetectionCompleted)
+            providerDetectionCompleted: providerDetectionCompleted,
+            proxyEnabled: proxyEnabled,
+            proxyPort: proxyPort)
     }
 }
 

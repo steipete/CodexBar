@@ -80,6 +80,10 @@ enum ProviderChoice: String, AppEnum {
         case .mistral: return nil // Mistral not yet supported in widgets
         case .deepseek: return nil // DeepSeek not yet supported in widgets
         case .codebuff: return nil // Codebuff not yet supported in widgets
+        case .zhipu: return nil // Zhipu not yet supported in widgets
+        case .doubao: return nil // Doubao not yet supported in widgets
+        case .ernie: return nil // ERNIE not yet supported in widgets
+        case .mimo: return nil // MiMo not yet supported in widgets
         }
     }
 }

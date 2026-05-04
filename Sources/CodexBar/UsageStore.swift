@@ -819,6 +819,9 @@ extension UsageStore {
                 .kimi: "Kimi debug log not yet implemented",
                 .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
+                .zhipu: "Zhipu debug log not yet implemented",
+                .doubao: "Doubao debug log not yet implemented",
+                .ernie: "ERNIE debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {
@@ -892,7 +895,7 @@ extension UsageStore {
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .jetbrains, .perplexity, .abacus, .mistral, .codebuff:
+                     .kimik2, .jetbrains, .perplexity, .abacus, .mistral, .codebuff, .zhipu, .doubao, .ernie, .mimo:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

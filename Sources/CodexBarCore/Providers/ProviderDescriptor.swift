@@ -82,6 +82,10 @@ public enum ProviderDescriptorRegistry {
         .mistral: MistralProviderDescriptor.descriptor,
         .deepseek: DeepSeekProviderDescriptor.descriptor,
         .codebuff: CodebuffProviderDescriptor.descriptor,
+        .zhipu: ZhipuProviderDescriptor.descriptor,
+        .doubao: DoubaoProviderDescriptor.descriptor,
+        .ernie: ErnieProviderDescriptor.descriptor,
+        .mimo: MiMoProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

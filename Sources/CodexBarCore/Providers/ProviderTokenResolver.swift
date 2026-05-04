@@ -77,6 +77,30 @@ public enum ProviderTokenResolver {
         self.deepseekResolution(environment: environment)?.token
     }
 
+    public static func zhipuToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.zhipuResolution(environment: environment)?.token
+    }
+
+    public static func doubaoToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.doubaoResolution(environment: environment)?.token
+    }
+
+    public static func ernieToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.ernieResolution(environment: environment)?.token
+    }
+
+    public static func mimoToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.mimoResolution(environment: environment)?.token
+    }
+
     public static func deepseekResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
@@ -88,6 +112,30 @@ public enum ProviderTokenResolver {
         authFileURL: URL? = nil) -> String?
     {
         self.codebuffResolution(environment: environment, authFileURL: authFileURL)?.token
+    }
+
+    public static func zhipuResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(ZhipuSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func doubaoResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(DoubaoSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func ernieResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(ErnieSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func mimoResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(MiMoSettingsReader.apiKey(environment: environment))
     }
 
     public static func zaiResolution(

@@ -38,6 +38,10 @@ public enum ProviderConfigEnvironment {
             if CodebuffSettingsReader.apiKey(environment: base) == nil {
                 env[CodebuffSettingsReader.apiTokenKey] = apiKey
             }
+        case .mimo:
+            if let key = MiMoSettingsReader.apiKeyEnvironmentKeys.first {
+                env[key] = apiKey
+            }
         default:
             break
         }
