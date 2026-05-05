@@ -203,6 +203,8 @@ struct TokenAccountCLIContext {
         case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp, .deepseek,
              .codebuff:
             return nil
+        case .windsurf:
+            return nil
         }
     }
 

@@ -10,7 +10,26 @@ extension StatusItemController {
     private static let menuCardBaseWidth: CGFloat = 310
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
     private static let overviewRowIdentifierPrefix = "overviewRow-"
-    private static let menuOpenRefreshDelay: Duration = .seconds(1.2)
+    private static let defaultMenuOpenRefreshDelay: Duration = .seconds(1.2)
+    #if DEBUG
+    private static var menuOpenRefreshDelayForTesting: Duration = .seconds(1.2)
+    static func setMenuOpenRefreshDelayForTesting(_ delay: Duration) {
+        self.menuOpenRefreshDelayForTesting = delay
+    }
+
+    static func resetMenuOpenRefreshDelayForTesting() {
+        self.menuOpenRefreshDelayForTesting = self.defaultMenuOpenRefreshDelay
+    }
+    #endif
+
+    private static var menuOpenRefreshDelay: Duration {
+        #if DEBUG
+        menuOpenRefreshDelayForTesting
+        #else
+        defaultMenuOpenRefreshDelay
+        #endif
+    }
+
     static let usageBreakdownChartID = "usageBreakdownChart"
     static let creditsHistoryChartID = "creditsHistoryChart"
     static let costHistoryChartID = "costHistoryChart"
@@ -68,7 +87,11 @@ extension StatusItemController {
             if Self.menuRefreshEnabled, self.isOpenAIWebSubviewMenu(menu) {
                 self.store.requestOpenAIDashboardRefreshIfStale(reason: "submenu open")
             }
-            self.openMenus[ObjectIdentifier(menu)] = menu
+            if Self.menuRefreshEnabled {
+                // Intentionally skip open-menu tracking when refresh is disabled (tests).
+                // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
+                self.openMenus[ObjectIdentifier(menu)] = menu
+            }
             // Removed redundant async refresh - single pass is sufficient after initial layout
             return
         }
@@ -98,7 +121,11 @@ extension StatusItemController {
             self.markMenuFresh(menu)
             // Heights are already set during populateMenu, no need to remeasure
         }
-        self.openMenus[ObjectIdentifier(menu)] = menu
+        if Self.menuRefreshEnabled {
+            // Intentionally skip open-menu tracking when refresh is disabled (tests).
+            // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
+            self.openMenus[ObjectIdentifier(menu)] = menu
+        }
         // Only schedule refresh after menu is registered as open - refreshNow is called async
         if Self.menuRefreshEnabled {
             self.scheduleOpenMenuRefresh(for: menu)
@@ -868,14 +895,12 @@ extension StatusItemController {
     }
 
     func refreshOpenMenusIfNeeded() {
+        guard Self.menuRefreshEnabled else { return }
         guard !self.openMenus.isEmpty else { return }
+        var orphanedKeys: [ObjectIdentifier] = []
         for (key, menu) in self.openMenus {
             guard key == ObjectIdentifier(menu) else {
-                // Clean up orphaned menu entries from all tracking dictionaries
-                self.openMenus.removeValue(forKey: key)
-                self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
-                self.menuProviders.removeValue(forKey: key)
-                self.menuVersions.removeValue(forKey: key)
+                orphanedKeys.append(key)
                 continue
             }
 
@@ -890,6 +915,14 @@ extension StatusItemController {
                 self.markMenuFresh(menu)
                 // Heights are already set during populateMenu, no need to remeasure
             }
+        }
+
+        // Clean up orphaned menu entries from all tracking dictionaries.
+        for key in orphanedKeys {
+            self.openMenus.removeValue(forKey: key)
+            self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
+            self.menuProviders.removeValue(forKey: key)
+            self.menuVersions.removeValue(forKey: key)
         }
     }
 
@@ -945,6 +978,10 @@ extension StatusItemController {
             guard let self, let menu else { return }
             try? await Task.sleep(for: Self.menuOpenRefreshDelay)
             guard !Task.isCancelled else { return }
+            guard Self.menuRefreshEnabled else { return }
+            #if DEBUG
+            self.onDelayedMenuRefreshAttemptForTesting?()
+            #endif
             guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
             guard !self.store.isRefreshing else { return }
             let retryProviders = self.delayedRefreshRetryProviders(for: menu)

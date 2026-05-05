@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>CodexBar social card</title>
+    <style>
+      html, body { margin: 0; padding: 0; }
+      body {
+        width: 1200px;
+        height: 630px;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+        background: #0a0a0c;
+        color: #f0f0f3;
+        overflow: hidden;
+        position: relative;
+        -webkit-font-smoothing: antialiased;
+      }
+      body::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(900px 620px at 8% -8%, rgba(255, 106, 0, 0.22), transparent 55%),
+          radial-gradient(820px 600px at 96% 4%, rgba(110, 90, 255, 0.22), transparent 58%),
+          radial-gradient(700px 540px at 50% 120%, rgba(0, 200, 170, 0.14), transparent 60%);
+        z-index: 0;
+      }
+      body::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        background-size: 28px 28px;
+        mask-image: linear-gradient(to bottom, black, black 65%, transparent);
+        -webkit-mask-image: linear-gradient(to bottom, black, black 65%, transparent);
+        z-index: 0;
+      }
+
+      .frame {
+        position: relative;
+        z-index: 1;
+        padding: 40px 56px 36px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 19px;
+        font-weight: 600;
+        letter-spacing: 0;
+      }
+      .brand img { width: 32px; height: 32px; border-radius: 8px; }
+      .url { font-size: 16px; color: #97a0aa; letter-spacing: 0.01em; }
+
+      h1 {
+        margin: 0;
+        font-size: 56px;
+        line-height: 1.02;
+        letter-spacing: -0.028em;
+        font-weight: 600;
+        max-width: 20ch;
+      }
+      .sub {
+        margin: 10px 0 0;
+        font-size: 19px;
+        color: #b6bdc6;
+        letter-spacing: -0.005em;
+      }
+      .sub strong { color: #f0f0f3; font-weight: 600; }
+
+      .grid {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 7px;
+        align-content: end;
+      }
+      .grid li { margin: 0; }
+
+      .tile {
+        --ink: #fff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 9px;
+        background: #131418;
+        height: 50px;
+      }
+      .chip {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: var(--brand);
+        color: var(--ink);
+        font-weight: 700;
+        font-size: 17px;
+        letter-spacing: -0.02em;
+        flex-shrink: 0;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.18),
+          inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+      }
+      .name {
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.15;
+        color: #f0f0f3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="top">
+        <div class="brand">
+          <img src="./icon.png" alt="" />
+          <span>CodexBar</span>
+        </div>
+        <div class="url">codexbar.app</div>
+      </div>
+
+      <div>
+        <h1>Every AI coding limit, in your menu bar.</h1>
+        <p class="sub"><strong>29 providers</strong> · usage windows, credits, resets · one status item each, or merged.</p>
+      </div>
+
+      <ul class="grid">
+        <li><div class="tile" style="--brand:#49A3B0"><div class="chip">C</div><div class="name">Codex</div></div></li>
+        <li><div class="tile" style="--brand:#CC7C5E"><div class="chip">C</div><div class="name">Claude</div></div></li>
+        <li><div class="tile" style="--brand:#1A1A1A"><div class="chip">C</div><div class="name">Cursor</div></div></li>
+        <li><div class="tile" style="--brand:#3B82F6"><div class="chip">O</div><div class="name">OpenCode</div></div></li>
+        <li><div class="tile" style="--brand:#3B82F6"><div class="chip">O</div><div class="name">OpenCode Go</div></div></li>
+        <li><div class="tile" style="--brand:#FF6A00"><div class="chip">A</div><div class="name">Alibaba</div></div></li>
+        <li><div class="tile" style="--brand:#AB87EA"><div class="chip">G</div><div class="name">Gemini</div></div></li>
+
+        <li><div class="tile" style="--brand:#60BA7E"><div class="chip">A</div><div class="name">Antigravity</div></div></li>
+        <li><div class="tile" style="--brand:#FF6B35"><div class="chip">D</div><div class="name">Droid</div></div></li>
+        <li><div class="tile" style="--brand:#A855F7"><div class="chip">C</div><div class="name">Copilot</div></div></li>
+        <li><div class="tile" style="--brand:#E85A6A"><div class="chip">z</div><div class="name">z.ai</div></div></li>
+        <li><div class="tile" style="--brand:#FE6060"><div class="chip">M</div><div class="name">MiniMax</div></div></li>
+        <li><div class="tile" style="--brand:#FE603C"><div class="chip">K</div><div class="name">Kimi</div></div></li>
+        <li><div class="tile" style="--brand:#4C00FF"><div class="chip">K</div><div class="name">Kimi K2</div></div></li>
+
+        <li><div class="tile" style="--brand:#F27027"><div class="chip">K</div><div class="name">Kilo</div></div></li>
+        <li><div class="tile" style="--brand:#FF9900;--ink:#0a0a0c"><div class="chip">K</div><div class="name">Kiro</div></div></li>
+        <li><div class="tile" style="--brand:#4285F4"><div class="chip">V</div><div class="name">Vertex AI</div></div></li>
+        <li><div class="tile" style="--brand:#6366F1"><div class="chip">A</div><div class="name">Augment</div></div></li>
+        <li><div class="tile" style="--brand:#DC2626"><div class="chip">A</div><div class="name">Amp</div></div></li>
+        <li><div class="tile" style="--brand:#888888"><div class="chip">O</div><div class="name">Ollama</div></div></li>
+        <li><div class="tile" style="--brand:#141414"><div class="chip">S</div><div class="name">Synthetic</div></div></li>
+        <li><div class="tile" style="--brand:#FF3399"><div class="chip">J</div><div class="name">JetBrains AI</div></div></li>
+
+        <li><div class="tile" style="--brand:#7B68EE"><div class="chip">W</div><div class="name">Warp</div></div></li>
+        <li><div class="tile" style="--brand:#6467F2"><div class="chip">O</div><div class="name">OpenRouter</div></div></li>
+        <li><div class="tile" style="--brand:#20B2AA"><div class="chip">P</div><div class="name">Perplexity</div></div></li>
+        <li><div class="tile" style="--brand:#38BDF8"><div class="chip">A</div><div class="name">Abacus AI</div></div></li>
+        <li><div class="tile" style="--brand:#FF500F"><div class="chip">M</div><div class="name">Mistral</div></div></li>
+        <li><div class="tile" style="--brand:#527DF0"><div class="chip">D</div><div class="name">DeepSeek</div></div></li>
+        <li><div class="tile" style="--brand:#44C800;--ink:#0a0a0c"><div class="chip">C</div><div class="name">Codebuff</div></div></li>
+      </ul>
+    </div>
+  </body>
+</html>

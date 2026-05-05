@@ -177,6 +177,18 @@ public enum CodexBarConfigValidator {
                 message: "workspaceID is set but only opencode and opencodego support workspaceID."))
         }
 
+        if let enterpriseHost = entry.enterpriseHost,
+           !enterpriseHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           provider != .copilot
+        {
+            issues.append(CodexBarConfigIssue(
+                severity: .warning,
+                provider: provider,
+                field: "enterpriseHost",
+                code: "enterprise_host_unused",
+                message: "enterpriseHost is set but only copilot supports enterpriseHost."))
+        }
+
         if let tokenAccounts = entry.tokenAccounts, !tokenAccounts.accounts.isEmpty,
            TokenAccountSupportCatalog.support(for: provider) == nil
         {

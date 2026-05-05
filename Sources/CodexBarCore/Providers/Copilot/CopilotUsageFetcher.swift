@@ -15,13 +15,32 @@ public struct CopilotUsageFetcher: Sendable {
     }
 
     private let token: String
+    private let enterpriseHost: String?
 
-    public init(token: String) {
+    public init(token: String, enterpriseHost: String? = nil) {
         self.token = token
+        self.enterpriseHost = enterpriseHost
+    }
+
+    public static func apiHost(enterpriseHost: String?) -> String {
+        let host = CopilotDeviceFlow.normalizedHost(enterpriseHost)
+        if host == CopilotDeviceFlow.defaultHost {
+            return "api.github.com"
+        }
+        if host.hasPrefix("api.") {
+            return host
+        }
+        return "api.\(host)"
+    }
+
+    public static func usageURL(enterpriseHost: String?) -> URL? {
+        CopilotDeviceFlow.makeRequestURL(
+            host: self.apiHost(enterpriseHost: enterpriseHost),
+            path: "/copilot_internal/user")
     }
 
     public func fetch() async throws -> UsageSnapshot {
-        guard let url = URL(string: "https://api.github.com/copilot_internal/user") else {
+        guard let url = Self.usageURL(enterpriseHost: self.enterpriseHost) else {
             throw URLError(.badURL)
         }
 

@@ -53,6 +53,17 @@ public struct ProviderStorageFootprint: Sendable, Equatable {
     public var cleanupRecommendations: [ProviderStorageRecommendation] {
         ProviderStorageRecommendation.recommendations(for: self)
     }
+
+    public func replacingProvider(_ provider: UsageProvider) -> ProviderStorageFootprint {
+        ProviderStorageFootprint(
+            provider: provider,
+            totalBytes: self.totalBytes,
+            paths: self.paths,
+            missingPaths: self.missingPaths,
+            unreadablePaths: self.unreadablePaths,
+            components: self.components,
+            updatedAt: self.updatedAt)
+    }
 }
 
 public struct ProviderStorageRecommendation: Sendable, Equatable, Identifiable {
@@ -207,7 +218,14 @@ public struct ProviderStorageRecommendation: Sendable, Equatable, Identifiable {
                 title: "Manual cleanup: cache",
                 consequence: "Clearing removes provider-owned cached data.",
                 priority: 30)
-        case "logs", "debug":
+        case "log", "logs", "debug":
+            self.make(
+                provider: .codex,
+                component: component,
+                title: "Manual cleanup: logs",
+                consequence: "Clearing removes local diagnostic logs.",
+                priority: 40)
+        case let name where name.hasPrefix("logs_") && name.hasSuffix(".sqlite"):
             self.make(
                 provider: .codex,
                 component: component,
@@ -221,7 +239,7 @@ public struct ProviderStorageRecommendation: Sendable, Equatable, Identifiable {
                 title: "Manual cleanup: file history",
                 consequence: "Clearing removes local edit checkpoint history.",
                 priority: 50)
-        case "paste-cache", "image-cache", "session-env", "shell-snapshots", "tmp", "temp":
+        case "paste-cache", "image-cache", "session-env", "shell-snapshots", "shell_snapshots", "tmp", "temp", ".tmp":
             self.make(
                 provider: .codex,
                 component: component,

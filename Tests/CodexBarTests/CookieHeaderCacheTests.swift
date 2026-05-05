@@ -170,4 +170,62 @@ struct CookieHeaderCacheTests {
             #expect(Bool(false), "Expected invalid cookie cache to be cleared")
         }
     }
+
+    @Test
+    func `clear all scopes removes global scoped invalid and legacy cookie entries`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let legacyBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        CookieHeaderCache.setLegacyBaseURLOverrideForTesting(legacyBase)
+        defer { CookieHeaderCache.setLegacyBaseURLOverrideForTesting(nil) }
+
+        let provider: UsageProvider = .codex
+        let accountID = UUID()
+        CookieHeaderCache.store(provider: provider, cookieHeader: "auth=global", sourceLabel: "Chrome")
+        CookieHeaderCache.store(
+            provider: provider,
+            scope: .managedAccount(accountID),
+            cookieHeader: "auth=scoped",
+            sourceLabel: "Chrome")
+        KeychainCacheStore.store(
+            key: .cookie(provider: provider, scopeIdentifier: "managed-store-unreadable"),
+            entry: WrongEntry(value: "invalid"))
+        CookieHeaderCache.store(
+            CookieHeaderCache.Entry(
+                cookieHeader: "auth=legacy",
+                storedAt: Date(timeIntervalSince1970: 0),
+                sourceLabel: "Legacy"),
+            to: CookieHeaderCache.legacyURLForTesting(provider: provider))
+
+        let cleared = CookieHeaderCache.clearAllScopes(provider: provider)
+
+        #expect(cleared == 4)
+        #expect(!CookieHeaderCache.hasKeychainEntryForTesting(provider: provider))
+        #expect(!CookieHeaderCache.hasKeychainEntryForTesting(provider: provider, scope: .managedAccount(accountID)))
+        #expect(!CookieHeaderCache.hasKeychainEntryForTesting(provider: provider, scope: .managedStoreUnreadable))
+        #expect(!CookieHeaderCache.hasLegacyEntryForTesting(provider: provider))
+    }
+
+    @Test
+    func `clear all removes every provider cookie key without decoding entries`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        CookieHeaderCache.store(provider: .claude, cookieHeader: "auth=claude", sourceLabel: "Chrome")
+        CookieHeaderCache.store(
+            provider: .codex,
+            scope: .managedAccount(UUID()),
+            cookieHeader: "auth=codex",
+            sourceLabel: "Chrome")
+        KeychainCacheStore.store(
+            key: .cookie(provider: .cursor),
+            entry: WrongEntry(value: "invalid"))
+
+        let cleared = CookieHeaderCache.clearAll()
+
+        #expect(cleared == 3)
+        #expect(KeychainCacheStore.keys(category: "cookie").isEmpty)
+    }
 }

@@ -8,7 +8,7 @@ import XCTest
 final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
     private func disableMenuCardsForTesting() {
         StatusItemController.menuCardRenderingEnabled = false
-        StatusItemController.menuRefreshEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
     }
 
     private func makeStatusBarForTesting() -> NSStatusBar {

@@ -112,6 +112,32 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `provider storage setting defaults off and persists`() throws {
+        let suite = "SettingsStoreTests-provider-storage"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.providerStorageFootprintsEnabled == false)
+        #expect(defaultsA.bool(forKey: "providerStorageFootprintsEnabled") == false)
+        storeA.providerStorageFootprintsEnabled = true
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.providerStorageFootprintsEnabled == true)
+    }
+
+    @Test
     func `persists selected menu provider across instances`() throws {
         let suite = "SettingsStoreTests-selectedMenuProvider"
         let defaultsA = try #require(UserDefaults(suiteName: suite))
@@ -936,6 +962,7 @@ struct SettingsStoreTests {
             .synthetic,
             .warp,
             .openrouter,
+            .windsurf,
             .perplexity,
             .abacus,
             .mistral,

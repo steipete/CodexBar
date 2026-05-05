@@ -257,16 +257,19 @@ extension UsageStore {
             } else {
                 scoped
             }
-            await MainActor.run {
-                self.handleSessionQuotaTransition(provider: provider, snapshot: labeled)
-                self.snapshots[provider] = labeled
+            let backfilled = await MainActor.run {
+                let backfilled = labeled.backfillingResetTimes(from: self.lastKnownResetSnapshots[provider])
+                self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
+                self.lastKnownResetSnapshots[provider] = backfilled
+                self.snapshots[provider] = backfilled
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
+                return backfilled
             }
             await self.recordPlanUtilizationHistorySample(
                 provider: provider,
-                snapshot: labeled,
+                snapshot: backfilled,
                 account: account)
         case let .failure(error):
             await MainActor.run {

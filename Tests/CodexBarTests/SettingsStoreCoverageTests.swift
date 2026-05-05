@@ -138,6 +138,26 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `copilot enterprise host persists in provider config`() throws {
+        let suite = "SettingsStoreCoverageTests-copilot-enterprise-host"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+
+        first.copilotEnterpriseHost = "https://octocorp.ghe.com/login"
+        #expect(first.copilotEnterpriseHost == "https://octocorp.ghe.com/login")
+        #expect(first.copilotSettingsSnapshot(tokenOverride: nil).enterpriseHost == "octocorp.ghe.com")
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.copilotEnterpriseHost == "https://octocorp.ghe.com/login")
+
+        second.copilotEnterpriseHost = "github.com"
+        #expect(second.copilotEnterpriseHost == "github.com")
+        #expect(second.copilotSettingsSnapshot(tokenOverride: nil).enterpriseHost == nil)
+    }
+
+    @Test
     func `removing another token account preserves active selection`() throws {
         let settings = Self.makeSettingsStore()
 

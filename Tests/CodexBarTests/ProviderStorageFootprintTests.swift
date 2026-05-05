@@ -112,7 +112,10 @@ struct ProviderStorageFootprintTests {
             components: [
                 .init(path: "\(root)/sessions", totalBytes: 20),
                 .init(path: "\(root)/archived_sessions", totalBytes: 15),
+                .init(path: "\(root)/log", totalBytes: 12),
+                .init(path: "\(root)/logs_2.sqlite", totalBytes: 11),
                 .init(path: "\(root)/cache", totalBytes: 10),
+                .init(path: "\(root)/shell_snapshots", totalBytes: 9),
                 .init(path: "\(root)/auth.json", totalBytes: 4),
                 .init(path: "\(root)/config.toml", totalBytes: 2),
                 .init(path: "/tmp/outside/sessions", totalBytes: 99),
@@ -125,8 +128,11 @@ struct ProviderStorageFootprintTests {
             "\(root)/sessions",
             "\(root)/archived_sessions",
             "\(root)/cache",
+            "\(root)/log",
+            "\(root)/logs_2.sqlite",
+            "\(root)/shell_snapshots",
         ])
-        #expect(recommendations.map(\.bytes) == [20, 15, 10])
+        #expect(recommendations.map(\.bytes) == [20, 15, 10, 12, 11, 9])
     }
 
     @Test
@@ -268,8 +274,51 @@ struct ProviderStorageFootprintTests {
         try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
         try Data(repeating: 1, count: 32).write(to: sessions.appendingPathComponent("session.jsonl"))
 
+        let suite = "ProviderStorageFootprintTests-storage-refresh-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
         let settings = SettingsStore(
-            configStore: testConfigStore(suiteName: "ProviderStorageFootprintTests-storage-refresh"),
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        if let codexMetadata = ProviderDefaults.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            environmentBase: ["CODEX_HOME": codexHome.path])
+        settings.providerStorageFootprintsEnabled = true
+        store.managedCodexAccountsForStorageOverride = []
+
+        await store.refreshStorageFootprintsForOverviewNow()
+        #expect(store.storageFootprint(for: .codex)?.totalBytes == 32)
+
+        try FileManager.default.removeItem(at: sessions)
+        await store.refreshStorageFootprintsForOverviewNow()
+
+        #expect(store.storageFootprint(for: .codex)?.totalBytes == 0)
+        #expect(store.storageFootprintText(for: .codex) == "No local data found")
+    }
+
+    @Test
+    @MainActor
+    func `storage refresh is opt in and clears stale footprints when disabled`() async throws {
+        let home = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let codexHome = home.appendingPathComponent(".codex", isDirectory: true)
+        try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 16).write(to: codexHome.appendingPathComponent("session.jsonl"))
+
+        let suite = "ProviderStorageFootprintTests-storage-opt-in-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
         if let codexMetadata = ProviderDefaults.metadata[.codex] {
@@ -283,13 +332,16 @@ struct ProviderStorageFootprintTests {
         store.managedCodexAccountsForStorageOverride = []
 
         await store.refreshStorageFootprintsForOverviewNow()
-        #expect(store.storageFootprint(for: .codex)?.totalBytes == 32)
+        #expect(store.storageFootprint(for: .codex) == nil)
 
-        try FileManager.default.removeItem(at: sessions)
+        settings.providerStorageFootprintsEnabled = true
         await store.refreshStorageFootprintsForOverviewNow()
+        #expect(store.storageFootprint(for: .codex)?.totalBytes == 16)
 
-        #expect(store.storageFootprint(for: .codex)?.totalBytes == 0)
-        #expect(store.storageFootprintText(for: .codex) == "No local data found")
+        settings.providerStorageFootprintsEnabled = false
+        await store.refreshStorageFootprintsForOverviewNow()
+        #expect(store.storageFootprint(for: .codex) == nil)
+        #expect(store.providerStorageFootprints.isEmpty)
     }
 
     private static func makeTemporaryDirectory() throws -> URL {

@@ -77,6 +77,10 @@ struct AdvancedPane: View {
                         title: "Hide personal information",
                         subtitle: "Obscure email addresses in the menu bar and menu UI.",
                         binding: self.$settings.hidePersonalInfo)
+                    PreferenceToggleRow(
+                        title: "Show provider storage usage",
+                        subtitle: "Show local disk usage in menus. Scans known provider-owned paths in the background.",
+                        binding: self.$settings.providerStorageFootprintsEnabled)
                 }
 
                 Divider()

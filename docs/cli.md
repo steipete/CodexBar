@@ -44,6 +44,11 @@ See `docs/configuration.md` for the schema.
 - `codexbar cost` prints local token cost usage for Claude + Codex without web/CLI access.
   - `--format text|json` (default: text).
   - `--refresh` ignores cached scans.
+- `codexbar cache clear` clears local CodexBar caches.
+  - `--cookies` removes cached browser-cookie headers from the CodexBar Keychain cache.
+  - `--cookies --provider <id>` removes browser-cookie cache entries for that provider, including managed Codex account scopes.
+  - `--cost` removes local cost-usage scan caches.
+  - `--all` clears both cookies and cost caches. `--provider` is cookie-only and cannot be combined with `--cost` or `--all`.
 - `--provider <id|both|all>` (default: enabled providers in config; falls back to defaults when missing).
   - Provider IDs live in the config file (see `docs/configuration.md`).
   - With three or more providers enabled, the default stays scoped to enabled providers; use `--provider all` to query
@@ -111,6 +116,9 @@ codexbar --provider gemini --source api --format json --pretty
 KILO_API_KEY=... codexbar --provider kilo --source api --format json --pretty
 codexbar config validate --format json --pretty
 codexbar config dump --pretty
+codexbar cache clear --cookies
+codexbar cache clear --cookies --provider claude
+codexbar cache clear --all --format json --pretty
 ```
 
 ### Sample output (text)

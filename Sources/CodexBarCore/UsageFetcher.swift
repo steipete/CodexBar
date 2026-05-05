@@ -26,6 +26,17 @@ public struct RateWindow: Codable, Equatable, Sendable {
     public var remainingPercent: Double {
         max(0, 100 - self.usedPercent)
     }
+
+    public func backfillingResetTime(from cached: RateWindow?, now: Date = .init()) -> RateWindow {
+        if self.resetsAt != nil { return self }
+        guard let cachedReset = cached?.resetsAt, cachedReset > now else { return self }
+        return RateWindow(
+            usedPercent: self.usedPercent,
+            windowMinutes: self.windowMinutes ?? cached?.windowMinutes,
+            resetsAt: cachedReset,
+            resetDescription: self.resetDescription ?? cached?.resetDescription,
+            nextRegenPercent: self.nextRegenPercent)
+    }
 }
 
 public struct NamedRateWindow: Codable, Equatable, Sendable {
@@ -259,11 +270,45 @@ public struct UsageSnapshot: Codable, Sendable {
         return self.withIdentity(scopedIdentity)
     }
 
+    public func backfillingResetTimes(from cached: UsageSnapshot?, now: Date = .init()) -> UsageSnapshot {
+        guard let cached else { return self }
+        guard Self.identitiesMatch(self.identity, cached.identity) else { return self }
+        let primary = self.primary?.backfillingResetTime(from: cached.primary, now: now)
+        let secondary = self.secondary?.backfillingResetTime(from: cached.secondary, now: now)
+        let tertiary = self.tertiary?.backfillingResetTime(from: cached.tertiary, now: now)
+        if primary == self.primary, secondary == self.secondary, tertiary == self.tertiary {
+            return self
+        }
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
+            extraRateWindows: self.extraRateWindows,
+            providerCost: self.providerCost,
+            zaiUsage: self.zaiUsage,
+            minimaxUsage: self.minimaxUsage,
+            openRouterUsage: self.openRouterUsage,
+            cursorRequests: self.cursorRequests,
+            updatedAt: self.updatedAt,
+            identity: self.identity)
+    }
+
     private func orderedPerplexityFallbackWindows() -> [RateWindow] {
         let fallbackWindows = [self.tertiary, self.secondary].compactMap(\.self)
         let usableFallback = fallbackWindows.filter { $0.remainingPercent > 0 }
         let exhaustedFallback = fallbackWindows.filter { $0.remainingPercent <= 0 }
         return usableFallback + exhaustedFallback
+    }
+
+    private static func identitiesMatch(_ lhs: ProviderIdentitySnapshot?, _ rhs: ProviderIdentitySnapshot?) -> Bool {
+        if lhs == nil, rhs == nil { return true }
+        guard let lhs, let rhs else { return false }
+        let lhsEmail = lhs.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhsEmail = rhs.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let lhsEmail, let rhsEmail, !lhsEmail.isEmpty, !rhsEmail.isEmpty {
+            return lhsEmail == rhsEmail
+        }
+        return true
     }
 }
 
