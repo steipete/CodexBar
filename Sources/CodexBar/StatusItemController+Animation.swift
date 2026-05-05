@@ -6,6 +6,18 @@ extension StatusItemController {
     private static let loadingPercentEpsilon = 0.0001
     private static let blinkActiveTickInterval: Duration = .milliseconds(75)
     private static let blinkIdleFallbackInterval: Duration = .seconds(1)
+    /// Target frame rate for the menu-bar loading animation. Reduced from 60 FPS
+    /// to halve main-thread NSImage redraw cost while still feeling smooth (12 FPS
+    /// looks choppy). The phase increment below is derived from this so visible
+    /// animation speed stays constant if the value changes.
+    static let loadingAnimationFPS: Double = 30.0
+    /// Per-tick phase advance, derived so that animation speed remains 2.7
+    /// phase-units per second regardless of FPS. Originally `0.045` at 60 FPS.
+    static let loadingAnimationPhaseIncrement: Double = 2.7 / StatusItemController.loadingAnimationFPS
+    /// Hard ceiling on continuous animation duration. Guards against future
+    /// regressions of the `!hasData && !isStale` animation loop that pinned the
+    /// menu bar at full FPS until the user quit (#842).
+    private static let loadingAnimationMaxContinuousDuration: TimeInterval = 30.0
 
     func needsMenuBarIconAnimation() -> Bool {
         if self.shouldMergeIcons {
@@ -691,29 +703,44 @@ extension StatusItemController {
                     self.animationPattern = .knightRider
                 }
                 self.animationPhase = 0
+                self.animationStartedAt = Date()
                 let driver = DisplayLinkDriver(onTick: { [weak self] in
                     self?.updateAnimationFrame()
                 })
                 self.animationDriver = driver
-                driver.start(fps: 60)
+                driver.start(fps: Self.loadingAnimationFPS)
             } else if let forced = self.settings.debugLoadingPattern, forced != self.animationPattern {
                 self.animationPattern = forced
                 self.animationPhase = 0
             }
         } else {
-            self.animationDriver?.stop()
-            self.animationDriver = nil
-            self.animationPhase = 0
-            if self.shouldMergeIcons {
-                self.applyIcon(phase: nil)
-            } else {
-                UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: nil) }
-            }
+            self.stopLoadingAnimation()
+        }
+    }
+
+    private func stopLoadingAnimation() {
+        self.animationDriver?.stop()
+        self.animationDriver = nil
+        self.animationPhase = 0
+        self.animationStartedAt = nil
+        if self.shouldMergeIcons {
+            self.applyIcon(phase: nil)
+        } else {
+            UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: nil) }
         }
     }
 
     private func updateAnimationFrame() {
-        self.animationPhase += 0.045 // half-speed animation
+        // Hard ceiling guards against future regressions of the !hasData && !isStale
+        // animation loop that caused the menu bar to redraw at full FPS forever
+        // (see #842).
+        if let startedAt = self.animationStartedAt,
+           Date().timeIntervalSince(startedAt) > Self.loadingAnimationMaxContinuousDuration
+        {
+            self.stopLoadingAnimation()
+            return
+        }
+        self.animationPhase += Self.loadingAnimationPhaseIncrement
         if self.shouldMergeIcons {
             self.applyIcon(phase: self.animationPhase)
         } else {

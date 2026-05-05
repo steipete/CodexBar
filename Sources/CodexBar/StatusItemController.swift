@@ -112,6 +112,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var animationDriver: DisplayLinkDriver?
     var animationPhase: Double = 0
     var animationPattern: LoadingPattern = .knightRider
+    /// Tracks when the loading animation last started. Used by the 30-second hard
+    /// ceiling in `updateAnimationFrame` to guard against future regressions of the
+    /// `!hasData && !isStale` animation loop. See #842.
+    var animationStartedAt: Date?
     private var lastConfigRevision: Int
     private var lastProviderOrder: [UsageProvider]
     private var lastMergeIcons: Bool

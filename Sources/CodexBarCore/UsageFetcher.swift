@@ -370,6 +370,7 @@ private enum RPCWireError: Error, LocalizedError {
     case startFailed(String)
     case requestFailed(String)
     case malformed(String)
+    case timeout(method: String)
 
     var errorDescription: String? {
         switch self {
@@ -379,6 +380,8 @@ private enum RPCWireError: Error, LocalizedError {
             "Codex connection failed: \(message)"
         case let .malformed(message):
             "Codex returned invalid data: \(message)"
+        case let .timeout(method):
+            "Codex RPC timed out waiting for `\(method)` reply."
         }
     }
 }
@@ -393,6 +396,14 @@ private final class CodexRPCClient: @unchecked Sendable {
     private let stdoutLineStream: AsyncStream<Data>
     private let stdoutLineContinuation: AsyncStream<Data>.Continuation
     private var nextID = 1
+    /// Per-method RPC timeouts. Bug #842: the `app-server` could accept `initialize`
+    /// and then never reply to `account/rateLimits/read`, leaving the reader awaiting
+    /// the stdout AsyncStream forever. That hang produced no error, so the TTY
+    /// fallback never ran and the menu-bar loading animation pinned at 60 FPS until
+    /// the user quit the app. These timeouts force the request path to throw, which
+    /// triggers `withFallback` to try the TTY secondary.
+    private let initializeTimeoutSeconds: TimeInterval
+    private let requestTimeoutSeconds: TimeInterval
 
     private final class LineBuffer: @unchecked Sendable {
         private let lock = NSLock()
@@ -424,8 +435,12 @@ private final class CodexRPCClient: @unchecked Sendable {
     init(
         executable: String = "codex",
         arguments: [String] = ["-s", "read-only", "-a", "untrusted", "app-server"],
-        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        initializeTimeoutSeconds: TimeInterval = 8.0,
+        requestTimeoutSeconds: TimeInterval = 3.0) throws
     {
+        self.initializeTimeoutSeconds = initializeTimeoutSeconds
+        self.requestTimeoutSeconds = requestTimeoutSeconds
         var stdoutContinuation: AsyncStream<Data>.Continuation!
         self.stdoutLineStream = AsyncStream<Data> { continuation in
             stdoutContinuation = continuation
@@ -497,7 +512,8 @@ private final class CodexRPCClient: @unchecked Sendable {
     func initialize(clientName: String, clientVersion: String) async throws {
         _ = try await self.request(
             method: "initialize",
-            params: ["clientInfo": ["name": clientName, "version": clientVersion]])
+            params: ["clientInfo": ["name": clientName, "version": clientVersion]],
+            timeout: self.initializeTimeoutSeconds)
         try self.sendNotification(method: "initialized")
     }
 
@@ -520,26 +536,84 @@ private final class CodexRPCClient: @unchecked Sendable {
 
     // MARK: - JSON-RPC helpers
 
-    private func request(method: String, params: [String: Any]? = nil) async throws -> [String: Any] {
+    /// Sendable wrapper so we can return `[String: Any]` payloads out of a
+    /// `withThrowingTaskGroup` (which requires `Sendable` element types) without
+    /// having to rewrite every caller around `Data`. The inner dict only ever
+    /// holds JSON values produced by `JSONSerialization`, which are inherently
+    /// thread-safe value types post-decoding.
+    private struct SendableJSONMessage: @unchecked Sendable {
+        let value: [String: Any]
+    }
+
+    private func request(
+        method: String,
+        params: [String: Any]? = nil,
+        timeout: TimeInterval? = nil) async throws -> [String: Any]
+    {
         let id = self.nextID
         self.nextID += 1
         try self.sendRequest(id: id, method: method, params: params)
 
-        while true {
-            let message = try await self.readNextMessage()
+        let resolvedTimeout = timeout ?? self.requestTimeoutSeconds
+        let wrapped = try await self.withTimeout(seconds: resolvedTimeout, method: method) {
+            while true {
+                let message = try await self.readNextMessage()
 
-            if message["id"] == nil, let methodName = message["method"] as? String {
-                Self.debugWriteStderr("[codex notify] \(methodName)\n")
-                continue
+                if message["id"] == nil, let methodName = message["method"] as? String {
+                    Self.debugWriteStderr("[codex notify] \(methodName)\n")
+                    continue
+                }
+
+                guard let messageID = self.jsonID(message["id"]), messageID == id else { continue }
+
+                if let error = message["error"] as? [String: Any], let messageText = error["message"] as? String {
+                    throw RPCWireError.requestFailed(messageText)
+                }
+
+                return SendableJSONMessage(value: message)
             }
+        }
+        return wrapped.value
+    }
 
-            guard let messageID = self.jsonID(message["id"]), messageID == id else { continue }
-
-            if let error = message["error"] as? [String: Any], let messageText = error["message"] as? String {
-                throw RPCWireError.requestFailed(messageText)
+    /// Race `body` against a timeout. On timeout, terminate the codex process so the
+    /// stdout AsyncStream finishes, which unblocks any pending `readNextMessage()`
+    /// calls — preventing the leaked-reader hang that caused the 60 FPS animation
+    /// to spin forever (see #842).
+    private func withTimeout<T: Sendable>(
+        seconds: TimeInterval,
+        method: String,
+        body: @escaping @Sendable () async throws -> T) async throws -> T
+    {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await body()
             }
+            group.addTask { [weak self] in
+                try await Task.sleep(for: .seconds(seconds))
+                // On timeout, terminate the process so the stdout reader finishes
+                // and the awaiting body task exits its for-await loop instead of
+                // leaking. Then surface the timeout error to the caller.
+                self?.terminateProcessForTimeout()
+                throw RPCWireError.timeout(method: method)
+            }
+            do {
+                guard let result = try await group.next() else {
+                    throw RPCWireError.timeout(method: method)
+                }
+                group.cancelAll()
+                return result
+            } catch {
+                group.cancelAll()
+                throw error
+            }
+        }
+    }
 
-            return message
+    private func terminateProcessForTimeout() {
+        if self.process.isRunning {
+            Self.log.warning("Codex RPC timed out; terminating process")
+            self.process.terminate()
         }
     }
 
@@ -598,6 +672,13 @@ public struct UsageFetcher: Sendable {
 
     private let environment: [String: String]
     private let codexStatusFetcher: CodexStatusFetcher
+    /// RPC + TTY timeouts. Defaults match the production behaviour. Tests inject
+    /// shorter values so they can prove the timeout actually fires without
+    /// stalling the suite. See #842 for context (60 FPS DisplayLink hang caused
+    /// by a wedged `account/rateLimits/read` reply).
+    let initializeTimeoutSeconds: TimeInterval
+    let requestTimeoutSeconds: TimeInterval
+    let ttyTimeoutSeconds: TimeInterval
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         self.init(environment: environment) { environment, keepCLISessionsAlive in
@@ -610,10 +691,16 @@ public struct UsageFetcher: Sendable {
 
     init(
         environment: [String: String],
-        codexStatusFetcher: @escaping CodexStatusFetcher)
+        codexStatusFetcher: @escaping CodexStatusFetcher,
+        initializeTimeoutSeconds: TimeInterval = 8.0,
+        requestTimeoutSeconds: TimeInterval = 3.0,
+        ttyTimeoutSeconds: TimeInterval = 10.0)
     {
         self.environment = environment
         self.codexStatusFetcher = codexStatusFetcher
+        self.initializeTimeoutSeconds = initializeTimeoutSeconds
+        self.requestTimeoutSeconds = requestTimeoutSeconds
+        self.ttyTimeoutSeconds = ttyTimeoutSeconds
         LoginShellPathCache.shared.captureOnce()
     }
 
@@ -624,7 +711,10 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCUsage() async throws -> UsageSnapshot {
-        let rpc = try CodexRPCClient(environment: self.environment)
+        let rpc = try CodexRPCClient(
+            environment: self.environment,
+            initializeTimeoutSeconds: self.initializeTimeoutSeconds,
+            requestTimeoutSeconds: self.requestTimeoutSeconds)
         defer { rpc.shutdown() }
         do {
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
@@ -659,7 +749,13 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadTTYUsage(keepCLISessionsAlive: Bool) async throws -> UsageSnapshot {
-        do {
+        // CodexStatusProbe.fetch() already has its own internal `timeout` (default
+        // 8s) that propagates into TTYCommandRunner / CodexCLISession. The outer
+        // race below is defence-in-depth: it bounds any future callsite that
+        // happens to bypass that probe (tests inject custom fetchers) and prevents
+        // a wedged TTY path from leaking into the same animation hang as the RPC
+        // path. See #842.
+        try await self.runWithTTYTimeout {
             let status = try await self.codexStatusFetcher(self.environment, keepCLISessionsAlive)
             guard let state = CodexReconciledState.fromCLI(
                 primary: Self.makeTTYWindow(
@@ -677,8 +773,6 @@ public struct UsageFetcher: Sendable {
                 throw UsageError.noRateLimitsFound
             }
             return state.toUsageSnapshot()
-        } catch {
-            throw error
         }
     }
 
@@ -689,7 +783,10 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadRPCCredits() async throws -> CreditsSnapshot {
-        let rpc = try CodexRPCClient(environment: self.environment)
+        let rpc = try CodexRPCClient(
+            environment: self.environment,
+            initializeTimeoutSeconds: self.initializeTimeoutSeconds,
+            requestTimeoutSeconds: self.requestTimeoutSeconds)
         defer { rpc.shutdown() }
         do {
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
@@ -706,12 +803,34 @@ public struct UsageFetcher: Sendable {
     }
 
     private func loadTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
-        do {
+        // See `loadTTYUsage` for the rationale behind this defensive timeout.
+        try await self.runWithTTYTimeout {
             let status = try await self.codexStatusFetcher(self.environment, keepCLISessionsAlive)
             guard let credits = status.credits else { throw UsageError.noRateLimitsFound }
             return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
-        } catch {
-            throw error
+        }
+    }
+
+    private func runWithTTYTimeout<T: Sendable>(
+        _ body: @escaping @Sendable () async throws -> T) async throws -> T
+    {
+        let budget = self.ttyTimeoutSeconds
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await body() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(budget))
+                throw RPCWireError.timeout(method: "tty/status")
+            }
+            do {
+                guard let result = try await group.next() else {
+                    throw RPCWireError.timeout(method: "tty/status")
+                }
+                group.cancelAll()
+                return result
+            } catch {
+                group.cancelAll()
+                throw error
+            }
         }
     }
 
@@ -733,7 +852,10 @@ public struct UsageFetcher: Sendable {
 
     public func debugRawRateLimits() async -> String {
         do {
-            let rpc = try CodexRPCClient(environment: self.environment)
+            let rpc = try CodexRPCClient(
+                environment: self.environment,
+                initializeTimeoutSeconds: self.initializeTimeoutSeconds,
+                requestTimeoutSeconds: self.requestTimeoutSeconds)
             defer { rpc.shutdown() }
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
             let limits = try await rpc.fetchRateLimits()
