@@ -35,6 +35,7 @@ public enum OllamaUsageError: LocalizedError, Sendable {
     case parseFailed(String)
     case networkError(String)
     case noSessionCookie
+    case browserCookieAccessDenied(String)
 
     public var errorDescription: String? {
         switch self {
@@ -47,7 +48,9 @@ public enum OllamaUsageError: LocalizedError, Sendable {
         case let .networkError(message):
             "Ollama request failed: \(message)"
         case .noSessionCookie:
-            "No Ollama session cookie found. Please log in to ollama.com in your browser."
+            "No Ollama session cookie found. Log in to ollama.com in Chrome or Safari, or paste a manual Cookie header."
+        case let .browserCookieAccessDenied(message):
+            "Ollama browser cookies are not readable. \(message)"
         }
     }
 }
@@ -82,23 +85,34 @@ public enum OllamaCookieImporter {
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
         let log: (String) -> Void = { msg in logger?("[ollama-cookie] \(msg)") }
+        var accessDeniedHints: [String] = []
         let preferredSources = preferredBrowsers.isEmpty
             ? ollamaCookieImportOrder.cookieImportCandidates(using: browserDetection)
             : preferredBrowsers.cookieImportCandidates(using: browserDetection)
-        let preferredCandidates = self.collectSessionInfo(from: preferredSources, logger: log)
-        return try self.selectSessionInfosWithFallback(
-            preferredCandidates: preferredCandidates,
-            allowFallbackBrowsers: allowFallbackBrowsers,
-            loadFallbackCandidates: {
-                guard !preferredBrowsers.isEmpty else { return [] }
-                let fallbackSources = self.fallbackBrowserSources(
-                    browserDetection: browserDetection,
-                    excluding: preferredSources)
-                guard !fallbackSources.isEmpty else { return [] }
-                log("No recognized Ollama session in preferred browsers; trying fallback import order")
-                return self.collectSessionInfo(from: fallbackSources, logger: log)
-            },
+        let preferredCandidates = self.collectSessionInfo(
+            from: preferredSources,
+            accessDeniedHints: &accessDeniedHints,
             logger: log)
+        do {
+            return try self.selectSessionInfosWithFallback(
+                preferredCandidates: preferredCandidates,
+                allowFallbackBrowsers: allowFallbackBrowsers,
+                loadFallbackCandidates: {
+                    guard !preferredBrowsers.isEmpty else { return [] }
+                    let fallbackSources = self.fallbackBrowserSources(
+                        browserDetection: browserDetection,
+                        excluding: preferredSources)
+                    guard !fallbackSources.isEmpty else { return [] }
+                    log("No recognized Ollama session in preferred browsers; trying fallback import order")
+                    return self.collectSessionInfo(
+                        from: fallbackSources,
+                        accessDeniedHints: &accessDeniedHints,
+                        logger: log)
+                },
+                logger: log)
+        } catch OllamaUsageError.noSessionCookie where !accessDeniedHints.isEmpty {
+            throw OllamaUsageError.browserCookieAccessDenied(self.accessDeniedMessage(from: accessDeniedHints))
+        }
     }
 
     public static func importSession(
@@ -194,6 +208,7 @@ public enum OllamaCookieImporter {
 
     private static func collectSessionInfo(
         from browserSources: [Browser],
+        accessDeniedHints: inout [String],
         logger: @escaping (String) -> Void) -> [SessionInfo]
     {
         var candidates: [SessionInfo] = []
@@ -211,10 +226,23 @@ public enum OllamaCookieImporter {
                 }
             } catch {
                 BrowserCookieAccessGate.recordIfNeeded(error)
+                if let cookieError = error as? BrowserCookieError,
+                   let hint = cookieError.accessDeniedHint
+                {
+                    accessDeniedHints.append(hint)
+                }
                 logger("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
             }
         }
         return candidates
+    }
+
+    private static func accessDeniedMessage(from hints: [String]) -> String {
+        let uniqueHints = Array(Set(hints)).sorted()
+        let details = uniqueHints.joined(separator: " ")
+        return details.isEmpty
+            ? "Grant CodexBar Full Disk Access in System Settings -> Privacy & Security, then refresh."
+            : "\(details) Grant CodexBar Full Disk Access in System Settings -> Privacy & Security, then refresh."
     }
 
     private static func containsRecognizedSessionCookie(in cookies: [HTTPCookie]) -> Bool {
@@ -369,7 +397,10 @@ public struct OllamaUsageFetcher: Sendable {
             return [CookieCandidate(cookieHeader: manualHeader, sourceLabel: "manual cookie header")]
         }
         #if os(macOS)
-        let sessions = try OllamaCookieImporter.importSessions(browserDetection: self.browserDetection, logger: logger)
+        let sessions = try OllamaCookieImporter.importSessions(
+            browserDetection: self.browserDetection,
+            allowFallbackBrowsers: true,
+            logger: logger)
         return sessions.map { session in
             CookieCandidate(cookieHeader: session.cookieHeader, sourceLabel: session.sourceLabel)
         }
@@ -451,7 +482,10 @@ public struct OllamaUsageFetcher: Sendable {
             return manualHeader
         }
         #if os(macOS)
-        let session = try OllamaCookieImporter.importSession(browserDetection: self.browserDetection, logger: logger)
+        let session = try OllamaCookieImporter.importSession(
+            browserDetection: self.browserDetection,
+            allowFallbackBrowsers: true,
+            logger: logger)
         logger?("[ollama] Using cookies from \(session.sourceLabel)")
         return session.cookieHeader
         #else
