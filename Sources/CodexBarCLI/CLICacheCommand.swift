@@ -13,12 +13,15 @@ extension CodexBarCLI {
         let clearCookies = cookies || all
         let clearCost = cost || all
 
-        if !clearCookies && !clearCost {
+        if !clearCookies, !clearCost {
             Self.exit(
                 code: .failure,
                 message: "Specify --cookies, --cost, or --all.",
                 output: output,
                 kind: .args)
+        }
+        if let error = Self.cacheClearProviderScopeError(rawProvider: rawProvider, clearCost: clearCost) {
+            Self.exit(code: .failure, message: error, output: output, kind: .args)
         }
 
         var results: [CacheClearResult] = []
@@ -26,12 +29,11 @@ extension CodexBarCLI {
         if clearCookies {
             if let rawProvider {
                 if let provider = ProviderDescriptorRegistry.cliNameMap[rawProvider.lowercased()] {
-                    let had = CookieHeaderCache.load(provider: provider) != nil
-                    CookieHeaderCache.clear(provider: provider)
+                    let cleared = CookieHeaderCache.clearAllScopes(provider: provider)
                     results.append(CacheClearResult(
                         cache: "cookies",
                         provider: provider.rawValue,
-                        cleared: had ? 1 : 0))
+                        cleared: cleared))
                 } else {
                     Self.exit(
                         code: .failure,
@@ -79,6 +81,11 @@ extension CodexBarCLI {
 
         let hasErrors = results.contains(where: { $0.error != nil })
         Self.exit(code: hasErrors ? .failure : .success, output: output, kind: .runtime)
+    }
+
+    static func cacheClearProviderScopeError(rawProvider: String?, clearCost: Bool) -> String? {
+        guard rawProvider != nil, clearCost else { return nil }
+        return "--provider only scopes cookie caches. Use --cookies --provider <name>, or omit --provider."
     }
 }
 

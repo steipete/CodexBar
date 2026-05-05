@@ -362,6 +362,10 @@ extension CodexBarCLI {
         CommandSignature.describe(CostOptions())
     }
 
+    static func _cacheSignatureForTesting() -> CommandSignature {
+        CommandSignature.describe(CacheOptions())
+    }
+
     static func _decodeFormatForTesting(from values: ParsedValues) -> OutputFormat {
         self.decodeFormat(from: values)
     }

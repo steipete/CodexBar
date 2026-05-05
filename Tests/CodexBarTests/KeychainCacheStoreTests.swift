@@ -69,6 +69,48 @@ struct KeychainCacheStoreTests {
         }
     }
 
+    @Test
+    func `clear reports whether an entry was removed`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let entry = TestEntry(value: "gone", storedAt: Date(timeIntervalSince1970: 0))
+        KeychainCacheStore.store(key: key, entry: entry)
+
+        #expect(KeychainCacheStore.clear(key: key) == true)
+        #expect(KeychainCacheStore.clear(key: key) == false)
+    }
+
+    @Test
+    func `keys lists only matching category for current service`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let serviceA = "cache-keys-a-\(UUID().uuidString)"
+        let serviceB = "cache-keys-b-\(UUID().uuidString)"
+        let cookieA = KeychainCacheStore.Key(category: "cookie", identifier: "codex")
+        let scopedCookieA = KeychainCacheStore.Key(category: "cookie", identifier: "codex.managed.account")
+        let oauthA = KeychainCacheStore.Key(category: "oauth", identifier: "codex")
+        let cookieB = KeychainCacheStore.Key(category: "cookie", identifier: "claude")
+        let entry = TestEntry(value: "value", storedAt: Date(timeIntervalSince1970: 0))
+
+        KeychainCacheStore.withServiceOverrideForTesting(serviceA) {
+            KeychainCacheStore.store(key: cookieA, entry: entry)
+            KeychainCacheStore.store(key: scopedCookieA, entry: entry)
+            KeychainCacheStore.store(key: oauthA, entry: entry)
+        }
+        KeychainCacheStore.withServiceOverrideForTesting(serviceB) {
+            KeychainCacheStore.store(key: cookieB, entry: entry)
+        }
+
+        let keys = KeychainCacheStore.withServiceOverrideForTesting(serviceA) {
+            KeychainCacheStore.keys(category: "cookie")
+        }
+
+        #expect(keys == [cookieA, scopedCookieA])
+    }
+
     #if os(macOS)
     @Test
     func `interaction not allowed is treated as temporarily unavailable`() {

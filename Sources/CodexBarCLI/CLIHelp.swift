@@ -115,7 +115,7 @@ extension CodexBarCLI {
         Description:
           Clear cached data. Use --cookies to clear browser cookie caches (stored in Keychain),
           --cost to clear cost usage scan caches, or --all for both.
-          Optionally specify --provider to clear cookies for a single provider only.
+          Optionally specify --provider with --cookies to clear cookies for a single provider only.
 
         Examples:
           codexbar cache clear --cookies
