@@ -5,6 +5,7 @@
 ### Providers & Usage
 - Alibaba: clarify China-region API-key failures when the console endpoint requires a browser session (#628). Thanks @XWind18!
 - Windsurf: add provider support with web-session usage fetching and local SQLite-cache fallback (#583). Thanks @Coooolfan!
+- Copilot: support GitHub Enterprise hosts for the device-flow login and usage API paths (#827). Thanks @ramzesenok!
 - OpenRouter and DeepSeek: show remaining account balances in the menu bar, while preserving OpenRouter's API-key limit metric when explicitly selected (#832). Thanks @giuseppebisemi!
 - Codebuff: add provider support with credit balance tracking, weekly rate-limit usage, API-token settings, and `codebuff login` credential import (#837). Thanks @anandghegde!
 - Copilot: add multi-account support with GitHub OAuth sign-in, account switching, and per-account usage cards (#637). Thanks @ajmccall!

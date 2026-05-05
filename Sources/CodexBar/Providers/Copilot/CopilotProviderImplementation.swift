@@ -16,6 +16,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.copilotAPIToken
+        _ = settings.copilotEnterpriseHost
     }
 
     @MainActor
@@ -34,9 +35,19 @@ struct CopilotProviderImplementation: ProviderImplementation {
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
             ProviderSettingsFieldDescriptor(
+                id: "copilot-enterprise-host",
+                title: "Enterprise host",
+                subtitle: "Optional. Enter your GitHub Enterprise host, for example octocorp.ghe.com. Leave blank for github.com.",
+                kind: .plain,
+                placeholder: "github.com",
+                binding: context.stringBinding(\.copilotEnterpriseHost),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
                 id: "copilot-add-account",
                 title: "GitHub Login",
-                subtitle: "Add accounts via GitHub OAuth Device Flow.",
+                subtitle: "Add accounts via GitHub OAuth Device Flow on the selected host.",
                 kind: .plain,
                 placeholder: nil,
                 binding: .constant(""),

@@ -168,9 +168,11 @@ public struct ProviderSettingsSnapshot: Sendable {
 
     public struct CopilotProviderSettings: Sendable {
         public let apiToken: String?
+        public let enterpriseHost: String?
 
-        public init(apiToken: String? = nil) {
+        public init(apiToken: String? = nil, enterpriseHost: String? = nil) {
             self.apiToken = apiToken
+            self.enterpriseHost = enterpriseHost
         }
     }
 

@@ -5,7 +5,8 @@ import SwiftUI
 @MainActor
 struct CopilotLoginFlow {
     static func run(settings: SettingsStore) async {
-        let flow = CopilotDeviceFlow()
+        let enterpriseHost = settings.copilotEnterpriseHost
+        let flow = CopilotDeviceFlow(enterpriseHost: enterpriseHost.isEmpty ? nil : enterpriseHost)
 
         do {
             let code = try await flow.requestDeviceCode()
@@ -91,7 +92,9 @@ struct CopilotLoginFlow {
                     let resolvedUsername = resolvedIdentity.login
                     let planSuffix: String
                     do {
-                        let fetcher = CopilotUsageFetcher(token: token)
+                        let fetcher = CopilotUsageFetcher(
+                            token: token,
+                            enterpriseHost: enterpriseHost.isEmpty ? nil : enterpriseHost)
                         let usage = try await fetcher.fetch()
                         let plan = usage.identity(for: .copilot)?.loginMethod ?? ""
                         planSuffix = plan.isEmpty ? "" : " (\(plan))"
