@@ -109,6 +109,20 @@ public enum OpenAIDashboardParser {
         return (primary, secondary)
     }
 
+    public static func parseCodeReviewLimit(bodyText: String, now: Date = .init()) -> RateWindow? {
+        let cleaned = bodyText.replacingOccurrences(of: "\r", with: "\n")
+        let lines = cleaned
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        return self.parseRateWindow(
+            lines: lines,
+            match: self.isCodeReviewLimitLine,
+            windowMinutes: nil,
+            now: now)
+    }
+
     public static func parsePlanFromHTML(html: String) -> String? {
         if let data = self.clientBootstrapJSONData(fromHTML: html),
            let plan = self.findPlan(in: data)
@@ -139,11 +153,49 @@ public enum OpenAIDashboardParser {
     }
 
     private static func parseCreditsUsed(_ text: String) -> Double {
-        let cleaned = text
-            .replacingOccurrences(of: ",", with: "")
-            .replacingOccurrences(of: "credits", with: "", options: .caseInsensitive)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return Double(cleaned) ?? 0
+        guard let raw = self.firstNumberToken(in: text) else { return 0 }
+        let token = raw
+            .replacingOccurrences(of: "\u{00A0}", with: "")
+            .replacingOccurrences(of: "\u{202F}", with: "")
+            .replacingOccurrences(of: " ", with: "")
+        let hasComma = token.contains(",")
+        let hasDot = token.contains(".")
+        if hasComma, hasDot {
+            return TextParsing.firstNumber(pattern: #"([0-9][0-9.,\s\p{Zs}]*)"#, text: token) ?? 0
+        }
+        if hasComma {
+            if self.usesLocalizedDecimalCommaCreditLabel(text) {
+                return Double(token.replacingOccurrences(of: ",", with: ".")) ?? 0
+            }
+            if token.range(of: #"^\d{1,3}(,\d{3})+$"#, options: .regularExpression) != nil {
+                return Double(token.replacingOccurrences(of: ",", with: "")) ?? 0
+            }
+            return Double(token.replacingOccurrences(of: ",", with: ".")) ?? 0
+        }
+        return Double(token) ?? 0
+    }
+
+    private static func usesLocalizedDecimalCommaCreditLabel(_ text: String) -> Bool {
+        text
+            .lowercased()
+            .contains("crédit")
+    }
+
+    private static func firstNumberToken(in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"([0-9][0-9.,\s\p{Zs}]*)"#,
+            options: [])
+        else {
+            return nil
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              match.numberOfRanges >= 2,
+              let tokenRange = Range(match.range(at: 1), in: text)
+        else {
+            return nil
+        }
+        return String(text[tokenRange])
     }
 
     // MARK: - Private
@@ -233,36 +285,38 @@ public enum OpenAIDashboardParser {
     private static func parseRateWindow(
         lines: [String],
         match: (String) -> Bool,
-        windowMinutes: Int,
+        windowMinutes: Int?,
         now: Date) -> RateWindow?
     {
-        guard let idx = lines.firstIndex(where: match) else { return nil }
-        let end = min(lines.count - 1, idx + 5)
-        let windowLines = Array(lines[idx...end])
+        for idx in lines.indices where match(lines[idx]) {
+            let end = min(lines.count - 1, idx + 5)
+            let windowLines = Array(lines[idx...end])
 
-        var percentValue: Double?
-        var isRemaining = true
-        for line in windowLines {
-            if let percent = self.parsePercent(from: line) {
-                percentValue = percent.value
-                isRemaining = percent.isRemaining
-                break
+            var percentValue: Double?
+            var isRemaining = true
+            for line in windowLines {
+                if let percent = self.parsePercent(from: line) {
+                    percentValue = percent.value
+                    isRemaining = percent.isRemaining
+                    break
+                }
             }
+
+            guard let percentValue else { continue }
+            let usedPercent = isRemaining ? max(0, min(100, 100 - percentValue)) : max(0, min(100, percentValue))
+
+            let resetLine = windowLines.first { $0.localizedCaseInsensitiveContains("reset") }
+            let resetDescription = resetLine?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resetsAt = resetLine.flatMap { self.parseResetDate(from: $0, now: now) }
+            let fallbackDescription = resetsAt.map { UsageFormatter.resetDescription(from: $0) }
+
+            return RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: windowMinutes,
+                resetsAt: resetsAt,
+                resetDescription: resetDescription ?? fallbackDescription)
         }
-
-        guard let percentValue else { return nil }
-        let usedPercent = isRemaining ? max(0, min(100, 100 - percentValue)) : max(0, min(100, percentValue))
-
-        let resetLine = windowLines.first { $0.localizedCaseInsensitiveContains("reset") }
-        let resetDescription = resetLine?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resetsAt = resetLine.flatMap { self.parseResetDate(from: $0, now: now) }
-        let fallbackDescription = resetsAt.map { UsageFormatter.resetDescription(from: $0) }
-
-        return RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: windowMinutes,
-            resetsAt: resetsAt,
-            resetDescription: resetDescription ?? fallbackDescription)
+        return nil
     }
 
     private static func parsePercent(from line: String) -> (value: Double, isRemaining: Bool)? {
@@ -278,6 +332,7 @@ public enum OpenAIDashboardParser {
     private static func isFiveHourLimitLine(_ line: String) -> Bool {
         let lower = line.lowercased()
         if lower.contains("5h") { return true }
+        if lower.range(of: #"\b5\s*h\b"#, options: .regularExpression) != nil { return true }
         if lower.contains("5-hour") { return true }
         if lower.contains("5 hour") { return true }
         return false
@@ -289,7 +344,15 @@ public enum OpenAIDashboardParser {
         if lower.contains("7-day") { return true }
         if lower.contains("7 day") { return true }
         if lower.contains("7d") { return true }
+        if lower.range(of: #"\b7\s*d\b"#, options: .regularExpression) != nil { return true }
         return false
+    }
+
+    private static func isCodeReviewLimitLine(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        guard lower.contains("code review") || lower.contains("core review") else { return false }
+        if lower.contains("github code review") { return false }
+        return true
     }
 
     private static func parseResetDate(from line: String, now: Date) -> Date? {
@@ -469,7 +532,7 @@ public enum OpenAIDashboardParser {
             "essential",
         ]
         guard allowed.contains(where: { lower.contains($0) }) else { return nil }
-        return UsageFormatter.cleanPlanName(trimmed)
+        return CodexPlanFormatting.displayName(trimmed) ?? UsageFormatter.cleanPlanName(trimmed)
     }
 }
 

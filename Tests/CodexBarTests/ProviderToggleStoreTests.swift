@@ -3,10 +3,9 @@ import Testing
 @testable import CodexBar
 
 @MainActor
-@Suite
 struct ProviderToggleStoreTests {
     @Test
-    func defaultsMatchMetadata() throws {
+    func `defaults match metadata`() throws {
         let defaults = try #require(UserDefaults(suiteName: "ProviderToggleStoreTests-defaults"))
         defaults.removePersistentDomain(forName: "ProviderToggleStoreTests-defaults")
         let store = ProviderToggleStore(userDefaults: defaults)
@@ -19,7 +18,7 @@ struct ProviderToggleStoreTests {
     }
 
     @Test
-    func persistsChanges() throws {
+    func `persists changes`() throws {
         let suite = "ProviderToggleStoreTests-persist"
         let defaultsA = try #require(UserDefaults(suiteName: suite))
         defaultsA.removePersistentDomain(forName: suite)
@@ -35,7 +34,7 @@ struct ProviderToggleStoreTests {
     }
 
     @Test
-    func purgesLegacyKeys() throws {
+    func `purges legacy keys`() throws {
         let suite = "ProviderToggleStoreTests-purge"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)

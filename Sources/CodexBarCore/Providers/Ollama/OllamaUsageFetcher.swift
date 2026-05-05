@@ -9,6 +9,7 @@ import SweetCookieKit
 
 private let ollamaSessionCookieNames: Set<String> = [
     "session",
+    "__Secure-session",
     "ollama_session",
     "__Host-ollama_session",
     "__Secure-next-auth.session-token",
@@ -199,7 +200,7 @@ public enum OllamaCookieImporter {
         for browserSource in browserSources {
             do {
                 let query = BrowserCookieQuery(domains: self.cookieDomains)
-                let sources = try Self.cookieClient.records(
+                let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: logger)
@@ -228,15 +229,31 @@ public struct OllamaUsageFetcher: Sendable {
     private static let settingsURL = URL(string: "https://ollama.com/settings")!
     @MainActor private static var recentDumps: [String] = []
 
-    private struct CookieCandidate: Sendable {
+    private struct CookieCandidate {
         let cookieHeader: String
         let sourceLabel: String
     }
 
+    enum RetryableParseFailure: Error {
+        case missingUsageData
+    }
+
     public let browserDetection: BrowserDetection
+    private let makeURLSession: @Sendable (URLSessionTaskDelegate?) -> URLSession
 
     public init(browserDetection: BrowserDetection) {
         self.browserDetection = browserDetection
+        self.makeURLSession = { delegate in
+            URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
+        }
+    }
+
+    init(
+        browserDetection: BrowserDetection,
+        makeURLSession: @escaping @Sendable (URLSessionTaskDelegate?) -> URLSession)
+    {
+        self.browserDetection = browserDetection
+        self.makeURLSession = makeURLSession
     }
 
     public func fetch(
@@ -259,8 +276,8 @@ public struct OllamaUsageFetcher: Sendable {
         switch error {
         case OllamaUsageError.invalidCredentials, OllamaUsageError.notLoggedIn:
             true
-        case let OllamaUsageError.parseFailed(message):
-            message.localizedCaseInsensitiveContains("missing ollama usage data")
+        case RetryableParseFailure.missingUsageData:
+            true
         default:
             false
         }
@@ -271,52 +288,72 @@ public struct OllamaUsageFetcher: Sendable {
         logger: ((String) -> Void)?,
         now: Date) async throws -> OllamaUsageSnapshot
     {
-        var lastAuthError: Error?
-        for (index, candidate) in candidates.enumerated() {
-            let hasMoreCandidates = index + 1 < candidates.count
-            logger?("[ollama] Using cookies from \(candidate.sourceLabel)")
-            let names = self.cookieNames(from: candidate.cookieHeader)
-            if !names.isEmpty {
-                logger?("[ollama] Cookie names: \(names.joined(separator: ", "))")
-            }
-            let diagnostics = RedirectDiagnostics(cookieHeader: candidate.cookieHeader, logger: logger)
-            do {
-                let (html, responseInfo) = try await self.fetchHTMLWithDiagnostics(
-                    cookieHeader: candidate.cookieHeader,
-                    diagnostics: diagnostics)
-                if let logger {
-                    self.logDiagnostics(responseInfo: responseInfo, diagnostics: diagnostics, logger: logger)
-                }
-                do {
-                    return try OllamaUsageParser.parse(html: html, now: now)
-                } catch {
-                    if let logger {
-                        logger("[ollama] Parse failed: \(error.localizedDescription)")
-                        self.logHTMLHints(html: html, logger: logger)
+        do {
+            return try await ProviderCandidateRetryRunner.run(
+                candidates,
+                shouldRetry: { error in
+                    Self.shouldRetryWithNextCookieCandidate(after: error)
+                },
+                onRetry: { candidate, _ in
+                    logger?("[ollama] Auth failed for \(candidate.sourceLabel); trying next cookie candidate")
+                },
+                attempt: { candidate in
+                    logger?("[ollama] Using cookies from \(candidate.sourceLabel)")
+                    let names = self.cookieNames(from: candidate.cookieHeader)
+                    if !names.isEmpty {
+                        logger?("[ollama] Cookie names: \(names.joined(separator: ", "))")
                     }
-                    guard hasMoreCandidates, Self.shouldRetryWithNextCookieCandidate(after: error) else {
+
+                    let diagnostics = RedirectDiagnostics(cookieHeader: candidate.cookieHeader, logger: logger)
+                    do {
+                        let (html, responseInfo) = try await self.fetchHTMLWithDiagnostics(
+                            cookieHeader: candidate.cookieHeader,
+                            diagnostics: diagnostics)
+                        if let logger {
+                            self.logDiagnostics(responseInfo: responseInfo, diagnostics: diagnostics, logger: logger)
+                        }
+                        do {
+                            return try Self.parseSnapshotForRetry(html: html, now: now)
+                        } catch {
+                            let surfacedError = Self.surfacedError(from: error)
+                            if let logger {
+                                logger("[ollama] Parse failed: \(surfacedError.localizedDescription)")
+                                self.logHTMLHints(html: html, logger: logger)
+                            }
+                            throw error
+                        }
+                    } catch {
+                        if let logger {
+                            self.logDiagnostics(responseInfo: nil, diagnostics: diagnostics, logger: logger)
+                        }
                         throw error
                     }
-                    lastAuthError = error
-                    logger?("[ollama] Auth failed for \(candidate.sourceLabel); trying next cookie candidate")
-                    continue
-                }
-            } catch {
-                if let logger {
-                    self.logDiagnostics(responseInfo: nil, diagnostics: diagnostics, logger: logger)
-                }
-                guard hasMoreCandidates, Self.shouldRetryWithNextCookieCandidate(after: error) else {
-                    throw error
-                }
-                lastAuthError = error
-                logger?("[ollama] Auth failed for \(candidate.sourceLabel); trying next cookie candidate")
-            }
+                })
+        } catch ProviderCandidateRetryRunnerError.noCandidates {
+            throw OllamaUsageError.noSessionCookie
+        } catch {
+            throw Self.surfacedError(from: error)
         }
+    }
 
-        if let lastAuthError {
-            throw lastAuthError
+    private static func parseSnapshotForRetry(html: String, now: Date) throws -> OllamaUsageSnapshot {
+        switch OllamaUsageParser.parseClassified(html: html, now: now) {
+        case let .success(snapshot):
+            return snapshot
+        case .failure(.notLoggedIn):
+            throw OllamaUsageError.notLoggedIn
+        case .failure(.missingUsageData):
+            throw RetryableParseFailure.missingUsageData
         }
-        throw OllamaUsageError.noSessionCookie
+    }
+
+    private static func surfacedError(from error: Error) -> Error {
+        switch error {
+        case RetryableParseFailure.missingUsageData:
+            OllamaUsageError.parseFailed("Missing Ollama usage data.")
+        default:
+            error
+        }
     }
 
     private func resolveCookieCandidates(
@@ -471,7 +508,7 @@ public struct OllamaUsageFetcher: Sendable {
         request.setValue("https://ollama.com", forHTTPHeaderField: "origin")
         request.setValue(Self.settingsURL.absoluteString, forHTTPHeaderField: "referer")
 
-        let session = URLSession(configuration: .ephemeral, delegate: diagnostics, delegateQueue: nil)
+        let session = self.makeURLSession(diagnostics)
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OllamaUsageError.networkError("Invalid response")
@@ -532,7 +569,7 @@ public struct OllamaUsageFetcher: Sendable {
         }
     }
 
-    private struct ResponseInfo: Sendable {
+    private struct ResponseInfo {
         let statusCode: Int
         let url: String
     }

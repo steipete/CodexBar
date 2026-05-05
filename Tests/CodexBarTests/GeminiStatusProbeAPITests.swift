@@ -2,10 +2,10 @@ import CodexBarCore
 import Foundation
 import Testing
 
-@Suite("Gemini API", .serialized)
+@Suite(.serialized)
 struct GeminiStatusProbeAPITests {
     @Test
-    func missingCredentialsThrowsNotLoggedIn() async throws {
+    func `missing credentials throws not logged in`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
 
@@ -16,7 +16,7 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func rejectsApiKeyAuthType() async throws {
+    func `rejects api key auth type`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeSettings(authType: "api-key")
@@ -28,7 +28,7 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func rejectsVertexAuthType() async throws {
+    func `rejects vertex auth type`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeSettings(authType: "vertex-ai")
@@ -40,7 +40,7 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func refreshesExpiredTokenAndUpdatesStoredCredentials() async throws {
+    func `refreshes expired token and updates stored credentials`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -67,6 +67,13 @@ struct GeminiStatusProbeAPITests {
 
             switch host {
             case "oauth2.googleapis.com":
+                // Fail the refresh if the client_id did not come from the test stub.
+                // This guards against the probe accidentally extracting OAuth creds
+                // from an unrelated Gemini install on the developer's machine.
+                let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                guard body.contains("client_id=test-client-id") else {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 400, body: Data())
+                }
                 let json = GeminiAPITestHelpers.jsonData([
                     "access_token": "new-token",
                     "expires_in": 3600,
@@ -112,7 +119,7 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func refreshesExpiredTokenWithNixShareLayout() async throws {
+    func `refreshes expired token with nix share layout`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -139,6 +146,13 @@ struct GeminiStatusProbeAPITests {
 
             switch host {
             case "oauth2.googleapis.com":
+                // Fail the refresh if the client_id did not come from the test stub.
+                // This guards against the probe accidentally extracting OAuth creds
+                // from an unrelated Gemini install on the developer's machine.
+                let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                guard body.contains("client_id=test-client-id") else {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 400, body: Data())
+                }
                 let json = GeminiAPITestHelpers.jsonData([
                     "access_token": "new-token",
                     "expires_in": 3600,
@@ -181,7 +195,117 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func usesCodeAssistProjectForQuota() async throws {
+    func `refreshes expired token with fnm bundle layout`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "old-token",
+            refreshToken: "refresh-token",
+            expiry: Date().addingTimeInterval(-3600),
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "user@example.com"))
+
+        let binURL = try env.writeFakeGeminiCLI(layout: .fnmBundle)
+        // Match the real fnm layout: package root is inside the same multishell
+        // dir as the bin symlink target, under lib/node_modules/@google/gemini-cli.
+        let multishellRoot = binURL.deletingLastPathComponent().deletingLastPathComponent()
+        let packageJSONPath = multishellRoot
+            .appendingPathComponent("lib")
+            .appendingPathComponent("node_modules")
+            .appendingPathComponent("@google")
+            .appendingPathComponent("gemini-cli")
+            .appendingPathComponent("package.json")
+        let npmRoot = packageJSONPath
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+        _ = try env.writeFakeFnm(npmRoot: npmRoot, geminiPackageJSONPath: packageJSONPath.path)
+
+        let previousPath = ProcessInfo.processInfo.environment["PATH"]
+        let fakeBinDir = env.homeURL.appendingPathComponent("bin").path
+        let pathValue = if let previousPath, !previousPath.isEmpty {
+            "\(fakeBinDir):\(binURL.deletingLastPathComponent().path):\(previousPath)"
+        } else {
+            "\(fakeBinDir):\(binURL.deletingLastPathComponent().path)"
+        }
+        setenv("PATH", pathValue, 1)
+
+        let previousGeminiPath = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
+        setenv("GEMINI_CLI_PATH", binURL.path, 1)
+        defer {
+            if let previousPath {
+                setenv("PATH", previousPath, 1)
+            } else {
+                unsetenv("PATH")
+            }
+
+            if let previousGeminiPath {
+                setenv("GEMINI_CLI_PATH", previousGeminiPath, 1)
+            } else {
+                unsetenv("GEMINI_CLI_PATH")
+            }
+        }
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+
+            switch host {
+            case "oauth2.googleapis.com":
+                // Fail the refresh if the client_id did not come from the test stub.
+                // This guards against the probe accidentally extracting OAuth creds
+                // from an unrelated Gemini install on the developer's machine.
+                let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                guard body.contains("client_id=test-client-id") else {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 400, body: Data())
+                }
+                let json = GeminiAPITestHelpers.jsonData([
+                    "access_token": "new-token",
+                    "expires_in": 3600,
+                    "id_token": GeminiAPITestHelpers.makeIDToken(email: "user@example.com"),
+                ])
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 200, body: json)
+            case "cloudresourcemanager.googleapis.com":
+                let json = GeminiAPITestHelpers.jsonData(["projects": []])
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 200, body: json)
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    let auth = request.value(forHTTPHeaderField: "Authorization")
+                    if auth != "Bearer new-token" {
+                        return GeminiAPITestHelpers.response(url: url.absoluteString, status: 401, body: Data())
+                    }
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistStandardTierResponse())
+                }
+                if url.path != "/v1internal:retrieveUserQuota" {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+                }
+                let auth = request.value(forHTTPHeaderField: "Authorization")
+                if auth != "Bearer new-token" {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 401, body: Data())
+                }
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.sampleQuotaResponse())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let probe = GeminiStatusProbe(timeout: 2, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        #expect(snapshot.accountPlan == "Paid")
+
+        let updated = try env.readCredentials()
+        #expect(updated["access_token"] as? String == "new-token")
+    }
+
+    @Test
+    func `uses code assist project for quota`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -250,7 +374,7 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func failsRefreshWhenOAuthConfigMissing() async throws {
+    func `fails refresh when O auth config missing`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -277,7 +401,7 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func reportsApiErrors() async throws {
+    func `reports api errors`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -313,7 +437,7 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func reportsNotLoggedInWhenAccessTokenMissing() async throws {
+    func `reports not logged in when access token missing`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -329,7 +453,7 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func reportsNotLoggedInOn401() async throws {
+    func `reports not logged in on401`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -365,7 +489,7 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func reportsParseErrorsForInvalidPayload() async throws {
+    func `reports parse errors for invalid payload`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(

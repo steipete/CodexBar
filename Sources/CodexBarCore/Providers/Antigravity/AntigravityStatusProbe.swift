@@ -10,10 +10,37 @@ public struct AntigravityModelQuota: Sendable {
     public let resetTime: Date?
     public let resetDescription: String?
 
+    public init(
+        label: String,
+        modelId: String,
+        remainingFraction: Double?,
+        resetTime: Date?,
+        resetDescription: String?)
+    {
+        self.label = label
+        self.modelId = modelId
+        self.remainingFraction = remainingFraction
+        self.resetTime = resetTime
+        self.resetDescription = resetDescription
+    }
+
     public var remainingPercent: Double {
         guard let remainingFraction else { return 0 }
         return max(0, min(100, remainingFraction * 100))
     }
+}
+
+private enum AntigravityModelFamily {
+    case claude
+    case geminiPro
+    case geminiFlash
+    case unknown
+}
+
+private struct AntigravityNormalizedModel {
+    let quota: AntigravityModelQuota
+    let family: AntigravityModelFamily
+    let selectionPriority: Int?
 }
 
 public struct AntigravityStatusSnapshot: Sendable {
@@ -21,15 +48,36 @@ public struct AntigravityStatusSnapshot: Sendable {
     public let accountEmail: String?
     public let accountPlan: String?
 
+    public init(
+        modelQuotas: [AntigravityModelQuota],
+        accountEmail: String?,
+        accountPlan: String?)
+    {
+        self.modelQuotas = modelQuotas
+        self.accountEmail = accountEmail
+        self.accountPlan = accountPlan
+    }
+
     public func toUsageSnapshot() throws -> UsageSnapshot {
-        let ordered = Self.selectModels(self.modelQuotas)
-        guard let primaryQuota = ordered.first else {
+        guard !self.modelQuotas.isEmpty else {
             throw AntigravityStatusProbeError.parseFailed("No quota models available")
         }
 
-        let primary = Self.rateWindow(for: primaryQuota)
-        let secondary = ordered.count > 1 ? Self.rateWindow(for: ordered[1]) : nil
-        let tertiary = ordered.count > 2 ? Self.rateWindow(for: ordered[2]) : nil
+        let normalized = Self.normalizedModels(self.modelQuotas)
+        let primaryQuota = Self.representative(for: .claude, in: normalized)
+        let secondaryQuota = Self.representative(for: .geminiPro, in: normalized)
+        let tertiaryQuota = Self.representative(for: .geminiFlash, in: normalized)
+        let fallbackQuota: AntigravityModelQuota? = if primaryQuota == nil, secondaryQuota == nil,
+                                                       tertiaryQuota == nil
+        {
+            Self.fallbackRepresentative(in: normalized)
+        } else {
+            nil
+        }
+
+        let primary = (primaryQuota ?? fallbackQuota).map(Self.rateWindow(for:))
+        let secondary = secondaryQuota.map(Self.rateWindow(for:))
+        let tertiary = tertiaryQuota.map(Self.rateWindow(for:))
 
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,
@@ -52,40 +100,99 @@ public struct AntigravityStatusSnapshot: Sendable {
             resetDescription: quota.resetDescription)
     }
 
-    private static func selectModels(_ models: [AntigravityModelQuota]) -> [AntigravityModelQuota] {
-        var ordered: [AntigravityModelQuota] = []
-        if let claude = models.first(where: { Self.isClaudeWithoutThinking($0.label) }) {
-            ordered.append(claude)
-        }
-        if let pro = models.first(where: { Self.isGeminiProLow($0.label) }),
-           !ordered.contains(where: { $0.label == pro.label })
-        {
-            ordered.append(pro)
-        }
-        if let flash = models.first(where: { Self.isGeminiFlash($0.label) }),
-           !ordered.contains(where: { $0.label == flash.label })
-        {
-            ordered.append(flash)
-        }
-        if ordered.isEmpty {
-            ordered.append(contentsOf: models.sorted(by: { $0.remainingPercent < $1.remainingPercent }))
-        }
-        return ordered
+    private static func normalizedModels(_ models: [AntigravityModelQuota]) -> [AntigravityNormalizedModel] {
+        models.map { self.normalizeModel($0) }
     }
 
-    private static func isClaudeWithoutThinking(_ label: String) -> Bool {
-        let lower = label.lowercased()
-        return lower.contains("claude") && !lower.contains("thinking")
+    private static func normalizeModel(_ quota: AntigravityModelQuota) -> AntigravityNormalizedModel {
+        let modelId = quota.modelId.lowercased()
+        let label = quota.label.lowercased()
+        let family = Self.family(forModelID: modelId, label: label)
+
+        let isLite = modelId.contains("lite") || label.contains("lite")
+        let isAutocomplete = modelId.contains("autocomplete") || label.contains("autocomplete") || modelId
+            .hasPrefix("tab_")
+        let isLowPriorityGeminiPro = modelId.contains("pro-low")
+            || (label.contains("pro") && label.contains("low"))
+
+        let selectionPriority: Int? = switch family {
+        case .claude:
+            0
+        case .geminiPro:
+            if isLowPriorityGeminiPro {
+                0
+            } else if !isLite, !isAutocomplete {
+                1
+            } else {
+                nil
+            }
+        case .geminiFlash:
+            (!isLite && !isAutocomplete) ? 0 : nil
+        case .unknown:
+            nil
+        }
+
+        return AntigravityNormalizedModel(
+            quota: quota,
+            family: family,
+            selectionPriority: selectionPriority)
     }
 
-    private static func isGeminiProLow(_ label: String) -> Bool {
-        let lower = label.lowercased()
-        return lower.contains("pro") && lower.contains("low")
+    private static func representative(
+        for family: AntigravityModelFamily,
+        in models: [AntigravityNormalizedModel]) -> AntigravityModelQuota?
+    {
+        let candidates = models.filter { $0.family == family && $0.selectionPriority != nil }
+        guard !candidates.isEmpty else { return nil }
+        return candidates.min { lhs, rhs in
+            let lhsPriority = lhs.selectionPriority ?? Int.max
+            let rhsPriority = rhs.selectionPriority ?? Int.max
+            if lhsPriority != rhsPriority {
+                return lhsPriority < rhsPriority
+            }
+            let lhsHasRemainingFraction = lhs.quota.remainingFraction != nil
+            let rhsHasRemainingFraction = rhs.quota.remainingFraction != nil
+            if lhsHasRemainingFraction != rhsHasRemainingFraction {
+                return lhsHasRemainingFraction && !rhsHasRemainingFraction
+            }
+            return lhs.quota.remainingPercent < rhs.quota.remainingPercent
+        }?.quota
     }
 
-    private static func isGeminiFlash(_ label: String) -> Bool {
-        let lower = label.lowercased()
-        return lower.contains("gemini") && lower.contains("flash")
+    private static func fallbackRepresentative(in models: [AntigravityNormalizedModel]) -> AntigravityModelQuota? {
+        guard !models.isEmpty else { return nil }
+        return models.min { lhs, rhs in
+            let lhsHasRemainingFraction = lhs.quota.remainingFraction != nil
+            let rhsHasRemainingFraction = rhs.quota.remainingFraction != nil
+            if lhsHasRemainingFraction != rhsHasRemainingFraction {
+                return lhsHasRemainingFraction && !rhsHasRemainingFraction
+            }
+            if lhs.quota.remainingPercent != rhs.quota.remainingPercent {
+                return lhs.quota.remainingPercent < rhs.quota.remainingPercent
+            }
+            return lhs.quota.label.localizedCaseInsensitiveCompare(rhs.quota.label) == .orderedAscending
+        }?.quota
+    }
+
+    private static func family(forModelID modelId: String, label: String) -> AntigravityModelFamily {
+        let modelIDFamily = Self.family(from: modelId)
+        if modelIDFamily != .unknown {
+            return modelIDFamily
+        }
+        return Self.family(from: label)
+    }
+
+    private static func family(from text: String) -> AntigravityModelFamily {
+        if text.contains("claude") {
+            return .claude
+        }
+        if text.contains("gemini"), text.contains("pro") {
+            return .geminiPro
+        }
+        if text.contains("gemini"), text.contains("flash") {
+            return .geminiFlash
+        }
+        return .unknown
     }
 }
 
@@ -158,50 +265,62 @@ public struct AntigravityStatusProbe: Sendable {
     public func fetch() async throws -> AntigravityStatusSnapshot {
         let processInfo = try await Self.detectProcessInfo(timeout: self.timeout)
         let ports = try await Self.listeningPorts(pid: processInfo.pid, timeout: self.timeout)
-        let connectPort = try await Self.findWorkingPort(
-            ports: ports,
-            csrfToken: processInfo.csrfToken,
+        let endpoint = try await Self.resolveWorkingEndpoint(
+            candidateEndpoints: Self.connectionCandidates(
+                listeningPorts: ports,
+                languageServerCSRFToken: processInfo.csrfToken,
+                extensionServerPort: processInfo.extensionPort,
+                extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
             timeout: self.timeout)
         let context = RequestContext(
-            httpsPort: connectPort,
-            httpPort: processInfo.extensionPort,
-            csrfToken: processInfo.csrfToken,
+            endpoints: Self.requestEndpoints(
+                resolvedEndpoint: endpoint,
+                listeningPorts: ports,
+                languageServerCSRFToken: processInfo.csrfToken,
+                extensionServerPort: processInfo.extensionPort,
+                extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
             timeout: self.timeout)
 
         do {
-            let response = try await Self.makeRequest(
+            return try await Self.makeParsedRequest(
                 payload: RequestPayload(
                     path: Self.getUserStatusPath,
                     body: Self.defaultRequestBody()),
-                context: context)
-            return try Self.parseUserStatusResponse(response)
+                context: context,
+                parse: Self.parseUserStatusResponse)
         } catch {
-            let response = try await Self.makeRequest(
+            return try await Self.makeParsedRequest(
                 payload: RequestPayload(
                     path: Self.commandModelConfigPath,
                     body: Self.defaultRequestBody()),
-                context: context)
-            return try Self.parseCommandModelResponse(response)
+                context: context,
+                parse: Self.parseCommandModelResponse)
         }
     }
 
     public func fetchPlanInfoSummary() async throws -> AntigravityPlanInfoSummary? {
         let processInfo = try await Self.detectProcessInfo(timeout: self.timeout)
         let ports = try await Self.listeningPorts(pid: processInfo.pid, timeout: self.timeout)
-        let connectPort = try await Self.findWorkingPort(
-            ports: ports,
-            csrfToken: processInfo.csrfToken,
+        let endpoint = try await Self.resolveWorkingEndpoint(
+            candidateEndpoints: Self.connectionCandidates(
+                listeningPorts: ports,
+                languageServerCSRFToken: processInfo.csrfToken,
+                extensionServerPort: processInfo.extensionPort,
+                extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
             timeout: self.timeout)
-        let response = try await Self.makeRequest(
+        return try await Self.makeParsedRequest(
             payload: RequestPayload(
                 path: Self.getUserStatusPath,
                 body: Self.defaultRequestBody()),
             context: RequestContext(
-                httpsPort: connectPort,
-                httpPort: processInfo.extensionPort,
-                csrfToken: processInfo.csrfToken,
-                timeout: self.timeout))
-        return try Self.parsePlanInfoSummary(response)
+                endpoints: Self.requestEndpoints(
+                    resolvedEndpoint: endpoint,
+                    listeningPorts: ports,
+                    languageServerCSRFToken: processInfo.csrfToken,
+                    extensionServerPort: processInfo.extensionPort,
+                    extensionServerCSRFToken: processInfo.extensionServerCSRFToken),
+                timeout: self.timeout),
+            parse: Self.parsePlanInfoSummary)
     }
 
     public static func isRunning(timeout: TimeInterval = 4.0) async -> Bool {
@@ -228,7 +347,8 @@ public struct AntigravityStatusProbe: Sendable {
         let modelConfigs = userStatus.cascadeModelConfigData?.clientModelConfigs ?? []
         let models = modelConfigs.compactMap(Self.quotaFromConfig(_:))
         let email = userStatus.email
-        let planName = userStatus.planStatus?.planInfo?.preferredName
+        // Prefer userTier.name (actual subscription tier) over planInfo (shows "Pro" for Ultra users)
+        let planName = userStatus.userTier?.preferredName ?? userStatus.planStatus?.planInfo?.preferredName
 
         return AntigravityStatusSnapshot(
             modelQuotas: models,
@@ -294,11 +414,28 @@ public struct AntigravityStatusProbe: Sendable {
 
     // MARK: - Port detection
 
-    private struct ProcessInfoResult: Sendable {
+    private struct ProcessInfoResult {
         let pid: Int
         let extensionPort: Int?
+        let extensionServerCSRFToken: String?
         let csrfToken: String
         let commandLine: String
+    }
+
+    struct AntigravityConnectionEndpoint: Equatable {
+        enum Source: String {
+            case languageServer = "language-server"
+            case extensionServer = "extension-server"
+        }
+
+        let scheme: String
+        let port: Int
+        let csrfToken: String
+        let source: Source
+
+        func matchesRequestTarget(_ other: Self) -> Bool {
+            self.scheme == other.scheme && self.port == other.port && self.csrfToken == other.csrfToken
+        }
     }
 
     private static func detectProcessInfo(timeout: TimeInterval) async throws -> ProcessInfoResult {
@@ -321,7 +458,13 @@ public struct AntigravityStatusProbe: Sendable {
             sawAntigravity = true
             guard let token = Self.extractFlag("--csrf_token", from: match.command) else { continue }
             let port = Self.extractPort("--extension_server_port", from: match.command)
-            return ProcessInfoResult(pid: match.pid, extensionPort: port, csrfToken: token, commandLine: match.command)
+            let extensionServerCSRFToken = Self.extractFlag("--extension_server_csrf_token", from: match.command)
+            return ProcessInfoResult(
+                pid: match.pid,
+                extensionPort: port,
+                extensionServerCSRFToken: extensionServerCSRFToken,
+                csrfToken: token,
+                commandLine: match.command)
         }
 
         if sawAntigravity {
@@ -400,21 +543,165 @@ public struct AntigravityStatusProbe: Sendable {
         return ports.sorted()
     }
 
-    private static func findWorkingPort(
-        ports: [Int],
-        csrfToken: String,
-        timeout: TimeInterval) async throws -> Int
+    static func connectionCandidates(
+        listeningPorts: [Int],
+        languageServerCSRFToken: String,
+        extensionServerPort: Int?,
+        extensionServerCSRFToken: String?) -> [AntigravityConnectionEndpoint]
     {
-        for port in ports {
-            let ok = await Self.testPortConnectivity(port: port, csrfToken: csrfToken, timeout: timeout)
-            if ok { return port }
+        var endpoints = Self.languageServerEndpoints(
+            listeningPorts: listeningPorts,
+            languageServerCSRFToken: languageServerCSRFToken)
+
+        for endpoint in Self.extensionServerEndpoints(
+            extensionServerPort: extensionServerPort,
+            languageServerCSRFToken: languageServerCSRFToken,
+            extensionServerCSRFToken: extensionServerCSRFToken)
+        {
+            guard !endpoints.contains(where: { $0.matchesRequestTarget(endpoint) }) else { continue }
+            endpoints.append(endpoint)
+        }
+
+        return endpoints
+    }
+
+    static func requestEndpoints(
+        resolvedEndpoint: AntigravityConnectionEndpoint,
+        listeningPorts: [Int],
+        languageServerCSRFToken: String,
+        extensionServerPort: Int?,
+        extensionServerCSRFToken: String?) -> [AntigravityConnectionEndpoint]
+    {
+        var endpoints = [resolvedEndpoint]
+
+        if resolvedEndpoint.source == .extensionServer {
+            Self.appendUniqueRequestTargets(
+                from: Self.extensionServerEndpoints(
+                    extensionServerPort: extensionServerPort,
+                    languageServerCSRFToken: languageServerCSRFToken,
+                    extensionServerCSRFToken: extensionServerCSRFToken),
+                to: &endpoints)
+            Self.appendUniqueRequestTargets(
+                from: Self.languageServerEndpoints(
+                    listeningPorts: listeningPorts,
+                    languageServerCSRFToken: languageServerCSRFToken),
+                to: &endpoints)
+        } else {
+            Self.appendUniqueRequestTargets(
+                from: Self.languageServerEndpoints(
+                    listeningPorts: listeningPorts,
+                    languageServerCSRFToken: languageServerCSRFToken),
+                to: &endpoints)
+            Self.appendUniqueRequestTargets(
+                from: Self.extensionServerEndpoints(
+                    extensionServerPort: extensionServerPort,
+                    languageServerCSRFToken: languageServerCSRFToken,
+                    extensionServerCSRFToken: extensionServerCSRFToken),
+                to: &endpoints)
+        }
+
+        return endpoints
+    }
+
+    private static func languageServerEndpoints(
+        listeningPorts: [Int],
+        languageServerCSRFToken: String) -> [AntigravityConnectionEndpoint]
+    {
+        listeningPorts.map {
+            AntigravityConnectionEndpoint(
+                scheme: "https",
+                port: $0,
+                csrfToken: languageServerCSRFToken,
+                source: .languageServer)
+        }
+    }
+
+    private static func extensionServerEndpoints(
+        extensionServerPort: Int?,
+        languageServerCSRFToken: String,
+        extensionServerCSRFToken: String?) -> [AntigravityConnectionEndpoint]
+    {
+        guard let extensionServerPort else { return [] }
+
+        var endpoints: [AntigravityConnectionEndpoint] = []
+        if let extensionServerCSRFToken {
+            endpoints.append(
+                AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: extensionServerPort,
+                    csrfToken: extensionServerCSRFToken,
+                    source: .extensionServer))
+        }
+
+        if extensionServerCSRFToken != languageServerCSRFToken {
+            endpoints.append(
+                AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: extensionServerPort,
+                    csrfToken: languageServerCSRFToken,
+                    source: .extensionServer))
+        }
+
+        return endpoints
+    }
+
+    private static func appendUniqueRequestTargets(
+        from candidates: [AntigravityConnectionEndpoint],
+        to endpoints: inout [AntigravityConnectionEndpoint])
+    {
+        for endpoint in candidates {
+            guard !endpoints.contains(where: { $0.matchesRequestTarget(endpoint) }) else { continue }
+            endpoints.append(endpoint)
+        }
+    }
+
+    static func resolveWorkingEndpoint(
+        candidateEndpoints: [AntigravityConnectionEndpoint],
+        timeout: TimeInterval,
+        testConnectivity: @escaping @Sendable (AntigravityConnectionEndpoint, TimeInterval) async -> Bool = Self
+            .testEndpointConnectivity) async throws -> AntigravityConnectionEndpoint
+    {
+        for endpoint in candidateEndpoints {
+            let ok = await testConnectivity(endpoint, timeout)
+            if ok { return endpoint }
+        }
+        if let fallback = fallbackProbeEndpoint(candidateEndpoints) {
+            self.log.debug("Port probe fell back to best-effort endpoint", metadata: [
+                "source": fallback.source.rawValue,
+                "scheme": fallback.scheme,
+                "port": "\(fallback.port)",
+            ])
+            return fallback
         }
         throw AntigravityStatusProbeError.portDetectionFailed("no working API port found")
     }
 
-    private static func testPortConnectivity(
-        port: Int,
-        csrfToken: String,
+    static func fallbackProbePort(ports: [Int], extensionPort: Int?) -> Int? {
+        if let nonExtension = ports.first(where: { $0 != extensionPort }) {
+            return nonExtension
+        }
+        if let extensionPort {
+            return extensionPort
+        }
+        return ports.first
+    }
+
+    static func isReachableProbeError(_ error: Error) -> Bool {
+        guard case let AntigravityStatusProbeError.apiError(message) = error else { return false }
+        return message.hasPrefix("HTTP ")
+    }
+
+    private static func fallbackProbeEndpoint(
+        _ endpoints: [AntigravityConnectionEndpoint]) -> AntigravityConnectionEndpoint?
+    {
+        if let languageServerEndpoint = endpoints.first(where: { $0.source == .languageServer }) {
+            return languageServerEndpoint
+        }
+        return endpoints.first
+    }
+
+    private static func testEndpointConnectivity(
+        _ endpoint: AntigravityConnectionEndpoint,
         timeout: TimeInterval) async -> Bool
     {
         do {
@@ -422,15 +709,22 @@ public struct AntigravityStatusProbe: Sendable {
                 payload: RequestPayload(
                     path: self.unleashPath,
                     body: self.unleashRequestBody()),
-                context: RequestContext(
-                    httpsPort: port,
-                    httpPort: nil,
-                    csrfToken: csrfToken,
-                    timeout: timeout))
+                context: RequestContext(endpoints: [endpoint], timeout: timeout))
             return true
         } catch {
+            if self.isReachableProbeError(error) {
+                self.log.debug("Port probe received HTTP response; treating endpoint as reachable", metadata: [
+                    "source": endpoint.source.rawValue,
+                    "scheme": endpoint.scheme,
+                    "port": "\(endpoint.port)",
+                    "error": error.localizedDescription,
+                ])
+                return true
+            }
             self.log.debug("Port probe failed", metadata: [
-                "port": "\(port)",
+                "source": endpoint.source.rawValue,
+                "scheme": endpoint.scheme,
+                "port": "\(endpoint.port)",
                 "error": error.localizedDescription,
             ])
             return false
@@ -439,15 +733,13 @@ public struct AntigravityStatusProbe: Sendable {
 
     // MARK: - HTTP
 
-    private struct RequestPayload {
+    struct RequestPayload {
         let path: String
         let body: [String: Any]
     }
 
-    private struct RequestContext: Sendable {
-        let httpsPort: Int
-        let httpPort: Int?
-        let csrfToken: String
+    struct RequestContext {
+        let endpoints: [AntigravityConnectionEndpoint]
         let timeout: TimeInterval
     }
 
@@ -484,29 +776,67 @@ public struct AntigravityStatusProbe: Sendable {
         payload: RequestPayload,
         context: RequestContext) async throws -> Data
     {
-        do {
-            return try await self.sendRequest(
-                scheme: "https",
-                port: context.httpsPort,
-                payload: payload,
-                context: context)
-        } catch {
-            guard let httpPort = context.httpPort, httpPort != context.httpsPort else { throw error }
-            return try await Self.sendRequest(
-                scheme: "http",
-                port: httpPort,
-                payload: payload,
-                context: context)
+        try await self.sendRequest(payload: payload, context: context)
+    }
+
+    static func makeParsedRequest<T>(
+        payload: RequestPayload,
+        context: RequestContext,
+        send: @escaping @Sendable (RequestPayload, AntigravityConnectionEndpoint, TimeInterval) async throws -> Data =
+            sendRequest,
+        parse: @escaping @Sendable (Data) throws -> T) async throws -> T
+    {
+        var lastError: Error?
+
+        for endpoint in context.endpoints {
+            do {
+                let data = try await send(payload, endpoint, context.timeout)
+                return try parse(data)
+            } catch {
+                lastError = error
+                Self.log.debug("Antigravity request/parse attempt failed", metadata: [
+                    "path": payload.path,
+                    "source": endpoint.source.rawValue,
+                    "scheme": endpoint.scheme,
+                    "port": "\(endpoint.port)",
+                    "error": error.localizedDescription,
+                ])
+            }
         }
+
+        throw lastError ?? AntigravityStatusProbeError.apiError("Invalid response")
     }
 
     private static func sendRequest(
-        scheme: String,
-        port: Int,
         payload: RequestPayload,
         context: RequestContext) async throws -> Data
     {
-        guard let url = URL(string: "\(scheme)://127.0.0.1:\(port)\(payload.path)") else {
+        var lastError: Error?
+
+        for endpoint in context.endpoints {
+            do {
+                return try await Self.sendRequest(payload: payload, endpoint: endpoint, timeout: context.timeout)
+            } catch {
+                lastError = error
+                Self.log.debug("Antigravity request attempt failed", metadata: [
+                    "path": payload.path,
+                    "source": endpoint.source.rawValue,
+                    "scheme": endpoint.scheme,
+                    "port": "\(endpoint.port)",
+                    "error": error.localizedDescription,
+                ])
+            }
+        }
+
+        throw lastError ?? AntigravityStatusProbeError.apiError("Invalid URL")
+    }
+
+    private static func sendRequest(
+        payload: RequestPayload,
+        endpoint: AntigravityConnectionEndpoint,
+        timeout: TimeInterval) async throws -> Data
+    {
+        guard let url = URL(string: "\(endpoint.scheme)://127.0.0.1:\(endpoint.port)\(payload.path)") else {
             throw AntigravityStatusProbeError.apiError("Invalid URL")
         }
 
@@ -514,19 +844,24 @@ public struct AntigravityStatusProbe: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = body
-        request.timeoutInterval = context.timeout
+        request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
         request.setValue("1", forHTTPHeaderField: "Connect-Protocol-Version")
-        request.setValue(context.csrfToken, forHTTPHeaderField: "X-Codeium-Csrf-Token")
+        request.setValue(endpoint.csrfToken, forHTTPHeaderField: "X-Codeium-Csrf-Token")
 
         let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = context.timeout
-        config.timeoutIntervalForResource = context.timeout
-        let session = URLSession(configuration: config, delegate: InsecureSessionDelegate(), delegateQueue: nil)
+        config.timeoutIntervalForRequest = timeout
+        config.timeoutIntervalForResource = timeout
+        #if !os(Linux)
+        config.waitsForConnectivity = false
+        #endif
+
+        let delegate = LocalhostSessionDelegate()
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { session.invalidateAndCancel() }
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await delegate.data(for: request, session: session)
         guard let http = response as? HTTPURLResponse else {
             throw AntigravityStatusProbeError.apiError("Invalid response")
         }
@@ -538,20 +873,42 @@ public struct AntigravityStatusProbe: Sendable {
     }
 }
 
-private final class InsecureSessionDelegate: NSObject {}
-
-extension InsecureSessionDelegate: URLSessionTaskDelegate {}
-
-extension InsecureSessionDelegate {
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping @MainActor @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+enum LocalhostTrustPolicy {
+    static func shouldAcceptServerTrust(
+        host: String,
+        authenticationMethod: String,
+        hasServerTrust: Bool) -> Bool
     {
-        let result = self.challengeResult(challenge)
-        Task { @MainActor in
-            completionHandler(result.disposition, result.credential)
+        #if !os(Linux)
+        guard authenticationMethod == NSURLAuthenticationMethodServerTrust else { return false }
+        #endif
+        let normalizedHost = host.lowercased()
+        guard normalizedHost == "127.0.0.1" || normalizedHost == "localhost" else { return false }
+        return hasServerTrust
+    }
+}
+
+private final class LocalhostSessionDelegate: NSObject {
+    func data(for request: URLRequest, session: URLSession) async throws -> (Data, URLResponse) {
+        let state = LocalhostSessionTaskState()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: request) { data, response, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let data, let response else {
+                        continuation.resume(throwing: AntigravityStatusProbeError.apiError("Invalid response"))
+                        return
+                    }
+                    continuation.resume(returning: (data, response))
+                }
+                state.setTask(task)
+                task.resume()
+            }
+        } onCancel: {
+            state.cancel()
         }
     }
 
@@ -559,14 +916,65 @@ extension InsecureSessionDelegate {
         disposition: URLSession.AuthChallengeDisposition,
         credential: URLCredential?)
     {
-        #if canImport(FoundationNetworking)
+        #if os(Linux)
         return (.performDefaultHandling, nil)
         #else
-        if let trust = challenge.protectionSpace.serverTrust {
-            return (.useCredential, URLCredential(trust: trust))
+        let protectionSpace = challenge.protectionSpace
+        let trust = protectionSpace.serverTrust
+        guard LocalhostTrustPolicy.shouldAcceptServerTrust(
+            host: protectionSpace.host,
+            authenticationMethod: protectionSpace.authenticationMethod,
+            hasServerTrust: trust != nil),
+            let trust
+        else {
+            return (.performDefaultHandling, nil)
         }
-        return (.performDefaultHandling, nil)
+        return (.useCredential, URLCredential(trust: trust))
         #endif
+    }
+}
+
+extension LocalhostSessionDelegate: URLSessionDelegate {
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)
+    {
+        self.challengeResult(challenge)
+    }
+}
+
+extension LocalhostSessionDelegate: URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didReceive challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)
+    {
+        self.challengeResult(challenge)
+    }
+}
+
+private final class LocalhostSessionTaskState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDataTask?
+    private var isCancelled = false
+
+    func setTask(_ task: URLSessionDataTask) {
+        self.lock.lock()
+        self.task = task
+        let shouldCancel = self.isCancelled
+        self.lock.unlock()
+
+        if shouldCancel {
+            task.cancel()
+        }
+    }
+
+    func cancel() {
+        self.lock.lock()
+        self.isCancelled = true
+        let task = self.task
+        self.lock.unlock()
+        task?.cancel()
     }
 }
 
@@ -586,6 +994,18 @@ private struct UserStatus: Decodable {
     let email: String?
     let planStatus: PlanStatus?
     let cascadeModelConfigData: ModelConfigData?
+    let userTier: UserTier?
+}
+
+private struct UserTier: Decodable {
+    let id: String?
+    let name: String?
+    let description: String?
+
+    var preferredName: String? {
+        guard let value = name?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        return value.isEmpty ? nil : value
+    }
 }
 
 private struct PlanStatus: Decodable {

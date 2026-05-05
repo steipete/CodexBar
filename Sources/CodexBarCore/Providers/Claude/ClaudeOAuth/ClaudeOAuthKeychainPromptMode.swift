@@ -14,6 +14,10 @@ public enum ClaudeOAuthKeychainPromptPreference {
     #endif
 
     public static func current(userDefaults: UserDefaults = .standard) -> ClaudeOAuthKeychainPromptMode {
+        self.effectiveMode(userDefaults: userDefaults)
+    }
+
+    public static func storedMode(userDefaults: UserDefaults = .standard) -> ClaudeOAuthKeychainPromptMode {
         #if DEBUG
         if let taskOverride { return taskOverride }
         #endif
@@ -25,8 +29,36 @@ public enum ClaudeOAuthKeychainPromptPreference {
         return .onlyOnUserAction
     }
 
+    public static func isApplicable(
+        readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current()) -> Bool
+    {
+        readStrategy == .securityFramework
+    }
+
+    public static func effectiveMode(
+        userDefaults: UserDefaults = .standard,
+        readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
+        -> ClaudeOAuthKeychainPromptMode
+    {
+        guard self.isApplicable(readStrategy: readStrategy) else {
+            return .always
+        }
+        return self.storedMode(userDefaults: userDefaults)
+    }
+
+    public static func securityFrameworkFallbackMode(
+        userDefaults: UserDefaults = .standard,
+        readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
+        -> ClaudeOAuthKeychainPromptMode
+    {
+        if readStrategy == .securityCLIExperimental {
+            return self.storedMode(userDefaults: userDefaults)
+        }
+        return self.effectiveMode(userDefaults: userDefaults, readStrategy: readStrategy)
+    }
+
     #if DEBUG
-    static func withTaskOverrideForTesting<T>(
+    public static func withTaskOverrideForTesting<T>(
         _ mode: ClaudeOAuthKeychainPromptMode?,
         operation: () throws -> T) rethrows -> T
     {
@@ -35,13 +67,17 @@ public enum ClaudeOAuthKeychainPromptPreference {
         }
     }
 
-    static func withTaskOverrideForTesting<T>(
+    public static func withTaskOverrideForTesting<T>(
         _ mode: ClaudeOAuthKeychainPromptMode?,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskOverride.withValue(mode) {
             try await operation()
         }
+    }
+
+    public static var currentTaskOverrideForTesting: ClaudeOAuthKeychainPromptMode? {
+        self.taskOverride
     }
     #endif
 }

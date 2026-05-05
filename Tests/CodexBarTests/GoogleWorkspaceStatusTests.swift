@@ -2,13 +2,12 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite
 @MainActor
 struct GoogleWorkspaceStatusTests {
     private let productID = "npdyhgECDJ6tB66MxXyo"
 
     @Test
-    func parseWorkspaceStatusSelectsWorstIncident() throws {
+    func `parse workspace status selects worst incident`() throws {
         let data = Data(#"""
         [
           {
@@ -47,7 +46,7 @@ struct GoogleWorkspaceStatusTests {
     }
 
     @Test
-    func parseWorkspaceStatusIgnoresResolvedIncidents() throws {
+    func `parse workspace status ignores resolved incidents`() throws {
         let data = Data(#"""
         [
           {

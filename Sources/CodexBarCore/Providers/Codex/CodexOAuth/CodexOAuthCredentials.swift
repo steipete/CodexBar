@@ -46,19 +46,19 @@ public enum CodexOAuthCredentialsError: LocalizedError, Sendable {
 }
 
 public enum CodexOAuthCredentialsStore {
-    private static var authFilePath: URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        if let codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"]?.trimmingCharacters(
-            in: .whitespacesAndNewlines),
-            !codexHome.isEmpty
-        {
-            return URL(fileURLWithPath: codexHome).appendingPathComponent("auth.json")
-        }
-        return home.appendingPathComponent(".codex").appendingPathComponent("auth.json")
+    private static func authFilePath(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default) -> URL
+    {
+        CodexHomeScope
+            .ambientHomeURL(env: env, fileManager: fileManager)
+            .appendingPathComponent("auth.json")
     }
 
-    public static func load() throws -> CodexOAuthCredentials {
-        let url = self.authFilePath
+    public static func load(env: [String: String] = ProcessInfo.processInfo
+        .environment) throws -> CodexOAuthCredentials
+    {
+        let url = self.authFilePath(env: env)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CodexOAuthCredentialsError.notFound
         }
@@ -86,15 +86,18 @@ public enum CodexOAuthCredentialsStore {
         guard let tokens = json["tokens"] as? [String: Any] else {
             throw CodexOAuthCredentialsError.missingTokens
         }
-        guard let accessToken = tokens["access_token"] as? String,
-              let refreshToken = tokens["refresh_token"] as? String,
+        guard let accessToken = Self.stringValue(in: tokens, snakeCaseKey: "access_token", camelCaseKey: "accessToken"),
+              let refreshToken = Self.stringValue(
+                  in: tokens,
+                  snakeCaseKey: "refresh_token",
+                  camelCaseKey: "refreshToken"),
               !accessToken.isEmpty
         else {
             throw CodexOAuthCredentialsError.missingTokens
         }
 
-        let idToken = tokens["id_token"] as? String
-        let accountId = tokens["account_id"] as? String
+        let idToken = Self.stringValue(in: tokens, snakeCaseKey: "id_token", camelCaseKey: "idToken")
+        let accountId = Self.stringValue(in: tokens, snakeCaseKey: "account_id", camelCaseKey: "accountId")
         let lastRefresh = Self.parseLastRefresh(from: json["last_refresh"])
 
         return CodexOAuthCredentials(
@@ -105,8 +108,11 @@ public enum CodexOAuthCredentialsStore {
             lastRefresh: lastRefresh)
     }
 
-    public static func save(_ credentials: CodexOAuthCredentials) throws {
-        let url = self.authFilePath
+    public static func save(
+        _ credentials: CodexOAuthCredentials,
+        env: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        let url = self.authFilePath(env: env)
 
         var json: [String: Any] = [:]
         if let data = try? Data(contentsOf: url),
@@ -143,4 +149,27 @@ public enum CodexOAuthCredentialsStore {
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
     }
+
+    private static func stringValue(
+        in dictionary: [String: Any],
+        snakeCaseKey: String,
+        camelCaseKey: String)
+        -> String?
+    {
+        if let value = dictionary[snakeCaseKey] as? String, !value.isEmpty {
+            return value
+        }
+        if let value = dictionary[camelCaseKey] as? String, !value.isEmpty {
+            return value
+        }
+        return nil
+    }
 }
+
+#if DEBUG
+extension CodexOAuthCredentialsStore {
+    static func _authFileURLForTesting(env: [String: String]) -> URL {
+        self.authFilePath(env: env)
+    }
+}
+#endif

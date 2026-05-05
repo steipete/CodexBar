@@ -3,10 +3,10 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite("Live RPC account checks", .serialized)
+@Suite(.serialized)
 struct LiveAccountTests {
     @Test(.disabled("Set LIVE_TEST=1 to run live Codex account checks."))
-    func codexAccountEmailIsPresent() async throws {
+    func `codex account email is present`() async throws {
         guard ProcessInfo.processInfo.environment["LIVE_TEST"] == "1" else { return }
 
         let fetcher = UsageFetcher()

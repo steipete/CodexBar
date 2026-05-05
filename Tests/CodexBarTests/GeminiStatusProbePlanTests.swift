@@ -2,10 +2,10 @@ import CodexBarCore
 import Foundation
 import Testing
 
-@Suite("Gemini Plan", .serialized)
+@Suite(.serialized)
 struct GeminiStatusProbePlanTests {
     @Test
-    func selectsProjectIdForQuotaRequests() async throws {
+    func `selects project id for quota requests`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -53,10 +53,13 @@ struct GeminiStatusProbePlanTests {
         let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
         let snapshot = try await probe.fetch()
         #expect(snapshot.modelQuotas.contains { $0.percentLeft == 40 })
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.secondary?.remainingPercent == 40)
+        #expect(usage.tertiary == nil)
     }
 
     @Test
-    func prefersLoadCodeAssistProjectForQuotaRequests() async throws {
+    func `prefers load code assist project for quota requests`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -107,10 +110,61 @@ struct GeminiStatusProbePlanTests {
         let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
         let snapshot = try await probe.fetch()
         #expect(snapshot.modelQuotas.contains { $0.percentLeft == 40 })
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.secondary?.remainingPercent == 40)
+        #expect(usage.tertiary == nil)
     }
 
     @Test
-    func detectsPaidFromStandardTier() async throws {
+    func `separates flash and flash lite quota buckets from api response`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: nil)
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+            switch host {
+            case "cloudresourcemanager.googleapis.com":
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.jsonData(["projects": []]))
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistStandardTierResponse())
+                }
+                if url.path != "/v1internal:retrieveUserQuota" {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+                }
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.sampleQuotaResponse())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.remainingPercent == 60.0)
+        #expect(usage.secondary?.remainingPercent == 90.0)
+        #expect(usage.tertiary?.remainingPercent == 80.0)
+    }
+
+    @Test
+    func `detects paid from standard tier`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -154,7 +208,7 @@ struct GeminiStatusProbePlanTests {
     }
 
     @Test
-    func detectsWorkspaceFromFreeTierWithHostedDomain() async throws {
+    func `detects workspace from free tier with hosted domain`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         let idToken = GeminiAPITestHelpers.makeIDToken(email: "user@company.com", hostedDomain: "company.com")
@@ -199,7 +253,7 @@ struct GeminiStatusProbePlanTests {
     }
 
     @Test
-    func detectsFreeFromFreeTierWithoutHostedDomain() async throws {
+    func `detects free from free tier without hosted domain`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         let idToken = GeminiAPITestHelpers.makeIDToken(email: "user@gmail.com")
@@ -244,7 +298,7 @@ struct GeminiStatusProbePlanTests {
     }
 
     @Test
-    func detectsLegacyFromLegacyTier() async throws {
+    func `detects legacy from legacy tier`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -288,7 +342,7 @@ struct GeminiStatusProbePlanTests {
     }
 
     @Test
-    func leavesBlankWhenLoadCodeAssistFails() async throws {
+    func `leaves blank when load code assist fails`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(

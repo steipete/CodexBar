@@ -48,7 +48,7 @@ Load order for credentials:
 5. Claude CLI keychain service: `Claude Code-credentials` (promptable fallback).
 
 Prompt mitigation:
-- Non-interactive keychain probes use `KeychainNoUIQuery` (`LAContext.interactionNotAllowed` + `kSecUseAuthenticationUIFail`).
+- Non-interactive keychain probes use `KeychainNoUIQuery` with `LAContext.interactionNotAllowed`.
 - Pre-alert is shown only when preflight suggests interaction may be required.
 - Denials are cooled down in the background via `claudeOAuthKeychainDeniedUntil`
   (`ClaudeOAuthKeychainAccessGate`). User actions (menu open / manual refresh) clear this cooldown.
@@ -80,6 +80,9 @@ This is OS/keychain ACL behavior, not a `ThisDeviceOnly` migration issue.
 - Browser-imported Claude session cookies are cached in keychain service `com.steipete.codexbar.cache`.
 - Account key is `cookie.claude`.
 - Cache writes use `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
+- Users can clear browser-cookie cache entries from **Preferences → Debug → Caches** or with
+  `codexbar cache clear --cookies`. `--provider <id>` scopes cookie clearing to one provider and includes scoped
+  Codex managed-account cookie keys.
 
 ## What still uses `ThisDeviceOnly`
 

@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite
 struct LoadingPatternTests {
     @Test
-    func valuesStayWithinBounds() {
+    func `values stay within bounds`() {
         for pattern in LoadingPattern.allCases {
             for phase in stride(from: 0.0, through: Double.pi * 2, by: Double.pi / 6) {
                 let v = pattern.value(phase: phase)
@@ -15,7 +14,7 @@ struct LoadingPatternTests {
     }
 
     @Test
-    func knightRiderPingPongs() {
+    func `knight rider ping pongs`() {
         let pattern = LoadingPattern.knightRider
         let mid = pattern.value(phase: 0) // sin 0 = 0 => 50
         let min = pattern.value(phase: -Double.pi / 2) // sin -pi/2 = -1 => 0
@@ -26,7 +25,7 @@ struct LoadingPatternTests {
     }
 
     @Test
-    func secondaryOffsetDiffers() {
+    func `secondary offset differs`() {
         let pattern = LoadingPattern.cylon
         let primary = pattern.value(phase: 0)
         let secondary = pattern.value(phase: pattern.secondaryOffset)

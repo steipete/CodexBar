@@ -11,6 +11,9 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func appendUsageMenuEntries(context _: ProviderMenuUsageContext, entries _: inout [ProviderMenuEntry]) {}
+
+    @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         await context.controller.runAntigravityLoginFlow()
         return false

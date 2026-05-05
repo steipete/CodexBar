@@ -293,13 +293,13 @@ public struct WarpUsageFetcher: Sendable {
             bonusNextExpirationRemaining: bonus.nextExpirationRemaining)
     }
 
-    private struct BonusGrant: Sendable {
+    private struct BonusGrant {
         let granted: Int
         let remaining: Int
         let expiration: Date?
     }
 
-    private struct BonusSummary: Sendable {
+    private struct BonusSummary {
         let remaining: Int
         let total: Int
         let nextExpiration: Date?

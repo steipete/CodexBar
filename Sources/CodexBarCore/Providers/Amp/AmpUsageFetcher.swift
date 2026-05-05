@@ -65,7 +65,7 @@ public enum AmpCookieImporter {
         for browserSource in installed {
             do {
                 let query = BrowserCookieQuery(domains: self.cookieDomains)
-                let sources = try Self.cookieClient.records(
+                let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)
@@ -323,7 +323,7 @@ public struct AmpUsageFetcher: Sendable {
         }
     }
 
-    private struct ResponseInfo: Sendable {
+    private struct ResponseInfo {
         let statusCode: Int
         let url: String
     }

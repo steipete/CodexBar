@@ -14,6 +14,13 @@ public struct CodexUsageResponse: Decodable, Sendable {
         case credits
     }
 
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.planType = try? container.decodeIfPresent(PlanType.self, forKey: .planType)
+        self.rateLimit = try? container.decodeIfPresent(RateLimitDetails.self, forKey: .rateLimit)
+        self.credits = try? container.decodeIfPresent(CreditDetails.self, forKey: .credits)
+    }
+
     public enum PlanType: Sendable, Decodable, Equatable {
         case guest
         case free
@@ -75,10 +82,45 @@ public struct CodexUsageResponse: Decodable, Sendable {
     public struct RateLimitDetails: Decodable, Sendable {
         public let primaryWindow: WindowSnapshot?
         public let secondaryWindow: WindowSnapshot?
+        let primaryWindowDecodeFailed: Bool
+        let secondaryWindowDecodeFailed: Bool
 
         enum CodingKeys: String, CodingKey {
             case primaryWindow = "primary_window"
             case secondaryWindow = "secondary_window"
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let primaryHadValue = Self.hasNonNilValue(container: container, key: .primaryWindow)
+            do {
+                self.primaryWindow = try container.decodeIfPresent(WindowSnapshot.self, forKey: .primaryWindow)
+                self.primaryWindowDecodeFailed = false
+            } catch {
+                self.primaryWindow = nil
+                self.primaryWindowDecodeFailed = primaryHadValue
+            }
+
+            let secondaryHadValue = Self.hasNonNilValue(container: container, key: .secondaryWindow)
+            do {
+                self.secondaryWindow = try container.decodeIfPresent(WindowSnapshot.self, forKey: .secondaryWindow)
+                self.secondaryWindowDecodeFailed = false
+            } catch {
+                self.secondaryWindow = nil
+                self.secondaryWindowDecodeFailed = secondaryHadValue
+            }
+        }
+
+        private static func hasNonNilValue(
+            container: KeyedDecodingContainer<CodingKeys>,
+            key: CodingKeys) -> Bool
+        {
+            guard container.contains(key) else { return false }
+            return (try? container.decodeNil(forKey: key)) == false
+        }
+
+        var hasWindowDecodeFailure: Bool {
+            self.primaryWindowDecodeFailed || self.secondaryWindowDecodeFailed
         }
     }
 
@@ -150,8 +192,12 @@ public enum CodexOAuthUsageFetcher {
     private static let chatGPTUsagePath = "/wham/usage"
     private static let codexUsagePath = "/api/codex/usage"
 
-    public static func fetchUsage(accessToken: String, accountId: String?) async throws -> CodexUsageResponse {
-        var request = URLRequest(url: Self.resolveUsageURL())
+    public static func fetchUsage(
+        accessToken: String,
+        accountId: String?,
+        env: [String: String] = ProcessInfo.processInfo.environment) async throws -> CodexUsageResponse
+    {
+        var request = URLRequest(url: Self.resolveUsageURL(env: env))
         request.httpMethod = "GET"
         request.timeoutInterval = 30
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -188,8 +234,8 @@ public enum CodexOAuthUsageFetcher {
         }
     }
 
-    private static func resolveUsageURL() -> URL {
-        self.resolveUsageURL(env: ProcessInfo.processInfo.environment, configContents: nil)
+    private static func resolveUsageURL(env: [String: String]) -> URL {
+        self.resolveUsageURL(env: env, configContents: nil)
     }
 
     private static func resolveUsageURL(env: [String: String], configContents: String?) -> URL {

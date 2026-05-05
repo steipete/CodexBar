@@ -17,6 +17,25 @@ public struct UsagePace: Sendable {
     public let actualUsedPercent: Double
     public let etaSeconds: TimeInterval?
     public let willLastToReset: Bool
+    public let runOutProbability: Double?
+
+    public init(
+        stage: Stage,
+        deltaPercent: Double,
+        expectedUsedPercent: Double,
+        actualUsedPercent: Double,
+        etaSeconds: TimeInterval?,
+        willLastToReset: Bool,
+        runOutProbability: Double? = nil)
+    {
+        self.stage = stage
+        self.deltaPercent = deltaPercent
+        self.expectedUsedPercent = expectedUsedPercent
+        self.actualUsedPercent = actualUsedPercent
+        self.etaSeconds = etaSeconds
+        self.willLastToReset = willLastToReset
+        self.runOutProbability = runOutProbability
+    }
 
     public static func weekly(
         window: RateWindow,
@@ -31,9 +50,9 @@ public struct UsagePace: Sendable {
         let timeUntilReset = resetsAt.timeIntervalSince(now)
         guard timeUntilReset > 0 else { return nil }
         guard timeUntilReset <= duration else { return nil }
-        let elapsed = Self.clamp(duration - timeUntilReset, lower: 0, upper: duration)
-        let expected = Self.clamp((elapsed / duration) * 100, lower: 0, upper: 100)
-        let actual = Self.clamp(window.usedPercent, lower: 0, upper: 100)
+        let elapsed = (duration - timeUntilReset).clamped(to: 0...duration)
+        let expected = ((elapsed / duration) * 100).clamped(to: 0...100)
+        let actual = window.usedPercent.clamped(to: 0...100)
         if elapsed == 0, actual > 0 {
             return nil
         }
@@ -64,7 +83,28 @@ public struct UsagePace: Sendable {
             expectedUsedPercent: expected,
             actualUsedPercent: actual,
             etaSeconds: etaSeconds,
-            willLastToReset: willLastToReset)
+            willLastToReset: willLastToReset,
+            runOutProbability: nil)
+    }
+
+    public static func historical(
+        expectedUsedPercent: Double,
+        actualUsedPercent: Double,
+        etaSeconds: TimeInterval?,
+        willLastToReset: Bool,
+        runOutProbability: Double?) -> UsagePace
+    {
+        let expected = expectedUsedPercent.clamped(to: 0...100)
+        let actual = actualUsedPercent.clamped(to: 0...100)
+        let delta = actual - expected
+        return UsagePace(
+            stage: Self.stage(for: delta),
+            deltaPercent: delta,
+            expectedUsedPercent: expected,
+            actualUsedPercent: actual,
+            etaSeconds: etaSeconds,
+            willLastToReset: willLastToReset,
+            runOutProbability: runOutProbability)
     }
 
     private static func stage(for delta: Double) -> Stage {
@@ -73,9 +113,5 @@ public struct UsagePace: Sendable {
         if absDelta <= 6 { return delta >= 0 ? .slightlyAhead : .slightlyBehind }
         if absDelta <= 12 { return delta >= 0 ? .ahead : .behind }
         return delta >= 0 ? .farAhead : .farBehind
-    }
-
-    private static func clamp(_ value: Double, lower: Double, upper: Double) -> Double {
-        min(upper, max(lower, value))
     }
 }

@@ -76,33 +76,42 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public let id: UsageProvider
     public var enabled: Bool?
     public var source: ProviderSourceMode?
+    public var extrasEnabled: Bool?
     public var apiKey: String?
     public var cookieHeader: String?
     public var cookieSource: ProviderCookieSource?
     public var region: String?
     public var workspaceID: String?
+    public var enterpriseHost: String?
     public var tokenAccounts: ProviderTokenAccountData?
+    public var codexActiveSource: CodexActiveSource?
 
     public init(
         id: UsageProvider,
         enabled: Bool? = nil,
         source: ProviderSourceMode? = nil,
+        extrasEnabled: Bool? = nil,
         apiKey: String? = nil,
         cookieHeader: String? = nil,
         cookieSource: ProviderCookieSource? = nil,
         region: String? = nil,
         workspaceID: String? = nil,
-        tokenAccounts: ProviderTokenAccountData? = nil)
+        enterpriseHost: String? = nil,
+        tokenAccounts: ProviderTokenAccountData? = nil,
+        codexActiveSource: CodexActiveSource? = nil)
     {
         self.id = id
         self.enabled = enabled
         self.source = source
+        self.extrasEnabled = extrasEnabled
         self.apiKey = apiKey
         self.cookieHeader = cookieHeader
         self.cookieSource = cookieSource
         self.region = region
         self.workspaceID = workspaceID
+        self.enterpriseHost = enterpriseHost
         self.tokenAccounts = tokenAccounts
+        self.codexActiveSource = codexActiveSource
     }
 
     public var sanitizedAPIKey: String? {
@@ -111,6 +120,10 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
 
     public var sanitizedCookieHeader: String? {
         Self.clean(self.cookieHeader)
+    }
+
+    public var sanitizedEnterpriseHost: String? {
+        Self.clean(self.enterpriseHost)
     }
 
     private static func clean(_ raw: String?) -> String? {

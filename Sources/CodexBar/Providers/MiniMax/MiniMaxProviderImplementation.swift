@@ -126,11 +126,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            if let url = URL(
-                                string: "https://platform.minimax.io/user-center/payment/coding-plan?cycle_type=3")
-                            {
-                                NSWorkspace.shared.open(url)
-                            }
+                            NSWorkspace.shared.open(context.settings.minimaxAPIRegion.codingPlanURL)
                         }),
                 ],
                 isVisible: nil,
@@ -149,11 +145,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            if let url = URL(
-                                string: "https://platform.minimax.io/user-center/payment/coding-plan?cycle_type=3")
-                            {
-                                NSWorkspace.shared.open(url)
-                            }
+                            NSWorkspace.shared.open(context.settings.minimaxAPIRegion.codingPlanURL)
                         }),
                 ],
                 isVisible: {

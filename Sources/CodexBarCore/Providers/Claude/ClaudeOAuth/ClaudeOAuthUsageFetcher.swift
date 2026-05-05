@@ -34,6 +34,7 @@ enum ClaudeOAuthUsageFetcher {
     private static let baseURL = "https://api.anthropic.com"
     private static let usagePath = "/api/oauth/usage"
     private static let betaHeader = "oauth-2025-04-20"
+    private static let fallbackClaudeCodeVersion = "2.1.0"
 
     static func fetchUsage(accessToken: String) async throws -> OAuthUsageResponse {
         guard let url = URL(string: baseURL + usagePath) else {
@@ -48,7 +49,7 @@ enum ClaudeOAuthUsageFetcher {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // OAuth usage endpoint currently requires the beta header.
         request.setValue(Self.betaHeader, forHTTPHeaderField: "anthropic-beta")
-        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.claudeCodeUserAgent(), forHTTPHeaderField: "User-Agent")
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -87,29 +88,126 @@ enum ClaudeOAuthUsageFetcher {
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: string)
     }
+
+    private static func claudeCodeUserAgent() -> String {
+        self.claudeCodeUserAgent(versionString: ProviderVersionDetector.claudeVersion())
+    }
+
+    private static func claudeCodeUserAgent(versionString: String?) -> String {
+        let version = self.normalizedClaudeCodeVersion(versionString) ?? self.fallbackClaudeCodeVersion
+        return "claude-code/\(version)"
+    }
+
+    private static func normalizedClaudeCodeVersion(_ versionString: String?) -> String? {
+        guard let raw = versionString?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        let token = raw.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? raw
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }
 
-struct OAuthUsageResponse: Decodable, Sendable {
+struct OAuthUsageResponse: Decodable {
     let fiveHour: OAuthUsageWindow?
     let sevenDay: OAuthUsageWindow?
     let sevenDayOAuthApps: OAuthUsageWindow?
     let sevenDayOpus: OAuthUsageWindow?
     let sevenDaySonnet: OAuthUsageWindow?
+    let sevenDayDesign: OAuthUsageWindow?
+    let sevenDayRoutines: OAuthUsageWindow?
+    let sevenDayDesignSourceKey: String?
+    let sevenDayRoutinesSourceKey: String?
     let iguanaNecktie: OAuthUsageWindow?
     let extraUsage: OAuthExtraUsage?
 
-    enum CodingKeys: String, CodingKey {
-        case fiveHour = "five_hour"
-        case sevenDay = "seven_day"
-        case sevenDayOAuthApps = "seven_day_oauth_apps"
-        case sevenDayOpus = "seven_day_opus"
-        case sevenDaySonnet = "seven_day_sonnet"
-        case iguanaNecktie = "iguana_necktie"
-        case extraUsage = "extra_usage"
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+        self.fiveHour = Self.decodeWindow(in: container, keys: ["five_hour"])
+        self.sevenDay = Self.decodeWindow(in: container, keys: ["seven_day"])
+        self.sevenDayOAuthApps = Self.decodeWindow(in: container, keys: ["seven_day_oauth_apps"])
+        self.sevenDayOpus = Self.decodeWindow(in: container, keys: ["seven_day_opus"])
+        self.sevenDaySonnet = Self.decodeWindow(in: container, keys: ["seven_day_sonnet"])
+        let design = Self.decodeWindowWithSource(in: container, keys: [
+            "seven_day_design",
+            "seven_day_claude_design",
+            "claude_design",
+            "design",
+            "seven_day_omelette",
+            "omelette",
+            "omelette_promotional",
+        ])
+        self.sevenDayDesign = design.window
+        self.sevenDayDesignSourceKey = design.sourceKey
+        let routines = Self.decodeWindowWithSource(in: container, keys: [
+            "seven_day_routines",
+            "seven_day_claude_routines",
+            "claude_routines",
+            "routines",
+            "routine",
+            "seven_day_cowork",
+            "cowork",
+        ])
+        self.sevenDayRoutines = routines.window
+        self.sevenDayRoutinesSourceKey = routines.sourceKey
+        self.iguanaNecktie = Self.decodeWindow(in: container, keys: ["iguana_necktie"])
+        self.extraUsage = Self.decodeValue(in: container, keys: ["extra_usage"])
+    }
+
+    private static func decodeWindow(
+        in container: KeyedDecodingContainer<DynamicCodingKey>,
+        keys: [String]) -> OAuthUsageWindow?
+    {
+        self.decodeValue(in: container, keys: keys)
+    }
+
+    private static func decodeWindowWithSource(
+        in container: KeyedDecodingContainer<DynamicCodingKey>,
+        keys: [String]) -> (window: OAuthUsageWindow?, sourceKey: String?)
+    {
+        var firstNullKey: String?
+        for keyName in keys {
+            guard let key = DynamicCodingKey(stringValue: keyName) else { continue }
+            guard container.contains(key) else { continue }
+            if let value = try? container.decodeIfPresent(OAuthUsageWindow.self, forKey: key) {
+                return (value, keyName)
+            }
+            if firstNullKey == nil {
+                firstNullKey = keyName
+            }
+        }
+        return (nil, firstNullKey)
+    }
+
+    private static func decodeValue<T: Decodable>(
+        in container: KeyedDecodingContainer<DynamicCodingKey>,
+        keys: [String]) -> T?
+    {
+        for keyName in keys {
+            guard let key = DynamicCodingKey(stringValue: keyName) else { continue }
+            if let value = try? container.decodeIfPresent(T.self, forKey: key) {
+                return value
+            }
+        }
+        return nil
     }
 }
 
-struct OAuthUsageWindow: Decodable, Sendable {
+private struct DynamicCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue: Int) {
+        nil
+    }
+}
+
+struct OAuthUsageWindow: Decodable {
     let utilization: Double?
     let resetsAt: String?
 
@@ -119,7 +217,7 @@ struct OAuthUsageWindow: Decodable, Sendable {
     }
 }
 
-struct OAuthExtraUsage: Decodable, Sendable {
+struct OAuthExtraUsage: Decodable {
     let isEnabled: Bool?
     let monthlyLimit: Double?
     let usedCredits: Double?
@@ -139,6 +237,10 @@ struct OAuthExtraUsage: Decodable, Sendable {
 extension ClaudeOAuthUsageFetcher {
     static func _decodeUsageResponseForTesting(_ data: Data) throws -> OAuthUsageResponse {
         try self.decodeUsageResponse(data)
+    }
+
+    static func _userAgentForTesting(versionString: String?) -> String {
+        self.claudeCodeUserAgent(versionString: versionString)
     }
 }
 #endif

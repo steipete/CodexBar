@@ -1,14 +1,12 @@
 import Foundation
-#if os(macOS)
-import Darwin
-#endif
-import LocalAuthentication
-import Security
 import Testing
 @testable import CodexBarCore
 
 #if os(macOS)
-@Suite
+import Darwin
+import LocalAuthentication
+import Security
+
 struct KeychainNoUIQueryTests {
     private func resolveSecurityUIFailValue() -> String {
         let securityPath = "/System/Library/Frameworks/Security.framework/Security"
@@ -24,7 +22,7 @@ struct KeychainNoUIQueryTests {
     }
 
     @Test
-    func apply_setsNonInteractiveContextAndUIFailPolicy() {
+    func `apply sets non interactive context and UI fail policy`() {
         var query: [String: Any] = [:]
 
         KeychainNoUIQuery.apply(to: &query)
@@ -40,7 +38,7 @@ struct KeychainNoUIQueryTests {
     }
 
     @Test
-    func preflightQuery_isStrictlyNonInteractiveAndDoesNotRequestSecretData() {
+    func `preflight query is strictly non interactive and does not request secret data`() {
         let query = KeychainAccessPreflight.makeGenericPasswordPreflightQuery(
             service: "test.service",
             account: "test.account")
@@ -52,7 +50,7 @@ struct KeychainNoUIQueryTests {
     }
 
     @Test
-    func preflightQuery_executesWithoutInvalidUIPolicy() {
+    func `preflight query executes without invalid UI policy`() {
         let query = KeychainAccessPreflight.makeGenericPasswordPreflightQuery(
             service: "codexbar.keychain.noui.\(UUID().uuidString)",
             account: nil)

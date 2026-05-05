@@ -16,13 +16,14 @@ struct CodexLoginRunner {
         let output: String
     }
 
-    static func run(timeout: TimeInterval = 120) async -> Result {
+    static func run(homePath: String? = nil, timeout: TimeInterval = 120) async -> Result {
         await Task(priority: .userInitiated) {
             var env = ProcessInfo.processInfo.environment
             env["PATH"] = PathBuilder.effectivePATH(
                 purposes: [.rpc, .tty, .nodeTooling],
                 env: env,
                 loginPATH: LoginShellPathCache.shared.current)
+            env = CodexHomeScope.scopedEnvironment(base: env, codexHome: homePath)
 
             guard let executable = BinaryLocator.resolveCodexBinary(
                 env: env,

@@ -7,7 +7,7 @@ struct ProviderRuntimeContext {
     let store: UsageStore
 }
 
-enum ProviderRuntimeAction: Sendable {
+enum ProviderRuntimeAction {
     case forceSessionRefresh
     case openAIWebAccessToggled(Bool)
 }

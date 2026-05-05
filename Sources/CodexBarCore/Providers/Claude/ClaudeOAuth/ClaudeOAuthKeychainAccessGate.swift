@@ -14,8 +14,10 @@ public enum ClaudeOAuthKeychainAccessGate {
     private static let cooldownInterval: TimeInterval = 60 * 60 * 6
     @TaskLocal private static var taskOverrideShouldAllowPromptForTesting: Bool?
     #if DEBUG
-    final class DeniedUntilStore: @unchecked Sendable {
-        var deniedUntil: Date?
+    public final class DeniedUntilStore: @unchecked Sendable {
+        public var deniedUntil: Date?
+
+        public init() {}
     }
 
     @TaskLocal private static var taskDeniedUntilStoreOverrideForTesting: DeniedUntilStore?
@@ -106,7 +108,7 @@ public enum ClaudeOAuthKeychainAccessGate {
         }
     }
 
-    static func withDeniedUntilStoreOverrideForTesting<T>(
+    public static func withDeniedUntilStoreOverrideForTesting<T>(
         _ store: DeniedUntilStore?,
         operation: () throws -> T) rethrows -> T
     {
@@ -115,13 +117,17 @@ public enum ClaudeOAuthKeychainAccessGate {
         }
     }
 
-    static func withDeniedUntilStoreOverrideForTesting<T>(
+    public static func withDeniedUntilStoreOverrideForTesting<T>(
         _ store: DeniedUntilStore?,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskDeniedUntilStoreOverrideForTesting.withValue(store) {
             try await operation()
         }
+    }
+
+    public static var currentDeniedUntilStoreOverrideForTesting: DeniedUntilStore? {
+        self.taskDeniedUntilStoreOverrideForTesting
     }
 
     public static func resetForTesting() {

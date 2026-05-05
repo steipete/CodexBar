@@ -13,6 +13,9 @@ public struct AuggieCLIProbe: Sendable {
         return try self.parse(output)
     }
 
+    /// Timeout for the `auggie account status` command.
+    private static let commandTimeout: TimeInterval = 15
+
     private func runAuggieAccountStatus() async throws -> String {
         let env = ProcessInfo.processInfo.environment
         let loginPATH = LoginShellPathCache.shared.current
@@ -24,24 +27,15 @@ public struct AuggieCLIProbe: Sendable {
             env: env,
             loginPATH: loginPATH)
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = ["account", "status"]
-        process.environment = pathEnv
+        let result = try await SubprocessRunner.run(
+            binary: executable,
+            arguments: ["account", "status"],
+            environment: pathEnv,
+            timeout: Self.commandTimeout,
+            label: "auggie-account-status")
 
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-
-        try process.run()
-        process.waitUntilExit()
-
-        let outputData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
-
-        let output = String(data: outputData, encoding: .utf8) ?? ""
-        let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+        let output = result.stdout
+        let errorOutput = result.stderr
 
         guard !output.isEmpty else {
             if !errorOutput.isEmpty {

@@ -4,19 +4,12 @@ import Testing
 @testable import CodexBar
 
 @MainActor
-@Suite
 struct AppDelegateTests {
     @Test
-    func buildsStatusControllerAfterLaunch() {
+    func `builds status controller after launch`() {
         let appDelegate = AppDelegate()
         var factoryCalls = 0
-
-        // Install a test factory that records invocations without touching NSStatusBar.
-        StatusItemController.factory = { _, _, _, _, _ in
-            factoryCalls += 1
-            return DummyStatusController()
-        }
-        defer { StatusItemController.factory = StatusItemController.defaultFactory }
+        let managedCodexAccountCoordinator = ManagedCodexAccountCoordinator()
 
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "AppDelegateTests"),
@@ -25,9 +18,28 @@ struct AppDelegateTests {
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         let account = fetcher.loadAccountInfo()
+        let promotionCoordinator = CodexAccountPromotionCoordinator(
+            settingsStore: settings,
+            usageStore: store,
+            managedAccountCoordinator: managedCodexAccountCoordinator)
+
+        // Install a test factory that records invocations without touching NSStatusBar.
+        StatusItemController.factory = { _, _, _, _, _, receivedManagedCoordinator, receivedPromotionCoordinator in
+            factoryCalls += 1
+            #expect(receivedManagedCoordinator === managedCodexAccountCoordinator)
+            #expect(receivedPromotionCoordinator === promotionCoordinator)
+            return DummyStatusController()
+        }
+        defer { StatusItemController.factory = StatusItemController.defaultFactory }
 
         // configure should not eagerly construct the status controller
-        appDelegate.configure(store: store, settings: settings, account: account, selection: PreferencesSelection())
+        appDelegate.configure(.init(
+            store: store,
+            settings: settings,
+            account: account,
+            selection: PreferencesSelection(),
+            managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+            codexAccountPromotionCoordinator: promotionCoordinator))
         #expect(factoryCalls == 0)
 
         // construction happens once after launch

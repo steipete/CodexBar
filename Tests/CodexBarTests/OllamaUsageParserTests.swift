@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct OllamaUsageParserTests {
     @Test
-    func parsesCloudUsageFromSettingsHTML() throws {
+    func `parses cloud usage from settings HTML`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <div>
@@ -47,7 +46,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func missingUsageThrowsParseFailed() {
+    func `missing usage throws parse failed`() {
         let html = "<html><body>No usage here. login status unknown.</body></html>"
 
         #expect {
@@ -59,7 +58,20 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func signedOutThrowsNotLoggedIn() {
+    func `classified parse missing usage returns typed failure`() {
+        let html = "<html><body>No usage here. login status unknown.</body></html>"
+        let result = OllamaUsageParser.parseClassified(html: html)
+
+        switch result {
+        case .success:
+            Issue.record("Expected classified parse failure for missing usage data")
+        case let .failure(failure):
+            #expect(failure == .missingUsageData)
+        }
+    }
+
+    @Test
+    func `signed out throws not logged in`() {
         let html = """
         <html>
           <body>
@@ -81,7 +93,30 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func genericSignInTextWithoutAuthMarkersThrowsParseFailed() {
+    func `classified parse signed out returns typed failure`() {
+        let html = """
+        <html>
+          <body>
+            <h1>Sign in to Ollama</h1>
+            <form action="/auth/signin" method="post">
+              <input type="email" name="email" />
+              <input type="password" name="password" />
+            </form>
+          </body>
+        </html>
+        """
+
+        let result = OllamaUsageParser.parseClassified(html: html)
+        switch result {
+        case .success:
+            Issue.record("Expected classified parse failure for signed-out HTML")
+        case let .failure(failure):
+            #expect(failure == .notLoggedIn)
+        }
+    }
+
+    @Test
+    func `generic sign in text without auth markers throws parse failed`() {
         let html = """
         <html>
           <body>
@@ -101,7 +136,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func parsesHourlyUsageAsPrimaryWindow() throws {
+    func `parses hourly usage as primary window`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <div>
@@ -121,7 +156,7 @@ struct OllamaUsageParserTests {
     }
 
     @Test
-    func parsesUsageWhenUsedIsCapitalized() throws {
+    func `parses usage when used is capitalized`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <div>

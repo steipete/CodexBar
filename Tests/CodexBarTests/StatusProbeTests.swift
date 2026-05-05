@@ -3,10 +3,9 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite
 struct StatusProbeTests {
     @Test
-    func parseCodexStatus() throws {
+    func `parse codex status`() throws {
         let sample = """
         Model: gpt
         Credits: 980 credits
@@ -20,20 +19,55 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseCodexStatusWithAnsiAndResets() throws {
+    func `parse codex status with ansi and resets`() throws {
+        let now = try #require(
+            Calendar(identifier: .gregorian).date(from: DateComponents(
+                timeZone: TimeZone.current,
+                year: 2026,
+                month: 11,
+                day: 26,
+                hour: 8,
+                minute: 0)))
         let sample = """
         \u{001B}[38;5;245mCredits:\u{001B}[0m 557 credits
         5h limit: [█████     ] 50% left (resets 09:01)
         Weekly limit: [███████   ] 85% left (resets 04:01 on 27 Nov)
         """
-        let snap = try CodexStatusProbe.parse(text: sample)
+        let snap = try CodexStatusProbe.parse(text: sample, now: now)
         #expect(snap.credits == 557)
         #expect(snap.fiveHourPercentLeft == 50)
         #expect(snap.weeklyPercentLeft == 85)
+        #expect(snap.fiveHourResetsAt == Calendar(identifier: .gregorian).date(from: DateComponents(
+            timeZone: TimeZone.current,
+            year: 2026,
+            month: 11,
+            day: 26,
+            hour: 9,
+            minute: 1)))
+        #expect(snap.weeklyResetsAt == Calendar(identifier: .gregorian).date(from: DateComponents(
+            timeZone: TimeZone.current,
+            year: 2026,
+            month: 11,
+            day: 27,
+            hour: 4,
+            minute: 1)))
     }
 
     @Test
-    func parseClaudeStatus() throws {
+    func `parse codex status with weekly only line`() throws {
+        let sample = """
+        Model: gpt
+        Credits: 980 credits
+        Weekly limit: [##] 25% left
+        """
+        let snap = try CodexStatusProbe.parse(text: sample)
+        #expect(snap.credits == 980)
+        #expect(snap.fiveHourPercentLeft == nil)
+        #expect(snap.weeklyPercentLeft == 25)
+    }
+
+    @Test
+    func `parse claude status`() throws {
         let sample = """
         Settings: Status   Config   Usage (tab to cycle)
 
@@ -64,7 +98,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatusWithANSI() throws {
+    func `parse claude status with ANSI`() throws {
         let sample = """
         \u{001B}[35mCurrent session\u{001B}[0m
         40% used  (Resets 11am)
@@ -86,7 +120,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatusLegacyOpusLabel() throws {
+    func `parse claude status legacy opus label`() throws {
         let sample = """
         Current session
         12% used  (Resets 11am)
@@ -107,7 +141,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatusRemainingKeyword() throws {
+    func `parse claude status remaining keyword`() throws {
         let sample = """
         Current session
         12% remaining (Resets 11am)
@@ -120,7 +154,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatusEnterpriseSessionOnly() throws {
+    func `parse claude status enterprise session only`() throws {
         let sample = """
         Current session
         █                                                  2% used
@@ -134,7 +168,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatusResetMappings_withCRLineEndings() throws {
+    func `parse claude status reset mappings with CR line endings`() throws {
         let sample =
             "Current  session\r" +
             "██████████████████████████████████████████████████  17% used\r" +
@@ -156,7 +190,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatusResetMappings_doesNotPromoteWeeklyResetToSession() throws {
+    func `parse claude status reset mappings does not promote weekly reset to session`() throws {
         let sample = """
         Current session
         ██████████████████████████████████████████████████  17% used
@@ -172,7 +206,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatusWithPlanAndAnsiNoise() throws {
+    func `parse claude status with plan and ansi noise`() throws {
         let sample = """
         Settings: Status   Config   Usage
 
@@ -197,7 +231,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatusWithExtraUsageSection() throws {
+    func `parse claude status with extra usage section`() throws {
         let sample = """
         Settings:  Status   Config   Usage  (tab to cycle)
 
@@ -225,7 +259,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatus_ignoresStatusBarContextPercent() throws {
+    func `parse claude status ignores status bar context percent`() throws {
         let sample = """
         Claude Code v2.1.29
         22:47 |  | Opus 4.5 | default | ░░░░░░░░░░ 0%  ◯ /ide for Visual Studio Code
@@ -254,7 +288,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatus_loadingPanelDoesNotReportZeroPercent() {
+    func `parse claude status loading panel does not report zero percent`() {
         let sample = """
         Claude Code v2.1.29
         22:47 |  | Opus 4.5 | default | ░░░░░░░░░░ 0%  ◯ /ide for Visual Studio Code
@@ -277,7 +311,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatus_statusOnlyOutputDoesNotFallbackToZero() {
+    func `parse claude status status only output does not fallback to zero`() {
         let sample = """
         Claude Code v2.1.32
         01:07 |  | Opus 4.6 | default | ░░░░░░░░░░ 0% left
@@ -298,7 +332,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatus_placeholderUsageWindowDoesNotUseStatusBarPercent() {
+    func `parse claude status placeholder usage window does not use status bar percent`() {
         let sample = """
         Claude Code v2.1.32
         01:07 |  | Opus 4.6 | default | ░░░░░░░░░░ 0% left
@@ -321,7 +355,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parseClaudeStatus_compactMarkersStillParse() throws {
+    func `parse claude status compact markers still parse`() throws {
         let sample = """
         Settings:StatusConfigUsage(←/→ortabtocycle)
         Loadingusagedata…
@@ -340,10 +374,12 @@ struct StatusProbeTests {
         #expect(snap.sessionPercentLeft == 94)
         #expect(snap.weeklyPercentLeft == 96)
         #expect(snap.opusPercentLeft == 99)
+        #expect(snap.secondaryResetDescription == "ResetsFeb12at1:29pm(Asia/Calcutta)")
+        #expect(snap.opusResetDescription == "ResetsFeb12at1:29pm(Asia/Calcutta)")
     }
 
     @Test
-    func parseClaudeStatusWithBracketPlanNoiseNoEsc() throws {
+    func `parse claude status with bracket plan noise no esc`() throws {
         let sample = """
         Login method: [22m Claude Max Account
         Account: user@example.com
@@ -362,7 +398,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func surfacesClaudeTokenExpired() {
+    func `surfaces claude token expired`() {
         let sample = """
         Settings:  Status   Config   Usage
 
@@ -385,7 +421,26 @@ struct StatusProbeTests {
     }
 
     @Test
-    func surfacesClaudeFolderTrustPrompt() {
+    func `surfaces claude rate limited compact usage error`() {
+        let sample = """
+        Settings:StatusConfigUsage(←/→ortabtocycle)
+        Error:Failedtoloadusagedata:{"error":{"message":"Ratelimited.Pleasetryagainlater.","type":"rate_limit_error"}}
+        """
+
+        do {
+            _ = try ClaudeStatusProbe.parse(text: sample)
+            #expect(Bool(false), "Parsing should fail for rate limiting")
+        } catch let ClaudeStatusProbeError.parseFailed(message) {
+            let lower = message.lowercased()
+            #expect(lower.contains("rate"))
+            #expect(lower.contains("limit"))
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `surfaces claude folder trust prompt`() {
         let sample = """
         Do you trust the files in this folder?
 
@@ -405,7 +460,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func surfacesClaudeFolderTrustPrompt_withCRLFAndSpaces() {
+    func `surfaces claude folder trust prompt with CRLF and spaces`() {
         let sample = "Do you trust the files in this folder?\r\n\r\n/Users/example/My Project\r\n"
 
         do {
@@ -420,7 +475,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func surfacesClaudeFolderTrustPrompt_withoutFolderPath() {
+    func `surfaces claude folder trust prompt without folder path`() {
         let sample = """
         Do you trust the files in this folder?
         """
@@ -438,7 +493,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parsesClaudeResetTimeOnly() throws {
+    func `parses claude reset time only`() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets 12:59pm (Europe/Helsinki)", now: now)
         let tz = try #require(TimeZone(identifier: "Europe/Helsinki"))
@@ -452,7 +507,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parsesClaudeResetDateAndTime() throws {
+    func `parses claude reset date and time`() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets Dec 9, 8:59am (Europe/Helsinki)", now: now)
         var calendar = Calendar(identifier: .gregorian)
@@ -468,7 +523,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parsesClaudeResetWithDotSeparatedTime() throws {
+    func `parses claude reset with dot separated time`() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets Dec 9 at 5.27am (UTC)", now: now)
         var calendar = Calendar(identifier: .gregorian)
@@ -478,7 +533,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func parsesClaudeResetWithCompactTimes() throws {
+    func `parses claude reset with compact times`() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsedTimeOnly = ClaudeStatusProbe.parseResetDate(from: "Resets 1pm (UTC)", now: now)
         var calendar = Calendar(identifier: .gregorian)
@@ -502,7 +557,17 @@ struct StatusProbeTests {
     }
 
     @Test
-    func liveCodexStatus() async throws {
+    func `parses claude reset with compact date and time no spaces`() throws {
+        let now = Date(timeIntervalSince1970: 1_773_097_200) // Mar 10, 2026 12:00:00 UTC
+        let parsed = ClaudeStatusProbe.parseResetDate(from: "ResetsMar13at12:30pm(Asia/Calcutta)", now: now)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Asia/Calcutta"))
+        let expected = calendar.date(from: DateComponents(year: 2026, month: 3, day: 13, hour: 12, minute: 30))
+        #expect(parsed == expected)
+    }
+
+    @Test
+    func `live codex status`() async throws {
         guard ProcessInfo.processInfo.environment["LIVE_CODEX_STATUS"] == "1" else { return }
 
         let probe = CodexStatusProbe()

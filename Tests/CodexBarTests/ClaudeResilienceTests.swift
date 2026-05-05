@@ -1,10 +1,9 @@
 import Testing
 @testable import CodexBar
 
-@Suite
 struct ClaudeResilienceTests {
     @Test
-    func suppressesSingleFlakeWhenPriorDataExists() {
+    func `suppresses single flake when prior data exists`() {
         var gate = ConsecutiveFailureGate()
         let firstFailure = gate.shouldSurfaceError(onFailureWithPriorData: true)
         let secondFailure = gate.shouldSurfaceError(onFailureWithPriorData: true)
@@ -13,14 +12,14 @@ struct ClaudeResilienceTests {
     }
 
     @Test
-    func surfacesFailureWithoutPriorData() {
+    func `surfaces failure without prior data`() {
         var gate = ConsecutiveFailureGate()
         let shouldSurface = gate.shouldSurfaceError(onFailureWithPriorData: false)
         #expect(shouldSurface)
     }
 
     @Test
-    func resetsAfterSuccess() {
+    func `resets after success`() {
         var gate = ConsecutiveFailureGate()
         _ = gate.shouldSurfaceError(onFailureWithPriorData: true)
         gate.recordSuccess()

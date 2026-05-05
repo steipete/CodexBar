@@ -22,6 +22,10 @@ struct MouseLocationReader: NSViewRepresentable {
         var onMoved: ((CGPoint?) -> Void)?
         private var trackingArea: NSTrackingArea?
 
+        override var isFlipped: Bool {
+            true
+        }
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             self.window?.acceptsMouseMovedEvents = true

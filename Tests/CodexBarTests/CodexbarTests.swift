@@ -4,10 +4,9 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite
 struct CodexBarTests {
     @Test
-    func iconRendererProducesTemplateImage() {
+    func `icon renderer produces template image`() {
         let image = IconRenderer.makeIcon(
             primaryRemaining: 50,
             weeklyRemaining: 75,
@@ -19,7 +18,7 @@ struct CodexBarTests {
     }
 
     @Test
-    func iconRendererRendersAtPixelAlignedSize() {
+    func `icon renderer renders at pixel aligned size`() {
         let image = IconRenderer.makeIcon(
             primaryRemaining: 50,
             weeklyRemaining: 75,
@@ -33,7 +32,7 @@ struct CodexBarTests {
     }
 
     @Test
-    func iconRendererCachesStaticIcons() {
+    func `icon renderer caches static icons`() {
         let first = IconRenderer.makeIcon(
             primaryRemaining: 42,
             weeklyRemaining: 17,
@@ -50,7 +49,98 @@ struct CodexBarTests {
     }
 
     @Test
-    func iconRendererCodexEyesPunchThroughWhenUnknown() {
+    func `antigravity icon falls back to tertiary when leading lanes are missing`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: RateWindow(usedPercent: 80, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .antigravity)
+        #expect(remaining.primary == 20)
+        #expect(remaining.secondary == nil)
+    }
+
+    @Test
+    func `antigravity icon uses next distinct fallback lane`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .antigravity)
+        #expect(remaining.primary == 70)
+        #expect(remaining.secondary == 40)
+    }
+
+    @Test
+    func `perplexity icon falls back to purchased lane when bonus is exhausted`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .perplexity)
+        #expect(remaining.primary == 80)
+        #expect(remaining.secondary == 0)
+    }
+
+    @Test
+    func `perplexity icon skips exhausted recurring lane when purchased credits remain`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .perplexity)
+        #expect(remaining.primary == 80)
+        #expect(remaining.secondary == 0)
+    }
+
+    @Test
+    func `perplexity icon prefers purchased lane before bonus`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 45, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .perplexity)
+        #expect(remaining.primary == 55)
+        #expect(remaining.secondary == 80)
+    }
+
+    @Test
+    func `codex icon promotes weekly only window into primary display lane`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .codex)
+        #expect(remaining.primary == 75)
+        #expect(remaining.secondary == nil)
+    }
+
+    @Test
+    func `codex icon uses semantic projection lanes when durations drift`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 25, windowMinutes: 11040, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .codex)
+        #expect(remaining.primary == 75)
+        #expect(remaining.secondary == nil)
+    }
+
+    @Test
+    func `icon renderer codex eyes punch through when unknown`() {
         // Regression: when remaining is nil, CoreGraphics inherits the previous fill alpha which caused
         // destinationOut “eyes” to become semi-transparent instead of fully punched through.
         let image = IconRenderer.makeIcon(
@@ -116,7 +206,7 @@ struct CodexBarTests {
     }
 
     @Test
-    func iconRendererWarpEyesCutOutAtExpectedCenters() {
+    func `icon renderer warp eyes cut out at expected centers`() {
         // Regression: Warp eyes should be tilted in-place and remain centered on the face.
         let image = IconRenderer.makeIcon(
             primaryRemaining: 50,
@@ -169,7 +259,7 @@ struct CodexBarTests {
     }
 
     @Test
-    func accountInfoParsesAuthToken() throws {
+    func `account info parses snake case auth token`() throws {
         let tmp = try FileManager.default.url(
             for: .itemReplacementDirectory,
             in: .userDomainMask,
@@ -178,7 +268,28 @@ struct CodexBarTests {
         defer { try? FileManager.default.removeItem(at: tmp) }
 
         let token = Self.fakeJWT(email: "user@example.com", plan: "pro")
-        let auth = ["tokens": ["idToken": token]]
+        let auth = ["tokens": ["id_token": token, "access_token": "access", "refresh_token": "refresh"]]
+        let data = try JSONSerialization.data(withJSONObject: auth)
+        let authURL = tmp.appendingPathComponent("auth.json")
+        try data.write(to: authURL)
+
+        let fetcher = UsageFetcher(environment: ["CODEX_HOME": tmp.path])
+        let account = fetcher.loadAccountInfo()
+        #expect(account.email == "user@example.com")
+        #expect(account.plan == "pro")
+    }
+
+    @Test
+    func `account info parses legacy camel case auth token`() throws {
+        let tmp = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: URL(fileURLWithPath: NSTemporaryDirectory()),
+            create: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let token = Self.fakeJWT(email: "user@example.com", plan: "pro")
+        let auth = ["tokens": ["idToken": token, "accessToken": "access", "refreshToken": "refresh"]]
         let data = try JSONSerialization.data(withJSONObject: auth)
         let authURL = tmp.appendingPathComponent("auth.json")
         try data.write(to: authURL)

@@ -67,7 +67,7 @@ public enum AugmentCookieImporter {
         for browserSource in augmentCookieImportOrder {
             do {
                 let query = BrowserCookieQuery(domains: cookieDomains)
-                let sources = try Self.cookieClient.records(
+                let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)
@@ -131,6 +131,10 @@ public struct AugmentCreditsResponse: Codable, Sendable {
     }
 
     public var creditsLimit: Double? {
+        if let available = self.usageUnitsAvailable, available > 0 {
+            return available
+        }
+
         guard let remaining = self.usageUnitsRemaining,
               let consumed = self.usageUnitsConsumedThisBillingCycle
         else {
@@ -589,14 +593,16 @@ public struct AugmentStatusProbe: Sendable {
     }
 
     /// Debug probe that returns raw API responses
-    public func debugRawProbe() async -> String {
+    public func debugRawProbe(cookieHeaderOverride: String? = nil) async -> String {
         let stamp = ISO8601DateFormatter().string(from: Date())
         var lines: [String] = []
         lines.append("=== Augment Debug Probe @ \(stamp) ===")
         lines.append("")
 
         do {
-            let snapshot = try await self.fetch(logger: { msg in lines.append("[log] \(msg)") })
+            let snapshot = try await self.fetch(
+                cookieHeaderOverride: cookieHeaderOverride,
+                logger: { msg in lines.append("[log] \(msg)") })
             lines.append("")
             lines.append("Probe Success")
             lines.append("")
@@ -616,13 +622,13 @@ public struct AugmentStatusProbe: Sendable {
             }
 
             let output = lines.joined(separator: "\n")
-            Task { @MainActor in Self.recordDump(output) }
+            await MainActor.run { Self.recordDump(output) }
             return output
         } catch {
             lines.append("")
             lines.append("Probe Failed: \(error.localizedDescription)")
             let output = lines.joined(separator: "\n")
-            Task { @MainActor in Self.recordDump(output) }
+            await MainActor.run { Self.recordDump(output) }
             return output
         }
     }

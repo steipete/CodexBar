@@ -4,10 +4,9 @@ import Testing
 @testable import CodexBar
 
 @MainActor
-@Suite
 struct ZaiAvailabilityTests {
     @Test
-    func enablesZaiWhenTokenExistsInStore() throws {
+    func `enables zai when token exists in store`() throws {
         let suite = "ZaiAvailabilityTests-token"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -31,7 +30,7 @@ struct ZaiAvailabilityTests {
     }
 
     @Test
-    func enablesZaiWhenTokenExistsInTokenAccounts() throws {
+    func `enables zai when token exists in token accounts`() throws {
         let suite = "ZaiAvailabilityTests-token-accounts"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)

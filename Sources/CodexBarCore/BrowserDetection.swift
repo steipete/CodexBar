@@ -22,13 +22,13 @@ public final class BrowserDetection: Sendable {
         let timestamp: Date
     }
 
-    private enum ProbeKind: Int, Hashable, Sendable {
+    private enum ProbeKind: Int, Hashable {
         case appInstalled
         case usableProfileData
         case usableCookieStore
     }
 
-    private struct CacheKey: Hashable, Sendable {
+    private struct CacheKey: Hashable {
         let browser: Browser
         let kind: ProbeKind
     }
@@ -214,7 +214,7 @@ public final class BrowserDetection: Sendable {
 
         if browser.usesGeckoProfileStore {
             return contents.contains { name in
-                name.contains(".default")
+                name.range(of: ".default", options: [.caseInsensitive]) != nil
             }
         }
 
@@ -225,7 +225,7 @@ public final class BrowserDetection: Sendable {
         guard let contents = self.directoryContents(profilePath) else { return false }
 
         if browser.usesGeckoProfileStore {
-            for name in contents where name.contains(".default") {
+            for name in contents where name.range(of: ".default", options: [.caseInsensitive]) != nil {
                 let cookieDB = "\(profilePath)/\(name)/cookies.sqlite"
                 if self.fileExists(cookieDB) {
                     return true

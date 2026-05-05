@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct OpenAIDashboardOffscreenHostTests {
     @Test
-    func offscreenHostFrameOnlyIntersectsByASliver() {
+    func `offscreen host frame only intersects by A sliver`() {
         let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
         let frame = OpenAIDashboardFetcher.offscreenHostWindowFrame(for: visibleFrame)
         let intersection = frame.intersection(visibleFrame)
@@ -19,7 +18,7 @@ struct OpenAIDashboardOffscreenHostTests {
     }
 
     @Test
-    func offscreenHostAlphaValueIsNonZeroButTiny() {
+    func `offscreen host alpha value is non zero but tiny`() {
         let alpha = OpenAIDashboardFetcher.offscreenHostAlphaValue()
         #expect(alpha > 0)
         #expect(alpha <= 0.001)

@@ -1,12 +1,11 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
-@Suite
 struct PathBuilderTests {
     @Test
-    func mergesLoginShellPathWhenAvailable() {
+    func `merges login shell path when available`() {
         let seeded = PathBuilder.effectivePATH(
             purposes: [.rpc],
             env: ["PATH": "/custom/bin:/usr/bin"],
@@ -15,7 +14,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func fallsBackToExistingPathWhenNoLoginPath() {
+    func `falls back to existing path when no login path`() {
         let seeded = PathBuilder.effectivePATH(
             purposes: [.tty],
             env: ["PATH": "/custom/bin:/usr/bin"],
@@ -24,7 +23,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func usesFallbackWhenNoPathAvailable() {
+    func `uses fallback when no path available`() {
         let seeded = PathBuilder.effectivePATH(
             purposes: [.tty],
             env: [:],
@@ -33,7 +32,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func debugSnapshotAsyncMatchesSync() async {
+    func `debug snapshot async matches sync`() async {
         let env = [
             "CODEX_CLI_PATH": "/usr/bin/true",
             "CLAUDE_CLI_PATH": "/usr/bin/true",
@@ -46,7 +45,62 @@ struct PathBuilderTests {
     }
 
     @Test
-    func resolvesCodexFromEnvOverride() {
+    func `shell runner drains noisy stdout and stderr`() throws {
+        let script = """
+        i=0
+        while [ "$i" -lt 4000 ]; do
+          printf 'out-%04d\\n' "$i"
+          printf 'err-%04d\\n' "$i" >&2
+          i=$((i + 1))
+        done
+        printf '__CODEXBAR_DONE__\\n'
+        """
+        let data = try #require(ShellCommandLocator.test_runShellCommand(
+            shell: "/bin/sh",
+            arguments: ["-c", script],
+            timeout: 4.0))
+        let output = try #require(String(data: data, encoding: .utf8))
+
+        #expect(output.contains("out-3999"))
+        #expect(output.contains("__CODEXBAR_DONE__"))
+    }
+
+    @Test
+    func `shell runner terminates background children after normal exit`() throws {
+        let marker = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-shell-runner-\(UUID().uuidString)")
+            .path
+        let escapedMarker = Self.shellSingleQuoted(marker)
+        let script = """
+        (
+          trap '' TERM
+          touch \(escapedMarker)
+          while :; do sleep 1; done
+        ) &
+        printf '%s\\n' "$!"
+        """
+        let data = try #require(ShellCommandLocator.test_runShellCommand(
+            shell: "/bin/sh",
+            arguments: ["-c", script],
+            timeout: 2.0))
+        let pidText = try #require(String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines))
+        let pid = try #require(pid_t(pidText))
+
+        defer {
+            kill(pid, SIGKILL)
+            try? FileManager.default.removeItem(atPath: marker)
+        }
+
+        let deadline = Date().addingTimeInterval(2.0)
+        while kill(pid, 0) == 0, Date() < deadline {
+            usleep(50000 as useconds_t)
+        }
+
+        #expect(kill(pid, 0) != 0)
+    }
+
+    @Test
+    func `resolves codex from env override`() {
         let overridePath = "/custom/bin/codex"
         let fm = MockFileManager(executables: [overridePath])
 
@@ -59,7 +113,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func resolvesCodexFromLoginPath() {
+    func `resolves codex from login path`() {
         let fm = MockFileManager(executables: ["/login/bin/codex"])
         let resolved = BinaryLocator.resolveCodexBinary(
             env: ["PATH": "/env/bin"],
@@ -70,7 +124,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func resolvesCodexFromEnvPath() {
+    func `resolves codex from env path`() {
         let fm = MockFileManager(executables: ["/env/bin/codex"])
         let resolved = BinaryLocator.resolveCodexBinary(
             env: ["PATH": "/env/bin:/usr/bin"],
@@ -81,7 +135,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func resolvesCodexFromInteractiveShell() {
+    func `resolves codex from interactive shell`() {
         let fm = MockFileManager(executables: ["/shell/bin/codex"])
         let commandV: (String, String?, TimeInterval, FileManager) -> String? = { tool, shell, timeout, fileManager in
             #expect(tool == "codex")
@@ -101,7 +155,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func resolvesClaudeFromInteractiveShell() {
+    func `resolves claude from interactive shell`() {
         let fm = MockFileManager(executables: ["/shell/bin/claude"])
         let commandV: (String, String?, TimeInterval, FileManager) -> String? = { tool, shell, timeout, fileManager in
             #expect(tool == "claude")
@@ -121,7 +175,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func resolvesGeminiFromInteractiveShell() {
+    func `resolves gemini from interactive shell`() {
         let fm = MockFileManager(executables: ["/shell/bin/gemini"])
         let commandV: (String, String?, TimeInterval, FileManager) -> String? = { tool, shell, timeout, fileManager in
             #expect(tool == "gemini")
@@ -141,7 +195,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func resolvesClaudeFromLoginPath() {
+    func `resolves claude from login path`() {
         let fm = MockFileManager(executables: ["/login/bin/claude"])
         let resolved = BinaryLocator.resolveClaudeBinary(
             env: ["PATH": "/env/bin"],
@@ -152,7 +206,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func resolvesClaudeFromAliasWhenOtherLookupsFail() {
+    func `resolves claude from alias when other lookups fail`() {
         let aliasPath = "/home/test/.claude/local/bin/claude"
         let fm = MockFileManager(executables: [aliasPath])
         var aliasCalled = false
@@ -182,7 +236,7 @@ struct PathBuilderTests {
     }
 
     @Test
-    func resolvesCodexFromAliasWhenOtherLookupsFail() {
+    func `resolves codex from alias when other lookups fail`() {
         let aliasPath = "/home/test/.codex/bin/codex"
         let fm = MockFileManager(executables: [aliasPath])
         var aliasCalled = false
@@ -212,7 +266,134 @@ struct PathBuilderTests {
     }
 
     @Test
-    func skipsAliasWhenCommandVResolves() {
+    func `resolves claude from well-known cmux path when shell lookups fail`() {
+        let cmuxPath = "/Applications/cmux.app/Contents/Resources/bin/claude"
+        let fm = MockFileManager(executables: [cmuxPath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == cmuxPath)
+    }
+
+    @Test
+    func `resolves claude from well-known home dir path`() {
+        let homePath = "/Users/test/.claude/bin/claude"
+        let fm = MockFileManager(executables: [homePath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == homePath)
+    }
+
+    @Test
+    func `resolves claude from native installer path`() {
+        let nativePath = "/Users/test/.local/bin/claude"
+        let fm = MockFileManager(executables: [nativePath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == nativePath)
+    }
+
+    @Test
+    func `prefers migrated local claude path over legacy home dir path`() {
+        let migratedPath = "/Users/test/.claude/local/claude"
+        let legacyPath = "/Users/test/.claude/bin/claude"
+        let fm = MockFileManager(executables: [migratedPath, legacyPath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == migratedPath)
+    }
+
+    @Test
+    func `prefers user managed well-known path over cmux path`() {
+        let homePath = "/Users/test/.claude/bin/claude"
+        let cmuxPath = "/Applications/cmux.app/Contents/Resources/bin/claude"
+        let fm = MockFileManager(executables: [homePath, cmuxPath])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == homePath)
+    }
+
+    @Test
+    func `prefers homebrew arm path over usr local fallback`() {
+        let fm = MockFileManager(executables: [
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+        ])
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(resolved == "/opt/homebrew/bin/claude")
+    }
+
+    @Test
+    func `prefers well-known paths over interactive shell lookup`() {
+        let shellPath = "/custom/bin/claude"
+        let cmuxPath = "/Applications/cmux.app/Contents/Resources/bin/claude"
+        let fm = MockFileManager(executables: [shellPath, cmuxPath])
+        var shellLookupCalled = false
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in
+            shellLookupCalled = true
+            return shellPath
+        }
+
+        let resolved = BinaryLocator.resolveClaudeBinary(
+            env: ["SHELL": "/bin/zsh"],
+            loginPATH: nil,
+            commandV: commandV,
+            fileManager: fm,
+            home: "/Users/test")
+        #expect(!shellLookupCalled)
+        #expect(resolved == cmuxPath)
+    }
+
+    @Test
+    func `skips alias when command V resolves`() {
         let path = "/shell/bin/claude"
         let fm = MockFileManager(executables: [path])
         var aliasCalled = false
@@ -234,6 +415,10 @@ struct PathBuilderTests {
 
         #expect(!aliasCalled)
         #expect(resolved == path)
+    }
+
+    private static func shellSingleQuoted(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 }
 

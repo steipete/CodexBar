@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct AmpUsageParserTests {
     @Test
-    func parsesFreeTierUsageFromSettingsHTML() throws {
+    func `parses free tier usage from settings HTML`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <script>
@@ -33,7 +32,7 @@ struct AmpUsageParserTests {
     }
 
     @Test
-    func parsesFreeTierUsageFromPrefetchedKey() throws {
+    func `parses free tier usage from prefetched key`() throws {
         let now = Date(timeIntervalSince1970: 1_700_010_000)
         let html = """
         <script>
@@ -49,7 +48,7 @@ struct AmpUsageParserTests {
     }
 
     @Test
-    func missingUsageThrowsParseFailed() {
+    func `missing usage throws parse failed`() {
         let html = "<html><body>No usage here.</body></html>"
 
         #expect {
@@ -61,7 +60,7 @@ struct AmpUsageParserTests {
     }
 
     @Test
-    func signedOutThrowsNotLoggedIn() {
+    func `signed out throws not logged in`() {
         let html = "<html><body>Please sign in to Amp.</body></html>"
 
         #expect {
@@ -73,7 +72,7 @@ struct AmpUsageParserTests {
     }
 
     @Test
-    func usageSnapshotClampsPercentAndWindow() {
+    func `usage snapshot clamps percent and window`() {
         let now = Date(timeIntervalSince1970: 1_700_020_000)
         let snapshot = AmpUsageSnapshot(
             freeQuota: 100,
@@ -88,7 +87,7 @@ struct AmpUsageParserTests {
     }
 
     @Test
-    func usageSnapshotOmitsResetWhenHourlyReplenishmentIsZero() {
+    func `usage snapshot omits reset when hourly replenishment is zero`() {
         let now = Date(timeIntervalSince1970: 1_700_030_000)
         let snapshot = AmpUsageSnapshot(
             freeQuota: 100,

@@ -16,9 +16,45 @@ RUN_TESTS=0
 DEBUG_LLDB=0
 RELEASE_ARCHES=""
 SIGNING_MODE="${CODEXBAR_SIGNING:-}"
+CLEAR_ADHOC_KEYCHAIN=0
 
 log()  { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+delete_keychain_service_items() {
+  local service="$1"
+  security delete-generic-password -s "${service}" >/dev/null 2>&1 || true
+  while security delete-generic-password -s "${service}" >/dev/null 2>&1; do
+    :
+  done
+}
+
+# Ensure Swift >= 5.5 (required for --arch flag in swift build)
+ensure_swift_version() {
+  local swift_output
+  local swift_ver
+  swift_output=$(swift --version 2>&1 || true)
+  if [[ "$swift_output" =~ (Apple[[:space:]]+)?Swift[[:space:]]+version[[:space:]]+([0-9]+)\.([0-9]+)(\.[0-9]+)? ]]; then
+    swift_ver="${BASH_REMATCH[2]}.${BASH_REMATCH[3]}${BASH_REMATCH[4]}"
+  else
+    fail "Swift >= 5.5 required (found ${swift_output:-none}). Install Xcode or update swiftly."
+  fi
+  local major minor
+  major=$(echo "$swift_ver" | cut -d. -f1)
+  minor=$(echo "$swift_ver" | cut -d. -f2)
+  if [[ "${major:-0}" -ge 6 ]] || { [[ "${major:-0}" -eq 5 ]] && [[ "${minor:-0}" -ge 5 ]]; }; then
+    return 0
+  fi
+  # Try Xcode toolchain
+  local xcrun_swift
+  xcrun_swift=$(xcrun --find swift 2>/dev/null || true)
+  if [[ -n "$xcrun_swift" && -x "$xcrun_swift" ]]; then
+    log "WARN: PATH swift is v${swift_ver}; switching to Xcode toolchain at $(dirname "$xcrun_swift")"
+    export PATH="$(dirname "$xcrun_swift"):$PATH"
+    return 0
+  fi
+  fail "Swift >= 5.5 required (found ${swift_ver:-none}). Install Xcode or update swiftly."
+}
 
 has_signing_identity() {
   local identity="${1:-}"
@@ -152,10 +188,11 @@ for arg in "$@"; do
     --wait|-w) WAIT_FOR_LOCK=1 ;;
     --test|-t) RUN_TESTS=1 ;;
     --debug-lldb) DEBUG_LLDB=1 ;;
+    --clear-adhoc-keychain) CLEAR_ADHOC_KEYCHAIN=1 ;;
     --release-universal) RELEASE_ARCHES="arm64 x86_64" ;;
     --release-arches=*) RELEASE_ARCHES="${arg#*=}" ;;
     --help|-h)
-      log "Usage: $(basename "$0") [--wait] [--test] [--debug-lldb] [--release-universal] [--release-arches=\"arm64 x86_64\"]"
+      log "Usage: $(basename "$0") [--wait] [--test] [--debug-lldb] [--clear-adhoc-keychain] [--release-universal] [--release-arches=\"arm64 x86_64\"]"
       exit 0
       ;;
     *)
@@ -163,7 +200,11 @@ for arg in "$@"; do
   esac
 done
 
+ensure_swift_version
 resolve_signing_mode
+if [[ "${CLEAR_ADHOC_KEYCHAIN}" == "1" && "${SIGNING_MODE}" != "adhoc" ]]; then
+  fail "--clear-adhoc-keychain is only supported when using adhoc signing."
+fi
 if [[ "${SIGNING_MODE}" == "adhoc" ]]; then
   log "==> Signing: adhoc (set APP_IDENTITY or install a dev cert to avoid keychain prompts)"
 else
@@ -177,15 +218,16 @@ log "==> Killing existing CodexBar instances"
 kill_all_codexbar
 kill_claude_probes
 
-# 2.5) Delete keychain entries to avoid permission prompts with adhoc signing
+# 2.5) Optionally delete keychain entries to avoid permission prompts with adhoc signing
 # (adhoc signature changes on every build, making old keychain entries inaccessible)
-if [[ "${SIGNING_MODE:-adhoc}" == "adhoc" ]]; then
-  log "==> Clearing keychain entries (adhoc signing)"
-  security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null || true
-  # Clear all keychain items for the app to avoid multiple prompts
-  while security delete-generic-password -s "com.steipete.CodexBar" 2>/dev/null; do
-    :
-  done
+if [[ "${SIGNING_MODE:-adhoc}" == "adhoc" && "${CLEAR_ADHOC_KEYCHAIN}" == "1" ]]; then
+  log "==> Clearing CodexBar keychain entries (adhoc signing)"
+  # Clear both the legacy keychain store and the current cache service when developers explicitly want a clean reset
+  # of CodexBar-owned keychain state for ad-hoc builds.
+  delete_keychain_service_items "com.steipete.CodexBar"
+  delete_keychain_service_items "com.steipete.codexbar.cache"
+elif [[ "${SIGNING_MODE:-adhoc}" == "adhoc" ]]; then
+  log "==> Preserving CodexBar keychain entries (pass --clear-adhoc-keychain to reset adhoc keychain state)"
 fi
 
 # 3) Package (release build happens inside package_app.sh).

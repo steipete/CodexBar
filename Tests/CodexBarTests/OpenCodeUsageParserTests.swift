@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct OpenCodeUsageParserTests {
     @Test
-    func parsesWorkspaceIDs() {
+    func `parses workspace I ds`() {
         let text = ";0x00000089;((self.$R=self.$R||{})[\"codexbar\"]=[]," +
             "($R=>$R[0]=[$R[1]={id:\"wrk_01K6AR1ZET89H8NB691FQ2C2VB\",name:\"Default\",slug:null}])" +
             "($R[\"codexbar\"]))"
@@ -14,7 +13,7 @@ struct OpenCodeUsageParserTests {
     }
 
     @Test
-    func parsesSubscriptionUsage() throws {
+    func `parses subscription usage`() throws {
         let text = "$R[16]($R[30],$R[41]={rollingUsage:$R[42]={status:\"ok\",resetInSec:5944,usagePercent:17}," +
             "weeklyUsage:$R[43]={status:\"ok\",resetInSec:278201,usagePercent:75}});"
         let now = Date(timeIntervalSince1970: 0)
@@ -26,7 +25,7 @@ struct OpenCodeUsageParserTests {
     }
 
     @Test
-    func parsesSubscriptionFromJSONWithResetAt() throws {
+    func `parses subscription from JSON with reset at`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let resetAt = now.addingTimeInterval(3600)
         let formatter = ISO8601DateFormatter()
@@ -55,7 +54,7 @@ struct OpenCodeUsageParserTests {
     }
 
     @Test
-    func parsesSubscriptionFromCandidateWindows() throws {
+    func `parses subscription from candidate windows`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let payload: [String: Any] = [
             "windows": [
@@ -81,7 +80,7 @@ struct OpenCodeUsageParserTests {
     }
 
     @Test
-    func computesUsagePercentFromTotals() throws {
+    func `computes usage percent from totals`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let payload: [String: Any] = [
             "rollingUsage": [
@@ -105,7 +104,7 @@ struct OpenCodeUsageParserTests {
     }
 
     @Test
-    func parseSubscriptionThrowsWhenFieldsMissing() {
+    func `parse subscription throws when fields missing`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let text = "{\"ok\":true}"
 

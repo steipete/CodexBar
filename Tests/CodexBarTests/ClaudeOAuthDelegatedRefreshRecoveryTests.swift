@@ -58,7 +58,7 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
     }
 
     @Test
-    func silentKeychainRepair_recoversWithoutDelegation() async throws {
+    func `silent keychain repair recovers without delegation`() async throws {
         let delegatedCounter = AsyncCounter()
         let usageResponse = try Self.makeOAuthUsageResponse()
         let tokenCapture = TokenCapture()
@@ -121,10 +121,12 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
                                 }
                                 let delegatedOverride: (@Sendable (
                                     Date,
-                                    TimeInterval) async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome)? = { _, _ in
-                                    _ = await delegatedCounter.increment()
-                                    return .attemptedSucceeded
-                                }
+                                    TimeInterval,
+                                    [String: String]) async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome)? =
+                                    { _, _, _ in
+                                        _ = await delegatedCounter.increment()
+                                        return .attemptedSucceeded
+                                    }
 
                                 let snapshot = try await ClaudeOAuthKeychainPromptPreference
                                     .withTaskOverrideForTesting(.onlyOnUserAction) {
@@ -162,7 +164,7 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
     }
 
     @Test
-    func delegatedRefresh_attemptedSucceeded_recoversAfterKeychainSync() async throws {
+    func `delegated refresh attempted succeeded recovers after keychain sync`() async throws {
         let delegatedCounter = AsyncCounter()
         let usageResponse = try Self.makeOAuthUsageResponse()
         let tokenCapture = TokenCapture()
@@ -229,13 +231,16 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
 
                                 let delegatedOverride: (@Sendable (
                                     Date,
-                                    TimeInterval) async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome)? = { _, _ in
-                                    // Simulate Claude CLI writing fresh credentials after the delegated refresh touch.
-                                    keychainOverrideStore.data = freshData
-                                    keychainOverrideStore.fingerprint = stubFingerprint
-                                    _ = await delegatedCounter.increment()
-                                    return .attemptedSucceeded
-                                }
+                                    TimeInterval,
+                                    [String: String]) async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome)? =
+                                    { _, _, _ in
+                                        // Simulate Claude CLI writing fresh credentials after the delegated refresh
+                                        // touch.
+                                        keychainOverrideStore.data = freshData
+                                        keychainOverrideStore.fingerprint = stubFingerprint
+                                        _ = await delegatedCounter.increment()
+                                        return .attemptedSucceeded
+                                    }
 
                                 let snapshot = try await ClaudeOAuthKeychainPromptPreference
                                     .withTaskOverrideForTesting(.always) {
@@ -274,7 +279,9 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
     }
 
     @Test
-    func delegatedRefresh_attemptedSucceeded_backgroundOnlyOnUserAction_doesNotRecoverFromKeychain() async throws {
+    func `delegated refresh attempted succeeded background only on user action does not recover from keychain`()
+        async throws
+    {
         let delegatedCounter = AsyncCounter()
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
 
@@ -331,12 +338,14 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
 
                             let delegatedOverride: (@Sendable (
                                 Date,
-                                TimeInterval) async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome)? = { _, _ in
-                                keychainOverrideStore.data = freshData
-                                keychainOverrideStore.fingerprint = stubFingerprint
-                                _ = await delegatedCounter.increment()
-                                return .attemptedSucceeded
-                            }
+                                TimeInterval,
+                                [String: String]) async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome)? =
+                                { _, _, _ in
+                                    keychainOverrideStore.data = freshData
+                                    keychainOverrideStore.fingerprint = stubFingerprint
+                                    _ = await delegatedCounter.increment()
+                                    return .attemptedSucceeded
+                                }
 
                             do {
                                 _ = try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(

@@ -42,10 +42,11 @@ public enum TokenAccountSupportCatalog {
             return [key: token]
         case .cookieHeader:
             if provider == .claude,
-               let normalized = self.normalizedClaudeOAuthToken(token),
-               self.isClaudeOAuthToken(normalized)
+               case let .oauth(accessToken) = ClaudeCredentialRouting.resolve(
+                   tokenAccountToken: token,
+                   manualCookieHeader: nil)
             {
-                return [ClaudeOAuthCredentialsStore.environmentTokenKey: normalized]
+                return [ClaudeOAuthCredentialsStore.environmentTokenKey: accessToken]
             }
             return nil
         }
@@ -59,23 +60,7 @@ public enum TokenAccountSupportCatalog {
     }
 
     public static func isClaudeOAuthToken(_ token: String) -> Bool {
-        guard let trimmed = self.normalizedClaudeOAuthToken(token) else { return false }
-        let lower = trimmed.lowercased()
-        if lower.contains("cookie:") || trimmed.contains("=") {
-            return false
-        }
-        return lower.hasPrefix("sk-ant-oat")
-    }
-
-    private static func normalizedClaudeOAuthToken(_ token: String) -> String? {
-        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let lower = trimmed.lowercased()
-        if lower.hasPrefix("bearer ") {
-            return trimmed.dropFirst("bearer ".count)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return trimmed
+        ClaudeCredentialRouting.resolve(tokenAccountToken: token, manualCookieHeader: nil).isOAuth
     }
 
     public static func normalizedCookieHeader(_ token: String, support: TokenAccountSupport) -> String {

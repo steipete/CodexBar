@@ -17,7 +17,7 @@ enum AmpUsageParser {
             updatedAt: now)
     }
 
-    private struct FreeTierUsage: Sendable {
+    private struct FreeTierUsage {
         let quota: Double
         let used: Double
         let hourlyReplenishment: Double

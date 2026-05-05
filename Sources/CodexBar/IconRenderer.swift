@@ -10,7 +10,7 @@ enum IconRenderer {
     private static let outputScale: CGFloat = 2
     private static let canvasPx = Int(outputSize.width * outputScale)
 
-    private struct PixelGrid: Sendable {
+    private struct PixelGrid {
         let scale: CGFloat
 
         func pt(_ px: Int) -> CGFloat {
@@ -87,7 +87,7 @@ enum IconRenderer {
         }
     }
 
-    private struct RectPx: Hashable, Sendable {
+    private struct RectPx: Hashable {
         let x: Int
         let y: Int
         let w: Int

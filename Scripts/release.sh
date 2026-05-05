@@ -37,7 +37,7 @@ NOTES_FILE=$(mktemp /tmp/codexbar-notes.XXXXXX.md)
 extract_notes_from_changelog "$MARKETING_VERSION" "$NOTES_FILE"
 trap 'rm -f "$KEY_FILE" "$NOTES_FILE"' EXIT
 
-git tag -f "$TAG"
+git tag -s -f -m "${APP_NAME} ${MARKETING_VERSION}" "$TAG"
 git push -f origin "$TAG"
 
 gh release create "$TAG" ${APP_NAME}-${MARKETING_VERSION}.zip ${APP_NAME}-${MARKETING_VERSION}.dSYM.zip \

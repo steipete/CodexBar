@@ -1,7 +1,7 @@
 import Commander
 import Foundation
 
-struct CLIOutputPreferences: Sendable {
+struct CLIOutputPreferences {
     let format: OutputFormat
     let jsonOnly: Bool
     let pretty: Bool

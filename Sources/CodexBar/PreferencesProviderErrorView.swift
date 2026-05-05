@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ProviderErrorDisplay: Sendable {
+struct ProviderErrorDisplay {
     let preview: String
     let full: String
 }

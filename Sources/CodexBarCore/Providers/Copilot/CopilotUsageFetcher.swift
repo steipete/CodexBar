@@ -4,14 +4,43 @@ import FoundationNetworking
 #endif
 
 public struct CopilotUsageFetcher: Sendable {
-    private let token: String
+    public struct GitHubUserIdentity: Decodable, Equatable, Sendable {
+        public let id: Int64
+        public let login: String
 
-    public init(token: String) {
+        public init(id: Int64, login: String) {
+            self.id = id
+            self.login = login
+        }
+    }
+
+    private let token: String
+    private let enterpriseHost: String?
+
+    public init(token: String, enterpriseHost: String? = nil) {
         self.token = token
+        self.enterpriseHost = enterpriseHost
+    }
+
+    public static func apiHost(enterpriseHost: String?) -> String {
+        let host = CopilotDeviceFlow.normalizedHost(enterpriseHost)
+        if host == CopilotDeviceFlow.defaultHost {
+            return "api.github.com"
+        }
+        if host.hasPrefix("api.") {
+            return host
+        }
+        return "api.\(host)"
+    }
+
+    public static func usageURL(enterpriseHost: String?) -> URL? {
+        CopilotDeviceFlow.makeRequestURL(
+            host: self.apiHost(enterpriseHost: enterpriseHost),
+            path: "/copilot_internal/user")
     }
 
     public func fetch() async throws -> UsageSnapshot {
-        guard let url = URL(string: "https://api.github.com/copilot_internal/user") else {
+        guard let url = Self.usageURL(enterpriseHost: self.enterpriseHost) else {
             throw URLError(.badURL)
         }
 
@@ -35,9 +64,22 @@ public struct CopilotUsageFetcher: Sendable {
         }
 
         let usage = try JSONDecoder().decode(CopilotUsageResponse.self, from: data)
+        let premium = self.makeRateWindow(from: usage.quotaSnapshots.premiumInteractions)
+        let chat = self.makeRateWindow(from: usage.quotaSnapshots.chat)
 
-        let primary = self.makeRateWindow(from: usage.quotaSnapshots.premiumInteractions)
-        let secondary = self.makeRateWindow(from: usage.quotaSnapshots.chat)
+        let primary: RateWindow?
+        let secondary: RateWindow?
+        if let premium {
+            primary = premium
+            secondary = chat
+        } else if let chatWindow = chat {
+            // Keep chat in the secondary slot so provider labels remain accurate
+            // ("Premium" for primary, "Chat" for secondary) on chat-only plans.
+            primary = nil
+            secondary = chatWindow
+        } else {
+            throw URLError(.cannotDecodeRawData)
+        }
 
         let identity = ProviderIdentitySnapshot(
             providerID: .copilot,
@@ -45,12 +87,38 @@ public struct CopilotUsageFetcher: Sendable {
             accountOrganization: nil,
             loginMethod: usage.copilotPlan.capitalized)
         return UsageSnapshot(
-            primary: primary ?? .init(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            primary: primary,
             secondary: secondary,
             tertiary: nil,
             providerCost: nil,
             updatedAt: Date(),
             identity: identity)
+    }
+
+    public static func fetchGitHubUsername(token: String) async throws -> String {
+        try await self.fetchGitHubIdentity(token: token).login
+    }
+
+    public static func fetchGitHubIdentity(token: String) async throws -> GitHubUserIdentity {
+        guard let url = URL(string: "https://api.github.com/user") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw URLError(.userAuthenticationRequired)
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+
+        return try JSONDecoder().decode(GitHubUserIdentity.self, from: data)
     }
 
     private func addCommonHeaders(to request: inout URLRequest) {
@@ -63,6 +131,8 @@ public struct CopilotUsageFetcher: Sendable {
 
     private func makeRateWindow(from snapshot: CopilotUsageResponse.QuotaSnapshot?) -> RateWindow? {
         guard let snapshot else { return nil }
+        guard !snapshot.isPlaceholder else { return nil }
+        guard snapshot.hasPercentRemaining else { return nil }
         // percent_remaining is 0-100 based on the JSON example in the web app source
         let usedPercent = max(0, 100 - snapshot.percentRemaining)
 

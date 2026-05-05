@@ -3,13 +3,12 @@ import AppKit
 import Testing
 @testable import CodexBarCore
 
-@Suite
 @MainActor
 struct WebKitTeardownTests {
     final class Owner {}
 
     @Test
-    func scheduleCleanupRegistersOwner() {
+    func `schedule cleanup registers owner`() {
         let owner = Owner()
         WebKitTeardown.resetForTesting()
         WebKitTeardown.scheduleCleanup(owner: owner, window: nil, webView: nil)

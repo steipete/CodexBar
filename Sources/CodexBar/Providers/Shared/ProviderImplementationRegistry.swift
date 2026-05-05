@@ -10,12 +10,15 @@ enum ProviderImplementationRegistry {
     private static let lock = NSLock()
     private static let store = Store()
 
+    // swiftlint:disable:next cyclomatic_complexity
     private static func makeImplementation(for provider: UsageProvider) -> (any ProviderImplementation) {
         switch provider {
         case .codex: CodexProviderImplementation()
         case .claude: ClaudeProviderImplementation()
         case .cursor: CursorProviderImplementation()
         case .opencode: OpenCodeProviderImplementation()
+        case .opencodego: OpenCodeGoProviderImplementation()
+        case .alibaba: AlibabaCodingPlanProviderImplementation()
         case .factory: FactoryProviderImplementation()
         case .gemini: GeminiProviderImplementation()
         case .antigravity: AntigravityProviderImplementation()
@@ -23,6 +26,7 @@ enum ProviderImplementationRegistry {
         case .zai: ZaiProviderImplementation()
         case .minimax: MiniMaxProviderImplementation()
         case .kimi: KimiProviderImplementation()
+        case .kilo: KiloProviderImplementation()
         case .kiro: KiroProviderImplementation()
         case .vertexai: VertexAIProviderImplementation()
         case .augment: AugmentProviderImplementation()
@@ -31,7 +35,14 @@ enum ProviderImplementationRegistry {
         case .amp: AmpProviderImplementation()
         case .ollama: OllamaProviderImplementation()
         case .synthetic: SyntheticProviderImplementation()
+        case .openrouter: OpenRouterProviderImplementation()
         case .warp: WarpProviderImplementation()
+        case .windsurf: WindsurfProviderImplementation()
+        case .perplexity: PerplexityProviderImplementation()
+        case .abacus: AbacusProviderImplementation()
+        case .mistral: MistralProviderImplementation()
+        case .deepseek: DeepSeekProviderImplementation()
+        case .codebuff: CodebuffProviderImplementation()
         }
     }
 

@@ -5,7 +5,7 @@ import Testing
 @Suite(.serialized)
 struct ClaudeOAuthKeychainAccessGateTests {
     @Test
-    func blocksUntilCooldownExpires() {
+    func `blocks until cooldown expires`() {
         KeychainAccessGate.withTaskOverrideForTesting(false) {
             let store = ClaudeOAuthKeychainAccessGate.DeniedUntilStore()
             ClaudeOAuthKeychainAccessGate.withDeniedUntilStoreOverrideForTesting(store) {
@@ -23,7 +23,7 @@ struct ClaudeOAuthKeychainAccessGateTests {
     }
 
     @Test
-    func persistsDeniedUntil() {
+    func `persists denied until`() {
         KeychainAccessGate.withTaskOverrideForTesting(false) {
             ClaudeOAuthKeychainAccessGate.resetForTesting()
             defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
@@ -39,7 +39,7 @@ struct ClaudeOAuthKeychainAccessGateTests {
     }
 
     @Test
-    func respectsDebugDisableKeychainAccess() {
+    func `respects debug disable keychain access`() {
         KeychainAccessGate.withTaskOverrideForTesting(true) {
             ClaudeOAuthKeychainAccessGate.resetForTesting()
             defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
@@ -48,7 +48,18 @@ struct ClaudeOAuthKeychainAccessGateTests {
     }
 
     @Test
-    func clearDeniedAllowsImmediateRetry() {
+    func `process keeps keychain access disabled despite false global override`() {
+        guard ProcessInfo.processInfo.environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1" else { return }
+        KeychainAccessGate.resetOverrideForTesting()
+        defer { KeychainAccessGate.resetOverrideForTesting() }
+
+        KeychainAccessGate.isDisabled = false
+
+        #expect(KeychainAccessGate.isDisabled)
+    }
+
+    @Test
+    func `clear denied allows immediate retry`() {
         KeychainAccessGate.withTaskOverrideForTesting(false) {
             ClaudeOAuthKeychainAccessGate.resetForTesting()
             defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }

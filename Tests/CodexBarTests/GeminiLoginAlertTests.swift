@@ -1,10 +1,9 @@
 import Testing
 @testable import CodexBar
 
-@Suite
 struct GeminiLoginAlertTests {
     @Test
-    func returnsAlertForMissingBinary() {
+    func `returns alert for missing binary`() {
         let result = GeminiLoginRunner.Result(outcome: .missingBinary)
         let info = StatusItemController.geminiLoginAlertInfo(for: result)
         #expect(info?.title == "Gemini CLI not found")
@@ -12,7 +11,7 @@ struct GeminiLoginAlertTests {
     }
 
     @Test
-    func returnsAlertForLaunchFailure() {
+    func `returns alert for launch failure`() {
         let result = GeminiLoginRunner.Result(outcome: .launchFailed("Boom"))
         let info = StatusItemController.geminiLoginAlertInfo(for: result)
         #expect(info?.title == "Could not open Terminal for Gemini")
@@ -20,7 +19,7 @@ struct GeminiLoginAlertTests {
     }
 
     @Test
-    func returnsNilOnSuccess() {
+    func `returns nil on success`() {
         let result = GeminiLoginRunner.Result(outcome: .success)
         let info = StatusItemController.geminiLoginAlertInfo(for: result)
         #expect(info == nil)

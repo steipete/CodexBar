@@ -83,25 +83,32 @@ public struct OpenCodeUsageFetcher: Sendable {
         cookieHeader: String,
         timeout: TimeInterval,
         now: Date = Date(),
-        workspaceIDOverride: String? = nil) async throws -> OpenCodeUsageSnapshot
+        workspaceIDOverride: String? = nil,
+        session: URLSession = .shared) async throws -> OpenCodeUsageSnapshot
     {
+        guard let requestCookieHeader = OpenCodeWebCookieSupport.requestCookieHeader(from: cookieHeader) else {
+            throw OpenCodeUsageError.invalidCredentials
+        }
         let workspaceID: String = if let override = self.normalizeWorkspaceID(workspaceIDOverride) {
             override
         } else {
             try await self.fetchWorkspaceID(
-                cookieHeader: cookieHeader,
-                timeout: timeout)
+                cookieHeader: requestCookieHeader,
+                timeout: timeout,
+                session: session)
         }
         let subscriptionText = try await self.fetchSubscriptionInfo(
             workspaceID: workspaceID,
-            cookieHeader: cookieHeader,
-            timeout: timeout)
+            cookieHeader: requestCookieHeader,
+            timeout: timeout,
+            session: session)
         return try self.parseSubscription(text: subscriptionText, now: now)
     }
 
     private static func fetchWorkspaceID(
         cookieHeader: String,
-        timeout: TimeInterval) async throws -> String
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
     {
         let text = try await self.fetchServerText(
             request: ServerRequest(
@@ -110,7 +117,8 @@ public struct OpenCodeUsageFetcher: Sendable {
                 method: "GET",
                 referer: self.baseURL),
             cookieHeader: cookieHeader,
-            timeout: timeout)
+            timeout: timeout,
+            session: session)
         if self.looksSignedOut(text: text) {
             throw OpenCodeUsageError.invalidCredentials
         }
@@ -127,7 +135,8 @@ public struct OpenCodeUsageFetcher: Sendable {
                     method: "POST",
                     referer: self.baseURL),
                 cookieHeader: cookieHeader,
-                timeout: timeout)
+                timeout: timeout,
+                session: session)
             if self.looksSignedOut(text: fallback) {
                 throw OpenCodeUsageError.invalidCredentials
             }
@@ -147,7 +156,8 @@ public struct OpenCodeUsageFetcher: Sendable {
     private static func fetchSubscriptionInfo(
         workspaceID: String,
         cookieHeader: String,
-        timeout: TimeInterval) async throws -> String
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
     {
         let referer = URL(string: "https://opencode.ai/workspace/\(workspaceID)/billing") ?? self.baseURL
         let text = try await self.fetchServerText(
@@ -157,9 +167,14 @@ public struct OpenCodeUsageFetcher: Sendable {
                 method: "GET",
                 referer: referer),
             cookieHeader: cookieHeader,
-            timeout: timeout)
+            timeout: timeout,
+            session: session)
         if self.looksSignedOut(text: text) {
             throw OpenCodeUsageError.invalidCredentials
+        }
+        if self.isExplicitNullPayload(text: text) {
+            Self.log.warning("OpenCode subscription GET returned null; skipping POST fallback.")
+            throw self.missingSubscriptionDataError(workspaceID: workspaceID)
         }
         if self.parseSubscriptionJSON(text: text, now: Date()) == nil,
            self.extractDouble(
@@ -174,13 +189,37 @@ public struct OpenCodeUsageFetcher: Sendable {
                     method: "POST",
                     referer: referer),
                 cookieHeader: cookieHeader,
-                timeout: timeout)
+                timeout: timeout,
+                session: session)
             if self.looksSignedOut(text: fallback) {
                 throw OpenCodeUsageError.invalidCredentials
+            }
+            if self.isExplicitNullPayload(text: fallback) {
+                Self.log.warning("OpenCode subscription POST returned null.")
+                throw self.missingSubscriptionDataError(workspaceID: workspaceID)
             }
             return fallback
         }
         return text
+    }
+
+    private static func isExplicitNullPayload(text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.caseInsensitiveCompare("null") == .orderedSame {
+            return true
+        }
+        guard let data = trimmed.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data, options: [])
+        else {
+            return false
+        }
+        return object is NSNull
+    }
+
+    private static func missingSubscriptionDataError(workspaceID: String) -> OpenCodeUsageError {
+        OpenCodeUsageError.apiError(
+            "No subscription usage data was returned for workspace \(workspaceID). " +
+                "This usually means this workspace does not have OpenCode subscription quota data available.")
     }
 
     private static func normalizeWorkspaceID(_ raw: String?) -> String? {
@@ -209,7 +248,8 @@ public struct OpenCodeUsageFetcher: Sendable {
     private static func fetchServerText(
         request serverRequest: ServerRequest,
         cookieHeader: String,
-        timeout: TimeInterval) async throws -> String
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
     {
         let url = self.serverRequestURL(
             serverID: serverRequest.serverID,
@@ -233,7 +273,7 @@ public struct OpenCodeUsageFetcher: Sendable {
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let (data, response) = try await session.data(for: urlRequest)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenCodeUsageError.networkError("Invalid response")
         }
@@ -401,7 +441,12 @@ public struct OpenCodeUsageFetcher: Sendable {
 
     private static func looksSignedOut(text: String) -> Bool {
         let lower = text.lowercased()
-        if lower.contains("login") || lower.contains("sign in") || lower.contains("auth/authorize") {
+        if lower.contains("login") ||
+            lower.contains("sign in") ||
+            lower.contains("auth/authorize") ||
+            lower.contains("not associated with an account") ||
+            lower.contains("actor of type \"public\"")
+        {
             return true
         }
         return false
@@ -554,7 +599,7 @@ public struct OpenCodeUsageFetcher: Sendable {
             updatedAt: now)
     }
 
-    private struct WindowCandidate: Sendable {
+    private struct WindowCandidate {
         let id: UUID
         let percent: Double
         let resetInSec: Int

@@ -6,7 +6,7 @@ import SweetCookieKit
 
 #if os(macOS)
 enum FactoryLocalStorageImporter {
-    struct TokenInfo: Sendable {
+    struct TokenInfo {
         let refreshToken: String
         let accessToken: String?
         let organizationID: String?
@@ -65,12 +65,12 @@ enum FactoryLocalStorageImporter {
 
     // MARK: - Chrome local storage discovery
 
-    private enum LocalStorageSourceKind: Sendable {
+    private enum LocalStorageSourceKind {
         case chromeLevelDB(URL)
         case safariSQLite(URL)
     }
 
-    private struct LocalStorageCandidate: Sendable {
+    private struct LocalStorageCandidate {
         let label: String
         let kind: LocalStorageSourceKind
     }
@@ -192,7 +192,7 @@ enum FactoryLocalStorageImporter {
 
     // MARK: - Token extraction
 
-    private struct WorkOSTokenMatch: Sendable {
+    private struct WorkOSTokenMatch {
         let refreshToken: String
         let accessToken: String?
         let organizationID: String?

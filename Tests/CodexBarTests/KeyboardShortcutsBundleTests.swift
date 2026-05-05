@@ -2,8 +2,8 @@ import KeyboardShortcuts
 import Testing
 
 @MainActor
-@Suite struct KeyboardShortcutsBundleTests {
-    @Test func recorderInitializesWithoutCrashing() {
+struct KeyboardShortcutsBundleTests {
+    @Test func `recorder initializes without crashing`() {
         _ = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.bundle"))
     }
 }
