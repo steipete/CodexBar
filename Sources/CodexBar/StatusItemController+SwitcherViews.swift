@@ -794,7 +794,7 @@ final class ProviderSwitcherView: NSView {
 
 final class TokenAccountSwitcherView: NSView {
     private let accounts: [ProviderTokenAccount]
-    private let onSelect: (Int) -> Void
+    private let onSelect: (Int) -> Task<Void, Never>?
     private var selectedIndex: Int
     private var buttons: [NSButton] = []
     private let rowSpacing: CGFloat = 4
@@ -804,7 +804,12 @@ final class TokenAccountSwitcherView: NSView {
     private let selectedTextColor = NSColor.white
     private let unselectedTextColor = NSColor.secondaryLabelColor
 
-    init(accounts: [ProviderTokenAccount], selectedIndex: Int, width: CGFloat, onSelect: @escaping (Int) -> Void) {
+    init(
+        accounts: [ProviderTokenAccount],
+        selectedIndex: Int,
+        width: CGFloat,
+        onSelect: @escaping (Int) -> Task<Void, Never>?)
+    {
         self.accounts = accounts
         self.onSelect = onSelect
         self.selectedIndex = min(max(selectedIndex, 0), max(0, accounts.count - 1))
@@ -888,12 +893,27 @@ final class TokenAccountSwitcherView: NSView {
     }
 
     @objc private func handleSelect(_ sender: NSButton) {
-        let index = sender.tag
-        guard index >= 0, index < self.accounts.count else { return }
+        _ = self.select(index: sender.tag)
+    }
+
+    @discardableResult
+    private func select(index: Int) -> Task<Void, Never>? {
+        guard index >= 0, index < self.accounts.count else { return nil }
         self.selectedIndex = index
         self.updateButtonStyles()
-        self.onSelect(index)
+        return self.onSelect(index)
     }
+
+    #if DEBUG
+    func _test_select(index: Int) -> Task<Void, Never>? {
+        guard let button = self.buttons.first(where: { $0.tag == index }) else { return nil }
+        return self.select(index: button.tag)
+    }
+
+    func _test_buttonTitles() -> [String] {
+        self.buttons.map(\.title)
+    }
+    #endif
 }
 
 final class CodexAccountSwitcherView: NSView {

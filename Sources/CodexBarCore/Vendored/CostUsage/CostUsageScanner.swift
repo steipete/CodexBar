@@ -236,7 +236,7 @@ enum CostUsageScanner {
         case .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba, .factory, .copilot,
              .minimax, .kilo, .kiro, .kimi,
              .kimik2, .augment, .jetbrains, .amp, .ollama, .synthetic, .openrouter, .warp, .perplexity, .abacus,
-             .mistral, .deepseek:
+             .mistral, .deepseek, .codebuff:
             return emptyReport
         }
     }
@@ -760,7 +760,7 @@ enum CostUsageScanner {
                         ?? info?["model_name"] as? String
                         ?? payload["model"] as? String
                         ?? obj["model"] as? String
-                    let model = modelFromInfo ?? currentModel ?? "gpt-5"
+                    let model = currentModel ?? modelFromInfo ?? "gpt-5"
 
                     func toInt(_ v: Any?) -> Int {
                         if let n = v as? NSNumber { return n.intValue }

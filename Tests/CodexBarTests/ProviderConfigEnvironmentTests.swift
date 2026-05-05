@@ -93,6 +93,34 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies API key override for codebuff`() {
+        let config = ProviderConfig(id: .codebuff, apiKey: "cb-config-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .codebuff,
+            config: config)
+
+        #expect(env[CodebuffSettingsReader.apiTokenKey] == "cb-config-token")
+        #expect(
+            ProviderTokenResolver.codebuffToken(environment: env, authFileURL: nil)
+                == "cb-config-token")
+    }
+
+    @Test
+    func `codebuff config override leaves environment token alone`() {
+        let config = ProviderConfig(id: .codebuff, apiKey: "config-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [CodebuffSettingsReader.apiTokenKey: "env-token"],
+            provider: .codebuff,
+            config: config)
+
+        #expect(env[CodebuffSettingsReader.apiTokenKey] == "env-token")
+        #expect(
+            ProviderTokenResolver.codebuffToken(environment: env, authFileURL: nil)
+                == "env-token")
+    }
+
+    @Test
     func `leaves environment when API key missing`() {
         let config = ProviderConfig(id: .zai, apiKey: nil)
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

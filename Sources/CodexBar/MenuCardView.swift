@@ -753,7 +753,8 @@ extension UsageMenuCardView.Model {
         let subtitle = Self.subtitle(
             snapshot: input.snapshot,
             isRefreshing: input.isRefreshing,
-            lastError: input.lastError)
+            lastError: input.lastError,
+            now: input.now)
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
         let placeholder = input.snapshot == nil && !input.isRefreshing && input.lastError == nil ? "No usage yet" : nil
 
@@ -886,7 +887,8 @@ extension UsageMenuCardView.Model {
     private static func subtitle(
         snapshot: UsageSnapshot?,
         isRefreshing: Bool,
-        lastError: String?) -> (text: String, style: SubtitleStyle)
+        lastError: String?,
+        now: Date) -> (text: String, style: SubtitleStyle)
     {
         if let lastError, !lastError.isEmpty {
             return (lastError.trimmingCharacters(in: .whitespacesAndNewlines), .error)
@@ -897,7 +899,7 @@ extension UsageMenuCardView.Model {
         }
 
         if let updated = snapshot?.updatedAt {
-            return (UsageFormatter.updatedString(from: updated), .info)
+            return (UsageFormatter.updatedString(from: updated, now: now), .info)
         }
 
         return ("Not fetched yet", .info)

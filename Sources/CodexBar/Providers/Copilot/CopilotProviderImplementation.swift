@@ -20,41 +20,38 @@ struct CopilotProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        _ = context
-        return .copilot(context.settings.copilotSettingsSnapshot())
+        .copilot(context.settings.copilotSettingsSnapshot(tokenOverride: context.tokenOverride))
+    }
+
+    @MainActor
+    func loginMenuAction(context _: ProviderMenuLoginContext)
+        -> (label: String, action: MenuDescriptor.MenuAction)?
+    {
+        ("Add Account...", .addProviderAccount(.copilot))
     }
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
             ProviderSettingsFieldDescriptor(
-                id: "copilot-api-token",
+                id: "copilot-add-account",
                 title: "GitHub Login",
-                subtitle: "Requires authentication via GitHub Device Flow.",
-                footerText: "The device code is copied to your clipboard. Paste it into the GitHub page with ⌘V.",
-                kind: .secure,
-                placeholder: "Sign in via button below",
-                binding: context.stringBinding(\.copilotAPIToken),
+                subtitle: "Add accounts via GitHub OAuth Device Flow.",
+                kind: .plain,
+                placeholder: nil,
+                binding: .constant(""),
                 actions: [
                     ProviderSettingsActionDescriptor(
-                        id: "copilot-login",
-                        title: "Sign in with GitHub",
+                        id: "copilot-add-account-action",
+                        title: "Add Account",
                         style: .bordered,
-                        isVisible: { context.settings.copilotAPIToken.isEmpty },
-                        perform: {
-                            await CopilotLoginFlow.run(settings: context.settings)
-                        }),
-                    ProviderSettingsActionDescriptor(
-                        id: "copilot-relogin",
-                        title: "Sign in again",
-                        style: .link,
-                        isVisible: { !context.settings.copilotAPIToken.isEmpty },
+                        isVisible: { true },
                         perform: {
                             await CopilotLoginFlow.run(settings: context.settings)
                         }),
                 ],
                 isVisible: nil,
-                onActivate: { context.settings.ensureCopilotAPITokenLoaded() }),
+                onActivate: nil),
         ]
     }
 

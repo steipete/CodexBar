@@ -47,6 +47,10 @@ extension StatusItemController {
             return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
         }
 
+        if provider == .opencodego {
+            return self.settings.opencodegoDashboardURL
+        }
+
         let meta = self.store.metadata(for: provider)
         let urlString: String? = if provider == .claude, self.store.isClaudeSubscription() {
             meta.subscriptionDashboardURL ?? meta.dashboardURL
@@ -190,6 +194,10 @@ extension StatusItemController {
     }
 
     func openMenuFromShortcut() {
+        if self.closeOpenMenusFromShortcutIfNeeded() {
+            return
+        }
+
         if self.shouldMergeIcons {
             self.statusItem.button?.performClick(nil)
             return
@@ -199,6 +207,18 @@ extension StatusItemController {
         // Use the lazy accessor to ensure the item exists
         let item = self.lazyStatusItem(for: provider)
         item.button?.performClick(nil)
+    }
+
+    @discardableResult
+    func closeOpenMenusFromShortcutIfNeeded() -> Bool {
+        guard !self.openMenus.isEmpty else { return false }
+
+        let menus = Array(self.openMenus.values)
+        for menu in menus {
+            menu.cancelTrackingWithoutAnimation()
+            self.forgetClosedMenu(menu)
+        }
+        return true
     }
 
     func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {

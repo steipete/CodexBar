@@ -131,6 +131,10 @@ public struct AugmentCreditsResponse: Codable, Sendable {
     }
 
     public var creditsLimit: Double? {
+        if let available = self.usageUnitsAvailable, available > 0 {
+            return available
+        }
+
         guard let remaining = self.usageUnitsRemaining,
               let consumed = self.usageUnitsConsumedThisBillingCycle
         else {

@@ -16,7 +16,14 @@ extension SettingsStore {
 }
 
 extension SettingsStore {
-    func copilotSettingsSnapshot() -> ProviderSettingsSnapshot.CopilotProviderSettings {
-        ProviderSettingsSnapshot.CopilotProviderSettings()
+    func copilotSettingsSnapshot(
+        tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.CopilotProviderSettings
+    {
+        let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: .copilot,
+            settings: self,
+            override: tokenOverride)
+        let token = account?.token ?? self.copilotAPIToken
+        return ProviderSettingsSnapshot.CopilotProviderSettings(apiToken: self.normalizedConfigValue(token))
     }
 }

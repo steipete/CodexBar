@@ -100,6 +100,15 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         return try self.parseSubscription(text: subscriptionText, now: now)
     }
 
+    public static func dashboardURL(workspaceID raw: String?) -> URL {
+        guard let workspaceID = self.normalizeWorkspaceID(raw),
+              let url = URL(string: "\(self.baseURL.absoluteString)/workspace/\(workspaceID)/go")
+        else {
+            return self.baseURL
+        }
+        return url
+    }
+
     private static func fetchWorkspaceID(
         cookieHeader: String,
         timeout: TimeInterval,

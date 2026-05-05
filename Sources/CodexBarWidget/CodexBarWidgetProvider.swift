@@ -79,6 +79,7 @@ enum ProviderChoice: String, AppEnum {
         case .abacus: return nil // Abacus AI not yet supported in widgets
         case .mistral: return nil // Mistral not yet supported in widgets
         case .deepseek: return nil // DeepSeek not yet supported in widgets
+        case .codebuff: return nil // Codebuff not yet supported in widgets
         }
     }
 }

@@ -5,9 +5,14 @@ on:
     branches: ["*"]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-build-test:
-    runs-on: macos-latest
+    runs-on: macos-15-intel
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v6
 
@@ -36,9 +41,11 @@ jobs:
         run: ./Scripts/lint.sh lint
 
       - name: Swift Test
+        timeout-minutes: 25
         run: swift test --no-parallel
 
   build-linux-cli:
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

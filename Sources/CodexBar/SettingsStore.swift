@@ -379,6 +379,9 @@ extension SettingsStore {
         self.updateProviderConfig(provider: provider) { entry in
             entry.enabled = enabled
         }
+        if !enabled, self.selectedMenuProvider == provider {
+            self.selectedMenuProvider = nil
+        }
     }
 
     func rerunProviderDetection() {

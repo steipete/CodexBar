@@ -98,7 +98,9 @@ extension UsageStore {
     {
         guard self.settings.historicalTrackingEnabled else { return }
         guard authorityDecision.allowedEffects.contains(.historicalBackfill) else { return }
-        guard !dashboard.usageBreakdown.isEmpty else { return }
+        let usageBreakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+            from: dashboard.usageBreakdown)
+        guard !usageBreakdown.isEmpty else { return }
 
         let codexSnapshot = self.snapshots[.codex]
         let ownership = self.codexOwnershipContext(preferredEmail: attachedAccountEmail)
@@ -128,7 +130,6 @@ extension UsageStore {
         }
 
         let historyStore = self.historicalUsageHistoryStore
-        let usageBreakdown = dashboard.usageBreakdown
         Task.detached(priority: .utility) { [weak self] in
             _ = await historyStore.backfillCodexWeeklyFromUsageBreakdown(
                 usageBreakdown,

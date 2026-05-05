@@ -32,6 +32,19 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `deepseek menu bar metric picker shows balance only copy`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-deepseek-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .deepseek)
+        #expect(picker?.options.map(\.id) == [
+            MenuBarMetricPreference.automatic.rawValue,
+        ])
+        #expect(picker?.subtitle == "Shows the DeepSeek balance in the menu bar.")
+    }
+
+    @Test
     func `cursor menu bar metric picker omits tertiary api lane when snapshot has no api metric`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-cursor-no-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)

@@ -198,6 +198,7 @@ final class UsageStore {
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
     @ObservationIgnored var storageRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var managedCodexAccountsForStorageOverride: [ManagedCodexAccount]?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored var codexPlanHistoryBackfillTask: Task<Void, Never>?
     @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
@@ -615,13 +616,18 @@ final class UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> (window: RateWindow, source: SessionQuotaWindowSource)?
     {
-        if let primary = snapshot.primary {
+        if let primary = snapshot.primary, Self.isSessionWindow(primary) {
             return (primary, .primary)
         }
         if provider == .copilot, let secondary = snapshot.secondary {
             return (secondary, .copilotSecondaryFallback)
         }
         return nil
+    }
+
+    private static func isSessionWindow(_ window: RateWindow) -> Bool {
+        guard let minutes = window.windowMinutes else { return true }
+        return minutes <= 6 * 60
     }
 
     func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
@@ -892,7 +898,7 @@ extension UsageStore {
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .jetbrains, .perplexity, .abacus, .mistral:
+                     .kimik2, .jetbrains, .perplexity, .abacus, .mistral, .codebuff:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

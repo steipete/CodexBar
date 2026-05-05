@@ -951,13 +951,15 @@ public enum ClaudeOAuthCredentialsStore {
         func refreshAccessToken(
             refreshToken: String,
             existingScopes: [String],
-            existingRateLimitTier: String?) async throws -> ClaudeOAuthCredentials
+            existingRateLimitTier: String?,
+            existingSubscriptionType: String? = nil) async throws -> ClaudeOAuthCredentials
         {
             try await self.context.run {
                 let newCredentials = try await self.refreshAccessTokenCore(
                     refreshToken: refreshToken,
                     existingScopes: existingScopes,
-                    existingRateLimitTier: existingRateLimitTier)
+                    existingRateLimitTier: existingRateLimitTier,
+                    existingSubscriptionType: existingSubscriptionType)
 
                 ClaudeOAuthCredentialsStore.saveRefreshedCredentialsToCache(newCredentials)
                 ClaudeOAuthCredentialsStore.writeMemoryCache(
@@ -975,7 +977,8 @@ public enum ClaudeOAuthCredentialsStore {
         private func refreshAccessTokenCore(
             refreshToken: String,
             existingScopes: [String],
-            existingRateLimitTier: String?) async throws -> ClaudeOAuthCredentials
+            existingRateLimitTier: String?,
+            existingSubscriptionType: String?) async throws -> ClaudeOAuthCredentials
         {
             guard ClaudeOAuthRefreshFailureGate.shouldAttempt() else {
                 let status = ClaudeOAuthRefreshFailureGate.currentBlockStatus()
@@ -1051,7 +1054,8 @@ public enum ClaudeOAuthCredentialsStore {
                 refreshToken: tokenResponse.refreshToken ?? refreshToken,
                 expiresAt: expiresAt,
                 scopes: existingScopes,
-                rateLimitTier: existingRateLimitTier)
+                rateLimitTier: existingRateLimitTier,
+                subscriptionType: existingSubscriptionType)
         }
     }
 
@@ -1144,7 +1148,8 @@ public enum ClaudeOAuthCredentialsStore {
             let refreshed = try await refresher.refreshAccessToken(
                 refreshToken: refreshToken,
                 existingScopes: credentials.scopes,
-                existingRateLimitTier: credentials.rateLimitTier)
+                existingRateLimitTier: credentials.rateLimitTier,
+                existingSubscriptionType: credentials.subscriptionType)
             self.log.info("Token refresh successful, expires in \(refreshed.expiresIn ?? 0) seconds")
             return refreshed
         } catch {
@@ -1166,6 +1171,9 @@ public enum ClaudeOAuthCredentialsStore {
         }
         if let rateLimitTier = credentials.rateLimitTier {
             oauth["rateLimitTier"] = rateLimitTier
+        }
+        if let subscriptionType = credentials.subscriptionType {
+            oauth["subscriptionType"] = subscriptionType
         }
 
         let oauthData: [String: Any] = ["claudeAiOauth": oauth]
@@ -1918,12 +1926,14 @@ extension ClaudeOAuthCredentialsStore {
     public static func refreshAccessToken(
         refreshToken: String,
         existingScopes: [String],
-        existingRateLimitTier: String?) async throws -> ClaudeOAuthCredentials
+        existingRateLimitTier: String?,
+        existingSubscriptionType: String? = nil) async throws -> ClaudeOAuthCredentials
     {
         try await Refresher(context: self.currentCollaboratorContext()).refreshAccessToken(
             refreshToken: refreshToken,
             existingScopes: existingScopes,
-            existingRateLimitTier: existingRateLimitTier)
+            existingRateLimitTier: existingRateLimitTier,
+            existingSubscriptionType: existingSubscriptionType)
     }
 
     private enum RefreshFailureDisposition: String {

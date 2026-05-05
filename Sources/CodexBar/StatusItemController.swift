@@ -112,6 +112,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var animationDriver: DisplayLinkDriver?
     var animationPhase: Double = 0
     var animationPattern: LoadingPattern = .knightRider
+    var animationStartedAt: Date?
     private var lastConfigRevision: Int
     private var lastProviderOrder: [UsageProvider]
     private var lastMergeIcons: Bool
@@ -241,6 +242,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
         self.statusBar = statusBar
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = "codexbar-merged"
         // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
         item.button?.imageScaling = .scaleNone
         self.statusItem = item
@@ -305,7 +307,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeStoreChanges()
-                self.invalidateMenus()
+                self.invalidateMenus(refreshOpenMenus: !self.store.isRefreshing)
             }
         }
     }
@@ -394,11 +396,18 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
     }
 
-    func invalidateMenus() {
+    func invalidateMenus(refreshOpenMenus: Bool = false) {
         self.menuContentVersion &+= 1
-        // Don't refresh menus while they're open - wait until they close and reopen
-        // This prevents expensive rebuilds while user is navigating the menu
-        guard self.openMenus.isEmpty else { return }
+        if !self.openMenus.isEmpty {
+            guard refreshOpenMenus else { return }
+            self.refreshOpenMenusIfNeeded()
+            Task { @MainActor in
+                // AppKit can ignore menu mutations while tracking; retry on the next run loop.
+                await Task.yield()
+                self.refreshOpenMenusIfNeeded()
+            }
+            return
+        }
         self.refreshOpenMenusIfNeeded()
         Task { @MainActor in
             // AppKit can ignore menu mutations while tracking; retry on the next run loop.
@@ -480,6 +489,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             return existing
         }
         let item = self.statusBar.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = "codexbar-\(provider.rawValue)"
         item.button?.imageScaling = .scaleNone
         self.statusItems[provider] = item
         return item
@@ -576,15 +586,16 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func rebuildProviderStatusItems() {
-        for item in self.statusItems.values {
-            self.statusBar.removeStatusItem(item)
+        let ordered = self.settings.orderedProviders()
+        let desired = Set(ordered)
+        for provider in Array(self.statusItems.keys) where !desired.contains(provider) {
+            if let item = self.statusItems.removeValue(forKey: provider) {
+                self.statusBar.removeStatusItem(item)
+            }
         }
-        self.statusItems.removeAll(keepingCapacity: true)
 
-        for provider in self.settings.orderedProviders() {
-            let item = self.statusBar.statusItem(withLength: NSStatusItem.variableLength)
-            item.button?.imageScaling = .scaleNone
-            self.statusItems[provider] = item
+        for provider in ordered {
+            _ = self.lazyStatusItem(for: provider)
         }
     }
 

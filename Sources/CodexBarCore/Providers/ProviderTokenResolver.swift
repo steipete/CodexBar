@@ -83,6 +83,13 @@ public enum ProviderTokenResolver {
         self.resolveEnv(DeepSeekSettingsReader.apiKey(environment: environment))
     }
 
+    public static func codebuffToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        authFileURL: URL? = nil) -> String?
+    {
+        self.codebuffResolution(environment: environment, authFileURL: authFileURL)?.token
+    }
+
     public static func zaiResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
@@ -167,6 +174,19 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(OpenRouterSettingsReader.apiToken(environment: environment))
+    }
+
+    public static func codebuffResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        authFileURL: URL? = nil) -> ProviderTokenResolution?
+    {
+        if let resolution = self.resolveEnv(CodebuffSettingsReader.apiKey(environment: environment)) {
+            return resolution
+        }
+        if let token = CodebuffSettingsReader.authToken(authFileURL: authFileURL) {
+            return ProviderTokenResolution(token: token, source: .authFile)
+        }
+        return nil
     }
 
     public static func perplexityResolution(

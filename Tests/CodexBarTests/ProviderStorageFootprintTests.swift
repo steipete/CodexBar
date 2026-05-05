@@ -280,6 +280,7 @@ struct ProviderStorageFootprintTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             environmentBase: ["CODEX_HOME": codexHome.path])
+        store.managedCodexAccountsForStorageOverride = []
 
         await store.refreshStorageFootprintsForOverviewNow()
         #expect(store.storageFootprint(for: .codex)?.totalBytes == 32)

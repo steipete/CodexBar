@@ -66,7 +66,10 @@ extension UsageStore {
     }
 
     private func loadManagedCodexAccountsForStorage() -> [ManagedCodexAccount] {
-        (try? FileManagedCodexAccountStore().loadAccounts().accounts) ?? []
+        if let managedCodexAccountsForStorageOverride {
+            return managedCodexAccountsForStorageOverride
+        }
+        return (try? FileManagedCodexAccountStore().loadAccounts().accounts) ?? []
     }
 
     private nonisolated static func scanStorageFootprints(
