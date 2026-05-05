@@ -70,11 +70,19 @@ struct CLIProviderSelectionTests {
     }
 
     @Test
-    func `provider selection uses all when enabled`() {
+    func `provider selection uses enabled providers when three or more are enabled`() {
         let selection = CodexBarCLI.providerSelection(
             rawOverride: nil,
             enabled: [.codex, .claude, .zai, .cursor, .gemini, .antigravity, .factory, .copilot])
-        #expect(selection.asList == ProviderSelection.all.asList)
+        #expect(selection.asList == [.codex, .claude, .zai, .cursor, .gemini, .antigravity, .factory, .copilot])
+    }
+
+    @Test
+    func `provider selection does not expand three enabled providers to all providers`() {
+        let enabled: [UsageProvider] = [.codex, .claude, .copilot]
+        let selection = CodexBarCLI.providerSelection(rawOverride: nil, enabled: enabled)
+        #expect(selection.asList == enabled)
+        #expect(!selection.asList.contains(.gemini))
     }
 
     @Test

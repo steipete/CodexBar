@@ -36,6 +36,9 @@ public enum CookieHeaderCache {
         case let .found(entry):
             self.log.debug("Cookie cache hit", metadata: ["provider": provider.rawValue])
             return entry
+        case .temporarilyUnavailable:
+            self.log.debug("Cookie cache temporarily unavailable", metadata: ["provider": provider.rawValue])
+            return nil
         case .invalid:
             self.log.warning("Cookie cache invalid; clearing", metadata: ["provider": provider.rawValue])
             KeychainCacheStore.clear(key: key)

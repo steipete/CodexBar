@@ -370,6 +370,7 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.providerCost != nil)
         #expect(usageSnapshot.providerCost?.used == 0.0)
         #expect(usageSnapshot.providerCost?.limit == 75.0)
+        #expect(usageSnapshot.providerCost?.period == "Monthly")
     }
 
     @Test
@@ -1045,7 +1046,9 @@ final class CursorStatusProbeStubURLProtocol: URLProtocol {
         Self.lock.unlock()
 
         do {
-            let handler = try #require(handler)
+            guard let handler else {
+                throw URLError(.cancelled)
+            }
             let (response, data) = try handler(self.request)
             self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             self.client?.urlProtocol(self, didLoad: data)

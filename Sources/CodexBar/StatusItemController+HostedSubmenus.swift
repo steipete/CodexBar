@@ -3,8 +3,6 @@ import CodexBarCore
 import SwiftUI
 
 extension StatusItemController {
-    private static let hostedSubviewWidth: CGFloat = 310
-
     func makeHostedSubviewPlaceholderMenu(chartID: String, provider: UsageProvider? = nil) -> NSMenu {
         let submenu = NSMenu()
         submenu.delegate = self
@@ -25,7 +23,7 @@ extension StatusItemController {
             return
         }
 
-        let width = Self.hostedSubviewWidth
+        let width = self.renderedMenuWidth(for: menu.supermenu ?? menu)
         menu.removeAllItems()
 
         let didHydrate: Bool = switch chartID {
@@ -64,7 +62,8 @@ extension StatusItemController {
 
     @discardableResult
     func appendUsageBreakdownChartItem(to submenu: NSMenu, width: CGFloat) -> Bool {
-        let breakdown = self.store.openAIDashboard?.usageBreakdown ?? []
+        let breakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+            from: self.store.openAIDashboard?.usageBreakdown ?? [])
         guard !breakdown.isEmpty else { return false }
 
         if !Self.menuCardRenderingEnabled {

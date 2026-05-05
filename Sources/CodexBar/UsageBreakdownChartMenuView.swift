@@ -146,7 +146,7 @@ struct UsageBreakdownChartMenuView: View {
     private static let selectionBandColor = Color(nsColor: .labelColor).opacity(0.1)
 
     private static func makeModel(from breakdown: [OpenAIDashboardDailyBreakdown]) -> Model {
-        let sorted = breakdown
+        let sorted = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(from: breakdown)
             .sorted { lhs, rhs in lhs.day < rhs.day }
 
         var points: [Point] = []

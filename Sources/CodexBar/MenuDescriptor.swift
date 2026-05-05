@@ -57,6 +57,7 @@ struct MenuDescriptor {
         case statusPage
         case addCodexAccount
         case requestCodexSystemPromotion(UUID)
+        case addProviderAccount(UsageProvider)
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
         case loginToProvider(url: String)
@@ -146,8 +147,10 @@ struct MenuDescriptor {
         if let snap = store.snapshot(for: provider) {
             let resetStyle = settings.resetTimeDisplayStyle
             if let primary = snap.primary {
-                let primaryWindow = if provider == .warp || provider == .kilo || provider == .abacus {
-                    // Warp/Kilo/Abacus primary uses resetDescription for non-reset detail
+                let primaryWindow = if provider == .warp || provider == .kilo || provider == .abacus ||
+                    provider == .deepseek
+                {
+                    // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
                     RateWindow(
                         usedPercent: primary.usedPercent,
@@ -163,7 +166,7 @@ struct MenuDescriptor {
                     window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
-                if provider == .warp || provider == .kilo || provider == .abacus,
+                if provider == .warp || provider == .kilo || provider == .abacus || provider == .deepseek,
                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !detail.isEmpty
                 {
@@ -501,7 +504,7 @@ extension MenuDescriptor.MenuAction {
         case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
-        case .addCodexAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
+        case .addCodexAccount, .addProviderAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
         case .requestCodexSystemPromotion:
             nil
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue

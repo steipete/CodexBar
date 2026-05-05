@@ -25,6 +25,21 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func `deepseek token account injects environment in app environment builder`() {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-deepseek-app")
+        settings.addTokenAccount(provider: .deepseek, label: "Account 1", token: "account-token")
+
+        let env = ProviderRegistry.makeEnvironment(
+            base: ["FOO": "bar"],
+            provider: .deepseek,
+            settings: settings,
+            tokenOverride: nil)
+
+        #expect(env["FOO"] == "bar")
+        #expect(env[DeepSeekSettingsReader.apiKeyEnvironmentKey] == "account-token")
+    }
+
+    @Test
     func `token account environment overrides config API key in CLI environment builder`() throws {
         let config = CodexBarConfig(
             providers: [
@@ -43,6 +58,23 @@ struct TokenAccountEnvironmentPrecedenceTests {
 
         #expect(env[ZaiSettingsReader.apiTokenKey] == "account-token")
         #expect(env[ZaiSettingsReader.apiTokenKey] != "config-token")
+    }
+
+    @Test
+    func `deepseek token account injects environment in CLI environment builder`() throws {
+        let config = CodexBarConfig(providers: [])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Account 1",
+            token: "account-token",
+            addedAt: Date().timeIntervalSince1970,
+            lastUsed: nil)
+
+        let env = tokenContext.environment(base: [:], provider: .deepseek, account: account)
+
+        #expect(env[DeepSeekSettingsReader.apiKeyEnvironmentKey] == "account-token")
     }
 
     @Test

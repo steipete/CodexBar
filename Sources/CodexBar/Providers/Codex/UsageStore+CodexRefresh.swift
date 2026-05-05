@@ -101,8 +101,7 @@ extension UsageStore {
         if let override = self._test_codexCreditsLoaderOverride {
             return try await override()
         }
-        return try await self.codexCreditsFetcher().loadLatestCredits(
-            keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)
+        return try await self.codexCreditsFetcher().loadLatestCredits()
     }
 
     func waitForCodexSnapshot(minimumUpdatedAt: Date) async -> UsageSnapshot? {

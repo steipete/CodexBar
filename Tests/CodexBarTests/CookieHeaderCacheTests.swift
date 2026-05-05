@@ -4,6 +4,10 @@ import Testing
 
 @Suite(.serialized)
 struct CookieHeaderCacheTests {
+    private struct WrongEntry: Codable {
+        let value: String
+    }
+
     @Test
     func `stores and loads entry`() {
         KeychainCacheStore.setTestStoreForTesting(true)
@@ -104,5 +108,66 @@ struct CookieHeaderCacheTests {
 
         let loadedAgain = CookieHeaderCache.load(provider: provider)
         #expect(loadedAgain?.cookieHeader == "auth=legacy")
+    }
+
+    #if os(macOS)
+    @Test
+    func `temporary keychain unavailability returns nil without migrating legacy file`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let legacyBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        CookieHeaderCache.setLegacyBaseURLOverrideForTesting(legacyBase)
+        defer { CookieHeaderCache.setLegacyBaseURLOverrideForTesting(nil) }
+
+        let provider: UsageProvider = .codex
+        let legacyURL = legacyBase.appendingPathComponent("\(provider.rawValue)-cookie.json")
+        CookieHeaderCache.store(
+            CookieHeaderCache.Entry(
+                cookieHeader: "auth=legacy",
+                storedAt: Date(timeIntervalSince1970: 0),
+                sourceLabel: "Legacy"),
+            to: legacyURL)
+        #expect(FileManager.default.fileExists(atPath: legacyURL.path) == true)
+
+        let loaded = KeychainCacheStore.withLoadFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+            CookieHeaderCache.load(provider: provider)
+        }
+
+        #expect(loaded == nil)
+        #expect(FileManager.default.fileExists(atPath: legacyURL.path) == true)
+
+        switch KeychainCacheStore.load(key: .cookie(provider: provider), as: CookieHeaderCache.Entry.self) {
+        case .missing:
+            #expect(true)
+        case .found, .temporarilyUnavailable, .invalid:
+            #expect(Bool(false), "Expected temporary miss not to migrate legacy cache")
+        }
+    }
+    #endif
+
+    @Test
+    func `invalid keychain cache is cleared`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let legacyBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        CookieHeaderCache.setLegacyBaseURLOverrideForTesting(legacyBase)
+        defer { CookieHeaderCache.setLegacyBaseURLOverrideForTesting(nil) }
+
+        let provider: UsageProvider = .codex
+        let key = KeychainCacheStore.Key.cookie(provider: provider)
+        KeychainCacheStore.store(key: key, entry: WrongEntry(value: "not-a-cookie-entry"))
+
+        #expect(CookieHeaderCache.load(provider: provider) == nil)
+
+        switch KeychainCacheStore.load(key: key, as: CookieHeaderCache.Entry.self) {
+        case .missing:
+            #expect(true)
+        case .found, .temporarilyUnavailable, .invalid:
+            #expect(Bool(false), "Expected invalid cookie cache to be cleared")
+        }
     }
 }

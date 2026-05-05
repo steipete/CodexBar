@@ -198,4 +198,68 @@ struct CostUsageFetcherTests {
                 totalTokens: 205),
         ])
     }
+
+    @Test
+    func `fetcher prefers turn context model over token count fallback`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 10)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+
+        let nativeTurnContext: [String: Any] = [
+            "type": "turn_context",
+            "timestamp": iso0,
+            "payload": [
+                "model": "openai/gpt-5.4",
+            ],
+        ]
+        let nativeTokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso1,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "model": "gpt-5",
+                    "total_token_usage": [
+                        "input_tokens": 100,
+                        "cached_input_tokens": 20,
+                        "output_tokens": 10,
+                    ],
+                ],
+            ],
+        ]
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "session.jsonl",
+            contents: env.jsonl([nativeTurnContext, nativeTokenCount]))
+
+        let nativeOptions = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        let piOptions = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            scannerOptions: nativeOptions,
+            piScannerOptions: piOptions)
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.4",
+            inputTokens: 100,
+            cachedInputTokens: 20,
+            outputTokens: 10) ?? 0
+
+        #expect(snapshot.daily.first?.modelBreakdowns == [
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: "gpt-5.4",
+                costUSD: cost,
+                totalTokens: 110),
+        ])
+    }
 }

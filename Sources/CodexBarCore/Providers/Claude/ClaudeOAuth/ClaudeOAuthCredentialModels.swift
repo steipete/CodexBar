@@ -10,19 +10,22 @@ public struct ClaudeOAuthCredentials: Sendable {
     public let expiresAt: Date?
     public let scopes: [String]
     public let rateLimitTier: String?
+    public let subscriptionType: String?
 
     public init(
         accessToken: String,
         refreshToken: String?,
         expiresAt: Date?,
         scopes: [String],
-        rateLimitTier: String?)
+        rateLimitTier: String?,
+        subscriptionType: String? = nil)
     {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.expiresAt = expiresAt
         self.scopes = scopes
         self.rateLimitTier = rateLimitTier
+        self.subscriptionType = subscriptionType
     }
 
     public var isExpired: Bool {
@@ -55,7 +58,8 @@ public struct ClaudeOAuthCredentials: Sendable {
             refreshToken: oauth.refreshToken,
             expiresAt: expiresAt,
             scopes: oauth.scopes ?? [],
-            rateLimitTier: oauth.rateLimitTier)
+            rateLimitTier: oauth.rateLimitTier,
+            subscriptionType: oauth.subscriptionType)
     }
 
     private struct Root: Decodable {
@@ -68,6 +72,7 @@ public struct ClaudeOAuthCredentials: Sendable {
         let expiresAt: Double?
         let scopes: [String]?
         let rateLimitTier: String?
+        let subscriptionType: String?
 
         enum CodingKeys: String, CodingKey {
             case accessToken
@@ -75,6 +80,7 @@ public struct ClaudeOAuthCredentials: Sendable {
             case expiresAt
             case scopes
             case rateLimitTier
+            case subscriptionType
         }
     }
 }

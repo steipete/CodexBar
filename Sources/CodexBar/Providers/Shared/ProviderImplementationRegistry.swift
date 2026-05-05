@@ -37,8 +37,12 @@ enum ProviderImplementationRegistry {
         case .synthetic: SyntheticProviderImplementation()
         case .openrouter: OpenRouterProviderImplementation()
         case .warp: WarpProviderImplementation()
+        case .windsurf: WindsurfProviderImplementation()
         case .perplexity: PerplexityProviderImplementation()
         case .abacus: AbacusProviderImplementation()
+        case .mistral: MistralProviderImplementation()
+        case .deepseek: DeepSeekProviderImplementation()
+        case .codebuff: CodebuffProviderImplementation()
         }
     }
 

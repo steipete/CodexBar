@@ -77,8 +77,12 @@ public enum ProviderDescriptorRegistry {
         .synthetic: SyntheticProviderDescriptor.descriptor,
         .openrouter: OpenRouterProviderDescriptor.descriptor,
         .warp: WarpProviderDescriptor.descriptor,
+        .windsurf: WindsurfProviderDescriptor.descriptor,
         .perplexity: PerplexityProviderDescriptor.descriptor,
         .abacus: AbacusProviderDescriptor.descriptor,
+        .mistral: MistralProviderDescriptor.descriptor,
+        .deepseek: DeepSeekProviderDescriptor.descriptor,
+        .codebuff: CodebuffProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

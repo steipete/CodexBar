@@ -3,9 +3,23 @@ import Testing
 import WebKit
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct OpenAIDashboardNavigationDelegateTests {
     final class DelegateBox: @unchecked Sendable {
         var delegate: NavigationDelegate?
+    }
+
+    @MainActor
+    private func waitForResult(
+        _ result: @escaping () -> Result<Void, Error>?,
+        timeout: TimeInterval = NavigationDelegate.postCommitSuccessDelay + 10.0) async -> Result<Void, Error>?
+    {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let result = result() { return result }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return result()
     }
 
     @Test
@@ -56,10 +70,10 @@ struct OpenAIDashboardNavigationDelegateTests {
         box.delegate?.webView(webView, didCommit: nil)
         #expect(result == nil)
 
-        try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
+        let completed = await self.waitForResult { result }
         box.delegate = nil
 
-        switch result {
+        switch completed {
         case .success?:
             #expect(Bool(true))
         default:
@@ -79,10 +93,10 @@ struct OpenAIDashboardNavigationDelegateTests {
         let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
         box.delegate?.webView(webView, didFail: nil, withError: timeout)
 
-        try? await Task.sleep(nanoseconds: UInt64((NavigationDelegate.postCommitSuccessDelay + 0.1) * 1_000_000_000))
+        let completed = await self.waitForResult { result }
         box.delegate = nil
 
-        switch result {
+        switch completed {
         case let .failure(error as NSError)?:
             #expect(error.domain == NSURLErrorDomain)
             #expect(error.code == NSURLErrorTimedOut)

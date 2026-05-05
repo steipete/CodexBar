@@ -179,6 +179,7 @@ final class UsageStore {
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
+    @ObservationIgnored let environmentBase: [String: String]
     @ObservationIgnored private let sessionQuotaNotifier: any SessionQuotaNotifying
     @ObservationIgnored private let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
     @ObservationIgnored let openAIWebLogger = CodexBarLog.logger(LogCategories.openAIWeb)
@@ -200,10 +201,12 @@ final class UsageStore {
     @ObservationIgnored let planUtilizationHistoryStore: PlanUtilizationHistoryStore
     @ObservationIgnored var codexHistoricalDataset: CodexHistoricalDataset?
     @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
+    @ObservationIgnored var lastKnownResetSnapshots: [UsageProvider: UsageSnapshot] = [:]
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
+    @ObservationIgnored var weeklyLimitResetDetectorStates: [String: WeeklyLimitResetDetectorState] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
@@ -220,7 +223,8 @@ final class UsageStore {
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
         planUtilizationHistoryStore: PlanUtilizationHistoryStore = .defaultAppSupport(),
         sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
-        startupBehavior: StartupBehavior = .automatic)
+        startupBehavior: StartupBehavior = .automatic,
+        environmentBase: [String: String] = ProcessInfo.processInfo.environment)
     {
         self.codexFetcher = fetcher
         self.browserDetection = browserDetection
@@ -228,6 +232,7 @@ final class UsageStore {
         self.costUsageFetcher = costUsageFetcher
         self.settings = settings
         self.registry = registry
+        self.environmentBase = environmentBase
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.planUtilizationHistoryStore = planUtilizationHistoryStore
         self.sessionQuotaNotifier = sessionQuotaNotifier
@@ -247,11 +252,13 @@ final class UsageStore {
             metadata: self.providerMetadata,
             codexFetcher: fetcher,
             claudeFetcher: self.claudeFetcher,
-            browserDetection: browserDetection)
+            browserDetection: browserDetection,
+            environmentBase: environmentBase)
         self.providerRuntimes = Dictionary(uniqueKeysWithValues: ProviderCatalog.all.compactMap { implementation in
             implementation.makeRuntime().map { (implementation.id, $0) }
         })
         self.planUtilizationHistory = planUtilizationHistoryStore.load()
+        self.weeklyLimitResetDetectorStates = Self.loadWeeklyLimitResetDetectorStates(from: settings.userDefaults)
         self.logStartupState()
         self.bindSettings()
         self.pathDebugInfo = PathDebugSnapshot(
@@ -419,7 +426,7 @@ final class UsageStore {
         // Otherwise providers (notably token-account-backed API providers) can fetch successfully but be
         // hidden from the menu because their credentials are not in ProcessInfo's environment.
         let environment = ProviderRegistry.makeEnvironment(
-            base: ProcessInfo.processInfo.environment,
+            base: self.environmentBase,
             provider: provider,
             settings: self.settings,
             tokenOverride: nil)
@@ -604,13 +611,18 @@ final class UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> (window: RateWindow, source: SessionQuotaWindowSource)?
     {
-        if let primary = snapshot.primary {
+        if let primary = snapshot.primary, Self.isSessionWindow(primary) {
             return (primary, .primary)
         }
         if provider == .copilot, let secondary = snapshot.secondary {
             return (secondary, .copilotSecondaryFallback)
         }
         return nil
+    }
+
+    private static func isSessionWindow(_ window: RateWindow) -> Bool {
+        guard let minutes = window.windowMinutes else { return true }
+        return minutes <= 6 * 60
     }
 
     func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
@@ -777,15 +789,20 @@ extension UsageStore {
         let ampCookieHeader = self.settings.ampCookieHeader
         let ollamaCookieSource = self.settings.ollamaCookieSource
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
-        let processEnvironment = ProcessInfo.processInfo.environment
+        let processEnvironment = self.environmentBase
         let openRouterConfigToken = self.settings.providerConfig(for: .openrouter)?.sanitizedAPIKey
-        let openRouterHasConfigToken = !(openRouterConfigToken?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty ?? true)
         let openRouterHasEnvToken = OpenRouterSettingsReader.apiToken(environment: processEnvironment) != nil
         let openRouterEnvironment = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: processEnvironment,
             provider: .openrouter,
             config: self.settings.providerConfig(for: .openrouter))
+        let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
+        let deepSeekHasTokenAccount = self.settings.selectedTokenAccount(for: .deepseek) != nil
+        let deepSeekEnvironment = ProviderRegistry.makeEnvironment(
+            base: processEnvironment,
+            provider: .deepseek,
+            settings: self.settings,
+            tokenOverride: nil)
         let codexFetcher = self.codexFetcher
         let browserDetection = self.browserDetection
         let claudeDebugExecutionContext = self.currentClaudeDebugExecutionContext()
@@ -858,25 +875,25 @@ extension UsageStore {
                         ollamaCookieSource: ollamaCookieSource,
                         ollamaCookieHeader: ollamaCookieHeader)
                 case .openrouter:
-                    let resolution = ProviderTokenResolver.openRouterResolution(environment: openRouterEnvironment)
-                    let hasAny = resolution != nil
-                    let source: String = if resolution == nil {
-                        "none"
-                    } else if openRouterHasConfigToken, openRouterHasEnvToken {
-                        "settings-config (overrides env)"
-                    } else if openRouterHasConfigToken {
-                        "settings-config"
-                    } else {
-                        resolution?.source.rawValue ?? "environment"
-                    }
-                    return "OPENROUTER_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                    return Self.apiKeyDebugLine(
+                        label: "OPENROUTER_API_KEY",
+                        resolution: ProviderTokenResolver.openRouterResolution(environment: openRouterEnvironment),
+                        configToken: openRouterConfigToken,
+                        hasEnvToken: openRouterHasEnvToken)
                 case .warp:
                     let resolution = ProviderTokenResolver.warpResolution()
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                case .deepseek:
+                    return Self.apiKeyDebugLine(
+                        label: "DEEPSEEK_API_KEY",
+                        resolution: ProviderTokenResolver.deepseekResolution(environment: deepSeekEnvironment),
+                        configToken: nil,
+                        hasEnvToken: deepSeekHasEnvToken,
+                        hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .jetbrains, .perplexity, .abacus:
+                     .kimik2, .jetbrains, .perplexity, .abacus, .mistral, .codebuff, .windsurf:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
@@ -898,7 +915,7 @@ extension UsageStore {
             let sourceMode = self.sourceMode(for: .claude)
             let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: nil)
             let environment = ProviderRegistry.makeEnvironment(
-                base: ProcessInfo.processInfo.environment,
+                base: self.environmentBase,
                 provider: .claude,
                 settings: self.settings,
                 tokenOverride: nil)
@@ -995,6 +1012,31 @@ extension UsageStore {
             interaction: ProviderInteractionContext.current,
             refreshPhase: ProviderRefreshContext.current)
         #endif
+    }
+
+    private nonisolated static func apiKeyDebugLine(
+        label: String,
+        resolution: ProviderTokenResolution?,
+        configToken: String?,
+        hasEnvToken: Bool,
+        hasTokenAccount: Bool = false) -> String
+    {
+        let hasAny = resolution != nil
+        let hasConfigToken = !(configToken?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        let source: String = if resolution == nil {
+            "none"
+        } else if hasTokenAccount, hasEnvToken {
+            "settings-token-account (overrides env)"
+        } else if hasTokenAccount {
+            "settings-token-account"
+        } else if hasConfigToken, hasEnvToken {
+            "settings-config (overrides env)"
+        } else if hasConfigToken {
+            "settings-config"
+        } else {
+            resolution?.source.rawValue ?? "environment"
+        }
+        return "\(label)=\(hasAny ? "present" : "missing") source=\(source)"
     }
 
     private static func debugCursorLog(

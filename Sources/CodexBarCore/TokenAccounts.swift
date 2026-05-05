@@ -6,13 +6,24 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
     public let token: String
     public let addedAt: TimeInterval
     public let lastUsed: TimeInterval?
+    /// Stable provider-specific identity (e.g. GitHub `login`) used for
+    /// re-auth deduplication. Optional so legacy accounts keep working.
+    public let externalIdentifier: String?
 
-    public init(id: UUID, label: String, token: String, addedAt: TimeInterval, lastUsed: TimeInterval?) {
+    public init(
+        id: UUID,
+        label: String,
+        token: String,
+        addedAt: TimeInterval,
+        lastUsed: TimeInterval?,
+        externalIdentifier: String? = nil)
+    {
         self.id = id
         self.label = label
         self.token = token
         self.addedAt = addedAt
         self.lastUsed = lastUsed
+        self.externalIdentifier = externalIdentifier
     }
 
     public var displayName: String {

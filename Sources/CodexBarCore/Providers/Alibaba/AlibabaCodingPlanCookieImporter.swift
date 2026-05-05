@@ -13,6 +13,7 @@ public enum AlibabaCodingPlanCookieImporter {
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = [
         "bailian-singapore-cs.alibabacloud.com",
+        "bailian-cs.console.aliyun.com",
         "bailian-beijing-cs.aliyuncs.com",
         "modelstudio.console.alibabacloud.com",
         "bailian.console.aliyun.com",

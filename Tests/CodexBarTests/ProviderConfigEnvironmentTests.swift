@@ -40,6 +40,22 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `ignores legacy API key override for deepseek`() {
+        let config = ProviderConfig(id: .deepseek, apiKey: "ds-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .deepseek,
+            config: config)
+
+        let key = DeepSeekSettingsReader.apiKeyEnvironmentKeys.first
+        #expect(key != nil)
+        guard let key else { return }
+
+        #expect(env[key] == nil)
+        #expect(ProviderTokenResolver.deepseekToken(environment: env) == nil)
+    }
+
+    @Test
     func `applies API key override for kilo`() {
         let config = ProviderConfig(id: .kilo, apiKey: "kilo-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
@@ -61,6 +77,47 @@ struct ProviderConfigEnvironmentTests {
 
         #expect(env[OpenRouterSettingsReader.envKey] == "config-token")
         #expect(ProviderTokenResolver.openRouterToken(environment: env) == "config-token")
+    }
+
+    @Test
+    func `deepseek config override leaves environment token alone`() {
+        let config = ProviderConfig(id: .deepseek, apiKey: "config-token")
+        let envKey = DeepSeekSettingsReader.apiKeyEnvironmentKeys[0]
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [envKey: "env-token"],
+            provider: .deepseek,
+            config: config)
+
+        #expect(env[envKey] == "env-token")
+        #expect(ProviderTokenResolver.deepseekToken(environment: env) == "env-token")
+    }
+
+    @Test
+    func `applies API key override for codebuff`() {
+        let config = ProviderConfig(id: .codebuff, apiKey: "cb-config-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .codebuff,
+            config: config)
+
+        #expect(env[CodebuffSettingsReader.apiTokenKey] == "cb-config-token")
+        #expect(
+            ProviderTokenResolver.codebuffToken(environment: env, authFileURL: nil)
+                == "cb-config-token")
+    }
+
+    @Test
+    func `codebuff config override leaves environment token alone`() {
+        let config = ProviderConfig(id: .codebuff, apiKey: "config-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [CodebuffSettingsReader.apiTokenKey: "env-token"],
+            provider: .codebuff,
+            config: config)
+
+        #expect(env[CodebuffSettingsReader.apiTokenKey] == "env-token")
+        #expect(
+            ProviderTokenResolver.codebuffToken(environment: env, authFileURL: nil)
+                == "env-token")
     }
 
     @Test

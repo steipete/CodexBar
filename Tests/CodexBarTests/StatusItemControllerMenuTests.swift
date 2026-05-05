@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import Testing
@@ -148,5 +149,20 @@ struct StatusItemControllerMenuTests {
             provider: .openrouter,
             snapshot: snapshot))
         #expect(snapshot.primary?.usedPercent == 10)
+    }
+
+    @Test
+    @MainActor
+    func `menu card width stays at base width when menu accessories are present`() {
+        let shortcutMenu = NSMenu()
+        let refreshItem = NSMenuItem(title: "Refresh", action: nil, keyEquivalent: "r")
+        shortcutMenu.addItem(refreshItem)
+        #expect(ceil(shortcutMenu.size.width) < 310)
+
+        let submenuMenu = NSMenu()
+        let parentItem = NSMenuItem(title: "Session", action: nil, keyEquivalent: "")
+        parentItem.submenu = NSMenu(title: "Session")
+        submenuMenu.addItem(parentItem)
+        #expect(ceil(submenuMenu.size.width) < 310)
     }
 }

@@ -89,6 +89,44 @@ final class AugmentStatusProbeTests: XCTestCase {
             "Should contain credits information or failure message")
     }
 
+    func test_creditsLimit_prefersUsageUnitsAvailable() throws {
+        let response = try JSONDecoder().decode(AugmentCreditsResponse.self, from: Data("""
+        {
+          "usageUnitsRemaining": 15,
+          "usageUnitsConsumedThisBillingCycle": 10,
+          "usageUnitsAvailable": 100,
+          "usageBalanceStatus": "active"
+        }
+        """.utf8))
+
+        XCTAssertEqual(response.creditsLimit, 100)
+    }
+
+    func test_creditsLimit_fallsBackToRemainingPlusConsumedWhenAvailableMissing() throws {
+        let response = try JSONDecoder().decode(AugmentCreditsResponse.self, from: Data("""
+        {
+          "usageUnitsRemaining": 15,
+          "usageUnitsConsumedThisBillingCycle": 10,
+          "usageBalanceStatus": "active"
+        }
+        """.utf8))
+
+        XCTAssertEqual(response.creditsLimit, 25)
+    }
+
+    func test_creditsLimit_ignoresZeroAvailableValue() throws {
+        let response = try JSONDecoder().decode(AugmentCreditsResponse.self, from: Data("""
+        {
+          "usageUnitsRemaining": 15,
+          "usageUnitsConsumedThisBillingCycle": 10,
+          "usageUnitsAvailable": 0,
+          "usageBalanceStatus": "active"
+        }
+        """.utf8))
+
+        XCTAssertEqual(response.creditsLimit, 25)
+    }
+
     // MARK: - Cookie Domain Filtering Tests
 
     func test_cookieDomainMatching_exactMatch() throws {

@@ -44,7 +44,9 @@ public enum CodexActiveSourceResolver {
         guard let liveSystemAccount else { return false }
         return CodexIdentityMatcher.matches(
             snapshot.runtimeIdentity(for: storedAccount),
-            snapshot.runtimeIdentity(for: liveSystemAccount))
+            lhsEmail: snapshot.runtimeEmail(for: storedAccount),
+            snapshot.runtimeIdentity(for: liveSystemAccount),
+            rhsEmail: liveSystemAccount.email)
     }
 }
 
@@ -155,7 +157,11 @@ public struct DefaultCodexAccountReconciler {
             let matchingStoredAccountForLiveSystemAccount = liveSystemAccount.flatMap { liveAccount in
                 accounts.accounts.first { account in
                     guard let runtimeAccount = runtimeAccounts[account.id] else { return false }
-                    return CodexIdentityMatcher.matches(runtimeAccount.identity, self.runtimeIdentity(for: liveAccount))
+                    return CodexIdentityMatcher.matches(
+                        runtimeAccount.identity,
+                        lhsEmail: runtimeAccount.email,
+                        self.runtimeIdentity(for: liveAccount),
+                        rhsEmail: liveAccount.email)
                 }
             }
 
@@ -232,6 +238,22 @@ public enum CodexIdentityMatcher {
         default:
             false
         }
+    }
+
+    public static func matches(
+        _ lhs: CodexIdentity,
+        lhsEmail: String?,
+        _ rhs: CodexIdentity,
+        rhsEmail: String?) -> Bool
+    {
+        guard self.matches(lhs, rhs) else { return false }
+        guard case .providerAccount = lhs, case .providerAccount = rhs else { return true }
+        guard let normalizedLeftEmail = CodexIdentityResolver.normalizeEmail(lhsEmail),
+              let normalizedRightEmail = CodexIdentityResolver.normalizeEmail(rhsEmail)
+        else {
+            return true
+        }
+        return normalizedLeftEmail == normalizedRightEmail
     }
 
     public static func normalized(_ identity: CodexIdentity, fallbackEmail: String) -> CodexIdentity {

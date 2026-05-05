@@ -6,6 +6,9 @@ extension StatusItemController {
     private static let loadingPercentEpsilon = 0.0001
     private static let blinkActiveTickInterval: Duration = .milliseconds(75)
     private static let blinkIdleFallbackInterval: Duration = .seconds(1)
+    static let loadingAnimationFPS: Double = 30.0
+    static let loadingAnimationPhaseIncrement: Double = 2.7 / StatusItemController.loadingAnimationFPS
+    private static let loadingAnimationMaxContinuousDuration: TimeInterval = 30.0
 
     func needsMenuBarIconAnimation() -> Bool {
         if self.shouldMergeIcons {
@@ -405,7 +408,10 @@ extension StatusItemController {
     // swiftlint:enable function_body_length
 
     private func shouldSkipMergedIconRender(_ signature: String) -> Bool {
-        guard self.shouldMergeIcons else { return false }
+        guard self.shouldMergeIcons else {
+            self.lastAppliedMergedIconRenderSignature = signature
+            return false
+        }
         if self.lastAppliedMergedIconRenderSignature == signature {
             return true
         }
@@ -535,7 +541,7 @@ extension StatusItemController {
     }
 
     private func setButtonTitle(_ title: String?, for button: NSStatusBarButton) {
-        let value = title ?? ""
+        let value = Self.buttonTitle(title, hasImage: button.image != nil)
         if button.title != value {
             button.title = value
         }
@@ -545,7 +551,24 @@ extension StatusItemController {
         }
     }
 
+    nonisolated static func buttonTitle(_ title: String?, hasImage: Bool) -> String {
+        guard let title, !title.isEmpty else { return "" }
+        return hasImage ? " \(title)" : title
+    }
+
     func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        if provider == .openrouter,
+           self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .automatic,
+           let balance = snapshot?.openRouterUsage?.balance
+        {
+            return UsageFormatter.usdString(balance)
+        }
+        if provider == .deepseek,
+           let balance = Self.deepSeekBalanceDisplayText(snapshot: snapshot)
+        {
+            return balance
+        }
+
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
         let mode = self.settings.menuBarDisplayMode
         let now = Date()
@@ -587,6 +610,19 @@ extension StatusItemController {
         return displayText
     }
 
+    nonisolated static func deepSeekBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        guard let rawValue = snapshot?.primary?.resetDescription?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !rawValue.isEmpty,
+            rawValue.hasPrefix("$") || rawValue.hasPrefix("¥")
+        else {
+            return nil
+        }
+
+        let balance = rawValue.split(separator: " ", maxSplits: 1).first
+        return balance.map(String.init)
+    }
+
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
         self.menuBarMetricWindow(for: provider, snapshot: snapshot)
     }
@@ -598,6 +634,15 @@ extension StatusItemController {
            let highest = self.store.providerWithHighestUsage()
         {
             return highest.provider
+        }
+        if self.shouldMergeIcons, self.settings.mergedMenuLastSelectedWasOverview {
+            let enabledProviders = self.store.enabledProvidersForDisplay()
+            let overviewProviders = self.settings.resolvedMergedOverviewProviders(
+                activeProviders: enabledProviders,
+                maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+            if let provider = overviewProviders.first(where: { self.store.isEnabled($0) }) {
+                return provider
+            }
         }
         if self.shouldMergeIcons,
            let selected = self.selectedMenuProvider,
@@ -679,29 +724,41 @@ extension StatusItemController {
                     self.animationPattern = .knightRider
                 }
                 self.animationPhase = 0
+                self.animationStartedAt = Date()
                 let driver = DisplayLinkDriver(onTick: { [weak self] in
                     self?.updateAnimationFrame()
                 })
                 self.animationDriver = driver
-                driver.start(fps: 60)
+                driver.start(fps: Self.loadingAnimationFPS)
             } else if let forced = self.settings.debugLoadingPattern, forced != self.animationPattern {
                 self.animationPattern = forced
                 self.animationPhase = 0
             }
         } else {
-            self.animationDriver?.stop()
-            self.animationDriver = nil
-            self.animationPhase = 0
-            if self.shouldMergeIcons {
-                self.applyIcon(phase: nil)
-            } else {
-                UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: nil) }
-            }
+            self.stopLoadingAnimation()
+        }
+    }
+
+    private func stopLoadingAnimation() {
+        self.animationDriver?.stop()
+        self.animationDriver = nil
+        self.animationPhase = 0
+        self.animationStartedAt = nil
+        if self.shouldMergeIcons {
+            self.applyIcon(phase: nil)
+        } else {
+            UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: nil) }
         }
     }
 
     private func updateAnimationFrame() {
-        self.animationPhase += 0.045 // half-speed animation
+        if let startedAt = self.animationStartedAt,
+           Date().timeIntervalSince(startedAt) > Self.loadingAnimationMaxContinuousDuration
+        {
+            self.stopLoadingAnimation()
+            return
+        }
+        self.animationPhase += Self.loadingAnimationPhaseIncrement
         if self.shouldMergeIcons {
             self.applyIcon(phase: self.animationPhase)
         } else {

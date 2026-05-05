@@ -4,14 +4,43 @@ import FoundationNetworking
 #endif
 
 public struct CopilotUsageFetcher: Sendable {
-    private let token: String
+    public struct GitHubUserIdentity: Decodable, Equatable, Sendable {
+        public let id: Int64
+        public let login: String
 
-    public init(token: String) {
+        public init(id: Int64, login: String) {
+            self.id = id
+            self.login = login
+        }
+    }
+
+    private let token: String
+    private let enterpriseHost: String?
+
+    public init(token: String, enterpriseHost: String? = nil) {
         self.token = token
+        self.enterpriseHost = enterpriseHost
+    }
+
+    public static func apiHost(enterpriseHost: String?) -> String {
+        let host = CopilotDeviceFlow.normalizedHost(enterpriseHost)
+        if host == CopilotDeviceFlow.defaultHost {
+            return "api.github.com"
+        }
+        if host.hasPrefix("api.") {
+            return host
+        }
+        return "api.\(host)"
+    }
+
+    public static func usageURL(enterpriseHost: String?) -> URL? {
+        CopilotDeviceFlow.makeRequestURL(
+            host: self.apiHost(enterpriseHost: enterpriseHost),
+            path: "/copilot_internal/user")
     }
 
     public func fetch() async throws -> UsageSnapshot {
-        guard let url = URL(string: "https://api.github.com/copilot_internal/user") else {
+        guard let url = Self.usageURL(enterpriseHost: self.enterpriseHost) else {
             throw URLError(.badURL)
         }
 
@@ -64,6 +93,32 @@ public struct CopilotUsageFetcher: Sendable {
             providerCost: nil,
             updatedAt: Date(),
             identity: identity)
+    }
+
+    public static func fetchGitHubUsername(token: String) async throws -> String {
+        try await self.fetchGitHubIdentity(token: token).login
+    }
+
+    public static func fetchGitHubIdentity(token: String) async throws -> GitHubUserIdentity {
+        guard let url = URL(string: "https://api.github.com/user") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw URLError(.userAuthenticationRequired)
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+
+        return try JSONDecoder().decode(GitHubUserIdentity.self, from: data)
     }
 
     private func addCommonHeaders(to request: inout URLRequest) {

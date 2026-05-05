@@ -670,6 +670,7 @@ extension UsageMenuCardView.Model {
         let sourceLabel: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
+        let claudePeakHoursEnabled: Bool
         let weeklyPace: UsagePace?
         let now: Date
 
@@ -694,6 +695,7 @@ extension UsageMenuCardView.Model {
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
+            claudePeakHoursEnabled: Bool = true,
             weeklyPace: UsagePace? = nil,
             now: Date)
         {
@@ -717,6 +719,7 @@ extension UsageMenuCardView.Model {
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
+            self.claudePeakHoursEnabled = claudePeakHoursEnabled
             self.weeklyPace = weeklyPace
             self.now = now
         }
@@ -750,7 +753,8 @@ extension UsageMenuCardView.Model {
         let subtitle = Self.subtitle(
             snapshot: input.snapshot,
             isRefreshing: input.isRefreshing,
-            lastError: input.lastError)
+            lastError: input.lastError,
+            now: input.now)
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
         let placeholder = input.snapshot == nil && !input.isRefreshing && input.lastError == nil ? "No usage yet" : nil
 
@@ -786,6 +790,11 @@ extension UsageMenuCardView.Model {
                 notes.append("Using CLI fallback")
             }
             return notes
+        }
+
+        if input.provider == .claude, input.claudePeakHoursEnabled {
+            let peakStatus = ClaudePeakHours.status(at: input.now)
+            return [peakStatus.label]
         }
 
         guard input.provider == .openrouter,
@@ -878,7 +887,8 @@ extension UsageMenuCardView.Model {
     private static func subtitle(
         snapshot: UsageSnapshot?,
         isRefreshing: Bool,
-        lastError: String?) -> (text: String, style: SubtitleStyle)
+        lastError: String?,
+        now: Date) -> (text: String, style: SubtitleStyle)
     {
         if let lastError, !lastError.isEmpty {
             return (lastError.trimmingCharacters(in: .whitespacesAndNewlines), .error)
@@ -889,7 +899,7 @@ extension UsageMenuCardView.Model {
         }
 
         if let updated = snapshot?.updatedAt {
-            return (UsageFormatter.updatedString(from: updated), .info)
+            return (UsageFormatter.updatedString(from: updated, now: now), .info)
         }
 
         return ("Not fetched yet", .info)
@@ -965,18 +975,6 @@ extension UsageMenuCardView.Model {
                 percentStyle: percentStyle,
                 zaiTimeDetail: zaiTimeDetail))
         }
-        if input.provider == .kilo,
-           metrics.contains(where: { $0.id == "primary" }),
-           metrics.contains(where: { $0.id == "secondary" })
-        {
-            metrics.sort { lhs, rhs in
-                let kiloOrder: [String: Int] = [
-                    "secondary": 0,
-                    "primary": 1,
-                ]
-                return (kiloOrder[lhs.id] ?? Int.max) < (kiloOrder[rhs.id] ?? Int.max)
-            }
-        }
         if input.metadata.supportsOpus, let opus = snapshot.tertiary {
             var tertiaryDetailText: String?
             if input.provider == .alibaba,
@@ -1003,6 +1001,39 @@ extension UsageMenuCardView.Model {
                 detailRightText: nil,
                 pacePercent: nil,
                 paceOnTop: true))
+        }
+        if let extraRateWindows = snapshot.extraRateWindows {
+            metrics.append(contentsOf: extraRateWindows.map { namedWindow in
+                Metric(
+                    id: namedWindow.id,
+                    title: namedWindow.title,
+                    percent: Self.clamped(
+                        input.usageBarsShowUsed
+                            ? namedWindow.window.usedPercent
+                            : namedWindow.window.remainingPercent),
+                    percentStyle: percentStyle,
+                    resetText: Self.resetText(
+                        for: namedWindow.window,
+                        style: input.resetTimeDisplayStyle,
+                        now: input.now),
+                    detailText: nil,
+                    detailLeftText: nil,
+                    detailRightText: nil,
+                    pacePercent: nil,
+                    paceOnTop: true)
+            })
+        }
+        if input.provider == .kilo,
+           metrics.contains(where: { $0.id == "primary" }),
+           metrics.contains(where: { $0.id == "secondary" })
+        {
+            metrics.sort { lhs, rhs in
+                let kiloOrder: [String: Int] = [
+                    "secondary": 0,
+                    "primary": 1,
+                ]
+                return (kiloOrder[lhs.id] ?? Int.max) < (kiloOrder[rhs.id] ?? Int.max)
+            }
         }
 
         if let codexProjection = input.codexProjection,
@@ -1042,19 +1073,19 @@ extension UsageMenuCardView.Model {
         {
             primaryResetText = openRouterQuotaDetail
         }
-        if input.provider == .warp || input.provider == .kilo,
+        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
         }
-        if input.provider == .alibaba,
+        if input.provider == .alibaba || input.provider == .mistral,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
         }
-        if input.provider == .warp || input.provider == .kilo, primary.resetsAt == nil {
+        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek, primary.resetsAt == nil {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window
@@ -1085,6 +1116,18 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
+        if input.provider == .synthetic,
+           let regen = Self.syntheticRollingRegenDetail(
+               window: primary,
+               now: input.now,
+               showUsed: input.usageBarsShowUsed)
+        {
+            primaryResetText = regen.resetText
+            primaryDetailLeft = regen.pace.leftLabel
+            primaryDetailRight = regen.pace.rightLabel
+            primaryPacePercent = regen.pace.pacePercent
+            primaryPaceOnTop = regen.pace.paceOnTop
+        }
         return Metric(
             id: "primary",
             title: input.metadata.sessionLabel,
@@ -1105,7 +1148,7 @@ extension UsageMenuCardView.Model {
         percentStyle: PercentStyle,
         zaiTimeDetail: String?) -> Metric
     {
-        let paceDetail = Self.weeklyPaceDetail(
+        var paceDetail = Self.weeklyPaceDetail(
             window: weekly,
             now: input.now,
             pace: input.weeklyPace,
@@ -1140,6 +1183,16 @@ extension UsageMenuCardView.Model {
            !detail.isEmpty
         {
             weeklyResetText = detail
+        }
+        if input.provider == .synthetic,
+           let regen = Self.syntheticRegenDetail(
+               weekly: weekly,
+               cost: input.snapshot?.providerCost,
+               now: input.now,
+               showUsed: input.usageBarsShowUsed)
+        {
+            weeklyResetText = regen.resetText
+            paceDetail = regen.pace
         }
         return Metric(
             id: "secondary",
@@ -1314,6 +1367,69 @@ extension UsageMenuCardView.Model {
             paceOnTop: paceOnTop)
     }
 
+    private static func syntheticRegenDetail(
+        weekly: RateWindow,
+        cost: ProviderCostSnapshot?,
+        now: Date,
+        showUsed: Bool) -> (resetText: String, pace: PaceDetail)?
+    {
+        guard let cost,
+              cost.limit > 0,
+              let nextRegenAmount = cost.nextRegenAmount,
+              nextRegenAmount > 0,
+              let resetsAt = weekly.resetsAt
+        else { return nil }
+
+        let countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
+        let resetText = "Regenerates \(countdown)"
+
+        let nextRegenPercent = (nextRegenAmount / cost.limit) * 100
+        let afterNextRegenRemaining = min(100, weekly.remainingPercent + nextRegenPercent)
+        let afterNextRegen = showUsed ? max(0, 100 - afterNextRegenRemaining) : afterNextRegenRemaining
+        let suffix = showUsed ? "used after next regen" : "after next regen"
+        let ticksToFull = max(0, cost.used) / nextRegenAmount
+        let left = String(format: "%.0f%% %@", afterNextRegen, suffix)
+        let right = if ticksToFull <= 0.1 {
+            "Near full"
+        } else if ticksToFull < 1.5 {
+            "Full in ~1 regen"
+        } else {
+            String(format: "Full in ~%.0f regens", ceil(ticksToFull))
+        }
+        return (resetText, PaceDetail(leftLabel: left, rightLabel: right, pacePercent: nil, paceOnTop: true))
+    }
+
+    private static func syntheticRollingRegenDetail(
+        window: RateWindow,
+        now: Date,
+        showUsed: Bool) -> (resetText: String, pace: PaceDetail)?
+    {
+        guard let resetsAt = window.resetsAt,
+              let nextRegenPercent = window.nextRegenPercent,
+              nextRegenPercent > 0
+        else { return nil }
+
+        let countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
+        let resetText = "Regenerates \(countdown)"
+
+        let afterNextRegenRemaining = min(100, window.remainingPercent + nextRegenPercent)
+        let afterNextRegen = showUsed ? max(0, 100 - afterNextRegenRemaining) : afterNextRegenRemaining
+        let suffix = showUsed ? "used after next regen" : "after next regen"
+        let left = String(format: "%.0f%% %@", afterNextRegen, suffix)
+
+        let missingPercent = max(0, window.usedPercent)
+        let ticksToFull = missingPercent / nextRegenPercent
+        let right = if ticksToFull <= 0.1 {
+            "Near full"
+        } else if ticksToFull < 1.5 {
+            "Full in ~1 regen"
+        } else {
+            String(format: "Full in ~%.0f regens", ceil(ticksToFull))
+        }
+
+        return (resetText, PaceDetail(leftLabel: left, rightLabel: right, pacePercent: nil, paceOnTop: true))
+    }
+
     private static func creditsLine(
         metadata: ProviderMetadata,
         credits: CreditsSnapshot?,
@@ -1378,6 +1494,7 @@ extension UsageMenuCardView.Model {
     {
         guard let cost else { return nil }
         guard cost.limit > 0 else { return nil }
+        guard provider != .synthetic else { return nil }
 
         let used: String
         let limit: String
