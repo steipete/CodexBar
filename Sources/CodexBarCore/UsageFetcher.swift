@@ -366,7 +366,7 @@ private struct RPCRateLimitsErrorBody: Decodable {
     }
 }
 
-private enum RPCWireError: Error, LocalizedError {
+enum RPCWireError: Error, LocalizedError {
     case startFailed(String)
     case requestFailed(String)
     case malformed(String)
@@ -538,9 +538,11 @@ private final class CodexRPCClient: @unchecked Sendable {
 
     /// Sendable wrapper so we can return `[String: Any]` payloads out of a
     /// `withThrowingTaskGroup` (which requires `Sendable` element types) without
-    /// having to rewrite every caller around `Data`. The inner dict only ever
-    /// holds JSON values produced by `JSONSerialization`, which are inherently
-    /// thread-safe value types post-decoding.
+    /// rewriting every caller around `Data`. Safe here because of *usage*, not
+    /// the underlying type: each message is produced once by `JSONSerialization`,
+    /// wrapped, handed back through `group.next()`, unwrapped, and used in the
+    /// caller — no shared mutable state across tasks. Do NOT reuse this wrapper
+    /// for dictionaries that any other task could mutate concurrently.
     private struct SendableJSONMessage: @unchecked Sendable {
         let value: [String: Any]
     }
@@ -594,7 +596,7 @@ private final class CodexRPCClient: @unchecked Sendable {
                 // On timeout, terminate the process so the stdout reader finishes
                 // and the awaiting body task exits its for-await loop instead of
                 // leaking. Then surface the timeout error to the caller.
-                self?.terminateProcessForTimeout()
+                self?.terminateProcessForTimeout(method: method)
                 throw RPCWireError.timeout(method: method)
             }
             do {
@@ -610,9 +612,9 @@ private final class CodexRPCClient: @unchecked Sendable {
         }
     }
 
-    private func terminateProcessForTimeout() {
+    private func terminateProcessForTimeout(method: String) {
         if self.process.isRunning {
-            Self.log.warning("Codex RPC timed out; terminating process")
+            Self.log.warning("Codex RPC timed out on `\(method)`; terminating process")
             self.process.terminate()
         }
     }

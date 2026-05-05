@@ -154,13 +154,17 @@ struct CodexUsageFetcherFallbackTests {
             ttyTimeoutSeconds: 0.5)
 
         let started = Date()
+        var caughtTimeout = false
         do {
             _ = try await fetcher.loadLatestUsage()
             Issue.record("Expected fetcher to throw when both RPC and TTY hang")
+        } catch let error as RPCWireError {
+            if case .timeout = error { caughtTimeout = true }
         } catch {
-            // Either path's timeout is acceptable; what matters is bounded duration.
+            Issue.record("Expected RPCWireError.timeout, got \(type(of: error)): \(error)")
         }
         let elapsed = Date().timeIntervalSince(started)
+        #expect(caughtTimeout, "Expected RPCWireError.timeout from RPC or TTY path")
         #expect(elapsed < 2.0, "Both-hang case must terminate fast, took \(elapsed)s")
     }
 
