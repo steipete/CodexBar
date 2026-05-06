@@ -36,13 +36,19 @@ struct CodexBarConfigMigrator {
         var config = (existing ?? CodexBarConfig.makeDefault()).normalized()
         var state = MigrationState()
 
+        // applyLegacyCookieSources reads only UserDefaults, so it is cheap and runs unconditionally
+        // to pick up any newly-added cookie-source keys on every launch.
+        self.applyLegacyCookieSources(userDefaults: userDefaults, config: &config, state: &state)
+
+        // The heavy Keychain + file migrations only need to run once: on the very first launch before a
+        // config file exists. After that the config is the source of truth, and legacy stores have been
+        // cleared. Running them on every launch caused ~28 unnecessary SecItemCopyMatching calls on the
+        // main thread, which macOS 26.4 Performance Diagnostics flags as faults (issue #805).
         if existing == nil {
             self.applyLegacyOrderAndToggles(userDefaults: userDefaults, config: &config, state: &state)
+            self.migrateLegacySecrets(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
+            self.migrateLegacyAccounts(stores: stores, config: &config, state: &state)
         }
-
-        self.applyLegacyCookieSources(userDefaults: userDefaults, config: &config, state: &state)
-        self.migrateLegacySecrets(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
-        self.migrateLegacyAccounts(stores: stores, config: &config, state: &state)
 
         if state.didUpdate {
             do {

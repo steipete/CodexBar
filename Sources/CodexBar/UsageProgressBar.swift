@@ -39,80 +39,66 @@ struct UsageProgressBar: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
+        // Draw the entire progress bar — track, fill, and pace-tip punch-out — in a single Canvas.
+        // A single Canvas uses Core Graphics internally and avoids the SwiftUI compositing modifiers
+        // (.compositingGroup, .blendMode) that trigger Metal/RenderBox shader compilation on macOS 26.x,
+        // which caused the status item icon to disappear (issue #805).
+        Canvas { context, size in
             let scale = max(self.displayScale, 1)
-            let fillWidth = proxy.size.width * self.clamped / 100
-            let paceWidth = proxy.size.width * Self.clampedPercent(self.pacePercent) / 100
-            let tipWidth = max(25, proxy.size.height * 6.5)
+            let fillWidth = size.width * self.clamped / 100
+            let paceWidth = size.width * Self.clampedPercent(self.pacePercent) / 100
+            let tipWidth = max(25, size.height * 6.5)
             let stripeInset = 1 / scale
             let tipOffset = paceWidth - tipWidth + (Self.paceStripeSpan(for: scale) / 2) + stripeInset
             let showTip = self.pacePercent != nil && tipWidth > 0.5
-            let needsPunchCompositing = showTip
-            let bar = ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(MenuHighlightStyle.progressTrack(self.isHighlighted))
-                self.actualBar(width: fillWidth)
-                if showTip {
-                    self.paceTip(width: tipWidth)
-                        .offset(x: tipOffset)
-                }
+
+            let cornerRadius = size.height / 2
+            let cornerSize = CGSize(width: cornerRadius, height: cornerRadius)
+            let rect = CGRect(origin: .zero, size: size)
+
+            context.clip(to: Path(rect))
+
+            // Track
+            let trackPath = Path { p in p.addRoundedRect(in: rect, cornerSize: cornerSize) }
+            context.fill(trackPath, with: .color(MenuHighlightStyle.progressTrack(self.isHighlighted)))
+
+            // Fill
+            if fillWidth > 0 {
+                let fillRect = CGRect(x: 0, y: 0, width: min(fillWidth, size.width), height: size.height)
+                let fillPath = Path { p in p.addRoundedRect(in: fillRect, cornerSize: cornerSize) }
+                context.fill(
+                    fillPath,
+                    with: .color(MenuHighlightStyle.progressTint(self.isHighlighted, fallback: self.tint)))
             }
-            .clipped()
-            if self.isHighlighted {
-                bar
-                    .compositingGroup()
-            } else if needsPunchCompositing {
-                bar
-                    .compositingGroup()
-            } else {
-                bar
+
+            // Pace tip: punch-out + center stripe drawn within the canvas context using Core Graphics
+            // blend modes so no SwiftUI compositing modifier (.blendMode, .compositingGroup) is needed.
+            if showTip {
+                let isDeficit = self.paceOnTop == false
+                let useDeficitRed = isDeficit && self.isHighlighted == false
+                let stripeColor: Color = if self.isHighlighted {
+                    .white
+                } else if useDeficitRed {
+                    .red
+                } else {
+                    .green
+                }
+
+                let tipSize = CGSize(width: tipWidth, height: size.height)
+                let stripes = Self.paceStripePaths(size: tipSize, scale: scale)
+                let shift = CGAffineTransform(translationX: tipOffset, y: 0)
+
+                // Punch out of the accumulated track+fill pixels.
+                context.blendMode = .destinationOut
+                context.fill(stripes.punched.applying(shift), with: .color(.white.opacity(0.9)))
+                context.blendMode = .normal
+
+                context.fill(stripes.center.applying(shift), with: .color(stripeColor))
             }
         }
         .frame(height: 6)
         .accessibilityLabel(self.accessibilityLabel)
         .accessibilityValue("\(Int(self.clamped)) percent")
-    }
-
-    private func actualBar(width: CGFloat) -> some View {
-        Capsule()
-            .fill(MenuHighlightStyle.progressTint(self.isHighlighted, fallback: self.tint))
-            .frame(width: width)
-            .contentShape(Rectangle())
-            .allowsHitTesting(false)
-    }
-
-    private func paceTip(width: CGFloat) -> some View {
-        let isDeficit = self.paceOnTop == false
-        let useDeficitRed = isDeficit && self.isHighlighted == false
-        return GeometryReader { proxy in
-            let size = proxy.size
-            let rect = CGRect(origin: .zero, size: size)
-            let scale = max(self.displayScale, 1)
-            let stripes = Self.paceStripePaths(size: size, scale: scale)
-            let stripeColor: Color = if self.isHighlighted {
-                .white
-            } else if useDeficitRed {
-                .red
-            } else {
-                .green
-            }
-
-            ZStack {
-                Canvas { context, _ in
-                    context.clip(to: Path(rect))
-                    context.fill(stripes.punched, with: .color(.white.opacity(0.9)))
-                }
-                .blendMode(.destinationOut)
-
-                Canvas { context, _ in
-                    context.clip(to: Path(rect))
-                    context.fill(stripes.center, with: .color(stripeColor))
-                }
-            }
-        }
-        .frame(width: width)
-        .contentShape(Rectangle())
-        .allowsHitTesting(false)
     }
 
     private static func paceStripePaths(size: CGSize, scale: CGFloat) -> (punched: Path, center: Path) {
