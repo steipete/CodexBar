@@ -20,6 +20,12 @@ struct CodexBarConfigMigrator {
         let tokenAccountStore: any ProviderTokenAccountStoring
     }
 
+    // Persisted once clearLegacyStores completes (or migration finds no legacy data). Guards against
+    // re-running ~28 SecItemCopyMatching calls on every launch (macOS 26.4 fault per call, issue #805).
+    // Using a flag rather than `existing == nil` so that a crash-interrupted first migration
+    // (config saved, clearLegacyStores not yet called) can finish cleanup on the next launch.
+    private static let legacyMigrationCompletedKey = "codexbar.legacySecretsMigrationCompleted"
+
     private struct MigrationState {
         var didUpdate = false
         var sawLegacySecrets = false
@@ -36,16 +42,18 @@ struct CodexBarConfigMigrator {
         var config = (existing ?? CodexBarConfig.makeDefault()).normalized()
         var state = MigrationState()
 
-        // applyLegacyCookieSources reads only UserDefaults, so it is cheap and runs unconditionally
-        // to pick up any newly-added cookie-source keys on every launch.
+        // applyLegacyCookieSources reads only UserDefaults — cheap, runs unconditionally so
+        // newly-added cookie-source keys are picked up on every launch.
         self.applyLegacyCookieSources(userDefaults: userDefaults, config: &config, state: &state)
 
-        // The heavy Keychain + file migrations only need to run once: on the very first launch before a
-        // config file exists. After that the config is the source of truth, and legacy stores have been
-        // cleared. Running them on every launch caused ~28 unnecessary SecItemCopyMatching calls on the
-        // main thread, which macOS 26.4 Performance Diagnostics flags as faults (issue #805).
-        if existing == nil {
-            self.applyLegacyOrderAndToggles(userDefaults: userDefaults, config: &config, state: &state)
+        let migrationCompleted = userDefaults.bool(forKey: Self.legacyMigrationCompletedKey)
+        if !migrationCompleted {
+            // Run once: migrate Keychain/file secrets then clear them. Using a completion flag rather
+            // than `existing == nil` ensures a crash between config-save and clearLegacyStores can
+            // finish cleanup on the next launch without re-doing the (already-saved) data migration.
+            if existing == nil {
+                self.applyLegacyOrderAndToggles(userDefaults: userDefaults, config: &config, state: &state)
+            }
             self.migrateLegacySecrets(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
             self.migrateLegacyAccounts(stores: stores, config: &config, state: &state)
         }
@@ -60,6 +68,11 @@ struct CodexBarConfigMigrator {
 
         if state.sawLegacySecrets || state.sawLegacyAccounts {
             self.clearLegacyStores(stores: stores, sawAccounts: state.sawLegacyAccounts, log: log)
+            userDefaults.set(true, forKey: Self.legacyMigrationCompletedKey)
+        } else if !migrationCompleted {
+            // Migration ran but found nothing — no legacy data ever existed; mark complete so we
+            // never pay the Keychain scan cost again.
+            userDefaults.set(true, forKey: Self.legacyMigrationCompletedKey)
         }
 
         return config.normalized()
