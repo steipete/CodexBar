@@ -20,10 +20,6 @@ struct CodexBarConfigMigrator {
         let tokenAccountStore: any ProviderTokenAccountStoring
     }
 
-    // Persisted once clearLegacyStores completes (or migration finds no legacy data). Guards against
-    // re-running ~28 SecItemCopyMatching calls on every launch (macOS 26.4 fault per call, issue #805).
-    // Using a flag rather than `existing == nil` so that a crash-interrupted first migration
-    // (config saved, clearLegacyStores not yet called) can finish cleanup on the next launch.
     private static let legacyMigrationCompletedKey = "codexbar.legacySecretsMigrationCompleted"
 
     private struct MigrationState {
@@ -67,11 +63,11 @@ struct CodexBarConfigMigrator {
         }
 
         if state.sawLegacySecrets || state.sawLegacyAccounts {
-            self.clearLegacyStores(stores: stores, sawAccounts: state.sawLegacyAccounts, log: log)
-            userDefaults.set(true, forKey: Self.legacyMigrationCompletedKey)
+            let cleared = self.clearLegacyStores(stores: stores, sawAccounts: state.sawLegacyAccounts, log: log)
+            if cleared {
+                userDefaults.set(true, forKey: Self.legacyMigrationCompletedKey)
+            }
         } else if !migrationCompleted {
-            // Migration ran but found nothing — no legacy data ever existed; mark complete so we
-            // never pay the Keychain scan cost again.
             userDefaults.set(true, forKey: Self.legacyMigrationCompletedKey)
         }
 
@@ -293,11 +289,13 @@ struct CodexBarConfigMigrator {
         return false
     }
 
+    @discardableResult
     private static func clearLegacyStores(
         stores: LegacyStores,
         sawAccounts: Bool,
-        log: CodexBarLogger)
+        log: CodexBarLogger) -> Bool
     {
+        var success = true
         do {
             try stores.zaiTokenStore.storeToken(nil)
             try stores.syntheticTokenStore.storeToken(nil)
@@ -315,6 +313,7 @@ struct CodexBarConfigMigrator {
             try stores.ampCookieStore.storeCookieHeader(nil)
         } catch {
             log.error("Failed to clear legacy secrets: \(error)")
+            success = false
         }
 
         if sawAccounts {
@@ -323,6 +322,8 @@ struct CodexBarConfigMigrator {
                 try? FileManager.default.removeItem(at: legacyURL)
             }
         }
+
+        return success
     }
 
     private static func applyProviderOrder(_ raw: [String], config: CodexBarConfig) -> CodexBarConfig {
