@@ -1,7 +1,7 @@
 import AppKit
 import CodexBarCore
 
-extension StatusItemController {
+extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     // MARK: - Actions reachable from menus
 
     func refreshStore(forceTokenUsage: Bool) {
@@ -17,6 +17,12 @@ extension StatusItemController {
 
     @objc func refreshNow() {
         self.refreshStore(forceTokenUsage: true)
+    }
+
+    nonisolated func performPersistentRefreshAction() {
+        Task { @MainActor [weak self] in
+            self?.refreshNow()
+        }
     }
 
     @objc func refreshAugmentSession() {

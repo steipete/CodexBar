@@ -74,10 +74,7 @@ extension StatusItemController {
         guard self.shouldMergeIcons else {
             return self.makeMenu(for: nil)
         }
-        let menu = NSMenu()
-        menu.autoenablesItems = false
-        menu.delegate = self
-        return menu
+        return self.makeBaseMenu()
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -600,6 +597,11 @@ extension StatusItemController {
                     }
                     menu.addItem(item)
                 case let .action(title, action):
+                    if case .refresh = action {
+                        menu.addItem(self.makePersistentMenuActionItem(title: title, action: action, width: width))
+                        continue
+                    }
+
                     let (selector, represented) = self.selector(for: action)
                     let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
                     item.target = self
@@ -662,6 +664,56 @@ extension StatusItemController {
         }
     }
 
+    private func makePersistentMenuActionItem(
+        title: String,
+        action: MenuDescriptor.MenuAction,
+        width: CGFloat) -> NSMenuItem
+    {
+        let shortcut = self.shortcut(for: action)
+        let row = PersistentMenuActionItemView(
+            title: title,
+            systemImageName: action.systemImageName,
+            shortcutText: shortcut.map { self.shortcutLabel(for: $0) },
+            width: width,
+            onClick: { [weak self] in
+                self?.performPersistentMenuAction(action)
+            })
+
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: shortcut?.key ?? "")
+        item.keyEquivalentModifierMask = shortcut?.modifiers ?? NSEvent.ModifierFlags()
+        item.isEnabled = true
+        item.view = row
+        item.toolTip = title
+        return item
+    }
+
+    private func performPersistentMenuAction(_ action: MenuDescriptor.MenuAction) {
+        switch action {
+        case .refresh:
+            self.refreshNow()
+        default:
+            break
+        }
+    }
+
+    private func shortcutLabel(for shortcut: (key: String, modifiers: NSEvent.ModifierFlags)) -> String {
+        var label = ""
+        if shortcut.modifiers.contains(.control) {
+            label += "^"
+        }
+        if shortcut.modifiers.contains(.option) {
+            label += "⌥"
+        }
+        if shortcut.modifiers.contains(.shift) {
+            label += "⇧"
+        }
+        if shortcut.modifiers.contains(.command) {
+            label += "⌘"
+        }
+        label += shortcut.key.uppercased()
+        return label
+    }
+
     private func makeWrappedSecondaryTextItem(text: String, width: CGFloat) -> NSMenuItem {
         let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         let view = self.makeWrappedSecondaryTextView(text: text)
@@ -703,12 +755,18 @@ extension StatusItemController {
     }
 
     func makeMenu(for provider: UsageProvider?) -> NSMenu {
-        let menu = NSMenu()
-        menu.autoenablesItems = false
-        menu.delegate = self
+        let menu = self.makeBaseMenu()
         if let provider {
             self.menuProviders[ObjectIdentifier(menu)] = provider
         }
+        return menu
+    }
+
+    private func makeBaseMenu() -> NSMenu {
+        let menu = StatusItemMenu()
+        menu.autoenablesItems = false
+        menu.delegate = self
+        menu.persistentActionDelegate = self
         return menu
     }
 
