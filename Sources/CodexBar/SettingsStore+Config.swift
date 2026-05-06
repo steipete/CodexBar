@@ -6,6 +6,82 @@ extension SettingsStore {
         self.configSnapshot.providerConfig(for: provider)
     }
 
+    func quotaWarningConfig(for provider: UsageProvider) -> QuotaWarningConfig {
+        self.configSnapshot.providerConfig(for: provider)?.quotaWarnings ?? QuotaWarningConfig()
+    }
+
+    func resolvedQuotaWarningThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
+        self.quotaWarningConfig(for: provider).thresholds(for: window, global: self.quotaWarningThresholds)
+    }
+
+    func quotaWarningEnabled(provider: UsageProvider, window: QuotaWarningWindow) -> Bool {
+        self.quotaWarningConfig(for: provider).isEnabled(
+            for: window,
+            global: self.quotaWarningWindowEnabled(window))
+    }
+
+    func hasQuotaWarningOverride(provider: UsageProvider, window: QuotaWarningWindow) -> Bool {
+        self.quotaWarningConfig(for: provider).hasOverride(for: window)
+    }
+
+    func setQuotaWarningThresholds(provider: UsageProvider, window: QuotaWarningWindow, thresholds: [Int]?) {
+        self.updateProviderConfig(provider: provider) { entry in
+            var config = entry.quotaWarnings ?? QuotaWarningConfig()
+            switch window {
+            case .session:
+                var windowConfig = config.session ?? QuotaWarningWindowConfig()
+                windowConfig.thresholds = thresholds.map(QuotaWarningThresholds.sanitized)
+                config.session = windowConfig.hasOverride ? windowConfig : nil
+            case .weekly:
+                var windowConfig = config.weekly ?? QuotaWarningWindowConfig()
+                windowConfig.thresholds = thresholds.map(QuotaWarningThresholds.sanitized)
+                config.weekly = windowConfig.hasOverride ? windowConfig : nil
+            }
+            entry.quotaWarnings = config.isEmpty ? nil : config
+        }
+    }
+
+    func setQuotaWarningOverride(
+        provider: UsageProvider,
+        window: QuotaWarningWindow,
+        thresholds: [Int]?,
+        enabled: Bool?)
+    {
+        self.updateProviderConfig(provider: provider) { entry in
+            var config = entry.quotaWarnings ?? QuotaWarningConfig()
+            switch window {
+            case .session:
+                var windowConfig = config.session ?? QuotaWarningWindowConfig()
+                windowConfig.thresholds = thresholds.map(QuotaWarningThresholds.sanitized)
+                windowConfig.enabled = enabled
+                config.session = windowConfig.hasOverride ? windowConfig : nil
+            case .weekly:
+                var windowConfig = config.weekly ?? QuotaWarningWindowConfig()
+                windowConfig.thresholds = thresholds.map(QuotaWarningThresholds.sanitized)
+                windowConfig.enabled = enabled
+                config.weekly = windowConfig.hasOverride ? windowConfig : nil
+            }
+            entry.quotaWarnings = config.isEmpty ? nil : config
+        }
+    }
+
+    func setQuotaWarningWindowEnabled(provider: UsageProvider, window: QuotaWarningWindow, enabled: Bool?) {
+        self.updateProviderConfig(provider: provider) { entry in
+            var config = entry.quotaWarnings ?? QuotaWarningConfig()
+            switch window {
+            case .session:
+                var windowConfig = config.session ?? QuotaWarningWindowConfig()
+                windowConfig.enabled = enabled
+                config.session = windowConfig.hasOverride ? windowConfig : nil
+            case .weekly:
+                var windowConfig = config.weekly ?? QuotaWarningWindowConfig()
+                windowConfig.enabled = enabled
+                config.weekly = windowConfig.hasOverride ? windowConfig : nil
+            }
+            entry.quotaWarnings = config.isEmpty ? nil : config
+        }
+    }
+
     var tokenAccountsByProvider: [UsageProvider: ProviderTokenAccountData] {
         get {
             Dictionary(uniqueKeysWithValues: self.configSnapshot.providers.compactMap { entry in

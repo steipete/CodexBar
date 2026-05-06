@@ -605,8 +605,17 @@ struct ProvidersPane: View {
             hidePersonalInfo: self.settings.hidePersonalInfo,
             claudePeakHoursEnabled: self.settings.claudePeakHoursEnabled,
             weeklyPace: weeklyPace,
+            quotaWarningThresholds: [
+                .session: self.quotaWarningMarkerThresholds(provider: provider, window: .session),
+                .weekly: self.quotaWarningMarkerThresholds(provider: provider, window: .weekly),
+            ],
             now: now)
         return UsageMenuCardView.Model.make(input)
+    }
+
+    private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
+        guard self.settings.quotaWarningEnabled(provider: provider, window: window) else { return [] }
+        return self.settings.resolvedQuotaWarningThresholds(provider: provider, window: window)
     }
 
     private func refreshCodexProvider() async {

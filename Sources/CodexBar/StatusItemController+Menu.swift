@@ -1594,8 +1594,17 @@ extension StatusItemController {
             hidePersonalInfo: self.settings.hidePersonalInfo,
             claudePeakHoursEnabled: self.settings.claudePeakHoursEnabled,
             weeklyPace: weeklyPace,
+            quotaWarningThresholds: [
+                .session: self.quotaWarningMarkerThresholds(provider: target, window: .session),
+                .weekly: self.quotaWarningMarkerThresholds(provider: target, window: .weekly),
+            ],
             now: now)
         return UsageMenuCardView.Model.make(input)
+    }
+
+    private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
+        guard self.settings.quotaWarningEnabled(provider: provider, window: window) else { return [] }
+        return self.settings.resolvedQuotaWarningThresholds(provider: provider, window: window)
     }
 
     @objc private func menuCardNoOp(_ sender: NSMenuItem) {

@@ -201,11 +201,14 @@ struct MenuCardModelTests {
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
+            quotaWarningThresholds: [.session: [50, 20], .weekly: [25, 0]],
             now: now))
 
         #expect(model.providerName == "Codex")
         #expect(model.metrics.count == 2)
         #expect(model.metrics.first?.percent == 78)
+        #expect(model.metrics.first?.warningMarkerPercents == [50, 20])
+        #expect(model.metrics[1].warningMarkerPercents == [25])
         #expect(model.planText == "Plus")
         #expect(model.subtitleText.hasPrefix("Updated"))
         #expect(model.progressColor != Color.clear)

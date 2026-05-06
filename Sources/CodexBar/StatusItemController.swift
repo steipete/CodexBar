@@ -23,6 +23,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     static var menuCardRenderingEnabled = !SettingsStore.isRunningTests
     private static let defaultMenuRefreshEnabled = !SettingsStore.isRunningTests
     private(set) static var menuRefreshEnabled = !SettingsStore.isRunningTests
+    static let quotaWarningFlashDuration: TimeInterval = 60
     #if DEBUG
     static func setMenuRefreshEnabledForTesting(_ enabled: Bool) {
         self.menuRefreshEnabled = enabled
@@ -110,6 +111,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var blinkAmounts: [UsageProvider: CGFloat] = [:]
     var wiggleAmounts: [UsageProvider: CGFloat] = [:]
     var tiltAmounts: [UsageProvider: CGFloat] = [:]
+    var quotaWarningFlashUntil: [UsageProvider: Date] = [:]
+    var quotaWarningFlashTasks: [UsageProvider: Task<Void, Never>] = [:]
     var blinkForceUntil: Date?
     var loginPhase: LoginPhase = .idle {
         didSet {
@@ -271,6 +274,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             selector: #selector(self.handleDebugBlinkNotification),
             name: .codexbarDebugBlinkNow,
             object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.handleQuotaWarningPosted(_:)),
+            name: .codexbarQuotaWarningDidPost,
+            object: nil)
         if observeProviderConfigNotifications {
             NotificationCenter.default.addObserver(
                 self,
@@ -378,6 +386,31 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             }
         }
         self.handleProviderConfigChange(reason: "notification:\(reason)")
+    }
+
+    @objc private func handleQuotaWarningPosted(_ notification: Notification) {
+        guard let event = notification.object as? QuotaWarningPostedEvent else { return }
+        self.startQuotaWarningFlash(provider: event.provider, postedAt: event.postedAt)
+    }
+
+    func startQuotaWarningFlash(provider: UsageProvider, postedAt: Date = Date()) {
+        let until = postedAt.addingTimeInterval(Self.quotaWarningFlashDuration)
+        self.quotaWarningFlashUntil[provider] = until
+        self.quotaWarningFlashTasks[provider]?.cancel()
+        self.updateIcons()
+        self.quotaWarningFlashTasks[provider] = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.quotaWarningFlashDuration))
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                if let currentUntil = self.quotaWarningFlashUntil[provider],
+                   currentUntil <= Date()
+                {
+                    self.quotaWarningFlashUntil.removeValue(forKey: provider)
+                    self.quotaWarningFlashTasks.removeValue(forKey: provider)
+                    self.updateIcons()
+                }
+            }
+        }
     }
 
     private func observeUpdaterChanges() {

@@ -125,6 +125,8 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                     self.supplementarySettingsContent
                 }
 
+                ProviderQuotaWarningSettingsView(provider: self.provider, settings: self.store.settings)
+
                 if !self.settingsToggles.isEmpty {
                     ProviderSettingsSection(title: "Options") {
                         ForEach(self.settingsToggles) { toggle in
@@ -430,7 +432,8 @@ private struct ProviderMetricInlineRow: View {
                     tint: self.progressColor,
                     accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
                     pacePercent: self.metric.pacePercent,
-                    paceOnTop: self.metric.paceOnTop)
+                    paceOnTop: self.metric.paceOnTop,
+                    warningMarkerPercents: self.metric.warningMarkerPercents)
                     .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {

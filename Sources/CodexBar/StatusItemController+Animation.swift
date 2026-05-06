@@ -232,6 +232,7 @@ extension StatusItemController {
         let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
         let primaryProvider = self.primaryProviderForUnifiedIcon()
         let snapshot = self.store.snapshot(for: primaryProvider)
+        let warningFlash = self.quotaWarningFlashActive(provider: primaryProvider)
 
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
@@ -325,12 +326,13 @@ extension StatusItemController {
                 "stale=\(stale ? "1" : "0")",
                 "status=\(statusIndicator.rawValue)",
                 "text=\(displayText ?? "nil")",
+                "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
                 return true
             }
-            self.setButtonImage(brand, for: button)
+            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
             self.setButtonTitle(displayText, for: button)
             return false
         }
@@ -343,13 +345,14 @@ extension StatusItemController {
                 "style=\(String(describing: style))",
                 "morph=\(debugDouble(morphProgress))",
                 "status=\(statusIndicator.rawValue)",
+                "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
                 return true
             }
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
-            self.setButtonImage(image, for: button)
+            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         } else {
             let signature = [
                 "mode=icon",
@@ -363,6 +366,7 @@ extension StatusItemController {
                 "blink=\(debugDouble(Double(blink)))",
                 "wiggle=\(debugDouble(Double(wiggle)))",
                 "tilt=\(debugDouble(Double(tilt)))",
+                "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
@@ -378,7 +382,7 @@ extension StatusItemController {
                 wiggle: wiggle,
                 tilt: tilt,
                 statusIndicator: statusIndicator)
-            self.setButtonImage(image, for: button)
+            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         }
         return false
     }
@@ -403,12 +407,13 @@ extension StatusItemController {
         let showUsed = self.settings.usageBarsShowUsed
         let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
         let style: IconStyle = self.store.style(for: provider)
+        let warningFlash = self.quotaWarningFlashActive(provider: provider)
 
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: provider)
         {
             let displayText = self.menuBarDisplayText(for: provider, snapshot: snapshot)
-            self.setButtonImage(brand, for: button)
+            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
             self.setButtonTitle(displayText, for: button)
             return
         }
@@ -484,7 +489,7 @@ extension StatusItemController {
         let tilt = self.tiltAmount(for: provider) * .pi / 28 // limit to ~6.4°
         if let morphProgress {
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
-            self.setButtonImage(image, for: button)
+            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         } else {
             self.setButtonTitle(nil, for: button)
             let image = IconRenderer.makeIcon(
@@ -497,8 +502,31 @@ extension StatusItemController {
                 wiggle: wiggle,
                 tilt: tilt,
                 statusIndicator: self.store.statusIndicator(for: provider))
-            self.setButtonImage(image, for: button)
+            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         }
+    }
+
+    func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {
+        guard let until = self.quotaWarningFlashUntil[provider] else { return false }
+        if until > now { return true }
+        self.quotaWarningFlashUntil.removeValue(forKey: provider)
+        self.quotaWarningFlashTasks[provider]?.cancel()
+        self.quotaWarningFlashTasks.removeValue(forKey: provider)
+        return false
+    }
+
+    static func quotaWarningFlashImage(base: NSImage) -> NSImage {
+        let image = NSImage(size: base.size)
+        image.lockFocus()
+        let rect = NSRect(origin: .zero, size: base.size)
+        NSColor.systemRed.withAlphaComponent(0.22).setFill()
+        NSBezierPath(roundedRect: rect.insetBy(dx: 1, dy: 1), xRadius: 4, yRadius: 4).fill()
+        base.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+        NSColor.systemRed.withAlphaComponent(0.28).setFill()
+        NSBezierPath(rect: rect).fill()
+        image.unlockFocus()
+        image.isTemplate = false
+        return image
     }
 
     private func setButtonImage(_ image: NSImage, for button: NSStatusBarButton) {
