@@ -459,7 +459,7 @@ struct ProvidersPane: View {
                     id: MenuBarMetricPreference.primary.rawValue,
                     title: "Primary (API key limit)"),
             ]
-        } else if provider == .deepseek {
+        } else if SettingsStore.isBalanceOnlyProvider(provider) {
             options = [
                 ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
             ]
@@ -507,9 +507,7 @@ struct ProvidersPane: View {
         return ProviderSettingsPickerDescriptor(
             id: "menuBarMetric",
             title: "Menu bar metric",
-            subtitle: provider == .deepseek
-                ? "Shows the DeepSeek balance in the menu bar."
-                : "Choose which window drives the menu bar percent.",
+            subtitle: Self.menuBarMetricPickerSubtitle(for: provider),
             binding: Binding(
                 get: {
                     self.settings
@@ -523,6 +521,19 @@ struct ProvidersPane: View {
             options: options,
             isVisible: { true },
             onChange: nil)
+    }
+
+    private static func menuBarMetricPickerSubtitle(for provider: UsageProvider) -> String {
+        switch provider {
+        case .deepseek:
+            "Shows the DeepSeek balance in the menu bar."
+        case .mistral:
+            "Shows current-month Mistral API spend in the menu bar."
+        case .kimik2:
+            "Shows Kimi K2 API-key credits in the menu bar."
+        default:
+            "Choose which window drives the menu bar percent."
+        }
     }
 
     func menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {

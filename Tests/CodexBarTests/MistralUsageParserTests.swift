@@ -82,7 +82,7 @@ struct MistralUsageParserTests {
 
 struct MistralUsageSnapshotConversionTests {
     @Test
-    func `converts cost into primary resetDescription so it surfaces as detail text`() {
+    func `converts cost into text only current month api spend`() {
         let snapshot = MistralUsageSnapshot(
             totalCost: 1.2345,
             currency: "EUR",
@@ -96,17 +96,14 @@ struct MistralUsageSnapshotConversionTests {
             updatedAt: Date())
 
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.primary != nil)
-        #expect(usage.primary?.usedPercent == 0)
-        #expect(usage.primary?.resetDescription?.contains("€1.2345") == true)
-        // providerCost is intentionally nil: the menu card's providerCostSection requires
-        // limit > 0 to render a bar, and Mistral is pay-as-you-go with no quota. The cost
-        // is surfaced via primary.resetDescription (rendered as detail text in the card).
+        #expect(usage.primary == nil)
+        #expect(usage.identity?.providerID == .mistral)
+        #expect(usage.identity?.loginMethod == "API spend: €1.2345 this month")
         #expect(usage.providerCost == nil)
     }
 
     @Test
-    func `converts zero cost with no-usage description`() {
+    func `converts zero cost into zero spend text`() {
         let snapshot = MistralUsageSnapshot(
             totalCost: 0,
             currency: "USD",
@@ -120,7 +117,8 @@ struct MistralUsageSnapshotConversionTests {
             updatedAt: Date())
 
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.primary?.resetDescription == "No usage this month")
+        #expect(usage.primary == nil)
+        #expect(usage.identity?.loginMethod == "API spend: $0.0000 this month")
     }
 }
 

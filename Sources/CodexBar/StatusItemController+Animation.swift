@@ -571,6 +571,16 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .mistral,
+           let spend = Self.mistralSpendDisplayText(snapshot: snapshot)
+        {
+            return spend
+        }
+        if provider == .kimik2,
+           let credits = Self.kimiK2CreditsDisplayText(snapshot: snapshot)
+        {
+            return credits
+        }
 
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
         let mode = self.settings.menuBarDisplayMode
@@ -624,6 +634,39 @@ extension StatusItemController {
 
         let balance = rawValue.split(separator: " ", maxSplits: 1).first
         return balance.map(String.init)
+    }
+
+    nonisolated static func mistralSpendDisplayText(snapshot: UsageSnapshot?) -> String? {
+        self.displayValue(
+            from: snapshot?.identity?.loginMethod,
+            prefix: "API spend:",
+            removingSuffix: " this month")
+    }
+
+    nonisolated static func kimiK2CreditsDisplayText(snapshot: UsageSnapshot?) -> String? {
+        self.displayValue(
+            from: snapshot?.identity?.loginMethod,
+            prefix: "Credits:",
+            removingSuffix: " left")
+    }
+
+    private nonisolated static func displayValue(
+        from text: String?,
+        prefix: String,
+        removingSuffix suffix: String)
+        -> String?
+    {
+        guard let rawValue = text?.trimmingCharacters(in: .whitespacesAndNewlines),
+              rawValue.hasPrefix(prefix)
+        else {
+            return nil
+        }
+        let valueStart = rawValue.index(rawValue.startIndex, offsetBy: prefix.count)
+        var value = rawValue[valueStart...].trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasSuffix(suffix) {
+            value = String(value.dropLast(suffix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return value.isEmpty ? nil : value
     }
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
