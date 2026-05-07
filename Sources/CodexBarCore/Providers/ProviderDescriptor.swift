@@ -85,6 +85,7 @@ public enum ProviderDescriptorRegistry {
         .codebuff: CodebuffProviderDescriptor.descriptor,
         .crof: CrofProviderDescriptor.descriptor,
         .venice: VeniceProviderDescriptor.descriptor,
+        .commandcode: CommandCodeProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

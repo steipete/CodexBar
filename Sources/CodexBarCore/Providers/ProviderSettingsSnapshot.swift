@@ -224,6 +224,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct CommandCodeProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct OllamaProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -296,6 +306,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let kimi: KimiProviderSettings?
     public let augment: AugmentProviderSettings?
     public let amp: AmpProviderSettings?
+    public let commandcode: CommandCodeProviderSettings?
     public let ollama: OllamaProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
     public let windsurf: WindsurfProviderSettings?
@@ -324,6 +335,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         kimi: KimiProviderSettings?,
         augment: AugmentProviderSettings?,
         amp: AmpProviderSettings?,
+        commandcode: CommandCodeProviderSettings? = nil,
         ollama: OllamaProviderSettings?,
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
@@ -347,6 +359,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.kimi = kimi
         self.augment = augment
         self.amp = amp
+        self.commandcode = commandcode
         self.ollama = ollama
         self.jetbrains = jetbrains
         self.windsurf = windsurf
@@ -371,6 +384,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
+    case commandcode(ProviderSettingsSnapshot.CommandCodeProviderSettings)
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
     case windsurf(ProviderSettingsSnapshot.WindsurfProviderSettings)
@@ -396,6 +410,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
+    public var commandcode: ProviderSettingsSnapshot.CommandCodeProviderSettings?
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
     public var windsurf: ProviderSettingsSnapshot.WindsurfProviderSettings?
@@ -424,6 +439,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .kimi(value): self.kimi = value
         case let .augment(value): self.augment = value
         case let .amp(value): self.amp = value
+        case let .commandcode(value): self.commandcode = value
         case let .ollama(value): self.ollama = value
         case let .jetbrains(value): self.jetbrains = value
         case let .windsurf(value): self.windsurf = value
@@ -451,6 +467,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             kimi: self.kimi,
             augment: self.augment,
             amp: self.amp,
+            commandcode: self.commandcode,
             ollama: self.ollama,
             jetbrains: self.jetbrains,
             windsurf: self.windsurf,

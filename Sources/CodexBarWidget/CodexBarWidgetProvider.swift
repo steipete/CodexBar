@@ -83,6 +83,7 @@ enum ProviderChoice: String, AppEnum {
         case .codebuff: return nil // Codebuff not yet supported in widgets
         case .crof: return nil // Crof not yet supported in widgets
         case .venice: return nil // Venice not yet supported in widgets
+        case .commandcode: return nil // CommandCode not yet supported in widgets
         }
     }
 }
