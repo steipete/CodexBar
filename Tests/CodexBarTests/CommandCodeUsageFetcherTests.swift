@@ -44,7 +44,7 @@ struct CommandCodeUsageFetcherTests {
 
     @Test
     func `subscription on free tier returns nil`() throws {
-        let data = try #require(#"{"success":true,"data":null}"#.data(using: .utf8))
+        let data = Data(#"{"success":true,"data":null}"#.utf8)
         let payload = try CommandCodeUsageFetcher.parseSubscription(data: data)
         #expect(payload == nil)
     }

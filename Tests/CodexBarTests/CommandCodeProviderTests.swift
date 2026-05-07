@@ -7,7 +7,7 @@ struct CommandCodeProviderTests {
     func `descriptor metadata is correct`() {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .commandcode)
 
-        #expect(descriptor.metadata.displayName == "CommandCode")
+        #expect(descriptor.metadata.displayName == "Command Code")
         #expect(descriptor.metadata.dashboardURL == "https://commandcode.ai/studio")
         #expect(descriptor.metadata.subscriptionDashboardURL == "https://commandcode.ai/sixhobbits/settings/billing")
         #expect(descriptor.metadata.cliName == "commandcode")

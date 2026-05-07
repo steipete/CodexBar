@@ -898,7 +898,7 @@ extension UsageStore {
                 .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
                 .venice: "Venice debug log not yet implemented",
-                .commandcode: "CommandCode debug log not yet implemented",
+                .commandcode: "Command Code debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {

@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 14+ menu bar app that keeps AI coding-provider limits visible and shows when each window resets. CodexBar supports Codex, Claude, Cursor, Gemini, Copilot, z.ai, Kiro, Vertex AI, Augment, OpenRouter, Codebuff, and many newer coding providers. One status item per provider (or Merge Icons mode with a provider switcher); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 14+ menu bar app that keeps AI coding-provider limits visible and shows when each window resets. CodexBar supports Codex, Claude, Cursor, Gemini, Copilot, z.ai, Kiro, Vertex AI, Augment, OpenRouter, Codebuff, Command Code, and many newer coding providers. One status item per provider (or Merge Icons mode with a provider switcher); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
 
@@ -63,6 +63,7 @@ Or download release tarballs from GitHub Releases:
 - [Venice](docs/venice.md) — API key for DIEM or USD balance tracking.
 - [Codebuff](docs/codebuff.md) — API token (or `~/.config/manicode/credentials.json`) for credit balance + weekly rate limit.
 - [Crof](docs/crof.md) — API key for dollar credit balance and request quota tracking.
+- [Command Code](docs/command-code.md) — Browser cookies for monthly USD credits from Command Code billing.
 - Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot

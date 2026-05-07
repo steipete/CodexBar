@@ -9,14 +9,14 @@ public enum CommandCodeProviderDescriptor {
             id: .commandcode,
             metadata: ProviderMetadata(
                 id: .commandcode,
-                displayName: "CommandCode",
+                displayName: "Command Code",
                 sessionLabel: "Monthly credits",
                 weeklyLabel: "Monthly",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: true,
-                creditsHint: "Monthly USD credits from CommandCode billing.",
-                toggleTitle: "Show CommandCode usage",
+                creditsHint: "Monthly USD credits from Command Code billing.",
+                toggleTitle: "Show Command Code usage",
                 cliName: "commandcode",
                 defaultEnabled: false,
                 isPrimaryProvider: false,
@@ -32,7 +32,7 @@ public enum CommandCodeProviderDescriptor {
                 color: ProviderColor(red: 0 / 255, green: 0 / 255, blue: 0 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "CommandCode cost summary is not yet supported." }),
+                noDataMessage: { "Command Code cost summary is not yet supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CommandCodeWebFetchStrategy()] })),

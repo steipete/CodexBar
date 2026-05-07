@@ -11,17 +11,17 @@ public enum CommandCodeUsageError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .missingCredentials:
-            "CommandCode session cookie not found. Sign in to commandcode.ai in Chrome."
+            "Command Code session cookie not found. Sign in to commandcode.ai in Chrome."
         case .invalidCredentials:
-            "CommandCode session is invalid or expired. Sign in to commandcode.ai again."
+            "Command Code session is invalid or expired. Sign in to commandcode.ai again."
         case let .networkError(message):
-            "CommandCode network error: \(message)"
+            "Command Code network error: \(message)"
         case let .apiError(status):
-            "CommandCode API returned status \(status)."
+            "Command Code API returned status \(status)."
         case let .parseFailed(message):
-            "Could not parse CommandCode response: \(message)"
+            "Could not parse Command Code response: \(message)"
         case let .unknownPlan(planID):
-            "Unknown CommandCode plan: \(planID). Add it to CommandCodePlanCatalog."
+            "Unknown Command Code plan: \(planID). Add it to CommandCodePlanCatalog."
         }
     }
 

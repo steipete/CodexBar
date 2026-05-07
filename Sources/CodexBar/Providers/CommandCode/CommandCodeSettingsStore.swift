@@ -26,7 +26,8 @@ extension SettingsStore {
 }
 
 extension SettingsStore {
-    func commandcodeSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.CommandCodeProviderSettings {
+    func commandcodeSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
+    .CommandCodeProviderSettings {
         ProviderSettingsSnapshot.CommandCodeProviderSettings(
             cookieSource: self.commandcodeSnapshotCookieSource(tokenOverride: tokenOverride),
             manualCookieHeader: self.commandcodeSnapshotCookieHeader(tokenOverride: tokenOverride))

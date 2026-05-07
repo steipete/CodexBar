@@ -423,6 +423,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     public mutating func apply(_ contribution: ProviderSettingsSnapshotContribution) {
         switch contribution {
         case let .codex(value): self.codex = value

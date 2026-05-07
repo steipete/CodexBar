@@ -289,7 +289,7 @@ private struct ProviderSwitchChip: View {
         case .codebuff: "Codebuff"
         case .crof: "Crof"
         case .venice: "Venice"
-        case .commandcode: "CommandCode"
+        case .commandcode: "Command Code"
         }
     }
 }

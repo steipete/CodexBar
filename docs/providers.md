@@ -47,6 +47,9 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Mistral | Console billing API via Ory Kratos session cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
+| Crof | API key from config/env → credit balance + requests quota API (`api`). |
+| Venice | API key from config/env → DIEM/USD balance API (`api`). |
+| Command Code | Web billing API via Command Code session cookies (`web`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -254,5 +257,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Infers the daily request reset from midnight America/Chicago until the usage API exposes reset metadata.
 - Status: none yet.
 - Details: `docs/crof.md`.
+
+## Command Code
+- Browser session cookies from automatic import or manual `Cookie:` header.
+- Reads monthly USD credits and billing-cycle usage from `api.commandcode.ai`.
+- Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
+- Status: none yet.
+- Details: `docs/command-code.md`.
 
 See also: `docs/provider.md` for architecture notes.

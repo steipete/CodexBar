@@ -35,8 +35,8 @@ struct CommandCodeProviderImplementation: ProviderImplementation {
                 source: context.settings.commandcodeCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
                 auto: "Automatic imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from CommandCode.",
-                off: "CommandCode cookies are disabled.")
+                manual: "Paste a Cookie header or cURL capture from Command Code.",
+                off: "Command Code cookies are disabled.")
         }
 
         return [
@@ -65,7 +65,7 @@ struct CommandCodeProviderImplementation: ProviderImplementation {
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "commandcode-open-settings",
-                        title: "Open CommandCode Settings",
+                        title: "Open Command Code Settings",
                         style: .link,
                         isVisible: nil,
                         perform: {

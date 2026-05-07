@@ -223,7 +223,7 @@ public enum CommandCodeCookieImportError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .noCookies:
-            "No CommandCode session cookies found in browsers. Sign in to commandcode.ai."
+            "No Command Code session cookies found in browsers. Sign in to commandcode.ai."
         }
     }
 }
