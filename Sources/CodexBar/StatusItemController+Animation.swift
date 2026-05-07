@@ -223,7 +223,6 @@ extension StatusItemController {
         return false
     }
 
-    // swiftlint:disable function_body_length
     @discardableResult
     func applyIcon(phase: Double?) -> Bool {
         guard let button = self.statusItem.button else { return false }
@@ -336,30 +335,6 @@ extension StatusItemController {
             return false
         }
 
-        if Self.shouldUseOpenRouterBrandFallback(provider: primaryProvider, snapshot: snapshot),
-           let brand = ProviderBrandIcon.image(for: primaryProvider)
-        {
-            let signature = [
-                "mode=openRouterFallback",
-                "provider=\(primaryProvider.rawValue)",
-                "style=\(String(describing: style))",
-                "primary=\(debugDouble(primary))",
-                "weekly=\(debugDouble(weekly))",
-                "credits=\(debugDouble(credits))",
-                "stale=\(stale ? "1" : "0")",
-                "status=\(statusIndicator.rawValue)",
-                "anim=\(needsAnimation ? "1" : "0")",
-            ].joined(separator: "|")
-            if self.shouldSkipMergedIconRender(signature) {
-                return true
-            }
-            self.setButtonTitle(nil, for: button)
-            self.setButtonImage(
-                Self.brandImageWithStatusOverlay(brand: brand, statusIndicator: statusIndicator),
-                for: button)
-            return false
-        }
-
         self.setButtonTitle(nil, for: button)
         if let morphProgress {
             let signature = [
@@ -408,8 +383,6 @@ extension StatusItemController {
         return false
     }
 
-    // swiftlint:enable function_body_length
-
     private func shouldSkipMergedIconRender(_ signature: String) -> Bool {
         guard self.shouldMergeIcons else {
             self.lastAppliedMergedIconRenderSignature = signature
@@ -440,17 +413,7 @@ extension StatusItemController {
             return
         }
 
-        if Self.shouldUseOpenRouterBrandFallback(provider: provider, snapshot: snapshot),
-           let brand = ProviderBrandIcon.image(for: provider)
-        {
-            self.setButtonTitle(nil, for: button)
-            self.setButtonImage(
-                Self.brandImageWithStatusOverlay(
-                    brand: brand,
-                    statusIndicator: self.store.statusIndicator(for: provider)),
-                for: button)
-            return
-        }
+        // OpenRouter always gets a meter here — the brand-logo fallback was removed on purpose.
         let resolved = snapshot.map {
             IconRemainingResolver.resolvedPercents(
                 snapshot: $0,
@@ -773,18 +736,6 @@ extension StatusItemController {
         } else {
             UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: self.animationPhase) }
         }
-    }
-
-    nonisolated static func shouldUseOpenRouterBrandFallback(
-        provider: UsageProvider,
-        snapshot: UsageSnapshot?) -> Bool
-    {
-        guard provider == .openrouter,
-              let openRouterUsage = snapshot?.openRouterUsage
-        else {
-            return false
-        }
-        return openRouterUsage.keyQuotaStatus == .noLimitConfigured
     }
 
     nonisolated static func brandImageWithStatusOverlay(

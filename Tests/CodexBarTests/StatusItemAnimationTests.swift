@@ -5,6 +5,7 @@ import Testing
 
 @MainActor
 @Suite(.serialized)
+// swiftlint:disable:next type_body_length
 struct StatusItemAnimationTests {
     private func maxAlpha(in rep: NSBitmapImageRep) -> CGFloat {
         var maxAlpha: CGFloat = 0
@@ -245,6 +246,138 @@ struct StatusItemAnimationTests {
         // A pixel near the right side of the top bar should remain in the track-only range for 10% usage.
         let alpha = (rep.colorAt(x: 31, y: 25) ?? .clear).alphaComponent
         #expect(alpha < 0.6)
+    }
+
+    @Test
+    func `open router without key limit uses meter icon when brand percent is disabled`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-openrouter-no-limit-meter"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.menuBarShowsBrandIconWithPercent = false
+
+        let registry = ProviderRegistry.shared
+        if let openRouterMeta = registry.metadata[.openrouter] {
+            settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
+        }
+        settings.openRouterAPIToken = "or-token"
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45,
+            balance: 5,
+            usedPercent: 90,
+            keyDataFetched: true,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .openrouter)
+        store._setErrorForTesting(nil, provider: .openrouter)
+
+        controller.applyIcon(for: .openrouter, phase: nil)
+
+        guard let image = controller.statusItems[.openrouter]?.button?.image else {
+            #expect(Bool(false))
+            return
+        }
+
+        #expect(image.size.width == 18)
+        #expect(image.size.height == 18)
+        #expect(snapshot.openRouterUsage?.keyQuotaStatus == .noLimitConfigured)
+        #expect(controller.statusItems[.openrouter]?.button?.title.isEmpty == true)
+        #expect(MenuBarDisplayText.percentText(window: snapshot.primary, showUsed: false) == nil)
+
+        // With no key limit, the primary bar has no fill — just the dim track.
+        // A brand logo would be fully opaque here; the track is not.
+        let rep = image.representations.compactMap { $0 as? NSBitmapImageRep }.first(where: {
+            $0.pixelsWide == 36 && $0.pixelsHigh == 36
+        })
+        #expect(rep != nil)
+        if let rep {
+            let alpha = (rep.colorAt(x: 8, y: 25) ?? .clear).alphaComponent
+            #expect(alpha < 0.5)
+        }
+    }
+
+    @Test
+    func `open router key data not fetched still uses meter icon when brand percent is disabled`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-openrouter-no-fetch-meter"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.menuBarShowsBrandIconWithPercent = false
+
+        let registry = ProviderRegistry.shared
+        if let openRouterMeta = registry.metadata[.openrouter] {
+            settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
+        }
+        settings.openRouterAPIToken = "or-token"
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45,
+            balance: 5,
+            usedPercent: 90,
+            keyDataFetched: false,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .openrouter)
+        store._setErrorForTesting(nil, provider: .openrouter)
+
+        controller.applyIcon(for: .openrouter, phase: nil)
+
+        guard let image = controller.statusItems[.openrouter]?.button?.image else {
+            #expect(Bool(false))
+            return
+        }
+
+        #expect(image.size.width == 18)
+        #expect(image.size.height == 18)
+        #expect(snapshot.openRouterUsage?.keyQuotaStatus == .unavailable)
+
+        // Even with no key data, OpenRouter still renders a meter rather than the brand logo.
+        // A brand logo would be fully opaque here; the unfilled track is not.
+        let rep = image.representations.compactMap { $0 as? NSBitmapImageRep }.first(where: {
+            $0.pixelsWide == 36 && $0.pixelsHigh == 36
+        })
+        #expect(rep != nil)
+        if let rep {
+            let alpha = (rep.colorAt(x: 8, y: 25) ?? .clear).alphaComponent
+            #expect(alpha < 0.5)
+        }
     }
 
     @Test
