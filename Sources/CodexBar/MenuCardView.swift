@@ -1128,12 +1128,17 @@ extension UsageMenuCardView.Model {
             primaryPacePercent = regen.pace.pacePercent
             primaryPaceOnTop = regen.pace.paceOnTop
         }
+        let primaryStatusText = input.provider == .deepseek ? primaryDetailText : nil
+        if input.provider == .deepseek {
+            primaryDetailText = nil
+        }
         return Metric(
             id: "primary",
             title: input.metadata.sessionLabel,
             percent: Self.clamped(
                 input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
             percentStyle: percentStyle,
+            statusText: primaryStatusText,
             resetText: primaryResetText,
             detailText: primaryDetailText,
             detailLeftText: primaryDetailLeft,
