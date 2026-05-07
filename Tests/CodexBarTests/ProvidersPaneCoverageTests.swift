@@ -172,6 +172,30 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `open router provider pane shows balance and no quota metric when key limit is not configured`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-openrouter-no-key-limit")
+        let store = Self.makeUsageStore(settings: settings)
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45,
+            balance: 5, // balance = totalCredits - totalUsage
+            usedPercent: 90,
+            keyDataFetched: true,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: Date()).toUsageSnapshot()
+        store._setSnapshotForTesting(snapshot, provider: .openrouter)
+
+        let pane = ProvidersPane(settings: settings, store: store)
+        let model = pane._test_menuCardModel(for: .openrouter)
+
+        #expect(model.planText == "Balance: $5.00")
+        #expect(model.metrics.isEmpty)
+        #expect(model.usageNotes == ["No limit set for the API key"])
+    }
+
+    @Test
     func `provider detail plan row keeps plan label for non open router`() {
         let row = ProviderDetailView<EmptyView>.planRow(provider: .codex, planText: "Pro")
 

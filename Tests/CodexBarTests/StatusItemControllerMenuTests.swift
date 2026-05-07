@@ -97,26 +97,7 @@ struct StatusItemControllerMenuTests {
     }
 
     @Test
-    func `open router brand fallback enabled when no key limit configured`() {
-        let snapshot = OpenRouterUsageSnapshot(
-            totalCredits: 50,
-            totalUsage: 45,
-            balance: 5,
-            usedPercent: 90,
-            keyDataFetched: true,
-            keyLimit: nil,
-            keyUsage: nil,
-            rateLimit: nil,
-            updatedAt: Date()).toUsageSnapshot()
-
-        #expect(StatusItemController.shouldUseOpenRouterBrandFallback(
-            provider: .openrouter,
-            snapshot: snapshot))
-        #expect(MenuBarDisplayText.percentText(window: snapshot.primary, showUsed: false) == nil)
-    }
-
-    @Test
-    func `open router brand fallback disabled when key quota fetch unavailable`() {
+    func `open router key data unavailable uses color bar path with nil primary percent`() {
         let snapshot = OpenRouterUsageSnapshot(
             totalCredits: 50,
             totalUsage: 45,
@@ -128,13 +109,40 @@ struct StatusItemControllerMenuTests {
             rateLimit: nil,
             updatedAt: Date()).toUsageSnapshot()
 
-        #expect(!StatusItemController.shouldUseOpenRouterBrandFallback(
-            provider: .openrouter,
-            snapshot: snapshot))
+        #expect(snapshot.openRouterUsage?.keyQuotaStatus == .unavailable)
+        let resolved = IconRemainingResolver.resolvedPercents(
+            snapshot: snapshot,
+            style: .openrouter,
+            showUsed: false)
+        #expect(resolved.primary == nil)
+        #expect(resolved.secondary == nil)
+        #expect(MenuBarDisplayText.percentText(window: snapshot.primary, showUsed: false) == nil)
     }
 
     @Test
-    func `open router brand fallback disabled when key quota available`() {
+    func `open router no key limit uses color bar path with nil primary percent`() {
+        let snapshot = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 45,
+            balance: 5,
+            usedPercent: 90,
+            keyDataFetched: true,
+            keyLimit: nil,
+            keyUsage: nil,
+            rateLimit: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        let resolved = IconRemainingResolver.resolvedPercents(
+            snapshot: snapshot,
+            style: .openrouter,
+            showUsed: false)
+        #expect(resolved.primary == nil)
+        #expect(resolved.secondary == nil)
+        #expect(MenuBarDisplayText.percentText(window: snapshot.primary, showUsed: false) == nil)
+    }
+
+    @Test
+    func `open router key quota uses color bar path with primary percent`() {
         let snapshot = OpenRouterUsageSnapshot(
             totalCredits: 50,
             totalUsage: 45,
@@ -145,10 +153,13 @@ struct StatusItemControllerMenuTests {
             rateLimit: nil,
             updatedAt: Date()).toUsageSnapshot()
 
-        #expect(!StatusItemController.shouldUseOpenRouterBrandFallback(
-            provider: .openrouter,
-            snapshot: snapshot))
         #expect(snapshot.primary?.usedPercent == 10)
+        let resolved = IconRemainingResolver.resolvedPercents(
+            snapshot: snapshot,
+            style: .openrouter,
+            showUsed: false)
+        #expect(resolved.primary == 90)
+        #expect(resolved.secondary == nil)
     }
 
     @Test
