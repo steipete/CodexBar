@@ -36,6 +36,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     private static let onboardUserEndpoint = "\(baseURL)/v1internal:onboardUser"
     private static let fetchAvailableModelsEndpoint = "\(baseURL)/v1internal:fetchAvailableModels"
     private static let retrieveUserQuotaEndpoint = "\(baseURL)/v1internal:retrieveUserQuota"
+    private static let refreshSafetyWindow: TimeInterval = 60
 
     public init(
         timeout: TimeInterval = 10.0,
@@ -81,7 +82,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
 
         var credentials = initialCredentials
         var accessToken = storedAccessToken
-        if let expiryDate = credentials.expiryDate, expiryDate < Date() {
+        if Self.shouldRefresh(expiryDate: credentials.expiryDate, now: Date()) {
             guard let refreshToken = credentials.refreshToken?.trimmedNonEmpty else {
                 throw AntigravityRemoteFetchError.notLoggedIn
             }
@@ -118,6 +119,11 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             modelQuotas: models,
             accountEmail: claims.email,
             accountPlan: Self.resolvePlan(response: codeAssist, claims: claims))
+    }
+
+    private static func shouldRefresh(expiryDate: Date?, now: Date) -> Bool {
+        guard let expiryDate else { return false }
+        return expiryDate.timeIntervalSince(now) <= Self.refreshSafetyWindow
     }
 
     private static func loadCodeAssist(

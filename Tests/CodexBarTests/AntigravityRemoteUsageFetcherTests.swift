@@ -125,6 +125,68 @@ struct AntigravityRemoteUsageFetcherTests {
     }
 
     @Test
+    func `remote fetch refreshes nearly expired shared google token`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeAntigravityCredentials(
+            accessToken: "old-token",
+            refreshToken: "refresh-token",
+            expiry: Date().addingTimeInterval(5),
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "stale@example.com"),
+            email: "stale@example.com",
+            clientID: "test-client-id",
+            clientSecret: "test-client-secret")
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+
+            switch host {
+            case "oauth2.googleapis.com":
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.jsonData([
+                        "access_token": "new-token",
+                        "expires_in": 3600,
+                        "id_token": GeminiAPITestHelpers.makeIDToken(email: "refreshed@example.com"),
+                    ]))
+            case "cloudcode-pa.googleapis.com":
+                #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer new-token")
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.jsonData([
+                            "currentTier": ["id": "standard-tier", "name": "standard"],
+                            "cloudaicompanionProject": "managed-project-123",
+                        ]))
+                }
+                if url.path == "/v1internal:fetchAvailableModels" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: Self.availableModelsResponse())
+                }
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let fetcher = AntigravityRemoteUsageFetcher(
+            timeout: 2,
+            homeDirectory: env.homeURL.path,
+            dataLoader: dataLoader)
+        let snapshot = try await fetcher.fetch()
+
+        let updated = try env.readAntigravityCredentials()
+        #expect(updated["access_token"] as? String == "new-token")
+        #expect(snapshot.accountEmail == "refreshed@example.com")
+    }
+
+    @Test
     func `remote refresh requires configured oauth client`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
