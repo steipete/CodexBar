@@ -62,6 +62,14 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
+    func `manual mode accepts secure session cookie header`() throws {
+        let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: "__Secure-session=abc; theme=dark",
+            manualCookieMode: true)
+        #expect(resolved?.contains("__Secure-session=abc") == true)
+    }
+
+    @Test
     func `retry policy retries only for auth errors`() {
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(after: OllamaUsageError.invalidCredentials))
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(after: OllamaUsageError.notLoggedIn))
@@ -122,6 +130,16 @@ struct OllamaUsageFetcherTests {
 
         let selected = try OllamaCookieImporter.selectSessionInfo(from: [candidate])
         #expect(selected.sourceLabel == "Profile C")
+    }
+
+    @Test
+    func `cookie selector accepts secure session cookie`() throws {
+        let candidate = OllamaCookieImporter.SessionInfo(
+            cookies: [Self.makeCookie(name: "__Secure-session", value: "auth")],
+            sourceLabel: "Profile D")
+
+        let selected = try OllamaCookieImporter.selectSessionInfo(from: [candidate])
+        #expect(selected.sourceLabel == "Profile D")
     }
 
     @Test

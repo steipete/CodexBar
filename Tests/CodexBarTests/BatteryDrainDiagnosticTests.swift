@@ -14,11 +14,9 @@ struct BatteryDrainDiagnosticTests {
     }
 
     private func makeStatusBarForTesting() -> NSStatusBar {
-        let env = ProcessInfo.processInfo.environment
-        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
-            return .system
-        }
-        return NSStatusBar()
+        // Use the real system status bar in tests. Creating standalone NSStatusBar instances
+        // has caused AppKit teardown crashes under swiftpm-testing-helper.
+        .system
     }
 
     @Test
@@ -54,6 +52,7 @@ struct BatteryDrainDiagnosticTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         #expect(
             controller.needsMenuBarIconAnimation() == false,
@@ -101,6 +100,7 @@ struct BatteryDrainDiagnosticTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         #expect(
             controller.needsMenuBarIconAnimation() == false,
@@ -141,9 +141,50 @@ struct BatteryDrainDiagnosticTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         #expect(
             controller.needsMenuBarIconAnimation() == true,
             "Should animate when enabled provider has no data")
+    }
+
+    @Test
+    func `Enabled provider with error should not animate`() {
+        self.ensureAppKitInitialized()
+
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "BatteryDrain-ErrorStops"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let registry = ProviderRegistry.shared
+        if let meta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: meta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        store._setErrorForTesting("simulated Codex RPC timeout", provider: .codex)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        #expect(store.isStale(provider: .codex) == true)
+        #expect(
+            controller.needsMenuBarIconAnimation() == false,
+            "Should not animate when provider has recorded an error")
+        #expect(controller.animationDriver == nil)
     }
 }

@@ -10,7 +10,7 @@ struct CostUsageCacheTests {
         let codexURL = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: root)
         let claudeURL = CostUsageCacheIO.cacheFileURL(provider: .claude, cacheRoot: root)
 
-        #expect(codexURL.lastPathComponent == "codex-v2.json")
-        #expect(claudeURL.lastPathComponent == "claude-v1.json")
+        #expect(codexURL.lastPathComponent == "codex-v4.json")
+        #expect(claudeURL.lastPathComponent == "claude-v2.json")
     }
 }

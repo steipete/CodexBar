@@ -43,6 +43,34 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders Codex prolite plan with spaced display name`() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "prolite")
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: "today at 3:00 PM"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 1.2.3 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Plan: Pro Lite"))
+        #expect(!output.contains("Plan: Prolite"))
+    }
+
+    @Test
     func `renders text snapshot for claude without weekly`() {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 2, windowMinutes: nil, resetsAt: nil, resetDescription: "3pm (Europe/Vienna)"),
@@ -424,5 +452,28 @@ struct CLISnapshotTests {
 
         #expect(!output.contains("\u{001B}["))
         #expect(output.contains("Status: Operational – Operational"))
+    }
+
+    @Test
+    func `renders 5-hour tertiary row for zai`() {
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 9, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: .init(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: .init(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CLIRenderer.renderText(
+            provider: .zai,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "z.ai 0.0.0 (zai)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("5-hour:"))
+        #expect(output.contains("Tokens:"))
+        #expect(output.contains("MCP:"))
     }
 }

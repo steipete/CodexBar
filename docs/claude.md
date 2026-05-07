@@ -42,8 +42,9 @@ Usage source picker:
 
 ## OAuth API (preferred)
 - Credentials:
-  - Keychain service: `Claude Code-credentials` (primary on macOS).
+  - CodexBar OAuth cache when available.
   - File fallback: `~/.claude/.credentials.json`.
+  - Claude CLI Keychain bootstrap/repair fallback: `Claude Code-credentials`.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
 - Endpoint:
   - `GET https://api.anthropic.com/api/oauth/usage`
@@ -52,10 +53,12 @@ Usage source picker:
   - `anthropic-beta: oauth-2025-04-20`
 - Mapping:
   - `five_hour` → session window.
-  - `seven_day` → weekly window.
+  - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
   - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
-- Plan inference: `rate_limit_tier` from credentials maps to Max/Pro/Team/Enterprise.
+- Successful OAuth login enables Claude and selects OAuth as the usage source.
+- Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
+  Max/Pro/Team/Enterprise.
 
 ## Web API (cookies)
 - Preferences → Providers → Claude → Cookie source (Automatic or Manual).
@@ -101,17 +104,23 @@ Usage source picker:
 
 ## Cost usage (local log scan)
 - Source roots:
-  - `$CLAUDE_CONFIG_DIR` (comma-separated), each root uses `<root>/projects`.
-  - Fallback roots:
-    - `~/.config/claude/projects`
-    - `~/.claude/projects`
-- Files: `**/*.jsonl` under the project roots.
+  - Native Claude logs:
+    - `$CLAUDE_CONFIG_DIR` (comma-separated), each root uses `<root>/projects`.
+    - Fallback roots:
+      - `~/.config/claude/projects`
+      - `~/.claude/projects`
+  - Supported pi sessions:
+    - `~/.pi/agent/sessions/**/*.jsonl`
+- Files: `**/*.jsonl` under the native project roots plus supported pi session files.
 - Parsing:
-  - Lines with `type: "assistant"` and `message.usage`.
+  - Native Claude logs parse lines with `type: "assistant"` and `message.usage`.
   - Uses per-model token counts (input, cache read/create, output).
   - Deduplicates streaming chunks by `message.id + requestId` (usage is cumulative per chunk).
+  - pi sessions attribute `anthropic` assistant usage to Claude and bucket it by assistant-turn timestamp, so a single pi
+    session can contribute to multiple models/days.
 - Cache:
-  - `~/Library/Caches/CodexBar/cost-usage/claude-v1.json`
+  - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v2.json`
+  - pi session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v1.json`
 
 ## Key files
 - OAuth: `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/*`
@@ -119,4 +128,6 @@ Usage source picker:
 - CLI PTY: `Sources/CodexBarCore/Providers/Claude/ClaudeStatusProbe.swift`,
   `Sources/CodexBarCore/Providers/Claude/ClaudeCLISession.swift`
 - Cost usage: `Sources/CodexBarCore/CostUsageFetcher.swift`,
+  `Sources/CodexBarCore/PiSessionCostScanner.swift`,
+  `Sources/CodexBarCore/PiSessionCostCache.swift`,
   `Sources/CodexBarCore/Vendored/CostUsage/*`

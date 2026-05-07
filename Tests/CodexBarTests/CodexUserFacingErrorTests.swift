@@ -28,6 +28,17 @@ struct CodexUserFacingErrorTests {
     }
 
     @Test
+    func `decode mismatch codex error is sanitized`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-decode-mismatch")
+        store.errors[.codex] =
+            "Codex connection failed: failed to fetch codex rate limits: "
+                + "Decode error for https://chatgpt.com/backend-api/wham/usage: "
+                + "unknown variant `prolite`, expected one of `guest`, `free`, `go`, `plus`, `pro`"
+
+        #expect(store.userFacingError(for: .codex) == "Codex usage is temporarily unavailable. Try refreshing.")
+    }
+
+    @Test
     func `cached credits failure preserves cached suffix while sanitizing body`() {
         let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-cached-credits")
         store.lastCreditsError =
@@ -61,6 +72,28 @@ struct CodexUserFacingErrorTests {
         #expect(
             store.userFacingLastOpenAIDashboardError ==
                 "OpenAI web refresh was interrupted. Refresh OpenAI cookies and try again.")
+    }
+
+    @Test
+    func `open A I web timeout becomes retry guidance`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-openai-web-timeout")
+        store.lastOpenAIDashboardError = "The operation couldn’t be completed. (NSURLErrorDomain error -1001.)"
+
+        #expect(
+            store.userFacingLastOpenAIDashboardError ==
+                "OpenAI web refresh timed out. Refresh OpenAI cookies and try again.")
+    }
+
+    @Test
+    func `open A I web network error becomes connection guidance`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-openai-web-network")
+        store.lastOpenAIDashboardError = "The operation couldn’t be completed. (NSURLErrorDomain error -1004.)"
+        let expected = [
+            "OpenAI web refresh hit a network error.",
+            "Check your connection, then refresh OpenAI cookies and try again.",
+        ].joined(separator: " ")
+
+        #expect(store.userFacingLastOpenAIDashboardError == expected)
     }
 
     @Test

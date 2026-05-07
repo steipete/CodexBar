@@ -32,7 +32,11 @@ struct ClaudeUsageDelegatedRefreshEnvironmentTests {
                             try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(
                                 loadCredsOverride,
                                 operation: {
-                                    try await fetcher.loadLatestUsage(model: "sonnet")
+                                    try await ClaudeUsageFetcher.$hasCachedCredentialsOverride.withValue(
+                                        false,
+                                        operation: {
+                                            try await fetcher.loadLatestUsage(model: "sonnet")
+                                        })
                                 })
                         })
                 }

@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct PerplexityUsageFetcherTests {
     // Fixed "now" so expiry comparisons are deterministic
     private static let now = Date(timeIntervalSince1970: 1_740_000_000) // Feb 20, 2026
@@ -13,7 +12,7 @@ struct PerplexityUsageFetcherTests {
     // MARK: - JSON Parsing
 
     @Test
-    func parsesFullResponseWithRecurringAndPromotionalCredits() throws {
+    func `parses full response with recurring and promotional credits`() throws {
         let json = """
         {
           "balance_cents": 7250,
@@ -40,7 +39,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func waterfallAttributionRecurringThenPurchasedThenPromo() throws {
+    func `waterfall attribution recurring then purchased then promo`() throws {
         // Usage exceeds recurring, spills into purchased, then promo
         let json = """
         {
@@ -62,7 +61,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func expiredPromotionalGrantsAreExcluded() throws {
+    func `expired promotional grants are excluded`() throws {
         let json = """
         {
           "balance_cents": 0,
@@ -83,7 +82,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func emptyCreditGrantsProducesZeroRecurring() throws {
+    func `empty credit grants produces zero recurring`() throws {
         let json = """
         {
           "balance_cents": 0,
@@ -102,7 +101,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func malformedJSONThrowsParseFailed() {
+    func `malformed JSON throws parse failed`() {
         let json = """
         { "balance_cents": "not a number", "credit_grants": null }
         """
@@ -117,7 +116,7 @@ struct PerplexityUsageFetcherTests {
     // MARK: - Plan Name Inference
 
     @Test
-    func planNameInference() throws {
+    func `plan name inference`() throws {
         func makeSnapshot(recurringCents: Double) throws -> PerplexityUsageSnapshot {
             let json = """
             {
@@ -142,7 +141,7 @@ struct PerplexityUsageFetcherTests {
     // MARK: - toUsageSnapshot
 
     @Test
-    func toUsageSnapshotAlwaysHasSecondaryAndTertiary() throws {
+    func `to usage snapshot always has secondary and tertiary`() throws {
         let json = """
         {
           "balance_cents": 0,
@@ -163,7 +162,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func toUsageSnapshotZeroRecurringBarIsFullyDepleted() throws {
+    func `to usage snapshot zero recurring bar is fully depleted`() throws {
         let json = """
         {
           "balance_cents": 0,
@@ -182,7 +181,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func toUsageSnapshotOmitsPrimaryWhenOnlyFallbackCreditsRemain() throws {
+    func `to usage snapshot omits primary when only fallback credits remain`() throws {
         let json = """
         {
           "balance_cents": 6000,
@@ -203,7 +202,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func toUsageSnapshotEmptyPoolsBarsAreFullyDepleted() throws {
+    func `to usage snapshot empty pools bars are fully depleted`() throws {
         let json = """
         {
           "balance_cents": 0,
@@ -228,7 +227,7 @@ struct PerplexityUsageFetcherTests {
     // MARK: - Purchased credits from credit_grants
 
     @Test
-    func purchasedCreditsFromCreditGrantsArray() throws {
+    func `purchased credits from credit grants array`() throws {
         // Purchased credits appear as credit_grant type="purchased" instead of
         // current_period_purchased_cents. The snapshot should pick them up.
         let json = """
@@ -257,7 +256,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func purchasedCreditsPreferGrantsOverFieldWhenBothPresent() throws {
+    func `purchased credits prefer grants over field when both present`() throws {
         // When both current_period_purchased_cents AND credit_grants type="purchased"
         // are provided, the larger value wins.
         let json = """
@@ -284,7 +283,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func purchasedCreditsFromFieldWhenNoGrantType() throws {
+    func `purchased credits from field when no grant type`() throws {
         // Legacy path: current_period_purchased_cents is set but no "purchased" grant
         let json = """
         {
@@ -308,7 +307,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func realWorldMaxPlanWithAllThreePools() throws {
+    func `real world max plan with all three pools`() throws {
         // Real-world scenario: Max plan, 10k recurring + 40k purchased + 55k bonus
         // Total 105,000 available, 23,065 remaining → 81,935 used
         let json = """
@@ -342,7 +341,7 @@ struct PerplexityUsageFetcherTests {
     }
 
     @Test
-    func toUsageSnapshotPrimaryPercentMatchesUsage() throws {
+    func `to usage snapshot primary percent matches usage`() throws {
         let json = """
         {
           "balance_cents": 0,

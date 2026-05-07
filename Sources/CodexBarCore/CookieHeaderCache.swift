@@ -36,6 +36,9 @@ public enum CookieHeaderCache {
         case let .found(entry):
             self.log.debug("Cookie cache hit", metadata: ["provider": provider.rawValue])
             return entry
+        case .temporarilyUnavailable:
+            self.log.debug("Cookie cache temporarily unavailable", metadata: ["provider": provider.rawValue])
+            return nil
         case .invalid:
             self.log.warning("Cookie cache invalid; clearing", metadata: ["provider": provider.rawValue])
             KeychainCacheStore.clear(key: key)
@@ -72,13 +75,69 @@ public enum CookieHeaderCache {
         self.log.debug("Cookie cache stored", metadata: ["provider": provider.rawValue, "source": sourceLabel])
     }
 
-    public static func clear(provider: UsageProvider, scope: Scope? = nil) {
+    @discardableResult
+    public static func clear(provider: UsageProvider, scope: Scope? = nil) -> Int {
         let key = self.key(for: provider, scope: scope)
-        KeychainCacheStore.clear(key: key)
-        if scope == nil {
-            self.removeLegacyEntry(for: provider)
+        var cleared = KeychainCacheStore.clear(key: key) ? 1 : 0
+        if scope == nil, self.removeLegacyEntry(for: provider) {
+            cleared += 1
         }
         self.log.debug("Cookie cache cleared", metadata: ["provider": provider.rawValue])
+        return cleared
+    }
+
+    /// Clears all cookie cache scopes for one provider, including managed Codex account scopes.
+    /// Returns the number of keychain or legacy-file entries removed.
+    @discardableResult
+    public static func clearAllScopes(provider: UsageProvider) -> Int {
+        let keys = self.cookieKeys(for: provider)
+        var cleared = 0
+        for key in keys where KeychainCacheStore.clear(key: key) {
+            cleared += 1
+        }
+        if self.removeLegacyEntry(for: provider) {
+            cleared += 1
+        }
+        self.log.debug("Cookie cache clearAllScopes completed", metadata: [
+            "provider": provider.rawValue,
+            "cleared": "\(cleared)",
+        ])
+        return cleared
+    }
+
+    /// Clears cookie caches for all providers, including corrupt/invalid entries.
+    /// Returns the number of keychain or legacy-file entries removed.
+    @discardableResult
+    public static func clearAll() -> Int {
+        var cleared = 0
+        for key in KeychainCacheStore.keys(category: "cookie") where KeychainCacheStore.clear(key: key) {
+            cleared += 1
+        }
+        for provider in UsageProvider.allCases where self.removeLegacyEntry(for: provider) {
+            cleared += 1
+        }
+        self.log.debug("Cookie cache clearAll completed", metadata: ["cleared": "\(cleared)"])
+        return cleared
+    }
+
+    private static func cookieKeys(for provider: UsageProvider) -> [KeychainCacheStore.Key] {
+        let exactIdentifier = provider.rawValue
+        let scopedPrefix = "\(provider.rawValue)."
+        var seen = Set<KeychainCacheStore.Key>()
+        var keys: [KeychainCacheStore.Key] = []
+        for key in KeychainCacheStore.keys(category: "cookie") {
+            guard key.identifier == exactIdentifier || key.identifier.hasPrefix(scopedPrefix) else {
+                continue
+            }
+            if seen.insert(key).inserted {
+                keys.append(key)
+            }
+        }
+        let global = self.key(for: provider, scope: nil)
+        if seen.insert(global).inserted {
+            keys.append(global)
+        }
+        return keys
     }
 
     static func load(from url: URL) -> Entry? {
@@ -105,19 +164,45 @@ public enum CookieHeaderCache {
         self.legacyBaseURLOverride = url
     }
 
-    private static func loadLegacyEntry(for provider: UsageProvider) -> Entry? {
-        self.load(from: self.legacyURL(for: provider))
+    static func hasLegacyEntryForTesting(provider: UsageProvider) -> Bool {
+        self.loadLegacyEntry(for: provider) != nil
     }
 
-    private static func removeLegacyEntry(for provider: UsageProvider) {
+    static func legacyURLForTesting(provider: UsageProvider) -> URL {
+        self.legacyURL(for: provider)
+    }
+
+    private static func hasKeychainEntry(provider: UsageProvider, scope: Scope?) -> Bool {
+        let key = self.key(for: provider, scope: scope)
+        switch KeychainCacheStore.load(key: key, as: Entry.self) {
+        case .found, .invalid:
+            return true
+        case .missing, .temporarilyUnavailable:
+            return false
+        }
+    }
+
+    static func hasKeychainEntryForTesting(provider: UsageProvider, scope: Scope? = nil) -> Bool {
+        self.hasKeychainEntry(provider: provider, scope: scope)
+    }
+
+    @discardableResult
+    private static func removeLegacyEntry(for provider: UsageProvider) -> Bool {
         let url = self.legacyURL(for: provider)
+        let existed = FileManager.default.fileExists(atPath: url.path)
         do {
             try FileManager.default.removeItem(at: url)
+            return existed
         } catch {
             if (error as NSError).code != NSFileNoSuchFileError {
                 Self.log.error("Failed to remove cookie cache (\(provider.rawValue)): \(error)")
             }
+            return false
         }
+    }
+
+    private static func loadLegacyEntry(for provider: UsageProvider) -> Entry? {
+        self.load(from: self.legacyURL(for: provider))
     }
 
     private static func legacyURL(for provider: UsageProvider) -> URL {

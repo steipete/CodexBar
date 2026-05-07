@@ -8,13 +8,14 @@ struct CodexBaselineCharacterizationTests {
         runtime: ProviderRuntime,
         sourceMode: ProviderSourceMode,
         env: [String: String] = [:],
-        settings: ProviderSettingsSnapshot? = nil) -> ProviderFetchContext
+        settings: ProviderSettingsSnapshot? = nil,
+        includeCredits: Bool = false) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
             runtime: runtime,
             sourceMode: sourceMode,
-            includeCredits: false,
+            includeCredits: includeCredits,
             webTimeout: 1,
             webDebugDumpHTML: false,
             verbose: false,
@@ -41,10 +42,16 @@ struct CodexBaselineCharacterizationTests {
         runtime: ProviderRuntime,
         sourceMode: ProviderSourceMode,
         env: [String: String] = [:],
-        settings: ProviderSettingsSnapshot? = nil) async -> ProviderFetchOutcome
+        settings: ProviderSettingsSnapshot? = nil,
+        includeCredits: Bool = false) async -> ProviderFetchOutcome
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .codex)
-        let context = self.makeContext(runtime: runtime, sourceMode: sourceMode, env: env, settings: settings)
+        let context = self.makeContext(
+            runtime: runtime,
+            sourceMode: sourceMode,
+            env: env,
+            settings: settings,
+            includeCredits: includeCredits)
         return await descriptor.fetchPlan.fetchOutcome(context: context, provider: .codex)
     }
 
@@ -52,7 +59,13 @@ struct CodexBaselineCharacterizationTests {
         let script = """
         #!/usr/bin/python3
         import json
+        import os
         import sys
+
+        counter = os.environ.get("CODEXBAR_STUB_COUNTER")
+        if counter:
+            with open(counter, "a") as f:
+                f.write("start\\n")
 
         for line in sys.stdin:
             if not line.strip():
@@ -220,6 +233,40 @@ struct CodexBaselineCharacterizationTests {
         case let .failure(error):
             Issue.record("Unexpected failure: \(error)")
         }
+    }
+
+    @Test
+    func `Codex CLI strategy fetches usage and credits with one app-server process`() async throws {
+        let stubCLIPath = try self.makeStubCodexCLI()
+        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+        let counterURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-stub-counter-\(UUID().uuidString)", isDirectory: false)
+        defer { try? FileManager.default.removeItem(at: counterURL) }
+
+        let env = [
+            "CODEX_CLI_PATH": stubCLIPath,
+            "CODEXBAR_STUB_COUNTER": counterURL.path,
+        ]
+
+        let outcome = await self.fetchOutcome(
+            runtime: .app,
+            sourceMode: .cli,
+            env: env,
+            includeCredits: true)
+
+        switch outcome.result {
+        case let .success(result):
+            #expect(result.sourceLabel == "codex-cli")
+            #expect(result.usage.primary?.usedPercent == 12)
+            #expect(result.credits?.remaining == 7)
+        case let .failure(error):
+            Issue.record("Unexpected failure: \(error)")
+        }
+
+        let count = (try? String(contentsOf: counterURL, encoding: .utf8))?
+            .split(whereSeparator: \.isNewline)
+            .count ?? 0
+        #expect(count == 1)
     }
 
     @Test

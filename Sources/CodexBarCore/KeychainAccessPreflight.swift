@@ -134,19 +134,7 @@ public enum KeychainAccessPreflight {
         }
         #endif
         guard !KeychainAccessGate.isDisabled else { return .notFound }
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            // Preflight should never trigger UI. Avoid requesting the secret payload (`kSecReturnData`) because
-            // some macOS configurations still surface legacy prompts more aggressively when reading secret data,
-            // even with a non-interactive LAContext.
-            kSecReturnAttributes as String: true,
-        ]
-        KeychainNoUIQuery.apply(to: &query)
-        if let account {
-            query[kSecAttrAccount as String] = account
-        }
+        let query = self.makeGenericPasswordPreflightQuery(service: service, account: account)
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -174,4 +162,23 @@ public enum KeychainAccessPreflight {
         return .notFound
         #endif
     }
+
+    #if os(macOS)
+    static func makeGenericPasswordPreflightQuery(service: String, account: String?) -> [String: Any] {
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            // Preflight should never trigger UI. Avoid requesting the secret payload (`kSecReturnData`) because
+            // some macOS configurations have been observed to show the legacy keychain prompt unless the query
+            // is strictly non-interactive.
+            kSecReturnAttributes as String: true,
+        ]
+        KeychainNoUIQuery.apply(to: &query)
+        if let account {
+            query[kSecAttrAccount as String] = account
+        }
+        return query
+    }
+    #endif
 }

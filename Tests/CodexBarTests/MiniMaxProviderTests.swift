@@ -2,6 +2,29 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+struct MiniMaxAPISettingsReaderTests {
+    @Test
+    func `api token prefers coding plan specific environment key`() {
+        let token = MiniMaxAPISettingsReader.apiToken(environment: [
+            "MINIMAX_API_KEY": "sk-api-standard",
+            "MINIMAX_CODING_API_KEY": "sk-cp-coding-plan",
+        ])
+
+        #expect(token == "sk-cp-coding-plan")
+        #expect(MiniMaxAPISettingsReader.apiKeyKind(token: token) == .codingPlan)
+    }
+
+    @Test
+    func `api token falls back to generic environment key`() {
+        let token = MiniMaxAPISettingsReader.apiToken(environment: [
+            "MINIMAX_API_KEY": "\"sk-api-standard\"",
+        ])
+
+        #expect(token == "sk-api-standard")
+        #expect(MiniMaxAPISettingsReader.apiKeyKind(token: token) == .standard)
+    }
+}
+
 struct MiniMaxCookieHeaderTests {
     @Test
     func `normalizes raw cookie header`() {
@@ -58,6 +81,49 @@ struct MiniMaxCookieHeaderTests {
 }
 
 struct MiniMaxUsageParserTests {
+    @Test
+    func `signed out check ignores login copy inside scripts`() {
+        let html = """
+        <html>
+          <head>
+            <script id="__NEXT_DATA__" type="application/json">
+              {
+                "props": {
+                  "pageProps": {
+                    "_nextI18Next": {
+                      "initialI18nStore": {
+                        "zh": {
+                          "common": {
+                            "landing_common_login": "登录",
+                            "login": "Log in"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            </script>
+          </head>
+          <body><div id="__next">Coding Plan</div></body>
+        </html>
+        """
+
+        #expect(!MiniMaxUsageFetcher._looksSignedOutForTesting(html: html))
+    }
+
+    @Test
+    func `signed out check still detects visible login copy`() {
+        let html = """
+        <html>
+          <head><script>{"landing_common_login":"登录"}</script></head>
+          <body><main><a>Log in</a></main></body>
+        </html>
+        """
+
+        #expect(MiniMaxUsageFetcher._looksSignedOutForTesting(html: html))
+    }
+
     @Test
     func `parses coding plan snapshot`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)

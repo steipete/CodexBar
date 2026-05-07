@@ -1,19 +1,28 @@
 import AppKit
 import CodexBarCore
 
-extension StatusItemController {
+extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     // MARK: - Actions reachable from menus
 
     func refreshStore(forceTokenUsage: Bool) {
         Task {
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await self.store.refresh(forceTokenUsage: forceTokenUsage)
+                self.store.scheduleStorageFootprintRefreshForOverview(force: true)
+                self.invalidateMenus()
+                self.refreshOpenMenusIfNeeded()
             }
         }
     }
 
     @objc func refreshNow() {
         self.refreshStore(forceTokenUsage: true)
+    }
+
+    nonisolated func performPersistentRefreshAction() {
+        Task { @MainActor [weak self] in
+            self?.refreshNow()
+        }
     }
 
     @objc func refreshAugmentSession() {
@@ -42,6 +51,10 @@ extension StatusItemController {
     func dashboardURL(for provider: UsageProvider) -> URL? {
         if provider == .alibaba {
             return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
+        }
+
+        if provider == .opencodego {
+            return self.settings.opencodegoDashboardURL
         }
 
         let meta = self.store.metadata(for: provider)
@@ -106,8 +119,8 @@ extension StatusItemController {
     }
 
     @objc func addManagedCodexAccountFromMenu(_: NSMenuItem) {
-        guard self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount == false else {
-            self.loginLogger.info("Add Account tap ignored: managed Codex login already in-flight")
+        guard self.codexAccountPromotionCoordinator.isInteractionBlocked() == false else {
+            self.loginLogger.info("Add Account tap ignored: Codex account change already in-flight")
             return
         }
         guard self.settings.hasUnreadableManagedCodexAccountStore == false else {
@@ -128,6 +141,22 @@ extension StatusItemController {
                 }
             } catch {
                 self.presentManagedCodexAccountError(error)
+            }
+        }
+    }
+
+    @objc func requestCodexSystemPromotionFromMenu(_ sender: NSMenuItem) {
+        guard let rawManagedAccountID = sender.representedObject as? String,
+              let managedAccountID = UUID(uuidString: rawManagedAccountID)
+        else {
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await self.codexAccountPromotionCoordinator.promote(managedAccountID: managedAccountID)
+            if case let .failure(error) = result {
+                self.presentLoginAlert(title: error.title, message: error.message)
             }
         }
     }
@@ -162,6 +191,10 @@ extension StatusItemController {
     }
 
     func openMenuFromShortcut() {
+        if self.closeOpenMenusFromShortcutIfNeeded() {
+            return
+        }
+
         if self.shouldMergeIcons {
             self.statusItem.button?.performClick(nil)
             return
@@ -171,6 +204,38 @@ extension StatusItemController {
         // Use the lazy accessor to ensure the item exists
         let item = self.lazyStatusItem(for: provider)
         item.button?.performClick(nil)
+    }
+
+    @discardableResult
+    func closeOpenMenusFromShortcutIfNeeded() -> Bool {
+        guard !self.openMenus.isEmpty else { return false }
+
+        let menus = Array(self.openMenus.values)
+        for menu in menus {
+            menu.cancelTrackingWithoutAnimation()
+            self.forgetClosedMenu(menu)
+        }
+        return true
+    }
+
+    func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {
+        let item: NSStatusItem = if self.shouldMergeIcons {
+            self.statusItem
+        } else if let provider, let existing = self.statusItems[provider], existing.isVisible {
+            existing
+        } else {
+            self.lazyStatusItem(for: provider ?? .codex)
+        }
+
+        guard let button = item.button,
+              let window = button.window
+        else {
+            return nil
+        }
+
+        let buttonFrameInWindow = button.convert(button.bounds, to: nil)
+        let screenFrame = window.convertToScreen(buttonFrameInWindow)
+        return CGPoint(x: screenFrame.midX, y: screenFrame.midY)
     }
 
     private func openSettings(tab: PreferencesTab) {
@@ -268,6 +333,8 @@ extension StatusItemController {
             case .missingEmail:
                 "Codex login completed, but no account email was available. " +
                     "Try again after confirming the account is fully signed in."
+            case .workspaceSelectionCancelled:
+                "CodexBar found multiple workspaces, but no workspace was selected."
             case let .unsafeManagedHome(path):
                 "CodexBar refused to modify an unexpected managed home path: \(path)"
             }

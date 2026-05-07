@@ -4,6 +4,7 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCLI
 
+@Suite(.serialized)
 @MainActor
 struct TokenAccountEnvironmentPrecedenceTests {
     @Test
@@ -21,6 +22,21 @@ struct TokenAccountEnvironmentPrecedenceTests {
         #expect(env["FOO"] == "bar")
         #expect(env[ZaiSettingsReader.apiTokenKey] == "account-token")
         #expect(env[ZaiSettingsReader.apiTokenKey] != "config-token")
+    }
+
+    @Test
+    func `deepseek token account injects environment in app environment builder`() {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-deepseek-app")
+        settings.addTokenAccount(provider: .deepseek, label: "Account 1", token: "account-token")
+
+        let env = ProviderRegistry.makeEnvironment(
+            base: ["FOO": "bar"],
+            provider: .deepseek,
+            settings: settings,
+            tokenOverride: nil)
+
+        #expect(env["FOO"] == "bar")
+        #expect(env[DeepSeekSettingsReader.apiKeyEnvironmentKey] == "account-token")
     }
 
     @Test
@@ -42,6 +58,23 @@ struct TokenAccountEnvironmentPrecedenceTests {
 
         #expect(env[ZaiSettingsReader.apiTokenKey] == "account-token")
         #expect(env[ZaiSettingsReader.apiTokenKey] != "config-token")
+    }
+
+    @Test
+    func `deepseek token account injects environment in CLI environment builder`() throws {
+        let config = CodexBarConfig(providers: [])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Account 1",
+            token: "account-token",
+            addedAt: Date().timeIntervalSince1970,
+            lastUsed: nil)
+
+        let env = tokenContext.environment(base: [:], provider: .deepseek, account: account)
+
+        #expect(env[DeepSeekSettingsReader.apiKeyEnvironmentKey] == "account-token")
     }
 
     @Test
@@ -279,6 +312,130 @@ struct TokenAccountEnvironmentPrecedenceTests {
         #expect(labeled.identity?.accountEmail == "CLI Account")
     }
 
+    @Test
+    func `codex known owners match between app and CLI for live system only`() throws {
+        let ambientHome = Self.makeTempCodexHome(
+            email: "live@example.com",
+            plan: "pro",
+            accountId: "acct-live")
+        defer { try? FileManager.default.removeItem(at: ambientHome) }
+
+        let appSettings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-live-only")
+        appSettings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: ambientHome.path,
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-live"))
+        defer { appSettings._test_liveSystemCodexAccount = nil }
+        let appStore = Self.makeUsageStore(settings: appSettings)
+
+        try Self.withCLIKnownOwnerFixtures(
+            ambientHome: ambientHome,
+            managedAccounts: [])
+        {
+            let rawCLIOwners = try Self.codexCLIKnownOwners()
+            let cliOwners = try #require(rawCLIOwners)
+            let appOwners = appStore.codexDashboardKnownOwnerCandidates()
+
+            #expect(Self.knownOwnerMultiset(appOwners) == Self.knownOwnerMultiset(cliOwners))
+        }
+    }
+
+    @Test
+    func `codex known owners match between app and CLI when managed and live identities are the same`() throws {
+        let ambientHome = Self.makeTempCodexHome(
+            email: "shared@example.com",
+            plan: "pro",
+            accountId: "acct-shared")
+        let managedHome = Self.makeTempCodexHome(
+            email: "shared@example.com",
+            plan: "pro",
+            accountId: "acct-shared")
+        defer {
+            try? FileManager.default.removeItem(at: ambientHome)
+            try? FileManager.default.removeItem(at: managedHome)
+        }
+
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "shared@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let appSettings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-same-identity")
+        appSettings._test_activeManagedCodexAccount = managedAccount
+        appSettings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "shared@example.com",
+            codexHomePath: ambientHome.path,
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-shared"))
+        defer {
+            appSettings._test_activeManagedCodexAccount = nil
+            appSettings._test_liveSystemCodexAccount = nil
+        }
+        let appStore = Self.makeUsageStore(settings: appSettings)
+
+        try Self.withCLIKnownOwnerFixtures(
+            ambientHome: ambientHome,
+            managedAccounts: [managedAccount])
+        {
+            let rawCLIOwners = try Self.codexCLIKnownOwners()
+            let cliOwners = try #require(rawCLIOwners)
+            let appOwners = appStore.codexDashboardKnownOwnerCandidates()
+
+            #expect(Self.knownOwnerMultiset(appOwners) == Self.knownOwnerMultiset(cliOwners))
+        }
+    }
+
+    @Test
+    func `codex known owners match between app and CLI when managed and live identities differ`() throws {
+        let ambientHome = Self.makeTempCodexHome(
+            email: "live@example.com",
+            plan: "pro",
+            accountId: "acct-live")
+        let managedHome = Self.makeTempCodexHome(
+            email: "managed@example.com",
+            plan: "pro",
+            accountId: "acct-managed")
+        defer {
+            try? FileManager.default.removeItem(at: ambientHome)
+            try? FileManager.default.removeItem(at: managedHome)
+        }
+
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let appSettings = Self
+            .makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-codex-different-identities")
+        appSettings._test_activeManagedCodexAccount = managedAccount
+        appSettings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: ambientHome.path,
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-live"))
+        defer {
+            appSettings._test_activeManagedCodexAccount = nil
+            appSettings._test_liveSystemCodexAccount = nil
+        }
+        let appStore = Self.makeUsageStore(settings: appSettings)
+
+        try Self.withCLIKnownOwnerFixtures(
+            ambientHome: ambientHome,
+            managedAccounts: [managedAccount])
+        {
+            let rawCLIOwners = try Self.codexCLIKnownOwners()
+            let cliOwners = try #require(rawCLIOwners)
+            let appOwners = appStore.codexDashboardKnownOwnerCandidates()
+
+            #expect(Self.knownOwnerMultiset(appOwners) == Self.knownOwnerMultiset(cliOwners))
+        }
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -309,6 +466,94 @@ struct TokenAccountEnvironmentPrecedenceTests {
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
+    }
+
+    private static func codexCLIKnownOwners() throws -> [CodexDashboardKnownOwnerCandidate]? {
+        let context = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: CodexBarConfig(providers: [ProviderConfig(id: .codex)]),
+            verbose: false)
+        return context.settingsSnapshot(for: .codex, account: nil)?.codex?.dashboardAuthorityKnownOwners
+    }
+
+    private static func knownOwnerMultiset(
+        _ owners: [CodexDashboardKnownOwnerCandidate]) -> [CodexDashboardKnownOwnerCandidate: Int]
+    {
+        owners.reduce(into: [:]) { counts, owner in
+            counts[owner, default: 0] += 1
+        }
+    }
+
+    private static func makeTempCodexHome(email: String, plan: String, accountId: String) -> URL {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-known-owner-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        let credentials = CodexOAuthCredentials(
+            accessToken: "access-token",
+            refreshToken: "refresh-token",
+            idToken: self.fakeJWT(email: email, plan: plan, accountId: accountId),
+            accountId: accountId,
+            lastRefresh: Date())
+        try? CodexOAuthCredentialsStore.save(credentials, env: ["CODEX_HOME": home.path])
+        return home
+    }
+
+    private static func fakeJWT(email: String, plan: String, accountId: String) -> String {
+        let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        let payload = (try? JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "chatgpt_plan_type": plan,
+            "https://api.openai.com/auth": [
+                "chatgpt_plan_type": plan,
+                "chatgpt_account_id": accountId,
+            ],
+        ])) ?? Data()
+
+        func base64URL(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "=", with: "")
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+        }
+
+        return "\(base64URL(header)).\(base64URL(payload))."
+    }
+
+    private static func withCLIKnownOwnerFixtures<T>(
+        ambientHome: URL,
+        managedAccounts: [ManagedCodexAccount],
+        operation: () throws -> T) throws -> T
+    {
+        let managedStoreURL = FileManagedCodexAccountStore.defaultURL()
+        let fileManager = FileManager.default
+        let originalManagedStoreData = try? Data(contentsOf: managedStoreURL)
+        let hadOriginalManagedStore = fileManager.fileExists(atPath: managedStoreURL.path)
+        let originalCodexHome = getenv("CODEX_HOME").map { String(cString: $0) }
+
+        let managedStore = FileManagedCodexAccountStore(fileURL: managedStoreURL)
+        try managedStore.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: managedAccounts))
+        setenv("CODEX_HOME", ambientHome.path, 1)
+
+        defer {
+            if let originalCodexHome {
+                setenv("CODEX_HOME", originalCodexHome, 1)
+            } else {
+                unsetenv("CODEX_HOME")
+            }
+
+            if hadOriginalManagedStore, let originalManagedStoreData {
+                try? fileManager.createDirectory(
+                    at: managedStoreURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true)
+                try? originalManagedStoreData.write(to: managedStoreURL, options: [.atomic])
+            } else {
+                try? fileManager.removeItem(at: managedStoreURL)
+            }
+        }
+
+        return try operation()
     }
 
     private static func makeSnapshotWithAllFields(provider: UsageProvider) -> UsageSnapshot {

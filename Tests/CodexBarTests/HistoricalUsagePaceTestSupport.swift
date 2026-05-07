@@ -111,6 +111,35 @@ extension HistoricalUsagePaceTests {
             }
     }
 
+    static func writeHistoricalFixture(named name: String, to fileURL: URL) throws {
+        let fixtureURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures", isDirectory: true)
+            .appendingPathComponent(name, isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        let data = try Data(contentsOf: fixtureURL)
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    static func writeHistoricalRecords(_ records: [HistoricalUsageRecord], to fileURL: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
+        let lines = try records.map { record -> String in
+            let data = try encoder.encode(record)
+            guard let line = String(bytes: data, encoding: .utf8) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            return line
+        }
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try (lines.joined(separator: "\n") + "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+    }
+
     static func recordDedupKeyCount(_ records: [HistoricalUsageRecord]) -> Int {
         struct Key: Hashable {
             let resetsAt: Date
@@ -139,8 +168,114 @@ extension HistoricalUsagePaceTests {
             .joined(separator: "||")
     }
 
+    static func liveAccount(
+        email: String,
+        identity: CodexIdentity = .unresolved) -> ObservedSystemCodexAccount
+    {
+        ObservedSystemCodexAccount(
+            email: email,
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: identity)
+    }
+
+    static func weeklySnapshot(
+        email: String? = nil,
+        usedPercent: Double,
+        resetsAt: Date,
+        updatedAt: Date) -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: 10080,
+                resetsAt: resetsAt,
+                resetDescription: nil),
+            tertiary: nil,
+            providerCost: nil,
+            updatedAt: updatedAt,
+            identity: email.map {
+                ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: $0,
+                    accountOrganization: nil,
+                    loginMethod: "Pro")
+            })
+    }
+
+    static func recordCompleteWeek(
+        into store: HistoricalUsageHistoryStore,
+        resetsAt: Date,
+        accountKey: String?) async
+    {
+        let windowMinutes = 10080
+        let duration = TimeInterval(windowMinutes) * 60
+        let windowStart = resetsAt.addingTimeInterval(-duration)
+        let samples: [(u: Double, used: Double)] = [
+            (0.02, 3),
+            (0.10, 10),
+            (0.40, 40),
+            (0.60, 60),
+            (0.80, 80),
+            (0.98, 95),
+        ]
+
+        for sample in samples {
+            _ = await store.recordCodexWeekly(
+                window: RateWindow(
+                    usedPercent: sample.used,
+                    windowMinutes: windowMinutes,
+                    resetsAt: resetsAt,
+                    resetDescription: nil),
+                sampledAt: windowStart.addingTimeInterval(sample.u * duration),
+                accountKey: accountKey)
+        }
+    }
+
+    static func waitForHistoricalRecords(
+        at fileURL: URL,
+        minimumCount: Int,
+        timeoutMilliseconds: UInt64 = 2000) async throws -> [HistoricalUsageRecord]
+    {
+        let deadline = ContinuousClock.now + .milliseconds(timeoutMilliseconds)
+        while ContinuousClock.now < deadline {
+            if let records = try? Self.readHistoricalRecords(from: fileURL), records.count >= minimumCount {
+                return records
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        return try Self.readHistoricalRecords(from: fileURL)
+    }
+
     @MainActor
-    static func makeUsageStoreForBackfillTests(suite: String, historyFileURL: URL) throws -> UsageStore {
+    static func waitForHistoricalWrite(
+        store: UsageStore,
+        at fileURL: URL,
+        minimumCount: Int,
+        expectedAccountKey: String?,
+        timeoutMilliseconds: UInt64 = 2000) async throws -> [HistoricalUsageRecord]
+    {
+        let deadline = ContinuousClock.now + .milliseconds(timeoutMilliseconds)
+        while ContinuousClock.now < deadline {
+            let records = (try? Self.readHistoricalRecords(from: fileURL)) ?? []
+            if records.count >= minimumCount,
+               store.codexHistoricalDatasetAccountKey == expectedAccountKey
+            {
+                return records
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        return try Self.readHistoricalRecords(from: fileURL)
+    }
+
+    @MainActor
+    static func makeUsageStoreForHistoricalTests(
+        suite: String,
+        historicalUsageHistoryStore: HistoricalUsageHistoryStore) throws -> UsageStore
+    {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let settings = SettingsStore(
@@ -168,7 +303,14 @@ extension HistoricalUsagePaceTests {
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
-            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: historyFileURL),
+            historicalUsageHistoryStore: historicalUsageHistoryStore,
             planUtilizationHistoryStore: planHistoryStore)
+    }
+
+    @MainActor
+    static func makeUsageStoreForBackfillTests(suite: String, historyFileURL: URL) throws -> UsageStore {
+        try self.makeUsageStoreForHistoricalTests(
+            suite: suite,
+            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: historyFileURL))
     }
 }

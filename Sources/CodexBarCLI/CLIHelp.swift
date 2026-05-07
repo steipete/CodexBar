@@ -62,8 +62,8 @@ extension CodexBarCLI {
                        [--no-color] [--pretty] [--refresh]
 
         Description:
-          Print local token cost usage from Claude/Codex JSONL logs. This does not require web or CLI access.
-          Uses cached scan results unless --refresh is provided.
+          Print local token cost usage from Claude/Codex native logs plus supported pi sessions.
+          This does not require web or CLI access and uses cached scan results unless --refresh is provided.
 
         Examples:
           codexbar cost
@@ -98,6 +98,34 @@ extension CodexBarCLI {
         """
     }
 
+    static func cacheHelp(version: String) -> String {
+        """
+        CodexBar \(version)
+
+        Usage:
+          codexbar cache clear <--cookies|--cost|--all>
+                              [--provider <name>]
+                              [--format text|json]
+                              [--json]
+                              [--json-only]
+                              [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
+                              [-v|--verbose]
+                              [--pretty]
+
+        Description:
+          Clear cached data. Use --cookies to clear browser cookie caches (stored in Keychain),
+          --cost to clear cost usage scan caches, or --all for both.
+          Optionally specify --provider with --cookies to clear cookies for a single provider only.
+
+        Examples:
+          codexbar cache clear --cookies
+          codexbar cache clear --cookies --provider claude
+          codexbar cache clear --cost
+          codexbar cache clear --all
+          codexbar cache clear --all --format json --pretty
+        """
+    }
+
     static func rootHelp(version: String) -> String {
         """
         CodexBar \(version)
@@ -122,6 +150,7 @@ extension CodexBarCLI {
                                         [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                                         [-v|--verbose]
                                         [--pretty]
+          codexbar cache clear <--cookies|--cost|--all> [--provider <name>]
 
         Global flags:
           -h, --help      Show help
@@ -138,6 +167,7 @@ extension CodexBarCLI {
           codexbar --provider gemini
           codexbar cost --provider claude --format json --pretty
           codexbar config validate --format json --pretty
+          codexbar cache clear --cookies
         """
     }
 }

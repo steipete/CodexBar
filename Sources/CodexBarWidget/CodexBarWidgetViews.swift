@@ -263,6 +263,7 @@ private struct ProviderSwitchChip: View {
         case .antigravity: "Anti"
         case .cursor: "Cursor"
         case .opencode: "OpenCode"
+        case .opencodego: "OpenCode Go"
         case .alibaba: "Alibaba"
         case .zai: "z.ai"
         case .factory: "Droid"
@@ -280,7 +281,12 @@ private struct ProviderSwitchChip: View {
         case .synthetic: "Synthetic"
         case .openrouter: "OpenRouter"
         case .warp: "Warp"
+        case .windsurf: "Windsurf"
         case .perplexity: "Pplx"
+        case .abacus: "Abacus"
+        case .mistral: "Mistral"
+        case .deepseek: "DeepSeek"
+        case .codebuff: "Codebuff"
         }
     }
 }
@@ -461,30 +467,23 @@ struct WidgetUsageRow: Identifiable, Equatable {
     let percentLeft: Double?
 
     static func rows(for entry: WidgetSnapshot.ProviderEntry) -> [WidgetUsageRow] {
-        let metadata = ProviderDefaults.metadata[entry.provider]
-        let session = WidgetUsageRow(
-            id: "primary",
-            title: metadata?.sessionLabel ?? "Session",
-            percentLeft: entry.primary?.remainingPercent)
-        let weekly = WidgetUsageRow(
-            id: "secondary",
-            title: metadata?.weeklyLabel ?? "Weekly",
-            percentLeft: entry.secondary?.remainingPercent)
-
-        if entry.provider == .codex {
-            return [session, weekly].filter { row in
-                switch row.id {
-                case "primary":
-                    entry.primary != nil
-                case "secondary":
-                    entry.secondary != nil
-                default:
-                    true
-                }
+        if let usageRows = entry.usageRows {
+            return usageRows.map { row in
+                WidgetUsageRow(id: row.id, title: row.title, percentLeft: row.percentLeft)
             }
         }
 
-        return [session, weekly]
+        let metadata = ProviderDefaults.metadata[entry.provider]
+        return [
+            WidgetUsageRow(
+                id: "primary",
+                title: metadata?.sessionLabel ?? "Session",
+                percentLeft: entry.primary?.remainingPercent),
+            WidgetUsageRow(
+                id: "secondary",
+                title: metadata?.weeklyLabel ?? "Weekly",
+                percentLeft: entry.secondary?.remainingPercent),
+        ].filter { $0.percentLeft != nil }
     }
 }
 
@@ -609,6 +608,8 @@ enum WidgetColors {
             Color(red: 0 / 255, green: 191 / 255, blue: 165 / 255) // #00BFA5 - Cursor teal
         case .opencode:
             Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
+        case .opencodego:
+            Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
         case .alibaba:
             Color(red: 1.0, green: 106 / 255, blue: 0)
         case .zai:
@@ -643,8 +644,18 @@ enum WidgetColors {
             Color(red: 111 / 255, green: 66 / 255, blue: 193 / 255) // OpenRouter purple
         case .warp:
             Color(red: 147 / 255, green: 139 / 255, blue: 180 / 255)
+        case .windsurf:
+            Color(red: 52 / 255, green: 232 / 255, blue: 187 / 255) // Windsurf #34e8bb
         case .perplexity:
             Color(red: 32 / 255, green: 178 / 255, blue: 170 / 255) // Perplexity teal
+        case .abacus:
+            Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
+        case .mistral:
+            Color(red: 255 / 255, green: 80 / 255, blue: 15 / 255) // Mistral orange
+        case .deepseek:
+            Color(red: 82 / 255, green: 125 / 255, blue: 240 / 255)
+        case .codebuff:
+            Color(red: 68 / 255, green: 255 / 255, blue: 0 / 255) // Codebuff lime
         }
     }
 }

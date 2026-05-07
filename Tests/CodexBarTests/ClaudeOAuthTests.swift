@@ -12,7 +12,8 @@ struct ClaudeOAuthTests {
             "refreshToken": "test-refresh",
             "expiresAt": 4102444800000,
             "scopes": ["usage:read"],
-            "rateLimitTier": "default_claude_max_20x"
+            "rateLimitTier": "default_claude_max_20x",
+            "subscriptionType": "pro"
           }
         }
         """
@@ -21,6 +22,7 @@ struct ClaudeOAuthTests {
         #expect(creds.refreshToken == "test-refresh")
         #expect(creds.scopes == ["usage:read"])
         #expect(creds.rateLimitTier == "default_claude_max_20x")
+        #expect(creds.subscriptionType == "pro")
         #expect(creds.isExpired == false)
     }
 
@@ -79,6 +81,81 @@ struct ClaudeOAuthTests {
         #expect(snap.opus?.usedPercent == 5)
         #expect(snap.primary.resetsAt != nil)
         #expect(snap.loginMethod == "Claude Pro")
+    }
+
+    @Test
+    func `maps O auth subscription type when rate limit tier is generic`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(
+            Data(json.utf8),
+            rateLimitTier: "default_claude_ai",
+            subscriptionType: "pro")
+        #expect(snap.loginMethod == "Claude Pro")
+    }
+
+    @Test
+    func `maps O auth design and routines usage windows`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day_design": { "utilization": 44, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_routines": { "utilization": 18, "resets_at": "2026-01-01T00:00:00.000Z" }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.count == 2)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.title == "Designs")
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.window.usedPercent == 44)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.title == "Daily Routines")
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 18)
+    }
+
+    @Test
+    func `maps O auth omelette and cowork usage windows`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day_omelette": { "utilization": 29, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_cowork": { "utilization": 9, "resets_at": "2026-01-01T00:00:00.000Z" }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.count == 2)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.window.usedPercent == 29)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 9)
+    }
+
+    @Test
+    func `maps O auth null cowork as zero routines window`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day_omelette": { "utilization": 29, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_cowork": null
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 0)
+    }
+
+    @Test
+    func `prefers populated alias over null alias in mixed payload`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day_design": null,
+          "seven_day_omelette": { "utilization": 37, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_routines": null,
+          "seven_day_cowork": { "utilization": 14, "resets_at": "2026-01-01T00:00:00.000Z" }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-design" })?.window.usedPercent == 37)
+        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 14)
     }
 
     @Test

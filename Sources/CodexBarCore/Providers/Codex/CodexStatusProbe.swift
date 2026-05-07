@@ -96,6 +96,8 @@ public struct CodexStatusProbe {
             default:
                 throw error
             }
+        } catch {
+            throw error
         }
     }
 
@@ -214,7 +216,7 @@ public struct CodexStatusProbe {
             }
         } else {
             let runner = TTYCommandRunner()
-            let script = "/status\n"
+            let script = "/status"
             let result = try runner.run(
                 binary: binary,
                 send: script,
@@ -223,7 +225,8 @@ public struct CodexStatusProbe {
                     cols: cols,
                     timeout: timeout,
                     extraArgs: ["-s", "read-only", "-a", "untrusted"],
-                    baseEnvironment: self.environment))
+                    baseEnvironment: self.environment,
+                    forceCodexStatusMode: true))
             text = result.text
         }
         return try Self.parse(text: text)

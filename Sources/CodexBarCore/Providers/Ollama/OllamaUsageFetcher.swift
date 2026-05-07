@@ -9,6 +9,7 @@ import SweetCookieKit
 
 private let ollamaSessionCookieNames: Set<String> = [
     "session",
+    "__Secure-session",
     "ollama_session",
     "__Host-ollama_session",
     "__Secure-next-auth.session-token",
@@ -199,7 +200,7 @@ public enum OllamaCookieImporter {
         for browserSource in browserSources {
             do {
                 let query = BrowserCookieQuery(domains: self.cookieDomains)
-                let sources = try Self.cookieClient.records(
+                let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: logger)

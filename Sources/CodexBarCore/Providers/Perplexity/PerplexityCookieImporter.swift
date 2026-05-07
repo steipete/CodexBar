@@ -80,7 +80,7 @@ public enum PerplexityCookieImporter {
     {
         let query = BrowserCookieQuery(domains: self.cookieDomains)
         let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
-        let sources = try Self.cookieClient.records(
+        let sources = try Self.cookieClient.codexBarRecords(
             matching: query,
             in: browserSource,
             logger: log)
@@ -232,7 +232,7 @@ public enum PerplexityCookieImporter {
     }
 }
 
-enum PerplexityCookieImportError: LocalizedError, Sendable {
+enum PerplexityCookieImportError: LocalizedError {
     case noCookies
 
     var errorDescription: String? {

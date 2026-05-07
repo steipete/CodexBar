@@ -10,6 +10,28 @@ struct AlibabaCodingPlanSettingsReaderTests {
     }
 
     @Test
+    func `api token reads qwen alias from environment`() {
+        let token = AlibabaCodingPlanSettingsReader.apiToken(environment: ["ALIBABA_QWEN_API_KEY": "qwen123"])
+        #expect(token == "qwen123")
+    }
+
+    @Test
+    func `api token reads dashscope alias from environment`() {
+        let token = AlibabaCodingPlanSettingsReader.apiToken(environment: ["DASHSCOPE_API_KEY": "dashscope123"])
+        #expect(token == "dashscope123")
+    }
+
+    @Test
+    func `api token prefers coding plan key over aliases`() {
+        let token = AlibabaCodingPlanSettingsReader.apiToken(environment: [
+            "ALIBABA_CODING_PLAN_API_KEY": "coding-plan",
+            "ALIBABA_QWEN_API_KEY": "qwen",
+            "DASHSCOPE_API_KEY": "dashscope",
+        ])
+        #expect(token == "coding-plan")
+    }
+
+    @Test
     func `api token strips quotes`() {
         let token = AlibabaCodingPlanSettingsReader
             .apiToken(environment: ["ALIBABA_CODING_PLAN_API_KEY": "\"token-xyz\""])
@@ -462,7 +484,7 @@ struct AlibabaCodingPlanUsageParsingTests {
     }
 
     @Test
-    func `console need login payload maps to api error for API key mode`() {
+    func `console need login payload maps to unavailable API key mode`() {
         let json = """
         {
           "code": "ConsoleNeedLogin",
@@ -472,19 +494,10 @@ struct AlibabaCodingPlanUsageParsingTests {
         }
         """
 
-        do {
-            _ = try AlibabaCodingPlanUsageFetcher.parseUsageSnapshot(
+        #expect(throws: AlibabaCodingPlanUsageError.apiKeyUnavailableInRegion) {
+            try AlibabaCodingPlanUsageFetcher.parseUsageSnapshot(
                 from: Data(json.utf8),
                 authMode: .apiKey)
-            Issue.record("Expected API-mode ConsoleNeedLogin payload to throw")
-        } catch let error as AlibabaCodingPlanUsageError {
-            guard case let .apiError(message) = error else {
-                Issue.record("Expected apiError, got \(error)")
-                return
-            }
-            #expect(message.contains("requires a console session"))
-        } catch {
-            Issue.record("Expected AlibabaCodingPlanUsageError, got \(error)")
         }
     }
 }
@@ -945,6 +958,7 @@ final class AlibabaConsoleSECTokenStubURLProtocol: URLProtocol {
             "modelstudio.console.alibabacloud.com",
             "bailian-singapore-cs.alibabacloud.com",
             "bailian.console.aliyun.com",
+            "bailian-cs.console.aliyun.com",
             "bailian-beijing-cs.aliyuncs.com",
         ].contains(host)
     }

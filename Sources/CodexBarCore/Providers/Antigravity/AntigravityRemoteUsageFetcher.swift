@@ -27,6 +27,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     public var timeout: TimeInterval = 10.0
     public var homeDirectory: String
     public var dataLoader: @Sendable (URLRequest) async throws -> (Data, URLResponse)
+    public var oauthClientResolver: @Sendable () -> AntigravityOAuthClient?
 
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
     private static let userAgent = "antigravity"
@@ -41,11 +42,15 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         homeDirectory: String = NSHomeDirectory(),
         dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
             try await URLSession.shared.data(for: request)
+        },
+        oauthClientResolver: @escaping @Sendable () -> AntigravityOAuthClient? = {
+            AntigravityOAuthConfig.resolvedClient()
         })
     {
         self.timeout = timeout
         self.homeDirectory = homeDirectory
         self.dataLoader = dataLoader
+        self.oauthClientResolver = oauthClientResolver
     }
 
     public func fetch() async throws -> AntigravityStatusSnapshot {
@@ -58,14 +63,16 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             using: credentials,
             timeout: self.timeout,
             store: store,
-            dataLoader: self.dataLoader)
+            dataLoader: self.dataLoader,
+            oauthClientResolver: self.oauthClientResolver)
     }
 
     private static func fetchSnapshot(
         using initialCredentials: AntigravityOAuthCredentials,
         timeout: TimeInterval,
         store: AntigravityOAuthCredentialsStore,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
+        oauthClientResolver: @escaping @Sendable () -> AntigravityOAuthClient?) async throws
         -> AntigravityStatusSnapshot
     {
         guard let storedAccessToken = initialCredentials.accessToken?.trimmedNonEmpty else {
@@ -83,7 +90,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 refreshToken: refreshToken,
                 timeout: timeout,
                 store: store,
-                dataLoader: dataLoader)
+                dataLoader: dataLoader,
+                oauthClientResolver: oauthClientResolver)
             credentials = try store.load() ?? credentials
             credentials.accessToken = credentials.accessToken?.trimmedNonEmpty ?? accessToken
         }
@@ -433,10 +441,11 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         refreshToken: String,
         timeout: TimeInterval,
         store: AntigravityOAuthCredentialsStore,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
+        oauthClientResolver: @escaping @Sendable () -> AntigravityOAuthClient?) async throws
         -> String
     {
-        let oauthClient = try Self.refreshOAuthClient(from: credentials)
+        let oauthClient = try Self.refreshOAuthClient(from: credentials, oauthClientResolver: oauthClientResolver)
 
         var request = URLRequest(url: AntigravityOAuthConfig.tokenURL)
         request.httpMethod = "POST"
@@ -466,14 +475,18 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         return accessToken
     }
 
-    private static func refreshOAuthClient(from credentials: AntigravityOAuthCredentials) throws -> AntigravityOAuthClient {
+    private static func refreshOAuthClient(
+        from credentials: AntigravityOAuthCredentials,
+        oauthClientResolver: @escaping @Sendable () -> AntigravityOAuthClient?) throws
+        -> AntigravityOAuthClient
+    {
         if let clientID = credentials.clientID?.trimmedNonEmpty,
            let clientSecret = credentials.clientSecret?.trimmedNonEmpty
         {
             return AntigravityOAuthClient(clientID: clientID, clientSecret: clientSecret)
         }
 
-        guard let client = AntigravityOAuthConfig.resolvedClient() else {
+        guard let client = oauthClientResolver() else {
             throw AntigravityRemoteFetchError.apiError(AntigravityOAuthConfig.missingCredentialsMessage)
         }
         return client

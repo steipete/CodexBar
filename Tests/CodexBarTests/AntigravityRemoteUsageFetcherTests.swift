@@ -140,7 +140,8 @@ struct AntigravityRemoteUsageFetcherTests {
             homeDirectory: env.homeURL.path,
             dataLoader: GeminiAPITestHelpers.dataLoader { _ in
                 throw URLError(.badServerResponse)
-            })
+            },
+            oauthClientResolver: { nil })
 
         do {
             _ = try await fetcher.fetch()

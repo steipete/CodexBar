@@ -26,6 +26,32 @@ struct ProviderSettingsContext {
 
     let requestConfirmation: (ProviderSettingsConfirmation) -> Void
     let runLoginFlow: () async -> Void
+
+    init(
+        provider: UsageProvider,
+        settings: SettingsStore,
+        store: UsageStore,
+        boolBinding: @escaping (ReferenceWritableKeyPath<SettingsStore, Bool>) -> Binding<Bool>,
+        stringBinding: @escaping (ReferenceWritableKeyPath<SettingsStore, String>) -> Binding<String>,
+        statusText: @escaping (String) -> String?,
+        setStatusText: @escaping (String, String?) -> Void,
+        lastAppActiveRunAt: @escaping (String) -> Date?,
+        setLastAppActiveRunAt: @escaping (String, Date?) -> Void,
+        requestConfirmation: @escaping (ProviderSettingsConfirmation) -> Void,
+        runLoginFlow: @escaping () async -> Void = {})
+    {
+        self.provider = provider
+        self.settings = settings
+        self.store = store
+        self.boolBinding = boolBinding
+        self.stringBinding = stringBinding
+        self.statusText = statusText
+        self.setStatusText = setStatusText
+        self.lastAppActiveRunAt = lastAppActiveRunAt
+        self.setLastAppActiveRunAt = setLastAppActiveRunAt
+        self.requestConfirmation = requestConfirmation
+        self.runLoginFlow = runLoginFlow
+    }
 }
 
 /// Shared confirmation alert descriptor.
@@ -77,6 +103,7 @@ struct ProviderSettingsFieldDescriptor: Identifiable {
     let id: String
     let title: String
     let subtitle: String
+    var footerText: String?
     let kind: Kind
     let placeholder: String?
     let binding: Binding<String>
@@ -109,6 +136,8 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let setActiveIndex: (Int) -> Void
     let addAccount: (_ label: String, _ token: String) -> Void
     let removeAccount: (_ accountID: UUID) -> Void
+    let primaryAddActionTitle: String?
+    let primaryAddAction: (() async -> Void)?
     let openConfigFile: () -> Void
     let reloadFromDisk: () -> Void
 }

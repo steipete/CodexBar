@@ -12,6 +12,7 @@ struct CodexBarApp: App {
     @State private var settings: SettingsStore
     @State private var store: UsageStore
     @State private var managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    @State private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     private let preferencesSelection: PreferencesSelection
     private let account: AccountInfo
 
@@ -51,18 +52,24 @@ struct CodexBarApp: App {
         let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)
         let account = fetcher.loadAccountInfo()
         let store = UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: settings)
+        let codexAccountPromotionCoordinator = CodexAccountPromotionCoordinator(
+            settingsStore: settings,
+            usageStore: store,
+            managedAccountCoordinator: managedCodexAccountCoordinator)
         self.preferencesSelection = preferencesSelection
         _settings = State(wrappedValue: settings)
         _store = State(wrappedValue: store)
         _managedCodexAccountCoordinator = State(wrappedValue: managedCodexAccountCoordinator)
+        _codexAccountPromotionCoordinator = State(wrappedValue: codexAccountPromotionCoordinator)
         self.account = account
         CodexBarLog.setLogLevel(settings.debugLogLevel)
-        self.appDelegate.configure(
+        self.appDelegate.configure(.init(
             store: store,
             settings: settings,
             account: account,
             selection: preferencesSelection,
-            managedCodexAccountCoordinator: managedCodexAccountCoordinator)
+            managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+            codexAccountPromotionCoordinator: codexAccountPromotionCoordinator))
     }
 
     @SceneBuilder
@@ -82,6 +89,7 @@ struct CodexBarApp: App {
                 updater: self.appDelegate.updaterController,
                 selection: self.preferencesSelection,
                 managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
+                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
                 runProviderLoginFlow: { provider in
                     await self.appDelegate.runProviderLoginFlow(provider)
                 })
@@ -263,26 +271,34 @@ private func makeUpdaterController() -> UpdaterProviding {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    struct Dependencies {
+        let store: UsageStore
+        let settings: SettingsStore
+        let account: AccountInfo
+        let selection: PreferencesSelection
+        let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+        let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
+    }
+
     let updaterController: UpdaterProviding = makeUpdaterController()
+    private let confettiOverlayController = ScreenConfettiOverlayController()
+    private let confettiLogger = CodexBarLog.logger(LogCategories.confetti)
     private var statusController: StatusItemControlling?
     private var store: UsageStore?
     private var settings: SettingsStore?
     private var account: AccountInfo?
     private var preferencesSelection: PreferencesSelection?
     private var managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?
+    private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?
+    private var hasInstalledWeeklyLimitResetObserver = false
 
-    func configure(
-        store: UsageStore,
-        settings: SettingsStore,
-        account: AccountInfo,
-        selection: PreferencesSelection,
-        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator)
-    {
-        self.store = store
-        self.settings = settings
-        self.account = account
-        self.preferencesSelection = selection
-        self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+    func configure(_ dependencies: Dependencies) {
+        self.store = dependencies.store
+        self.settings = dependencies.settings
+        self.account = dependencies.account
+        self.preferencesSelection = dependencies.selection
+        self.managedCodexAccountCoordinator = dependencies.managedCodexAccountCoordinator
+        self.codexAccountPromotionCoordinator = dependencies.codexAccountPromotionCoordinator
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -297,9 +313,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.statusController?.openMenuFromShortcut()
             }
         }
+        if !self.hasInstalledWeeklyLimitResetObserver {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.handleWeeklyLimitResetNotification(_:)),
+                name: .codexbarWeeklyLimitReset,
+                object: nil)
+            self.hasInstalledWeeklyLimitResetObserver = true
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        self.confettiOverlayController.dismiss()
         TTYCommandRunner.terminateActiveProcessesForAppShutdown()
     }
 
@@ -307,6 +332,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.ensureStatusController()
         guard let statusController else { return }
         await statusController.runLoginFlowFromSettings(provider: provider)
+    }
+
+    @objc private func handleWeeklyLimitResetNotification(_ notification: Notification) {
+        guard let event = notification.object as? WeeklyLimitResetEvent else { return }
+        guard self.settings?.confettiOnWeeklyLimitResetsEnabled == true else { return }
+        let origin = self.statusController?.celebrationOriginPoint(for: event.provider)
+        self.confettiLogger.info(
+            "Triggering confetti",
+            metadata: [
+                "provider": event.provider.rawValue,
+                "accountIdentifier": event.accountIdentifier,
+                "originKnown": origin == nil ? "0" : "1",
+            ])
+        self.confettiOverlayController.play(originInScreen: origin)
     }
 
     /// Use the classic (non-Liquid Glass) app icon on macOS versions before 26.
@@ -341,7 +380,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            let settings,
            let account,
            let selection = self.preferencesSelection,
-           let managedCodexAccountCoordinator
+           let managedCodexAccountCoordinator,
+           let codexAccountPromotionCoordinator
         {
             self.statusController = StatusItemController.factory(
                 store,
@@ -349,7 +389,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 account,
                 self.updaterController,
                 selection,
-                managedCodexAccountCoordinator)
+                managedCodexAccountCoordinator,
+                codexAccountPromotionCoordinator)
             return
         }
 
@@ -363,12 +404,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fallbackAccount = fetcher.loadAccountInfo()
         let fallbackStore = UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: fallbackSettings)
         let fallbackManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator()
+        let fallbackCodexAccountPromotionCoordinator = CodexAccountPromotionCoordinator(
+            settingsStore: fallbackSettings,
+            usageStore: fallbackStore,
+            managedAccountCoordinator: fallbackManagedCodexAccountCoordinator)
         self.statusController = StatusItemController.factory(
             fallbackStore,
             fallbackSettings,
             fallbackAccount,
             self.updaterController,
             PreferencesSelection(),
-            fallbackManagedCodexAccountCoordinator)
+            fallbackManagedCodexAccountCoordinator,
+            fallbackCodexAccountPromotionCoordinator)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }

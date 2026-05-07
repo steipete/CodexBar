@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import SweetCookieKit
 
 #if os(macOS)
@@ -108,7 +111,7 @@ public enum CursorCookieImporter {
 
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let sources = try Self.cookieClient.records(
+            let sources = try Self.cookieClient.codexBarRecords(
                 matching: query,
                 in: browser,
                 logger: log)
@@ -198,6 +201,38 @@ public struct CursorUsageSummary: Codable, Sendable {
 public struct CursorIndividualUsage: Codable, Sendable {
     public let plan: CursorPlanUsage?
     public let onDemand: CursorOnDemandUsage?
+    /// Enterprise / team-member personal cap. Reported by Cursor when the account is part of a team or
+    /// enterprise plan with an individual quota. Values follow the same cents-based units as `plan`.
+    public let overall: CursorOverallUsage?
+
+    public init(
+        plan: CursorPlanUsage? = nil,
+        onDemand: CursorOnDemandUsage? = nil,
+        overall: CursorOverallUsage? = nil)
+    {
+        self.plan = plan
+        self.onDemand = onDemand
+        self.overall = overall
+    }
+}
+
+/// Personal cap reported under `individualUsage.overall` for Enterprise/Team members.
+/// Mirrors the shape of `CursorOnDemandUsage`; values are in cents.
+public struct CursorOverallUsage: Codable, Sendable {
+    public let enabled: Bool?
+    /// Usage in cents (e.g., 7384 = $73.84)
+    public let used: Int?
+    /// Limit in cents (e.g., 10000 = $100.00). `nil` indicates the API omitted a numeric cap.
+    public let limit: Int?
+    /// Remaining in cents.
+    public let remaining: Int?
+
+    public init(enabled: Bool? = nil, used: Int? = nil, limit: Int? = nil, remaining: Int? = nil) {
+        self.enabled = enabled
+        self.used = used
+        self.limit = limit
+        self.remaining = remaining
+    }
 }
 
 public struct CursorPlanUsage: Codable, Sendable {
@@ -232,6 +267,31 @@ public struct CursorOnDemandUsage: Codable, Sendable {
 
 public struct CursorTeamUsage: Codable, Sendable {
     public let onDemand: CursorOnDemandUsage?
+    /// Shared team/enterprise pool counted across all members. Same cents-based units as the other usage blocks.
+    public let pooled: CursorPooledUsage?
+
+    public init(onDemand: CursorOnDemandUsage? = nil, pooled: CursorPooledUsage? = nil) {
+        self.onDemand = onDemand
+        self.pooled = pooled
+    }
+}
+
+/// Shared team/enterprise pool reported under `teamUsage.pooled`. Values are in cents.
+public struct CursorPooledUsage: Codable, Sendable {
+    public let enabled: Bool?
+    /// Pool usage in cents.
+    public let used: Int?
+    /// Pool limit in cents. `nil` indicates an unlimited or unreported pool.
+    public let limit: Int?
+    /// Pool remaining in cents.
+    public let remaining: Int?
+
+    public init(enabled: Bool? = nil, used: Int? = nil, limit: Int? = nil, remaining: Int? = nil) {
+        self.enabled = enabled
+        self.used = used
+        self.limit = limit
+        self.remaining = remaining
+    }
 }
 
 // MARK: - Cursor Usage API Models (Legacy Request-Based Plans)
@@ -404,7 +464,7 @@ public struct CursorStatusSnapshot: Sendable {
                 used: resolvedOnDemandUsed,
                 limit: resolvedOnDemandLimit ?? 0,
                 currencyCode: "USD",
-                period: "monthly",
+                period: "Monthly",
                 resetsAt: self.billingCycleEnd,
                 updatedAt: Date())
         } else {
@@ -610,15 +670,18 @@ public struct CursorStatusProbe: Sendable {
     public let baseURL: URL
     public var timeout: TimeInterval = 15.0
     private let browserDetection: BrowserDetection
+    private let urlSession: URLSession
 
     public init(
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
-        browserDetection: BrowserDetection)
+        browserDetection: BrowserDetection,
+        urlSession: URLSession = .shared)
     {
         self.baseURL = baseURL
         self.timeout = timeout
         self.browserDetection = browserDetection
+        self.urlSession = urlSession
     }
 
     /// Fetch Cursor usage with manual cookie header (for debugging).
@@ -807,11 +870,41 @@ public struct CursorStatusProbe: Sendable {
     }
 
     private func fetchWithCookieHeader(_ cookieHeader: String) async throws -> CursorStatusSnapshot {
-        async let usageSummaryTask = self.fetchUsageSummary(cookieHeader: cookieHeader)
-        async let userInfoTask = self.fetchUserInfo(cookieHeader: cookieHeader)
+        enum FetchPart: Sendable {
+            case usageSummary((CursorUsageSummary, String))
+            case userInfo(Result<CursorUserInfo, Error>)
+        }
 
-        let (usageSummary, rawJSON) = try await usageSummaryTask
-        let userInfo = try? await userInfoTask
+        var usageSummaryResult: (CursorUsageSummary, String)?
+        var userInfo: CursorUserInfo?
+
+        try await withThrowingTaskGroup(of: FetchPart.self) { group in
+            group.addTask {
+                try await .usageSummary(self.fetchUsageSummary(cookieHeader: cookieHeader))
+            }
+            group.addTask {
+                do {
+                    return try await .userInfo(.success(self.fetchUserInfo(cookieHeader: cookieHeader)))
+                } catch {
+                    return .userInfo(.failure(error))
+                }
+            }
+
+            while let result = try await group.next() {
+                switch result {
+                case let .usageSummary(value):
+                    usageSummaryResult = value
+                case let .userInfo(value):
+                    userInfo = try? value.get()
+                }
+            }
+        }
+
+        guard let usageSummaryResult else {
+            throw CursorStatusProbeError.networkError("Cursor usage summary fetch did not complete")
+        }
+
+        let (usageSummary, rawJSON) = usageSummaryResult
 
         // Fetch legacy request usage only if user has a sub ID.
         // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
@@ -847,7 +940,7 @@ public struct CursorStatusProbe: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await self.urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw CursorStatusProbeError.networkError("Invalid response")
@@ -880,7 +973,7 @@ public struct CursorStatusProbe: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await self.urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw CursorStatusProbeError.networkError("Failed to fetch user info")
@@ -901,7 +994,7 @@ public struct CursorStatusProbe: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await self.urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw CursorStatusProbeError.networkError("Failed to fetch request usage")
@@ -930,8 +1023,6 @@ public struct CursorStatusProbe: Sendable {
         // Use plan.limit directly - breakdown.total represents total *used* credits, not the limit.
         let planUsedRaw = Double(summary.individualUsage?.plan?.used ?? 0)
         let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
-        let planUsed = planUsedRaw / 100.0
-        let planLimit = planLimitRaw / 100.0
         func normPct(_ value: Double?) -> Double? {
             guard let v = value else { return nil }
             if v < 0 { return 0 }
@@ -948,9 +1039,23 @@ public struct CursorStatusProbe: Sendable {
         let autoPercent = normPct(summary.individualUsage?.plan?.autoPercentUsed)
         let apiPercent = normPct(summary.individualUsage?.plan?.apiPercentUsed)
 
-        // Headline "Total" should prefer Cursor's provided totalPercentUsed when available. plan.limit is often
-        // the subscription price in cents, so used/limit can diverge from the dashboard usage bars.
-        // If totalPercentUsed is absent, fall back to averaging the Auto/API lane percents.
+        // Enterprise / team-member personal cap (cents). Reported under `individualUsage.overall` for accounts
+        // that don't get a `plan` block. Falls through to existing logic when absent so non-enterprise paths
+        // are untouched.
+        let overallUsedRaw = (summary.individualUsage?.overall?.used).map(Double.init)
+        let overallLimitRaw = (summary.individualUsage?.overall?.limit).map(Double.init)
+
+        // Shared team/enterprise pool (cents). Last-resort fallback when no individual data is available.
+        let pooledUsedRaw = (summary.teamUsage?.pooled?.used).map(Double.init)
+        let pooledLimitRaw = (summary.teamUsage?.pooled?.limit).map(Double.init)
+
+        // Headline "Total" precedence:
+        //   1. `individualUsage.plan.totalPercentUsed` (existing behavior for Pro/Hobby/etc.)
+        //   2. averaged `auto` + `api` lane percents (existing behavior)
+        //   3. either lane alone (existing behavior)
+        //   4. `individualUsage.plan` ratio (existing behavior)
+        //   5. NEW: `individualUsage.overall` ratio (Enterprise/Team personal cap)
+        //   6. NEW: `teamUsage.pooled` ratio (last resort when no individual data is reported)
         let planPercentUsed: Double = if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
             normalizeTotalPercent(totalPercentUsed)
         } else if let autoUsed = autoPercent, let apiUsed = apiPercent {
@@ -961,8 +1066,31 @@ public struct CursorStatusProbe: Sendable {
             max(0, min(100, autoUsed))
         } else if planLimitRaw > 0 {
             (planUsedRaw / planLimitRaw) * 100
+        } else if let used = overallUsedRaw, let limit = overallLimitRaw, limit > 0 {
+            normalizeTotalPercent((used / limit) * 100)
+        } else if let used = pooledUsedRaw, let limit = pooledLimitRaw, limit > 0 {
+            normalizeTotalPercent((used / limit) * 100)
         } else {
             0
+        }
+
+        // USD figures: prefer the source the headline ultimately came from. When `plan` is missing but
+        // `overall` or `pooled` carry the cents, surface those so the on-demand display and downstream
+        // consumers see real dollar amounts instead of zeros.
+        let planUsed: Double
+        let planLimit: Double
+        if planLimitRaw > 0 || planUsedRaw > 0 {
+            planUsed = planUsedRaw / 100.0
+            planLimit = planLimitRaw / 100.0
+        } else if let usedCents = overallUsedRaw, let limitCents = overallLimitRaw {
+            planUsed = usedCents / 100.0
+            planLimit = limitCents / 100.0
+        } else if let usedCents = pooledUsedRaw, let limitCents = pooledLimitRaw {
+            planUsed = usedCents / 100.0
+            planLimit = limitCents / 100.0
+        } else {
+            planUsed = 0
+            planLimit = 0
         }
 
         let onDemandUsed = Double(summary.individualUsage?.onDemand?.used ?? 0) / 100.0
@@ -1025,11 +1153,13 @@ public struct CursorStatusProbe: Sendable {
     public init(
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
-        browserDetection: BrowserDetection)
+        browserDetection: BrowserDetection,
+        urlSession: URLSession = .shared)
     {
         _ = baseURL
         _ = timeout
         _ = browserDetection
+        _ = urlSession
     }
 
     public func fetch(logger: ((String) -> Void)? = nil) async throws -> CursorStatusSnapshot {

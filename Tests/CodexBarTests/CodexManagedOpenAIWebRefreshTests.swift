@@ -112,6 +112,68 @@ struct CodexManagedOpenAIWebRefreshTests {
     }
 
     @Test
+    func `navigation timeout imports cookies and retries dashboard refresh`() async {
+        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-timeout-import-retry")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-codex-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingManagedOpenAIDashboardLoader()
+        let importTracker = OpenAIDashboardImportCallTracker()
+        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+            try await blocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_openAIDashboardCookieImportOverride = { targetEmail, _, _, _, _ in
+            _ = await importTracker.recordCall()
+            return OpenAIDashboardBrowserCookieImporter.ImportResult(
+                sourceLabel: "Chrome",
+                cookieCount: 2,
+                signedInEmail: targetEmail,
+                matchesCodexEmail: true)
+        }
+        defer { store._test_openAIDashboardCookieImportOverride = nil }
+
+        let expectedGuard = store.currentCodexOpenAIWebRefreshGuard()
+        let refreshTask = Task {
+            await store.refreshOpenAIDashboardIfNeeded(force: true, expectedGuard: expectedGuard)
+        }
+        await blocker.waitUntilStarted(count: 1)
+
+        await blocker.resumeNext(with: .failure(URLError(.timedOut)))
+        await importTracker.waitUntilCalls(count: 1)
+        await blocker.waitUntilStarted(count: 2)
+        await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+            signedInEmail: managedAccount.email,
+            codeReviewRemainingPercent: 90,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 25,
+            accountPlan: "Pro",
+            updatedAt: Date())))
+
+        await refreshTask.value
+
+        #expect(await blocker.startedCount() == 2)
+        #expect(store.openAIDashboard?.creditsRemaining == 25)
+        #expect(store.lastOpenAIDashboardError == nil)
+    }
+
+    @Test
     func `reset open A I web state blocks stale in flight dashboard completion`() async {
         let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-reset-invalidates-task")
         let managedAccount = ManagedCodexAccount(
@@ -222,15 +284,26 @@ struct CodexManagedOpenAIWebRefreshTests {
         #expect(store.lastOpenAIDashboardError == ManagedDashboardTestError.networkTimeout.localizedDescription)
     }
 
+    @Test
+    func `post import retry timeout exceeds normal retry timeout`() {
+        #expect(UsageStore.openAIWebDashboardFetchTimeout(didImportCookies: false) == 25)
+        #expect(UsageStore.openAIWebDashboardFetchTimeout(didImportCookies: true) == 25)
+        #expect(UsageStore.openAIWebRetryDashboardFetchTimeout(afterCookieImport: false) == 8)
+        #expect(UsageStore.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true) == 25)
+    }
+
     private func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
-        return SettingsStore(
+        let settings = SettingsStore(
             userDefaults: defaults,
             configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.openAIWebAccessEnabled = true
+        settings.codexCookieSource = .auto
+        return settings
     }
 }
 

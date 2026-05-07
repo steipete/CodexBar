@@ -4,6 +4,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct StatusItemAnimationTests {
     private func maxAlpha(in rep: NSBitmapImageRep) -> CGFloat {
         var maxAlpha: CGFloat = 0
@@ -19,11 +20,9 @@ struct StatusItemAnimationTests {
     }
 
     private func makeStatusBarForTesting() -> NSStatusBar {
-        let env = ProcessInfo.processInfo.environment
-        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
-            return .system
-        }
-        return NSStatusBar()
+        // Use the real system status bar in tests. Creating standalone NSStatusBar instances
+        // has caused AppKit teardown crashes under swiftpm-testing-helper.
+        .system
     }
 
     @Test
@@ -41,9 +40,10 @@ struct StatusItemAnimationTests {
         if let codexMeta = registry.metadata[.codex] {
             settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
         }
-        if let claudeMeta = registry.metadata[.claude] {
-            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        if let openRouterMeta = registry.metadata[.openrouter] {
+            settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
+        settings.openRouterAPIToken = "or-token"
         if let geminiMeta = registry.metadata[.gemini] {
             settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
         }
@@ -57,6 +57,7 @@ struct StatusItemAnimationTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
@@ -87,9 +88,10 @@ struct StatusItemAnimationTests {
         if let codexMeta = registry.metadata[.codex] {
             settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
         }
-        if let claudeMeta = registry.metadata[.claude] {
-            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        if let openRouterMeta = registry.metadata[.openrouter] {
+            settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
+        settings.openRouterAPIToken = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -108,6 +110,7 @@ struct StatusItemAnimationTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         // Enter loading state: no data, no stale error.
         store._setSnapshotForTesting(nil, provider: .codex)
@@ -162,6 +165,7 @@ struct StatusItemAnimationTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         // Primary used=10%. Bonus exhausted: used=100% (remaining=0%).
         let snapshot = UsageSnapshot(
@@ -215,6 +219,7 @@ struct StatusItemAnimationTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         // Bonus exists but is unused: used=0% (remaining=100%).
         let snapshot = UsageSnapshot(
@@ -267,6 +272,7 @@ struct StatusItemAnimationTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
@@ -345,6 +351,7 @@ struct StatusItemAnimationTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),

@@ -36,6 +36,21 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `disabling selected provider clears menu selection`() throws {
+        let settings = Self.makeSettingsStore()
+        let metadata = ProviderRegistry.shared.metadata
+
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: true)
+        settings.selectedMenuProvider = .claude
+
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: false)
+
+        #expect(settings.selectedMenuProvider == nil)
+        #expect(settings.enabledProvidersOrdered(metadataByProvider: metadata) == [.codex])
+    }
+
+    @Test
     func `menu bar metric preferences and display modes`() {
         let settings = Self.makeSettingsStore()
 
@@ -47,7 +62,7 @@ struct SettingsStoreCoverageTests {
         #expect(settings.menuBarMetricSupportsAverage(for: .gemini))
 
         settings.setMenuBarMetricPreference(.secondary, for: .zai)
-        #expect(settings.menuBarMetricPreference(for: .zai) == .primary)
+        #expect(settings.menuBarMetricPreference(for: .zai) == .secondary)
 
         settings.menuBarDisplayMode = .pace
         #expect(settings.menuBarDisplayMode == .pace)
@@ -79,6 +94,86 @@ struct SettingsStoreCoverageTests {
         #expect(settings.tokenAccounts(for: .claude).isEmpty)
 
         settings.reloadTokenAccounts()
+    }
+
+    @Test
+    func `token account update preserves identity and selection`() throws {
+        let settings = Self.makeSettingsStore()
+
+        settings.addTokenAccount(provider: .copilot, label: "Primary", token: "token-1")
+        settings.addTokenAccount(provider: .copilot, label: "Secondary", token: "token-2")
+        settings.setActiveTokenAccountIndex(0, for: .copilot)
+
+        let original = try #require(settings.selectedTokenAccount(for: .copilot))
+        settings.updateTokenAccount(
+            provider: .copilot,
+            accountID: original.id,
+            label: "Primary (Pro)",
+            token: "token-1b")
+
+        let updated = try #require(settings.selectedTokenAccount(for: .copilot))
+        #expect(updated.id == original.id)
+        #expect(updated.label == "Primary (Pro)")
+        #expect(updated.token == "token-1b")
+        #expect(settings.tokenAccounts(for: .copilot).count == 2)
+    }
+
+    @Test
+    func `copilot token accounts clear legacy api key fallback`() throws {
+        let settings = Self.makeSettingsStore()
+        settings.copilotAPIToken = "legacy-token"
+
+        settings.addTokenAccount(provider: .copilot, label: "Primary", token: "token-1")
+
+        #expect(settings.copilotAPIToken.isEmpty)
+        #expect(settings.copilotSettingsSnapshot(tokenOverride: nil).apiToken == "token-1")
+
+        settings.copilotAPIToken = "legacy-token"
+        let account = try #require(settings.selectedTokenAccount(for: .copilot))
+        settings.removeTokenAccount(provider: .copilot, accountID: account.id)
+
+        #expect(settings.tokenAccounts(for: .copilot).isEmpty)
+        #expect(settings.copilotAPIToken.isEmpty)
+        #expect(settings.copilotSettingsSnapshot(tokenOverride: nil).apiToken == nil)
+    }
+
+    @Test
+    func `copilot enterprise host persists in provider config`() throws {
+        let suite = "SettingsStoreCoverageTests-copilot-enterprise-host"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+
+        first.copilotEnterpriseHost = "https://octocorp.ghe.com/login"
+        #expect(first.copilotEnterpriseHost == "https://octocorp.ghe.com/login")
+        #expect(first.copilotSettingsSnapshot(tokenOverride: nil).enterpriseHost == "octocorp.ghe.com")
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.copilotEnterpriseHost == "https://octocorp.ghe.com/login")
+
+        second.copilotEnterpriseHost = "github.com"
+        #expect(second.copilotEnterpriseHost == "github.com")
+        #expect(second.copilotSettingsSnapshot(tokenOverride: nil).enterpriseHost == nil)
+    }
+
+    @Test
+    func `removing another token account preserves active selection`() throws {
+        let settings = Self.makeSettingsStore()
+
+        settings.addTokenAccount(provider: .copilot, label: "A", token: "token-a")
+        settings.addTokenAccount(provider: .copilot, label: "B", token: "token-b")
+        settings.addTokenAccount(provider: .copilot, label: "C", token: "token-c")
+        settings.setActiveTokenAccountIndex(1, for: .copilot)
+
+        let activeBefore = try #require(settings.selectedTokenAccount(for: .copilot))
+        let accountToRemove = try #require(settings.tokenAccounts(for: .copilot).first)
+        settings.removeTokenAccount(provider: .copilot, accountID: accountToRemove.id)
+
+        let activeAfter = try #require(settings.selectedTokenAccount(for: .copilot))
+        #expect(activeAfter.id == activeBefore.id)
+        #expect(activeAfter.label == "B")
+        #expect(settings.tokenAccounts(for: .copilot).map(\.label) == ["B", "C"])
     }
 
     @Test
@@ -129,6 +224,28 @@ struct SettingsStoreCoverageTests {
 
         #expect(snapshot.cookieSource == .manual)
         #expect(snapshot.manualCookieHeader?.isEmpty == true)
+    }
+
+    @Test
+    func `opencode go token accounts force manual cookie routing`() {
+        let settings = Self.makeSettingsStore()
+        settings.addTokenAccount(provider: .opencodego, label: "Go", token: "auth=go-cookie")
+
+        let snapshot = settings.opencodegoSettingsSnapshot(tokenOverride: nil)
+
+        #expect(settings.opencodegoCookieSource == .manual)
+        #expect(snapshot.cookieSource == .manual)
+        #expect(snapshot.manualCookieHeader == "auth=go-cookie")
+    }
+
+    @Test
+    func `opencode go snapshot preserves nil workspace id when settings are unset`() {
+        let settings = Self.makeSettingsStore()
+
+        let snapshot = settings.opencodegoSettingsSnapshot(tokenOverride: nil)
+
+        #expect(settings.opencodegoWorkspaceID.isEmpty)
+        #expect(snapshot.workspaceID == nil)
     }
 
     @Test
@@ -238,9 +355,9 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func `claude keychain read strategy defaults to security framework`() {
+    func `claude keychain read strategy defaults to security CLI experimental`() {
         let settings = Self.makeSettingsStore()
-        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
     }
 
     @Test
@@ -275,13 +392,13 @@ struct SettingsStoreCoverageTests {
     @Test
     func `claude prompt free credentials toggle maps to read strategy`() {
         let settings = Self.makeSettingsStore()
-        #expect(settings.claudeOAuthPromptFreeCredentialsEnabled == false)
-
-        settings.claudeOAuthPromptFreeCredentialsEnabled = true
-        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+        #expect(settings.claudeOAuthPromptFreeCredentialsEnabled == true)
 
         settings.claudeOAuthPromptFreeCredentialsEnabled = false
         #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+
+        settings.claudeOAuthPromptFreeCredentialsEnabled = true
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
     }
 
     private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {

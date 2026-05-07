@@ -1,13 +1,13 @@
 {
-  "originHash" : "74bd6f3ab6e0b0cb0c2cddb00f2167c2ab0a1c00cd54ffc1a2899c7ef8c56367",
+  "originHash" : "6e0bbde3ad4d9af0981adadaf1f109eb154e54018d06dbe966616f09c3898482",
   "pins" : [
     {
       "identity" : "commander",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/steipete/Commander",
       "state" : {
-        "revision" : "9e349575c8e3c6745e81fe19e5bb5efa01b078ce",
-        "version" : "0.2.1"
+        "revision" : "ae2ce746b386ff94b26648cfe5625cfa8d02639b",
+        "version" : "0.2.2"
       }
     },
     {
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "5581748cef2bae787496fe6d61139aebe0a451f6",
-        "version" : "2.8.1"
+        "revision" : "066e75a8b3e99962685d6a90cdd5293ebffd9261",
+        "version" : "2.9.1"
       }
     },
     {
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log",
       "state" : {
-        "revision" : "2778fd4e5a12a8aaa30a3ee8285f4ce54c5f3181",
-        "version" : "1.9.1"
+        "revision" : "5073617dac96330a486245e4c0179cb0a6fd2256",
+        "version" : "1.12.0"
       }
     },
     {
@@ -53,6 +53,14 @@
       "state" : {
         "revision" : "0687f71944021d616d34d922343dcef086855920",
         "version" : "600.0.1"
+      }
+    },
+    {
+      "identity" : "vortex",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/zats/Vortex",
+      "state" : {
+        "revision" : "ef5392088d4aeb255c4eee83157dbdafcd31bf07"
       }
     }
   ],

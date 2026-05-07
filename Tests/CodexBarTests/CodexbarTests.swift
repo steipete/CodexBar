@@ -127,6 +127,19 @@ struct CodexBarTests {
     }
 
     @Test
+    func `codex icon uses semantic projection lanes when durations drift`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 25, windowMinutes: 11040, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .codex)
+        #expect(remaining.primary == 75)
+        #expect(remaining.secondary == nil)
+    }
+
+    @Test
     func `icon renderer codex eyes punch through when unknown`() {
         // Regression: when remaining is nil, CoreGraphics inherits the previous fill alpha which caused
         // destinationOut “eyes” to become semi-transparent instead of fully punched through.

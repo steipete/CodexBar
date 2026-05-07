@@ -222,4 +222,14 @@ struct UsageFormatterTests {
         let result = UsageFormatter.creditsString(from: 42.5)
         #expect(result == "42.5 left")
     }
+
+    @Test
+    func `byte count string formats binary units`() {
+        #expect(UsageFormatter.byteCountString(0) == "0 B")
+        #expect(UsageFormatter.byteCountString(512) == "512 B")
+        #expect(UsageFormatter.byteCountString(1536) == "1.5 KB")
+        #expect(UsageFormatter.byteCountString(10 * 1024) == "10 KB")
+        #expect(UsageFormatter.byteCountString(5 * 1024 * 1024) == "5 MB")
+        #expect(UsageFormatter.byteCountString(Int64(1536 * 1024 * 1024)) == "1.5 GB")
+    }
 }

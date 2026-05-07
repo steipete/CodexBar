@@ -17,7 +17,6 @@ extension CodexBarCLI {
         if let rawOverride, let parsed = ProviderSelection(argument: rawOverride) {
             return parsed
         }
-        if enabled.count >= 3 { return .all }
         if enabled.count == 2 {
             let enabledSet = Set(enabled)
             let primary = Set(ProviderDescriptorRegistry.all.filter(\ .metadata.isPrimaryProvider).map(\ .id))
@@ -26,6 +25,7 @@ extension CodexBarCLI {
             }
             return .custom(enabled)
         }
+        if enabled.count >= 3 { return .custom(enabled) }
         if let first = enabled.first { return ProviderSelection(provider: first) }
         return .single(.codex)
     }
@@ -195,15 +195,14 @@ extension CodexBarCLI {
 
     static func loadOpenAIDashboardIfAvailable(
         usage: UsageSnapshot,
-        fetcher: UsageFetcher) -> OpenAIDashboardSnapshot?
+        sourceLabel: String,
+        context: ProviderFetchContext) -> OpenAIDashboardSnapshot?
     {
         guard let cache = OpenAIDashboardCacheStore.load() else { return nil }
-        let codexEmail = (usage.accountEmail(for: .codex) ?? fetcher.loadAccountInfo().email)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let codexEmail, !codexEmail.isEmpty else { return nil }
-        if cache.accountEmail.lowercased() != codexEmail.lowercased() { return nil }
-        if cache.snapshot.dailyBreakdown.isEmpty, !cache.snapshot.creditEvents.isEmpty {
-            return OpenAIDashboardSnapshot(
+        let snapshot: OpenAIDashboardSnapshot = if cache.snapshot.dailyBreakdown.isEmpty,
+                                                   !cache.snapshot.creditEvents.isEmpty
+        {
+            OpenAIDashboardSnapshot(
                 signedInEmail: cache.snapshot.signedInEmail,
                 codeReviewRemainingPercent: cache.snapshot.codeReviewRemainingPercent,
                 codeReviewLimit: cache.snapshot.codeReviewLimit,
@@ -214,8 +213,24 @@ extension CodexBarCLI {
                 usageBreakdown: cache.snapshot.usageBreakdown,
                 creditsPurchaseURL: cache.snapshot.creditsPurchaseURL,
                 updatedAt: cache.snapshot.updatedAt)
+        } else {
+            cache.snapshot
         }
-        return cache.snapshot
+
+        let input = CodexCLIDashboardAuthorityContext.makeCachedDashboardInput(
+            dashboard: snapshot,
+            cachedAccountEmail: cache.accountEmail,
+            usage: usage,
+            sourceLabel: sourceLabel,
+            context: context)
+        let decision = CodexDashboardAuthority.evaluate(input)
+        if decision.allowedEffects.contains(.cachedDashboardReuse) {
+            return snapshot
+        }
+        if decision.cleanup.contains(.dashboardCache) {
+            OpenAIDashboardCacheStore.clear()
+        }
+        return nil
     }
 
     static func decodeWebTimeout(from values: ParsedValues) -> TimeInterval? {
@@ -345,6 +360,10 @@ extension CodexBarCLI {
 
     static func _costSignatureForTesting() -> CommandSignature {
         CommandSignature.describe(CostOptions())
+    }
+
+    static func _cacheSignatureForTesting() -> CommandSignature {
+        CommandSignature.describe(CacheOptions())
     }
 
     static func _decodeFormatForTesting(from values: ParsedValues) -> OutputFormat {

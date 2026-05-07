@@ -77,4 +77,68 @@ struct UsageStoreSessionQuotaTransitionTests {
 
         #expect(notifier.posts.isEmpty)
     }
+
+    @Test
+    func `claude weekly primary fallback does not emit session quota notifications`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreSessionQuotaTransitionTests-claude-weekly"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.sessionQuotaNotificationsEnabled = true
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+
+        let baseline = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        store.handleSessionQuotaTransition(provider: .claude, snapshot: baseline)
+
+        let depleted = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        store.handleSessionQuotaTransition(provider: .claude, snapshot: depleted)
+
+        #expect(notifier.posts.isEmpty)
+    }
+
+    @Test
+    func `claude five hour primary still emits session quota notifications`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreSessionQuotaTransitionTests-claude-session"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.sessionQuotaNotificationsEnabled = true
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+
+        let baseline = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 5 * 60, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        store.handleSessionQuotaTransition(provider: .claude, snapshot: baseline)
+
+        let depleted = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: 5 * 60, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        store.handleSessionQuotaTransition(provider: .claude, snapshot: depleted)
+
+        #expect(notifier.posts.map(\.provider) == [.claude])
+    }
 }

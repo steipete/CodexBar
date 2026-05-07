@@ -45,6 +45,58 @@ struct CLIEntryTests {
     }
 
     @Test
+    func `CLI version falls back to containing app bundle`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-cli-version-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let appURL = root.appendingPathComponent("CodexBar.app", isDirectory: true)
+        let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
+        let helpersURL = contentsURL.appendingPathComponent("Helpers", isDirectory: true)
+        try FileManager.default.createDirectory(at: helpersURL, withIntermediateDirectories: true)
+
+        let infoURL = contentsURL.appendingPathComponent("Info.plist")
+        let plist: [String: Any] = ["CFBundleShortVersionString": "9.8.7"]
+        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try data.write(to: infoURL)
+
+        let helperURL = helpersURL.appendingPathComponent("CodexBarCLI")
+        try Data().write(to: helperURL)
+
+        #expect(CodexBarCLI.containingAppVersion(for: helperURL) == "9.8.7")
+    }
+
+    @Test
+    func `CLI version follows symlinked helper`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-cli-version-symlink-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let appURL = root.appendingPathComponent("CodexBar.app", isDirectory: true)
+        let emptyBundleURL = root.appendingPathComponent("Empty.bundle", isDirectory: true)
+        let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
+        let helpersURL = contentsURL.appendingPathComponent("Helpers", isDirectory: true)
+        let binURL = root.appendingPathComponent("bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: helpersURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: binURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: emptyBundleURL, withIntermediateDirectories: true)
+
+        let infoURL = contentsURL.appendingPathComponent("Info.plist")
+        let plist: [String: Any] = ["CFBundleShortVersionString": "2.4.6"]
+        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try data.write(to: infoURL)
+
+        let helperURL = helpersURL.appendingPathComponent("CodexBarCLI")
+        try Data().write(to: helperURL)
+
+        let symlinkURL = binURL.appendingPathComponent("codexbar")
+        try FileManager.default.createSymbolicLink(at: symlinkURL, withDestinationURL: helperURL)
+
+        let emptyBundle = try #require(Bundle(url: emptyBundleURL))
+        #expect(CodexBarCLI.currentVersion(bundle: emptyBundle, executablePath: symlinkURL.path) == "2.4.6")
+    }
+
+    @Test
     func `render open AI web dashboard text includes summary`() {
         let event = CreditEvent(
             date: Date(timeIntervalSince1970: 1_700_000_000),

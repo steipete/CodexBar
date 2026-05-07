@@ -2,12 +2,33 @@ import XCTest
 @testable import CodexBarCore
 
 final class AugmentStatusProbeTests: XCTestCase {
-    func test_debugRawProbe_returnsFormattedOutput() async {
+    private func failingProbe() throws -> AugmentStatusProbe {
+        try AugmentStatusProbe(baseURL: XCTUnwrap(URL(string: "http://127.0.0.1:1")), timeout: 0.1)
+    }
+
+    @MainActor
+    func test_sessionKeepaliveStartLogsActualIntervals() {
+        var messages: [String] = []
+        let keepalive = AugmentSessionKeepalive { message in
+            messages.append(message)
+        }
+
+        keepalive.start()
+        defer { keepalive.stop() }
+
+        XCTAssertTrue(messages.contains { $0.contains("Check interval: 60s (1 minute)") })
+        XCTAssertTrue(messages.contains { $0.contains("Refresh buffer: 300s (5 minutes before expiry)") })
+        XCTAssertTrue(messages.contains { $0.contains("Min refresh interval: 60s (1 minute)") })
+        XCTAssertFalse(messages.contains { $0.contains("every 5 minutes") })
+        XCTAssertFalse(messages.contains { $0.contains("2 minutes") })
+    }
+
+    func test_debugRawProbe_returnsFormattedOutput() async throws {
         // Given: A probe instance
-        let probe = AugmentStatusProbe()
+        let probe = try self.failingProbe()
 
         // When: We call debugRawProbe
-        let output = await probe.debugRawProbe()
+        let output = await probe.debugRawProbe(cookieHeaderOverride: "session=test")
 
         // Then: The output should contain expected debug information
         XCTAssertTrue(output.contains("=== Augment Debug Probe @"), "Should contain debug header")
@@ -29,10 +50,10 @@ final class AugmentStatusProbeTests: XCTestCase {
 
     func test_debugRawProbe_capturesFailureInDumps() async throws {
         // Given: A probe with an invalid base URL that will fail
-        let invalidProbe = try AugmentStatusProbe(baseURL: XCTUnwrap(URL(string: "https://invalid.example.com")))
+        let invalidProbe = try self.failingProbe()
 
         // When: We call debugRawProbe which should fail
-        let output = await invalidProbe.debugRawProbe()
+        let output = await invalidProbe.debugRawProbe(cookieHeaderOverride: "session=test")
 
         // Then: The output should indicate failure
         XCTAssertTrue(output.contains("Probe Failed"), "Should contain failure message")
@@ -45,11 +66,11 @@ final class AugmentStatusProbeTests: XCTestCase {
 
     func test_latestDumps_maintainsRingBuffer() async throws {
         // Given: Multiple failed probes to fill the ring buffer
-        let invalidProbe = try AugmentStatusProbe(baseURL: XCTUnwrap(URL(string: "https://invalid.example.com")))
+        let invalidProbe = try self.failingProbe()
 
         // When: We generate more than 5 dumps (the ring buffer size)
         for _ in 1...7 {
-            _ = await invalidProbe.debugRawProbe()
+            _ = await invalidProbe.debugRawProbe(cookieHeaderOverride: "session=test")
             // Small delay to ensure different timestamps
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
         }
@@ -60,29 +81,67 @@ final class AugmentStatusProbeTests: XCTestCase {
         XCTAssertLessThanOrEqual(separatorCount, 5, "Should maintain at most 5 dumps in ring buffer")
     }
 
-    func test_debugRawProbe_includesTimestamp() async {
+    func test_debugRawProbe_includesTimestamp() async throws {
         // Given: A probe instance
-        let probe = AugmentStatusProbe()
+        let probe = try self.failingProbe()
 
         // When: We call debugRawProbe
-        let output = await probe.debugRawProbe()
+        let output = await probe.debugRawProbe(cookieHeaderOverride: "session=test")
 
         // Then: The output should include an ISO8601 timestamp
         XCTAssertTrue(output.contains("@"), "Should contain timestamp marker")
         XCTAssertTrue(output.contains("==="), "Should contain debug header markers")
     }
 
-    func test_debugRawProbe_includesCreditsBalance() async {
+    func test_debugRawProbe_includesCreditsBalance() async throws {
         // Given: A probe instance
-        let probe = AugmentStatusProbe()
+        let probe = try self.failingProbe()
 
         // When: We call debugRawProbe
-        let output = await probe.debugRawProbe()
+        let output = await probe.debugRawProbe(cookieHeaderOverride: "session=test")
 
         // Then: The output should mention credits balance (either in success or failure)
         XCTAssertTrue(
             output.contains("Credits Balance") || output.contains("Probe Failed"),
             "Should contain credits information or failure message")
+    }
+
+    func test_creditsLimit_prefersUsageUnitsAvailable() throws {
+        let response = try JSONDecoder().decode(AugmentCreditsResponse.self, from: Data("""
+        {
+          "usageUnitsRemaining": 15,
+          "usageUnitsConsumedThisBillingCycle": 10,
+          "usageUnitsAvailable": 100,
+          "usageBalanceStatus": "active"
+        }
+        """.utf8))
+
+        XCTAssertEqual(response.creditsLimit, 100)
+    }
+
+    func test_creditsLimit_fallsBackToRemainingPlusConsumedWhenAvailableMissing() throws {
+        let response = try JSONDecoder().decode(AugmentCreditsResponse.self, from: Data("""
+        {
+          "usageUnitsRemaining": 15,
+          "usageUnitsConsumedThisBillingCycle": 10,
+          "usageBalanceStatus": "active"
+        }
+        """.utf8))
+
+        XCTAssertEqual(response.creditsLimit, 25)
+    }
+
+    func test_creditsLimit_ignoresZeroAvailableValue() throws {
+        let response = try JSONDecoder().decode(AugmentCreditsResponse.self, from: Data("""
+        {
+          "usageUnitsRemaining": 15,
+          "usageUnitsConsumedThisBillingCycle": 10,
+          "usageUnitsAvailable": 0,
+          "usageBalanceStatus": "active"
+        }
+        """.utf8))
+
+        XCTAssertEqual(response.creditsLimit, 25)
     }
 
     // MARK: - Cookie Domain Filtering Tests

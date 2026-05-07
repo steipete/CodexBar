@@ -61,7 +61,9 @@ extension SettingsStore {
         guard self.userDefaults.bool(forKey: Self.alibabaAutoEnableAppliedKey) == false else { return }
 
         let hasConfigToken = self.configSnapshot.providerConfig(for: .alibaba)?.sanitizedAPIKey != nil
-        let hasEnvironmentToken = AlibabaCodingPlanSettingsReader.apiToken(environment: environment) != nil
+        let shouldUseEnvironmentToken = !Self.isRunningTests || self.userDefaults === UserDefaults.standard
+        let hasEnvironmentToken = shouldUseEnvironmentToken &&
+            AlibabaCodingPlanSettingsReader.apiToken(environment: environment) != nil
         guard hasConfigToken || hasEnvironmentToken else { return }
 
         if let metadata = ProviderDescriptorRegistry.metadata[.alibaba],

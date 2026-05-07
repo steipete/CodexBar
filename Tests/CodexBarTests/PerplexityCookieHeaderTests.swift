@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct PerplexityCookieHeaderTests {
     @Test
-    func bareTokenUsesDefaultSessionCookieName() {
+    func `bare token uses default session cookie name`() {
         let override = PerplexityCookieHeader.override(from: "abc123")
         #expect(override?.name == PerplexityCookieHeader.defaultSessionCookieName)
         #expect(override?.token == "abc123")
@@ -13,7 +12,7 @@ struct PerplexityCookieHeaderTests {
     }
 
     @Test
-    func extractsSecureNextAuthSessionCookieFromHeader() {
+    func `extracts secure next auth session cookie from header`() {
         let header = "foo=bar; __Secure-next-auth.session-token=token-a; baz=qux"
         let override = PerplexityCookieHeader.override(from: header)
         #expect(override?.name == "__Secure-next-auth.session-token")
@@ -21,7 +20,7 @@ struct PerplexityCookieHeaderTests {
     }
 
     @Test
-    func extractsAuthJSSessionCookieFromHeader() {
+    func `extracts auth JS session cookie from header`() {
         let header = "foo=bar; __Secure-authjs.session-token=token-b; baz=qux"
         let override = PerplexityCookieHeader.override(from: header)
         #expect(override?.name == "__Secure-authjs.session-token")
@@ -29,7 +28,7 @@ struct PerplexityCookieHeaderTests {
     }
 
     @Test
-    func prefersAuthJSSessionCookieWhenBothNamesExist() {
+    func `prefers auth JS session cookie when both names exist`() {
         let header = """
         __Secure-next-auth.session-token=legacy-token; __Secure-authjs.session-token=live-token
         """
@@ -39,7 +38,7 @@ struct PerplexityCookieHeaderTests {
     }
 
     @Test
-    func reassemblesChunkedNextAuthSessionCookieFromHeader() {
+    func `reassembles chunked next auth session cookie from header`() {
         let header = """
         foo=bar; __Secure-next-auth.session-token.1=chunk-b; __Secure-next-auth.session-token.0=chunk-a
         """
@@ -49,7 +48,7 @@ struct PerplexityCookieHeaderTests {
     }
 
     @Test
-    func reassemblesChunkedAuthJSSessionCookieFromHeader() {
+    func `reassembles chunked auth JS session cookie from header`() {
         let header = "foo=bar; authjs.session-token.0=chunk-a; authjs.session-token.1=chunk-b"
         let override = PerplexityCookieHeader.override(from: header)
         #expect(override?.name == "authjs.session-token")
@@ -57,14 +56,14 @@ struct PerplexityCookieHeaderTests {
     }
 
     @Test
-    func unsupportedCookieHeaderReturnsNil() {
+    func `unsupported cookie header returns nil`() {
         let override = PerplexityCookieHeader.override(from: "foo=bar; hello=world")
         #expect(override == nil)
     }
 
     #if os(macOS)
     @Test
-    func importerSessionInfoReassemblesChunkedSessionCookies() throws {
+    func `importer session info reassembles chunked session cookies`() throws {
         let cookies = try [
             #require(self.makeCookie(name: "__Secure-authjs.session-token.0", value: "chunk-a")),
             #require(self.makeCookie(name: "__Secure-authjs.session-token.1", value: "chunk-b")),

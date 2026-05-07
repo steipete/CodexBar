@@ -46,7 +46,7 @@ struct AlibabaCodingPlanCookieImporterTests {
     }
 
     @Test
-    func `default cookie import candidates prefer chrome before safari`() throws {
+    func `default cookie import candidates skip keychain browsers during tests`() throws {
         BrowserCookieAccessGate.resetForTesting()
 
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -69,7 +69,8 @@ struct AlibabaCodingPlanCookieImporterTests {
         let detection = BrowserDetection(homeDirectory: temp.path, cacheTTL: 0)
         let candidates = AlibabaCodingPlanCookieImporter.cookieImportCandidates(browserDetection: detection)
 
-        #expect(Array(candidates.prefix(2)) == [.chrome, .safari])
+        #expect(candidates.first == .safari)
+        #expect(candidates.contains(.chrome) == false)
     }
 }
 

@@ -1,12 +1,25 @@
 import Foundation
 
 public struct WidgetSnapshot: Codable, Sendable {
+    public struct WidgetUsageRowSnapshot: Codable, Equatable, Sendable {
+        public let id: String
+        public let title: String
+        public let percentLeft: Double?
+
+        public init(id: String, title: String, percentLeft: Double?) {
+            self.id = id
+            self.title = title
+            self.percentLeft = percentLeft
+        }
+    }
+
     public struct ProviderEntry: Codable, Sendable {
         public let provider: UsageProvider
         public let updatedAt: Date
         public let primary: RateWindow?
         public let secondary: RateWindow?
         public let tertiary: RateWindow?
+        public let usageRows: [WidgetUsageRowSnapshot]?
         public let creditsRemaining: Double?
         public let codeReviewRemainingPercent: Double?
         public let tokenUsage: TokenUsageSummary?
@@ -18,6 +31,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             primary: RateWindow?,
             secondary: RateWindow?,
             tertiary: RateWindow?,
+            usageRows: [WidgetUsageRowSnapshot]? = nil,
             creditsRemaining: Double?,
             codeReviewRemainingPercent: Double?,
             tokenUsage: TokenUsageSummary?,
@@ -28,6 +42,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.primary = primary
             self.secondary = secondary
             self.tertiary = tertiary
+            self.usageRows = usageRows
             self.creditsRemaining = creditsRemaining
             self.codeReviewRemainingPercent = codeReviewRemainingPercent
             self.tokenUsage = tokenUsage
@@ -99,17 +114,16 @@ public struct WidgetSnapshot: Codable, Sendable {
 }
 
 public enum WidgetSnapshotStore {
-    public static let appGroupID = "group.com.steipete.codexbar"
-    private static let filename = "widget-snapshot.json"
+    private static let filename = AppGroupSupport.widgetSnapshotFilename
 
     public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetSnapshot? {
-        guard let url = self.snapshotURL(bundleID: bundleID) else { return nil }
+        let url = self.snapshotURL(bundleID: bundleID)
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? self.decoder.decode(WidgetSnapshot.self, from: data)
     }
 
     public static func save(_ snapshot: WidgetSnapshot, bundleID: String? = Bundle.main.bundleIdentifier) {
-        guard let url = self.snapshotURL(bundleID: bundleID) else { return }
+        let url = self.snapshotURL(bundleID: bundleID)
         do {
             let data = try self.encoder.encode(snapshot)
             try data.write(to: url, options: [.atomic])
@@ -118,32 +132,12 @@ public enum WidgetSnapshotStore {
         }
     }
 
-    private static func snapshotURL(bundleID: String?) -> URL? {
-        let fm = FileManager.default
-        let groupID = self.groupID(for: bundleID)
-        #if os(macOS)
-        if let groupID, let container = fm.containerURL(forSecurityApplicationGroupIdentifier: groupID) {
-            return container.appendingPathComponent(self.filename, isDirectory: false)
-        }
-        #endif
-
-        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fm.temporaryDirectory
-        let dir = base.appendingPathComponent("CodexBar", isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent(self.filename, isDirectory: false)
+    private static func snapshotURL(bundleID: String?) -> URL {
+        AppGroupSupport.snapshotURL(bundleID: bundleID)
     }
 
     public static func appGroupID(for bundleID: String?) -> String? {
-        self.groupID(for: bundleID)
-    }
-
-    private static func groupID(for bundleID: String?) -> String? {
-        guard let bundleID, !bundleID.isEmpty else { return self.appGroupID }
-        if bundleID.contains(".debug") {
-            return "group.com.steipete.codexbar.debug"
-        }
-        return self.appGroupID
+        AppGroupSupport.currentGroupID(for: bundleID)
     }
 
     private static var encoder: JSONEncoder {
@@ -163,7 +157,7 @@ public enum WidgetSelectionStore {
     private static let selectedProviderKey = "widgetSelectedProvider"
 
     public static func loadSelectedProvider(bundleID: String? = Bundle.main.bundleIdentifier) -> UsageProvider? {
-        guard let defaults = self.sharedDefaults(bundleID: bundleID) else { return nil }
+        let defaults = self.sharedDefaults(bundleID: bundleID)
         guard let raw = defaults.string(forKey: self.selectedProviderKey) else { return nil }
         return UsageProvider(rawValue: raw)
     }
@@ -172,12 +166,11 @@ public enum WidgetSelectionStore {
         _ provider: UsageProvider,
         bundleID: String? = Bundle.main.bundleIdentifier)
     {
-        guard let defaults = self.sharedDefaults(bundleID: bundleID) else { return }
+        let defaults = self.sharedDefaults(bundleID: bundleID)
         defaults.set(provider.rawValue, forKey: self.selectedProviderKey)
     }
 
-    private static func sharedDefaults(bundleID: String?) -> UserDefaults? {
-        guard let groupID = WidgetSnapshotStore.appGroupID(for: bundleID) else { return nil }
-        return UserDefaults(suiteName: groupID)
+    private static func sharedDefaults(bundleID: String?) -> UserDefaults {
+        AppGroupSupport.sharedDefaults(bundleID: bundleID) ?? .standard
     }
 }
