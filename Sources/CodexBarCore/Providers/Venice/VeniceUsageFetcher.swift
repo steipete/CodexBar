@@ -154,7 +154,6 @@ public struct VeniceUsageFetcher: Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? ""
             Self.log.error("Venice API returned \(httpResponse.statusCode)")
             throw VeniceUsageError.apiError("HTTP \(httpResponse.statusCode)")
         }
