@@ -152,6 +152,7 @@ struct GeneralPane: View {
         }
         if let lastAttempt = self.store.tokenLastAttemptAt(for: provider) {
             let rel = RelativeDateTimeFormatter()
+            rel.locale = Locale(identifier: "en_US")
             rel.unitsStyle = .abbreviated
             let when = rel.localizedString(for: lastAttempt, relativeTo: Date())
             return Text("\(name): last attempt \(when)")
