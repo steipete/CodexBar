@@ -31,6 +31,8 @@ public enum ProviderConfigEnvironment {
             }
         case .openrouter:
             env[OpenRouterSettingsReader.envKey] = apiKey
+        case .venice:
+            env[VeniceSettingsReader.apiKeyEnvironmentKey] = apiKey
         case .codebuff:
             // Preserve a token already present in the process environment so that
             // runtime/CI overrides win over a key saved in Settings (matches the

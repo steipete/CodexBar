@@ -233,6 +233,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: `https://status.deepseek.com` (link only, no auto-polling).
 - Details: `docs/deepseek.md`.
 
+## Venice
+- API key via `VENICE_API_KEY` / `VENICE_KEY` env var or Venice token accounts.
+- Shows current DIEM or USD balance; DIEM epoch allocation progress when available.
+- Status: none yet.
+- Details: `docs/venice.md`.
+
 ## Codebuff
 - API token from `~/.codexbar/config.json`, `CODEBUFF_API_KEY`, or `~/.config/manicode/credentials.json` created by `codebuff login`.
 - Reads usage and subscription data from Codebuff APIs.

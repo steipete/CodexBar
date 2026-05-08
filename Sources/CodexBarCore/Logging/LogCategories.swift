@@ -64,6 +64,7 @@ public enum LogCategories {
     public static let tokenAccounts = "token-accounts"
     public static let tokenCost = "token-cost"
     public static let ttyRunner = "tty-runner"
+    public static let veniceUsage = "venice-usage"
     public static let vertexAIFetcher = "vertexai-fetcher"
     public static let warpUsage = "warp-usage"
     public static let webkitTeardown = "webkit-teardown"

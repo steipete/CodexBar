@@ -83,6 +83,12 @@ public enum ProviderTokenResolver {
         self.crofResolution(environment: environment)?.token
     }
 
+    public static func veniceToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.veniceResolution(environment: environment)?.token
+    }
+
     public static func deepseekResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
@@ -93,6 +99,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(CrofSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func veniceResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(VeniceSettingsReader.apiKey(environment: environment))
     }
 
     public static func codebuffToken(

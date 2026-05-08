@@ -60,6 +60,7 @@ Or download release tarballs from GitHub Releases:
 - [Abacus AI](docs/abacus.md) — Browser cookie auth for ChatLLM/RouteLLM compute credit tracking.
 - Mistral — Browser cookies for monthly spend tracking.
 - [DeepSeek](docs/deepseek.md) — API key for credit balance tracking (paid vs. granted breakdown).
+- [Venice](docs/venice.md) — API key for DIEM or USD balance tracking.
 - [Codebuff](docs/codebuff.md) — API token (or `~/.config/manicode/credentials.json`) for credit balance + weekly rate limit.
 - [Crof](docs/crof.md) — API key for dollar credit balance and request quota tracking.
 - Open to new providers: [provider authoring guide](docs/provider.md).
