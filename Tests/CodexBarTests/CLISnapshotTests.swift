@@ -157,6 +157,31 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders crof dollar balance as detail not reset`() {
+        let meta = ProviderDescriptorRegistry.descriptor(for: .crof).metadata
+        let snap = CrofUsageSnapshot(
+            credits: 9.9999,
+            requestsPlan: 1000,
+            usableRequests: 998,
+            updatedAt: Date(timeIntervalSince1970: 0)).toUsageSnapshot()
+
+        let output = CLIRenderer.renderText(
+            provider: .crof,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Crof",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(output.contains("\(meta.sessionLabel): 99% left"))
+        #expect(output.contains("\(meta.weeklyLabel): 100% left"))
+        #expect(output.contains("$9.99"))
+        #expect(!output.contains("Resets $9.99"))
+    }
+
+    @Test
     func `renders kilo plan activity and fallback note`() {
         let now = Date(timeIntervalSince1970: 0)
         let identity = ProviderIdentitySnapshot(

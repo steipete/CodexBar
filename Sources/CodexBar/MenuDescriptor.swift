@@ -172,6 +172,13 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(detail, .secondary))
                 }
+                if provider == .crof,
+                   primary.resetsAt != nil,
+                   let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !detail.isEmpty
+                {
+                    entries.append(.text(detail, .secondary))
+                }
                 if provider == .abacus,
                    let pace = store.weeklyPace(provider: provider, window: primary)
                 {
@@ -181,7 +188,8 @@ struct MenuDescriptor {
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
-                    guard provider == .warp || provider == .kilo || provider == .perplexity else { return nil }
+                    guard provider == .warp || provider == .kilo || provider == .perplexity || provider == .crof
+                    else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let detail, !detail.isEmpty else { return nil }
                     if provider == .kilo, weekly.resetsAt != nil {

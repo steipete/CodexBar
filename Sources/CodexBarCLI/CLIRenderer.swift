@@ -199,7 +199,9 @@ enum CLIRenderer {
         now: Date,
         lines: inout [String])
     {
-        if provider == .warp || provider == .kilo || provider == .mistral || provider == .deepseek {
+        if provider == .warp || provider == .kilo || provider == .mistral || provider == .deepseek ||
+            provider == .crof
+        {
             if let reset = self.resetLineForDetailBackedWindow(window: window, style: context.resetStyle, now: now) {
                 lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
@@ -223,7 +225,7 @@ enum CLIRenderer {
         style: ResetTimeDisplayStyle,
         now: Date) -> String?
     {
-        // Warp/Kilo use resetDescription for non-reset detail.
+        // Some provider snapshots use resetDescription for non-reset detail.
         // Only render "Resets ..." when a concrete reset date exists.
         guard window.resetsAt != nil else { return nil }
         let resetOnlyWindow = RateWindow(

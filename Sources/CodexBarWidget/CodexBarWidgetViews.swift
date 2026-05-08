@@ -287,6 +287,7 @@ private struct ProviderSwitchChip: View {
         case .mistral: "Mistral"
         case .deepseek: "DeepSeek"
         case .codebuff: "Codebuff"
+        case .crof: "Crof"
         }
     }
 }
@@ -656,6 +657,8 @@ enum WidgetColors {
             Color(red: 82 / 255, green: 125 / 255, blue: 240 / 255)
         case .codebuff:
             Color(red: 68 / 255, green: 255 / 255, blue: 0 / 255) // Codebuff lime
+        case .crof:
+            Color(red: 46 / 255, green: 171 / 255, blue: 148 / 255)
         }
     }
 }

@@ -240,4 +240,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: none yet.
 - Details: `docs/codebuff.md`.
 
+## Crof
+- API key from `~/.codexbar/config.json`, `CROF_API_KEY`, or `CROFAI_API_KEY`.
+- Reads `credits`, `requests_plan`, and `usable_requests` from `GET https://crof.ai/usage_api/`.
+- Shows request quota as the primary usage window and dollar credits as the secondary row.
+- Infers the daily request reset from midnight America/Chicago until the usage API exposes reset metadata.
+- Status: none yet.
+- Details: `docs/crof.md`.
+
 See also: `docs/provider.md` for architecture notes.

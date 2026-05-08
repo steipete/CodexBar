@@ -201,7 +201,7 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
         case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp, .deepseek,
-             .codebuff:
+             .codebuff, .crof:
             return nil
         case .windsurf:
             return nil

@@ -1068,6 +1068,14 @@ extension UsageMenuCardView.Model {
     {
         var primaryDetailText: String? = input.provider == .zai ? zaiTokenDetail : nil
         var primaryResetText = Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now)
+        var primaryDetailLeft: String?
+        var primaryDetailRight: String?
+        if input.provider == .crof,
+           let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !detail.isEmpty
+        {
+            primaryDetailRight = detail
+        }
         if input.provider == .openrouter,
            let openRouterQuotaDetail
         {
@@ -1089,8 +1097,6 @@ extension UsageMenuCardView.Model {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window
-        var primaryDetailLeft: String?
-        var primaryDetailRight: String?
         var primaryPacePercent: Double?
         var primaryPaceOnTop = true
         if input.provider == .abacus {
@@ -1181,6 +1187,12 @@ extension UsageMenuCardView.Model {
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             weeklyDetailText = detail
+        }
+        if input.provider == .crof,
+           let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !detail.isEmpty
+        {
+            weeklyResetText = detail
         }
         // Perplexity bonus credits don't reset; show balance without "Resets" prefix.
         if input.provider == .perplexity,

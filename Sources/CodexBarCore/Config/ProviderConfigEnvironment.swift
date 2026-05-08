@@ -38,6 +38,12 @@ public enum ProviderConfigEnvironment {
             if CodebuffSettingsReader.apiKey(environment: base) == nil {
                 env[CodebuffSettingsReader.apiTokenKey] = apiKey
             }
+        case .crof:
+            if CrofSettingsReader.apiKey(environment: base) == nil,
+               let key = CrofSettingsReader.apiKeyEnvironmentKeys.first
+            {
+                env[key] = apiKey
+            }
         default:
             break
         }

@@ -77,10 +77,22 @@ public enum ProviderTokenResolver {
         self.deepseekResolution(environment: environment)?.token
     }
 
+    public static func crofToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.crofResolution(environment: environment)?.token
+    }
+
     public static func deepseekResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(DeepSeekSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func crofResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(CrofSettingsReader.apiKey(environment: environment))
     }
 
     public static func codebuffToken(
