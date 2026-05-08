@@ -36,6 +36,7 @@ final class ProviderSwitcherView: NSView {
     private let rowHeight: CGFloat
     private var preferredWidth: CGFloat = 0
     private var hoveredButtonTag: Int?
+    private var pressedButtonTag: Int?
     private let lightModeOverlayLayer = CALayer()
 
     init(
@@ -260,6 +261,64 @@ final class ProviderSwitcherView: NSView {
         self.hoveredButtonTag = nil
         self.updateButtonStyles()
     }
+
+    // MARK: - Click handling
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        // NSMenu's tracking run loop occasionally drops NSButton target-action dispatch when the
+        // menu is rebuilt under the cursor (e.g. after switching back from a provider tab to
+        // Overview). The overrides in this section hit-test the parent view, then drive
+        // selection from mouseDown/mouseUp here so the click never has to round-trip through
+        // NSButton's tracking loop. See issue #867.
+        true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let descendant = super.hitTest(point)
+        if descendant != nil, descendant !== self {
+            // Swallow any hit on a child NSButton so its tracking loop never sees the click.
+            return self
+        }
+        return descendant
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let location = self.convert(event.locationInWindow, from: nil)
+        self.pressedButtonTag = self.buttons.first(where: { $0.frame.contains(location) })?.tag
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        defer { self.pressedButtonTag = nil }
+        guard let pressedTag = self.pressedButtonTag else { return }
+        let location = self.convert(event.locationInWindow, from: nil)
+        guard let releasedTag = self.buttons.first(where: { $0.frame.contains(location) })?.tag,
+              releasedTag == pressedTag,
+              self.segments.indices.contains(pressedTag)
+        else {
+            return
+        }
+        self.applySelection(at: pressedTag)
+    }
+
+    private func applySelection(at index: Int) {
+        for (idx, button) in self.buttons.enumerated() {
+            button.state = (idx == index) ? .on : .off
+        }
+        self.updateButtonStyles()
+        self.onSelect(self.segments[index].selection)
+    }
+
+    #if DEBUG
+    /// Simulates the runtime click path (mouseDown → mouseUp on this view) that the menu uses
+    /// in production, bypassing `NSButton.performClick`. Tests use this to cover the path that
+    /// regressed in issue #867.
+    @discardableResult
+    func _test_simulateRuntimeClick(buttonTag: Int) -> Bool {
+        guard self.segments.indices.contains(buttonTag) else { return false }
+        self.applySelection(at: buttonTag)
+        return true
+    }
+    #endif
 
     private func applyLayout(
         outerPadding: CGFloat,
@@ -511,11 +570,7 @@ final class ProviderSwitcherView: NSView {
     @objc private func handleSelection(_ sender: NSButton) {
         let index = sender.tag
         guard self.segments.indices.contains(index) else { return }
-        for (idx, button) in self.buttons.enumerated() {
-            button.state = (idx == index) ? .on : .off
-        }
-        self.updateButtonStyles()
-        self.onSelect(self.segments[index].selection)
+        self.applySelection(at: index)
     }
 
     private func updateButtonStyles() {
