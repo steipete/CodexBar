@@ -44,6 +44,7 @@ enum ProviderImplementationRegistry {
         case .deepseek: DeepSeekProviderImplementation()
         case .codebuff: CodebuffProviderImplementation()
         case .crof: CrofProviderImplementation()
+        case .venice: VeniceProviderImplementation()
         }
     }
 

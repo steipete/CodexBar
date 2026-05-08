@@ -58,11 +58,16 @@ public struct VeniceUsageSnapshot: Sendable {
     public func toUsageSnapshot() -> UsageSnapshot {
         let balanceDetail: String
         let usedPercent: Double
+        let activeCurrency = self.consumptionCurrency?.uppercased()
 
         if !self.canConsume {
             balanceDetail = "Balance unavailable for API calls"
             usedPercent = 100
-        } else if let diem = self.diemBalance, let allocation = self.diemEpochAllocation, allocation > 0 {
+        } else if activeCurrency == "USD", let usd = self.usdBalance, usd > 0 {
+            let usdStr = String(format: "%.2f", usd)
+            balanceDetail = "$\(usdStr) USD remaining"
+            usedPercent = 0
+        } else if activeCurrency == "DIEM", let diem = self.diemBalance, let allocation = self.diemEpochAllocation, allocation > 0 {
             // DIEM balance with epoch allocation
             let remaining = diem
             let usedAmount = allocation - remaining
@@ -71,6 +76,10 @@ public struct VeniceUsageSnapshot: Sendable {
             let allocationStr = String(format: "%.2f", allocation)
             let remainingStr = String(format: "%.2f", remaining)
             balanceDetail = "DIEM \(remainingStr) / \(allocationStr) epoch allocation"
+        } else if activeCurrency == "DIEM", let diem = self.diemBalance, diem > 0 {
+            let diemStr = String(format: "%.2f", diem)
+            balanceDetail = "DIEM \(diemStr) remaining"
+            usedPercent = 0
         } else if let diem = self.diemBalance, diem > 0 {
             // DIEM balance without allocation
             let diemStr = String(format: "%.2f", diem)

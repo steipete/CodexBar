@@ -64,6 +64,25 @@ struct VeniceUsageFetcherTests {
     }
 
     @Test
+    func `uses USD display when consumptionCurrency is USD and both balances exist`() throws {
+        let json = """
+        {
+          "canConsume": true,
+          "consumptionCurrency": "USD",
+          "balances": {
+            "diem": 50.0,
+            "usd": 12.34
+          },
+          "diemEpochAllocation": 100.0
+        }
+        """
+        let snapshot = try VeniceUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.resetDescription == "$12.34 USD remaining")
+        #expect(usage.primary?.usedPercent == 0)
+    }
+
+    @Test
     func `handles canConsume=false`() throws {
         let json = """
         {
