@@ -46,6 +46,25 @@ struct VeniceUsageFetcherTests {
     }
 
     @Test
+    func `parses string-encoded balances and allocation`() throws {
+        let json = """
+        {
+          "canConsume": true,
+          "consumptionCurrency": "DIEM",
+          "balances": {
+            "diem": "90.50",
+            "usd": "25.75"
+          },
+          "diemEpochAllocation": "100.0"
+        }
+        """
+        let snapshot = try VeniceUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+        #expect(snapshot.diemBalance == 90.50)
+        #expect(snapshot.usdBalance == 25.75)
+        #expect(snapshot.diemEpochAllocation == 100.0)
+    }
+
+    @Test
     func `parses both DIEM and USD present`() throws {
         let json = """
         {

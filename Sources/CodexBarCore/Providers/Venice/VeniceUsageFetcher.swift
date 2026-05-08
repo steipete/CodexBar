@@ -17,6 +17,14 @@ public struct VeniceBalanceResponse: Decodable, Sendable {
         case balances
         case diemEpochAllocation
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.canConsume = try container.decode(Bool.self, forKey: .canConsume)
+        self.consumptionCurrency = try container.decodeIfPresent(String.self, forKey: .consumptionCurrency)
+        self.balances = try container.decode(VeniceBalances.self, forKey: .balances)
+        self.diemEpochAllocation = try container.decodeFlexibleDoubleIfPresent(forKey: .diemEpochAllocation)
+    }
 }
 
 public struct VeniceBalances: Decodable, Sendable {
@@ -26,6 +34,12 @@ public struct VeniceBalances: Decodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case diem
         case usd
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.diem = try container.decodeFlexibleDoubleIfPresent(forKey: .diem)
+        self.usd = try container.decodeFlexibleDoubleIfPresent(forKey: .usd)
     }
 }
 
@@ -196,4 +210,24 @@ public struct VeniceUsageFetcher: Sendable {
 
 private func clamp(_ value: Double, min: Double, max: Double) -> Double {
     Swift.min(Swift.max(value, min), max)
+}
+
+private extension KeyedDecodingContainer {
+    func decodeFlexibleDoubleIfPresent(forKey key: K) throws -> Double? {
+        if let value = try self.decodeIfPresent(Double.self, forKey: key) {
+            return value
+        }
+        if let stringValue = try self.decodeIfPresent(String.self, forKey: key) {
+            let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            if let parsed = Double(trimmed) {
+                return parsed
+            }
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: self,
+                debugDescription: "Expected a numeric string for \(key.stringValue), got '\(stringValue)'")
+        }
+        return nil
+    }
 }
