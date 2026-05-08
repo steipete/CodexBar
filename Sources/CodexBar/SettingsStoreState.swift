@@ -16,7 +16,7 @@ struct SettingsDefaultsState {
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
-    var showAllTokenAccountsInMenu: Bool
+    var multiAccountMenuLayoutRaw: String
     var menuBarMetricPreferencesRaw: [String: String]
     var costUsageEnabled: Bool
     var hidePersonalInfo: Bool

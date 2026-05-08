@@ -380,9 +380,11 @@ extension UsageStore {
         errorOverride: String? = nil,
         now: Date = Date()) -> CodexConsumerProjection
     {
+        let snapshot = surface == .overrideCard ? snapshotOverride : snapshotOverride ?? self.snapshots[.codex]
+        let rawUsageError = surface == .overrideCard ? errorOverride : errorOverride ?? self.errors[.codex]
         let context = CodexConsumerProjection.Context(
-            snapshot: snapshotOverride ?? self.snapshots[.codex],
-            rawUsageError: errorOverride ?? self.errors[.codex],
+            snapshot: snapshot,
+            rawUsageError: rawUsageError,
             liveCredits: self.credits,
             rawCreditsError: self.lastCreditsError,
             liveDashboard: self.openAIDashboard,

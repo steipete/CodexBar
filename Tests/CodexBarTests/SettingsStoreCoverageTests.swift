@@ -75,6 +75,39 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `multi account menu layout persists and bridges legacy show all token accounts`() throws {
+        let suite = "SettingsStoreCoverageTests-multi-account-layout"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(initial.multiAccountMenuLayout == .segmented)
+
+        initial.multiAccountMenuLayout = .stacked
+        #expect(defaults.string(forKey: "multiAccountMenuLayout") == MultiAccountMenuLayout.stacked.rawValue)
+        #expect(initial.showAllTokenAccountsInMenu)
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.multiAccountMenuLayout == .stacked)
+        reloaded.showAllTokenAccountsInMenu = false
+        #expect(reloaded.multiAccountMenuLayout == .segmented)
+    }
+
+    @Test
+    func `legacy show all token accounts migrates to stacked layout`() throws {
+        let suite = "SettingsStoreCoverageTests-legacy-token-account-layout"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "showAllTokenAccountsInMenu")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+
+        #expect(settings.multiAccountMenuLayout == .stacked)
+    }
+
+    @Test
     func `token account mutations apply side effects`() {
         let settings = Self.makeSettingsStore()
 

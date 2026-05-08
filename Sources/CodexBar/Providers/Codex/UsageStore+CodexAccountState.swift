@@ -68,6 +68,7 @@ extension UsageStore {
         self.lastSourceLabels.removeValue(forKey: .codex)
         self.lastFetchAttempts.removeValue(forKey: .codex)
         self.accountSnapshots.removeValue(forKey: .codex)
+        self.codexAccountSnapshots = []
         self.failureGates[.codex]?.reset()
         self.lastKnownSessionRemaining.removeValue(forKey: .codex)
         self.lastKnownSessionWindowSource.removeValue(forKey: .codex)

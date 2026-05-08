@@ -62,6 +62,22 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
     }
 }
 
+enum MultiAccountMenuLayout: String, CaseIterable, Identifiable {
+    case segmented
+    case stacked
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .segmented: "Segmented"
+        case .stacked: "Stacked"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class SettingsStore {
@@ -244,7 +260,10 @@ extension SettingsStore {
         let menuBarDisplayModeRaw = userDefaults.string(forKey: "menuBarDisplayMode")
             ?? MenuBarDisplayMode.percent.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
-        let showAllTokenAccountsInMenu = userDefaults.object(forKey: "showAllTokenAccountsInMenu") as? Bool ?? false
+        let multiAccountMenuLayoutRaw = userDefaults.string(forKey: "multiAccountMenuLayout") ?? {
+            let legacyShowAll = userDefaults.object(forKey: "showAllTokenAccountsInMenu") as? Bool ?? false
+            return legacyShowAll ? MultiAccountMenuLayout.stacked.rawValue : MultiAccountMenuLayout.segmented.rawValue
+        }()
         let storedPreferences = userDefaults.dictionary(forKey: "menuBarMetricPreferences") as? [String: String] ?? [:]
         var resolvedPreferences = storedPreferences
         if resolvedPreferences.isEmpty,
@@ -304,7 +323,7 @@ extension SettingsStore {
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
-            showAllTokenAccountsInMenu: showAllTokenAccountsInMenu,
+            multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
             menuBarMetricPreferencesRaw: resolvedPreferences,
             costUsageEnabled: costUsageEnabled,
             hidePersonalInfo: hidePersonalInfo,

@@ -25,7 +25,7 @@ struct PreferencesPaneSmokeTests {
         let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-toggled")
         settings.menuBarShowsBrandIconWithPercent = true
         settings.menuBarShowsHighestUsage = true
-        settings.showAllTokenAccountsInMenu = true
+        settings.multiAccountMenuLayout = .stacked
         settings.hidePersonalInfo = true
         settings.resetTimesShowAbsolute = true
         settings.debugDisableKeychainAccess = true

@@ -26,6 +26,9 @@ extension UsageStore {
                 self.lastSourceLabels.removeValue(forKey: provider)
                 self.lastFetchAttempts.removeValue(forKey: provider)
                 self.accountSnapshots.removeValue(forKey: provider)
+                if provider == .codex {
+                    self.codexAccountSnapshots = []
+                }
                 self.tokenSnapshots.removeValue(forKey: provider)
                 self.tokenErrors[provider] = nil
                 self.failureGates[provider]?.reset()
@@ -40,6 +43,13 @@ extension UsageStore {
 
         self.refreshingProviders.insert(provider)
         defer { self.refreshingProviders.remove(provider) }
+
+        if provider == .codex, self.shouldFetchAllCodexVisibleAccounts() {
+            await self.refreshCodexVisibleAccountsForMenu()
+            return
+        } else if provider == .codex {
+            self.codexAccountSnapshots = []
+        }
 
         let tokenAccounts = self.tokenAccounts(for: provider)
         if self.shouldFetchAllTokenAccounts(provider: provider, accounts: tokenAccounts) {

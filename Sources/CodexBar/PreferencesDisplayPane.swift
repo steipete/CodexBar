@@ -78,10 +78,24 @@ struct DisplayPane: View {
                         title: "Show credits + extra usage",
                         subtitle: "Show Codex Credits and Claude Extra usage sections in the menu.",
                         binding: self.$settings.showOptionalCreditsAndExtraUsage)
-                    PreferenceToggleRow(
-                        title: "Show all token accounts",
-                        subtitle: "Stack token accounts in the menu (otherwise show an account switcher bar).",
-                        binding: self.$settings.showAllTokenAccountsInMenu)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Multi-account layout")
+                                .font(.body)
+                            Text("Choose segmented account switching or stacked account cards.")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Picker("Multi-account layout", selection: self.$settings.multiAccountMenuLayout) {
+                            ForEach(MultiAccountMenuLayout.allCases) { layout in
+                                Text(layout.label).tag(layout)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 200)
+                    }
                     self.overviewProviderSelector
                 }
             }

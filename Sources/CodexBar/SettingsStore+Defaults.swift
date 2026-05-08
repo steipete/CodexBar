@@ -144,12 +144,17 @@ extension SettingsStore {
         set { self.menuBarDisplayModeRaw = newValue.rawValue }
     }
 
-    var showAllTokenAccountsInMenu: Bool {
-        get { self.defaultsState.showAllTokenAccountsInMenu }
+    var multiAccountMenuLayout: MultiAccountMenuLayout {
+        get { MultiAccountMenuLayout(rawValue: self.defaultsState.multiAccountMenuLayoutRaw) ?? .segmented }
         set {
-            self.defaultsState.showAllTokenAccountsInMenu = newValue
-            self.userDefaults.set(newValue, forKey: "showAllTokenAccountsInMenu")
+            self.defaultsState.multiAccountMenuLayoutRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "multiAccountMenuLayout")
         }
+    }
+
+    var showAllTokenAccountsInMenu: Bool {
+        get { self.multiAccountMenuLayout == .stacked }
+        set { self.multiAccountMenuLayout = newValue ? .stacked : .segmented }
     }
 
     var historicalTrackingEnabled: Bool {

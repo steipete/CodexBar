@@ -14,6 +14,7 @@ extension UsageStore {
         _ = self.lastSourceLabels
         _ = self.lastFetchAttempts
         _ = self.accountSnapshots
+        _ = self.codexAccountSnapshots
         _ = self.tokenSnapshots
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
@@ -60,7 +61,7 @@ extension UsageStore {
             for implementation in ProviderCatalog.all {
                 implementation.observeSettings(self.settings)
             }
-            _ = self.settings.showAllTokenAccountsInMenu
+            _ = self.settings.multiAccountMenuLayout
             _ = self.settings.tokenAccountsByProvider
             _ = self.settings.mergeIcons
             _ = self.settings.selectedMenuProvider
@@ -126,6 +127,7 @@ final class UsageStore {
     var lastSourceLabels: [UsageProvider: String] = [:]
     var lastFetchAttempts: [UsageProvider: [ProviderFetchAttempt]] = [:]
     var accountSnapshots: [UsageProvider: [TokenAccountUsageSnapshot]] = [:]
+    var codexAccountSnapshots: [CodexAccountUsageSnapshot] = []
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
