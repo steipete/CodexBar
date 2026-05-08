@@ -354,17 +354,21 @@ struct CopilotExternalIdentifierTests {
 @MainActor
 struct TokenAccountSnapshotErrorMessageTests {
     @Test
-    func `cancellation produces non-empty marker for per-account snapshot`() {
-        let store = Self.makeUsageStore()
-        let message = store.tokenAccountSnapshotErrorMessage(CancellationError())
-        #expect(!message.isEmpty)
-        #expect(message.lowercased().contains("cancel"))
-    }
-
-    @Test
     func `cancellation is suppressed for global error path`() {
         let store = Self.makeUsageStore()
         #expect(store.tokenAccountErrorMessage(CancellationError()) == nil)
+        #expect(store.tokenAccountErrorMessage(URLError(.cancelled)) == nil)
+    }
+
+    @Test
+    func `cancellation-like localized errors are suppressed`() {
+        let store = Self.makeUsageStore()
+        struct Cancelled: LocalizedError {
+            var errorDescription: String? {
+                "cancelled"
+            }
+        }
+        #expect(store.tokenAccountErrorMessage(Cancelled()) == nil)
     }
 
     @Test

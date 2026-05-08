@@ -190,7 +190,25 @@ extension UsageStore {
         if case let .failure(error) = outcome.result, error is CancellationError {
             return true
         }
+        if case let .failure(error) = outcome.result {
+            return self.errorIsCancellation(error)
+        }
         return false
+    }
+
+    private static func errorIsCancellation(_ error: any Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            return true
+        }
+        let message = error.localizedDescription
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return message == "cancelled" ||
+            message.contains("cancellationerror") ||
+            message.contains("cancelled")
     }
 
     func limitedTokenAccounts(
@@ -278,19 +296,14 @@ extension UsageStore {
     }
 
     func tokenAccountErrorMessage(_ error: any Error) -> String? {
-        guard !(error is CancellationError) else { return nil }
+        guard !Self.errorIsCancellation(error) else { return nil }
         let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         return message.isEmpty ? nil : message
     }
 
-    /// Per-account snapshot error text. Unlike ``tokenAccountErrorMessage``,
-    /// cancellations are preserved as a non-empty marker so the menu does not
-    /// silently fall back to the live (selected-account) snapshot when an
-    /// individual account refresh is cancelled.
+    /// Per-account snapshot error text. Cancellation is handled before this path so
+    /// transient menu refresh cancellation does not render as a user-facing error.
     func tokenAccountSnapshotErrorMessage(_ error: any Error) -> String {
-        if error is CancellationError {
-            return "Refresh cancelled"
-        }
         let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         return message.isEmpty ? "Refresh failed" : message
     }
@@ -330,7 +343,7 @@ extension UsageStore {
             // Preserve the last-good snapshot when the refresh was cancelled (e.g. the
             // user switched menu tabs mid-flight). Without this the per-account list
             // would briefly render error chips for accounts that already had data.
-            if error is CancellationError {
+            if Self.errorIsCancellation(error) {
                 if let priorSnapshot, priorSnapshot.snapshot != nil {
                     return ResolvedAccountOutcome(snapshot: priorSnapshot, usage: priorSnapshot.snapshot)
                 }
@@ -368,7 +381,7 @@ extension UsageStore {
                 usage: labeled,
                 sourceLabel: result.sourceLabel)
         case let .failure(error):
-            if error is CancellationError {
+            if Self.errorIsCancellation(error) {
                 if let priorSnapshot, priorSnapshot.snapshot != nil {
                     return ResolvedCodexAccountOutcome(
                         snapshot: priorSnapshot,
@@ -409,12 +422,16 @@ extension UsageStore {
             await self.recordPlanUtilizationHistorySample(provider: .codex, snapshot: backfilled)
             self.recordCodexHistoricalSampleIfNeeded(snapshot: backfilled)
         case let .failure(error):
+            guard let message = self.tokenAccountErrorMessage(error) else {
+                self.errors[.codex] = nil
+                return
+            }
             let hadPriorData = self.snapshots[.codex] != nil
             let shouldSurface =
                 self.failureGates[.codex]?
                     .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
             if shouldSurface {
-                self.errors[.codex] = error.localizedDescription
+                self.errors[.codex] = message
                 self.snapshots.removeValue(forKey: .codex)
             } else {
                 self.errors[.codex] = nil
