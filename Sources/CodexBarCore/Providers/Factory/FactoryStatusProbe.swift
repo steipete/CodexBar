@@ -343,6 +343,7 @@ public struct FactoryStatusSnapshot: Sendable {
         // avoiding issues with missing/sentinel values in totalAllowance.
         let unlimitedThreshold: Int64 = 1_000_000_000_000
         if let ratio = apiRatio,
+           !(ratio == 0 && used > 0 && allowance > 0 && allowance <= unlimitedThreshold),
            let percent = Self.percentFromAPIRatio(ratio, allowance: allowance, unlimitedThreshold: unlimitedThreshold)
         {
             return percent
