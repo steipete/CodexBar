@@ -83,6 +83,25 @@ struct VeniceUsageFetcherTests {
     }
 
     @Test
+    func `uses DIEM allocation progress for bundled credits currency`() throws {
+        let json = """
+        {
+          "canConsume": true,
+          "consumptionCurrency": "BUNDLED_CREDITS",
+          "balances": {
+            "diem": 50.0,
+            "usd": 10.0
+          },
+          "diemEpochAllocation": 100.0
+        }
+        """
+        let snapshot = try VeniceUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.resetDescription?.contains("DIEM 50.00 / 100.00") == true)
+        #expect(usage.primary?.usedPercent == 50.0)
+    }
+
+    @Test
     func `uses USD display when consumptionCurrency is USD and both balances exist`() throws {
         let json = """
         {

@@ -81,7 +81,7 @@ public struct VeniceUsageSnapshot: Sendable {
             let usdStr = String(format: "%.2f", usd)
             balanceDetail = "$\(usdStr) USD remaining"
             usedPercent = 0
-        } else if activeCurrency == "DIEM", let diem = self.diemBalance, let allocation = self.diemEpochAllocation, allocation > 0 {
+        } else if activeCurrency != "USD", let diem = self.diemBalance, let allocation = self.diemEpochAllocation, allocation > 0 {
             // DIEM balance with epoch allocation
             let remaining = diem
             let usedAmount = allocation - remaining
