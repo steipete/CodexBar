@@ -303,6 +303,78 @@ struct FactoryStatusProbeFetchTests {
     }
 
     @Test
+    func `falls back to legacy usage when billing limits request fails`() async throws {
+        let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(FactoryStubURLProtocol.self)
+            }
+            FactoryStubURLProtocol.handler = nil
+            FactoryStubURLProtocol.requests = []
+        }
+        FactoryStubURLProtocol.requests = []
+
+        FactoryStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.path == "/api/app/auth/me" {
+                let body = """
+                {
+                  "organization": {
+                    "id": "org_1",
+                    "name": "Acme",
+                    "subscription": {
+                      "factoryTier": "team",
+                      "orbSubscription": {
+                        "plan": { "name": "Team", "id": "plan_1" },
+                        "status": "active"
+                      }
+                    }
+                  }
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            if url.host == "api.factory.ai", url.path == "/api/billing/limits" {
+                throw URLError(.timedOut)
+            }
+            if url.path == "/api/organization/subscription/usage" {
+                let body = """
+                {
+                  "usage": {
+                    "standard": {
+                      "userTokens": 100,
+                      "totalAllowance": 1000,
+                      "usedRatio": 0.10
+                    },
+                    "premium": {
+                      "userTokens": 20,
+                      "totalAllowance": 100,
+                      "usedRatio": 0.20
+                    }
+                  },
+                  "userId": "user-1"
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        let probe = FactoryStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let snapshot = try await probe.fetch(cookieHeaderOverride: "access-token=test.jwt.token; session=abc")
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.tokenRateLimits == nil)
+        #expect(usage.primary?.usedPercent == 10)
+        #expect(usage.secondary?.usedPercent == 20)
+        #expect(Self.requestTrace() == [
+            "GET app.factory.ai/api/app/auth/me",
+            "GET api.factory.ai/api/billing/limits",
+            "GET app.factory.ai/api/organization/subscription/usage?useCache=true",
+        ])
+    }
+
+    @Test
     func `uses token rate limits billing when enabled`() async throws {
         let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
         defer {

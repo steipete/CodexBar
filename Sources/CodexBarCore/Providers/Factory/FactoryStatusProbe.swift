@@ -1256,7 +1256,14 @@ public struct FactoryStatusProbe: Sendable {
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            return nil
+        }
+
         guard let httpResponse = response as? HTTPURLResponse else {
             return nil
         }
