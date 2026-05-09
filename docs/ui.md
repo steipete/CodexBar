@@ -44,7 +44,8 @@ Pace compares your actual usage against the expected consumption rate for the cu
 
 When usage is in deficit, the right-hand label shows an estimated "Runs out in …" countdown. When usage will last until the reset, it shows "Lasts until reset".
 
-Pace is currently calculated for supported Codex, Claude, OpenCode, and Abacus windows and is hidden when less than 3% of the window has elapsed.
+Pace is calculated for any provider window with enough reset timing data and is hidden when less than 3% of the
+window has elapsed.
 
 ## Preferences notes
 - Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.
