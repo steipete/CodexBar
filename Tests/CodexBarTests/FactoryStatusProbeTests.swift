@@ -2,6 +2,16 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+struct FactoryProviderDescriptorTests {
+    @Test
+    func `descriptor exposes monthly token rate limit lane`() {
+        let metadata = FactoryProviderDescriptor.descriptor.metadata
+
+        #expect(metadata.opusLabel == "Monthly")
+        #expect(metadata.supportsOpus)
+    }
+}
+
 struct FactoryStatusSnapshotTests {
     @Test
     func `maps usage snapshot windows and login method`() {
