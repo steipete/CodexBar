@@ -49,6 +49,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
 
 ## Codex
+- App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
 - Web dashboard (optional, off by default): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
 - Battery saver toggle (currently off by default): reduces routine OpenAI web refreshes but still allows explicit manual refreshes.
 - CLI RPC default: `codex ... app-server` JSON-RPC (`account/read`, `account/rateLimits/read`).
