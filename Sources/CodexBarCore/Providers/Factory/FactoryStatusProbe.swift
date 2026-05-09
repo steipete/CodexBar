@@ -227,7 +227,7 @@ public struct FactoryBillingLimitsResponse: Codable, Sendable {
 
 public struct FactoryTokenRateLimits: Codable, Sendable {
     public let standard: FactoryLimitPool
-    public let core: FactoryLimitPool
+    public let core: FactoryLimitPool?
 }
 
 public struct FactoryLimitPool: Codable, Sendable {
@@ -468,20 +468,20 @@ public struct FactoryStatusSnapshot: Sendable {
         let secondary = limits.standard.weekly.rateWindow(windowMinutes: 7 * 24 * 60, title: "7-day", now: now)
         let tertiary = limits.standard.monthly.rateWindow(windowMinutes: nil, title: "Monthly", now: now)
 
-        let coreWindows: [NamedRateWindow]? = if limits.core.hasUsageData {
+        let coreWindows: [NamedRateWindow]? = if let core = limits.core, core.hasUsageData {
             [
                 NamedRateWindow(
                     id: "factory-core-5h",
                     title: "Core 5h",
-                    window: limits.core.fiveHour.rateWindow(windowMinutes: 5 * 60, title: "Core 5h", now: now)),
+                    window: core.fiveHour.rateWindow(windowMinutes: 5 * 60, title: "Core 5h", now: now)),
                 NamedRateWindow(
                     id: "factory-core-7d",
                     title: "Core 7-day",
-                    window: limits.core.weekly.rateWindow(windowMinutes: 7 * 24 * 60, title: "Core 7-day", now: now)),
+                    window: core.weekly.rateWindow(windowMinutes: 7 * 24 * 60, title: "Core 7-day", now: now)),
                 NamedRateWindow(
                     id: "factory-core-monthly",
                     title: "Core Monthly",
-                    window: limits.core.monthly.rateWindow(windowMinutes: nil, title: "Core Monthly", now: now)),
+                    window: core.monthly.rateWindow(windowMinutes: nil, title: "Core Monthly", now: now)),
             ]
         } else {
             nil
@@ -1268,9 +1268,6 @@ public struct FactoryStatusProbe: Sendable {
             return nil
         }
 
-        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-            throw FactoryStatusProbeError.notLoggedIn
-        }
         guard httpResponse.statusCode == 200 else {
             return nil
         }

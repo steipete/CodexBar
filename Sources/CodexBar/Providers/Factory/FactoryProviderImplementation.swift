@@ -92,7 +92,8 @@ struct FactoryProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
-        guard let cost = context.snapshot?.providerCost,
+        guard context.settings.showOptionalCreditsAndExtraUsage,
+              let cost = context.snapshot?.providerCost,
               cost.period == "Extra usage balance"
         else { return }
 

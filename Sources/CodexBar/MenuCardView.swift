@@ -84,8 +84,9 @@ struct UsageMenuCardView: View {
 
         struct ProviderCostSection {
             let title: String
-            let percentUsed: Double
+            let percentUsed: Double?
             let spendLine: String
+            let percentLine: String?
         }
 
         let provider: UsageProvider
@@ -330,17 +331,21 @@ private struct ProviderCostContent: View {
             Text(self.section.title)
                 .font(.body)
                 .fontWeight(.medium)
-            UsageProgressBar(
-                percent: self.section.percentUsed,
-                tint: self.progressColor,
-                accessibilityLabel: "Extra usage spent")
+            if let percentUsed = self.section.percentUsed {
+                UsageProgressBar(
+                    percent: percentUsed,
+                    tint: self.progressColor,
+                    accessibilityLabel: "Extra usage spent")
+            }
             HStack(alignment: .firstTextBaseline) {
                 Text(self.section.spendLine)
                     .font(.footnote)
                 Spacer()
-                Text(String(format: "%.0f%% used", min(100, max(0, self.section.percentUsed))))
-                    .font(.footnote)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                if let percentLine = self.section.percentLine {
+                    Text(percentLine)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                }
             }
         }
     }
@@ -740,7 +745,9 @@ extension UsageMenuCardView.Model {
         } else {
             Self.creditsLine(metadata: input.metadata, credits: input.credits, error: input.creditsError)
         }
-        let providerCost: ProviderCostSection? = if input.provider == .claude, !input.showOptionalCreditsAndExtraUsage {
+        let hidesOptionalProviderCost = (input.provider == .claude || input.provider == .factory) &&
+            !input.showOptionalCreditsAndExtraUsage
+        let providerCost: ProviderCostSection? = if hidesOptionalProviderCost {
             nil
         } else {
             Self.providerCostSection(provider: input.provider, cost: input.snapshot?.providerCost)
@@ -1517,8 +1524,18 @@ extension UsageMenuCardView.Model {
         cost: ProviderCostSnapshot?) -> ProviderCostSection?
     {
         guard let cost else { return nil }
-        guard cost.limit > 0 else { return nil }
         guard provider != .synthetic else { return nil }
+
+        if provider == .factory, cost.period == "Extra usage balance" {
+            let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            return ProviderCostSection(
+                title: "Extra usage",
+                percentUsed: nil,
+                spendLine: "Balance: \(balance)",
+                percentLine: nil)
+        }
+
+        guard cost.limit > 0 else { return nil }
 
         let used: String
         let limit: String
@@ -1540,7 +1557,8 @@ extension UsageMenuCardView.Model {
         return ProviderCostSection(
             title: title,
             percentUsed: percentUsed,
-            spendLine: "\(periodLabel): \(used) / \(limit)")
+            spendLine: "\(periodLabel): \(used) / \(limit)",
+            percentLine: String(format: "%.0f%% used", min(100, max(0, percentUsed))))
     }
 
     private static func clamped(_ value: Double) -> Double {
