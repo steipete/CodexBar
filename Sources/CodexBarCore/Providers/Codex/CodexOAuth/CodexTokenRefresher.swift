@@ -87,7 +87,7 @@ public enum CodexTokenRefresher {
     }
 
     private static func refreshFailureError(statusCode: Int, data: Data) -> RefreshError {
-        if let errorCode = Self.extractErrorCode(from: data) {
+        if let errorCode = extractErrorCode(from: data) {
             switch errorCode.lowercased() {
             case "refresh_token_expired":
                 return .expired
