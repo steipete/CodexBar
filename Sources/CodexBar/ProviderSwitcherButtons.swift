@@ -47,6 +47,7 @@ final class InlineIconToggleButton: NSButton {
             super.attributedTitle = NSAttributedString(string: "")
             super.attributedAlternateTitle = NSAttributedString(string: "")
             self.titleField.stringValue = newValue
+            self.setAccessibilityLabel(newValue)
             if !self.isConfiguring { self.invalidateIntrinsicContentSize() }
         }
     }
@@ -149,12 +150,6 @@ final class InlineIconToggleButton: NSButton {
 
         NSLayoutConstraint.activate(self.paddingConstraints + self.iconSizeConstraints)
     }
-
-    override var title: String {
-        didSet {
-            self.setAccessibilityLabel(self.titleField.stringValue)
-        }
-    }
 }
 
 final class StackedToggleButton: NSButton {
@@ -183,6 +178,7 @@ final class StackedToggleButton: NSButton {
             super.attributedTitle = NSAttributedString(string: "")
             super.attributedAlternateTitle = NSAttributedString(string: "")
             self.titleField.stringValue = newValue
+            self.setAccessibilityLabel(newValue)
             if !self.isConfiguring { self.invalidateIntrinsicContentSize() }
         }
     }
@@ -285,11 +281,5 @@ final class StackedToggleButton: NSButton {
         self.paddingConstraints = [top, leading, trailing, bottom]
 
         NSLayoutConstraint.activate(self.paddingConstraints + self.iconSizeConstraints)
-    }
-
-    override var title: String {
-        didSet {
-            self.setAccessibilityLabel(self.titleField.stringValue)
-        }
     }
 }

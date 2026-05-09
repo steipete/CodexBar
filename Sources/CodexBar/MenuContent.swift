@@ -185,7 +185,7 @@ struct StatusIconView: View {
         let remaining = IconRemainingResolver.resolvedRemaining(
             snapshot: snap,
             style: self.store.style(for: self.provider))
-        let primary = remaining?.primary
+        let primary = remaining.primary
         let percent = primary.map { "\(Int($0 * 100)) percent remaining" } ?? "Unknown"
         let stale = self.store.isStale(provider: self.provider)
         return stale ? "\(percent), stale data" : percent
