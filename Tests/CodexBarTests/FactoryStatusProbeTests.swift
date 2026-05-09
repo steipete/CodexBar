@@ -4,11 +4,13 @@ import Testing
 
 struct FactoryProviderDescriptorTests {
     @Test
-    func `descriptor exposes monthly token rate limit lane`() {
+    func `descriptor keeps legacy labels by default`() {
         let metadata = FactoryProviderDescriptor.descriptor.metadata
 
-        #expect(metadata.opusLabel == "Monthly")
-        #expect(metadata.supportsOpus)
+        #expect(metadata.sessionLabel == "Standard")
+        #expect(metadata.weeklyLabel == "Premium")
+        #expect(metadata.opusLabel == nil)
+        #expect(!metadata.supportsOpus)
     }
 }
 

@@ -5,6 +5,55 @@ import Testing
 
 struct CLISnapshotTests {
     @Test
+    func `renders Factory token rate billing with time window labels`() {
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: .init(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: .init(usedPercent: 50, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CLIRenderer.renderText(
+            provider: .factory,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Droid (factory)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("5-hour: 88% left"))
+        #expect(output.contains("Weekly: 75% left"))
+        #expect(output.contains("Monthly: 50% left"))
+        #expect(!output.contains("Standard:"))
+        #expect(!output.contains("Premium:"))
+    }
+
+    @Test
+    func `renders Factory legacy billing with pool labels`() {
+        let snap = UsageSnapshot(
+            primary: .init(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: .init(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CLIRenderer.renderText(
+            provider: .factory,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Droid (factory)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Standard: 88% left"))
+        #expect(output.contains("Premium: 75% left"))
+        #expect(!output.contains("5-hour:"))
+        #expect(!output.contains("Monthly:"))
+    }
+
+    @Test
     func `renders text snapshot for codex`() {
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,

@@ -955,6 +955,7 @@ extension UsageMenuCardView.Model {
         let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
         let zaiSessionDetail = Self.zaiLimitDetailText(limit: zaiUsage?.sessionTokenLimit)
         let openRouterQuotaDetail = Self.openRouterQuotaDetail(provider: input.provider, snapshot: snapshot)
+        let labels = Self.rateWindowLabels(input: input, snapshot: snapshot)
         if input.provider == .codex, let codexProjection = input.codexProjection {
             metrics.append(contentsOf: Self.codexRateMetrics(
                 input: input,
@@ -965,6 +966,7 @@ extension UsageMenuCardView.Model {
                 input: input,
                 primary: primary,
                 percentStyle: percentStyle,
+                title: labels.primary,
                 zaiTokenDetail: zaiTokenDetail,
                 openRouterQuotaDetail: openRouterQuotaDetail))
         }
@@ -973,9 +975,10 @@ extension UsageMenuCardView.Model {
                 input: input,
                 weekly: weekly,
                 percentStyle: percentStyle,
+                title: labels.secondary,
                 zaiTimeDetail: zaiTimeDetail))
         }
-        if input.metadata.supportsOpus, let opus = snapshot.tertiary {
+        if labels.showsTertiary, let opus = snapshot.tertiary {
             var tertiaryDetailText: String?
             if input.provider == .alibaba,
                let detail = opus.resetDescription,
@@ -992,7 +995,7 @@ extension UsageMenuCardView.Model {
                 : Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now)
             metrics.append(Metric(
                 id: "tertiary",
-                title: input.metadata.opusLabel ?? "Sonnet",
+                title: labels.tertiary,
                 percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: opusResetText,
@@ -1059,10 +1062,25 @@ extension UsageMenuCardView.Model {
         return metrics
     }
 
+    private static func rateWindowLabels(
+        input: Input,
+        snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
+    {
+        if input.provider == .factory, snapshot.tertiary != nil {
+            return ("5-hour", "Weekly", "Monthly", true)
+        }
+        return (
+            input.metadata.sessionLabel,
+            input.metadata.weeklyLabel,
+            input.metadata.opusLabel ?? "Sonnet",
+            input.metadata.supportsOpus)
+    }
+
     private static func primaryMetric(
         input: Input,
         primary: RateWindow,
         percentStyle: PercentStyle,
+        title: String? = nil,
         zaiTokenDetail: String?,
         openRouterQuotaDetail: String?) -> Metric
     {
@@ -1134,7 +1152,7 @@ extension UsageMenuCardView.Model {
         }
         return Metric(
             id: "primary",
-            title: input.metadata.sessionLabel,
+            title: title ?? input.metadata.sessionLabel,
             percent: Self.clamped(
                 input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
             percentStyle: percentStyle,
@@ -1151,6 +1169,7 @@ extension UsageMenuCardView.Model {
         input: Input,
         weekly: RateWindow,
         percentStyle: PercentStyle,
+        title: String? = nil,
         zaiTimeDetail: String?) -> Metric
     {
         var paceDetail = Self.weeklyPaceDetail(
@@ -1201,7 +1220,7 @@ extension UsageMenuCardView.Model {
         }
         return Metric(
             id: "secondary",
-            title: input.metadata.weeklyLabel,
+            title: title ?? input.metadata.weeklyLabel,
             percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
             percentStyle: percentStyle,
             resetText: weeklyResetText,
