@@ -144,8 +144,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var lastMergedSwitcherSelection: ProviderSwitcherSelection?
     /// Tracks the visible Codex account switcher contents for merged-menu smart updates.
     var lastCodexAccountMenuDisplay: CodexAccountMenuDisplay?
+    /// Monotonic token used to ignore stale deferred provider-switcher menu rebuilds.
+    var providerSwitcherUpdateToken = 0
     var lastAppliedMergedIconRenderSignature: String?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
+    let menuLogger = CodexBarLog.logger(LogCategories.app)
     var selectedMenuProvider: UsageProvider? {
         get { self.settings.selectedMenuProvider }
         set { self.settings.selectedMenuProvider = newValue }
@@ -532,6 +535,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             {
                 return
             }
+            guard !self.isMergedMenuOpen else {
+                self.updateAnimationState()
+                self.updateBlinkingState()
+                return
+            }
             self.attachMenus()
         } else {
             UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: phase) }
@@ -539,6 +547,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
         self.updateAnimationState()
         self.updateBlinkingState()
+    }
+
+    var isMergedMenuOpen: Bool {
+        guard let mergedMenu else { return false }
+        return self.openMenus[ObjectIdentifier(mergedMenu)] != nil
     }
 
     /// Lazily retrieves or creates a status item for the given provider
@@ -600,6 +613,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         #endif
         self.invalidateMenus()
         if self.shouldMergeIcons {
+            guard !self.isMergedMenuOpen else { return }
             self.attachMenus()
         } else {
             self.attachMenus(fallback: self.fallbackProvider)
