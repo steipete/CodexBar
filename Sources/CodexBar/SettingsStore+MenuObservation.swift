@@ -11,6 +11,11 @@ extension SettingsStore {
         _ = self.debugKeepCLISessionsAlive
         _ = self.statusChecksEnabled
         _ = self.sessionQuotaNotificationsEnabled
+        _ = self.quotaWarningNotificationsEnabled
+        _ = self.quotaWarningThresholds
+        _ = self.quotaWarningWindowEnabled(.session)
+        _ = self.quotaWarningWindowEnabled(.weekly)
+        _ = self.quotaWarningSoundEnabled
         _ = self.usageBarsShowUsed
         _ = self.resetTimesShowAbsolute
         _ = self.menuBarShowsBrandIconWithPercent

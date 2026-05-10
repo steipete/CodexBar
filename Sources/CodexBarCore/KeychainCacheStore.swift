@@ -102,13 +102,25 @@ public enum KeychainCacheStore {
             kSecAttrService as String: self.serviceName,
             kSecAttrAccount as String: key.account,
         ]
-        let updateAttrs: [String: Any] = [
+        var updateAttrs: [String: Any] = [
             kSecValueData as String: data,
         ]
+        if let access = self.cacheAccessControl() {
+            updateAttrs[kSecAttrAccess as String] = access
+        }
 
         let updateStatus = SecItemUpdate(query as CFDictionary, updateAttrs as CFDictionary)
         if updateStatus == errSecSuccess {
             return
+        }
+        if updateStatus != errSecItemNotFound, updateAttrs[kSecAttrAccess as String] != nil {
+            let dataOnlyStatus = SecItemUpdate(
+                query as CFDictionary,
+                [kSecValueData as String: data] as CFDictionary)
+            if dataOnlyStatus == errSecSuccess {
+                self.log.error("Keychain cache ACL update failed (\(key.account)): \(updateStatus)")
+                return
+            }
         }
         if updateStatus != errSecItemNotFound {
             self.log.error("Keychain cache update failed (\(key.account)): \(updateStatus)")
@@ -119,6 +131,9 @@ public enum KeychainCacheStore {
         addQuery[kSecValueData as String] = data
         addQuery[kSecAttrLabel as String] = self.cacheLabel
         addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        if let access = self.cacheAccessControl() {
+            addQuery[kSecAttrAccess as String] = access
+        }
 
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
         if addStatus != errSecSuccess {
@@ -279,6 +294,67 @@ public enum KeychainCacheStore {
             self.log.error("Keychain cache read failed (\(key.account)): \(status)")
             return .invalid
         }
+    }
+
+    static func trustedApplicationPathsForCacheAccess(
+        bundleURL: URL = Bundle.main.bundleURL,
+        executableURL: URL? = Bundle.main.executableURL,
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> [String]
+    {
+        var paths: [String] = []
+        func append(_ path: String) {
+            guard !path.isEmpty, fileExists(path), !paths.contains(path) else { return }
+            paths.append(path)
+        }
+
+        let appBundle = self.appBundleURL(containing: bundleURL)
+            ?? executableURL.flatMap(self.appBundleURL(containing:))
+        if let appBundle {
+            append(appBundle.path)
+            append(appBundle.appendingPathComponent("Contents/Helpers/CodexBarCLI").path)
+        }
+        if let executableURL {
+            append(executableURL.path)
+        }
+        return paths
+    }
+
+    private static func appBundleURL(containing url: URL) -> URL? {
+        var current = url.standardizedFileURL
+        while current.path != "/" {
+            if current.pathExtension == "app" {
+                return current
+            }
+            current.deleteLastPathComponent()
+        }
+        return nil
+    }
+
+    private static func cacheAccessControl() -> SecAccess? {
+        let trustedPaths = self.trustedApplicationPathsForCacheAccess()
+        guard !trustedPaths.isEmpty else { return nil }
+
+        var trustedApplications: [SecTrustedApplication] = []
+        for path in trustedPaths {
+            var application: SecTrustedApplication?
+            let status = path.withCString { cPath in
+                SecTrustedApplicationCreateFromPath(cPath, &application)
+            }
+            if status == errSecSuccess, let application {
+                trustedApplications.append(application)
+            } else {
+                self.log.error("Keychain cache trusted app creation failed (\(path)): \(status)")
+            }
+        }
+        guard !trustedApplications.isEmpty else { return nil }
+
+        var access: SecAccess?
+        let status = SecAccessCreate(self.cacheLabel as CFString, trustedApplications as CFArray, &access)
+        if status != errSecSuccess {
+            self.log.error("Keychain cache access control creation failed: \(status)")
+            return nil
+        }
+        return access
     }
     #endif
 

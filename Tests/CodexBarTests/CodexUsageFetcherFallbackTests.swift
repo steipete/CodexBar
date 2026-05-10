@@ -355,46 +355,27 @@ struct CodexUsageFetcherFallbackTests {
 
     private func makeHungRateLimitsStubCodexCLI() throws -> String {
         let script = """
-        #!/usr/bin/python3
-        import json
-        import sys
-        import time
+        #!/bin/sh
+        case " $* " in
+          *" app-server "*) ;;
+          *) printf '%s\\n' "unexpected non app-server Codex invocation" >&2; exit 92 ;;
+        esac
 
-        args = sys.argv[1:]
-        if "app-server" in args:
-            for line in sys.stdin:
-                if not line.strip():
-                    continue
-                message = json.loads(line)
-                method = message.get("method")
-                if method == "initialized":
-                    continue
-
-                identifier = message.get("id")
-                if method == "initialize":
-                    payload = {"id": identifier, "result": {}}
-                    print(json.dumps(payload), flush=True)
-                elif method == "account/rateLimits/read":
-                    time.sleep(30)
-                elif method == "account/read":
-                    payload = {
-                        "id": identifier,
-                        "result": {
-                            "account": {
-                                "type": "chatgpt",
-                                "email": "stub@example.com",
-                                "planType": "plus"
-                            },
-                            "requiresOpenaiAuth": False
-                        }
-                    }
-                    print(json.dumps(payload), flush=True)
-                else:
-                    payload = {"id": identifier, "result": {}}
-                    print(json.dumps(payload), flush=True)
-        else:
-            sys.stderr.write("unexpected non app-server Codex invocation\\n")
-            sys.exit(92)
+        while IFS= read -r line; do
+          case "$line" in
+            *'"method":"initialized"'*|*'"method": "initialized"'*)
+              ;;
+            *'"method":"initialize"'*|*'"method": "initialize"'*)
+              printf '%s\\n' '{"id":1,"result":{}}'
+              ;;
+            *'"method":"account/rateLimits/read"'*|*'"method": "account/rateLimits/read"'*)
+              sleep 30
+              ;;
+            *)
+              printf '%s\\n' '{"id":1,"result":{}}'
+              ;;
+          esac
+        done
         """
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-hung-stub-\(UUID().uuidString)", isDirectory: false)

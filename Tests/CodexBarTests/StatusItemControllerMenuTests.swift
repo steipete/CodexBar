@@ -97,61 +97,6 @@ struct StatusItemControllerMenuTests {
     }
 
     @Test
-    func `open router brand fallback enabled when no key limit configured`() {
-        let snapshot = OpenRouterUsageSnapshot(
-            totalCredits: 50,
-            totalUsage: 45,
-            balance: 5,
-            usedPercent: 90,
-            keyDataFetched: true,
-            keyLimit: nil,
-            keyUsage: nil,
-            rateLimit: nil,
-            updatedAt: Date()).toUsageSnapshot()
-
-        #expect(StatusItemController.shouldUseOpenRouterBrandFallback(
-            provider: .openrouter,
-            snapshot: snapshot))
-        #expect(MenuBarDisplayText.percentText(window: snapshot.primary, showUsed: false) == nil)
-    }
-
-    @Test
-    func `open router brand fallback disabled when key quota fetch unavailable`() {
-        let snapshot = OpenRouterUsageSnapshot(
-            totalCredits: 50,
-            totalUsage: 45,
-            balance: 5,
-            usedPercent: 90,
-            keyDataFetched: false,
-            keyLimit: nil,
-            keyUsage: nil,
-            rateLimit: nil,
-            updatedAt: Date()).toUsageSnapshot()
-
-        #expect(!StatusItemController.shouldUseOpenRouterBrandFallback(
-            provider: .openrouter,
-            snapshot: snapshot))
-    }
-
-    @Test
-    func `open router brand fallback disabled when key quota available`() {
-        let snapshot = OpenRouterUsageSnapshot(
-            totalCredits: 50,
-            totalUsage: 45,
-            balance: 5,
-            usedPercent: 90,
-            keyLimit: 20,
-            keyUsage: 2,
-            rateLimit: nil,
-            updatedAt: Date()).toUsageSnapshot()
-
-        #expect(!StatusItemController.shouldUseOpenRouterBrandFallback(
-            provider: .openrouter,
-            snapshot: snapshot))
-        #expect(snapshot.primary?.usedPercent == 10)
-    }
-
-    @Test
     @MainActor
     func `menu card width stays at base width when menu accessories are present`() {
         let shortcutMenu = NSMenu()

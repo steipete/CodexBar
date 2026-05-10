@@ -54,6 +54,9 @@ extension UsageStore {
             _ = self.settings.refreshFrequency
             _ = self.settings.statusChecksEnabled
             _ = self.settings.sessionQuotaNotificationsEnabled
+            _ = self.settings.quotaWarningNotificationsEnabled
+            _ = self.settings.quotaWarningThresholds
+            _ = self.settings.quotaWarningSoundEnabled
             _ = self.settings.usageBarsShowUsed
             _ = self.settings.costUsageEnabled
             _ = self.settings.randomBlinkEnabled
@@ -215,6 +218,7 @@ final class UsageStore {
     @ObservationIgnored var lastKnownResetSnapshots: [UsageProvider: UsageSnapshot] = [:]
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
+    @ObservationIgnored var quotaWarningState: [QuotaWarningStateKey: QuotaWarningState] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
     @ObservationIgnored var weeklyLimitResetDetectorStates: [String: WeeklyLimitResetDetectorState] = [:]
@@ -620,6 +624,16 @@ final class UsageStore {
         case copilotSecondaryFallback
     }
 
+    struct QuotaWarningStateKey: Hashable {
+        let provider: UsageProvider
+        let window: QuotaWarningWindow
+    }
+
+    struct QuotaWarningState {
+        var lastRemaining: Double?
+        var firedThresholds: Set<Int> = []
+    }
+
     private func sessionQuotaWindow(
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> (window: RateWindow, source: SessionQuotaWindowSource)?
@@ -713,6 +727,58 @@ final class UsageStore {
         self.sessionQuotaLogger.info(message)
 
         self.sessionQuotaNotifier.post(transition: transition, provider: provider, badge: nil)
+    }
+
+    func handleQuotaWarningTransitions(provider: UsageProvider, snapshot: UsageSnapshot) {
+        guard self.settings.quotaWarningNotificationsEnabled else { return }
+
+        self.handleQuotaWarningTransition(provider: provider, window: .session, rateWindow: snapshot.primary)
+        self.handleQuotaWarningTransition(provider: provider, window: .weekly, rateWindow: snapshot.secondary)
+    }
+
+    private func handleQuotaWarningTransition(
+        provider: UsageProvider,
+        window: QuotaWarningWindow,
+        rateWindow: RateWindow?)
+    {
+        let key = QuotaWarningStateKey(provider: provider, window: window)
+        guard self.settings.quotaWarningEnabled(provider: provider, window: window) else {
+            self.quotaWarningState.removeValue(forKey: key)
+            return
+        }
+        guard let rateWindow else {
+            self.quotaWarningState.removeValue(forKey: key)
+            return
+        }
+
+        let thresholds = self.settings.resolvedQuotaWarningThresholds(provider: provider, window: window)
+        let currentRemaining = rateWindow.remainingPercent
+        var state = self.quotaWarningState[key] ?? QuotaWarningState()
+        let cleared = QuotaWarningNotificationLogic.thresholdsToClear(
+            currentRemaining: currentRemaining,
+            alreadyFired: state.firedThresholds)
+        state.firedThresholds.subtract(cleared)
+
+        if let threshold = QuotaWarningNotificationLogic.crossedThreshold(
+            previousRemaining: state.lastRemaining,
+            currentRemaining: currentRemaining,
+            thresholds: thresholds,
+            alreadyFired: state.firedThresholds)
+        {
+            state.firedThresholds.formUnion(QuotaWarningNotificationLogic.firedThresholdsAfterWarning(
+                threshold: threshold,
+                thresholds: thresholds))
+            self.sessionQuotaNotifier.postQuotaWarning(
+                event: QuotaWarningEvent(
+                    window: window,
+                    threshold: threshold,
+                    currentRemaining: currentRemaining),
+                provider: provider,
+                soundEnabled: self.settings.quotaWarningSoundEnabled)
+        }
+
+        state.lastRemaining = currentRemaining
+        self.quotaWarningState[key] = state
     }
 
     private func refreshStatus(_ provider: UsageProvider) async {
@@ -827,12 +893,18 @@ extension UsageStore {
                 .alibaba: "Alibaba Coding Plan debug log not yet implemented",
                 .factory: "Droid debug log not yet implemented",
                 .copilot: "Copilot debug log not yet implemented",
+                .manus: "Manus debug log not yet implemented",
                 .vertexai: "Vertex AI debug log not yet implemented",
                 .kilo: "Kilo debug log not yet implemented",
                 .kiro: "Kiro debug log not yet implemented",
                 .kimi: "Kimi debug log not yet implemented",
                 .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
+                .mimo: "Xiaomi MiMo debug log not yet implemented",
+                .doubao: "Doubao debug log not yet implemented",
+                .venice: "Venice debug log not yet implemented",
+                .commandcode: "Command Code debug log not yet implemented",
+                .stepfun: "StepFun debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {
@@ -906,7 +978,8 @@ extension UsageStore {
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .jetbrains, .perplexity, .abacus, .mistral, .codebuff, .windsurf:
+                     .kimik2, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof, .windsurf,
+                     .venice, .manus, .commandcode, .stepfun:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

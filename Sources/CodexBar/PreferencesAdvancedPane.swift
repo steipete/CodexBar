@@ -11,17 +11,17 @@ struct AdvancedPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 SettingsSection(contentSpacing: 8) {
-                    Text("Keyboard shortcut")
+                    Text(L("section_keyboard_shortcut"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     HStack(alignment: .center, spacing: 12) {
-                        Text("Open menu")
+                        Text(L("open_menu_shortcut_title"))
                             .font(.body)
                         Spacer()
                         KeyboardShortcuts.Recorder(for: .openMenu)
                     }
-                    Text("Trigger the menu bar menu from anywhere.")
+                    Text(L("open_menu_shortcut_subtitle"))
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
                 }
@@ -36,7 +36,7 @@ struct AdvancedPane: View {
                             if self.isInstallingCLI {
                                 ProgressView().controlSize(.small)
                             } else {
-                                Text("Install CLI")
+                                Text(L("install_cli"))
                             }
                         }
                         .disabled(self.isInstallingCLI)
@@ -48,7 +48,7 @@ struct AdvancedPane: View {
                                 .lineLimit(2)
                         }
                     }
-                    Text("Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.")
+                    Text(L("install_cli_subtitle"))
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
                 }
@@ -57,16 +57,16 @@ struct AdvancedPane: View {
 
                 SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
-                        title: "Show Debug Settings",
-                        subtitle: "Expose troubleshooting tools in the Debug tab.",
+                        title: L("show_debug_settings_title"),
+                        subtitle: L("show_debug_settings_subtitle"),
                         binding: self.$settings.debugMenuEnabled)
                     PreferenceToggleRow(
-                        title: "Surprise me",
-                        subtitle: "Check if you like your agents having some fun up there.",
+                        title: L("surprise_me_title"),
+                        subtitle: L("surprise_me_subtitle"),
                         binding: self.$settings.randomBlinkEnabled)
                     PreferenceToggleRow(
-                        title: "Weekly limit confetti",
-                        subtitle: "Play full-screen confetti when weekly usage resets.",
+                        title: L("weekly_limit_confetti_title"),
+                        subtitle: L("weekly_limit_confetti_subtitle"),
                         binding: self.$settings.confettiOnWeeklyLimitResetsEnabled)
                 }
 
@@ -74,8 +74,8 @@ struct AdvancedPane: View {
 
                 SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
-                        title: "Hide personal information",
-                        subtitle: "Obscure email addresses in the menu bar and menu UI.",
+                        title: L("hide_personal_info_title"),
+                        subtitle: L("hide_personal_info_subtitle"),
                         binding: self.$settings.hidePersonalInfo)
                     PreferenceToggleRow(
                         title: "Show provider storage usage",
@@ -86,16 +86,14 @@ struct AdvancedPane: View {
                 Divider()
 
                 SettingsSection(
-                    title: "Keychain access",
-                    caption: """
-                    Disable all Keychain reads and writes. Browser cookie import is unavailable; paste Cookie \
-                    headers manually in Providers.
-                    """) {
-                        PreferenceToggleRow(
-                            title: "Disable Keychain access",
-                            subtitle: "Prevents any Keychain access while enabled.",
-                            binding: self.$settings.debugDisableKeychainAccess)
-                    }
+                    title: L("section_keychain_access"),
+                    caption: L("keychain_access_caption"))
+                {
+                    PreferenceToggleRow(
+                        title: L("disable_keychain_access_title"),
+                        subtitle: L("disable_keychain_access_subtitle"),
+                        binding: self.$settings.debugDisableKeychainAccess)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
@@ -113,7 +111,7 @@ extension AdvancedPane {
         let helperURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/CodexBarCLI")
         let fm = FileManager.default
         guard fm.fileExists(atPath: helperURL.path) else {
-            self.cliStatus = "CodexBarCLI not found in app bundle."
+            self.cliStatus = L("cli_not_found")
             return
         }
 
@@ -149,7 +147,7 @@ extension AdvancedPane {
         }
 
         self.cliStatus = results.isEmpty
-            ? "No writable bin dirs found."
+            ? L("no_writable_bin_dirs")
             : results.joined(separator: " · ")
     }
 

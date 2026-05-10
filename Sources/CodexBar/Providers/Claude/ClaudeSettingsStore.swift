@@ -58,7 +58,8 @@ extension SettingsStore {
             cookieSource: self.claudeSnapshotCookieSource(tokenOverride: tokenOverride, routing: routing),
             manualCookieHeader: self.claudeSnapshotCookieHeader(
                 routing: routing,
-                hasSelectedAccount: account != nil))
+                hasSelectedAccount: account != nil),
+            organizationID: account?.sanitizedOrganizationID)
     }
 
     private static func claudeUsageDataSource(from source: ProviderSourceMode?) -> ClaudeUsageDataSource {

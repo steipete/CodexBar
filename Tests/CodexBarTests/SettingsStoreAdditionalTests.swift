@@ -71,6 +71,19 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
+    func `menu bar metric preference restricts text only balance providers to automatic`() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-text-only-metric")
+
+        for provider in [UsageProvider.deepseek, .mistral, .kimik2] {
+            settings.setMenuBarMetricPreference(.primary, for: provider)
+            #expect(settings.menuBarMetricPreference(for: provider) == .automatic)
+
+            settings.setMenuBarMetricPreference(.secondary, for: provider)
+            #expect(settings.menuBarMetricPreference(for: provider) == .automatic)
+        }
+    }
+
+    @Test
     func `minimax auth mode uses stored values`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-minimax")
         settings.minimaxAPIToken = "sk-api-test-token"

@@ -51,6 +51,10 @@ public struct CostUsageFetcher: Sendable {
         let since = Calendar.current.date(byAdding: .day, value: -29, to: now) ?? now
 
         var options = overrideScannerOptions ?? CostUsageScanner.Options()
+        if provider == .codex || provider == .claude {
+            await ModelsDevPricingPipeline.refreshIfNeeded(now: now, cacheRoot: options.cacheRoot)
+        }
+
         if provider == .vertexai {
             options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
         } else if provider == .claude {
@@ -58,7 +62,6 @@ public struct CostUsageFetcher: Sendable {
         }
         if forceRefresh {
             options.refreshMinIntervalSeconds = 0
-            options.forceRescan = true
         }
         var daily = CostUsageScanner.loadDailyReport(
             provider: provider,
@@ -89,7 +92,6 @@ public struct CostUsageFetcher: Sendable {
             }
             if forceRefresh {
                 piOptions.refreshMinIntervalSeconds = 0
-                piOptions.forceRescan = true
             }
             let piReport = PiSessionCostScanner.loadDailyReport(
                 provider: provider,

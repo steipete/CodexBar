@@ -1,0 +1,89 @@
+{
+  "openai": {
+    "id": "openai",
+    "name": "OpenAI",
+    "models": {
+      "gpt-4o-mini": {
+        "id": "gpt-4o-mini",
+        "name": "GPT-4o mini",
+        "cost": {
+          "input": 0.15,
+          "output": 0.6,
+          "cache_read": 0.08
+        },
+        "limit": {
+          "context": 128000,
+          "output": 16384
+        }
+      },
+      "shared-model": {
+        "id": "shared-model",
+        "name": "Shared model via OpenAI",
+        "cost": {
+          "input": 1,
+          "output": 2
+        },
+        "limit": {
+          "context": 128000
+        }
+      }
+    }
+  },
+  "anthropic": {
+    "id": "anthropic",
+    "name": "Anthropic",
+    "models": {
+      "shared-model": {
+        "id": "shared-model",
+        "name": "Shared model via Anthropic",
+        "cost": {
+          "input": 3,
+          "output": 4
+        },
+        "limit": {
+          "context": 200000
+        }
+      },
+      "claude-sonnet-4-6": {
+        "id": "claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6",
+        "cost": {
+          "input": 3,
+          "output": 15,
+          "cache_read": 0.3,
+          "cache_write": 3.75,
+          "context_over_200k": {
+            "input": 6,
+            "output": 22.5,
+            "cache_read": 0.6,
+            "cache_write": 7.5
+          }
+        },
+        "limit": {
+          "context": 1000000,
+          "output": 64000
+        }
+      }
+    }
+  },
+  "google-vertex-anthropic": {
+    "id": "google-vertex-anthropic",
+    "name": "Vertex (Anthropic)",
+    "models": {
+      "claude-sonnet-4-6@default": {
+        "id": "claude-sonnet-4-6@default",
+        "name": "Claude Sonnet 4.6",
+        "cost": {
+          "input": 3.1,
+          "output": 15.1,
+          "cache_read": 0.31,
+          "cache_write": 3.76
+        },
+        "limit": {
+          "context": 1000000,
+          "output": 64000
+        }
+      }
+    }
+  }
+}

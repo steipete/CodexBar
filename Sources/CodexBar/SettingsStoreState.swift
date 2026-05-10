@@ -11,6 +11,11 @@ struct SettingsDefaultsState {
     var debugKeepCLISessionsAlive: Bool
     var statusChecksEnabled: Bool
     var sessionQuotaNotificationsEnabled: Bool
+    var quotaWarningNotificationsEnabled: Bool
+    var quotaWarningThresholdsRaw: [Int]
+    var quotaWarningSessionEnabled: Bool
+    var quotaWarningWeeklyEnabled: Bool
+    var quotaWarningSoundEnabled: Bool
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
     var menuBarShowsBrandIconWithPercent: Bool
@@ -38,4 +43,5 @@ struct SettingsDefaultsState {
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
+    var appLanguageRaw: String?
 }

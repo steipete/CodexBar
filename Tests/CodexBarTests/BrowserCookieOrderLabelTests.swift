@@ -11,6 +11,12 @@ struct BrowserCookieOrderStatusStringTests {
     }
 
     @Test
+    func `automatic cookie import includes newly supported chromium browsers`() {
+        #expect(Browser.defaultImportOrder.contains(.comet))
+        #expect(Browser.defaultImportOrder.contains(.yandex))
+    }
+
+    @Test
     func `cursor no session includes browser login hint`() {
         let order = ProviderDefaults.metadata[.cursor]?.browserCookieOrder ?? Browser.defaultImportOrder
         let message = CursorStatusProbeError.noSessionCookie.errorDescription ?? ""

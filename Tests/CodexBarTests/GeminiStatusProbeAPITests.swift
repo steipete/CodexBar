@@ -374,6 +374,65 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
+    func `falls back to curl loader when URL session times out`() async throws {
+        let calls = LoaderCalls()
+        let url = try #require(URL(string: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"))
+        let request = URLRequest(url: url)
+        let body = Data("{\"ok\":true}".utf8)
+        let loader = GeminiStatusProbe.dataLoaderWithCurlFallback(
+            primary: { _ in
+                calls.incrementPrimary()
+                throw URLError(.timedOut)
+            },
+            fallback: { request in
+                calls.incrementFallback()
+                let (response, data) = GeminiAPITestHelpers.response(
+                    url: request.url!.absoluteString,
+                    status: 200,
+                    body: body)
+                return (data, response)
+            })
+
+        let (loadedBody, loadedResponse) = try await loader(request)
+        let counts = calls.counts()
+        #expect(loadedBody == body)
+        #expect((loadedResponse as? HTTPURLResponse)?.statusCode == 200)
+        #expect(counts.primary == 1)
+        #expect(counts.fallback == 1)
+    }
+
+    @Test
+    func `does not fall back to curl loader for non-timeout errors`() async throws {
+        let calls = LoaderCalls()
+        let url = try #require(URL(string: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"))
+        let request = URLRequest(url: url)
+        let loader = GeminiStatusProbe.dataLoaderWithCurlFallback(
+            primary: { _ in
+                calls.incrementPrimary()
+                throw URLError(.cannotFindHost)
+            },
+            fallback: { request in
+                calls.incrementFallback()
+                let (response, data) = GeminiAPITestHelpers.response(
+                    url: request.url!.absoluteString,
+                    status: 200,
+                    body: Data())
+                return (data, response)
+            })
+
+        do {
+            _ = try await loader(request)
+            Issue.record("Expected non-timeout URLSession error")
+        } catch let error as URLError {
+            #expect(error.code == .cannotFindHost)
+        }
+
+        let counts = calls.counts()
+        #expect(counts.primary == 1)
+        #expect(counts.fallback == 0)
+    }
+
+    @Test
     func `fails refresh when O auth config missing`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
@@ -540,6 +599,30 @@ struct GeminiStatusProbeAPITests {
             #expect(Bool(false))
         } catch {
             #expect(error as? GeminiStatusProbeError == expected)
+        }
+    }
+
+    private final class LoaderCalls: @unchecked Sendable {
+        private let lock = NSLock()
+        private var primaryCount = 0
+        private var fallbackCount = 0
+
+        func incrementPrimary() {
+            self.lock.lock()
+            self.primaryCount += 1
+            self.lock.unlock()
+        }
+
+        func incrementFallback() {
+            self.lock.lock()
+            self.fallbackCount += 1
+            self.lock.unlock()
+        }
+
+        func counts() -> (primary: Int, fallback: Int) {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return (self.primaryCount, self.fallbackCount)
         }
     }
 }

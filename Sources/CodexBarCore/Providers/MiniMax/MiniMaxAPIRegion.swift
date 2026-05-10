@@ -55,4 +55,11 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     public var apiRemainsURL: URL {
         URL(string: self.apiBaseURLString)!.appendingPathComponent(Self.remainsPath)
     }
+
+    public var dashboardURL: URL {
+        var components = URLComponents(string: self.baseURLString)!
+        components.path = "/" + Self.codingPlanPath
+        components.query = Self.codingPlanQuery
+        return components.url!
+    }
 }

@@ -69,6 +69,7 @@ See `docs/configuration.md` for the schema.
         - `--web-timeout <seconds>` (default: 60)
         - `--web-debug-dump-html` (writes HTML snapshots to `/tmp` when data is missing)
     - Claude web: claude.ai API (session + weekly usage, plus account metadata when available).
+    - Command Code web: commandcode.ai browser session cookies for monthly credit usage.
     - Kilo auto: app.kilo.ai API first, then CLI auth fallback (`~/.local/share/kilo/auth.json`) on missing/unauthorized API credentials.
     - Linux: web-backed `auto`/`web` modes are not supported; CLI prints an error and exits non-zero for providers that require browser/WebKit access.
 - Global flags: `-h/--help`, `-V/--version`, `-v/--verbose`, `--no-color`, `--log-level <trace|verbose|debug|info|warning|error|critical>`, `--json-output`, `--json-only`.

@@ -215,7 +215,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
         if context.snapshot?.secondary == nil {
-            entries.append(.text("Weekly usage unavailable for this account.", .secondary))
+            entries.append(.text(L("Weekly usage unavailable for this account."), .secondary))
         }
 
         if let cost = context.snapshot?.providerCost,
@@ -224,7 +224,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         {
             let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-            entries.append(.text("Extra usage: \(used) / \(limit)", .primary))
+            entries.append(.text(String(format: L("extra_usage_format"), used, limit), .primary))
         }
     }
 

@@ -2,13 +2,13 @@ import AppKit
 import CodexBarCore
 import Observation
 import QuartzCore
-import SwiftUI
 
 // MARK: - Status item controller (AppKit-hosted icons, SwiftUI popovers)
 
 @MainActor
 protocol StatusItemControlling: AnyObject {
     func openMenuFromShortcut()
+    func runLoginFlowFromSettings(provider: UsageProvider) async
     func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint?
 }
 
@@ -24,6 +24,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     static var menuCardRenderingEnabled = !SettingsStore.isRunningTests
     private static let defaultMenuRefreshEnabled = !SettingsStore.isRunningTests
     private(set) static var menuRefreshEnabled = !SettingsStore.isRunningTests
+    static let quotaWarningFlashDuration: TimeInterval = 60
     #if DEBUG
     static func setMenuRefreshEnabledForTesting(_ enabled: Bool) {
         self.menuRefreshEnabled = enabled
@@ -111,6 +112,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var blinkAmounts: [UsageProvider: CGFloat] = [:]
     var wiggleAmounts: [UsageProvider: CGFloat] = [:]
     var tiltAmounts: [UsageProvider: CGFloat] = [:]
+    var quotaWarningFlashUntil: [UsageProvider: Date] = [:]
+    var quotaWarningFlashTasks: [UsageProvider: Task<Void, Never>] = [:]
     var blinkForceUntil: Date?
     var loginPhase: LoginPhase = .idle {
         didSet {
@@ -142,8 +145,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var lastMergedSwitcherSelection: ProviderSwitcherSelection?
     /// Tracks the visible Codex account switcher contents for merged-menu smart updates.
     var lastCodexAccountMenuDisplay: CodexAccountMenuDisplay?
+    /// Monotonic token used to ignore stale deferred provider-switcher menu rebuilds.
+    var providerSwitcherUpdateToken = 0
     var lastAppliedMergedIconRenderSignature: String?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
+    let menuLogger = CodexBarLog.logger(LogCategories.app)
     var selectedMenuProvider: UsageProvider? {
         get { self.settings.selectedMenuProvider }
         set { self.settings.selectedMenuProvider = newValue }
@@ -254,7 +260,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
         self.statusBar = statusBar
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        item.autosaveName = "codexbar-merged"
         // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
         item.button?.imageScaling = .scaleNone
         self.statusItem = item
@@ -272,6 +277,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self,
             selector: #selector(self.handleDebugBlinkNotification),
             name: .codexbarDebugBlinkNow,
+            object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.handleQuotaWarningPosted(_:)),
+            name: .codexbarQuotaWarningDidPost,
             object: nil)
         if observeProviderConfigNotifications {
             NotificationCenter.default.addObserver(
@@ -380,6 +390,31 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             }
         }
         self.handleProviderConfigChange(reason: "notification:\(reason)")
+    }
+
+    @objc private func handleQuotaWarningPosted(_ notification: Notification) {
+        guard let event = notification.object as? QuotaWarningPostedEvent else { return }
+        self.startQuotaWarningFlash(provider: event.provider, postedAt: event.postedAt)
+    }
+
+    func startQuotaWarningFlash(provider: UsageProvider, postedAt: Date = Date()) {
+        let until = postedAt.addingTimeInterval(Self.quotaWarningFlashDuration)
+        self.quotaWarningFlashUntil[provider] = until
+        self.quotaWarningFlashTasks[provider]?.cancel()
+        self.updateIcons()
+        self.quotaWarningFlashTasks[provider] = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.quotaWarningFlashDuration))
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                if let currentUntil = self.quotaWarningFlashUntil[provider],
+                   currentUntil <= Date()
+                {
+                    self.quotaWarningFlashUntil.removeValue(forKey: provider)
+                    self.quotaWarningFlashTasks.removeValue(forKey: provider)
+                    self.updateIcons()
+                }
+            }
+        }
     }
 
     private func observeUpdaterChanges() {
@@ -501,6 +536,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             {
                 return
             }
+            guard !self.isMergedMenuOpen else {
+                self.updateAnimationState()
+                self.updateBlinkingState()
+                return
+            }
             self.attachMenus()
         } else {
             UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: phase) }
@@ -510,13 +550,17 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.updateBlinkingState()
     }
 
+    var isMergedMenuOpen: Bool {
+        guard let mergedMenu else { return false }
+        return self.openMenus[ObjectIdentifier(mergedMenu)] != nil
+    }
+
     /// Lazily retrieves or creates a status item for the given provider
     func lazyStatusItem(for provider: UsageProvider) -> NSStatusItem {
         if let existing = self.statusItems[provider] {
             return existing
         }
         let item = self.statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        item.autosaveName = "codexbar-\(provider.rawValue)"
         item.button?.imageScaling = .scaleNone
         self.statusItems[provider] = item
         return item
@@ -531,8 +575,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let mergeIcons = self.shouldMergeIcons
         if mergeIcons {
             self.statusItem.isVisible = anyEnabled || force
-            for item in self.statusItems.values {
-                item.isVisible = false
+            for provider in Array(self.statusItems.keys) {
+                self.removeProviderStatusItem(for: provider)
             }
             self.attachMenus()
         } else {
@@ -544,8 +588,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 if shouldBeVisible {
                     let item = self.lazyStatusItem(for: provider)
                     item.isVisible = true
-                } else if let item = self.statusItems[provider] {
-                    item.isVisible = false
+                } else {
+                    self.removeProviderStatusItem(for: provider)
                 }
             }
             self.attachMenus(fallback: fallback)
@@ -570,6 +614,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         #endif
         self.invalidateMenus()
         if self.shouldMergeIcons {
+            guard !self.isMergedMenuOpen else { return }
             self.attachMenus()
         } else {
             self.attachMenus(fallback: self.fallbackProvider)
@@ -610,10 +655,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                     }
                 }
             } else if let item = self.statusItems[provider] {
-                // Item exists but is no longer needed - clear its menu
-                if item.menu != nil {
-                    item.menu = nil
-                }
+                item.menu = nil
             }
         }
     }
@@ -625,14 +667,29 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let ordered = self.settings.orderedProviders()
         let desired = Set(ordered)
         for provider in Array(self.statusItems.keys) where !desired.contains(provider) {
-            if let item = self.statusItems.removeValue(forKey: provider) {
-                self.statusBar.removeStatusItem(item)
-            }
+            self.removeProviderStatusItem(for: provider)
         }
 
-        for provider in ordered {
+        guard !self.shouldMergeIcons else { return }
+        let fallback = self.fallbackProvider
+        let force = self.store.debugForceAnimation
+        for provider in ordered where self.isEnabled(provider) || fallback == provider || force {
             _ = self.lazyStatusItem(for: provider)
         }
+    }
+
+    private func removeProviderStatusItem(for provider: UsageProvider) {
+        if let menu = self.providerMenus.removeValue(forKey: provider) {
+            let menuID = ObjectIdentifier(menu)
+            self.menuProviders.removeValue(forKey: menuID)
+            self.menuVersions.removeValue(forKey: menuID)
+            self.openMenus.removeValue(forKey: menuID)
+            self.menuRefreshTasks.removeValue(forKey: menuID)?.cancel()
+        }
+
+        guard let item = self.statusItems.removeValue(forKey: provider) else { return }
+        item.menu = nil
+        self.statusBar.removeStatusItem(item)
     }
 
     func isVisible(_ provider: UsageProvider) -> Bool {

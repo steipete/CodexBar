@@ -51,14 +51,14 @@ struct AboutPane: View {
             VStack(spacing: 2) {
                 Text("CodexBar")
                     .font(.title3).bold()
-                Text("Version \(self.versionString)")
+                Text(String(format: L("version_format"), self.versionString))
                     .foregroundStyle(.secondary)
                 if let buildTimestamp {
-                    Text("Built \(buildTimestamp)")
+                    Text(String(format: L("built_format"), buildTimestamp))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                Text("May your tokens never run out—keep agent limits in view.")
+                Text(L("about_tagline"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -66,11 +66,11 @@ struct AboutPane: View {
             VStack(alignment: .center, spacing: 10) {
                 AboutLinkRow(
                     icon: "chevron.left.slash.chevron.right",
-                    title: "GitHub",
+                    title: L("link_github"),
                     url: "https://github.com/steipete/CodexBar")
-                AboutLinkRow(icon: "globe", title: "Website", url: "https://steipete.me")
-                AboutLinkRow(icon: "bird", title: "Twitter", url: "https://twitter.com/steipete")
-                AboutLinkRow(icon: "envelope", title: "Email", url: "mailto:peter@steipete.me")
+                AboutLinkRow(icon: "globe", title: L("link_website"), url: "https://steipete.me")
+                AboutLinkRow(icon: "bird", title: L("link_twitter"), url: "https://twitter.com/steipete")
+                AboutLinkRow(icon: "envelope", title: L("link_email"), url: "mailto:peter@steipete.me")
             }
             .padding(.top, 8)
             .frame(maxWidth: .infinity)
@@ -80,12 +80,12 @@ struct AboutPane: View {
 
             if self.updater.isAvailable {
                 VStack(spacing: 10) {
-                    Toggle("Check for updates automatically", isOn: self.$autoUpdateEnabled)
+                    Toggle(L("check_updates_auto"), isOn: self.$autoUpdateEnabled)
                         .toggleStyle(.checkbox)
                         .frame(maxWidth: .infinity, alignment: .center)
                     VStack(spacing: 6) {
                         HStack(spacing: 12) {
-                            Text("Update Channel")
+                            Text(L("update_channel"))
                             Spacer()
                             Picker("", selection: self.updateChannelBinding) {
                                 ForEach(UpdateChannel.allCases) { channel in
@@ -102,14 +102,14 @@ struct AboutPane: View {
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: 280)
                     }
-                    Button("Check for Updates…") { self.updater.checkForUpdates(nil) }
+                    Button(L("check_for_updates")) { self.updater.checkForUpdates(nil) }
                 }
             } else {
-                Text(self.updater.unavailableReason ?? "Updates unavailable in this build.")
+                Text(self.updater.unavailableReason ?? L("updates_unavailable"))
                     .foregroundStyle(.secondary)
             }
 
-            Text("© 2026 Peter Steinberger. MIT License.")
+            Text(L("copyright"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)

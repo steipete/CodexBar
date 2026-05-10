@@ -208,7 +208,7 @@ struct CodexBaselineCharacterizationTests {
     }
 
     @Test
-    func `app auto falls back from failing OAuth to successful CLI`() async throws {
+    func `app auto does not fall back from non auth failing OAuth`() async throws {
         let stubCLIPath = try self.makeStubCodexCLI()
         let oauthHome = try self.makeUnavailableOAuthHome()
         defer { try? FileManager.default.removeItem(at: oauthHome) }
@@ -220,16 +220,20 @@ struct CodexBaselineCharacterizationTests {
 
         let outcome = await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env)
 
-        #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth", "codex.cli"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [true, true])
+        #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
         #expect(outcome.attempts[0].errorDescription?.isEmpty == false)
-        #expect(outcome.attempts[1].errorDescription == nil)
 
         switch outcome.result {
-        case let .success(result):
-            #expect(result.sourceLabel == "codex-cli")
-            #expect(result.usage.primary?.windowMinutes == 300)
-            #expect(result.usage.secondary?.windowMinutes == 10080)
+        case .success:
+            Issue.record("Expected non-auth OAuth failure to stop before CLI fallback")
+        case let .failure(error as CodexOAuthFetchError):
+            switch error {
+            case .networkError:
+                break
+            default:
+                Issue.record("Expected network error, got \(error)")
+            }
         case let .failure(error):
             Issue.record("Unexpected failure: \(error)")
         }

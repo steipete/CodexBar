@@ -103,6 +103,51 @@ extension SettingsStore {
         }
     }
 
+    var quotaWarningNotificationsEnabled: Bool {
+        get { self.defaultsState.quotaWarningNotificationsEnabled }
+        set {
+            self.defaultsState.quotaWarningNotificationsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "quotaWarningNotificationsEnabled")
+        }
+    }
+
+    var quotaWarningThresholds: [Int] {
+        get { QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningThresholdsRaw) }
+        set {
+            let sanitized = QuotaWarningThresholds.sanitized(newValue)
+            self.defaultsState.quotaWarningThresholdsRaw = sanitized
+            self.userDefaults.set(sanitized, forKey: "quotaWarningThresholds")
+        }
+    }
+
+    func quotaWarningWindowEnabled(_ window: QuotaWarningWindow) -> Bool {
+        switch window {
+        case .session:
+            self.defaultsState.quotaWarningSessionEnabled
+        case .weekly:
+            self.defaultsState.quotaWarningWeeklyEnabled
+        }
+    }
+
+    func setQuotaWarningWindowEnabled(_ window: QuotaWarningWindow, enabled: Bool) {
+        switch window {
+        case .session:
+            self.defaultsState.quotaWarningSessionEnabled = enabled
+            self.userDefaults.set(enabled, forKey: "quotaWarningSessionEnabled")
+        case .weekly:
+            self.defaultsState.quotaWarningWeeklyEnabled = enabled
+            self.userDefaults.set(enabled, forKey: "quotaWarningWeeklyEnabled")
+        }
+    }
+
+    var quotaWarningSoundEnabled: Bool {
+        get { self.defaultsState.quotaWarningSoundEnabled }
+        set {
+            self.defaultsState.quotaWarningSoundEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "quotaWarningSoundEnabled")
+        }
+    }
+
     var usageBarsShowUsed: Bool {
         get { self.defaultsState.usageBarsShowUsed }
         set {
@@ -518,6 +563,21 @@ extension SettingsStore {
         set {
             self.defaultsState.providerDetectionCompleted = newValue
             self.userDefaults.set(newValue, forKey: "providerDetectionCompleted")
+        }
+    }
+
+    var appLanguage: String {
+        get { self.defaultsState.appLanguageRaw ?? "" }
+        set {
+            let stored = newValue.isEmpty ? nil : newValue
+            self.defaultsState.appLanguageRaw = stored
+            if let stored {
+                self.userDefaults.set(stored, forKey: "appLanguage")
+                UserDefaults.standard.set([stored], forKey: "AppleLanguages")
+            } else {
+                self.userDefaults.removeObject(forKey: "appLanguage")
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            }
         }
     }
 

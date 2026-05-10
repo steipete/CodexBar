@@ -58,6 +58,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .manus: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Manus session_id cookies.",
+            placeholder: "session_id=…",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: "session_id"),
         .augment: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple Augment Cookie headers.",
@@ -92,6 +99,20 @@ extension TokenAccountSupportCatalog {
             placeholder: "Paste GitHub token…",
             injection: .environment(key: "COPILOT_API_TOKEN"),
             requiresManualCookieSource: false,
+            cookieName: nil),
+        .venice: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Store multiple Venice API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: VeniceSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
+        .stepfun: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple StepFun Oasis-Token values.",
+            placeholder: "Oasis-Token=…",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
             cookieName: nil),
     ]
 }

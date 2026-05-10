@@ -146,8 +146,10 @@ struct MenuDescriptor {
 
         if let snap = store.snapshot(for: provider) {
             let resetStyle = settings.resetTimeDisplayStyle
+            let labels = Self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snap)
             if let primary = snap.primary {
-                let primaryWindow = if provider == .warp || provider == .kilo || provider == .abacus ||
+                let primaryWindow = if provider == .warp || provider == .kilo || provider == .mimo || provider ==
+                    .abacus ||
                     provider == .deepseek
                 {
                     // Some providers use resetDescription for non-reset detail
@@ -162,11 +164,19 @@ struct MenuDescriptor {
                 }
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.sessionLabel,
+                    title: labels.primary,
                     window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
-                if provider == .warp || provider == .kilo || provider == .abacus || provider == .deepseek,
+                if provider == .warp || provider == .kilo || provider == .mimo || provider == .abacus || provider ==
+                    .deepseek,
+                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+                    !detail.isEmpty
+                {
+                    entries.append(.text(detail, .secondary))
+                }
+                if provider == .crof,
+                   primary.resetsAt != nil,
                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !detail.isEmpty
                 {
@@ -178,10 +188,14 @@ struct MenuDescriptor {
                     let paceSummary = UsagePaceText.weeklySummary(pace: pace)
                     entries.append(.text(paceSummary, .secondary))
                 }
+                if let paceSummary = UsagePaceText.sessionSummary(provider: provider, window: primary) {
+                    entries.append(.text(paceSummary, .secondary))
+                }
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
-                    guard provider == .warp || provider == .kilo || provider == .perplexity else { return nil }
+                    guard provider == .warp || provider == .kilo || provider == .perplexity || provider == .crof
+                    else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let detail, !detail.isEmpty else { return nil }
                     if provider == .kilo, weekly.resetsAt != nil {
@@ -191,7 +205,7 @@ struct MenuDescriptor {
                 }()
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.weeklyLabel,
+                    title: labels.secondary,
                     window: weekly,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed,
@@ -208,14 +222,14 @@ struct MenuDescriptor {
                     entries.append(.text(paceSummary, .secondary))
                 }
             }
-            if meta.supportsOpus, let opus = snap.tertiary {
+            if labels.showsTertiary, let opus = snap.tertiary {
                 // Perplexity purchased credits don't reset; show the balance as plain text.
                 let opusResetOverride: String? = provider == .perplexity
                     ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     : nil
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.opusLabel ?? "Sonnet",
+                    title: labels.tertiary,
                     window: opus,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed,
@@ -283,13 +297,26 @@ struct MenuDescriptor {
         if provider == .kilo {
             let kiloLogin = self.kiloLoginParts(loginMethod: loginMethodText)
             if let pass = kiloLogin.pass {
-                entries.append(.text("Plan: \(AccountFormatter.plan(pass))", .secondary))
+                entries.append(.text("Plan: \(AccountFormatter.plan(pass, provider: provider))", .secondary))
             }
             for detail in kiloLogin.details {
                 entries.append(.text("Activity: \(detail)", .secondary))
             }
         } else if let loginMethodText, !loginMethodText.isEmpty {
-            entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText))", .secondary))
+            if provider == .openrouter || provider == .mimo,
+               loginMethodText.localizedCaseInsensitiveContains("balance:")
+            {
+                let balanceValue = loginMethodText
+                    .replacingOccurrences(
+                        of: #"(?i)^\s*balance:\s*"#,
+                        with: "",
+                        options: [.regularExpression])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let value = balanceValue.isEmpty ? loginMethodText : balanceValue
+                entries.append(.text("Balance: \(AccountFormatter.plan(value, provider: provider))", .secondary))
+            } else {
+                entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText, provider: provider))", .secondary))
+            }
         }
 
         if metadata.usesAccountFallback {
@@ -298,7 +325,7 @@ struct MenuDescriptor {
                 entries.append(.text("Account: \(redacted)", .secondary))
             }
             if loginMethodText?.isEmpty ?? true, let fallbackPlan = fallback.plan, !fallbackPlan.isEmpty {
-                entries.append(.text("Plan: \(AccountFormatter.plan(fallbackPlan))", .secondary))
+                entries.append(.text("Plan: \(AccountFormatter.plan(fallbackPlan, provider: provider))", .secondary))
             }
         }
 
@@ -455,6 +482,21 @@ struct MenuDescriptor {
         return false
     }
 
+    private static func rateWindowLabels(
+        provider: UsageProvider,
+        metadata: ProviderMetadata,
+        snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
+    {
+        if provider == .factory, snapshot.tertiary != nil {
+            return ("5-hour", "Weekly", "Monthly", true)
+        }
+        return (
+            metadata.sessionLabel,
+            metadata.weeklyLabel,
+            metadata.opusLabel ?? "Sonnet",
+            metadata.supportsOpus)
+    }
+
     private static func appendRateWindow(
         entries: inout [Entry],
         title: String,
@@ -485,8 +527,12 @@ struct MenuDescriptor {
 }
 
 private enum AccountFormatter {
-    static func plan(_ text: String) -> String {
-        let cleaned = CodexPlanFormatting.displayName(text) ?? UsageFormatter.cleanPlanName(text)
+    static func plan(_ text: String, provider: UsageProvider) -> String {
+        let cleaned = if provider == .codex {
+            CodexPlanFormatting.displayName(text) ?? UsageFormatter.cleanPlanName(text)
+        } else {
+            UsageFormatter.cleanPlanName(text)
+        }
         return cleaned.isEmpty ? text : cleaned
     }
 

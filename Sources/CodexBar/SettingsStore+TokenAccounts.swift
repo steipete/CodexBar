@@ -40,7 +40,8 @@ extension SettingsStore {
         provider: UsageProvider,
         label: String,
         token: String,
-        externalIdentifier: String? = nil)
+        externalIdentifier: String? = nil,
+        organizationID: String? = nil)
     {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return }
         let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -48,6 +49,8 @@ extension SettingsStore {
         let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedIdentifier = externalIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalisedIdentifier = (trimmedIdentifier?.isEmpty ?? true) ? nil : trimmedIdentifier
+        let trimmedOrganizationID = organizationID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalisedOrganizationID = (trimmedOrganizationID?.isEmpty ?? true) ? nil : trimmedOrganizationID
         let existing = self.tokenAccountsData(for: provider)
         let accounts = existing?.accounts ?? []
         let fallbackLabel = trimmedLabel.isEmpty ? "Account \(accounts.count + 1)" : trimmedLabel
@@ -57,7 +60,8 @@ extension SettingsStore {
             token: trimmedToken,
             addedAt: Date().timeIntervalSince1970,
             lastUsed: nil,
-            externalIdentifier: normalisedIdentifier)
+            externalIdentifier: normalisedIdentifier,
+            organizationID: normalisedOrganizationID)
         let updated = ProviderTokenAccountData(
             version: existing?.version ?? 1,
             accounts: accounts + [account],
@@ -82,7 +86,8 @@ extension SettingsStore {
         accountID: UUID,
         label: String? = nil,
         token: String? = nil,
-        externalIdentifier: String?? = nil)
+        externalIdentifier: String?? = nil,
+        organizationID: String?? = nil)
     {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         guard let index = data.accounts.firstIndex(where: { $0.id == accountID }) else { return }
@@ -99,13 +104,21 @@ extension SettingsStore {
         } else {
             resolvedIdentifier = existing.externalIdentifier
         }
+        let resolvedOrganizationID: String?
+        if let organizationID {
+            let trimmed = organizationID?.trimmingCharacters(in: .whitespacesAndNewlines)
+            resolvedOrganizationID = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        } else {
+            resolvedOrganizationID = existing.organizationID
+        }
         let updatedAccount = ProviderTokenAccount(
             id: existing.id,
             label: (trimmedLabel?.isEmpty == false) ? trimmedLabel! : existing.label,
             token: trimmedToken ?? existing.token,
             addedAt: existing.addedAt,
             lastUsed: existing.lastUsed,
-            externalIdentifier: resolvedIdentifier)
+            externalIdentifier: resolvedIdentifier,
+            organizationID: resolvedOrganizationID)
 
         var accounts = data.accounts
         accounts[index] = updatedAccount

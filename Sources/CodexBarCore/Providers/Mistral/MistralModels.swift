@@ -102,23 +102,48 @@ public struct MistralUsageSnapshot: Sendable {
     public let endDate: Date?
     public let updatedAt: Date
 
+    public init(
+        totalCost: Double,
+        currency: String,
+        currencySymbol: String,
+        totalInputTokens: Int,
+        totalOutputTokens: Int,
+        totalCachedTokens: Int,
+        modelCount: Int,
+        startDate: Date?,
+        endDate: Date?,
+        updatedAt: Date)
+    {
+        self.totalCost = totalCost
+        self.currency = currency
+        self.currencySymbol = currencySymbol
+        self.totalInputTokens = totalInputTokens
+        self.totalOutputTokens = totalOutputTokens
+        self.totalCachedTokens = totalCachedTokens
+        self.modelCount = modelCount
+        self.startDate = startDate
+        self.endDate = endDate
+        self.updatedAt = updatedAt
+    }
+
     public func toUsageSnapshot() -> UsageSnapshot {
-        let resetDate = self.endDate.map { Calendar.current.date(byAdding: .second, value: 1, to: $0) ?? $0 }
-        let costDescription = if self.totalCost > 0 {
+        // Negative totalCost means a refund/credit adjustment; clamp to zero rather than
+        // showing a confusing negative amount in the menu bar.
+        let spendText = if self.totalCost > 0 {
             "\(self.currencySymbol)\(String(format: "%.4f", self.totalCost)) this month"
         } else {
-            "No usage this month"
+            "\(self.currencySymbol)0.0000 this month"
         }
-        let primary = RateWindow(
-            usedPercent: 0,
-            windowMinutes: nil,
-            resetsAt: resetDate,
-            resetDescription: costDescription)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .mistral,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "API spend: \(spendText)")
         return UsageSnapshot(
-            primary: primary,
+            primary: nil,
             secondary: nil,
             providerCost: nil,
             updatedAt: self.updatedAt,
-            identity: nil)
+            identity: identity)
     }
 }

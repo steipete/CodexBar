@@ -36,7 +36,7 @@ struct ProviderErrorView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if self.display.preview != self.display.full {
-                Button(self.isExpanded ? "Hide details" : "Show details") { self.isExpanded.toggle() }
+                Button(self.isExpanded ? L("Hide details") : L("Show details")) { self.isExpanded.toggle() }
                     .buttonStyle(.link)
                     .font(.footnote)
             }
