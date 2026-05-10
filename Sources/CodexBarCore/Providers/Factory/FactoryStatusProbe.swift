@@ -1266,7 +1266,7 @@ public struct FactoryStatusProbe: Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         } catch {
             return nil
         }
@@ -1303,7 +1303,7 @@ public struct FactoryStatusProbe: Sendable {
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid response")
@@ -1368,7 +1368,7 @@ public struct FactoryStatusProbe: Sendable {
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid response")
@@ -1502,7 +1502,7 @@ public struct FactoryStatusProbe: Sendable {
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid WorkOS response")
         }
@@ -1572,7 +1572,7 @@ public struct FactoryStatusProbe: Sendable {
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid WorkOS response")
         }

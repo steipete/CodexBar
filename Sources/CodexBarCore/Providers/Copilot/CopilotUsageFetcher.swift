@@ -49,7 +49,7 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("token \(self.token)", forHTTPHeaderField: "Authorization")
         self.addCommonHeaders(to: &request)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
@@ -107,7 +107,7 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
