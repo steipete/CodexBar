@@ -47,26 +47,7 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        // Respect the "Off" auth source — if explicitly disabled, don't fetch.
-        if let settings = context.settings?.stepfun, settings.cookieSource == .off {
-            return false
-        }
-        // Available if any auth method is configured:
-        // 1. Username + password from Settings UI
-        // 2. Manual token from Settings UI
-        // 3. Cached token from previous login
-        // 4. Username + password from env vars
-        // 5. Direct token from env var
-        if let settings = context.settings?.stepfun {
-            if !settings.username.isEmpty, !settings.password.isEmpty { return true }
-            if settings.cookieSource == .manual, !settings.manualToken.isEmpty { return true }
-        }
-        if CookieHeaderCache.load(provider: .stepfun) != nil { return true }
-        if StepFunSettingsReader.username(environment: context.env) != nil,
-           StepFunSettingsReader.password(environment: context.env) != nil
-        { return true }
-        if StepFunSettingsReader.token(environment: context.env) != nil { return true }
-        return false
+        context.settings?.stepfun?.cookieSource != .off
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -157,9 +138,8 @@ public enum StepFunTokenNormalizer {
             let parts = trimmed.components(separatedBy: "Oasis-Token=")
             if parts.count > 1 {
                 let afterToken = parts[1]
-                let tokenValue = afterToken.components(separatedBy: ";").first?
+                return afterToken.components(separatedBy: ";").first?
                     .trimmingCharacters(in: .whitespaces) ?? afterToken
-                return tokenValue
             }
         }
 

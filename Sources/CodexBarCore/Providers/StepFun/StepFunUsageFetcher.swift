@@ -75,16 +75,16 @@ public struct StepFunRateLimitResponse: Decodable, Sendable {
 
 // MARK: - Plan status response types
 
-struct StepFunPlanStatusResponse: Decodable, Sendable {
+struct StepFunPlanStatusResponse: Decodable {
     let status: Int?
     let subscription: StepFunSubscription?
 
     var planName: String? {
-        subscription?.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.subscription?.name?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
-struct StepFunSubscription: Decodable, Sendable {
+struct StepFunSubscription: Decodable {
     let name: String?
     let planType: Int?
     let planStatus: Int?
@@ -98,17 +98,17 @@ struct StepFunSubscription: Decodable, Sendable {
 
 // MARK: - Auth response types
 
-struct StepFunRegisterDeviceResponse: Decodable, Sendable {
+struct StepFunRegisterDeviceResponse: Decodable {
     let accessToken: StepFunTokenPair?
     let refreshToken: StepFunTokenPair?
 }
 
-struct StepFunLoginResponse: Decodable, Sendable {
+struct StepFunLoginResponse: Decodable {
     let accessToken: StepFunTokenPair?
     let refreshToken: StepFunTokenPair?
 }
 
-struct StepFunTokenPair: Decodable, Sendable {
+struct StepFunTokenPair: Decodable {
     let raw: String
 }
 
@@ -211,10 +211,14 @@ public enum StepFunUsageError: LocalizedError, Sendable {
 public struct StepFunUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.stepfunUsage)
     private static let platformURL = URL(string: "https://platform.stepfun.com")!
-    private static let apiURL = URL(string: "https://platform.stepfun.com/api/step.openapi.devcenter.Dashboard/QueryStepPlanRateLimit")!
-    private static let planStatusURL = URL(string: "https://platform.stepfun.com/api/step.openapi.devcenter.Dashboard/GetStepPlanStatus")!
-    private static let registerDeviceURL = URL(string: "https://platform.stepfun.com/passport/proto.api.passport.v1.PassportService/RegisterDevice")!
-    private static let loginURL = URL(string: "https://platform.stepfun.com/passport/proto.api.passport.v1.PassportService/SignInByPassword")!
+    private static let apiURL =
+        URL(string: "https://platform.stepfun.com/api/step.openapi.devcenter.Dashboard/QueryStepPlanRateLimit")!
+    private static let planStatusURL =
+        URL(string: "https://platform.stepfun.com/api/step.openapi.devcenter.Dashboard/GetStepPlanStatus")!
+    private static let registerDeviceURL =
+        URL(string: "https://platform.stepfun.com/passport/proto.api.passport.v1.PassportService/RegisterDevice")!
+    private static let loginURL =
+        URL(string: "https://platform.stepfun.com/passport/proto.api.passport.v1.PassportService/SignInByPassword")!
     private static let timeoutSeconds: TimeInterval = 15
 
     private static let webID = "c8a1002d2c457e758785a9979832217c7c0b884c"
@@ -225,7 +229,8 @@ public struct StepFunUsageFetcher: Sendable {
         "oasis-appid": appID,
         "oasis-platform": "web",
         "oasis-webid": webID,
-        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
     ]
 
     // MARK: - Public API
@@ -260,13 +265,11 @@ public struct StepFunUsageFetcher: Sendable {
         let anonToken = try await self.registerDevice(ingressCookie: ingressCookie)
 
         // Step 3: SignInByPassword → get authenticated token
-        let authToken = try await self.signInByPassword(
+        return try await self.signInByPassword(
             username: username,
             password: password,
             ingressCookie: ingressCookie,
             anonToken: anonToken)
-
-        return authToken
     }
 
     private static func getIngressCookie() async throws -> (String, HTTPURLResponse) {
@@ -364,7 +367,9 @@ public struct StepFunUsageFetcher: Sendable {
         for (key, value) in self.baseHeaders {
             request.setValue(value, forHTTPHeaderField: key)
         }
-        request.setValue("Oasis-Token=\(anonToken); Oasis-Webid=\(webID); INGRESSCOOKIE=\(ingressCookie)", forHTTPHeaderField: "Cookie")
+        request.setValue(
+            "Oasis-Token=\(anonToken); Oasis-Webid=\(self.webID); INGRESSCOOKIE=\(ingressCookie)",
+            forHTTPHeaderField: "Cookie")
         request.timeoutInterval = self.timeoutSeconds
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -403,7 +408,7 @@ public struct StepFunUsageFetcher: Sendable {
         for (key, value) in self.baseHeaders {
             request.setValue(value, forHTTPHeaderField: key)
         }
-        request.setValue("Oasis-Token=\(token); Oasis-Webid=\(webID)", forHTTPHeaderField: "Cookie")
+        request.setValue("Oasis-Token=\(token); Oasis-Webid=\(self.webID)", forHTTPHeaderField: "Cookie")
         request.timeoutInterval = self.timeoutSeconds
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -448,7 +453,7 @@ public struct StepFunUsageFetcher: Sendable {
         for (key, value) in self.baseHeaders {
             request.setValue(value, forHTTPHeaderField: key)
         }
-        request.setValue("Oasis-Token=\(token); Oasis-Webid=\(webID)", forHTTPHeaderField: "Cookie")
+        request.setValue("Oasis-Token=\(token); Oasis-Webid=\(self.webID)", forHTTPHeaderField: "Cookie")
         request.timeoutInterval = self.timeoutSeconds
 
         let (data, response) = try await URLSession.shared.data(for: request)

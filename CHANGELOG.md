@@ -11,6 +11,7 @@
 - Usage pace: compute pace for any explicit reset window instead of a provider allowlist (#875). Thanks @ViperThanks!
 - Crof: add API-key provider support with request quota and credit balance tracking (#872). Thanks @baanish!
 - Command Code: add browser-cookie provider support for monthly USD billing credits (#857). Thanks @sixhobbits!
+- StepFun: add username/password or Oasis-Token provider support for Step Plan rate-limit tracking (#815). Thanks @tevenfeng!
 - OpenRouter, Mistral, and Kimi K2: show balance/spend metrics in menu bar text when quota percentage is not useful (#853). Thanks @willytop8!
 
 ### Fixes

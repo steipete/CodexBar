@@ -8,19 +8,19 @@ public struct StepFunSettingsReader: Sendable {
     public static func username(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        Self.cleaned(environment[Self.usernameEnvironmentKey])
+        self.cleaned(environment[self.usernameEnvironmentKey])
     }
 
     public static func password(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        Self.cleaned(environment[Self.passwordEnvironmentKey])
+        self.cleaned(environment[self.passwordEnvironmentKey])
     }
 
     public static func token(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        Self.cleaned(environment[Self.tokenEnvironmentKey])
+        self.cleaned(environment[self.tokenEnvironmentKey])
     }
 
     private static func cleaned(_ raw: String?) -> String? {

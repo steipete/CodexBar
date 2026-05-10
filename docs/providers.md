@@ -265,4 +265,11 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: none yet.
 - Details: `docs/command-code.md`.
 
+## StepFun
+- Username/password login or manual Oasis-Token.
+- Reads Step Plan 5-hour and weekly rate-limit windows from `platform.stepfun.com`.
+- Shows subscription plan name when the Step Plan status API returns one.
+- Status: none yet.
+- Details: `docs/stepfun.md`.
+
 See also: `docs/provider.md` for architecture notes.

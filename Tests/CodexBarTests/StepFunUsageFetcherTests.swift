@@ -223,7 +223,7 @@ struct StepFunTokenNormalizerTests {
 
     @Test
     func `returns empty for empty string`() {
-        #expect(StepFunTokenNormalizer.normalize("") == "")
+        #expect(StepFunTokenNormalizer.normalize("").isEmpty)
     }
 
     @Test

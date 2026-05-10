@@ -9,7 +9,10 @@ extension SettingsStore {
             self.updateProviderConfig(provider: .stepfun) { entry in
                 entry.apiKey = self.normalizedConfigValue(newValue)
             }
-            self.logProviderModeChange(provider: .stepfun, field: "username", value: newValue.isEmpty ? "(cleared)" : "(updated)")
+            self.logProviderModeChange(
+                provider: .stepfun,
+                field: "username",
+                value: newValue.isEmpty ? "(cleared)" : "(updated)")
         }
     }
 
