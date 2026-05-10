@@ -656,6 +656,22 @@ public struct GeminiStatusProbe: Sendable {
                 return globalPackageJSONURL.deletingLastPathComponent().path
             }
 
+            // Homebrew layout:
+            // <cellar-version>/libexec/lib/node_modules/@google/gemini-cli/package.json
+            let homebrewPackageJSONURL = currentURL
+                .appendingPathComponent("libexec")
+                .appendingPathComponent("lib")
+                .appendingPathComponent("node_modules")
+                .appendingPathComponent("@google")
+                .appendingPathComponent("gemini-cli")
+                .appendingPathComponent("package.json")
+            if let data = try? Data(contentsOf: homebrewPackageJSONURL),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               json["name"] as? String == "@google/gemini-cli"
+            {
+                return homebrewPackageJSONURL.deletingLastPathComponent().path
+            }
+
             let parentURL = currentURL.deletingLastPathComponent()
             if parentURL.path == currentURL.path {
                 return nil
@@ -715,6 +731,21 @@ public struct GeminiStatusProbe: Sendable {
                     .standardizedFileURL
                 guard nextURL.path.hasPrefix(bundleRoot.path) else { continue }
                 pendingURLs.append(nextURL)
+            }
+        }
+
+        guard let bundleFiles = try? FileManager.default.contentsOfDirectory(
+            at: bundleRoot,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles])
+        else {
+            return nil
+        }
+
+        for url in bundleFiles where url.pathExtension == "js" && !visitedPaths.contains(url.standardizedFileURL.path) {
+            guard let content = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            if let credentials = Self.parseOAuthCredentials(from: content) {
+                return credentials
             }
         }
 
@@ -778,9 +809,9 @@ public struct GeminiStatusProbe: Sendable {
     }
 
     private static func parseOAuthCredentials(from content: String) -> OAuthClientCredentials? {
-        // Match: const OAUTH_CLIENT_ID = '...';
-        let clientIdPattern = #"OAUTH_CLIENT_ID\s*=\s*['"]([\w\-\.]+)['"]\s*;"#
-        let secretPattern = #"OAUTH_CLIENT_SECRET\s*=\s*['"]([\w\-]+)['"]\s*;"#
+        // Match: const/let/var OAUTH_CLIENT_ID = '...';
+        let clientIdPattern = #"(?:const|let|var)?\s*OAUTH_CLIENT_ID\s*=\s*['"]([\w\-\.]+)['"]\s*;"#
+        let secretPattern = #"(?:const|let|var)?\s*OAUTH_CLIENT_SECRET\s*=\s*['"]([\w\-]+)['"]\s*;"#
 
         guard let clientIdRegex = try? NSRegularExpression(pattern: clientIdPattern),
               let secretRegex = try? NSRegularExpression(pattern: secretPattern)

@@ -14,6 +14,7 @@ enum ProviderImplementationRegistry {
     private static func makeImplementation(for provider: UsageProvider) -> (any ProviderImplementation) {
         switch provider {
         case .codex: CodexProviderImplementation()
+        case .openai: OpenAIAPIProviderImplementation()
         case .claude: ClaudeProviderImplementation()
         case .cursor: CursorProviderImplementation()
         case .opencode: OpenCodeProviderImplementation()

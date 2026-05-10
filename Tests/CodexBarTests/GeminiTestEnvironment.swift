@@ -5,6 +5,7 @@ struct GeminiTestEnvironment {
         case npmNested
         case nixShare
         case fnmBundle
+        case homebrewBundle
     }
 
     let homeURL: URL
@@ -226,7 +227,69 @@ struct GeminiTestEnvironment {
                 withDestinationPath: "../lib/node_modules/@google/gemini-cli/bundle/gemini.js")
 
             return geminiBinary
+
+        case .homebrewBundle:
+            return try self.writeFakeHomebrewGeminiCLI(base: base, includeOAuth: includeOAuth)
         }
+    }
+
+    private func writeFakeHomebrewGeminiCLI(base: URL, includeOAuth: Bool) throws -> URL {
+        let cellarRoot = base
+            .appendingPathComponent("Cellar")
+            .appendingPathComponent("gemini-cli")
+            .appendingPathComponent("0.41.2")
+        let binDir = cellarRoot.appendingPathComponent("bin")
+        let packageRoot = cellarRoot
+            .appendingPathComponent("libexec")
+            .appendingPathComponent("lib")
+            .appendingPathComponent("node_modules")
+            .appendingPathComponent("@google")
+            .appendingPathComponent("gemini-cli")
+        let bundleDir = packageRoot.appendingPathComponent("bundle")
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: bundleDir, withIntermediateDirectories: true)
+
+        let packageJSON = """
+        {
+          "name": "@google/gemini-cli"
+        }
+        """
+        try packageJSON.write(
+            to: packageRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+
+        let entry = bundleDir.appendingPathComponent("gemini.js")
+        try "#!/usr/bin/env node\nawait import('./gemini-HASH.js');\n".write(
+            to: entry,
+            atomically: true,
+            encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: entry.path)
+        try "export const run = () => {};\n".write(
+            to: bundleDir.appendingPathComponent("gemini-HASH.js"),
+            atomically: true,
+            encoding: .utf8)
+
+        let chunkContent = if includeOAuth {
+            """
+            var OAUTH_CLIENT_ID = "test-client-id";
+            var OAUTH_CLIENT_SECRET = "test-client-secret";
+            """
+        } else {
+            "export const unrelated = true;\n"
+        }
+        try chunkContent.write(
+            to: bundleDir.appendingPathComponent("chunk-OAUTH.js"),
+            atomically: true,
+            encoding: .utf8)
+
+        let geminiBinary = binDir.appendingPathComponent("gemini")
+        try FileManager.default.createSymbolicLink(
+            atPath: geminiBinary.path,
+            withDestinationPath: "../libexec/lib/node_modules/@google/gemini-cli/bundle/gemini.js")
+        return geminiBinary
     }
 
     func writeFakeFnm(

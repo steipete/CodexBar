@@ -1078,6 +1078,7 @@ struct SettingsStoreTests {
         #expect(storeA.orderedProviders() == [
             .gemini,
             .codex,
+            .openai,
             .claude,
             .cursor,
             .opencode,

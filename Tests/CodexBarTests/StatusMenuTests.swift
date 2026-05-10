@@ -318,7 +318,14 @@ struct StatusMenuTests {
                     loginMethod: "Plus Plan")),
             provider: .codex)
 
-        try? await Task.sleep(for: .milliseconds(100))
+        for _ in 0..<50
+            where controller.menuContentVersion == openedVersion ||
+            controller.menuVersions[key] != controller.menuContentVersion
+        {
+            StatusItemController.setMenuRefreshEnabledForTesting(true)
+            controller.refreshOpenMenusIfNeeded()
+            try? await Task.sleep(for: .milliseconds(20))
+        }
 
         #expect(controller.menuContentVersion != openedVersion)
         #expect(controller.menuVersions[key] == controller.menuContentVersion)

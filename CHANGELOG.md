@@ -17,6 +17,7 @@
 - Factory/Droid: add token-rate-limit billing windows, Core fallback buckets, and extra usage balance display (#878). Thanks @dantemoon1!
 - Usage pace: compute pace for any explicit reset window instead of a provider allowlist (#875). Thanks @ViperThanks!
 - Crof: add API-key provider support with request quota and credit balance tracking (#872). Thanks @baanish!
+- OpenAI API: add optional platform credit-balance tracking from the billing credit-grants endpoint (#877).
 - Manus: add browser-cookie provider support for credit balance, monthly credits, and daily refresh tracking (#700). Thanks @hhh2210!
 - Doubao: add API-key provider support for Volcengine Ark request-limit tracking (#498). Thanks @LeoLin990405!
 - Command Code: add browser-cookie provider support for monthly USD billing credits (#857). Thanks @sixhobbits!
@@ -44,6 +45,7 @@
 - Vertex AI: detect service-account ADC files from `GOOGLE_APPLICATION_CREDENTIALS` and use `gcloud` to fetch access tokens (#871).
 - Menu: keep Cost and Subscription Utilization submenus stable by deferring parent card rebuilds while hosted submenus are open (#862).
 - Gemini: retry direct API requests with curl when URLSession times out on hosts where curl succeeds (#826).
+- Gemini: locate Homebrew-installed CLI bundles and parse bundled OAuth client constants so token refresh works with newer `gemini-cli` installs (#695).
 - OpenRouter: keep the menu bar rendering the usage meter instead of falling back to the provider logo when no key limit is configured (#854). Thanks @willytop8!
 - DeepSeek: show balance as plain text instead of a misleading quota-style progress bar (#856). Thanks @jb381!
 - Menu: keep the status menu open when manually refreshing usage from the menu (#845). Thanks @OlimjonovOtabek!

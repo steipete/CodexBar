@@ -336,28 +336,30 @@ struct ClaudeOAuthCredentialsStoreTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         let fileURL = tempDir.appendingPathComponent("credentials.json")
-        try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
-            try ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
-                ClaudeOAuthCredentialsStore.invalidateCache()
-                let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
-                defer { KeychainCacheStore.clear(key: cacheKey) }
+        try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+            try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                try ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
+                    ClaudeOAuthCredentialsStore.invalidateCache()
+                    let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                    defer { KeychainCacheStore.clear(key: cacheKey) }
 
-                let validData = self.makeCredentialsData(
-                    accessToken: "legacy-owner",
-                    expiresAt: Date(timeIntervalSinceNow: 3600),
-                    refreshToken: "refresh-token")
-                KeychainCacheStore.store(
-                    key: cacheKey,
-                    entry: ClaudeOAuthCredentialsStore.CacheEntry(
-                        data: validData,
-                        storedAt: Date()))
+                    let validData = self.makeCredentialsData(
+                        accessToken: "legacy-owner",
+                        expiresAt: Date(timeIntervalSinceNow: 3600),
+                        refreshToken: "refresh-token")
+                    KeychainCacheStore.store(
+                        key: cacheKey,
+                        entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                            data: validData,
+                            storedAt: Date()))
 
-                let record = try ClaudeOAuthCredentialsStore.loadRecord(
-                    environment: [:],
-                    allowKeychainPrompt: false,
-                    respectKeychainPromptCooldown: true)
-                #expect(record.owner == .claudeCLI)
-                #expect(record.source == .cacheKeychain)
+                    let record = try ClaudeOAuthCredentialsStore.loadRecord(
+                        environment: [:],
+                        allowKeychainPrompt: false,
+                        respectKeychainPromptCooldown: true)
+                    #expect(record.owner == .claudeCLI)
+                    #expect(record.source == .cacheKeychain)
+                }
             }
         }
     }

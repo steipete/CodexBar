@@ -2,6 +2,13 @@ import Foundation
 
 extension TokenAccountSupportCatalog {
     static let supportByProvider: [UsageProvider: TokenAccountSupport] = [
+        .openai: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple OpenAI API keys.",
+            placeholder: "sk-...",
+            injection: .environment(key: OpenAIAPISettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .claude: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store Claude sessionKey cookies or OAuth access tokens.",

@@ -26,6 +26,12 @@ public enum ProviderTokenResolver {
         self.syntheticResolution(environment: environment)?.token
     }
 
+    public static func openAIAPIToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.openAIAPIResolution(environment: environment)?.token
+    }
+
     public static func copilotToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.copilotResolution(environment: environment)?.token
     }
@@ -146,6 +152,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(SyntheticSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func openAIAPIResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(OpenAIAPISettingsReader.apiKey(environment: environment))
     }
 
     public static func copilotResolution(

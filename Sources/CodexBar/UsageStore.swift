@@ -869,12 +869,8 @@ extension UsageStore {
         let ollamaCookieSource = self.settings.ollamaCookieSource
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
         let processEnvironment = self.environmentBase
-        let openRouterConfigToken = self.settings.providerConfig(for: .openrouter)?.sanitizedAPIKey
-        let openRouterHasEnvToken = OpenRouterSettingsReader.apiToken(environment: processEnvironment) != nil
-        let openRouterEnvironment = ProviderConfigEnvironment.applyAPIKeyOverride(
-            base: processEnvironment,
-            provider: .openrouter,
-            config: self.settings.providerConfig(for: .openrouter))
+        let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
+        let openRouterDebugContext = self.openRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
         let deepSeekHasTokenAccount = self.settings.selectedTokenAccount(for: .deepseek) != nil
         let deepSeekEnvironment = ProviderRegistry.makeEnvironment(
@@ -910,6 +906,8 @@ extension UsageStore {
                 switch provider {
                 case .codex:
                     return await codexFetcher.debugRawRateLimits()
+                case .openai:
+                    return Self.apiKeyDebugLine(openAIDebugContext)
                 case .claude:
                     guard let claudeDebugConfiguration else {
                         return "Claude debug log configuration unavailable"
@@ -960,11 +958,7 @@ extension UsageStore {
                         ollamaCookieSource: ollamaCookieSource,
                         ollamaCookieHeader: ollamaCookieHeader)
                 case .openrouter:
-                    return Self.apiKeyDebugLine(
-                        label: "OPENROUTER_API_KEY",
-                        resolution: ProviderTokenResolver.openRouterResolution(environment: openRouterEnvironment),
-                        configToken: openRouterConfigToken,
-                        hasEnvToken: openRouterHasEnvToken)
+                    return Self.apiKeyDebugLine(openRouterDebugContext)
                 case .warp:
                     let resolution = ProviderTokenResolver.warpResolution()
                     let hasAny = resolution != nil
@@ -1098,6 +1092,51 @@ extension UsageStore {
             interaction: ProviderInteractionContext.current,
             refreshPhase: ProviderRefreshContext.current)
         #endif
+    }
+
+    private struct APIKeyDebugContext {
+        let label: String
+        let resolution: ProviderTokenResolution?
+        let configToken: String?
+        let hasEnvToken: Bool
+        let hasTokenAccount: Bool
+    }
+
+    private func openAIAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
+        let config = self.settings.providerConfig(for: .openai)
+        let environment = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: processEnvironment,
+            provider: .openai,
+            config: config)
+        return APIKeyDebugContext(
+            label: "OPENAI_API_KEY",
+            resolution: ProviderTokenResolver.openAIAPIResolution(environment: environment),
+            configToken: config?.sanitizedAPIKey,
+            hasEnvToken: OpenAIAPISettingsReader.apiKey(environment: processEnvironment) != nil,
+            hasTokenAccount: false)
+    }
+
+    private func openRouterAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
+        let config = self.settings.providerConfig(for: .openrouter)
+        let environment = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: processEnvironment,
+            provider: .openrouter,
+            config: config)
+        return APIKeyDebugContext(
+            label: "OPENROUTER_API_KEY",
+            resolution: ProviderTokenResolver.openRouterResolution(environment: environment),
+            configToken: config?.sanitizedAPIKey,
+            hasEnvToken: OpenRouterSettingsReader.apiToken(environment: processEnvironment) != nil,
+            hasTokenAccount: false)
+    }
+
+    private nonisolated static func apiKeyDebugLine(_ context: APIKeyDebugContext) -> String {
+        self.apiKeyDebugLine(
+            label: context.label,
+            resolution: context.resolution,
+            configToken: context.configToken,
+            hasEnvToken: context.hasEnvToken,
+            hasTokenAccount: context.hasTokenAccount)
     }
 
     private nonisolated static func apiKeyDebugLine(

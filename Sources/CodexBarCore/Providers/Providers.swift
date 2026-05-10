@@ -4,6 +4,7 @@ import SweetCookieKit
 // swiftformat:disable sortDeclarations
 public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case codex
+    case openai
     case claude
     case cursor
     case opencode
@@ -46,6 +47,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
 
 public enum IconStyle: Sendable, CaseIterable {
     case codex
+    case openai
     case claude
     case zai
     case minimax

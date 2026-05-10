@@ -52,6 +52,7 @@ enum ProviderChoice: String, AppEnum {
     init?(provider: UsageProvider) {
         switch provider {
         case .codex: self = .codex
+        case .openai: return nil // OpenAI API not yet supported in widgets
         case .claude: self = .claude
         case .gemini: self = .gemini
         case .alibaba: self = .alibaba
