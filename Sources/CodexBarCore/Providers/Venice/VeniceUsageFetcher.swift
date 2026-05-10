@@ -81,7 +81,9 @@ public struct VeniceUsageSnapshot: Sendable {
             let usdStr = String(format: "%.2f", usd)
             balanceDetail = "$\(usdStr) USD remaining"
             usedPercent = 0
-        } else if activeCurrency != "USD", let diem = self.diemBalance, let allocation = self.diemEpochAllocation, allocation > 0 {
+        } else if activeCurrency != "USD", let diem = self.diemBalance, let allocation = self.diemEpochAllocation,
+                  allocation > 0
+        {
             // DIEM balance with epoch allocation
             let remaining = diem
             let usedAmount = allocation - remaining
@@ -212,12 +214,15 @@ private func clamp(_ value: Double, min: Double, max: Double) -> Double {
     Swift.min(Swift.max(value, min), max)
 }
 
-private extension KeyedDecodingContainer {
-    func decodeFlexibleDoubleIfPresent(forKey key: K) throws -> Double? {
-        if let value = try self.decodeIfPresent(Double.self, forKey: key) {
+extension KeyedDecodingContainer {
+    fileprivate func decodeFlexibleDoubleIfPresent(forKey key: K) throws -> Double? {
+        if try self.decodeNil(forKey: key) {
+            return nil
+        }
+        if let value = try? self.decode(Double.self, forKey: key) {
             return value
         }
-        if let stringValue = try self.decodeIfPresent(String.self, forKey: key) {
+        if let stringValue = try? self.decode(String.self, forKey: key) {
             let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
             if let parsed = Double(trimmed) {
@@ -228,6 +233,9 @@ private extension KeyedDecodingContainer {
                 in: self,
                 debugDescription: "Expected a numeric string for \(key.stringValue), got '\(stringValue)'")
         }
-        return nil
+        throw DecodingError.dataCorruptedError(
+            forKey: key,
+            in: self,
+            debugDescription: "Expected a number or numeric string for \(key.stringValue)")
     }
 }
