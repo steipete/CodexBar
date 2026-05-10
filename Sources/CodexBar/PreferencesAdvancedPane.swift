@@ -87,12 +87,13 @@ struct AdvancedPane: View {
 
                 SettingsSection(
                     title: L("section_keychain_access"),
-                    caption: L("keychain_access_caption")) {
-                        PreferenceToggleRow(
-                            title: L("disable_keychain_access_title"),
-                            subtitle: L("disable_keychain_access_subtitle"),
-                            binding: self.$settings.debugDisableKeychainAccess)
-                    }
+                    caption: L("keychain_access_caption"))
+                {
+                    PreferenceToggleRow(
+                        title: L("disable_keychain_access_title"),
+                        subtitle: L("disable_keychain_access_subtitle"),
+                        binding: self.$settings.debugDisableKeychainAccess)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)

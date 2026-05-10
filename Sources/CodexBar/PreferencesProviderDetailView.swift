@@ -102,7 +102,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
 
                 if let errorDisplay {
                     ProviderErrorView(
-                        title: String(format: L("last_fetch_failed_with_provider"), self.store.metadata(for: self.provider).displayName),
+                        title: String(
+                            format: L("last_fetch_failed_with_provider"),
+                            self.store.metadata(for: self.provider).displayName),
                         display: errorDisplay,
                         isExpanded: self.$isErrorExpanded,
                         onCopy: { self.onCopyError(errorDisplay.full) })

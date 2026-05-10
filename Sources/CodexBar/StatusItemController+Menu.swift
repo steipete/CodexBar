@@ -1508,7 +1508,10 @@ extension StatusItemController {
         }
         for detail in sortedDetails {
             let usage = UsageFormatter.tokenCountString(detail.usage)
-            let item = NSMenuItem(title: String(format: L("mcp_model_usage"), detail.modelCode, usage), action: nil, keyEquivalent: "")
+            let item = NSMenuItem(
+                title: String(format: L("mcp_model_usage"), detail.modelCode, usage),
+                action: nil,
+                keyEquivalent: "")
             submenu.addItem(item)
         }
         return submenu
