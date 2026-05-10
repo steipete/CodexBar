@@ -1,11 +1,47 @@
 import Foundation
 
 enum CostUsagePricing {
+    private static let codexPriorityInputTokenLimit = 272_000
+
     struct CodexPricing {
         let inputCostPerToken: Double
         let outputCostPerToken: Double
         let cacheReadInputCostPerToken: Double?
         let displayLabel: String?
+
+        let thresholdTokens: Int?
+        let inputCostPerTokenAboveThreshold: Double?
+        let outputCostPerTokenAboveThreshold: Double?
+        let cacheReadInputCostPerTokenAboveThreshold: Double?
+        let priorityInputCostPerToken: Double?
+        let priorityOutputCostPerToken: Double?
+        let priorityCacheReadInputCostPerToken: Double?
+
+        init(
+            inputCostPerToken: Double,
+            outputCostPerToken: Double,
+            cacheReadInputCostPerToken: Double?,
+            displayLabel: String?,
+            thresholdTokens: Int? = nil,
+            inputCostPerTokenAboveThreshold: Double? = nil,
+            outputCostPerTokenAboveThreshold: Double? = nil,
+            cacheReadInputCostPerTokenAboveThreshold: Double? = nil,
+            priorityInputCostPerToken: Double? = nil,
+            priorityOutputCostPerToken: Double? = nil,
+            priorityCacheReadInputCostPerToken: Double? = nil)
+        {
+            self.inputCostPerToken = inputCostPerToken
+            self.outputCostPerToken = outputCostPerToken
+            self.cacheReadInputCostPerToken = cacheReadInputCostPerToken
+            self.displayLabel = displayLabel
+            self.thresholdTokens = thresholdTokens
+            self.inputCostPerTokenAboveThreshold = inputCostPerTokenAboveThreshold
+            self.outputCostPerTokenAboveThreshold = outputCostPerTokenAboveThreshold
+            self.cacheReadInputCostPerTokenAboveThreshold = cacheReadInputCostPerTokenAboveThreshold
+            self.priorityInputCostPerToken = priorityInputCostPerToken
+            self.priorityOutputCostPerToken = priorityOutputCostPerToken
+            self.priorityCacheReadInputCostPerToken = priorityCacheReadInputCostPerToken
+        }
     }
 
     struct ClaudePricing {
@@ -96,12 +132,22 @@ enum CostUsagePricing {
             inputCostPerToken: 2.5e-6,
             outputCostPerToken: 1.5e-5,
             cacheReadInputCostPerToken: 2.5e-7,
-            displayLabel: nil),
+            displayLabel: nil,
+            thresholdTokens: 272_000,
+            inputCostPerTokenAboveThreshold: 5e-6,
+            outputCostPerTokenAboveThreshold: 2.25e-5,
+            cacheReadInputCostPerTokenAboveThreshold: 5e-7,
+            priorityInputCostPerToken: 5e-6,
+            priorityOutputCostPerToken: 3e-5,
+            priorityCacheReadInputCostPerToken: 5e-7),
         "gpt-5.4-mini": CodexPricing(
             inputCostPerToken: 7.5e-7,
             outputCostPerToken: 4.5e-6,
             cacheReadInputCostPerToken: 7.5e-8,
-            displayLabel: nil),
+            displayLabel: nil,
+            priorityInputCostPerToken: 1.5e-6,
+            priorityOutputCostPerToken: 9e-6,
+            priorityCacheReadInputCostPerToken: 1.5e-7),
         "gpt-5.4-nano": CodexPricing(
             inputCostPerToken: 2e-7,
             outputCostPerToken: 1.25e-6,
@@ -116,7 +162,14 @@ enum CostUsagePricing {
             inputCostPerToken: 5e-6,
             outputCostPerToken: 3e-5,
             cacheReadInputCostPerToken: 5e-7,
-            displayLabel: nil),
+            displayLabel: nil,
+            thresholdTokens: 272_000,
+            inputCostPerTokenAboveThreshold: 1e-5,
+            outputCostPerTokenAboveThreshold: 4.5e-5,
+            cacheReadInputCostPerTokenAboveThreshold: 1e-6,
+            priorityInputCostPerToken: 1.25e-5,
+            priorityOutputCostPerToken: 7.5e-5,
+            priorityCacheReadInputCostPerToken: 1.25e-6),
         "gpt-5.5-pro": CodexPricing(
             inputCostPerToken: 3e-5,
             outputCostPerToken: 1.8e-4,
@@ -330,6 +383,7 @@ enum CostUsagePricing {
         {
             return self.codexCostUSD(
                 pricing: lookup.pricing,
+                thresholdTokens: self.codex[key]?.thresholdTokens,
                 inputTokens: inputTokens,
                 cachedInputTokens: cachedInputTokens,
                 outputTokens: outputTokens)
@@ -338,6 +392,33 @@ enum CostUsagePricing {
         guard let pricing = self.codex[key] else { return nil }
         return self.codexCostUSD(
             pricing: pricing,
+            inputTokens: inputTokens,
+            cachedInputTokens: cachedInputTokens,
+            outputTokens: outputTokens)
+    }
+
+    static func codexPriorityCostUSD(
+        model: String,
+        inputTokens: Int,
+        cachedInputTokens: Int = 0,
+        outputTokens: Int) -> Double?
+    {
+        let key = self.normalizeCodexModel(model)
+        guard let pricing = self.codex[key],
+              let priorityInputCostPerToken = pricing.priorityInputCostPerToken,
+              let priorityOutputCostPerToken = pricing.priorityOutputCostPerToken
+        else { return nil }
+        if max(0, inputTokens) > self.codexPriorityInputTokenLimit {
+            return nil
+        }
+
+        let priorityPricing = CodexPricing(
+            inputCostPerToken: priorityInputCostPerToken,
+            outputCostPerToken: priorityOutputCostPerToken,
+            cacheReadInputCostPerToken: pricing.priorityCacheReadInputCostPerToken,
+            displayLabel: nil)
+        return self.codexCostUSD(
+            pricing: priorityPricing,
             inputTokens: inputTokens,
             cachedInputTokens: cachedInputTokens,
             outputTokens: outputTokens)
@@ -352,13 +433,26 @@ enum CostUsagePricing {
         let cached = min(max(0, cachedInputTokens), max(0, inputTokens))
         let nonCached = max(0, inputTokens - cached)
         let cachedRate = pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
-        return Double(nonCached) * pricing.inputCostPerToken
-            + Double(cached) * cachedRate
-            + Double(max(0, outputTokens)) * pricing.outputCostPerToken
+
+        let useLongContextRates = pricing.thresholdTokens.map { max(0, inputTokens) > $0 } ?? false
+        let inputRate = useLongContextRates
+            ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
+            : pricing.inputCostPerToken
+        let cachedInputRate = useLongContextRates
+            ? pricing.cacheReadInputCostPerTokenAboveThreshold ?? cachedRate
+            : cachedRate
+        let outputRate = useLongContextRates
+            ? pricing.outputCostPerTokenAboveThreshold ?? pricing.outputCostPerToken
+            : pricing.outputCostPerToken
+
+        return Double(nonCached) * inputRate
+            + Double(cached) * cachedInputRate
+            + Double(max(0, outputTokens)) * outputRate
     }
 
     private static func codexCostUSD(
         pricing: ModelsDevPricingInfo,
+        thresholdTokens: Int? = nil,
         inputTokens: Int,
         cachedInputTokens: Int,
         outputTokens: Int) -> Double
@@ -368,7 +462,11 @@ enum CostUsagePricing {
                 inputCostPerToken: pricing.inputCostPerToken,
                 outputCostPerToken: pricing.outputCostPerToken,
                 cacheReadInputCostPerToken: pricing.cacheReadInputCostPerToken,
-                displayLabel: nil),
+                displayLabel: nil,
+                thresholdTokens: thresholdTokens ?? pricing.thresholdTokens,
+                inputCostPerTokenAboveThreshold: pricing.inputCostPerTokenAboveThreshold,
+                outputCostPerTokenAboveThreshold: pricing.outputCostPerTokenAboveThreshold,
+                cacheReadInputCostPerTokenAboveThreshold: pricing.cacheReadInputCostPerTokenAboveThreshold),
             inputTokens: inputTokens,
             cachedInputTokens: cachedInputTokens,
             outputTokens: outputTokens)

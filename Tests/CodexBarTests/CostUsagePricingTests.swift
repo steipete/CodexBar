@@ -69,6 +69,126 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `codex cost applies gpt54 and gpt55 long context tiers`() throws {
+        let root = try Self.cacheRoot()
+        let gpt54 = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.4",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+        let gpt55 = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+
+        #expect(gpt54 == (272_001.0 * 5e-6) + (10.0 * 2.25e-5))
+        #expect(gpt55 == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
+    }
+
+    @Test
+    func `codex cost keeps normal rates at long context input boundary`() throws {
+        let root = try Self.cacheRoot()
+        let gpt55 = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 272_000,
+            cachedInputTokens: 0,
+            outputTokens: 128_000,
+            modelsDevCacheRoot: root)
+
+        #expect(gpt55 == (272_000.0 * 5e-6) + (128_000.0 * 3e-5))
+    }
+
+    @Test
+    func `codex priority cost applies model specific fast rates`() {
+        let gpt54 = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.4",
+            inputTokens: 100,
+            cachedInputTokens: 20,
+            outputTokens: 10)
+        let gpt55 = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 100,
+            cachedInputTokens: 20,
+            outputTokens: 10)
+
+        #expect(gpt54 == (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5))
+        #expect(gpt55 == (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5))
+    }
+
+    @Test
+    func `codex priority cost is unavailable for long context requests`() {
+        let gpt55 = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10)
+        let gpt54Mini = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.4-mini",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10)
+
+        #expect(gpt55 == nil)
+        #expect(gpt54Mini == nil)
+    }
+
+    @Test
+    func `codex priority cost remains available at long context input boundary`() {
+        let gpt55 = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 272_000,
+            cachedInputTokens: 0,
+            outputTokens: 10)
+
+        #expect(gpt55 == (272_000.0 * 1.25e-5) + (10.0 * 7.5e-5))
+    }
+
+    @Test
+    func `codex models dev pricing uses codex long context threshold`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.5": {
+                "id": "gpt-5.5",
+                "cost": {
+                  "input": 5,
+                  "output": 30,
+                  "cache_read": 0.5,
+                  "context_over_200k": {
+                    "input": 10,
+                    "output": 45,
+                    "cache_read": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let atBoundary = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 272_000,
+            cachedInputTokens: 0,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+        let aboveBoundary = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+
+        #expect(atBoundary == (272_000.0 * 5e-6) + (10.0 * 3e-5))
+        #expect(aboveBoundary == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
+    }
+
+    @Test
     func `codex cost supports gpt55 pro bundled fallback`() throws {
         let root = try Self.cacheRoot()
         let cost = CostUsagePricing.codexCostUSD(
