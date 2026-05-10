@@ -102,25 +102,12 @@ public enum KeychainCacheStore {
             kSecAttrService as String: self.serviceName,
             kSecAttrAccount as String: key.account,
         ]
-        var updateAttrs: [String: Any] = [
-            kSecValueData as String: data,
-        ]
-        if let access = self.cacheAccessControl() {
-            updateAttrs[kSecAttrAccess as String] = access
-        }
 
-        let updateStatus = SecItemUpdate(query as CFDictionary, updateAttrs as CFDictionary)
+        let updateStatus = SecItemUpdate(
+            query as CFDictionary,
+            [kSecValueData as String: data] as CFDictionary)
         if updateStatus == errSecSuccess {
             return
-        }
-        if updateStatus != errSecItemNotFound, updateAttrs[kSecAttrAccess as String] != nil {
-            let dataOnlyStatus = SecItemUpdate(
-                query as CFDictionary,
-                [kSecValueData as String: data] as CFDictionary)
-            if dataOnlyStatus == errSecSuccess {
-                self.log.error("Keychain cache ACL update failed (\(key.account)): \(updateStatus)")
-                return
-            }
         }
         if updateStatus != errSecItemNotFound {
             self.log.error("Keychain cache update failed (\(key.account)): \(updateStatus)")

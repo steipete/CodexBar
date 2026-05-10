@@ -64,13 +64,47 @@ has_signing_identity() {
   security find-identity -p codesigning -v 2>/dev/null | grep -F "${identity}" >/dev/null 2>&1
 }
 
+detect_codesigning_identity() {
+  local preferred_prefixes=(
+    "Developer ID Application:"
+    "Apple Development:"
+    "Apple Distribution:"
+  )
+  local prefix
+  local identities
+  identities="$(security find-identity -p codesigning -v 2>/dev/null || true)"
+  for prefix in "${preferred_prefixes[@]}"; do
+    awk -v prefix="${prefix}" '
+      index($0, "\"" prefix) {
+        sub(/^[^\"]*\"/, "")
+        sub(/\".*$/, "")
+        print
+        exit
+      }
+    ' <<<"${identities}"
+  done | sed -n '1p'
+}
+
+export_team_id_from_identity() {
+  local identity="${1:-}"
+  if [[ -n "${APP_TEAM_ID:-}" || -z "${identity}" ]]; then
+    return
+  fi
+  if [[ "${identity}" =~ \(([A-Z0-9]{10})\)$ ]]; then
+    APP_TEAM_ID="${BASH_REMATCH[1]}"
+    export APP_TEAM_ID
+  fi
+}
+
 resolve_signing_mode() {
   if [[ -n "${SIGNING_MODE}" ]]; then
+    export_team_id_from_identity "${APP_IDENTITY:-}"
     return
   fi
 
   if [[ -n "${APP_IDENTITY:-}" ]]; then
     if has_signing_identity "${APP_IDENTITY}"; then
+      export_team_id_from_identity "${APP_IDENTITY}"
       SIGNING_MODE="identity"
       return
     fi
@@ -87,10 +121,20 @@ resolve_signing_mode() {
     if has_signing_identity "${candidate}"; then
       APP_IDENTITY="${candidate}"
       export APP_IDENTITY
+      export_team_id_from_identity "${APP_IDENTITY}"
       SIGNING_MODE="identity"
       return
     fi
   done
+
+  candidate="$(detect_codesigning_identity)"
+  if [[ -n "${candidate}" ]]; then
+    APP_IDENTITY="${candidate}"
+    export APP_IDENTITY
+    export_team_id_from_identity "${APP_IDENTITY}"
+    SIGNING_MODE="identity"
+    return
+  fi
 
   SIGNING_MODE="adhoc"
 }
