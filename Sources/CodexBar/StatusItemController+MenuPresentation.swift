@@ -168,3 +168,105 @@ struct MenuCardSectionContainerView<Content: View>: View {
             }
     }
 }
+
+@MainActor
+final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
+    private let backgroundView = NSView()
+    private let imageView = NSImageView()
+    private let titleField: NSTextField
+    private let shortcutField: NSTextField?
+    private let onClick: () -> Void
+
+    init(
+        title: String,
+        systemImageName: String?,
+        shortcutText: String?,
+        width: CGFloat,
+        onClick: @escaping () -> Void)
+    {
+        self.titleField = NSTextField(labelWithString: title)
+        self.shortcutField = shortcutText.map(NSTextField.init(labelWithString:))
+        self.onClick = onClick
+        super.init(frame: NSRect(origin: .zero, size: NSSize(width: width, height: 28)))
+        self.setupView(systemImageName: systemImageName)
+        self.setHighlighted(false)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard event.type == .leftMouseUp else { return }
+        self.onClick()
+    }
+
+    func setHighlighted(_ highlighted: Bool) {
+        let primaryColor = highlighted ? NSColor.selectedMenuItemTextColor : NSColor.controlTextColor
+        let secondaryColor = highlighted ? NSColor.selectedMenuItemTextColor : NSColor.secondaryLabelColor
+        self.backgroundView.isHidden = !highlighted
+        self.titleField.textColor = primaryColor
+        self.shortcutField?.textColor = secondaryColor
+        self.imageView.contentTintColor = primaryColor
+    }
+
+    private func setupView(systemImageName: String?) {
+        self.backgroundView.wantsLayer = true
+        self.backgroundView.layer?.cornerRadius = 6
+        self.backgroundView.layer?.backgroundColor = NSColor.selectedContentBackgroundColor.cgColor
+        self.backgroundView.translatesAutoresizingMaskIntoConstraints = false
+        self.addSubview(self.backgroundView)
+
+        if let systemImageName,
+           let image = NSImage(systemSymbolName: systemImageName, accessibilityDescription: nil)
+        {
+            image.isTemplate = true
+            image.size = NSSize(width: 16, height: 16)
+            self.imageView.image = image
+        }
+        self.imageView.translatesAutoresizingMaskIntoConstraints = false
+
+        self.titleField.font = NSFont.menuFont(ofSize: NSFont.systemFontSize)
+        self.titleField.lineBreakMode = .byTruncatingTail
+        self.titleField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        self.titleField.translatesAutoresizingMaskIntoConstraints = false
+
+        let spacer = NSView()
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let stack = NSStackView()
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.addArrangedSubview(self.imageView)
+        stack.addArrangedSubview(self.titleField)
+        stack.addArrangedSubview(spacer)
+        if let shortcutField {
+            shortcutField.font = NSFont.menuFont(ofSize: NSFont.smallSystemFontSize)
+            shortcutField.translatesAutoresizingMaskIntoConstraints = false
+            stack.addArrangedSubview(shortcutField)
+        }
+        self.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            self.backgroundView.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 6),
+            self.backgroundView.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -6),
+            self.backgroundView.topAnchor.constraint(equalTo: self.topAnchor, constant: 2),
+            self.backgroundView.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -2),
+
+            self.imageView.widthAnchor.constraint(equalToConstant: 18),
+            self.imageView.heightAnchor.constraint(equalToConstant: 18),
+
+            stack.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -12),
+            stack.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+        ])
+    }
+}

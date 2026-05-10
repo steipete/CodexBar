@@ -33,6 +33,10 @@ extension SettingsStore {
         }
     }
 
+    var opencodegoDashboardURL: URL {
+        OpenCodeGoUsageFetcher.dashboardURL(workspaceID: self.opencodegoWorkspaceID)
+    }
+
     func ensureOpenCodeGoCookieLoaded() {}
 }
 

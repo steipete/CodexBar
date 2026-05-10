@@ -75,10 +75,16 @@ enum ProviderChoice: String, AppEnum {
         case .synthetic: return nil // Synthetic not yet supported in widgets
         case .openrouter: return nil // OpenRouter not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets
+        case .windsurf: return nil // Windsurf not yet supported in widgets
         case .perplexity: return nil // Perplexity not yet supported in widgets
         case .abacus: return nil // Abacus AI not yet supported in widgets
         case .mistral: return nil // Mistral not yet supported in widgets
         case .deepseek: return nil // DeepSeek not yet supported in widgets
+        case .codebuff: return nil // Codebuff not yet supported in widgets
+        case .crof: return nil // Crof not yet supported in widgets
+        case .venice: return nil // Venice not yet supported in widgets
+        case .commandcode: return nil // CommandCode not yet supported in widgets
+        case .stepfun: return nil // StepFun not yet supported in widgets
         }
     }
 }

@@ -22,12 +22,14 @@ In `../homebrew-tap`, add/update the cask at `Casks/codexbar.rb`:
 - Update `sha256` to match that zip.
 - Keep `depends_on arch: :arm64` and `depends_on macos: ">= :sonoma"` (CodexBar is macOS 14+).
 
-## 2b) Update the Homebrew tap formula (Linux CLI)
+## 2b) Update the Homebrew tap formula (CLI)
 In `../homebrew-tap`, add/update the formula at `Formula/codexbar.rb`:
 - `url` points at the GitHub release assets:
-  - `.../releases/download/v<version>/CodexBarCLI-v<version>-linux-aarch64.tar.gz`
-  - `.../releases/download/v<version>/CodexBarCLI-v<version>-linux-x86_64.tar.gz`
-- Update both `sha256` values to match those tarballs.
+  - macOS: `.../releases/download/v<version>/CodexBarCLI-v<version>-macos-arm64.tar.gz`
+  - macOS: `.../releases/download/v<version>/CodexBarCLI-v<version>-macos-x86_64.tar.gz`
+  - Linux: `.../releases/download/v<version>/CodexBarCLI-v<version>-linux-aarch64.tar.gz`
+  - Linux: `.../releases/download/v<version>/CodexBarCLI-v<version>-linux-x86_64.tar.gz`
+- Update all `sha256` values to match those tarballs.
 
 ## 3) Verify install
 ```sh

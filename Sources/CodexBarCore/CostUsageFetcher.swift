@@ -58,7 +58,6 @@ public struct CostUsageFetcher: Sendable {
         }
         if forceRefresh {
             options.refreshMinIntervalSeconds = 0
-            options.forceRescan = true
         }
         var daily = CostUsageScanner.loadDailyReport(
             provider: provider,
@@ -89,7 +88,6 @@ public struct CostUsageFetcher: Sendable {
             }
             if forceRefresh {
                 piOptions.refreshMinIntervalSeconds = 0
-                piOptions.forceRescan = true
             }
             let piReport = PiSessionCostScanner.loadDailyReport(
                 provider: provider,

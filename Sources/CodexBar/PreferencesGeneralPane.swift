@@ -7,13 +7,15 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case english = "en"
     case chineseSimplified = "zh-Hans"
 
-    var id: String { self.rawValue }
+    var id: String {
+        self.rawValue
+    }
 
     var label: String {
         switch self {
-        case .system: return L("language_system")
-        case .english: return L("language_english")
-        case .chineseSimplified: return L("language_chinese_simplified")
+        case .system: L("language_system")
+        case .english: L("language_english")
+        case .chineseSimplified: L("language_chinese_simplified")
         }
     }
 }
@@ -133,6 +135,13 @@ struct GeneralPane: View {
                         title: L("session_quota_notifications_title"),
                         subtitle: L("session_quota_notifications_subtitle"),
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
+                    PreferenceToggleRow(
+                        title: "Quota warning notifications",
+                        subtitle: "Warns when session or weekly quota remaining crosses configured thresholds.",
+                        binding: self.$settings.quotaWarningNotificationsEnabled)
+                    if self.settings.quotaWarningNotificationsEnabled {
+                        GlobalQuotaWarningSettingsView(settings: self.settings)
+                    }
                 }
 
                 Divider()
@@ -189,6 +198,7 @@ struct GeneralPane: View {
         }
         if let lastAttempt = self.store.tokenLastAttemptAt(for: provider) {
             let rel = RelativeDateTimeFormatter()
+            rel.locale = Locale(identifier: "en_US")
             rel.unitsStyle = .abbreviated
             let when = rel.localizedString(for: lastAttempt, relativeTo: Date())
             return Text(String(format: L("cost_status_last_attempt"), name, when))

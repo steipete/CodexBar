@@ -87,10 +87,10 @@ extension CodexBarCLI {
         output: CLIOutputPreferences? = nil,
         kind: CLIErrorKind = .runtime) -> Never
     {
-        if code != .success {
+        if self.shouldPrintExitError(code: code, message: message) {
             if let output, output.usesJSONOutput {
                 let payload = self.makeCLIErrorPayload(
-                    message: message ?? "Error",
+                    message: message ?? "",
                     code: code,
                     kind: kind,
                     pretty: output.pretty)
@@ -102,6 +102,10 @@ extension CodexBarCLI {
             }
         }
         platformExit(code.rawValue)
+    }
+
+    static func shouldPrintExitError(code: ExitCode, message: String?) -> Bool {
+        code != .success && message != nil
     }
 
     static func printError(_ error: Error, output: CLIOutputPreferences, kind: CLIErrorKind = .runtime) {

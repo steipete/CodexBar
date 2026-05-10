@@ -8,7 +8,7 @@ import Testing
 struct StatusMenuCodexSwitcherTests {
     private func disableMenuCardsForTesting() {
         StatusItemController.menuCardRenderingEnabled = false
-        StatusItemController.menuRefreshEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
     }
 
     private func makeSettings() -> SettingsStore {

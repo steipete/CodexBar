@@ -195,6 +195,117 @@ public struct FactoryTokenUsage: Codable, Sendable {
     public let orgOverageLimit: Int64?
 }
 
+public struct FactoryBillingLimitsResponse: Codable, Sendable {
+    public let usesTokenRateLimitsBilling: Bool
+    public let limits: FactoryTokenRateLimits?
+    public let extraUsageBalanceCents: Int
+    public let overagePreference: String?
+    public let extraUsageAllowed: Bool
+    public let tokenRateLimitsRolloutEligible: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case usesTokenRateLimitsBilling
+        case limits
+        case extraUsageBalanceCents
+        case overagePreference
+        case extraUsageAllowed
+        case tokenRateLimitsRolloutEligible
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.usesTokenRateLimitsBilling = try container
+            .decodeIfPresent(Bool.self, forKey: .usesTokenRateLimitsBilling) ?? false
+        self.limits = try container.decodeIfPresent(FactoryTokenRateLimits.self, forKey: .limits)
+        self.extraUsageBalanceCents = try container.decodeIfPresent(Int.self, forKey: .extraUsageBalanceCents) ?? 0
+        self.overagePreference = try container.decodeIfPresent(String.self, forKey: .overagePreference)
+        self.extraUsageAllowed = try container.decodeIfPresent(Bool.self, forKey: .extraUsageAllowed) ?? false
+        self.tokenRateLimitsRolloutEligible = try container
+            .decodeIfPresent(Bool.self, forKey: .tokenRateLimitsRolloutEligible) ?? false
+    }
+}
+
+public struct FactoryTokenRateLimits: Codable, Sendable {
+    public let standard: FactoryLimitPool
+    public let core: FactoryLimitPool?
+}
+
+public struct FactoryLimitPool: Codable, Sendable {
+    public let fiveHour: FactoryBillingWindow
+    public let weekly: FactoryBillingWindow
+    public let monthly: FactoryBillingWindow
+
+    public var hasUsageData: Bool {
+        [self.fiveHour, self.weekly, self.monthly].contains {
+            $0.usedPercent > 0 || $0.windowEnd != nil || $0.secondsRemaining != nil
+        }
+    }
+}
+
+public struct FactoryBillingWindow: Codable, Sendable {
+    public let usedPercent: Double
+    public let windowEnd: FlexibleFactoryDate?
+    public let secondsRemaining: Double?
+
+    public func resetAt(now: Date) -> Date? {
+        if let secondsRemaining, secondsRemaining > 0 {
+            return now.addingTimeInterval(secondsRemaining)
+        }
+        guard let windowEnd = self.windowEnd?.date, windowEnd > now else {
+            return nil
+        }
+        return windowEnd
+    }
+
+    public func effectiveUsedPercent(now: Date) -> Double {
+        // Factory can leave stale values after short rolling windows expire. The web UI treats
+        // that state as reset, so mirror it here instead of showing expired usage.
+        if self.resetAt(now: now) == nil, self.windowEnd != nil, self.secondsRemaining == nil {
+            return 0
+        }
+        return min(100, max(0, self.usedPercent))
+    }
+
+    public func rateWindow(windowMinutes: Int?, title: String, now: Date) -> RateWindow {
+        let reset = self.resetAt(now: now)
+        return RateWindow(
+            usedPercent: self.effectiveUsedPercent(now: now),
+            windowMinutes: windowMinutes,
+            resetsAt: reset,
+            resetDescription: reset.map { FactoryStatusSnapshot.formatResetDate($0) })
+    }
+}
+
+public struct FlexibleFactoryDate: Codable, Sendable {
+    public let date: Date
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let seconds = try? container.decode(Double.self) {
+            self.date = Date(timeIntervalSince1970: seconds > 1e12 ? seconds / 1000.0 : seconds)
+            return
+        }
+        let string = try container.decode(String.self)
+        if let numeric = Double(string) {
+            self.date = Date(timeIntervalSince1970: numeric > 1e12 ? numeric / 1000.0 : numeric)
+            return
+        }
+
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = fractional.date(from: string) ?? ISO8601DateFormatter().date(from: string) {
+            self.date = parsed
+            return
+        }
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid Factory date")
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(self.date)
+    }
+}
+
 /// Helper for encoding arbitrary JSON
 public struct AnyCodable: Codable, Sendable {
     public init(from decoder: Decoder) throws {
@@ -248,6 +359,10 @@ public struct FactoryStatusSnapshot: Sendable {
     public let userId: String?
     /// Raw JSON for debugging
     public let rawJSON: String?
+    /// New Factory token-rate-limits billing payload, when enabled for the account.
+    public let tokenRateLimits: FactoryTokenRateLimits?
+    public let extraUsageBalanceCents: Int?
+    public let overagePreference: String?
 
     public init(
         standardUserTokens: Int64,
@@ -265,7 +380,10 @@ public struct FactoryStatusSnapshot: Sendable {
         organizationName: String?,
         accountEmail: String?,
         userId: String?,
-        rawJSON: String?)
+        rawJSON: String?,
+        tokenRateLimits: FactoryTokenRateLimits? = nil,
+        extraUsageBalanceCents: Int? = nil,
+        overagePreference: String? = nil)
     {
         self.standardUserTokens = standardUserTokens
         self.standardOrgTokens = standardOrgTokens
@@ -283,10 +401,17 @@ public struct FactoryStatusSnapshot: Sendable {
         self.accountEmail = accountEmail
         self.userId = userId
         self.rawJSON = rawJSON
+        self.tokenRateLimits = tokenRateLimits
+        self.extraUsageBalanceCents = extraUsageBalanceCents
+        self.overagePreference = overagePreference
     }
 
     /// Convert to UsageSnapshot for the common provider interface
     public func toUsageSnapshot() -> UsageSnapshot {
+        if let tokenRateLimits {
+            return self.tokenRateLimitsUsageSnapshot(from: tokenRateLimits)
+        }
+
         // Primary: Standard tokens used (as percentage of allowance, capped reasonably)
         let standardPercent = self.calculateUsagePercent(
             used: self.standardUserTokens,
@@ -337,12 +462,75 @@ public struct FactoryStatusSnapshot: Sendable {
             identity: identity)
     }
 
+    private func tokenRateLimitsUsageSnapshot(from limits: FactoryTokenRateLimits) -> UsageSnapshot {
+        let now = Date()
+        let primary = limits.standard.fiveHour.rateWindow(windowMinutes: 5 * 60, title: "5h", now: now)
+        let secondary = limits.standard.weekly.rateWindow(windowMinutes: 7 * 24 * 60, title: "7-day", now: now)
+        let tertiary = limits.standard.monthly.rateWindow(windowMinutes: nil, title: "Monthly", now: now)
+
+        let coreWindows: [NamedRateWindow]? = if let core = limits.core, core.hasUsageData {
+            [
+                NamedRateWindow(
+                    id: "factory-core-5h",
+                    title: "Core 5h",
+                    window: core.fiveHour.rateWindow(windowMinutes: 5 * 60, title: "Core 5h", now: now)),
+                NamedRateWindow(
+                    id: "factory-core-7d",
+                    title: "Core 7-day",
+                    window: core.weekly.rateWindow(windowMinutes: 7 * 24 * 60, title: "Core 7-day", now: now)),
+                NamedRateWindow(
+                    id: "factory-core-monthly",
+                    title: "Core Monthly",
+                    window: core.monthly.rateWindow(windowMinutes: nil, title: "Core Monthly", now: now)),
+            ]
+        } else {
+            nil
+        }
+
+        let loginMethod: String? = {
+            var parts: [String] = []
+            if let tier = self.tier, !tier.isEmpty {
+                parts.append("Factory \(tier.capitalized)")
+            }
+            if let plan = self.planName, !plan.isEmpty, !plan.lowercased().contains("factory") {
+                parts.append(plan)
+            }
+            if let overagePreference, !overagePreference.isEmpty {
+                parts.append("Fallback: \(overagePreference)")
+            }
+            return parts.isEmpty ? nil : parts.joined(separator: " - ")
+        }()
+
+        let identity = ProviderIdentitySnapshot(
+            providerID: .factory,
+            accountEmail: self.accountEmail,
+            accountOrganization: self.organizationName,
+            loginMethod: loginMethod)
+        let providerCost = self.extraUsageBalanceCents.map {
+            ProviderCostSnapshot(
+                used: Double($0) / 100.0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Extra usage balance",
+                updatedAt: now)
+        }
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
+            extraRateWindows: coreWindows,
+            providerCost: providerCost,
+            updatedAt: now,
+            identity: identity)
+    }
+
     private func calculateUsagePercent(used: Int64, allowance: Int64, apiRatio: Double?) -> Double {
         // Prefer API-provided ratio when available and valid.
         // This handles plan-specific limits correctly on the server side,
         // avoiding issues with missing/sentinel values in totalAllowance.
         let unlimitedThreshold: Int64 = 1_000_000_000_000
         if let ratio = apiRatio,
+           !(ratio == 0 && used > 0 && allowance > 0 && allowance <= unlimitedThreshold),
            let percent = Self.percentFromAPIRatio(ratio, allowance: allowance, unlimitedThreshold: unlimitedThreshold)
         {
             return percent
@@ -383,7 +571,7 @@ public struct FactoryStatusSnapshot: Sendable {
         return nil
     }
 
-    private static func formatResetDate(_ date: Date) -> String {
+    static func formatResetDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d 'at' h:mma"
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -1025,6 +1213,19 @@ public struct FactoryStatusProbe: Sendable {
         // Extract user ID from JWT in the auth response or use a default endpoint
         let userId = self.extractUserIdFromAuth(authInfo)
 
+        if let billingLimits = try await self.fetchBillingLimitsIfAvailable(
+            cookieHeader: cookieHeader,
+            bearerToken: bearerToken),
+            billingLimits.usesTokenRateLimitsBilling,
+            let tokenRateLimits = billingLimits.limits
+        {
+            return self.buildTokenRateLimitsSnapshot(
+                authInfo: authInfo,
+                billingLimits: billingLimits,
+                tokenRateLimits: tokenRateLimits,
+                userId: userId)
+        }
+
         // Fetch usage data
         let usageData = try await self.fetchUsage(
             cookieHeader: cookieHeader,
@@ -1033,6 +1234,45 @@ public struct FactoryStatusProbe: Sendable {
             baseURL: baseURL)
 
         return self.buildSnapshot(authInfo: authInfo, usageData: usageData, userId: userId)
+    }
+
+    private func fetchBillingLimitsIfAvailable(
+        cookieHeader: String,
+        bearerToken: String?) async throws -> FactoryBillingLimitsResponse?
+    {
+        let url = Self.apiBaseURL.appendingPathComponent("/api/billing/limits")
+        var request = URLRequest(url: url)
+        request.timeoutInterval = self.timeout
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("https://app.factory.ai", forHTTPHeaderField: "Origin")
+        request.setValue("https://app.factory.ai/", forHTTPHeaderField: "Referer")
+        request.setValue("web-app", forHTTPHeaderField: "x-factory-client")
+        if !cookieHeader.isEmpty {
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        }
+        if let bearerToken {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            return nil
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            return nil
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(FactoryBillingLimitsResponse.self, from: data)
     }
 
     private func fetchAuthInfo(
@@ -1385,6 +1625,34 @@ public struct FactoryStatusProbe: Sendable {
             accountEmail: nil, // Email is in JWT, not in auth response body
             userId: userId ?? usageData.userId,
             rawJSON: nil)
+    }
+
+    private func buildTokenRateLimitsSnapshot(
+        authInfo: FactoryAuthResponse,
+        billingLimits: FactoryBillingLimitsResponse,
+        tokenRateLimits: FactoryTokenRateLimits,
+        userId: String?) -> FactoryStatusSnapshot
+    {
+        FactoryStatusSnapshot(
+            standardUserTokens: 0,
+            standardOrgTokens: 0,
+            standardAllowance: 0,
+            standardUsedRatio: nil,
+            premiumUserTokens: 0,
+            premiumOrgTokens: 0,
+            premiumAllowance: 0,
+            premiumUsedRatio: nil,
+            periodStart: nil,
+            periodEnd: nil,
+            planName: authInfo.organization?.subscription?.orbSubscription?.plan?.name,
+            tier: authInfo.organization?.subscription?.factoryTier,
+            organizationName: authInfo.organization?.name,
+            accountEmail: nil,
+            userId: userId,
+            rawJSON: nil,
+            tokenRateLimits: tokenRateLimits,
+            extraUsageBalanceCents: billingLimits.extraUsageBalanceCents,
+            overagePreference: billingLimits.overagePreference)
     }
 }
 

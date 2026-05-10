@@ -22,6 +22,52 @@ struct CodexActiveSourceConfigTests {
             from: Data(legacyJSON.utf8))
 
         #expect(decoded.providerConfig(for: .codex)?.codexActiveSource == nil)
+        #expect(decoded.providerConfig(for: .codex)?.quotaWarnings == nil)
+    }
+
+    @Test
+    func `provider config round trips quota warning overrides`() throws {
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .codex,
+                    quotaWarnings: QuotaWarningConfig(
+                        session: QuotaWarningWindowConfig(thresholds: [10]),
+                        weekly: QuotaWarningWindowConfig(thresholds: [50, 20]))),
+            ])
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: data)
+        let quotaWarnings = try #require(decoded.providerConfig(for: .codex)?.quotaWarnings)
+
+        #expect(quotaWarnings.thresholds(for: .session, global: [80]) == [10])
+        #expect(quotaWarnings.thresholds(for: .weekly, global: [80]) == [50, 20])
+    }
+
+    @Test
+    func `quota warning window enabled defaults stay backward compatible`() throws {
+        let legacyJSON = """
+        {
+            "version": 1,
+            "providers": [
+                {
+                    "id": "codex",
+                    "quotaWarnings": {
+                        "session": { "thresholds": [10] },
+                        "weekly": { "enabled": false }
+                    }
+                }
+            ]
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: Data(legacyJSON.utf8))
+        let quotaWarnings = try #require(decoded.providerConfig(for: .codex)?.quotaWarnings)
+
+        #expect(quotaWarnings.isEnabled(for: .session, global: false) == true)
+        #expect(quotaWarnings.isEnabled(for: .weekly, global: true) == false)
+        #expect(quotaWarnings.hasOverride(for: .session) == true)
+        #expect(quotaWarnings.hasOverride(for: .weekly) == true)
     }
 
     @Test

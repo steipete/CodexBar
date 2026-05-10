@@ -1,6 +1,9 @@
 import CodexBarCore
 import Foundation
 @testable import CodexBar
+#if os(macOS)
+import AppKit
+#endif
 
 final class InMemoryCookieHeaderStore: CookieHeaderStoring, @unchecked Sendable {
     var value: String?
@@ -132,6 +135,48 @@ func testConfigStore(suiteName: String, reset: Bool = true) -> CodexBarConfigSto
     }
     return CodexBarConfigStore(fileURL: url)
 }
+
+#if os(macOS)
+@MainActor
+@discardableResult
+func withStatusItemControllerForTesting<T>(
+    store: UsageStore,
+    settings: SettingsStore,
+    fetcher: UsageFetcher,
+    statusBar: NSStatusBar = .system,
+    operation: (StatusItemController) throws -> T) rethrows -> T
+{
+    let controller = StatusItemController(
+        store: store,
+        settings: settings,
+        account: fetcher.loadAccountInfo(),
+        updater: DisabledUpdaterController(),
+        preferencesSelection: PreferencesSelection(),
+        statusBar: statusBar)
+    defer { controller.releaseStatusItemsForTesting() }
+    return try operation(controller)
+}
+
+@MainActor
+@discardableResult
+func withStatusItemControllerForTesting<T>(
+    store: UsageStore,
+    settings: SettingsStore,
+    fetcher: UsageFetcher,
+    statusBar: NSStatusBar = .system,
+    operation: (StatusItemController) async throws -> T) async rethrows -> T
+{
+    let controller = StatusItemController(
+        store: store,
+        settings: settings,
+        account: fetcher.loadAccountInfo(),
+        updater: DisabledUpdaterController(),
+        preferencesSelection: PreferencesSelection(),
+        statusBar: statusBar)
+    defer { controller.releaseStatusItemsForTesting() }
+    return try await operation(controller)
+}
+#endif
 
 func testPlanUtilizationHistoryStore(suiteName: String, reset: Bool = true) -> PlanUtilizationHistoryStore {
     let sanitized = suiteName.replacingOccurrences(of: "/", with: "-")

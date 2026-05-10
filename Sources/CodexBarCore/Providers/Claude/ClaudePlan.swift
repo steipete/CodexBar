@@ -50,6 +50,11 @@ public enum ClaudePlan: String, CaseIterable, Sendable {
         self.fromRateLimitTier(rateLimitTier)
     }
 
+    public static func fromOAuthCredentials(subscriptionType: String?, rateLimitTier: String?) -> Self? {
+        self.fromCompatibilityLoginMethod(subscriptionType)
+            ?? self.fromOAuthRateLimitTier(rateLimitTier)
+    }
+
     public static func fromWebAccount(rateLimitTier: String?, billingType: String?) -> Self? {
         if let plan = self.fromRateLimitTier(rateLimitTier) {
             return plan
@@ -88,6 +93,12 @@ public enum ClaudePlan: String, CaseIterable, Sendable {
 
     public static func oauthLoginMethod(rateLimitTier: String?) -> String? {
         self.fromOAuthRateLimitTier(rateLimitTier)?.brandedLoginMethod
+    }
+
+    public static func oauthLoginMethod(subscriptionType: String?, rateLimitTier: String?) -> String? {
+        self.fromOAuthCredentials(
+            subscriptionType: subscriptionType,
+            rateLimitTier: rateLimitTier)?.brandedLoginMethod
     }
 
     public static func webLoginMethod(rateLimitTier: String?, billingType: String?) -> String? {

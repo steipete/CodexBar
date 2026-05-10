@@ -9,14 +9,20 @@ struct GeminiTestEnvironment {
 
     let homeURL: URL
     private let geminiDir: URL
+    private let antigravityDir: URL
 
     init() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let geminiDir = root.appendingPathComponent(".gemini")
         try FileManager.default.createDirectory(at: geminiDir, withIntermediateDirectories: true)
+        let antigravityDir = root
+            .appendingPathComponent(".codexbar")
+            .appendingPathComponent("antigravity")
+        try FileManager.default.createDirectory(at: antigravityDir, withIntermediateDirectories: true)
         self.homeURL = root
         self.geminiDir = geminiDir
+        self.antigravityDir = antigravityDir
     }
 
     func cleanup() {
@@ -48,6 +54,37 @@ struct GeminiTestEnvironment {
 
     func readCredentials() throws -> [String: Any] {
         let url = self.geminiDir.appendingPathComponent("oauth_creds.json")
+        let data = try Data(contentsOf: url)
+        let object = try JSONSerialization.jsonObject(with: data)
+        return object as? [String: Any] ?? [:]
+    }
+
+    func writeAntigravityCredentials(
+        accessToken: String,
+        refreshToken: String?,
+        expiry: Date,
+        idToken: String? = nil,
+        email: String? = nil,
+        projectID: String? = nil,
+        clientID: String? = nil,
+        clientSecret: String? = nil) throws
+    {
+        var payload: [String: Any] = [
+            "access_token": accessToken,
+            "expiry_date": expiry.timeIntervalSince1970 * 1000,
+        ]
+        if let refreshToken { payload["refresh_token"] = refreshToken }
+        if let idToken { payload["id_token"] = idToken }
+        if let email { payload["email"] = email }
+        if let projectID { payload["project_id"] = projectID }
+        if let clientID { payload["client_id"] = clientID }
+        if let clientSecret { payload["client_secret"] = clientSecret }
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        try data.write(to: self.antigravityDir.appendingPathComponent("oauth_creds.json"), options: .atomic)
+    }
+
+    func readAntigravityCredentials() throws -> [String: Any] {
+        let url = self.antigravityDir.appendingPathComponent("oauth_creds.json")
         let data = try Data(contentsOf: url)
         let object = try JSONSerialization.jsonObject(with: data)
         return object as? [String: Any] ?? [:]

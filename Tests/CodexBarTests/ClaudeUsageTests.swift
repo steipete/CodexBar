@@ -882,6 +882,47 @@ struct ClaudeUsageTests {
     }
 }
 
+struct ClaudeOAuthUsageMappingTests {
+    @Test
+    func `oauth usage falls back to weekly window when five hour is absent`() throws {
+        let json = """
+        {
+          "seven_day": { "utilization": 42, "resets_at": "2025-12-29T23:00:00.000Z" },
+          "seven_day_sonnet": { "utilization": 17, "resets_at": "2025-12-29T23:00:00.000Z" }
+        }
+        """
+        let snapshot = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+
+        #expect(snapshot.primary.usedPercent == 42)
+        #expect(snapshot.primary.windowMinutes == 7 * 24 * 60)
+        #expect(snapshot.secondary?.usedPercent == 42)
+        #expect(snapshot.opus?.usedPercent == 17)
+    }
+
+    @Test
+    func `oauth usage falls back when five hour has no utilization`() throws {
+        let json = """
+        {
+          "five_hour": { "resets_at": "2025-12-23T16:00:00.000Z" },
+          "seven_day": { "utilization": 9, "resets_at": "2025-12-29T23:00:00.000Z" }
+        }
+        """
+        let snapshot = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+
+        #expect(snapshot.primary.usedPercent == 9)
+        #expect(snapshot.primary.windowMinutes == 7 * 24 * 60)
+    }
+
+    @Test
+    func `oauth usage throws when no usable windows are present`() {
+        let json = "{}"
+
+        #expect(throws: ClaudeUsageError.self) {
+            try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        }
+    }
+}
+
 @Suite(.serialized)
 struct ClaudeAutoFetcherCharacterizationTests {
     private final class RequestLog: @unchecked Sendable {

@@ -439,6 +439,9 @@
 "unsafe_managed_home" = "CodexBar refused to modify an unexpected managed home path: %@";
 "menu_bar_metric_title" = "Menu bar metric";
 "menu_bar_metric_subtitle" = "Choose which window drives the menu bar percent.";
+"menu_bar_metric_subtitle_deepseek" = "Shows the DeepSeek balance in the menu bar.";
+"menu_bar_metric_subtitle_mistral" = "Shows current-month Mistral API spend in the menu bar.";
+"menu_bar_metric_subtitle_kimik2" = "Shows Kimi K2 API-key credits in the menu bar.";
 "automatic" = "Automatic";
 "primary_api_key_limit" = "Primary (API key limit)";
 
@@ -532,7 +535,8 @@
 "openai_cookies_caption" = "Cookie import + WebKit scrape logs from the last OpenAI cookies attempt.";
 "no_log_yet" = "No log yet. Update OpenAI cookies in Providers → Codex to run an import.";
 "section_caches" = "Caches";
-"caches_caption" = "Clear cached cost scan results.";
+"caches_caption" = "Clear cached cost scan results or browser cookie caches.";
+"clear_cookie_cache" = "Clear cookie cache";
 "clear_cost_cache" = "Clear cost cache";
 "section_notifications" = "Notifications";
 "notifications_caption" = "Trigger test notifications for the 5-hour session window (depleted/restored).";

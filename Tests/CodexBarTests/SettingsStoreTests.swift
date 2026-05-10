@@ -112,6 +112,32 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `provider storage setting defaults off and persists`() throws {
+        let suite = "SettingsStoreTests-provider-storage"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.providerStorageFootprintsEnabled == false)
+        #expect(defaultsA.bool(forKey: "providerStorageFootprintsEnabled") == false)
+        storeA.providerStorageFootprintsEnabled = true
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.providerStorageFootprintsEnabled == true)
+    }
+
+    @Test
     func `persists selected menu provider across instances`() throws {
         let suite = "SettingsStoreTests-selectedMenuProvider"
         let defaultsA = try #require(UserDefaults(suiteName: suite))
@@ -489,6 +515,121 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
         #expect(store.sessionQuotaNotificationsEnabled == true)
         #expect(defaults.bool(forKey: key) == true)
+    }
+
+    @Test
+    func `defaults quota warnings to disabled with global thresholds and sound`() throws {
+        let suite = "SettingsStoreTests-quota-warning-defaults"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.quotaWarningNotificationsEnabled == false)
+        #expect(store.quotaWarningThresholds == [50, 20])
+        #expect(store.quotaWarningWindowEnabled(.session) == true)
+        #expect(store.quotaWarningWindowEnabled(.weekly) == true)
+        #expect(store.quotaWarningSoundEnabled == true)
+        #expect(defaults.array(forKey: "quotaWarningThresholds") as? [Int] == [50, 20])
+        #expect(defaults.object(forKey: "quotaWarningSessionEnabled") as? Bool == true)
+        #expect(defaults.object(forKey: "quotaWarningWeeklyEnabled") as? Bool == true)
+        #expect(defaults.bool(forKey: "quotaWarningSoundEnabled") == true)
+    }
+
+    @Test
+    func `global quota warning windows persist independently`() throws {
+        let suite = "SettingsStoreTests-quota-warning-window-enabled"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        store.setQuotaWarningWindowEnabled(.weekly, enabled: false)
+
+        #expect(store.quotaWarningWindowEnabled(.session) == true)
+        #expect(store.quotaWarningWindowEnabled(.weekly) == false)
+        #expect(defaults.object(forKey: "quotaWarningWeeklyEnabled") as? Bool == false)
+    }
+
+    @Test
+    func `sanitizes invalid quota warning thresholds from defaults`() throws {
+        let suite = "SettingsStoreTests-quota-warning-sanitize"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set([120, 20, 20, -5, 50], forKey: "quotaWarningThresholds")
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.quotaWarningThresholds == [99, 50, 20, 0])
+        #expect(defaults.array(forKey: "quotaWarningThresholds") as? [Int] == [99, 50, 20, 0])
+    }
+
+    @Test
+    func `quota warning threshold pair resolves blanks and clamps bounds`() {
+        #expect(QuotaWarningThresholds.resolved(upper: nil, lower: nil) == [50, 20])
+        #expect(QuotaWarningThresholds.resolved(upper: nil, lower: 10) == [50, 10])
+        #expect(QuotaWarningThresholds.resolved(upper: 10, lower: nil) == [10, 0])
+        #expect(QuotaWarningThresholds.resolved(upper: 120, lower: -5) == [99, 0])
+    }
+
+    @Test
+    func `provider quota warning override resolves before global thresholds`() throws {
+        let suite = "SettingsStoreTests-quota-warning-provider-override"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        store.quotaWarningThresholds = [50, 20]
+
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [50, 20])
+        store.setQuotaWarningThresholds(provider: .codex, window: .session, thresholds: [10])
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [10])
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .weekly) == [50, 20])
+
+        store.setQuotaWarningThresholds(provider: .codex, window: .session, thresholds: nil)
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [50, 20])
+    }
+
+    @Test
+    func `provider quota warning windows override global enablement independently`() throws {
+        let suite = "SettingsStoreTests-quota-warning-provider-window-override"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        store.setQuotaWarningWindowEnabled(.weekly, enabled: false)
+        #expect(store.quotaWarningEnabled(provider: .codex, window: .weekly) == false)
+
+        store.setQuotaWarningWindowEnabled(provider: .codex, window: .weekly, enabled: true)
+        store.setQuotaWarningWindowEnabled(provider: .codex, window: .session, enabled: false)
+        #expect(store.quotaWarningEnabled(provider: .codex, window: .weekly) == true)
+        #expect(store.quotaWarningEnabled(provider: .codex, window: .session) == false)
+        #expect(store.hasQuotaWarningOverride(provider: .codex, window: .weekly) == true)
+        #expect(store.hasQuotaWarningOverride(provider: .codex, window: .session) == true)
+
+        store.setQuotaWarningWindowEnabled(provider: .codex, window: .weekly, enabled: nil)
+        #expect(store.quotaWarningEnabled(provider: .codex, window: .weekly) == false)
     }
 
     @Test
@@ -936,10 +1077,16 @@ struct SettingsStoreTests {
             .synthetic,
             .warp,
             .openrouter,
+            .windsurf,
             .perplexity,
             .abacus,
             .mistral,
             .deepseek,
+            .codebuff,
+            .crof,
+            .venice,
+            .commandcode,
+            .stepfun,
         ])
 
         // Move one provider; ensure it's persisted across instances.

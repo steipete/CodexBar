@@ -782,7 +782,9 @@ extension UsageStore {
         if status.localizedCaseInsensitiveContains("openai cookies are for") {
             return "\(status) Switch chatgpt.com account, then refresh OpenAI cookies."
         }
-        if status.localizedCaseInsensitiveContains("no signed-in openai web session found") {
+        if status.localizedCaseInsensitiveContains("no signed-in openai web session found")
+            || status.localizedCaseInsensitiveContains("no matching openai web session found")
+        {
             let targetLabel = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
             let accountLabel = (targetLabel?.isEmpty == false) ? targetLabel! : "your OpenAI account"
             return "\(status) Sign in to chatgpt.com as \(accountLabel), then refresh OpenAI cookies."
@@ -1279,7 +1281,7 @@ extension UsageStore {
 
         let foundLabel: String = switch normalizedFound.count {
         case 0:
-            "another account"
+            ""
         case 1:
             normalizedFound[0]
         case 2:
@@ -1289,6 +1291,12 @@ extension UsageStore {
         }
 
         let targetLabel = targetEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedFound.isEmpty {
+            guard let targetLabel, !targetLabel.isEmpty else {
+                return "No matching OpenAI web session found."
+            }
+            return "No matching OpenAI web session found for \(targetLabel)."
+        }
         guard let targetLabel, !targetLabel.isEmpty else {
             return "OpenAI cookies are for \(foundLabel)."
         }

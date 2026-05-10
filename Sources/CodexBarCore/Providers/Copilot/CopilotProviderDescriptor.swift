@@ -51,7 +51,9 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         guard let token = Self.resolveToken(context: context), !token.isEmpty else {
             throw URLError(.userAuthenticationRequired)
         }
-        let fetcher = CopilotUsageFetcher(token: token)
+        let fetcher = CopilotUsageFetcher(
+            token: token,
+            enterpriseHost: context.settings?.copilot?.enterpriseHost)
         let snap = try await fetcher.fetch()
         return self.makeResult(
             usage: snap,

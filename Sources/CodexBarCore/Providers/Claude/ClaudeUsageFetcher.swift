@@ -241,8 +241,13 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthInteractivePromptPolicy()
 
                 #if DEBUG
-                let hasCache = ClaudeUsageFetcher.hasCachedCredentialsOverride
-                    ?? ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: self.fetcher.environment)
+                let hasCache = if let hasCachedCredentialsOverride = ClaudeUsageFetcher.hasCachedCredentialsOverride {
+                    hasCachedCredentialsOverride
+                } else if ClaudeUsageFetcher.loadOAuthCredentialsOverride != nil {
+                    false
+                } else {
+                    ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: self.fetcher.environment)
+                }
                 #else
                 let hasCache = ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: self.fetcher.environment)
                 #endif
@@ -836,7 +841,12 @@ extension ClaudeUsageFetcher {
                 resetDescription: resetDescription)
         }
 
-        guard let primary = makeWindow(usage.fiveHour, windowMinutes: 5 * 60) else {
+        guard let primary = makeWindow(usage.fiveHour, windowMinutes: 5 * 60)
+            ?? makeWindow(usage.sevenDay, windowMinutes: 7 * 24 * 60)
+            ?? makeWindow(usage.sevenDayOAuthApps, windowMinutes: 7 * 24 * 60)
+            ?? makeWindow(usage.sevenDaySonnet, windowMinutes: 7 * 24 * 60)
+            ?? makeWindow(usage.sevenDayOpus, windowMinutes: 7 * 24 * 60)
+        else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }
 
@@ -846,7 +856,9 @@ extension ClaudeUsageFetcher {
             windowMinutes: 7 * 24 * 60)
         let extraRateWindows = Self.oauthExtraRateWindows(from: usage)
 
-        let loginMethod = ClaudePlan.oauthLoginMethod(rateLimitTier: credentials.rateLimitTier)
+        let loginMethod = ClaudePlan.oauthLoginMethod(
+            subscriptionType: credentials.subscriptionType,
+            rateLimitTier: credentials.rateLimitTier)
         let providerCost = Self.oauthExtraUsageCost(usage.extraUsage, loginMethod: loginMethod)
 
         return ClaudeUsageSnapshot(
@@ -1148,7 +1160,8 @@ extension ClaudeUsageFetcher {
 extension ClaudeUsageFetcher {
     public static func _mapOAuthUsageForTesting(
         _ data: Data,
-        rateLimitTier: String? = nil) throws -> ClaudeUsageSnapshot
+        rateLimitTier: String? = nil,
+        subscriptionType: String? = nil) throws -> ClaudeUsageSnapshot
     {
         let usage = try ClaudeOAuthUsageFetcher.decodeUsageResponse(data)
         let creds = ClaudeOAuthCredentials(
@@ -1156,7 +1169,8 @@ extension ClaudeUsageFetcher {
             refreshToken: nil,
             expiresAt: Date().addingTimeInterval(3600),
             scopes: [],
-            rateLimitTier: rateLimitTier)
+            rateLimitTier: rateLimitTier,
+            subscriptionType: subscriptionType)
         return try Self.mapOAuthUsage(usage, credentials: creds)
     }
 }

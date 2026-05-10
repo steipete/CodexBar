@@ -25,133 +25,133 @@ struct ClaudePeakHoursTests {
     }
 
     @Test
-    func weekdayMorningBeforePeak() {
+    func `weekday morning before peak`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 7))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 1h")
     }
 
     @Test
-    func weekdayJustBeforePeak() {
+    func `weekday just before peak`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 7, minute: 45))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 15m")
     }
 
     @Test
-    func weekdayPeakStart() {
+    func `weekday peak start`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 8))
         #expect(status.isPeak)
         #expect(status.label == "Peak · ends in 6h")
     }
 
     @Test
-    func weekdayMidPeak() {
+    func `weekday mid peak`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 11, minute: 30))
         #expect(status.isPeak)
         #expect(status.label == "Peak · ends in 2h 30m")
     }
 
     @Test
-    func weekdayPeakEndBoundary() {
+    func `weekday peak end boundary`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 13, minute: 59))
         #expect(status.isPeak)
         #expect(status.label == "Peak · ends in 1m")
     }
 
     @Test
-    func weekdayAfterPeak() {
+    func `weekday after peak`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 14))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 18h")
     }
 
     @Test
-    func weekdayLateEvening() {
+    func `weekday late evening`() {
         let status = ClaudePeakHours.status(at: self.date(day: 26, hour: 23))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 9h")
     }
 
     @Test
-    func saturdayMorning() {
+    func `saturday morning`() {
         let status = ClaudePeakHours.status(at: self.date(day: 28, hour: 10))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 46h")
     }
 
     @Test
-    func sundayEvening() {
+    func `sunday evening`() {
         let status = ClaudePeakHours.status(at: self.date(day: 29, hour: 21))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 11h")
     }
 
     @Test
-    func fridayAfterPeak() {
+    func `friday after peak`() {
         let status = ClaudePeakHours.status(at: self.date(day: 27, hour: 15))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 65h")
     }
 
     @Test
-    func fridayPeak() {
+    func `friday peak`() {
         let status = ClaudePeakHours.status(at: self.date(day: 27, hour: 12))
         #expect(status.isPeak)
         #expect(status.label == "Peak · ends in 2h")
     }
 
     @Test
-    func springForwardWeekend() {
+    func `spring forward weekend`() {
         let status = ClaudePeakHours.status(at: self.date(day: 7, hour: 10))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 45h")
     }
 
     @Test
-    func mondayMidnight() {
+    func `monday midnight`() {
         let status = ClaudePeakHours.status(at: self.date(day: 23, hour: 0))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 8h")
     }
 
     @Test
-    func peakWithMinuteGranularity() {
+    func `peak with minute granularity`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 12, minute: 15))
         #expect(status.isPeak)
         #expect(status.label == "Peak · ends in 1h 45m")
     }
 
     @Test
-    func saturdayMidnight() {
+    func `saturday midnight`() {
         let status = ClaudePeakHours.status(at: self.date(day: 28, hour: 0))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 56h")
     }
 
     @Test
-    func weekdayJustBeforePeakWithSeconds() {
+    func `weekday just before peak with seconds`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 7, minute: 45, second: 30))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 15m")
     }
 
     @Test
-    func weekdayOneMinuteBeforePeakWithSeconds() {
+    func `weekday one minute before peak with seconds`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 7, minute: 59, second: 30))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 1m")
     }
 
     @Test
-    func weekdayLastSecondBeforePeak() {
+    func `weekday last second before peak`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 7, minute: 59, second: 59))
         #expect(!status.isPeak)
         #expect(status.label == "Off-peak · peak in 1m")
     }
 
     @Test
-    func weekdayPeakStartWithSeconds() {
+    func `weekday peak start with seconds`() {
         let status = ClaudePeakHours.status(at: self.date(day: 25, hour: 8, minute: 0, second: 30))
         #expect(status.isPeak)
         #expect(status.label == "Peak · ends in 6h")

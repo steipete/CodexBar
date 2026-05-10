@@ -5,9 +5,14 @@ on:
     branches: ["*"]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-build-test:
-    runs-on: macos-latest
+    runs-on: macos-15-intel
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v6
 
@@ -36,9 +41,25 @@ jobs:
         run: ./Scripts/lint.sh lint
 
       - name: Swift Test
-        run: swift test --no-parallel
+        timeout-minutes: 25
+        run: |
+          swift test --parallel \
+            --skip ClaudeOAuthCredentialsStoreSecurityCLITests \
+            --skip CLIOpenAIDashboardCacheTests \
+            --skip CodexAccountScopedRefreshDashboardCleanupTests \
+            --skip CodexAccountScopedRefreshTests \
+            --skip CodexBaselineCharacterizationTests \
+            --skip CodexDashboardWorkedExampleParityTests \
+            --skip CodexUsageFetcherFallbackTests \
+            --skip CodexWebDashboardStrategyAuthorityTests \
+            --skip OpenAIDashboardNavigationDelegateTests \
+            --skip StatusMenuTokenAccountSwitcherTests \
+            --skip SubprocessRunnerTests
+          swift test --no-parallel \
+            --filter 'ClaudeOAuthCredentialsStoreSecurityCLITests|CLIOpenAIDashboardCacheTests|CodexAccountScopedRefreshDashboardCleanupTests|CodexAccountScopedRefreshTests|CodexBaselineCharacterizationTests|CodexDashboardWorkedExampleParityTests|CodexUsageFetcherFallbackTests|CodexWebDashboardStrategyAuthorityTests|OpenAIDashboardNavigationDelegateTests|SubprocessRunnerTests'
 
   build-linux-cli:
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

@@ -127,9 +127,10 @@ public enum KeychainCacheStore {
         #endif
     }
 
-    public static func clear(key: Key) {
-        if self.clearTestStore(key: key) {
-            return
+    @discardableResult
+    public static func clear(key: Key) -> Bool {
+        if let removed = self.clearTestStore(key: key) {
+            return removed
         }
         #if os(macOS)
         let query: [String: Any] = [
@@ -138,9 +139,49 @@ public enum KeychainCacheStore {
             kSecAttrAccount as String: key.account,
         ]
         let status = SecItemDelete(query as CFDictionary)
-        if status != errSecSuccess, status != errSecItemNotFound {
+        if status == errSecSuccess {
+            return true
+        }
+        if status != errSecItemNotFound {
             self.log.error("Keychain cache delete failed (\(key.account)): \(status)")
         }
+        #endif
+        return false
+    }
+
+    public static func keys(category: String) -> [Key] {
+        if let keys = self.keysFromTestStore(category: category) {
+            return keys
+        }
+        #if os(macOS)
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: self.serviceName,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+            kSecReturnAttributes as String: true,
+        ]
+        KeychainNoUIQuery.apply(to: &query)
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        switch status {
+        case errSecSuccess:
+            guard let rows = result as? [[String: Any]] else { return [] }
+            return rows.compactMap { row in
+                guard let account = row[kSecAttrAccount as String] as? String else { return nil }
+                return self.key(fromAccount: account, category: category)
+            }
+        case errSecItemNotFound:
+            return []
+        case errSecInteractionNotAllowed:
+            self.log.info("Keychain cache keys temporarily unavailable (\(category))")
+            return []
+        default:
+            self.log.error("Keychain cache key listing failed (\(category)): \(status)")
+            return []
+        }
+        #else
+        return []
         #endif
     }
 
@@ -269,14 +310,32 @@ public enum KeychainCacheStore {
         return true
     }
 
-    private static func clearTestStore(key: Key) -> Bool {
+    private static func clearTestStore(key: Key) -> Bool? {
         self.testStoreLock.lock()
         defer { self.testStoreLock.unlock() }
-        guard var store = self.testStore else { return false }
+        guard var store = self.testStore else { return nil }
         let testKey = TestStoreKey(service: self.serviceName, account: key.account)
-        store.removeValue(forKey: testKey)
+        let removed = store.removeValue(forKey: testKey) != nil
         self.testStore = store
-        return true
+        return removed
+    }
+
+    private static func keysFromTestStore(category: String) -> [Key]? {
+        self.testStoreLock.lock()
+        defer { self.testStoreLock.unlock() }
+        guard let store = self.testStore else { return nil }
+        return store.keys
+            .filter { $0.service == self.serviceName }
+            .compactMap { self.key(fromAccount: $0.account, category: category) }
+            .sorted { $0.identifier < $1.identifier }
+    }
+
+    private static func key(fromAccount account: String, category: String) -> Key? {
+        let prefix = "\(category)."
+        guard account.hasPrefix(prefix) else { return nil }
+        let identifier = String(account.dropFirst(prefix.count))
+        guard !identifier.isEmpty else { return nil }
+        return Key(category: category, identifier: identifier)
     }
 }
 

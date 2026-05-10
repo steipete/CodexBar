@@ -15,6 +15,9 @@ read_when:
 - Background refresh runs off-main and updates `UsageStore` (usage + credits + optional web scrape).
 - Manual “Refresh now” always available in the menu.
 - Stale/error states dim the icon and surface status in-menu.
+- Optional provider-storage scans run only when “Show provider storage usage” is enabled. They are scheduled in the
+  background, coalesced/throttled during automatic refreshes, and forced by manual refresh without blocking the usage
+  refresh path.
 
 ## Optional future
 - Auto-seed a log if none exists via `codex exec --skip-git-repo-check --json "ping"` (currently not executed).

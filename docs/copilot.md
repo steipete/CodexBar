@@ -16,12 +16,18 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API. No bro
      - `POST https://github.com/login/device/code`
    - Token polling:
      - `POST https://github.com/login/oauth/access_token`
+   - Optional enterprise host:
+     - set Copilot `enterpriseHost` in `~/.codexbar/config.json` or the provider settings UI
+     - CodexBar normalizes values such as `https://octocorp.ghe.com/login` to `octocorp.ghe.com`
+     - device flow uses `https://<enterpriseHost>/login/...`
    - Scope: `read:user`.
    - Token stored in config:
      - `~/.codexbar/config.json` → `providers[].apiKey` for `copilot`
+      - token accounts use `providers[].tokenAccounts`
 
 2) **Usage fetch**
    - `GET https://api.github.com/copilot_internal/user`
+   - With an enterprise host, the API host is `api.<enterpriseHost>`.
    - Headers:
      - `Authorization: token <github_oauth_token>`
      - `Accept: application/json`

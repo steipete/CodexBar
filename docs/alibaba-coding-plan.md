@@ -19,7 +19,10 @@ When the RPC endpoint returns `ConsoleNeedLogin`, CodexBar treats that as a cons
 
 ## Token sources (fallback order)
 1) Config token (`~/.codexbar/config.json` -> `providers[].apiKey` for provider `alibaba`).
-2) Environment variable `ALIBABA_CODING_PLAN_API_KEY`.
+2) Environment variables, checked in order:
+   - `ALIBABA_CODING_PLAN_API_KEY`
+   - `ALIBABA_QWEN_API_KEY`
+   - `DASHSCOPE_API_KEY`
 
 ## Region + endpoint behavior
 - International host: `https://modelstudio.console.alibabacloud.com`

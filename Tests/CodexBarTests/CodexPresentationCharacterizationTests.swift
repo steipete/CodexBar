@@ -96,7 +96,7 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
-    func `Codex menu humanizes prolite plan from snapshot identity`() {
+    func `Codex menu maps prolite plan to multiplier display name`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-prolite")
         settings.statusChecksEnabled = false
 
@@ -127,7 +127,8 @@ struct CodexPresentationCharacterizationTests {
             includeContextualActions: false)
 
         let lines = self.textLines(from: descriptor)
-        #expect(lines.contains("Plan: Pro Lite"))
+        #expect(lines.contains("Plan: Pro 5x"))
+        #expect(!lines.contains("Plan: Pro Lite"))
         #expect(!lines.contains("Plan: Prolite"))
     }
 

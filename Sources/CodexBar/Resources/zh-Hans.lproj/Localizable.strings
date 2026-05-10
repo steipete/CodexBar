@@ -446,6 +446,9 @@
 "unsafe_managed_home" = "CodexBar 拒绝修改意外的托管主目录路径：%@";
 "menu_bar_metric_title" = "菜单栏指标";
 "menu_bar_metric_subtitle" = "选择哪个窗口驱动菜单栏百分比。";
+"menu_bar_metric_subtitle_deepseek" = "在菜单栏显示 DeepSeek 余额。";
+"menu_bar_metric_subtitle_mistral" = "在菜单栏显示 Mistral API 本月支出。";
+"menu_bar_metric_subtitle_kimik2" = "在菜单栏显示 Kimi K2 API Key 额度。";
 "automatic" = "自动";
 "primary_api_key_limit" = "主要（API 密钥限制）";
 
@@ -539,7 +542,8 @@
 "openai_cookies_caption" = "上次 OpenAI Cookie 尝试的 Cookie 导入 + WebKit 抓取日志。";
 "no_log_yet" = "尚无日志。在提供商 → Codex 中更新 OpenAI Cookie 以运行导入。";
 "section_caches" = "缓存";
-"caches_caption" = "清除缓存的费用扫描结果。";
+"caches_caption" = "清除缓存的费用扫描结果或浏览器 Cookie 缓存。";
+"clear_cookie_cache" = "清除 Cookie 缓存";
 "clear_cost_cache" = "清除费用缓存";
 "section_notifications" = "通知";
 "notifications_caption" = "触发 5 小时会话窗口的测试通知（耗尽/恢复）。";

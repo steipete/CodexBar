@@ -12,7 +12,8 @@ struct ClaudeOAuthTests {
             "refreshToken": "test-refresh",
             "expiresAt": 4102444800000,
             "scopes": ["usage:read"],
-            "rateLimitTier": "default_claude_max_20x"
+            "rateLimitTier": "default_claude_max_20x",
+            "subscriptionType": "pro"
           }
         }
         """
@@ -21,6 +22,7 @@ struct ClaudeOAuthTests {
         #expect(creds.refreshToken == "test-refresh")
         #expect(creds.scopes == ["usage:read"])
         #expect(creds.rateLimitTier == "default_claude_max_20x")
+        #expect(creds.subscriptionType == "pro")
         #expect(creds.isExpired == false)
     }
 
@@ -78,6 +80,20 @@ struct ClaudeOAuthTests {
         #expect(snap.secondary?.usedPercent == 30)
         #expect(snap.opus?.usedPercent == 5)
         #expect(snap.primary.resetsAt != nil)
+        #expect(snap.loginMethod == "Claude Pro")
+    }
+
+    @Test
+    func `maps O auth subscription type when rate limit tier is generic`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(
+            Data(json.utf8),
+            rateLimitTier: "default_claude_ai",
+            subscriptionType: "pro")
         #expect(snap.loginMethod == "Claude Pro")
     }
 

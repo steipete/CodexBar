@@ -4,6 +4,7 @@ enum RelativeTimeFormatters {
     @MainActor
     static let full: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "en_US")
         formatter.unitsStyle = .full
         return formatter
     }()

@@ -93,5 +93,19 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: "COPILOT_API_TOKEN"),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .venice: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Store multiple Venice API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: VeniceSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
+        .stepfun: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple StepFun Oasis-Token values.",
+            placeholder: "Oasis-Token=…",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
     ]
 }

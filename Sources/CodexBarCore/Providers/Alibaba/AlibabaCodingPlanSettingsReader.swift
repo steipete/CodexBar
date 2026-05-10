@@ -2,6 +2,13 @@ import Foundation
 
 public struct AlibabaCodingPlanSettingsReader: Sendable {
     public static let apiTokenKey = "ALIBABA_CODING_PLAN_API_KEY"
+    public static let qwenAPITokenKey = "ALIBABA_QWEN_API_KEY"
+    public static let dashScopeAPITokenKey = "DASHSCOPE_API_KEY"
+    public static let apiTokenEnvironmentKeys = [
+        Self.apiTokenKey,
+        Self.qwenAPITokenKey,
+        Self.dashScopeAPITokenKey,
+    ]
     public static let cookieHeaderKey = "ALIBABA_CODING_PLAN_COOKIE"
     public static let hostKey = "ALIBABA_CODING_PLAN_HOST"
     public static let quotaURLKey = "ALIBABA_CODING_PLAN_QUOTA_URL"
@@ -9,7 +16,10 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
     public static func apiToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.apiTokenKey])
+        for key in self.apiTokenEnvironmentKeys {
+            if let token = self.cleaned(environment[key]) { return token }
+        }
+        return nil
     }
 
     public static func hostOverride(
@@ -60,7 +70,8 @@ public enum AlibabaCodingPlanSettingsError: LocalizedError, Sendable {
         switch self {
         case .missingToken:
             return "Alibaba Coding Plan API key not found. " +
-                "Set apiKey in ~/.codexbar/config.json or ALIBABA_CODING_PLAN_API_KEY."
+                "Set apiKey in ~/.codexbar/config.json, ALIBABA_CODING_PLAN_API_KEY, " +
+                "ALIBABA_QWEN_API_KEY, or DASHSCOPE_API_KEY."
         case let .missingCookie(details):
             let base = "No Alibaba Coding Plan session cookies found in browsers. " +
                 "If you use Safari, enable Full Disk Access for CodexBar/Terminal or paste a manual Cookie header."

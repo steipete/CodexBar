@@ -208,6 +208,40 @@ struct ProviderSettingsFieldRowView: View {
 }
 
 @MainActor
+struct ProviderSettingsActionsRowView: View {
+    let descriptor: ProviderSettingsActionsDescriptor
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(self.descriptor.title)
+                .font(.subheadline.weight(.semibold))
+
+            if !self.descriptor.subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(self.descriptor.subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            let actions = self.descriptor.actions.filter { $0.isVisible?() ?? true }
+            if !actions.isEmpty {
+                HStack(spacing: 10) {
+                    ForEach(actions) { action in
+                        Button(action.title) {
+                            Task { @MainActor in
+                                await action.perform()
+                            }
+                        }
+                        .applyProviderSettingsButtonStyle(action.style)
+                        .controlSize(.small)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@MainActor
 struct ProviderSettingsTokenAccountsRowView: View {
     let descriptor: ProviderSettingsTokenAccountsDescriptor
     @State private var newLabel: String = ""

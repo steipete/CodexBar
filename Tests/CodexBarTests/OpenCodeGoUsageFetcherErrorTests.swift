@@ -4,6 +4,19 @@ import Testing
 
 @Suite(.serialized)
 struct OpenCodeGoUsageFetcherErrorTests {
+    @Test
+    func `dashboard URL uses normalized workspace ID`() {
+        #expect(
+            OpenCodeGoUsageFetcher.dashboardURL(workspaceID: "https://opencode.ai/workspace/wrk_abc123/go")
+                .absoluteString == "https://opencode.ai/workspace/wrk_abc123/go")
+        #expect(
+            OpenCodeGoUsageFetcher.dashboardURL(workspaceID: "workspace=wrk_def456")
+                .absoluteString == "https://opencode.ai/workspace/wrk_def456/go")
+        #expect(
+            OpenCodeGoUsageFetcher.dashboardURL(workspaceID: nil)
+                .absoluteString == "https://opencode.ai")
+    }
+
     private struct UsageWindow {
         let percent: Double
         let resetInSec: Int

@@ -210,7 +210,6 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         await context.controller.runClaudeLoginFlow()
-        return true
     }
 
     @MainActor

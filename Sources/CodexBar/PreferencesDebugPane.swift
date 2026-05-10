@@ -13,6 +13,7 @@ struct DebugPane: View {
     @State private var logText: String = ""
     @State private var isClearingCostCache = false
     @State private var costCacheStatus: String?
+    @State private var cookieCacheStatus: String?
     #if DEBUG
     @State private var currentErrorProvider: UsageProvider = .codex
     @State private var simulatedErrorText: String = """
@@ -234,6 +235,20 @@ struct DebugPane: View {
                         .disabled(self.isClearingCostCache || isTokenRefreshActive)
 
                         if let status = self.costCacheStatus {
+                            Text(status)
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            self.clearCookieCache()
+                        } label: {
+                            Label(L("clear_cookie_cache"), systemImage: "trash")
+                        }
+
+                        if let status = self.cookieCacheStatus {
                             Text(status)
                                 .font(.footnote)
                                 .foregroundStyle(.tertiary)
@@ -505,6 +520,15 @@ struct DebugPane: View {
         }
 
         self.costCacheStatus = L("cleared")
+    }
+
+    private func clearCookieCache() {
+        let cleared = CookieHeaderCache.clearAll()
+        if cleared > 0 {
+            self.cookieCacheStatus = "Cleared \(cleared) provider\(cleared == 1 ? "" : "s")."
+        } else {
+            self.cookieCacheStatus = "No cached cookies found."
+        }
     }
 
     private func fetchAttemptsText(for provider: UsageProvider) -> String {

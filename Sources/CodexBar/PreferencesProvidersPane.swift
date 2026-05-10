@@ -9,6 +9,7 @@ struct ProvidersPane: View {
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     let codexAmbientLoginRunner: any CodexAmbientLoginRunning
+    let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
     @State private var expandedErrors: Set<UsageProvider> = []
     @State private var settingsStatusTextByID: [String: String] = [:]
     @State private var settingsLastAppActiveRunAtByID: [String: Date] = [:]
@@ -26,7 +27,8 @@ struct ProvidersPane: View {
         store: UsageStore,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
-        codexAmbientLoginRunner: any CodexAmbientLoginRunning = DefaultCodexAmbientLoginRunner())
+        codexAmbientLoginRunner: any CodexAmbientLoginRunning = DefaultCodexAmbientLoginRunner(),
+        runProviderLoginFlow: @escaping @MainActor (UsageProvider) async -> Void = { _ in })
     {
         self.settings = settings
         self.store = store
@@ -37,6 +39,7 @@ struct ProvidersPane: View {
                 usageStore: store,
                 managedAccountCoordinator: managedCodexAccountCoordinator)
         self.codexAmbientLoginRunner = codexAmbientLoginRunner
+        self.runProviderLoginFlow = runProviderLoginFlow
     }
 
     var body: some View {
@@ -61,6 +64,7 @@ struct ProvidersPane: View {
                     settingsPickers: self.extraSettingsPickers(for: provider),
                     settingsToggles: self.extraSettingsToggles(for: provider),
                     settingsFields: self.extraSettingsFields(for: provider),
+                    settingsActions: self.extraSettingsActions(for: provider),
                     settingsTokenAccounts: self.tokenAccountDescriptor(for: provider),
                     errorDisplay: self.providerErrorDisplay(provider),
                     isErrorExpanded: self.expandedBinding(for: provider),
@@ -345,6 +349,13 @@ struct ProvidersPane: View {
             .filter { $0.isVisible?() ?? true }
     }
 
+    private func extraSettingsActions(for provider: UsageProvider) -> [ProviderSettingsActionsDescriptor] {
+        guard let impl = ProviderCatalog.implementation(for: provider) else { return [] }
+        let context = self.makeSettingsContext(provider: provider)
+        return impl.settingsActions(context: context)
+            .filter { $0.isVisible?() ?? true }
+    }
+
     func tokenAccountDescriptor(for provider: UsageProvider) -> ProviderSettingsTokenAccountsDescriptor? {
         guard let support = TokenAccountSupportCatalog.support(for: provider) else { return nil }
         let context = self.makeSettingsContext(provider: provider)
@@ -446,6 +457,9 @@ struct ProvidersPane: View {
             },
             requestConfirmation: { confirmation in
                 self.activeConfirmation = ProviderSettingsConfirmationState(confirmation: confirmation)
+            },
+            runLoginFlow: {
+                await self.runProviderLoginFlow(provider)
             })
     }
 
@@ -457,6 +471,10 @@ struct ProvidersPane: View {
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
                     title: L("primary_api_key_limit")),
+            ]
+        } else if SettingsStore.isBalanceOnlyProvider(provider) {
+            options = [
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
             ]
         } else if provider == .abacus {
             let metadata = self.store.metadata(for: provider)
@@ -502,7 +520,7 @@ struct ProvidersPane: View {
         return ProviderSettingsPickerDescriptor(
             id: "menuBarMetric",
             title: L("menu_bar_metric_title"),
-            subtitle: L("menu_bar_metric_subtitle"),
+            subtitle: Self.menuBarMetricPickerSubtitle(for: provider),
             binding: Binding(
                 get: {
                     self.settings
@@ -516,6 +534,19 @@ struct ProvidersPane: View {
             options: options,
             isVisible: { true },
             onChange: nil)
+    }
+
+    private static func menuBarMetricPickerSubtitle(for provider: UsageProvider) -> String {
+        switch provider {
+        case .deepseek:
+            L("menu_bar_metric_subtitle_deepseek")
+        case .mistral:
+            L("menu_bar_metric_subtitle_mistral")
+        case .kimik2:
+            L("menu_bar_metric_subtitle_kimik2")
+        default:
+            L("menu_bar_metric_subtitle")
+        }
     }
 
     func menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
@@ -587,8 +618,17 @@ struct ProvidersPane: View {
             hidePersonalInfo: self.settings.hidePersonalInfo,
             claudePeakHoursEnabled: self.settings.claudePeakHoursEnabled,
             weeklyPace: weeklyPace,
+            quotaWarningThresholds: [
+                .session: self.quotaWarningMarkerThresholds(provider: provider, window: .session),
+                .weekly: self.quotaWarningMarkerThresholds(provider: provider, window: .weekly),
+            ],
             now: now)
         return UsageMenuCardView.Model.make(input)
+    }
+
+    private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
+        guard self.settings.quotaWarningEnabled(provider: provider, window: window) else { return [] }
+        return self.settings.resolvedQuotaWarningThresholds(provider: provider, window: window)
     }
 
     private func refreshCodexProvider() async {

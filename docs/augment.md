@@ -79,9 +79,9 @@ When the CLI is unavailable or not authenticated, CodexBar falls back to browser
 
 The provider includes an automatic session keepalive system:
 
-- **Check Interval**: Every 5 minutes
+- **Check Interval**: Every 1 minute
 - **Refresh Buffer**: Refreshes 5 minutes before cookie expiration
-- **Rate Limiting**: Minimum 2 minutes between refresh attempts
+- **Rate Limiting**: Minimum 1 minute between refresh attempts
 - **Session Cookies**: Refreshed every 30 minutes (no expiration date)
 
 This ensures your session stays active without manual intervention.
@@ -170,7 +170,7 @@ This prevents cookies from other subdomains being sent to the API.
 
 ### Session Refresh Mechanism
 
-1. Keepalive checks cookie expiration every 5 minutes
+1. Keepalive checks cookie expiration every 1 minute
 2. If expiration is within 5 minutes, triggers refresh
 3. Pings `/api/auth/session` to trigger cookie update
 4. Waits 1 second for browser to update cookies
