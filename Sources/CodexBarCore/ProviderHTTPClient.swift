@@ -53,26 +53,44 @@ public final class ProviderHTTPClient: @unchecked Sendable {
         var proxyDictionary: [String: Any] = [:]
         switch proxy.scheme {
         case .http:
-            proxyDictionary[kCFNetworkProxiesHTTPEnable as String] = 1
-            proxyDictionary[kCFNetworkProxiesHTTPProxy as String] = proxy.trimmedHost
-            proxyDictionary[kCFNetworkProxiesHTTPPort as String] = port
-            proxyDictionary[kCFNetworkProxiesHTTPSEnable as String] = 1
-            proxyDictionary[kCFNetworkProxiesHTTPSProxy as String] = proxy.trimmedHost
-            proxyDictionary[kCFNetworkProxiesHTTPSPort as String] = port
+            proxyDictionary[ProxyDictionaryKey.httpEnable] = 1
+            proxyDictionary[ProxyDictionaryKey.httpProxy] = proxy.trimmedHost
+            proxyDictionary[ProxyDictionaryKey.httpPort] = port
+            proxyDictionary[ProxyDictionaryKey.httpsEnable] = 1
+            proxyDictionary[ProxyDictionaryKey.httpsProxy] = proxy.trimmedHost
+            proxyDictionary[ProxyDictionaryKey.httpsPort] = port
         case .socks5:
-            proxyDictionary[kCFNetworkProxiesSOCKSEnable as String] = 1
-            proxyDictionary[kCFNetworkProxiesSOCKSProxy as String] = proxy.trimmedHost
-            proxyDictionary[kCFNetworkProxiesSOCKSPort as String] = port
+            proxyDictionary[ProxyDictionaryKey.socksEnable] = 1
+            proxyDictionary[ProxyDictionaryKey.socksProxy] = proxy.trimmedHost
+            proxyDictionary[ProxyDictionaryKey.socksPort] = port
         }
 
         if !proxy.trimmedUsername.isEmpty {
-            proxyDictionary[kCFProxyUsernameKey as String] = proxy.trimmedUsername
+            proxyDictionary[proxy.scheme == .http ? ProxyDictionaryKey.httpUser : ProxyDictionaryKey.socksUser] =
+                proxy.trimmedUsername
         }
         if let trimmedPassword, !trimmedPassword.isEmpty {
-            proxyDictionary[kCFProxyPasswordKey as String] = trimmedPassword
+            proxyDictionary[proxy.scheme == .http ? ProxyDictionaryKey.httpPassword : ProxyDictionaryKey.socksPassword] =
+                trimmedPassword
         }
 
         configuration.connectionProxyDictionary = proxyDictionary
         return configuration
     }
+}
+
+private enum ProxyDictionaryKey {
+    static let httpEnable = "HTTPEnable"
+    static let httpProxy = "HTTPProxy"
+    static let httpPort = "HTTPPort"
+    static let httpsEnable = "HTTPSEnable"
+    static let httpsProxy = "HTTPSProxy"
+    static let httpsPort = "HTTPSPort"
+    static let socksEnable = "SOCKSEnable"
+    static let socksProxy = "SOCKSProxy"
+    static let socksPort = "SOCKSPort"
+    static let httpUser = "HTTPUser"
+    static let httpPassword = "HTTPPassword"
+    static let socksUser = "SOCKSUser"
+    static let socksPassword = "SOCKSPassword"
 }

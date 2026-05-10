@@ -101,14 +101,14 @@ struct NetworkProxyTests {
             password: "secret")
 
         let dictionary = try #require(configuration.connectionProxyDictionary as? [String: Any])
-        #expect(dictionary[kCFNetworkProxiesHTTPEnable as String] as? Int == 1)
-        #expect(dictionary[kCFNetworkProxiesHTTPProxy as String] as? String == "proxy.example.com")
-        #expect(dictionary[kCFNetworkProxiesHTTPPort as String] as? Int == 8080)
-        #expect(dictionary[kCFNetworkProxiesHTTPSEnable as String] as? Int == 1)
-        #expect(dictionary[kCFNetworkProxiesHTTPSProxy as String] as? String == "proxy.example.com")
-        #expect(dictionary[kCFNetworkProxiesHTTPSPort as String] as? Int == 8080)
-        #expect(dictionary[kCFProxyUsernameKey as String] as? String == "alice")
-        #expect(dictionary[kCFProxyPasswordKey as String] as? String == "secret")
+        #expect(dictionary["HTTPEnable"] as? Int == 1)
+        #expect(dictionary["HTTPProxy"] as? String == "proxy.example.com")
+        #expect(dictionary["HTTPPort"] as? Int == 8080)
+        #expect(dictionary["HTTPSEnable"] as? Int == 1)
+        #expect(dictionary["HTTPSProxy"] as? String == "proxy.example.com")
+        #expect(dictionary["HTTPSPort"] as? Int == 8080)
+        #expect(dictionary["HTTPUser"] as? String == "alice")
+        #expect(dictionary["HTTPPassword"] as? String == "secret")
     }
 
     @Test
@@ -125,11 +125,11 @@ struct NetworkProxyTests {
             password: "secret")
 
         let dictionary = try #require(configuration.connectionProxyDictionary as? [String: Any])
-        #expect(dictionary[kCFNetworkProxiesSOCKSEnable as String] as? Int == 1)
-        #expect(dictionary[kCFNetworkProxiesSOCKSProxy as String] as? String == "proxy.example.com")
-        #expect(dictionary[kCFNetworkProxiesSOCKSPort as String] as? Int == 1080)
-        #expect(dictionary[kCFProxyUsernameKey as String] as? String == "alice")
-        #expect(dictionary[kCFProxyPasswordKey as String] as? String == "secret")
+        #expect(dictionary["SOCKSEnable"] as? Int == 1)
+        #expect(dictionary["SOCKSProxy"] as? String == "proxy.example.com")
+        #expect(dictionary["SOCKSPort"] as? Int == 1080)
+        #expect(dictionary["SOCKSUser"] as? String == "alice")
+        #expect(dictionary["SOCKSPassword"] as? String == "secret")
     }
 
     @Test
