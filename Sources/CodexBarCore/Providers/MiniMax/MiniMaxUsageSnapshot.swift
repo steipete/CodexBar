@@ -23,7 +23,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
     }
 
     public var secondaryService: MiniMaxServiceUsage? {
-        // Return second service for RateWindow.secondary if exists  
+        // Return second service for RateWindow.secondary if exists
         guard let services = self.services, services.count >= 2 else { return nil }
         // If we have Text Generation as primary, get the next non-Text Generation service
         if let textGenIndex = services.firstIndex(where: { $0.displayName == "Text Generation" }) {
@@ -74,7 +74,7 @@ extension MiniMaxUsageSnapshot {
             let primaryWindow = self.rateWindow(for: self.primaryService)
             let secondaryWindow = self.rateWindow(for: self.secondaryService)
             let tertiaryWindow = self.rateWindow(for: self.tertiaryService)
-            
+
             let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
             let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
             let identity = ProviderIdentitySnapshot(
@@ -92,7 +92,7 @@ extension MiniMaxUsageSnapshot {
                 updatedAt: self.updatedAt,
                 identity: identity)
         }
-        
+
         // Fallback to single-service mode for backward compatibility
         let used = max(0, min(100, self.usedPercent ?? 0))
         let resetDescription = self.limitDescription()
@@ -156,19 +156,19 @@ extension MiniMaxUsageSnapshot {
 
     private func windowMinutes(for service: MiniMaxServiceUsage) -> Int? {
         let windowType = service.windowType.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         // Handle "Today" case - 24 hours = 1440 minutes
         if windowType == "today" {
             return 24 * 60
         }
-        
+
         // Handle time duration formats like "5 hours", "30 minutes", etc.
         let components = windowType.split(separator: " ")
         guard components.count >= 2 else { return nil }
-        
+
         guard let value = Int(components[0]) else { return nil }
         let unit = components[1].lowercased()
-        
+
         switch unit {
         case "hour", "hours", "h", "hr", "hrs":
             return value * 60

@@ -182,6 +182,92 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `parses model remains services using used quota semantics`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let start = 1_700_000_000_000
+        let end = start + 5 * 60 * 60 * 1000
+        let json = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_subscribe_title": "Max",
+          "model_remains": [
+            {
+              "model_name": "MiniMax-M1",
+              "current_interval_total_count": 1000,
+              "current_interval_usage_count": 250,
+              "start_time": \(start),
+              "end_time": \(end),
+              "remains_time": 240000
+            }
+          ]
+        }
+        """
+
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
+        let service = try #require(snapshot.services?.first)
+
+        #expect(service.displayName == "Text Generation")
+        #expect(service.usage == 750)
+        #expect(service.remaining == 250)
+        #expect(service.limit == 1000)
+        #expect(service.percent == 75)
+        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 75)
+    }
+
+    @Test
+    func `parses multi service payload and utc offset reset`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 8 * 3600))
+        let now = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 3,
+            day: 25,
+            hour: 11,
+            minute: 0)))
+        let expectedReset = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 3,
+            day: 25,
+            hour: 15,
+            minute: 0)))
+        let json = """
+        {
+          "data": {
+            "services": [
+              {
+                "service_type": "Text Generation",
+                "window_type": "5 hours",
+                "time_range": "10:00-15:00(UTC+8)",
+                "usage": 2,
+                "limit": 10
+              },
+              {
+                "service_type": "Image",
+                "window_type": "Today",
+                "time_range": "2026/03/25 00:00 - 2026/03/26 00:00",
+                "usage": "5",
+                "limit": "50",
+                "percent": "10"
+              }
+            ]
+          }
+        }
+        """
+
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
+        let services = try #require(snapshot.services)
+
+        #expect(services.count == 2)
+        #expect(services[0].usage == 2)
+        #expect(services[0].remaining == 8)
+        #expect(services[0].percent == 20)
+        #expect(services[0].resetsAt == expectedReset)
+        #expect(services[1].usage == 5)
+        #expect(services[1].remaining == 45)
+        #expect(services[1].percent == 10)
+    }
+
+    @Test
     func `parses coding plan remains from data wrapper`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_100)
         let start = 1_700_000_000_000

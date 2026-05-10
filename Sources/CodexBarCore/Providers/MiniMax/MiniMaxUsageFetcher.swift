@@ -496,7 +496,7 @@ struct MiniMaxServiceItem: Decodable {
     let usage: Int?
     let limit: Int?
     let percent: Double?
-    
+
     private enum CodingKeys: String, CodingKey {
         case serviceType = "service_type"
         case windowType = "window_type"
@@ -505,7 +505,7 @@ struct MiniMaxServiceItem: Decodable {
         case limit
         case percent
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.serviceType = try container.decodeIfPresent(String.self, forKey: .serviceType)
@@ -517,7 +517,8 @@ struct MiniMaxServiceItem: Decodable {
         if let percentDouble = try? container.decodeIfPresent(Double.self, forKey: .percent) {
             self.percent = percentDouble
         } else if let percentString = try? container.decodeIfPresent(String.self, forKey: .percent),
-                  let percentValue = Double(percentString) {
+                  let percentValue = Double(percentString)
+        {
             self.percent = percentValue
         } else {
             self.percent = nil
@@ -570,7 +571,7 @@ enum MiniMaxUsageParser {
             // Log multi-service parsing failure but continue to single-service parsing
             MiniMaxUsageFetcher.log.debug("MiniMax multi-service parsing failed: \(error.localizedDescription)")
         }
-        
+
         let payload = try self.decodePayload(data: data)
         return try self.parseCodingPlanRemains(payload: payload, now: now)
     }
@@ -639,18 +640,20 @@ enum MiniMaxUsageParser {
             // Parse time window
             let startTime = self.dateFromEpoch(item.startTime)
             let endTime = self.dateFromEpoch(item.endTime)
-            let windowMinutes = self.windowMinutes(start: startTime, end: endTime)
 
             // Determine window type and time range
             let (windowType, timeRange) = self.parseWindowInfo(
                 startTime: startTime,
                 endTime: endTime,
-                remainsSeconds: item.remainsTime,
                 now: now)
 
             // Calculate reset time
             let resetsAt = self.resetsAt(end: endTime, remains: item.remainsTime, now: now)
-            let resetDescription = self.resetDescription(for: windowType, timeRange: timeRange, now: now, resetsAt: resetsAt)
+            let resetDescription = self.resetDescription(
+                for: windowType,
+                timeRange: timeRange,
+                now: now,
+                resetsAt: resetsAt)
 
             // Map model_name to service type identifier
             let serviceTypeIdentifier = self.mapModelNameToServiceType(modelName: modelName)
@@ -659,12 +662,11 @@ enum MiniMaxUsageParser {
                 serviceType: serviceTypeIdentifier,
                 windowType: windowType,
                 timeRange: timeRange,
-                usage: remaining,
+                usage: used,
                 limit: limit,
                 percent: min(100.0, max(0.0, percent)),
                 resetsAt: resetsAt,
-                resetDescription: resetDescription
-            )
+                resetDescription: resetDescription)
             services.append(serviceUsage)
         }
 
@@ -951,7 +953,7 @@ enum MiniMaxUsageParser {
         if let tzHint = timeZoneHint?.trimmingCharacters(in: .whitespacesAndNewlines),
            !tzHint.isEmpty
         {
-            formatter.timeZone = TimeZone(identifier: tzHint)
+            formatter.timeZone = self.timeZone(from: tzHint)
         }
         formatter.locale = Locale(identifier: "en_US_POSIX")
 
@@ -979,6 +981,33 @@ enum MiniMaxUsageParser {
         if lower.hasPrefix("m") { return Int(value.rounded()) }
         if lower.hasPrefix("s") { return max(1, Int((value / 60).rounded())) }
         return 0
+    }
+
+    private static func timeZone(from hint: String) -> TimeZone? {
+        let trimmed = hint.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let timeZone = TimeZone(identifier: trimmed) {
+            return timeZone
+        }
+
+        let pattern = #"(?i)^(?:UTC|GMT)\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+              let signRange = Range(match.range(at: 1), in: trimmed),
+              let hourRange = Range(match.range(at: 2), in: trimmed)
+        else {
+            return nil
+        }
+
+        let sign = trimmed[signRange] == "-" ? -1 : 1
+        let hours = Int(trimmed[hourRange]) ?? 0
+        let minutes = if match.range(at: 3).location != NSNotFound,
+                         let minuteRange = Range(match.range(at: 3), in: trimmed)
+        {
+            Int(trimmed[minuteRange]) ?? 0
+        } else {
+            0
+        }
+        return TimeZone(secondsFromGMT: sign * ((hours * 3600) + (minutes * 60)))
     }
 
     private static func seconds(from value: Double, unit: String) -> TimeInterval {
@@ -1025,42 +1054,48 @@ enum MiniMaxUsageParser {
 
     private static func parseMultiService(data: Data, now: Date) throws -> MiniMaxUsageSnapshot? {
         let payload = try self.decodeMultiServicePayload(data: data)
-        
+
         guard !payload.data.services.isEmpty else {
             return nil
         }
-        
+
         var services: [MiniMaxServiceUsage] = []
         for item in payload.data.services {
             guard let serviceType = item.serviceType,
                   let windowType = item.windowType,
                   let timeRange = item.timeRange,
                   let usage = item.usage,
-                  let limit = item.limit else {
+                  let limit = item.limit
+            else {
                 continue
             }
-            
+
             var percent = item.percent ?? 0.0
-            if item.percent == nil && limit > 0 {
+            if item.percent == nil, limit > 0 {
                 percent = Double(usage) / Double(limit) * 100.0
             }
-            
+
             let resetsAt = self.parseResetsAtFromTimeRange(timeRange: timeRange, windowType: windowType, now: now)
-            let resetDescription = self.resetDescription(for: windowType, timeRange: timeRange, now: now, resetsAt: resetsAt)
-            
-            let serviceTypeIdentifier: String
-            if serviceType.lowercased().contains("text") && serviceType.lowercased().contains("generation") {
-                serviceTypeIdentifier = "text-generation"
-            } else if serviceType.lowercased().contains("text") && serviceType.lowercased().contains("speech") {
-                serviceTypeIdentifier = "text-to-speech"
+            let resetDescription = self.resetDescription(
+                for: windowType,
+                timeRange: timeRange,
+                now: now,
+                resetsAt: resetsAt)
+
+            let serviceTypeIdentifier: String = if serviceType.lowercased().contains("text"),
+                                                   serviceType.lowercased().contains("generation")
+            {
+                "text-generation"
+            } else if serviceType.lowercased().contains("text"), serviceType.lowercased().contains("speech") {
+                "text-to-speech"
             } else if serviceType.lowercased().contains("image") {
-                serviceTypeIdentifier = "image"
+                "image"
             } else {
-                serviceTypeIdentifier = serviceType.lowercased()
+                serviceType.lowercased()
                     .replacingOccurrences(of: " ", with: "-")
                     .replacingOccurrences(of: "_", with: "-")
             }
-            
+
             let serviceUsage = MiniMaxServiceUsage(
                 serviceType: serviceTypeIdentifier,
                 windowType: windowType,
@@ -1069,17 +1104,16 @@ enum MiniMaxUsageParser {
                 limit: limit,
                 percent: min(100.0, max(0.0, percent)),
                 resetsAt: resetsAt,
-                resetDescription: resetDescription
-            )
+                resetDescription: resetDescription)
             services.append(serviceUsage)
         }
-        
+
         if services.isEmpty {
             return nil
         }
-        
+
         let planName = self.extractPlanNameFromServices(services: payload.data.services)
-        
+
         return MiniMaxUsageSnapshot(
             planName: planName,
             availablePrompts: nil,
@@ -1089,42 +1123,46 @@ enum MiniMaxUsageParser {
             usedPercent: nil,
             resetsAt: nil,
             updatedAt: now,
-            services: services
-        )
+            services: services)
     }
-    
+
     private static func parseResetsAtFromTimeRange(timeRange: String, windowType: String, now: Date) -> Date? {
         let lowerWindow = windowType.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         if lowerWindow == "today" {
             let components = timeRange.split(separator: "-", maxSplits: 1)
             guard components.count == 2 else { return nil }
-            
+
             let endTimeStr = String(components[1].trimmingCharacters(in: .whitespacesAndNewlines))
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy/MM/dd HH:mm"
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
-            
+
             return formatter.date(from: endTimeStr)
         }
-        
+
         if lowerWindow.contains("hour") || lowerWindow.contains("h") {
             let timeComponents = timeRange.split(separator: "-")
             guard timeComponents.count >= 2 else { return nil }
-            
+
             let endTimePart = String(timeComponents[1])
             let endTimeClean = endTimePart.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            
+
             return self.dateForTime(endTimeClean, timeZoneHint: "UTC+8", now: now)
         }
-        
+
         return nil
     }
-    
-    private static func resetDescription(for windowType: String, timeRange: String, now: Date, resetsAt: Date?) -> String {
-        if let resetsAt = resetsAt, resetsAt > now {
+
+    private static func resetDescription(
+        for windowType: String,
+        timeRange: String,
+        now: Date,
+        resetsAt: Date?) -> String
+    {
+        if let resetsAt, resetsAt > now {
             let interval = resetsAt.timeIntervalSince(now)
             if interval < 60 {
                 return "Resets in \(Int(interval)) seconds"
@@ -1139,27 +1177,28 @@ enum MiniMaxUsageParser {
                 return "Resets in \(days) day\(days == 1 ? "" : "s")"
             }
         }
-        
+
         return "\(windowType): \(timeRange)"
     }
-    
+
     private static func extractPlanNameFromServices(services: [MiniMaxServiceItem]) -> String? {
         for service in services {
             if let serviceType = service.serviceType,
-               serviceType.lowercased().contains("pro") || serviceType.lowercased().contains("max") {
+               serviceType.lowercased().contains("pro") || serviceType.lowercased().contains("max")
+            {
                 return serviceType
             }
         }
-        
+
         return nil
     }
 
     private static func parseWindowInfo(
         startTime: Date?,
         endTime: Date?,
-        remainsSeconds: Int?,
-        now: Date) -> (windowType: String, timeRange: String) {
-        guard let startTime, let endTime, let remains = remainsSeconds else {
+        now: Date) -> (windowType: String, timeRange: String)
+    {
+        guard let startTime, let endTime else {
             return (windowType: "Unknown", timeRange: "N/A")
         }
 
@@ -1167,21 +1206,20 @@ enum MiniMaxUsageParser {
         let durationHours = durationSeconds / 3600
 
         // Determine window type based on duration
-        let windowType: String
-        if durationHours >= 23 && durationHours <= 25 {
-            windowType = "Today"
-        } else if durationHours >= 4 && durationHours <= 6 {
-            windowType = "5 hours"
-        } else if durationHours >= 1 && durationHours < 23 {
-            windowType = "\(Int(durationHours)) hours"
+        let windowType = if durationHours >= 23, durationHours <= 25 {
+            "Today"
+        } else if durationHours >= 4, durationHours <= 6 {
+            "5 hours"
+        } else if durationHours >= 1, durationHours < 23 {
+            "\(Int(durationHours)) hours"
         } else {
-            windowType = "Custom"
+            "Custom"
         }
 
         // Format time range
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
-        formatter.timeZone = TimeZone.current
+        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
         let startStr = formatter.string(from: startTime)
         let endStr = formatter.string(from: endTime)
 
@@ -1204,7 +1242,7 @@ enum MiniMaxUsageParser {
         }
 
         // Image to Video Fast (图生视频 Fast): Hailuo-2.3-Fast
-        if lower.contains("hailuo") && lower.contains("fast") {
+        if lower.contains("hailuo"), lower.contains("fast") {
             return "Image to Video"
         }
 

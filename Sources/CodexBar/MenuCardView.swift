@@ -1339,42 +1339,6 @@ extension UsageMenuCardView.Model {
                 percentStyle: percentStyle),
         ]
     }
-    
-    private static func minimaxMetrics(services: [MiniMaxServiceUsage], input: Input) -> [Metric] {
-        let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
-        var metrics: [Metric] = []
-        
-        for (index, service) in services.enumerated() {
-            let id = "minimax-service-\(index)"
-            let title = service.displayName
-            let used = service.limit - service.usage  // usage is remaining, calculate used
-            let remaining = service.usage  // service.usage is remaining quota
-            let percent = service.percent  // This is used percent
-            
-            // Adjust display based on usageBarsShowUsed setting
-            let displayValue: Int = input.usageBarsShowUsed ? used : remaining
-            let detailText = "\(displayValue)/\(service.limit)"
-            
-            // Adjust percentage display - BOTH for progress bar AND text
-            let displayPercent = input.usageBarsShowUsed ? percent : (100 - percent)
-            let detailLeftText = service.windowType
-            let detailRightText = String(format: "%.0f%%", displayPercent)
-            
-            metrics.append(Metric(
-                id: id,
-                title: title,
-                percent: Self.clamped(displayPercent),  // Use displayPercent for progress bar too
-                percentStyle: percentStyle,
-                resetText: service.resetDescription,
-                detailText: detailText,
-                detailLeftText: detailLeftText,
-                detailRightText: detailRightText,
-                pacePercent: nil,
-                paceOnTop: true))
-        }
-        
-        return metrics
-    }
 
     private static func antigravityMetric(
         id: String,
@@ -1637,18 +1601,5 @@ extension UsageMenuCardView.Model {
 
     private static func clamped(_ value: Double) -> Double {
         min(100, max(0, value))
-    }
-
-    private static func progressColor(for provider: UsageProvider) -> Color {
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
-        return Color(red: color.red, green: color.green, blue: color.blue)
-    }
-
-    private static func resetText(
-        for window: RateWindow,
-        style: ResetTimeDisplayStyle,
-        now: Date) -> String?
-    {
-        UsageFormatter.resetLine(for: window, style: style, now: now)
     }
 }

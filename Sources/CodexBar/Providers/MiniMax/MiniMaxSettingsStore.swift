@@ -94,4 +94,3 @@ extension SettingsStore {
         return .manual
     }
 }
-
