@@ -175,7 +175,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     func runLoginFlowFromSettings(provider: UsageProvider) async {
         guard self.loginTask == nil else {
-            self.loginLogger.info("Settings login tap ignored: login already in-flight", metadata: ["provider": provider.rawValue])
+            self.loginLogger.info(
+                "Settings login tap ignored: login already in-flight",
+                metadata: ["provider": provider.rawValue])
             return
         }
         self.startLoginFlow(provider: provider)

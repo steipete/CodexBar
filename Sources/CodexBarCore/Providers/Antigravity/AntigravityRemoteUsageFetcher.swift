@@ -38,6 +38,13 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     private static let retrieveUserQuotaEndpoint = "\(baseURL)/v1internal:retrieveUserQuota"
     private static let refreshSafetyWindow: TimeInterval = 60
 
+    private struct FetchContext {
+        let timeout: TimeInterval
+        let store: AntigravityOAuthCredentialsStore
+        let dataLoader: @Sendable (URLRequest) async throws -> (Data, URLResponse)
+        let oauthClientResolver: @Sendable () -> AntigravityOAuthClient?
+    }
+
     public init(
         timeout: TimeInterval = 10.0,
         homeDirectory: String = NSHomeDirectory(),
@@ -82,6 +89,11 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
 
         var credentials = initialCredentials
         var accessToken = storedAccessToken
+        let context = FetchContext(
+            timeout: timeout,
+            store: store,
+            dataLoader: dataLoader,
+            oauthClientResolver: oauthClientResolver)
         if Self.shouldRefresh(expiryDate: credentials.expiryDate, now: Date()) {
             guard let refreshToken = credentials.refreshToken?.trimmedNonEmpty else {
                 throw AntigravityRemoteFetchError.notLoggedIn
@@ -89,10 +101,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             accessToken = try await Self.refreshAccessToken(
                 credentials: credentials,
                 refreshToken: refreshToken,
-                timeout: timeout,
-                store: store,
-                dataLoader: dataLoader,
-                oauthClientResolver: oauthClientResolver)
+                context: context)
             credentials = try store.load() ?? credentials
             credentials.accessToken = credentials.accessToken?.trimmedNonEmpty ?? accessToken
         }
@@ -106,9 +115,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             accessToken: accessToken,
             storedProjectID: credentials.projectID?.trimmedNonEmpty,
             initialResponse: codeAssist,
-            timeout: timeout,
-            store: store,
-            dataLoader: dataLoader)
+            context: context)
         let models = try await Self.fetchModelQuotas(
             accessToken: accessToken,
             projectId: projectId,
@@ -227,9 +234,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         accessToken: String,
         storedProjectID: String?,
         initialResponse: CodeAssistResponse,
-        timeout: TimeInterval,
-        store: AntigravityOAuthCredentialsStore,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        context: FetchContext) async throws
         -> String?
     {
         if let storedProjectID {
@@ -237,7 +242,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         }
 
         if let projectID = initialResponse.projectID {
-            try? Self.updateStoredProjectID(projectID, store: store)
+            try? Self.updateStoredProjectID(projectID, store: context.store)
             return projectID
         }
 
@@ -259,10 +264,10 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 endpoint: Self.onboardUserEndpoint,
                 accessToken: accessToken,
                 body: onboardBody,
-                timeout: timeout,
-                dataLoader: dataLoader)
+                timeout: context.timeout,
+                dataLoader: context.dataLoader)
             if let projectID = onboardResponse.projectID {
-                try? Self.updateStoredProjectID(projectID, store: store)
+                try? Self.updateStoredProjectID(projectID, store: context.store)
                 return projectID
             }
         } catch {
@@ -271,14 +276,14 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             ])
         }
 
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             try? await Task.sleep(for: .milliseconds(2000))
             let refreshed = try await Self.loadCodeAssist(
                 accessToken: accessToken,
-                timeout: timeout,
-                dataLoader: dataLoader)
+                timeout: context.timeout,
+                dataLoader: context.dataLoader)
             if let projectID = refreshed.projectID {
-                try? Self.updateStoredProjectID(projectID, store: store)
+                try? Self.updateStoredProjectID(projectID, store: context.store)
                 return projectID
             }
         }
@@ -439,23 +444,22 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         primaryStore: AntigravityOAuthCredentialsStore)
     {
         let primaryStore = Self.credentialsStore(homeDirectory: homeDirectory)
-        return (try primaryStore.load(), primaryStore)
+        return try (primaryStore.load(), primaryStore)
     }
 
     private static func refreshAccessToken(
         credentials: AntigravityOAuthCredentials,
         refreshToken: String,
-        timeout: TimeInterval,
-        store: AntigravityOAuthCredentialsStore,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
-        oauthClientResolver: @escaping @Sendable () -> AntigravityOAuthClient?) async throws
+        context: FetchContext) async throws
         -> String
     {
-        let oauthClient = try Self.refreshOAuthClient(from: credentials, oauthClientResolver: oauthClientResolver)
+        let oauthClient = try Self.refreshOAuthClient(
+            from: credentials,
+            oauthClientResolver: context.oauthClientResolver)
 
         var request = URLRequest(url: AntigravityOAuthConfig.tokenURL)
         request.httpMethod = "POST"
-        request.timeoutInterval = timeout
+        request.timeoutInterval = context.timeout
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = Self.formBody([
             "client_id": oauthClient.clientID,
@@ -464,7 +468,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             "grant_type": "refresh_token",
         ])
 
-        let (data, response) = try await dataLoader(request)
+        let (data, response) = try await context.dataLoader(request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AntigravityRemoteFetchError.apiError("Invalid refresh response")
         }
@@ -477,7 +481,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             throw AntigravityRemoteFetchError.parseFailed("Could not parse refresh response")
         }
 
-        try Self.updateStoredCredentials(json, store: store)
+        try Self.updateStoredCredentials(json, store: context.store)
         return accessToken
     }
 
@@ -575,8 +579,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     }
 }
 
-private extension String {
-    var trimmedNonEmpty: String? {
+extension String {
+    fileprivate var trimmedNonEmpty: String? {
         let trimmed = self.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
@@ -666,14 +670,14 @@ private struct AntigravityRemoteQuotaInfo: Decodable {
     let resetTime: String?
 }
 
-private extension Optional where Wrapped == String {
-    var trimmedNonEmpty: String? {
+extension String? {
+    fileprivate var trimmedNonEmpty: String? {
         self?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
     }
 }
 
-private extension String {
-    var nilIfEmpty: String? {
+extension String {
+    fileprivate var nilIfEmpty: String? {
         self.isEmpty ? nil : self
     }
 }

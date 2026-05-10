@@ -57,12 +57,17 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsActions(context: ProviderSettingsContext) -> [ProviderSettingsActionsDescriptor] {
         let credentialsPath = AntigravityOAuthCredentialsStore().fileURL.path
-        let loginTitle = FileManager.default.fileExists(atPath: credentialsPath) ? "Re-authenticate" : "Login with Google"
+        let credentialsExist = FileManager.default.fileExists(atPath: credentialsPath)
+        let loginTitle = credentialsExist ? "Re-authenticate" : "Login with Google"
+        let subtitle = """
+        Stores credentials in ~/.codexbar/antigravity/oauth_creds.json. Uses Antigravity.app OAuth when available, \
+        or ANTIGRAVITY_OAUTH_CLIENT_ID and ANTIGRAVITY_OAUTH_CLIENT_SECRET as an override.
+        """
         return [
             ProviderSettingsActionsDescriptor(
                 id: "antigravity-oauth",
                 title: "Google OAuth",
-                subtitle: "Stores credentials in ~/.codexbar/antigravity/oauth_creds.json. Uses Antigravity.app OAuth when available, or ANTIGRAVITY_OAUTH_CLIENT_ID and ANTIGRAVITY_OAUTH_CLIENT_SECRET as an override.",
+                subtitle: subtitle,
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "antigravity-oauth-login",

@@ -131,18 +131,21 @@ public enum AntigravityOAuthConfig {
     ]
 
     public static let missingCredentialsMessage =
-        "Antigravity OAuth client is not configured. Install Antigravity.app or set ANTIGRAVITY_OAUTH_CLIENT_ID and ANTIGRAVITY_OAUTH_CLIENT_SECRET before logging in."
+        """
+        Antigravity OAuth client is not configured. Install Antigravity.app or set \
+        ANTIGRAVITY_OAUTH_CLIENT_ID and ANTIGRAVITY_OAUTH_CLIENT_SECRET before logging in.
+        """
 
     public static func resolvedClient() -> AntigravityOAuthClient? {
-        if let client = Self.environmentClient() {
+        if let client = environmentClient() {
             return client
         }
         return Self.discoverClientFromInstalledApp()
     }
 
     private static func environmentClient() -> AntigravityOAuthClient? {
-        guard let clientID = Self.configuredClientID,
-              let clientSecret = Self.configuredClientSecret
+        guard let clientID = configuredClientID,
+              let clientSecret = configuredClientSecret
         else {
             return nil
         }
@@ -150,7 +153,9 @@ public enum AntigravityOAuthConfig {
     }
 
     private static func discoverClientFromInstalledApp(fileManager: FileManager = .default) -> AntigravityOAuthClient? {
-        for url in Self.candidateAppMainJSURLs(fileManager: fileManager) where fileManager.fileExists(atPath: url.path) {
+        for url in self.candidateAppMainJSURLs(fileManager: fileManager)
+            where fileManager.fileExists(atPath: url.path)
+        {
             guard let content = try? String(contentsOf: url, encoding: .utf8),
                   let client = Self.parseClient(fromMainJS: content)
             else {
@@ -174,7 +179,7 @@ public enum AntigravityOAuthConfig {
     private static func parseClient(fromMainJS content: String) -> AntigravityOAuthClient? {
         let marker = "vs/platform/cloudCode/common/oauthClient.js"
         let searchStart = content.range(of: marker)?.lowerBound ?? content.startIndex
-        let searchEnd = content.index(searchStart, offsetBy: 4_000, limitedBy: content.endIndex) ?? content.endIndex
+        let searchEnd = content.index(searchStart, offsetBy: 4000, limitedBy: content.endIndex) ?? content.endIndex
         let haystack = String(content[searchStart..<searchEnd])
 
         guard let clientID = Self.firstMatch(
@@ -239,7 +244,7 @@ public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
     }
 
     public static func defaultURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
-        Self.defaultDirectoryURL(home: home)
+        self.defaultDirectoryURL(home: home)
             .appendingPathComponent("oauth_creds.json")
     }
 
@@ -252,16 +257,16 @@ public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
     }
 }
 
-private extension JSONEncoder {
-    static let antigravityCredentials: JSONEncoder = {
+extension JSONEncoder {
+    fileprivate static let antigravityCredentials: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return encoder
     }()
 }
 
-private extension String {
-    var nilIfEmpty: String? {
+extension String {
+    fileprivate var nilIfEmpty: String? {
         self.isEmpty ? nil : self
     }
 }

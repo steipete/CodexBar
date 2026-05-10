@@ -217,7 +217,7 @@ struct ProviderSettingsDescriptorTests {
         #expect(pickers.contains(where: { $0.id == "claude-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
-        let optionIDs = Set(keychainPicker.options.map { $0.id })
+        let optionIDs = Set(keychainPicker.options.map(\.id))
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.never.rawValue))
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.onlyOnUserAction.rawValue))
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.always.rawValue))

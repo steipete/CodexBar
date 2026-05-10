@@ -100,7 +100,7 @@ enum AntigravityLoginRunner {
         } catch AntigravityLoginError.timedOut {
             server.stop()
             return Result(outcome: .timedOut)
-        } catch AntigravityLoginError.launchFailed(let message) {
+        } catch let AntigravityLoginError.launchFailed(message) {
             server.stop()
             return Result(outcome: .launchFailed(message))
         } catch {
@@ -193,7 +193,6 @@ enum AntigravityLoginRunner {
             .joined(separator: "&")
             .data(using: .utf8)
     }
-
 }
 
 private enum AntigravityLoginError: LocalizedError {
@@ -234,7 +233,7 @@ private struct UserInfoResponse: Decodable {
     let email: String?
 }
 
-private struct AntigravityOAuthCallback: Sendable {
+private struct AntigravityOAuthCallback {
     let code: String?
     let returnedState: String?
     let error: String?
@@ -273,7 +272,7 @@ private final class AntigravityLoopbackServer: @unchecked Sendable {
                 case .ready:
                     let url = URL(string: "http://127.0.0.1:\(port)/callback")!
                     self.finishReady(with: .success(url))
-                case .failed(let error):
+                case let .failed(error):
                     self.finishReady(with: .failure(error))
                     self.finishCallback(with: .failure(error))
                 default:
@@ -291,9 +290,9 @@ private final class AntigravityLoopbackServer: @unchecked Sendable {
             if let pending = self.pendingCallbackResult {
                 self.pendingCallbackResult = nil
                 switch pending {
-                case .success(let callback):
+                case let .success(callback):
                     continuation.resume(returning: callback)
-                case .failure(let error):
+                case let .failure(error):
                     continuation.resume(throwing: error)
                 }
                 return
@@ -318,7 +317,7 @@ private final class AntigravityLoopbackServer: @unchecked Sendable {
     }
 
     private func receive(on connection: NWConnection, accumulated: Data) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, isComplete, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self else { return }
             if let error {
                 self.finishCallback(with: .failure(error))
@@ -408,9 +407,9 @@ private final class AntigravityLoopbackServer: @unchecked Sendable {
         self.readyContinuation = nil
         self.lock.unlock()
         switch result {
-        case .success(let url):
+        case let .success(url):
             continuation?.resume(returning: url)
-        case .failure(let error):
+        case let .failure(error):
             continuation?.resume(throwing: error)
         }
     }
@@ -430,9 +429,9 @@ private final class AntigravityLoopbackServer: @unchecked Sendable {
         self.lock.unlock()
         guard let continuation else { return }
         switch result {
-        case .success(let callback):
+        case let .success(callback):
             continuation.resume(returning: callback)
-        case .failure(let error):
+        case let .failure(error):
             continuation.resume(throwing: error)
         }
     }
@@ -476,8 +475,8 @@ private final class AntigravityLoopbackServer: @unchecked Sendable {
     }
 }
 
-private extension CharacterSet {
-    static let urlQueryValueAllowed: CharacterSet = {
+extension CharacterSet {
+    fileprivate static let urlQueryValueAllowed: CharacterSet = {
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "+&=")
         return allowed
