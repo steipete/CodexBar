@@ -48,7 +48,7 @@ public enum CommandCodeCookieHeader {
         // Bare token — assume the production cookie name.
         if !raw.contains("="), !raw.contains(";") {
             return CommandCodeCookieOverride(
-                name: self.supportedSessionCookieNames[0],
+                name: "__Secure-better-auth.session_token",
                 token: raw)
         }
 
