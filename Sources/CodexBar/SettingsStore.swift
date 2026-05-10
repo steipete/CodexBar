@@ -266,29 +266,7 @@ extension SettingsStore {
         if Self.isRunningTests, sessionQuotaDefault == nil {
             userDefaults.set(true, forKey: "sessionQuotaNotificationsEnabled")
         }
-        let quotaWarningNotificationsEnabled = userDefaults.object(
-            forKey: "quotaWarningNotificationsEnabled") as? Bool ?? false
-        let rawQuotaWarningThresholds = userDefaults.array(forKey: "quotaWarningThresholds") as? [Int]
-        let quotaWarningThresholdsRaw = QuotaWarningThresholds.sanitized(
-            rawQuotaWarningThresholds ?? QuotaWarningThresholds.defaults)
-        if rawQuotaWarningThresholds != quotaWarningThresholdsRaw {
-            userDefaults.set(quotaWarningThresholdsRaw, forKey: "quotaWarningThresholds")
-        }
-        let quotaWarningSessionEnabledDefault = userDefaults.object(forKey: "quotaWarningSessionEnabled") as? Bool
-        let quotaWarningSessionEnabled = quotaWarningSessionEnabledDefault ?? true
-        if quotaWarningSessionEnabledDefault == nil {
-            userDefaults.set(true, forKey: "quotaWarningSessionEnabled")
-        }
-        let quotaWarningWeeklyEnabledDefault = userDefaults.object(forKey: "quotaWarningWeeklyEnabled") as? Bool
-        let quotaWarningWeeklyEnabled = quotaWarningWeeklyEnabledDefault ?? true
-        if quotaWarningWeeklyEnabledDefault == nil {
-            userDefaults.set(true, forKey: "quotaWarningWeeklyEnabled")
-        }
-        let quotaWarningSoundDefault = userDefaults.object(forKey: "quotaWarningSoundEnabled") as? Bool
-        let quotaWarningSoundEnabled = quotaWarningSoundDefault ?? true
-        if quotaWarningSoundDefault == nil {
-            userDefaults.set(true, forKey: "quotaWarningSoundEnabled")
-        }
+        let quotaWarnings = Self.loadQuotaWarningDefaults(userDefaults: userDefaults)
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
         let menuBarShowsBrandIconWithPercent = userDefaults.object(
@@ -357,11 +335,11 @@ extension SettingsStore {
             debugKeepCLISessionsAlive: debugKeepCLISessionsAlive,
             statusChecksEnabled: statusChecksEnabled,
             sessionQuotaNotificationsEnabled: sessionQuotaNotificationsEnabled,
-            quotaWarningNotificationsEnabled: quotaWarningNotificationsEnabled,
-            quotaWarningThresholdsRaw: quotaWarningThresholdsRaw,
-            quotaWarningSessionEnabled: quotaWarningSessionEnabled,
-            quotaWarningWeeklyEnabled: quotaWarningWeeklyEnabled,
-            quotaWarningSoundEnabled: quotaWarningSoundEnabled,
+            quotaWarningNotificationsEnabled: quotaWarnings.notificationsEnabled,
+            quotaWarningThresholdsRaw: quotaWarnings.thresholdsRaw,
+            quotaWarningSessionEnabled: quotaWarnings.sessionEnabled,
+            quotaWarningWeeklyEnabled: quotaWarnings.weeklyEnabled,
+            quotaWarningSoundEnabled: quotaWarnings.soundEnabled,
             usageBarsShowUsed: usageBarsShowUsed,
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
@@ -389,6 +367,48 @@ extension SettingsStore {
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
             providerDetectionCompleted: providerDetectionCompleted)
+    }
+
+    private struct LoadedQuotaWarningDefaults {
+        var notificationsEnabled: Bool
+        var thresholdsRaw: [Int]
+        var sessionEnabled: Bool
+        var weeklyEnabled: Bool
+        var soundEnabled: Bool
+    }
+
+    private static func loadQuotaWarningDefaults(userDefaults: UserDefaults) -> LoadedQuotaWarningDefaults {
+        let notificationsEnabled = userDefaults.object(forKey: "quotaWarningNotificationsEnabled") as? Bool ?? false
+        let rawThresholds = userDefaults.array(forKey: "quotaWarningThresholds") as? [Int]
+        let thresholdsRaw = QuotaWarningThresholds.sanitized(rawThresholds ?? QuotaWarningThresholds.defaults)
+        if Self.isRunningTests, rawThresholds != thresholdsRaw {
+            userDefaults.set(thresholdsRaw, forKey: "quotaWarningThresholds")
+        }
+
+        let sessionDefault = userDefaults.object(forKey: "quotaWarningSessionEnabled") as? Bool
+        let sessionEnabled = sessionDefault ?? true
+        if Self.isRunningTests, sessionDefault == nil {
+            userDefaults.set(true, forKey: "quotaWarningSessionEnabled")
+        }
+
+        let weeklyDefault = userDefaults.object(forKey: "quotaWarningWeeklyEnabled") as? Bool
+        let weeklyEnabled = weeklyDefault ?? true
+        if Self.isRunningTests, weeklyDefault == nil {
+            userDefaults.set(true, forKey: "quotaWarningWeeklyEnabled")
+        }
+
+        let soundDefault = userDefaults.object(forKey: "quotaWarningSoundEnabled") as? Bool
+        let soundEnabled = soundDefault ?? true
+        if Self.isRunningTests, soundDefault == nil {
+            userDefaults.set(true, forKey: "quotaWarningSoundEnabled")
+        }
+
+        return LoadedQuotaWarningDefaults(
+            notificationsEnabled: notificationsEnabled,
+            thresholdsRaw: thresholdsRaw,
+            sessionEnabled: sessionEnabled,
+            weeklyEnabled: weeklyEnabled,
+            soundEnabled: soundEnabled)
     }
 }
 
