@@ -15,37 +15,67 @@
         position: relative;
         -webkit-font-smoothing: antialiased;
       }
-      body::before {
-        content: "";
+
+      /* Aurora layer — static radial blobs matching the site */
+      .aurora {
         position: absolute;
         inset: 0;
-        background:
-          radial-gradient(900px 620px at 8% -8%, rgba(255, 106, 0, 0.22), transparent 55%),
-          radial-gradient(820px 600px at 96% 4%, rgba(110, 90, 255, 0.22), transparent 58%),
-          radial-gradient(700px 540px at 50% 120%, rgba(0, 200, 170, 0.14), transparent 60%);
         z-index: 0;
+        overflow: hidden;
       }
-      body::after {
-        content: "";
+      .blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(70px);
+      }
+      .b1 { width: 640px; height: 640px; left: -120px; top: -160px;
+            background: radial-gradient(circle at 50% 50%, #ff7a1a 0%, rgba(255,122,26,0) 60%);
+            opacity: 0.85; }
+      .b2 { width: 620px; height: 620px; right: -120px; top: -120px;
+            background: radial-gradient(circle at 50% 50%, #6e5aff 0%, rgba(110,90,255,0) 60%);
+            opacity: 0.85; }
+      .b3 { width: 520px; height: 520px; left: 380px; top: 240px;
+            background: radial-gradient(circle at 50% 50%, #16d3b4 0%, rgba(22,211,180,0) 60%);
+            opacity: 0.55; }
+      .b4 { width: 460px; height: 460px; right: 80px; top: 320px;
+            background: radial-gradient(circle at 50% 50%, #ff3d8b 0%, rgba(255,61,139,0) 60%);
+            opacity: 0.55; }
+
+      /* Dot grid with radial mask */
+      .grid-bg {
         position: absolute;
         inset: 0;
+        z-index: 1;
+        pointer-events: none;
         background-image:
           linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
           linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
         background-size: 28px 28px;
-        mask-image: linear-gradient(to bottom, black, black 65%, transparent);
-        -webkit-mask-image: linear-gradient(to bottom, black, black 65%, transparent);
-        z-index: 0;
+        background-position: -1px -1px;
+        -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black, transparent 78%);
+                mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black, transparent 78%);
+      }
+
+      /* Subtle noise texture */
+      .noise {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
+        opacity: 0.35;
+        mix-blend-mode: soft-light;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
       }
 
       .frame {
         position: relative;
-        z-index: 1;
-        padding: 40px 56px 36px;
+        z-index: 3;
+        padding: 44px 56px 40px;
         height: 100%;
         display: flex;
         flex-direction: column;
-        gap: 22px;
+        gap: 20px;
+        box-sizing: border-box;
       }
 
       .top {
@@ -62,23 +92,39 @@
         letter-spacing: 0;
       }
       .brand img { width: 32px; height: 32px; border-radius: 8px; }
-      .url { font-size: 16px; color: #97a0aa; letter-spacing: 0.01em; }
+      .url {
+        font-size: 15px;
+        color: #b6bdc6;
+        letter-spacing: 0.04em;
+        text-transform: lowercase;
+        padding: 6px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+      }
 
       h1 {
         margin: 0;
-        font-size: 56px;
+        font-size: 60px;
         line-height: 1.02;
         letter-spacing: -0.028em;
         font-weight: 600;
-        max-width: 20ch;
+        max-width: 22ch;
+      }
+      h1 .grad {
+        background-image: linear-gradient(100deg, #ff7a1a 0%, #ff3d8b 32%, #6e5aff 62%, #16d3b4 100%);
+        -webkit-background-clip: text;
+                background-clip: text;
+        color: transparent;
       }
       .sub {
-        margin: 10px 0 0;
-        font-size: 19px;
+        margin: 12px 0 0;
+        font-size: 20px;
         color: #b6bdc6;
         letter-spacing: -0.005em;
       }
       .sub strong { color: #f0f0f3; font-weight: 600; }
+      .sub .dot { color: #5b6068; padding: 0 10px; }
 
       .grid {
         list-style: none;
@@ -86,7 +132,7 @@
         padding: 0;
         display: grid;
         grid-template-columns: repeat(8, 1fr);
-        gap: 7px;
+        gap: 8px;
         align-content: end;
       }
       .grid li { margin: 0; }
@@ -96,11 +142,14 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 7px 8px;
-        border: 1px solid rgba(255, 255, 255, 0.09);
-        border-radius: 9px;
-        background: #131418;
+        padding: 7px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        background: rgba(19, 20, 24, 0.72);
         height: 50px;
+        backdrop-filter: blur(6px) saturate(140%);
+        -webkit-backdrop-filter: blur(6px) saturate(140%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
       }
       .chip {
         width: 34px;
@@ -115,8 +164,8 @@
         letter-spacing: -0.02em;
         flex-shrink: 0;
         box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.18),
-          inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+          inset 0 1px 0 rgba(255, 255, 255, 0.22),
+          inset 0 -1px 0 rgba(0, 0, 0, 0.18);
       }
       .name {
         font-size: 13px;
@@ -130,18 +179,27 @@
     </style>
   </head>
   <body>
+    <div class="aurora">
+      <span class="blob b1"></span>
+      <span class="blob b2"></span>
+      <span class="blob b3"></span>
+      <span class="blob b4"></span>
+    </div>
+    <div class="grid-bg"></div>
+    <div class="noise"></div>
+
     <div class="frame">
       <div class="top">
         <div class="brand">
           <img src="./icon.png" alt="" />
           <span>CodexBar</span>
         </div>
-        <div class="url">codexbar.app</div>
+        <div class="url">codex.bar</div>
       </div>
 
       <div>
-        <h1>Every AI coding limit, in your menu bar.</h1>
-        <p class="sub"><strong>29 providers</strong> · usage windows, credits, resets · one status item each, or merged.</p>
+        <h1>Every AI coding limit, <span class="grad">in your menu&nbsp;bar.</span></h1>
+        <p class="sub"><strong>29 providers</strong><span class="dot">·</span>usage windows, credits, resets<span class="dot">·</span>one status item each, or merged.</p>
       </div>
 
       <ul class="grid">
@@ -152,26 +210,26 @@
         <li><div class="tile" style="--brand:#3B82F6"><div class="chip">O</div><div class="name">OpenCode Go</div></div></li>
         <li><div class="tile" style="--brand:#FF6A00"><div class="chip">A</div><div class="name">Alibaba</div></div></li>
         <li><div class="tile" style="--brand:#AB87EA"><div class="chip">G</div><div class="name">Gemini</div></div></li>
-
         <li><div class="tile" style="--brand:#60BA7E"><div class="chip">A</div><div class="name">Antigravity</div></div></li>
+
         <li><div class="tile" style="--brand:#FF6B35"><div class="chip">D</div><div class="name">Droid</div></div></li>
         <li><div class="tile" style="--brand:#A855F7"><div class="chip">C</div><div class="name">Copilot</div></div></li>
         <li><div class="tile" style="--brand:#E85A6A"><div class="chip">z</div><div class="name">z.ai</div></div></li>
         <li><div class="tile" style="--brand:#FE6060"><div class="chip">M</div><div class="name">MiniMax</div></div></li>
         <li><div class="tile" style="--brand:#FE603C"><div class="chip">K</div><div class="name">Kimi</div></div></li>
         <li><div class="tile" style="--brand:#4C00FF"><div class="chip">K</div><div class="name">Kimi K2</div></div></li>
-
         <li><div class="tile" style="--brand:#F27027"><div class="chip">K</div><div class="name">Kilo</div></div></li>
         <li><div class="tile" style="--brand:#FF9900;--ink:#0a0a0c"><div class="chip">K</div><div class="name">Kiro</div></div></li>
+
         <li><div class="tile" style="--brand:#4285F4"><div class="chip">V</div><div class="name">Vertex AI</div></div></li>
         <li><div class="tile" style="--brand:#6366F1"><div class="chip">A</div><div class="name">Augment</div></div></li>
         <li><div class="tile" style="--brand:#DC2626"><div class="chip">A</div><div class="name">Amp</div></div></li>
         <li><div class="tile" style="--brand:#888888"><div class="chip">O</div><div class="name">Ollama</div></div></li>
         <li><div class="tile" style="--brand:#141414"><div class="chip">S</div><div class="name">Synthetic</div></div></li>
         <li><div class="tile" style="--brand:#FF3399"><div class="chip">J</div><div class="name">JetBrains AI</div></div></li>
-
         <li><div class="tile" style="--brand:#7B68EE"><div class="chip">W</div><div class="name">Warp</div></div></li>
         <li><div class="tile" style="--brand:#6467F2"><div class="chip">O</div><div class="name">OpenRouter</div></div></li>
+
         <li><div class="tile" style="--brand:#20B2AA"><div class="chip">P</div><div class="name">Perplexity</div></div></li>
         <li><div class="tile" style="--brand:#38BDF8"><div class="chip">A</div><div class="name">Abacus AI</div></div></li>
         <li><div class="tile" style="--brand:#FF500F"><div class="chip">M</div><div class="name">Mistral</div></div></li>

@@ -89,6 +89,16 @@ public enum ProviderTokenResolver {
         self.veniceResolution(environment: environment)?.token
     }
 
+    public static func stepfunToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.stepfunResolution(environment: environment)?.token
+    }
+
+    public static func doubaoToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.doubaoResolution(environment: environment)?.token
+    }
+
     public static func deepseekResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
@@ -112,6 +122,18 @@ public enum ProviderTokenResolver {
         authFileURL: URL? = nil) -> String?
     {
         self.codebuffResolution(environment: environment, authFileURL: authFileURL)?.token
+    }
+
+    public static func stepfunResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(StepFunSettingsReader.token(environment: environment))
+    }
+
+    public static func doubaoResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(DoubaoSettingsReader.apiKey(environment: environment))
     }
 
     public static func zaiResolution(

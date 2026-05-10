@@ -65,6 +65,7 @@ public enum ProviderDescriptorRegistry {
         .copilot: CopilotProviderDescriptor.descriptor,
         .zai: ZaiProviderDescriptor.descriptor,
         .minimax: MiniMaxProviderDescriptor.descriptor,
+        .manus: ManusProviderDescriptor.descriptor,
         .kimi: KimiProviderDescriptor.descriptor,
         .kilo: KiloProviderDescriptor.descriptor,
         .kiro: KiroProviderDescriptor.descriptor,
@@ -79,6 +80,8 @@ public enum ProviderDescriptorRegistry {
         .warp: WarpProviderDescriptor.descriptor,
         .windsurf: WindsurfProviderDescriptor.descriptor,
         .perplexity: PerplexityProviderDescriptor.descriptor,
+        .mimo: MiMoProviderDescriptor.descriptor,
+        .doubao: DoubaoProviderDescriptor.descriptor,
         .abacus: AbacusProviderDescriptor.descriptor,
         .mistral: MistralProviderDescriptor.descriptor,
         .deepseek: DeepSeekProviderDescriptor.descriptor,
@@ -86,6 +89,7 @@ public enum ProviderDescriptorRegistry {
         .crof: CrofProviderDescriptor.descriptor,
         .venice: VeniceProviderDescriptor.descriptor,
         .commandcode: CommandCodeProviderDescriptor.descriptor,
+        .stepfun: StepFunProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

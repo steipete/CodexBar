@@ -54,6 +54,7 @@ public enum ClaudeWebAPIFetcher {
         case unauthorized
         case serverError(statusCode: Int)
         case noOrganization
+        case organizationNotFound(String)
 
         public var errorDescription: String? {
             switch self {
@@ -73,6 +74,8 @@ public enum ClaudeWebAPIFetcher {
                 "Claude API error: HTTP \(code)"
             case .noOrganization:
                 "No Claude organization found for this account."
+            case let .organizationNotFound(id):
+                "Claude organization '\(id)' was not found for this session."
             }
         }
     }
@@ -134,6 +137,7 @@ public enum ClaudeWebAPIFetcher {
     /// Tries browser cookies using the standard import order.
     public static func fetchUsage(
         browserDetection: BrowserDetection,
+        targetOrganizationID: String? = nil,
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
@@ -143,7 +147,10 @@ public enum ClaudeWebAPIFetcher {
         {
             log("Using cached cookie header from \(cached.sourceLabel)")
             do {
-                return try await self.fetchUsage(cookieHeader: cached.cookieHeader, logger: log)
+                return try await self.fetchUsage(
+                    cookieHeader: cached.cookieHeader,
+                    targetOrganizationID: targetOrganizationID,
+                    logger: log)
             } catch let error as FetchError {
                 switch error {
                 case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
@@ -159,7 +166,10 @@ public enum ClaudeWebAPIFetcher {
         let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
         log("Found session key (\(sessionInfo.cookieCount) cookies)")
 
-        let usage = try await self.fetchUsage(using: sessionInfo, logger: log)
+        let usage = try await self.fetchUsage(
+            using: sessionInfo,
+            targetOrganizationID: targetOrganizationID,
+            logger: log)
         CookieHeaderCache.store(
             provider: .claude,
             cookieHeader: "sessionKey=\(sessionInfo.key)",
@@ -169,23 +179,31 @@ public enum ClaudeWebAPIFetcher {
 
     public static func fetchUsage(
         cookieHeader: String,
+        targetOrganizationID: String? = nil,
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
         let sessionInfo = try self.sessionKeyInfo(cookieHeader: cookieHeader)
         log("Using manual session key (\(sessionInfo.cookieCount) cookies)")
-        return try await self.fetchUsage(using: sessionInfo, logger: log)
+        return try await self.fetchUsage(
+            using: sessionInfo,
+            targetOrganizationID: targetOrganizationID,
+            logger: log)
     }
 
     public static func fetchUsage(
         using sessionKeyInfo: SessionKeyInfo,
+        targetOrganizationID: String? = nil,
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?(msg) }
         let sessionKey = sessionKeyInfo.key
 
         // Fetch organization info
-        let organization = try await fetchOrganizationInfo(sessionKey: sessionKey, logger: log)
+        let organization = try await fetchOrganizationInfo(
+            sessionKey: sessionKey,
+            targetOrganizationID: targetOrganizationID,
+            logger: log)
         log("Organization resolved")
 
         var usage = try await fetchUsageData(orgId: organization.id, sessionKey: sessionKey, logger: log)
@@ -396,6 +414,7 @@ public enum ClaudeWebAPIFetcher {
 
     private static func fetchOrganizationInfo(
         sessionKey: String,
+        targetOrganizationID: String? = nil,
         logger: ((String) -> Void)? = nil) async throws -> OrganizationInfo
     {
         let url = URL(string: "\(baseURL)/organizations")!
@@ -415,7 +434,7 @@ public enum ClaudeWebAPIFetcher {
 
         switch httpResponse.statusCode {
         case 200:
-            return try self.parseOrganizationResponse(data)
+            return try self.parseOrganizationResponse(data, targetOrganizationID: targetOrganizationID)
         case 401, 403:
             throw FetchError.unauthorized
         default:
@@ -592,8 +611,11 @@ public enum ClaudeWebAPIFetcher {
         try self.parseUsageResponse(data)
     }
 
-    public static func _parseOrganizationsResponseForTesting(_ data: Data) throws -> OrganizationInfo {
-        try self.parseOrganizationResponse(data)
+    public static func _parseOrganizationsResponseForTesting(
+        _ data: Data,
+        targetOrganizationID: String? = nil) throws -> OrganizationInfo
+    {
+        try self.parseOrganizationResponse(data, targetOrganizationID: targetOrganizationID)
     }
 
     public static func _parseOverageSpendLimitForTesting(_ data: Data) -> ProviderCostSnapshot? {
@@ -616,28 +638,20 @@ public enum ClaudeWebAPIFetcher {
         return formatter.date(from: string)
     }
 
-    private struct OrganizationResponse: Decodable {
-        let uuid: String
-        let name: String?
-        let capabilities: [String]?
-
-        var normalizedCapabilities: Set<String> {
-            Set((self.capabilities ?? []).map { $0.lowercased() })
-        }
-
-        var hasChatCapability: Bool {
-            self.normalizedCapabilities.contains("chat")
-        }
-
-        var isApiOnly: Bool {
-            let normalized = self.normalizedCapabilities
-            return !normalized.isEmpty && normalized == ["api"]
-        }
-    }
-
-    private static func parseOrganizationResponse(_ data: Data) throws -> OrganizationInfo {
-        guard let organizations = try? JSONDecoder().decode([OrganizationResponse].self, from: data) else {
+    private static func parseOrganizationResponse(
+        _ data: Data,
+        targetOrganizationID: String? = nil) throws -> OrganizationInfo
+    {
+        guard let organizations = try? JSONDecoder().decode([ClaudeWebOrganizationResponse].self, from: data) else {
             throw FetchError.invalidResponse
+        }
+        if let targetOrganizationID = targetOrganizationID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !targetOrganizationID.isEmpty
+        {
+            guard let selected = organizations.first(where: { $0.uuid == targetOrganizationID }) else {
+                throw FetchError.organizationNotFound(targetOrganizationID)
+            }
+            return self.organizationInfo(from: selected)
         }
         guard let selected = organizations.first(where: { $0.hasChatCapability })
             ?? organizations.first(where: { !$0.isApiOnly })
@@ -645,6 +659,10 @@ public enum ClaudeWebAPIFetcher {
         else {
             throw FetchError.noOrganization
         }
+        return self.organizationInfo(from: selected)
+    }
+
+    private static func organizationInfo(from selected: ClaudeWebOrganizationResponse) -> OrganizationInfo {
         let name = selected.name?.trimmingCharacters(in: .whitespacesAndNewlines)
         let sanitized = (name?.isEmpty ?? true) ? nil : name
         return OrganizationInfo(id: selected.uuid, name: sanitized)
@@ -854,26 +872,32 @@ public enum ClaudeWebAPIFetcher {
 
     public static func fetchUsage(
         browserDetection: BrowserDetection,
+        targetOrganizationID: String? = nil,
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
         _ = browserDetection
+        _ = targetOrganizationID
         _ = logger
         throw FetchError.notSupportedOnThisPlatform
     }
 
     public static func fetchUsage(
         cookieHeader: String,
+        targetOrganizationID: String? = nil,
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
         _ = cookieHeader
+        _ = targetOrganizationID
         _ = logger
         throw FetchError.notSupportedOnThisPlatform
     }
 
     public static func fetchUsage(
         using sessionKeyInfo: SessionKeyInfo,
+        targetOrganizationID: String? = nil,
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
+        _ = targetOrganizationID
         throw FetchError.notSupportedOnThisPlatform
     }
 
@@ -907,4 +931,23 @@ public enum ClaudeWebAPIFetcher {
     }
 
     #endif
+}
+
+private struct ClaudeWebOrganizationResponse: Decodable {
+    let uuid: String
+    let name: String?
+    let capabilities: [String]?
+
+    var normalizedCapabilities: Set<String> {
+        Set((self.capabilities ?? []).map { $0.lowercased() })
+    }
+
+    var hasChatCapability: Bool {
+        self.normalizedCapabilities.contains("chat")
+    }
+
+    var isApiOnly: Bool {
+        let normalized = self.normalizedCapabilities
+        return !normalized.isEmpty && normalized == ["api"]
+    }
 }

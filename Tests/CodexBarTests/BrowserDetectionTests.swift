@@ -96,6 +96,37 @@ struct BrowserDetectionTests {
     }
 
     @Test
+    func `keychain interaction suppresses chromium cookie source during cooldown`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        let start = Date(timeIntervalSince1970: 1000)
+        var preflightCount = 0
+
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                preflightCount += 1
+                return .interactionRequired
+            } operation: {
+                #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start) == false)
+            }
+
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                preflightCount += 1
+                return .allowed
+            } operation: {
+                #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start.addingTimeInterval(60)) == false)
+                #expect(
+                    BrowserCookieAccessGate.shouldAttempt(
+                        .chrome,
+                        now: start.addingTimeInterval((60 * 60 * 6) + 1)) == true)
+            }
+        }
+
+        #expect(preflightCount == 2)
+    }
+
+    @Test
     func `dia requires profile data`() throws {
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)

@@ -46,6 +46,10 @@ public enum ProviderConfigEnvironment {
             {
                 env[key] = apiKey
             }
+        case .doubao:
+            if let key = DoubaoSettingsReader.apiKeyEnvironmentKeys.first {
+                env[key] = apiKey
+            }
         default:
             break
         }

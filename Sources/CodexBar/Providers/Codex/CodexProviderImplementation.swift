@@ -199,9 +199,13 @@ struct CodexProviderImplementation: ProviderImplementation {
         else { return }
 
         if let credits = context.store.credits {
-            entries.append(.text("Credits: \(UsageFormatter.creditsString(from: credits.remaining))", .primary))
+            entries.append(.text(
+                String(format: L("credits_remaining"), UsageFormatter.creditsString(from: credits.remaining)),
+                .primary))
             if let latest = credits.events.first {
-                entries.append(.text("Last spend: \(UsageFormatter.creditEventSummary(latest))", .secondary))
+                entries.append(.text(
+                    String(format: L("last_spend"), UsageFormatter.creditEventSummary(latest)),
+                    .secondary))
             }
         } else {
             let hint = context.store.userFacingLastCreditsError ?? context.metadata.creditsHint

@@ -2,6 +2,24 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case system = ""
+    case english = "en"
+    case chineseSimplified = "zh-Hans"
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .system: L("language_system")
+        case .english: L("language_english")
+        case .chineseSimplified: L("language_chinese_simplified")
+        }
+    }
+}
+
 @MainActor
 struct GeneralPane: View {
     @Bindable var settings: SettingsStore
@@ -11,20 +29,43 @@ struct GeneralPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 SettingsSection(contentSpacing: 12) {
-                    Text("System")
+                    Text(L("section_system"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(L("language_title"))
+                                    .font(.body)
+                                Text(L("language_subtitle"))
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                            Picker(L("language_title"), selection: self.$settings.appLanguage) {
+                                ForEach(AppLanguage.allCases) { option in
+                                    Text(option.label).tag(option.rawValue)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 200)
+                        }
+                    }
+
                     PreferenceToggleRow(
-                        title: "Start at Login",
-                        subtitle: "Automatically opens CodexBar when you start your Mac.",
+                        title: L("start_at_login_title"),
+                        subtitle: L("start_at_login_subtitle"),
                         binding: self.$settings.launchAtLogin)
                 }
 
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {
-                    Text("Usage")
+                    Text(L("section_usage"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
@@ -32,18 +73,18 @@ struct GeneralPane: View {
                     VStack(alignment: .leading, spacing: 10) {
                         VStack(alignment: .leading, spacing: 4) {
                             Toggle(isOn: self.$settings.costUsageEnabled) {
-                                Text("Show cost summary")
+                                Text(L("show_cost_summary"))
                                     .font(.body)
                             }
                             .toggleStyle(.checkbox)
 
-                            Text("Reads local usage logs. Shows today + last 30 days cost in the menu.")
+                            Text(L("show_cost_summary_subtitle"))
                                 .font(.footnote)
                                 .foregroundStyle(.tertiary)
                                 .fixedSize(horizontal: false, vertical: true)
 
                             if self.settings.costUsageEnabled {
-                                Text("Auto-refresh: hourly · Timeout: 10m")
+                                Text(L("cost_auto_refresh_info"))
                                     .font(.footnote)
                                     .foregroundStyle(.tertiary)
 
@@ -57,16 +98,16 @@ struct GeneralPane: View {
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {
-                    Text("Automation")
+                    Text(L("section_automation"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .top, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Refresh cadence")
+                                Text(L("refresh_cadence_title"))
                                     .font(.body)
-                                Text("How often CodexBar polls providers in the background.")
+                                Text(L("refresh_cadence_subtitle"))
                                     .font(.footnote)
                                     .foregroundStyle(.tertiary)
                             }
@@ -81,20 +122,18 @@ struct GeneralPane: View {
                             .frame(maxWidth: 200)
                         }
                         if self.settings.refreshFrequency == .manual {
-                            Text("Auto-refresh is off; use the menu's Refresh command.")
+                            Text(L("manual_refresh_hint"))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     PreferenceToggleRow(
-                        title: "Check provider status",
-                        subtitle: "Polls OpenAI/Claude status pages and Google Workspace for " +
-                            "Gemini/Antigravity, surfacing incidents in the icon and menu.",
+                        title: L("check_provider_status_title"),
+                        subtitle: L("check_provider_status_subtitle"),
                         binding: self.$settings.statusChecksEnabled)
                     PreferenceToggleRow(
-                        title: "Session quota notifications",
-                        subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +
-                            "available again.",
+                        title: L("session_quota_notifications_title"),
+                        subtitle: L("session_quota_notifications_subtitle"),
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
                     PreferenceToggleRow(
                         title: "Quota warning notifications",
@@ -110,7 +149,7 @@ struct GeneralPane: View {
                 SettingsSection(contentSpacing: 12) {
                     HStack {
                         Spacer()
-                        Button("Quit CodexBar") { NSApp.terminate(nil) }
+                        Button(L("quit_app")) { NSApp.terminate(nil) }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
                     }
@@ -126,7 +165,7 @@ struct GeneralPane: View {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
 
         guard provider == .claude || provider == .codex else {
-            return Text("\(name): unsupported")
+            return Text(String(format: L("cost_status_unsupported"), name))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
@@ -140,20 +179,20 @@ struct GeneralPane: View {
                 formatter.unitsStyle = .abbreviated
                 return formatter.string(from: seconds).map { " (\($0))" } ?? ""
             }()
-            return Text("\(name): fetching…\(elapsed)")
+            return Text(String(format: L("cost_status_fetching"), name, elapsed))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
         if let snapshot = self.store.tokenSnapshot(for: provider) {
             let updated = UsageFormatter.updatedString(from: snapshot.updatedAt)
             let cost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-            return Text("\(name): \(updated) · 30d \(cost)")
+            return Text(String(format: L("cost_status_snapshot"), name, updated, cost))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
         if let error = self.store.tokenError(for: provider), !error.isEmpty {
             let truncated = UsageFormatter.truncatedSingleLine(error, max: 120)
-            return Text("\(name): \(truncated)")
+            return Text(String(format: L("cost_status_error"), name, truncated))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
@@ -162,11 +201,11 @@ struct GeneralPane: View {
             rel.locale = Locale(identifier: "en_US")
             rel.unitsStyle = .abbreviated
             let when = rel.localizedString(for: lastAttempt, relativeTo: Date())
-            return Text("\(name): last attempt \(when)")
+            return Text(String(format: L("cost_status_last_attempt"), name, when))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
-        return Text("\(name): no data yet")
+        return Text(String(format: L("cost_status_no_data"), name))
             .font(.footnote)
             .foregroundStyle(.tertiary)
     }

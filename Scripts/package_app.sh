@@ -136,13 +136,40 @@ generate_widget_appintents_metadata() {
   xcode_version=$(xcodebuild -version | awk '/Build version/ { print $3 }')
 
   rm -rf "$derived_dir"
+  mkdir -p "$derived_dir"
+  local xcodebuild_log="$derived_dir/xcodebuild.log"
+  local timeout_seconds="${CODEXBAR_WIDGET_METADATA_TIMEOUT_SECONDS:-60}"
   xcodebuild \
     -workspace "$ROOT/.swiftpm/xcode/package.xcworkspace" \
     -scheme CodexBarWidget \
     -configuration "$xcode_conf" \
     -destination "platform=macOS,arch=${host_arch}" \
     -derivedDataPath "$derived_dir" \
-    build >/dev/null
+    -skipMacroValidation \
+    -skipPackagePluginValidation \
+    build >"$xcodebuild_log" 2>&1 &
+  local xcodebuild_pid=$!
+  local elapsed=0
+  while kill -0 "$xcodebuild_pid" 2>/dev/null; do
+    if [[ "$elapsed" -ge "$timeout_seconds" ]]; then
+      kill "$xcodebuild_pid" 2>/dev/null || true
+      wait "$xcodebuild_pid" 2>/dev/null || true
+      if [[ "${SIGNING_MODE:-}" == "adhoc" || "${CODEXBAR_ALLOW_MISSING_WIDGET_METADATA:-0}" == "1" ]]; then
+        echo "WARN: Timed out generating widget App Intents metadata after ${timeout_seconds}s; continuing without it." >&2
+        return 0
+      fi
+      echo "ERROR: Timed out generating widget App Intents metadata after ${timeout_seconds}s." >&2
+      tail -80 "$xcodebuild_log" >&2 || true
+      exit 1
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  if ! wait "$xcodebuild_pid"; then
+    echo "ERROR: Failed to build CodexBarWidget metadata inputs." >&2
+    tail -80 "$xcodebuild_log" >&2 || true
+    exit 1
+  fi
 
   if [[ ! -f "$source_file_list" ]]; then
     echo "ERROR: Missing App Intents metadata inputs for CodexBarWidget." >&2

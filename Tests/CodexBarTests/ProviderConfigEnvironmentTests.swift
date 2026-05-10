@@ -40,6 +40,18 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies API key override for doubao`() {
+        let config = ProviderConfig(id: .doubao, apiKey: "db-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == "db-token")
+        #expect(ProviderTokenResolver.doubaoToken(environment: env) == "db-token")
+    }
+
+    @Test
     func `ignores legacy API key override for deepseek`() {
         let config = ProviderConfig(id: .deepseek, apiKey: "ds-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

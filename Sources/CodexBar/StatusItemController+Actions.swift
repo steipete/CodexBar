@@ -173,25 +173,18 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         let rawProvider = sender.representedObject as? String
         let provider = rawProvider.flatMap(UsageProvider.init(rawValue:)) ?? self.lastMenuProvider ?? .codex
         self.loginLogger.info("Switch Account tapped", metadata: ["provider": provider.rawValue])
+        self.startLoginFlow(provider: provider)
+    }
 
-        self.loginTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer {
-                self.activeLoginProvider = nil
-                self.loginTask = nil
-            }
-            self.activeLoginProvider = provider
-            self.loginPhase = .requesting
-            self.loginLogger.info("Starting login task", metadata: ["provider": provider.rawValue])
-
-            let shouldRefresh = await self.runLoginFlow(provider: provider)
-            if shouldRefresh {
-                await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                    await self.store.refresh()
-                }
-                self.loginLogger.info("Triggered refresh after login", metadata: ["provider": provider.rawValue])
-            }
+    func runLoginFlowFromSettings(provider: UsageProvider) async {
+        guard self.loginTask == nil else {
+            self.loginLogger.info(
+                "Settings login tap ignored: login already in-flight",
+                metadata: ["provider": provider.rawValue])
+            return
         }
+        self.startLoginFlow(provider: provider)
+        await self.loginTask?.value
     }
 
     @objc func showSettingsGeneral() {
@@ -304,6 +297,27 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         return .codex
     }
 
+    private func startLoginFlow(provider: UsageProvider) {
+        self.loginTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.activeLoginProvider = nil
+                self.loginTask = nil
+            }
+            self.activeLoginProvider = provider
+            self.loginPhase = .requesting
+            self.loginLogger.info("Starting login task", metadata: ["provider": provider.rawValue])
+
+            let shouldRefresh = await self.runLoginFlow(provider: provider)
+            if shouldRefresh {
+                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await self.store.refresh()
+                }
+                self.loginLogger.info("Triggered refresh after login", metadata: ["provider": provider.rawValue])
+            }
+        }
+    }
+
     func presentCodexLoginResult(_ result: CodexLoginRunner.Result) {
         guard let info = CodexLoginAlertPresentation.alertInfo(for: result) else { return }
         self.presentLoginAlert(title: info.title, message: info.message)
@@ -386,8 +400,28 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
+    func describe(_ outcome: AntigravityLoginRunner.Result.Outcome) -> String {
+        switch outcome {
+        case let .success(email):
+            "success(email: \(email ?? "nil"))"
+        case .cancelled:
+            "cancelled"
+        case .timedOut:
+            "timedOut"
+        case let .launchFailed(message):
+            "launchFailed(\(message))"
+        case let .failed(message):
+            "failed(\(message))"
+        }
+    }
+
     func presentGeminiLoginResult(_ result: GeminiLoginRunner.Result) {
         guard let info = Self.geminiLoginAlertInfo(for: result) else { return }
+        self.presentLoginAlert(title: info.title, message: info.message)
+    }
+
+    func presentAntigravityLoginResult(_ result: AntigravityLoginRunner.Result) {
+        guard let info = Self.antigravityLoginAlertInfo(for: result) else { return }
         self.presentLoginAlert(title: info.title, message: info.message)
     }
 
@@ -406,6 +440,23 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 message: "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again.")
         case let .launchFailed(message):
             LoginAlertInfo(title: "Could not open Terminal for Gemini", message: message)
+        }
+    }
+
+    nonisolated static func antigravityLoginAlertInfo(for result: AntigravityLoginRunner.Result) -> LoginAlertInfo? {
+        switch result.outcome {
+        case .success, .cancelled:
+            nil
+        case .timedOut:
+            LoginAlertInfo(
+                title: "Antigravity login timed out",
+                message: "The browser login did not complete in time. Try Antigravity login again.")
+        case let .launchFailed(message):
+            LoginAlertInfo(
+                title: "Could not open browser for Antigravity",
+                message: "Open this URL manually to continue login:\n\n\(message)")
+        case let .failed(message):
+            LoginAlertInfo(title: "Antigravity login failed", message: message)
         }
     }
 

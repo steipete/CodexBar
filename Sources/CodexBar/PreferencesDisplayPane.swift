@@ -13,35 +13,35 @@ struct DisplayPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 SettingsSection(contentSpacing: 12) {
-                    Text("Menu bar")
+                    Text(L("section_menu_bar"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     PreferenceToggleRow(
-                        title: "Merge Icons",
-                        subtitle: "Use a single menu bar icon with a provider switcher.",
+                        title: L("merge_icons_title"),
+                        subtitle: L("merge_icons_subtitle"),
                         binding: self.$settings.mergeIcons)
                     PreferenceToggleRow(
-                        title: "Switcher shows icons",
-                        subtitle: "Show provider icons in the switcher (otherwise show a weekly progress line).",
+                        title: L("switcher_shows_icons_title"),
+                        subtitle: L("switcher_shows_icons_subtitle"),
                         binding: self.$settings.switcherShowsIcons)
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
-                        title: "Show most-used provider",
-                        subtitle: "Menu bar auto-shows the provider closest to its rate limit.",
+                        title: L("show_most_used_provider_title"),
+                        subtitle: L("show_most_used_provider_subtitle"),
                         binding: self.$settings.menuBarShowsHighestUsage)
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
-                        title: "Menu bar shows percent",
-                        subtitle: "Replace critter bars with provider branding icons and a percentage.",
+                        title: L("menu_bar_shows_percent_title"),
+                        subtitle: L("menu_bar_shows_percent_subtitle"),
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Display mode")
+                            Text(L("display_mode_title"))
                                 .font(.body)
-                            Text("Choose what to show in the menu bar (Pace shows usage vs. expected).")
+                            Text(L("display_mode_subtitle"))
                                 .font(.footnote)
                                 .foregroundStyle(.tertiary)
                         }
@@ -62,25 +62,25 @@ struct DisplayPane: View {
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {
-                    Text("Menu content")
+                    Text(L("section_menu_content"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     PreferenceToggleRow(
-                        title: "Show usage as used",
-                        subtitle: "Progress bars fill as you consume quota (instead of showing remaining).",
+                        title: L("show_usage_as_used_title"),
+                        subtitle: L("show_usage_as_used_subtitle"),
                         binding: self.$settings.usageBarsShowUsed)
                     PreferenceToggleRow(
-                        title: "Show reset time as clock",
-                        subtitle: "Display reset times as absolute clock values instead of countdowns.",
+                        title: L("show_reset_time_as_clock_title"),
+                        subtitle: L("show_reset_time_as_clock_subtitle"),
                         binding: self.$settings.resetTimesShowAbsolute)
                     PreferenceToggleRow(
-                        title: "Show credits + extra usage",
-                        subtitle: "Show Codex Credits and Claude Extra usage sections in the menu.",
+                        title: L("show_credits_extra_usage_title"),
+                        subtitle: L("show_credits_extra_usage_subtitle"),
                         binding: self.$settings.showOptionalCreditsAndExtraUsage)
                     PreferenceToggleRow(
-                        title: "Show all token accounts",
-                        subtitle: "Stack token accounts in the menu (otherwise show an account switcher bar).",
+                        title: L("show_all_token_accounts_title"),
+                        subtitle: L("show_all_token_accounts_subtitle"),
                         binding: self.$settings.showAllTokenAccountsInMenu)
                     self.overviewProviderSelector
                 }
@@ -110,11 +110,11 @@ struct DisplayPane: View {
     private var overviewProviderSelector: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 12) {
-                Text("Overview tab providers")
+                Text(L("overview_tab_providers_title"))
                     .font(.body)
                 Spacer(minLength: 0)
                 if self.showsOverviewConfigureButton {
-                    Button("Configure…") {
+                    Button(L("configure")) {
                         self.isOverviewProviderPopoverPresented = true
                     }
                     .offset(y: 1)
@@ -125,11 +125,11 @@ struct DisplayPane: View {
             }
 
             if !self.settings.mergeIcons {
-                Text("Enable Merge Icons to configure Overview tab providers.")
+                Text(L("overview_enable_merge_icons_hint"))
                     .font(.footnote)
                     .foregroundStyle(.tertiary)
             } else if self.activeProvidersInOrder.isEmpty {
-                Text("No enabled providers available for Overview.")
+                Text(L("overview_no_providers_hint"))
                     .font(.footnote)
                     .foregroundStyle(.tertiary)
             } else {
@@ -144,9 +144,9 @@ struct DisplayPane: View {
 
     private var overviewProviderPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Choose up to \(Self.maxOverviewProviders) providers")
+            Text(String(format: L("overview_choose_providers"), Self.maxOverviewProviders))
                 .font(.headline)
-            Text("Overview rows always follow provider order.")
+            Text(L("overview_rows_follow_order"))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
 
@@ -191,7 +191,7 @@ struct DisplayPane: View {
 
     private var overviewProviderSelectionSummary: String {
         let selectedNames = self.overviewSelectedProviders.map(self.providerDisplayName)
-        guard !selectedNames.isEmpty else { return "No providers selected" }
+        guard !selectedNames.isEmpty else { return L("overview_no_providers_selected") }
         return selectedNames.joined(separator: ", ")
     }
 

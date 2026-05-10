@@ -138,6 +138,12 @@ public enum FactoryCookieImporter {
 public struct FactoryAuthResponse: Codable, Sendable {
     public let featureFlags: FactoryFeatureFlags?
     public let organization: FactoryOrganization?
+    public let userProfile: FactoryUserProfile?
+}
+
+public struct FactoryUserProfile: Codable, Sendable {
+    public let id: String?
+    public let email: String?
 }
 
 public struct FactoryFeatureFlags: Codable, Sendable {
@@ -1210,8 +1216,8 @@ public struct FactoryStatusProbe: Sendable {
             bearerToken: bearerToken,
             baseURL: baseURL)
 
-        // Extract user ID from JWT in the auth response or use a default endpoint
-        let userId = self.extractUserIdFromAuth(authInfo)
+        let userId = factoryUserIdFromAuth(authInfo)
+            ?? factoryUserIdFromBearerToken(bearerToken)
 
         if let billingLimits = try await self.fetchBillingLimitsIfAvailable(
             cookieHeader: cookieHeader,
@@ -1302,8 +1308,15 @@ public struct FactoryStatusProbe: Sendable {
             throw FactoryStatusProbeError.networkError("Invalid response")
         }
 
-        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+        if httpResponse.statusCode == 401 {
             throw FactoryStatusProbeError.notLoggedIn
+        }
+
+        if httpResponse.statusCode == 403 {
+            let body = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<binary>"
+            let snippet = body.isEmpty ? "" : ": \(body.prefix(200))"
+            throw FactoryStatusProbeError.networkError("HTTP 403 Forbidden\(snippet)")
         }
 
         guard httpResponse.statusCode == 200 else {
@@ -1592,12 +1605,6 @@ public struct FactoryStatusProbe: Sendable {
         return description.localizedCaseInsensitiveContains("missing refresh token")
     }
 
-    private func extractUserIdFromAuth(_ auth: FactoryAuthResponse) -> String? {
-        // The user ID might be in the organization or we might need to parse JWT
-        // For now, return nil and let the API handle it
-        nil
-    }
-
     private func buildSnapshot(
         authInfo: FactoryAuthResponse,
         usageData: FactoryUsageResponse,
@@ -1654,6 +1661,27 @@ public struct FactoryStatusProbe: Sendable {
             extraUsageBalanceCents: billingLimits.extraUsageBalanceCents,
             overagePreference: billingLimits.overagePreference)
     }
+}
+
+private func factoryUserIdFromAuth(_ auth: FactoryAuthResponse) -> String? {
+    factoryNormalizedString(auth.userProfile?.id)
+}
+
+private func factoryUserIdFromBearerToken(_ token: String?) -> String? {
+    guard let token,
+          let claims = UsageFetcher.parseJWT(token),
+          let subject = claims["sub"] as? String
+    else {
+        return nil
+    }
+    return factoryNormalizedString(subject)
+}
+
+private func factoryNormalizedString(_ value: String?) -> String? {
+    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+        return nil
+    }
+    return value
 }
 
 #else

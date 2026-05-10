@@ -560,7 +560,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `merged provider switch rebuilds stale width switcher rows`() {
+    func `merged provider switch rebuilds stale width switcher rows`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -595,6 +595,8 @@ struct StatusMenuTests {
             statusBar: self.makeStatusBarForTesting())
 
         let menu = controller.makeMenu()
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer { StatusItemController.resetMenuRefreshEnabledForTesting() }
         controller.menuWillOpen(menu)
 
         let initialSwitcher = menu.items.first?.view as? ProviderSwitcherView
@@ -605,6 +607,8 @@ struct StatusMenuTests {
         let nextProviderButton = self.switcherButtons(in: menu).first(where: { $0.state == .off })
         #expect(nextProviderButton != nil)
         nextProviderButton?.performClick(nil)
+        await Task.yield()
+        await Task.yield()
 
         let updatedSwitcher = menu.items.first?.view as? ProviderSwitcherView
         #expect(updatedSwitcher != nil)

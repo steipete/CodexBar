@@ -25,6 +25,7 @@ enum ProviderImplementationRegistry {
         case .copilot: CopilotProviderImplementation()
         case .zai: ZaiProviderImplementation()
         case .minimax: MiniMaxProviderImplementation()
+        case .manus: ManusProviderImplementation()
         case .kimi: KimiProviderImplementation()
         case .kilo: KiloProviderImplementation()
         case .kiro: KiroProviderImplementation()
@@ -39,6 +40,8 @@ enum ProviderImplementationRegistry {
         case .warp: WarpProviderImplementation()
         case .windsurf: WindsurfProviderImplementation()
         case .perplexity: PerplexityProviderImplementation()
+        case .mimo: MiMoProviderImplementation()
+        case .doubao: DoubaoProviderImplementation()
         case .abacus: AbacusProviderImplementation()
         case .mistral: MistralProviderImplementation()
         case .deepseek: DeepSeekProviderImplementation()
@@ -46,6 +49,7 @@ enum ProviderImplementationRegistry {
         case .crof: CrofProviderImplementation()
         case .venice: VeniceProviderImplementation()
         case .commandcode: CommandCodeProviderImplementation()
+        case .stepfun: StepFunProviderImplementation()
         }
     }
 

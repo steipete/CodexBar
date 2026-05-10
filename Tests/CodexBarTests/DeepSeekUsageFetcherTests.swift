@@ -74,6 +74,35 @@ struct DeepSeekUsageFetcherTests {
     }
 
     @Test
+    func `prefers positive CNY balance over empty USD balance`() throws {
+        let json = """
+        {
+          "is_available": true,
+          "balance_infos": [
+            {
+              "currency": "USD",
+              "total_balance": "0.00",
+              "granted_balance": "0.00",
+              "topped_up_balance": "0.00"
+            },
+            {
+              "currency": "CNY",
+              "total_balance": "100.00",
+              "granted_balance": "0.00",
+              "topped_up_balance": "100.00"
+            }
+          ]
+        }
+        """
+        let snapshot = try DeepSeekUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.currency == "CNY")
+        #expect(snapshot.totalBalance == 100.0)
+        #expect(usage.primary?.resetDescription?.contains("¥100.00") == true)
+    }
+
+    @Test
     func `zero balance prompts top up even when unavailable`() throws {
         let json = """
         {

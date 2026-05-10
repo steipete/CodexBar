@@ -75,4 +75,23 @@ struct UsagePaceTests {
 
         #expect(pace == nil)
     }
+
+    @Test
+    func `session pace computes delta and eta for five hour window`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(2 * 3600),
+            resetDescription: nil)
+
+        let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 300)
+
+        #expect(pace != nil)
+        guard let pace else { return }
+        #expect(abs(pace.expectedUsedPercent - 60.0) < 0.01)
+        #expect(abs(pace.deltaPercent - -10.0) < 0.01)
+        #expect(pace.stage == .behind)
+        #expect(pace.willLastToReset == true)
+    }
 }

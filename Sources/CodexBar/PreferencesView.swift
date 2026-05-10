@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 import SwiftUI
 
 enum PreferencesTab: String, CaseIterable, Hashable {
@@ -15,12 +16,12 @@ enum PreferencesTab: String, CaseIterable, Hashable {
 
     var title: String {
         switch self {
-        case .general: "General"
-        case .providers: "Providers"
-        case .display: "Display"
-        case .advanced: "Advanced"
-        case .about: "About"
-        case .debug: "Debug"
+        case .general: L("tab_general")
+        case .providers: L("tab_providers")
+        case .display: L("tab_display")
+        case .advanced: L("tab_advanced")
+        case .about: L("tab_about")
+        case .debug: L("tab_debug")
         }
     }
 
@@ -41,6 +42,7 @@ struct PreferencesView: View {
     @Bindable var selection: PreferencesSelection
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
+    let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
     @State private var contentWidth: CGFloat = PreferencesTab.general.preferredWidth
     @State private var contentHeight: CGFloat = PreferencesTab.general.preferredHeight
 
@@ -50,7 +52,8 @@ struct PreferencesView: View {
         updater: UpdaterProviding,
         selection: PreferencesSelection,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
-        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil)
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
+        runProviderLoginFlow: @escaping @MainActor (UsageProvider) async -> Void = { _ in })
     {
         self.settings = settings
         self.store = store
@@ -62,37 +65,39 @@ struct PreferencesView: View {
                 settingsStore: settings,
                 usageStore: store,
                 managedAccountCoordinator: managedCodexAccountCoordinator)
+        self.runProviderLoginFlow = runProviderLoginFlow
     }
 
     var body: some View {
         TabView(selection: self.$selection.tab) {
             GeneralPane(settings: self.settings, store: self.store)
-                .tabItem { Label("General", systemImage: "gearshape") }
+                .tabItem { Label(L("tab_general"), systemImage: "gearshape") }
                 .tag(PreferencesTab.general)
 
             ProvidersPane(
                 settings: self.settings,
                 store: self.store,
                 managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
-                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator)
-                .tabItem { Label("Providers", systemImage: "square.grid.2x2") }
+                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
+                runProviderLoginFlow: self.runProviderLoginFlow)
+                .tabItem { Label(L("tab_providers"), systemImage: "square.grid.2x2") }
                 .tag(PreferencesTab.providers)
 
             DisplayPane(settings: self.settings, store: self.store)
-                .tabItem { Label("Display", systemImage: "eye") }
+                .tabItem { Label(L("tab_display"), systemImage: "eye") }
                 .tag(PreferencesTab.display)
 
             AdvancedPane(settings: self.settings)
-                .tabItem { Label("Advanced", systemImage: "slider.horizontal.3") }
+                .tabItem { Label(L("tab_advanced"), systemImage: "slider.horizontal.3") }
                 .tag(PreferencesTab.advanced)
 
             AboutPane(updater: self.updater)
-                .tabItem { Label("About", systemImage: "info.circle") }
+                .tabItem { Label(L("tab_about"), systemImage: "info.circle") }
                 .tag(PreferencesTab.about)
 
             if self.settings.debugMenuEnabled {
                 DebugPane(settings: self.settings, store: self.store)
-                    .tabItem { Label("Debug", systemImage: "ladybug") }
+                    .tabItem { Label(L("tab_debug"), systemImage: "ladybug") }
                     .tag(PreferencesTab.debug)
             }
         }

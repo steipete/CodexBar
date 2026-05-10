@@ -123,6 +123,22 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func `claude session key selection carries organization id in app settings snapshot`() throws {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-claude-org-app")
+        settings.addTokenAccount(
+            provider: .claude,
+            label: "Team",
+            token: "sk-ant-session-token",
+            organizationID: " org-team ")
+
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let claudeSettings = try #require(snapshot.claude)
+
+        #expect(claudeSettings.manualCookieHeader == "sessionKey=sk-ant-session-token")
+        #expect(claudeSettings.organizationID == "org-team")
+    }
+
+    @Test
     func `claude OAuth token selection forces OAuth in CLI settings snapshot`() throws {
         let accounts = ProviderTokenAccountData(
             version: 1,
@@ -231,6 +247,55 @@ struct TokenAccountEnvironmentPrecedenceTests {
         #expect(claudeSettings.usageDataSource == .auto)
         #expect(claudeSettings.cookieSource == .manual)
         #expect(claudeSettings.manualCookieHeader == "sessionKey=sk-ant-session-token")
+    }
+
+    @Test
+    func `claude session key selection carries organization id in CLI settings snapshot`() throws {
+        let accounts = ProviderTokenAccountData(
+            version: 1,
+            accounts: [
+                ProviderTokenAccount(
+                    id: UUID(),
+                    label: "Team",
+                    token: "sk-ant-session-token",
+                    addedAt: 0,
+                    lastUsed: nil,
+                    organizationID: " org-team "),
+            ],
+            activeIndex: 0)
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .claude,
+                    tokenAccounts: accounts),
+            ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let account = try #require(tokenContext.resolvedAccounts(for: .claude).first)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .claude, account: account))
+        let claudeSettings = try #require(snapshot.claude)
+
+        #expect(claudeSettings.organizationID == "org-team")
+    }
+
+    @Test
+    func `claude token account organization id uses organizationId JSON key`() throws {
+        let json = """
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "label": "Team",
+          "token": "sk-ant-session-token",
+          "addedAt": 0,
+          "lastUsed": null,
+          "organizationId": "org-team"
+        }
+        """
+        let account = try JSONDecoder().decode(ProviderTokenAccount.self, from: Data(json.utf8))
+        let encoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(account)) as? [String: Any]
+
+        #expect(account.organizationID == "org-team")
+        #expect(encoded?["organizationId"] as? String == "org-team")
+        #expect(encoded?["organizationID"] == nil)
     }
 
     @Test

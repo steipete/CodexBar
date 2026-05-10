@@ -224,7 +224,12 @@ final class ProviderSwitcherView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        self.window?.acceptsMouseMovedEvents = true
+        if let window = self.window {
+            window.acceptsMouseMovedEvents = true
+        } else if self.hoveredButtonTag != nil {
+            self.hoveredButtonTag = nil
+            self.updateButtonStyles()
+        }
     }
 
     override func updateTrackingAreas() {
@@ -301,11 +306,9 @@ final class ProviderSwitcherView: NSView {
     }
 
     private func applySelection(at index: Int) {
-        for (idx, button) in self.buttons.enumerated() {
-            button.state = (idx == index) ? .on : .off
-        }
-        self.updateButtonStyles()
-        self.onSelect(self.segments[index].selection)
+        let selection = self.segments[index].selection
+        self.updateSelection(selection)
+        self.onSelect(selection)
     }
 
     #if DEBUG
@@ -565,6 +568,14 @@ final class ProviderSwitcherView: NSView {
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: self.preferredWidth, height: self.frame.size.height)
+    }
+
+    func updateSelection(_ selection: ProviderSwitcherSelection) {
+        for (index, button) in self.buttons.enumerated() {
+            let isSelected = self.segments.indices.contains(index) && self.segments[index].selection == selection
+            button.state = isSelected ? .on : .off
+        }
+        self.updateButtonStyles()
     }
 
     @objc private func handleSelection(_ sender: NSButton) {

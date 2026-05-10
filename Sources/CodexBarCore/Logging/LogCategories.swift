@@ -24,6 +24,7 @@ public enum LogCategories {
     public static let cursorLogin = "cursor-login"
     public static let deepSeekSettings = "deepseek-settings"
     public static let deepSeekUsage = "deepseek-usage"
+    public static let doubaoUsage = "doubao-usage"
     public static let geminiProbe = "gemini-probe"
     public static let keychainCache = "keychain-cache"
     public static let keychainMigration = "keychain-migration"
@@ -39,6 +40,9 @@ public enum LogCategories {
     public static let launchAtLogin = "launch-at-login"
     public static let login = "login"
     public static let logging = "logging"
+    public static let manusAPI = "manus-api"
+    public static let manusCookie = "manus-cookie"
+    public static let manusWeb = "manus-web"
     public static let minimaxAPITokenStore = "minimax-api-token-store"
     public static let minimaxCookie = "minimax-cookie"
     public static let minimaxCookieStore = "minimax-cookie-store"
@@ -74,4 +78,5 @@ public enum LogCategories {
     public static let zaiSettings = "zai-settings"
     public static let zaiTokenStore = "zai-token-store"
     public static let zaiUsage = "zai-usage"
+    public static let stepfunUsage = "stepfun-usage"
 }

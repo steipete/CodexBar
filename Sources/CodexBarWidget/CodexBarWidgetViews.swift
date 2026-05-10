@@ -269,6 +269,7 @@ private struct ProviderSwitchChip: View {
         case .factory: "Droid"
         case .copilot: "Copilot"
         case .minimax: "MiniMax"
+        case .manus: "Manus"
         case .vertexai: "Vertex"
         case .kilo: "Kilo"
         case .kiro: "Kiro"
@@ -283,6 +284,8 @@ private struct ProviderSwitchChip: View {
         case .warp: "Warp"
         case .windsurf: "Windsurf"
         case .perplexity: "Pplx"
+        case .mimo: "MiMo"
+        case .doubao: "Doubao"
         case .abacus: "Abacus"
         case .mistral: "Mistral"
         case .deepseek: "DeepSeek"
@@ -290,6 +293,7 @@ private struct ProviderSwitchChip: View {
         case .crof: "Crof"
         case .venice: "Venice"
         case .commandcode: "Command Code"
+        case .stepfun: "StepFun"
         }
     }
 }
@@ -623,6 +627,8 @@ enum WidgetColors {
             Color(red: 168 / 255, green: 85 / 255, blue: 247 / 255) // Purple
         case .minimax:
             Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255)
+        case .manus:
+            Color(red: 24 / 255, green: 24 / 255, blue: 24 / 255)
         case .vertexai:
             Color(red: 66 / 255, green: 133 / 255, blue: 244 / 255) // Google Blue
         case .kilo:
@@ -651,6 +657,10 @@ enum WidgetColors {
             Color(red: 52 / 255, green: 232 / 255, blue: 187 / 255) // Windsurf #34e8bb
         case .perplexity:
             Color(red: 32 / 255, green: 178 / 255, blue: 170 / 255) // Perplexity teal
+        case .mimo:
+            Color(red: 1.0, green: 105 / 255, blue: 0)
+        case .doubao:
+            Color(red: 45 / 255, green: 136 / 255, blue: 255 / 255) // Doubao blue
         case .abacus:
             Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
         case .mistral:
@@ -665,6 +675,8 @@ enum WidgetColors {
             Color(red: 51 / 255, green: 153 / 255, blue: 1.0)
         case .commandcode:
             Color(red: 0, green: 0, blue: 0)
+        case .stepfun:
+            Color(red: 255 / 255, green: 140 / 255, blue: 0 / 255) // StepFun orange
         }
     }
 }

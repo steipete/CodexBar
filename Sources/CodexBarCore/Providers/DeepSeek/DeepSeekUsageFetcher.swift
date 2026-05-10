@@ -166,11 +166,8 @@ public struct DeepSeekUsageFetcher: Sendable {
             throw DeepSeekUsageError.parseFailed(error.localizedDescription)
         }
 
-        // Prefer USD; fall back to first available entry.
-        let info = decoded.balanceInfos.first { $0.currency == "USD" }
-            ?? decoded.balanceInfos.first
-
-        guard let info else {
+        let balances = try decoded.balanceInfos.map(Self.parseBalanceInfo)
+        guard !balances.isEmpty else {
             return DeepSeekUsageSnapshot(
                 isAvailable: false,
                 currency: "USD",
@@ -180,6 +177,30 @@ public struct DeepSeekUsageFetcher: Sendable {
                 updatedAt: Date())
         }
 
+        // Prefer USD when it is funded, but do not hide a positive CNY balance behind
+        // an empty USD row returned by the API.
+        let selected = balances.first { $0.currency == "USD" && $0.totalBalance > 0 }
+            ?? balances.first { $0.totalBalance > 0 }
+            ?? balances.first { $0.currency == "USD" }
+            ?? balances[0]
+
+        return DeepSeekUsageSnapshot(
+            isAvailable: decoded.isAvailable,
+            currency: selected.currency,
+            totalBalance: selected.totalBalance,
+            grantedBalance: selected.grantedBalance,
+            toppedUpBalance: selected.toppedUpBalance,
+            updatedAt: Date())
+    }
+
+    private struct ParsedBalanceInfo {
+        let currency: String
+        let totalBalance: Double
+        let grantedBalance: Double
+        let toppedUpBalance: Double
+    }
+
+    private static func parseBalanceInfo(_ info: DeepSeekBalanceInfo) throws -> ParsedBalanceInfo {
         guard
             let total = Double(info.totalBalance),
             let granted = Double(info.grantedBalance),
@@ -188,12 +209,10 @@ public struct DeepSeekUsageFetcher: Sendable {
             throw DeepSeekUsageError.parseFailed("Non-numeric balance value in response.")
         }
 
-        return DeepSeekUsageSnapshot(
-            isAvailable: decoded.isAvailable,
+        return ParsedBalanceInfo(
             currency: info.currency,
             totalBalance: total,
             grantedBalance: granted,
-            toppedUpBalance: toppedUp,
-            updatedAt: Date())
+            toppedUpBalance: toppedUp)
     }
 }

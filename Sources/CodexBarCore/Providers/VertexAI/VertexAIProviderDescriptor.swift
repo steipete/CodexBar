@@ -45,12 +45,12 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
     let id: String = "vertexai.oauth"
     let kind: ProviderFetchKind = .oauth
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool {
-        (try? VertexAIOAuthCredentialsStore.load()) != nil
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        VertexAIOAuthCredentialsStore.hasCredentials(environment: context.env)
     }
 
-    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
-        var credentials = try VertexAIOAuthCredentialsStore.load()
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        var credentials = try await VertexAIOAuthCredentialsStore.loadForFetch(environment: context.env)
 
         // Refresh token if expired
         if credentials.needsRefresh {

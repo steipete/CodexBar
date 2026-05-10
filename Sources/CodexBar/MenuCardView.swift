@@ -811,6 +811,13 @@ extension UsageMenuCardView.Model {
             return [peakStatus.label]
         }
 
+        if input.provider == .mimo, input.snapshot != nil {
+            return [
+                "Balance updates in near-real time (up to 5 min lag)",
+                "Daily billing data finalizes at 07:00 UTC",
+            ]
+        }
+
         guard input.provider == .openrouter,
               let openRouter = input.snapshot?.openRouterUsage
         else {
@@ -1127,24 +1134,36 @@ extension UsageMenuCardView.Model {
         {
             primaryResetText = openRouterQuotaDetail
         }
-        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek,
+        if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
         }
-        if input.provider == .alibaba || input.provider == .mistral,
+        if input.provider == .alibaba || input.provider == .mistral || input.provider == .manus,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
+            if input.provider == .manus { primaryResetText = nil }
         }
-        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek, primary.resetsAt == nil {
+        if [.warp, .kilo, .mimo, .deepseek].contains(input.provider), primary.resetsAt == nil {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window
         var primaryPacePercent: Double?
         var primaryPaceOnTop = true
+        if let paceDetail = Self.sessionPaceDetail(
+            provider: input.provider,
+            window: primary,
+            now: input.now,
+            showUsed: input.usageBarsShowUsed)
+        {
+            primaryDetailLeft = paceDetail.leftLabel
+            primaryDetailRight = paceDetail.rightLabel
+            primaryPacePercent = paceDetail.pacePercent
+            primaryPaceOnTop = paceDetail.paceOnTop
+        }
         if input.provider == .abacus {
             if let detail = primary.resetDescription,
                !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1238,6 +1257,12 @@ extension UsageMenuCardView.Model {
         {
             weeklyDetailText = detail
         }
+        if input.provider == .manus,
+           let detail = weekly.resetDescription,
+           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            weeklyDetailText = detail
+        }
         if input.provider == .crof,
            let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
            !detail.isEmpty
@@ -1292,7 +1317,11 @@ extension UsageMenuCardView.Model {
             case .session:
                 title = input.metadata.sessionLabel
                 id = "primary"
-                paceDetail = nil
+                paceDetail = Self.sessionPaceDetail(
+                    provider: input.provider,
+                    window: window,
+                    now: input.now,
+                    showUsed: input.usageBarsShowUsed)
             case .weekly:
                 title = input.metadata.weeklyLabel
                 id = "secondary"
@@ -1409,35 +1438,6 @@ extension UsageMenuCardView.Model {
         let remaining = UsageFormatter.usdString(keyRemaining)
         let limit = UsageFormatter.usdString(keyLimit)
         return "\(remaining)/\(limit) left"
-    }
-
-    private struct PaceDetail {
-        let leftLabel: String
-        let rightLabel: String?
-        let pacePercent: Double?
-        let paceOnTop: Bool
-    }
-
-    private static func weeklyPaceDetail(
-        window: RateWindow,
-        now: Date,
-        pace: UsagePace?,
-        showUsed: Bool) -> PaceDetail?
-    {
-        guard let pace else { return nil }
-        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
-        let expectedUsed = detail.expectedUsedPercent
-        let actualUsed = window.usedPercent
-        let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
-        let actualPercent = showUsed ? actualUsed : (100 - actualUsed)
-        if expectedPercent.isFinite == false || actualPercent.isFinite == false { return nil }
-        let paceOnTop = actualUsed <= expectedUsed
-        let pacePercent: Double? = if detail.stage == .onTrack { nil } else { expectedPercent }
-        return PaceDetail(
-            leftLabel: detail.leftLabel,
-            rightLabel: detail.rightLabel,
-            pacePercent: pacePercent,
-            paceOnTop: paceOnTop)
     }
 
     private static func syntheticRegenDetail(
@@ -1565,6 +1565,9 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider,
         cost: ProviderCostSnapshot?) -> ProviderCostSection?
     {
+        if provider == .manus {
+            return nil
+        }
         guard let cost else { return nil }
         guard provider != .synthetic else { return nil }
 

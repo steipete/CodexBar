@@ -1058,7 +1058,7 @@ struct ClaudeAutoFetcherCharacterizationTests {
         return try await operation()
     }
 
-    private static func makeJSONResponse(
+    fileprivate static func makeJSONResponse(
         url: URL,
         body: String,
         statusCode: Int = 200) -> (HTTPURLResponse, Data)
@@ -1329,7 +1329,93 @@ final class ClaudeAutoFetcherStubURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+extension ClaudeAutoFetcherCharacterizationTests {
+    @Test
+    func `web fetcher uses configured target organization`() async throws {
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            dataSource: .web,
+            manualCookieHeader: "sessionKey=sk-ant-session-token",
+            webOrganizationID: "org-team")
+
+        try await self.withClaudeWebStub(handler: { request in
+            let url = try #require(request.url)
+            switch url.path {
+            case "/api/organizations":
+                let body = """
+                [
+                  { "uuid": "org-personal", "name": "Personal", "capabilities": ["chat"] },
+                  { "uuid": "org-team", "name": "Team Org", "capabilities": ["chat"] }
+                ]
+                """
+                return Self.makeJSONResponse(url: url, body: body)
+            case "/api/organizations/org-team/usage":
+                let body = """
+                {
+                  "five_hour": { "utilization": 14, "resets_at": "2025-12-23T16:00:00.000Z" },
+                  "seven_day": { "utilization": 28, "resets_at": "2025-12-29T23:00:00.000Z" }
+                }
+                """
+                return Self.makeJSONResponse(url: url, body: body)
+            case "/api/account":
+                let body = """
+                {
+                  "email_address": "linked@example.com",
+                  "memberships": [
+                    {
+                      "organization": {
+                        "uuid": "org-personal",
+                        "name": "Personal",
+                        "rate_limit_tier": "claude_max",
+                        "billing_type": "stripe"
+                      }
+                    },
+                    {
+                      "organization": {
+                        "uuid": "org-team",
+                        "name": "Team Org",
+                        "rate_limit_tier": "enterprise",
+                        "billing_type": "invoice"
+                      }
+                    }
+                  ]
+                }
+                """
+                return Self.makeJSONResponse(url: url, body: body)
+            case "/api/organizations/org-team/overage_spend_limit":
+                return Self.makeJSONResponse(url: url, body: "{}", statusCode: 404)
+            default:
+                return Self.makeJSONResponse(url: url, body: "{}", statusCode: 404)
+            }
+        }, operation: {
+            let snapshot = try await fetcher.loadLatestUsage(model: "sonnet")
+
+            #expect(snapshot.primary.usedPercent == 14)
+            #expect(snapshot.secondary?.usedPercent == 28)
+            #expect(snapshot.accountOrganization == "Team Org")
+            #expect(snapshot.accountEmail == "linked@example.com")
+            #expect(snapshot.loginMethod == "Claude Enterprise")
+        })
+    }
+}
+
 extension ClaudeUsageTests {
+    @Test
+    func `parses claude web API organizations honors target organization`() throws {
+        let json = """
+        [
+          { "uuid": "org-personal", "name": "Personal", "capabilities": ["chat"] },
+          { "uuid": "org-team", "name": "Team", "capabilities": ["chat"] }
+        ]
+        """
+        let data = Data(json.utf8)
+        let org = try ClaudeWebAPIFetcher._parseOrganizationsResponseForTesting(
+            data,
+            targetOrganizationID: "org-team")
+        #expect(org.id == "org-team")
+        #expect(org.name == "Team")
+    }
+
     @Test
     func `oauth delegated retry experimental background ignores only on user action suppression`() async throws {
         let loadCounter = AsyncCounter()

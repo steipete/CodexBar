@@ -28,6 +28,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
 | z.ai | API token from config/env → quota API (`api`). |
+| Manus | Browser `session_id` cookie (auto/manual/env) → credits API (`web`). |
 | MiniMax | Manual/browser session via Coding Plan web path (`web`), or Coding Plan API token (`api`). |
 | Kimi | Auth token from `kimi-auth` cookie/manual token/env → usage API (`web`). |
 | Kilo | API token from config/env → usage API (`api`); auto falls back to CLI session auth (`cli`). |
@@ -43,6 +44,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
+| Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
+| Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
 | Mistral | Console billing API via Ory Kratos session cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
@@ -73,6 +76,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Supports global and BigModel CN quota hosts; override with `Z_AI_API_HOST` or `Z_AI_QUOTA_URL`.
 - Status: none yet.
 - Details: `docs/zai.md`.
+
+## Manus
+- Session token via browser `session_id` cookie, manual Settings entry, `MANUS_SESSION_TOKEN`, or `MANUS_COOKIE`.
+- Credits endpoint: `POST https://api.manus.im/user.v1.UserService/GetAvailableCredits`.
+- Auto mode prefers cached/browser cookies before env fallback; manual mode accepts either a bare `session_id` value or a full Cookie header.
+- Status: none yet.
 
 ## MiniMax
 - Coding Plan API token or web session from configured/manual/browser sources.
@@ -214,6 +223,18 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Tracks recurring credits, bonus/promotional credits, purchased credits, and renewal date when present.
 - Status: `https://status.perplexity.com/` (link only, no auto-polling).
 
+## Xiaomi MiMo
+- Browser cookies from automatic import or manual `Cookie:` header.
+- Reads balance and token-plan usage from `platform.xiaomimimo.com`.
+- Status: none yet.
+- Details: `docs/mimo.md`.
+
+## Doubao
+- API key via `ARK_API_KEY`, `VOLCENGINE_API_KEY`, `DOUBAO_API_KEY`, or provider config.
+- Probes Volcengine Ark chat completions and reads request rate-limit headers when present.
+- Status: none yet.
+- Details: `docs/doubao.md`.
+
 ## Abacus AI
 - Browser cookies (`abacus.ai`, `apps.abacus.ai`) via automatic import or manual header.
 - Reads organization compute points and billing data.
@@ -264,5 +285,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
 - Status: none yet.
 - Details: `docs/command-code.md`.
+
+## StepFun
+- Username/password login or manual Oasis-Token.
+- Reads Step Plan 5-hour and weekly rate-limit windows from `platform.stepfun.com`.
+- Shows subscription plan name when the Step Plan status API returns one.
+- Status: none yet.
+- Details: `docs/stepfun.md`.
 
 See also: `docs/provider.md` for architecture notes.

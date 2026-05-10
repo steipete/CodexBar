@@ -11,6 +11,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     let settingsPickers: [ProviderSettingsPickerDescriptor]
     let settingsToggles: [ProviderSettingsToggleDescriptor]
     let settingsFields: [ProviderSettingsFieldDescriptor]
+    let settingsActions: [ProviderSettingsActionsDescriptor]
     let settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?
     let errorDisplay: ProviderErrorDisplay?
     @Binding var isErrorExpanded: Bool
@@ -28,6 +29,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         settingsPickers: [ProviderSettingsPickerDescriptor],
         settingsToggles: [ProviderSettingsToggleDescriptor],
         settingsFields: [ProviderSettingsFieldDescriptor],
+        settingsActions: [ProviderSettingsActionsDescriptor] = [],
         settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?,
         errorDisplay: ProviderErrorDisplay?,
         isErrorExpanded: Binding<Bool>,
@@ -44,6 +46,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         self.settingsPickers = settingsPickers
         self.settingsToggles = settingsToggles
         self.settingsFields = settingsFields
+        self.settingsActions = settingsActions
         self.settingsTokenAccounts = settingsTokenAccounts
         self.errorDisplay = errorDisplay
         self._isErrorExpanded = isErrorExpanded
@@ -63,7 +66,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         else {
             return nil
         }
-        guard provider == .openrouter else {
+        guard provider == .openrouter || provider == .mimo else {
             return (label: "Plan", value: rawPlan)
         }
 
@@ -99,7 +102,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
 
                 if let errorDisplay {
                     ProviderErrorView(
-                        title: "Last \(self.store.metadata(for: self.provider).displayName) fetch failed:",
+                        title: String(
+                            format: L("last_fetch_failed_with_provider"),
+                            self.store.metadata(for: self.provider).displayName),
                         display: errorDisplay,
                         isExpanded: self.$isErrorExpanded,
                         onCopy: { self.onCopyError(errorDisplay.full) })
@@ -117,6 +122,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                         }
                         ForEach(self.settingsFields) { field in
                             ProviderSettingsFieldRowView(field: field)
+                        }
+                        ForEach(self.settingsActions) { descriptor in
+                            ProviderSettingsActionsRowView(descriptor: descriptor)
                         }
                     }
                 }
@@ -145,6 +153,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     private var hasSettings: Bool {
         !self.settingsPickers.isEmpty ||
             !self.settingsFields.isEmpty ||
+            !self.settingsActions.isEmpty ||
             self.settingsTokenAccounts != nil
     }
 

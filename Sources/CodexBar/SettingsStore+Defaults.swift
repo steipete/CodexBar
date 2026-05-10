@@ -561,6 +561,21 @@ extension SettingsStore {
         }
     }
 
+    var appLanguage: String {
+        get { self.defaultsState.appLanguageRaw ?? "" }
+        set {
+            let stored = newValue.isEmpty ? nil : newValue
+            self.defaultsState.appLanguageRaw = stored
+            if let stored {
+                self.userDefaults.set(stored, forKey: "appLanguage")
+                UserDefaults.standard.set([stored], forKey: "AppleLanguages")
+            } else {
+                self.userDefaults.removeObject(forKey: "appLanguage")
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            }
+        }
+    }
+
     var debugLoadingPattern: LoadingPattern? {
         get { self.debugLoadingPatternRaw.flatMap(LoadingPattern.init(rawValue:)) }
         set { self.debugLoadingPatternRaw = newValue?.rawValue }
