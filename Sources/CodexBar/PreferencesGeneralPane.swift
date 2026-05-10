@@ -96,6 +96,13 @@ struct GeneralPane: View {
                         subtitle: "Notifies when the 5-hour session quota hits 0% and when it becomes " +
                             "available again.",
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
+                    PreferenceToggleRow(
+                        title: "Quota warning notifications",
+                        subtitle: "Warns when session or weekly quota remaining crosses configured thresholds.",
+                        binding: self.$settings.quotaWarningNotificationsEnabled)
+                    if self.settings.quotaWarningNotificationsEnabled {
+                        GlobalQuotaWarningSettingsView(settings: self.settings)
+                    }
                 }
 
                 Divider()
@@ -152,6 +159,7 @@ struct GeneralPane: View {
         }
         if let lastAttempt = self.store.tokenLastAttemptAt(for: provider) {
             let rel = RelativeDateTimeFormatter()
+            rel.locale = Locale(identifier: "en_US")
             rel.unitsStyle = .abbreviated
             let when = rel.localizedString(for: lastAttempt, relativeTo: Date())
             return Text("\(name): last attempt \(when)")

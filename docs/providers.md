@@ -47,8 +47,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Mistral | Console billing API via Ory Kratos session cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
+| Crof | API key from config/env → credit balance + requests quota API (`api`). |
+| Venice | API key from config/env → DIEM/USD balance API (`api`). |
+| Command Code | Web billing API via Command Code session cookies (`web`). |
 
 ## Codex
+- App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
 - Web dashboard (optional, off by default): `https://chatgpt.com/codex/settings/usage` via WebView + browser cookies.
 - Battery saver toggle (currently off by default): reduces routine OpenAI web refreshes but still allows explicit manual refreshes.
 - CLI RPC default: `codex ... app-server` JSON-RPC (`account/read`, `account/rateLimits/read`).
@@ -232,6 +236,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: `https://status.deepseek.com` (link only, no auto-polling).
 - Details: `docs/deepseek.md`.
 
+## Venice
+- API key via `VENICE_API_KEY` / `VENICE_KEY` env var or Venice token accounts.
+- Shows current DIEM or USD balance; DIEM epoch allocation progress when available.
+- Status: none yet.
+- Details: `docs/venice.md`.
+
 ## Codebuff
 - API token from `~/.codexbar/config.json`, `CODEBUFF_API_KEY`, or `~/.config/manicode/credentials.json` created by `codebuff login`.
 - Reads usage and subscription data from Codebuff APIs.
@@ -239,5 +249,27 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Override base URL with `CODEBUFF_API_URL`.
 - Status: none yet.
 - Details: `docs/codebuff.md`.
+
+## Crof
+- API key from `~/.codexbar/config.json`, `CROF_API_KEY`, or `CROFAI_API_KEY`.
+- Reads `credits`, `requests_plan`, and `usable_requests` from `GET https://crof.ai/usage_api/`.
+- Shows request quota as the primary usage window and dollar credits as the secondary row.
+- Infers the daily request reset from midnight America/Chicago until the usage API exposes reset metadata.
+- Status: none yet.
+- Details: `docs/crof.md`.
+
+## Command Code
+- Browser session cookies from automatic import or manual `Cookie:` header.
+- Reads monthly USD credits and billing-cycle usage from `api.commandcode.ai`.
+- Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
+- Status: none yet.
+- Details: `docs/command-code.md`.
+
+## StepFun
+- Username/password login or manual Oasis-Token.
+- Reads Step Plan 5-hour and weekly rate-limit windows from `platform.stepfun.com`.
+- Shows subscription plan name when the Step Plan status API returns one.
+- Status: none yet.
+- Details: `docs/stepfun.md`.
 
 See also: `docs/provider.md` for architecture notes.

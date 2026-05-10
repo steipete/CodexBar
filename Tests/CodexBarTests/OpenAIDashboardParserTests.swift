@@ -120,7 +120,7 @@ struct OpenAIDashboardParserTests {
         </body>
         </html>
         """
-        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro Lite")
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro 5x")
     }
 
     @Test

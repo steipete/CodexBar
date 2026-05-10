@@ -33,6 +33,7 @@ extension UsageStore {
                 self.statuses.removeValue(forKey: provider)
                 self.lastKnownSessionRemaining.removeValue(forKey: provider)
                 self.lastKnownSessionWindowSource.removeValue(forKey: provider)
+                self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != provider }
                 self.lastTokenFetchAt.removeValue(forKey: provider)
             }
             return
@@ -95,6 +96,7 @@ extension UsageStore {
             }
             let backfilled = await MainActor.run {
                 let backfilled = scoped.backfillingResetTimes(from: self.lastKnownResetSnapshots[provider])
+                self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
                 self.lastKnownResetSnapshots[provider] = backfilled
                 self.snapshots[provider] = backfilled

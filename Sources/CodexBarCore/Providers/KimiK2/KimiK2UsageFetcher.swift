@@ -29,26 +29,13 @@ public struct KimiK2UsageSummary: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let total = max(0, self.consumed + self.remaining)
-        let usedPercent: Double = if total > 0 {
-            min(100, max(0, (self.consumed / total) * 100))
-        } else {
-            0
-        }
-        let usedText = String(format: "%.0f", self.consumed)
-        let totalText = String(format: "%.0f", total)
-        let rateWindow = RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: nil,
-            resetsAt: nil,
-            resetDescription: total > 0 ? "Credits: \(usedText)/\(totalText)" : nil)
         let identity = ProviderIdentitySnapshot(
             providerID: .kimik2,
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: nil)
+            loginMethod: "Credits: \(UsageFormatter.creditsString(from: self.remaining))")
         return UsageSnapshot(
-            primary: rateWindow,
+            primary: nil,
             secondary: nil,
             tertiary: nil,
             providerCost: nil,

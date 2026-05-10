@@ -23,7 +23,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
-        mistral: MistralProviderSettings? = nil) -> ProviderSettingsSnapshot
+        mistral: MistralProviderSettings? = nil,
+        stepfun: StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
             debugMenuEnabled: debugMenuEnabled,
@@ -47,7 +48,8 @@ public struct ProviderSettingsSnapshot: Sendable {
             windsurf: windsurf,
             perplexity: perplexity,
             abacus: abacus,
-            mistral: mistral)
+            mistral: mistral,
+            stepfun: stepfun)
     }
 
     public struct CodexProviderSettings: Sendable {
@@ -224,6 +226,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct CommandCodeProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct OllamaProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -280,6 +292,25 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct StepFunProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualToken: String
+        public let username: String
+        public let password: String
+
+        public init(
+            cookieSource: ProviderCookieSource = .auto,
+            manualToken: String = "",
+            username: String = "",
+            password: String = "")
+        {
+            self.cookieSource = cookieSource
+            self.manualToken = manualToken
+            self.username = username
+            self.password = password
+        }
+    }
+
     public let debugMenuEnabled: Bool
     public let debugKeepCLISessionsAlive: Bool
     public let codex: CodexProviderSettings?
@@ -296,12 +327,14 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let kimi: KimiProviderSettings?
     public let augment: AugmentProviderSettings?
     public let amp: AmpProviderSettings?
+    public let commandcode: CommandCodeProviderSettings?
     public let ollama: OllamaProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
     public let windsurf: WindsurfProviderSettings?
     public let perplexity: PerplexityProviderSettings?
     public let abacus: AbacusProviderSettings?
     public let mistral: MistralProviderSettings?
+    public let stepfun: StepFunProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
         self.jetbrains?.ideBasePath
@@ -324,12 +357,14 @@ public struct ProviderSettingsSnapshot: Sendable {
         kimi: KimiProviderSettings?,
         augment: AugmentProviderSettings?,
         amp: AmpProviderSettings?,
+        commandcode: CommandCodeProviderSettings? = nil,
         ollama: OllamaProviderSettings?,
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
-        mistral: MistralProviderSettings? = nil)
+        mistral: MistralProviderSettings? = nil,
+        stepfun: StepFunProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
@@ -347,12 +382,14 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.kimi = kimi
         self.augment = augment
         self.amp = amp
+        self.commandcode = commandcode
         self.ollama = ollama
         self.jetbrains = jetbrains
         self.windsurf = windsurf
         self.perplexity = perplexity
         self.abacus = abacus
         self.mistral = mistral
+        self.stepfun = stepfun
     }
 }
 
@@ -371,12 +408,14 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
+    case commandcode(ProviderSettingsSnapshot.CommandCodeProviderSettings)
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
     case windsurf(ProviderSettingsSnapshot.WindsurfProviderSettings)
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
     case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
     case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
+    case stepfun(ProviderSettingsSnapshot.StepFunProviderSettings)
 }
 
 public struct ProviderSettingsSnapshotBuilder: Sendable {
@@ -396,18 +435,21 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
+    public var commandcode: ProviderSettingsSnapshot.CommandCodeProviderSettings?
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
     public var windsurf: ProviderSettingsSnapshot.WindsurfProviderSettings?
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
     public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
     public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
+    public var stepfun: ProviderSettingsSnapshot.StepFunProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     public mutating func apply(_ contribution: ProviderSettingsSnapshotContribution) {
         switch contribution {
         case let .codex(value): self.codex = value
@@ -424,12 +466,14 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .kimi(value): self.kimi = value
         case let .augment(value): self.augment = value
         case let .amp(value): self.amp = value
+        case let .commandcode(value): self.commandcode = value
         case let .ollama(value): self.ollama = value
         case let .jetbrains(value): self.jetbrains = value
         case let .windsurf(value): self.windsurf = value
         case let .perplexity(value): self.perplexity = value
         case let .abacus(value): self.abacus = value
         case let .mistral(value): self.mistral = value
+        case let .stepfun(value): self.stepfun = value
         }
     }
 
@@ -451,11 +495,13 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             kimi: self.kimi,
             augment: self.augment,
             amp: self.amp,
+            commandcode: self.commandcode,
             ollama: self.ollama,
             jetbrains: self.jetbrains,
             windsurf: self.windsurf,
             perplexity: self.perplexity,
             abacus: self.abacus,
-            mistral: self.mistral)
+            mistral: self.mistral,
+            stepfun: self.stepfun)
     }
 }

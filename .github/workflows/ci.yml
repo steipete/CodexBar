@@ -48,13 +48,15 @@ jobs:
             --skip CLIOpenAIDashboardCacheTests \
             --skip CodexAccountScopedRefreshDashboardCleanupTests \
             --skip CodexAccountScopedRefreshTests \
+            --skip CodexBaselineCharacterizationTests \
             --skip CodexDashboardWorkedExampleParityTests \
+            --skip CodexUsageFetcherFallbackTests \
             --skip CodexWebDashboardStrategyAuthorityTests \
             --skip OpenAIDashboardNavigationDelegateTests \
             --skip StatusMenuTokenAccountSwitcherTests \
             --skip SubprocessRunnerTests
           swift test --no-parallel \
-            --filter 'ClaudeOAuthCredentialsStoreSecurityCLITests|CLIOpenAIDashboardCacheTests|CodexAccountScopedRefreshDashboardCleanupTests|CodexAccountScopedRefreshTests|CodexDashboardWorkedExampleParityTests|CodexWebDashboardStrategyAuthorityTests|OpenAIDashboardNavigationDelegateTests|SubprocessRunnerTests'
+            --filter 'ClaudeOAuthCredentialsStoreSecurityCLITests|CLIOpenAIDashboardCacheTests|CodexAccountScopedRefreshDashboardCleanupTests|CodexAccountScopedRefreshTests|CodexBaselineCharacterizationTests|CodexDashboardWorkedExampleParityTests|CodexUsageFetcherFallbackTests|CodexWebDashboardStrategyAuthorityTests|OpenAIDashboardNavigationDelegateTests|SubprocessRunnerTests'
 
   build-linux-cli:
     timeout-minutes: 20

@@ -72,6 +72,75 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `menu bar display text uses mistral current month api spend`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-mistral-spend",
+            provider: .mistral)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = MistralUsageSnapshot(
+            totalCost: 1.2345,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 10000,
+            totalOutputTokens: 5000,
+            totalCachedTokens: 0,
+            modelCount: 2,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .mistral)
+        store._setErrorForTesting(nil, provider: .mistral)
+
+        let displayText = controller.menuBarDisplayText(for: .mistral, snapshot: snapshot)
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.identity?.loginMethod == "API spend: €1.2345 this month")
+        #expect(displayText == "€1.2345")
+    }
+
+    @Test
+    func `menu bar display text uses kimi k2 api key credits`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-kimik2-credits",
+            provider: .kimik2)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = KimiK2UsageSummary(
+            consumed: 75,
+            remaining: 1234.5,
+            averageTokens: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .kimik2)
+        store._setErrorForTesting(nil, provider: .kimik2)
+
+        let displayText = controller.menuBarDisplayText(for: .kimik2, snapshot: snapshot)
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.identity?.loginMethod == "Credits: 1234.5 left")
+        #expect(displayText == "1234.5")
+    }
+
+    @Test
+    func `mistral primary window is nil even when billing end date is set`() {
+        let endDate = Date(timeIntervalSinceNow: 3600)
+        let snapshot = MistralUsageSnapshot(
+            totalCost: 0.5,
+            currency: "USD",
+            currencySymbol: "$",
+            totalInputTokens: 1000,
+            totalOutputTokens: 500,
+            totalCachedTokens: 0,
+            modelCount: 1,
+            startDate: nil,
+            endDate: endDate,
+            updatedAt: Date()).toUsageSnapshot()
+
+        // Mistral doesn't expose a reset time — primary is always nil.
+        #expect(snapshot.primary == nil)
+    }
+
+    @Test
     func `button title spacing only applies when image is present`() {
         #expect(StatusItemController.buttonTitle("42%", hasImage: true) == " 42%")
         #expect(StatusItemController.buttonTitle("42%", hasImage: false) == "42%")

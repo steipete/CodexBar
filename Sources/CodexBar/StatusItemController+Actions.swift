@@ -52,6 +52,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         if provider == .alibaba {
             return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
         }
+        if provider == .minimax {
+            return self.settings.minimaxAPIRegion.dashboardURL
+        }
 
         if provider == .opencodego {
             return self.settings.opencodegoDashboardURL

@@ -17,6 +17,7 @@ struct UsageProgressBar: View {
     let accessibilityLabel: String
     let pacePercent: Double?
     let paceOnTop: Bool
+    let warningMarkerPercents: [Double]
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.displayScale) private var displayScale
 
@@ -25,13 +26,15 @@ struct UsageProgressBar: View {
         tint: Color,
         accessibilityLabel: String,
         pacePercent: Double? = nil,
-        paceOnTop: Bool = true)
+        paceOnTop: Bool = true,
+        warningMarkerPercents: [Double] = [])
     {
         self.percent = percent
         self.tint = tint
         self.accessibilityLabel = accessibilityLabel
         self.pacePercent = pacePercent
         self.paceOnTop = paceOnTop
+        self.warningMarkerPercents = warningMarkerPercents
     }
 
     private var clamped: Double {
@@ -51,6 +54,9 @@ struct UsageProgressBar: View {
             let stripeInset = 1 / scale
             let tipOffset = paceWidth - tipWidth + (Self.paceStripeSpan(for: scale) / 2) + stripeInset
             let showTip = self.pacePercent != nil && tipWidth > 0.5
+            let markerPercents = self.warningMarkerPercents
+                .map(Self.clampedPercent)
+                .filter { $0 > 0 && $0 < 100 }
 
             let cornerRadius = size.height / 2
             let cornerSize = CGSize(width: cornerRadius, height: cornerRadius)
@@ -69,6 +75,20 @@ struct UsageProgressBar: View {
                 context.fill(
                     fillPath,
                     with: .color(MenuHighlightStyle.progressTint(self.isHighlighted, fallback: self.tint)))
+            }
+
+            if !markerPercents.isEmpty {
+                let markerWidth = max(1 / scale, 2)
+                let markerColor: Color = self.isHighlighted ? .white : .primary.opacity(0.72)
+                for markerPercent in markerPercents {
+                    let x = size.width * markerPercent / 100
+                    let markerRect = CGRect(
+                        x: x - markerWidth / 2,
+                        y: 0,
+                        width: markerWidth,
+                        height: size.height)
+                    context.fill(Path(markerRect), with: .color(markerColor))
+                }
             }
 
             // Pace tip: punch-out + center stripe drawn within the canvas context using Core Graphics

@@ -45,6 +45,32 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `mistral menu bar metric picker shows spend only copy`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-mistral-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .mistral)
+        #expect(picker?.options.map(\.id) == [
+            MenuBarMetricPreference.automatic.rawValue,
+        ])
+        #expect(picker?.subtitle == "Shows current-month Mistral API spend in the menu bar.")
+    }
+
+    @Test
+    func `kimi k2 menu bar metric picker shows credits only copy`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-kimik2-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .kimik2)
+        #expect(picker?.options.map(\.id) == [
+            MenuBarMetricPreference.automatic.rawValue,
+        ])
+        #expect(picker?.subtitle == "Shows Kimi K2 API-key credits in the menu bar.")
+    }
+
+    @Test
     func `cursor menu bar metric picker omits tertiary api lane when snapshot has no api metric`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-cursor-no-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)

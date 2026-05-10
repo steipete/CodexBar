@@ -287,6 +287,10 @@ private struct ProviderSwitchChip: View {
         case .mistral: "Mistral"
         case .deepseek: "DeepSeek"
         case .codebuff: "Codebuff"
+        case .crof: "Crof"
+        case .venice: "Venice"
+        case .commandcode: "Command Code"
+        case .stepfun: "StepFun"
         }
     }
 }
@@ -656,6 +660,14 @@ enum WidgetColors {
             Color(red: 82 / 255, green: 125 / 255, blue: 240 / 255)
         case .codebuff:
             Color(red: 68 / 255, green: 255 / 255, blue: 0 / 255) // Codebuff lime
+        case .crof:
+            Color(red: 46 / 255, green: 171 / 255, blue: 148 / 255)
+        case .venice:
+            Color(red: 51 / 255, green: 153 / 255, blue: 1.0)
+        case .commandcode:
+            Color(red: 0, green: 0, blue: 0)
+        case .stepfun:
+            Color(red: 255 / 255, green: 140 / 255, blue: 0 / 255) // StepFun orange
         }
     }
 }
@@ -701,6 +713,7 @@ enum WidgetFormat {
 
     static func relativeDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "en_US")
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
     }

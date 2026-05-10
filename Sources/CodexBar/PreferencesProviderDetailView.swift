@@ -131,6 +131,8 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                     self.supplementarySettingsContent
                 }
 
+                ProviderQuotaWarningSettingsView(provider: self.provider, settings: self.store.settings)
+
                 if !self.settingsToggles.isEmpty {
                     ProviderSettingsSection(title: "Options") {
                         ForEach(self.settingsToggles) { toggle in
@@ -437,7 +439,8 @@ private struct ProviderMetricInlineRow: View {
                     tint: self.progressColor,
                     accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
                     pacePercent: self.metric.pacePercent,
-                    paceOnTop: self.metric.paceOnTop)
+                    paceOnTop: self.metric.paceOnTop,
+                    warningMarkerPercents: self.metric.warningMarkerPercents)
                     .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -547,17 +550,21 @@ private struct ProviderMetricInlineCostRow: View {
                 .frame(width: self.labelWidth, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
-                UsageProgressBar(
-                    percent: self.section.percentUsed,
-                    tint: self.progressColor,
-                    accessibilityLabel: "Usage used")
-                    .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
+                if let percentUsed = self.section.percentUsed {
+                    UsageProgressBar(
+                        percent: percentUsed,
+                        tint: self.progressColor,
+                        accessibilityLabel: "Usage used")
+                        .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
+                }
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(String(format: "%.0f%% used", self.section.percentUsed))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
+                    if let percentLine = self.section.percentLine {
+                        Text(percentLine)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
                     Spacer(minLength: 8)
                     Text(self.section.spendLine)
                         .font(.footnote)

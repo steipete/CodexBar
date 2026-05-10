@@ -280,30 +280,32 @@ enum PiSessionCostScanner {
             prefixBytes: Self.maxLineBytes,
             onLine: { line in
                 guard !line.bytes.isEmpty, !line.wasTruncated else { return }
-                guard let object = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any]
-                else { return }
-                guard let type = object["type"] as? String else { return }
+                autoreleasepool {
+                    guard let object = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any]
+                    else { return }
+                    guard let type = object["type"] as? String else { return }
 
-                if type == "model_change" {
-                    currentModelContext = self.modelContext(from: object)
-                    return
+                    if type == "model_change" {
+                        currentModelContext = self.modelContext(from: object)
+                        return
+                    }
+
+                    guard type == "message", let message = object["message"] as? [String: Any] else { return }
+                    guard (message["role"] as? String) == "assistant" else { return }
+
+                    let identity = self.resolveAssistantIdentity(
+                        entry: object,
+                        message: message,
+                        fallback: currentModelContext)
+                    guard let identity else { return }
+                    guard let date = self.timestampDate(entry: object, message: message) else { return }
+                    let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
+                    let usage = self.extractUsage(
+                        provider: identity.provider,
+                        modelName: identity.modelName,
+                        message: message)
+                    add(provider: identity.provider, dayKey: dayKey, modelName: identity.modelName, usage: usage)
                 }
-
-                guard type == "message", let message = object["message"] as? [String: Any] else { return }
-                guard (message["role"] as? String) == "assistant" else { return }
-
-                let identity = self.resolveAssistantIdentity(
-                    entry: object,
-                    message: message,
-                    fallback: currentModelContext)
-                guard let identity else { return }
-                guard let date = self.timestampDate(entry: object, message: message) else { return }
-                let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
-                let usage = self.extractUsage(
-                    provider: identity.provider,
-                    modelName: identity.modelName,
-                    message: message)
-                add(provider: identity.provider, dayKey: dayKey, modelName: identity.modelName, usage: usage)
             })) ?? startOffset
 
         return ParseResult(

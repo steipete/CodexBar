@@ -76,6 +76,7 @@ public enum UsageFormatter {
         if let hours = Calendar.current.dateComponents([.hour], from: date, to: now).hour, hours < 24 {
             #if os(macOS)
             let rel = RelativeDateTimeFormatter()
+            rel.locale = Locale(identifier: "en_US")
             rel.unitsStyle = .abbreviated
             return "Updated \(rel.localizedString(for: date, relativeTo: now))"
             #else
