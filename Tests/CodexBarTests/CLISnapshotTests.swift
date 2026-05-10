@@ -88,11 +88,11 @@ struct CLISnapshotTests {
         #expect(output.contains("Weekly: 75% left"))
         #expect(output.contains("Credits: 42"))
         #expect(output.contains("Account: user@example.com"))
-        #expect(output.contains("Plan: Pro"))
+        #expect(output.contains("Plan: Pro 20x"))
     }
 
     @Test
-    func `renders Codex prolite plan with spaced display name`() {
+    func `renders Codex prolite plan with multiplier display name`() {
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
             accountEmail: "user@example.com",
@@ -115,7 +115,8 @@ struct CLISnapshotTests {
                 useColor: false,
                 resetStyle: .absolute))
 
-        #expect(output.contains("Plan: Pro Lite"))
+        #expect(output.contains("Plan: Pro 5x"))
+        #expect(!output.contains("Plan: Pro Lite"))
         #expect(!output.contains("Plan: Prolite"))
     }
 

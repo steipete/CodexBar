@@ -849,21 +849,25 @@ extension UsageMenuCardView.Model {
             guard let pass = self.kiloLoginPass(snapshot: snapshot) else {
                 return nil
             }
-            return self.planDisplay(pass)
+            return self.planDisplay(pass, for: provider)
         }
         if let plan = snapshot?.loginMethod(for: provider), !plan.isEmpty {
-            return self.planDisplay(plan)
+            return self.planDisplay(plan, for: provider)
         }
         if metadata.usesAccountFallback,
            let plan = account.plan, !plan.isEmpty
         {
-            return Self.planDisplay(plan)
+            return Self.planDisplay(plan, for: provider)
         }
         return nil
     }
 
-    private static func planDisplay(_ text: String) -> String {
-        let cleaned = CodexPlanFormatting.displayName(text) ?? UsageFormatter.cleanPlanName(text)
+    private static func planDisplay(_ text: String, for provider: UsageProvider) -> String {
+        let cleaned = if provider == .codex {
+            CodexPlanFormatting.displayName(text) ?? UsageFormatter.cleanPlanName(text)
+        } else {
+            UsageFormatter.cleanPlanName(text)
+        }
         return cleaned.isEmpty ? text : cleaned
     }
 

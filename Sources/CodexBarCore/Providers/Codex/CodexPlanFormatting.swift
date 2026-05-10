@@ -2,10 +2,11 @@ import Foundation
 
 public enum CodexPlanFormatting {
     private static let exactDisplayNames: [String: String] = [
-        "prolite": "Pro Lite",
-        "pro_lite": "Pro Lite",
-        "pro-lite": "Pro Lite",
-        "pro lite": "Pro Lite",
+        "pro": "Pro 20x",
+        "prolite": "Pro 5x",
+        "pro_lite": "Pro 5x",
+        "pro-lite": "Pro 5x",
+        "pro lite": "Pro 5x",
     ]
 
     private static let uppercaseWords: Set<String> = [
@@ -27,6 +28,10 @@ public enum CodexPlanFormatting {
         let candidate = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !candidate.isEmpty else { return raw }
 
+        if let exact = Self.exactDisplayNames[candidate.lowercased()] {
+            return exact
+        }
+
         let components = candidate
             .split(whereSeparator: { $0 == "_" || $0 == "-" || $0.isWhitespace })
             .map(String.init)
@@ -40,9 +45,6 @@ public enum CodexPlanFormatting {
 
     private static func wordDisplayName(_ raw: String) -> String {
         let lower = raw.lowercased()
-        if let exact = Self.exactDisplayNames[lower] {
-            return exact
-        }
         if Self.uppercaseWords.contains(lower) {
             return lower.uppercased()
         }

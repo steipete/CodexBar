@@ -4,11 +4,15 @@ import Testing
 
 struct CodexPlanFormattingTests {
     @Test
-    func `maps prolite aliases to Pro Lite`() {
-        #expect(CodexPlanFormatting.displayName("prolite") == "Pro Lite")
-        #expect(CodexPlanFormatting.displayName("pro_lite") == "Pro Lite")
-        #expect(CodexPlanFormatting.displayName("pro-lite") == "Pro Lite")
-        #expect(CodexPlanFormatting.displayName("pro lite") == "Pro Lite")
+    func `maps Codex pro plans to usage multiplier names`() {
+        #expect(CodexPlanFormatting.displayName("pro") == "Pro 20x")
+        #expect(CodexPlanFormatting.displayName("Pro") == "Pro 20x")
+        #expect(CodexPlanFormatting.displayName("Codex Pro") == "Pro 20x")
+        #expect(CodexPlanFormatting.displayName("prolite") == "Pro 5x")
+        #expect(CodexPlanFormatting.displayName("pro_lite") == "Pro 5x")
+        #expect(CodexPlanFormatting.displayName("pro-lite") == "Pro 5x")
+        #expect(CodexPlanFormatting.displayName("Pro Lite") == "Pro 5x")
+        #expect(CodexPlanFormatting.displayName("Codex Pro Lite") == "Pro 5x")
     }
 
     @Test
@@ -30,8 +34,7 @@ struct CodexPlanFormattingTests {
     }
 
     @Test
-    func `preserves already readable plan text`() {
+    func `preserves unrelated already readable plan text`() {
         #expect(CodexPlanFormatting.displayName("Enterprise") == "Enterprise")
-        #expect(CodexPlanFormatting.displayName("Pro Lite") == "Pro Lite")
     }
 }
