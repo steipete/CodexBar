@@ -45,6 +45,7 @@ extension CostUsageScanner {
             let cacheCreate: Int
             let output: Int
             let costNanos: Int
+            let costPriced: Bool
         }
 
         func add(dayKey: String, model: String, tokens: ClaudeTokens, days: inout [String: [String: [Int]]]) {
@@ -52,12 +53,14 @@ extension CostUsageScanner {
             else { return }
             let normModel = CostUsagePricing.normalizeClaudeModel(model)
             var dayModels = days[dayKey] ?? [:]
-            var packed = dayModels[normModel] ?? [0, 0, 0, 0, 0]
+            var packed = dayModels[normModel] ?? [0, 0, 0, 0, 0, 0, 0]
             packed[0] = (packed[safe: 0] ?? 0) + tokens.input
             packed[1] = (packed[safe: 1] ?? 0) + tokens.cacheRead
             packed[2] = (packed[safe: 2] ?? 0) + tokens.cacheCreate
             packed[3] = (packed[safe: 3] ?? 0) + tokens.output
             packed[4] = (packed[safe: 4] ?? 0) + tokens.costNanos
+            packed[5] = (packed[safe: 5] ?? 0) + 1
+            packed[6] = (packed[safe: 6] ?? 0) + (tokens.costPriced ? 1 : 0)
             dayModels[normModel] = packed
             days[dayKey] = dayModels
         }
@@ -129,7 +132,8 @@ extension CostUsageScanner {
                         cacheRead: cacheRead,
                         cacheCreate: cacheCreate,
                         output: output,
-                        costNanos: costNanos)
+                        costNanos: costNanos,
+                        costPriced: cost != nil)
 
                     guard CostUsageDayRange.isInRange(
                         dayKey: dayKey,
@@ -156,7 +160,8 @@ extension CostUsageScanner {
                         cacheRead: tokens.cacheRead,
                         cacheCreate: tokens.cacheCreate,
                         output: tokens.output,
-                        costNanos: tokens.costNanos)
+                        costNanos: tokens.costNanos,
+                        costPriced: tokens.costPriced)
 
                     // Streaming chunks share message.id + requestId inside a file.
                     // Keep overwriting so the final cumulative chunk wins.
@@ -178,7 +183,8 @@ extension CostUsageScanner {
                 cacheRead: row.cacheRead,
                 cacheCreate: row.cacheCreate,
                 output: row.output,
-                costNanos: row.costNanos)
+                costNanos: row.costNanos,
+                costPriced: row.costPriced ?? (row.costNanos > 0))
             add(dayKey: row.dayKey, model: row.model, tokens: tokens, days: &days)
         }
 
@@ -242,12 +248,14 @@ extension CostUsageScanner {
 
         func addRow(_ row: ClaudeUsageRow) {
             var dayModels = days[row.dayKey] ?? [:]
-            var packed = dayModels[row.model] ?? [0, 0, 0, 0, 0]
+            var packed = dayModels[row.model] ?? [0, 0, 0, 0, 0, 0, 0]
             packed[0] = (packed[safe: 0] ?? 0) + row.input
             packed[1] = (packed[safe: 1] ?? 0) + row.cacheRead
             packed[2] = (packed[safe: 2] ?? 0) + row.cacheCreate
             packed[3] = (packed[safe: 3] ?? 0) + row.output
             packed[4] = (packed[safe: 4] ?? 0) + row.costNanos
+            packed[5] = (packed[safe: 5] ?? 0) + 1
+            packed[6] = (packed[safe: 6] ?? 0) + ((row.costPriced ?? (row.costNanos > 0)) ? 1 : 0)
             dayModels[row.model] = packed
             days[row.dayKey] = dayModels
         }
@@ -645,6 +653,9 @@ extension CostUsageScanner {
                 let cacheCreate = packed[safe: 2] ?? 0
                 let output = packed[safe: 3] ?? 0
                 let cachedCost = packed[safe: 4] ?? 0
+                let sampleCount = packed[safe: 5] ?? 0
+                let pricedSampleCount = packed[safe: 6] ?? 0
+                let hasCompleteCachedCost = sampleCount > 0 && pricedSampleCount == sampleCount
                 let totalTokens = input + cacheRead + cacheCreate + output
 
                 // Cache tokens are tracked separately; totalTokens includes input + cache.
@@ -661,8 +672,8 @@ extension CostUsageScanner {
                     outputTokens: output,
                     modelsDevCatalog: modelsDevCatalog,
                     modelsDevCacheRoot: modelsDevCacheRoot)
-                let cost = currentPricingCost
-                    ?? (cachedCost > 0 ? Double(cachedCost) / costScale : nil)
+                // Cached costs are accumulated per request, which preserves Claude long-context threshold boundaries.
+                let cost = hasCompleteCachedCost ? Double(cachedCost) / costScale : currentPricingCost
                 breakdown.append(
                     CostUsageDailyReport.ModelBreakdown(
                         modelName: model,

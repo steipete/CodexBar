@@ -519,7 +519,8 @@ enum PiSessionCostScanner {
             outputTokens: rawUsage.outputTokens,
             totalTokens: rawUsage.totalTokens,
             costNanos: costNanos,
-            costSampleCount: costUSD == nil ? 0 : 1)
+            costSampleCount: costUSD == nil ? 0 : 1,
+            usageSampleCount: 1)
     }
 
     private static func computedCostUSD(
@@ -625,8 +626,13 @@ enum PiSessionCostScanner {
                     modelName: modelName,
                     usage: packed,
                     pricingContext: pricingContext)
-                let costNanos = currentPricingCost.map { Int64(($0 * self.costScale).rounded()) }
-                    ?? (packed.costSampleCount > 0 ? packed.costNanos : nil)
+                let usageSampleCount = packed.usageSampleCount
+                let hasCompleteCachedCost = (usageSampleCount ?? 0) > 0
+                    && packed.costSampleCount == usageSampleCount
+                // Cached costs are accumulated per message, which preserves Claude long-context threshold boundaries.
+                let costNanos = hasCompleteCachedCost
+                    ? packed.costNanos
+                    : currentPricingCost.map { Int64(($0 * self.costScale).rounded()) }
                 breakdown.append(CostUsageDailyReport.ModelBreakdown(
                     modelName: modelName,
                     costUSD: costNanos.map { Double($0) / Self.costScale },
@@ -719,14 +725,23 @@ enum PiSessionCostScanner {
     }
 
     private static func addPacked(a: PiPackedUsage, b: PiPackedUsage, sign: Int) -> PiPackedUsage {
-        PiPackedUsage(
+        let aUsageSampleCount = a.usageSampleCount ?? (a.isZero ? 0 : nil)
+        let bUsageSampleCount = b.usageSampleCount ?? (b.isZero ? 0 : nil)
+        let usageSampleCount: Int? = if let aCount = aUsageSampleCount, let bCount = bUsageSampleCount {
+            max(0, aCount + sign * bCount)
+        } else {
+            nil
+        }
+
+        return PiPackedUsage(
             inputTokens: max(0, a.inputTokens + sign * b.inputTokens),
             cacheReadTokens: max(0, a.cacheReadTokens + sign * b.cacheReadTokens),
             cacheWriteTokens: max(0, a.cacheWriteTokens + sign * b.cacheWriteTokens),
             outputTokens: max(0, a.outputTokens + sign * b.outputTokens),
             totalTokens: max(0, a.totalTokens + sign * b.totalTokens),
             costNanos: max(0, a.costNanos + Int64(sign) * b.costNanos),
-            costSampleCount: max(0, a.costSampleCount + sign * b.costSampleCount))
+            costSampleCount: max(0, a.costSampleCount + sign * b.costSampleCount),
+            usageSampleCount: usageSampleCount)
     }
 
     private static func parseSessionStartFromFilename(_ filename: String) -> Date? {

@@ -420,6 +420,80 @@ struct PiSessionCostScannerTests {
     }
 
     @Test
+    func `pi scanner preserves per-message threshold pricing`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 9)
+        let model = "claude-sonnet-4-6"
+        let firstAssistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "anthropic",
+                "model": model,
+                "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                "usage": [
+                    "input": 150_000,
+                    "output": 0,
+                    "totalTokens": 150_000,
+                ],
+            ],
+        ]
+        let secondAssistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day.addingTimeInterval(1)),
+            "message": [
+                "role": "assistant",
+                "provider": "anthropic",
+                "model": model,
+                "timestamp": Int(day.addingTimeInterval(1).timeIntervalSince1970 * 1000),
+                "usage": [
+                    "input": 150_000,
+                    "output": 0,
+                    "totalTokens": 150_000,
+                ],
+            ],
+        ]
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-05-09T10-00-00-000Z_threshold.jsonl",
+            contents: env.jsonl([firstAssistant, secondAssistant]))
+
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 0))
+        let expectedRequestCost = CostUsagePricing.claudeCostUSD(
+            model: model,
+            inputTokens: 150_000,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 0,
+            modelsDevCacheRoot: env.cacheRoot) ?? 0
+        let aggregateCost = CostUsagePricing.claudeCostUSD(
+            model: model,
+            inputTokens: 300_000,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 0,
+            modelsDevCacheRoot: env.cacheRoot) ?? 0
+        let expectedCost = expectedRequestCost * 2
+
+        #expect(report.data.count == 1)
+        #expect(report.data.first?.totalTokens == 300_000)
+        #expect(abs((report.data.first?.costUSD ?? 0) - expectedCost) < 0.000001)
+        #expect(abs((report.data.first?.costUSD ?? 0) - aggregateCost) > 0.000001)
+        #expect(abs((report.data.first?.modelBreakdowns?.first?.costUSD ?? 0) - expectedCost) < 0.000001)
+    }
+
+    @Test
     func `pi scanner reparses unchanged cached file when scan window expands`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

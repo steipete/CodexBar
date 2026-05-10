@@ -76,6 +76,7 @@ struct PiPackedUsage: Codable, Equatable {
     var totalTokens: Int = 0
     var costNanos: Int64 = 0
     var costSampleCount: Int = 0
+    var usageSampleCount: Int?
 
     var isZero: Bool {
         self.inputTokens == 0
@@ -85,5 +86,6 @@ struct PiPackedUsage: Codable, Equatable {
             && self.totalTokens == 0
             && self.costNanos == 0
             && self.costSampleCount == 0
+            && (self.usageSampleCount ?? 0) == 0
     }
 }

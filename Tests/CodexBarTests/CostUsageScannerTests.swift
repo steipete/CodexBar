@@ -151,6 +151,81 @@ struct CostUsageScannerTests {
     }
 
     @Test
+    func `claude report preserves per-request threshold pricing`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 9)
+        let first = env.isoString(for: day)
+        let second = env.isoString(for: day.addingTimeInterval(1))
+        let model = "claude-sonnet-4-6"
+        let firstEntry: [String: Any] = [
+            "type": "assistant",
+            "timestamp": first,
+            "requestId": "req_one",
+            "message": [
+                "id": "msg_one",
+                "model": model,
+                "usage": [
+                    "input_tokens": 150_000,
+                    "output_tokens": 0,
+                ],
+            ],
+        ]
+        let secondEntry: [String: Any] = [
+            "type": "assistant",
+            "timestamp": second,
+            "requestId": "req_two",
+            "message": [
+                "id": "msg_two",
+                "model": model,
+                "usage": [
+                    "input_tokens": 150_000,
+                    "output_tokens": 0,
+                ],
+            ],
+        ]
+
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "project-a/threshold.jsonl",
+            contents: env.jsonl([firstEntry, secondEntry]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: nil,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let expectedRequestCost = CostUsagePricing.claudeCostUSD(
+            model: model,
+            inputTokens: 150_000,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 0,
+            modelsDevCacheRoot: env.cacheRoot) ?? 0
+        let aggregateCost = CostUsagePricing.claudeCostUSD(
+            model: model,
+            inputTokens: 300_000,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 0,
+            modelsDevCacheRoot: env.cacheRoot) ?? 0
+        let expectedCost = expectedRequestCost * 2
+
+        #expect(report.data.count == 1)
+        #expect(report.data.first?.inputTokens == 300_000)
+        #expect(abs((report.data.first?.costUSD ?? 0) - expectedCost) < 0.000001)
+        #expect(abs((report.data.first?.costUSD ?? 0) - aggregateCost) > 0.000001)
+        #expect(abs((report.data.first?.modelBreakdowns?.first?.costUSD ?? 0) - expectedCost) < 0.000001)
+    }
+
+    @Test
     func `claude parses large lines with usage at tail`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

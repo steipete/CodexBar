@@ -210,6 +210,7 @@ enum CostUsageScanner {
         let cacheCreate: Int
         let output: Int
         let costNanos: Int
+        let costPriced: Bool?
     }
 
     static func loadDailyReport(
