@@ -14,6 +14,7 @@ enum CostUsageScanner {
         var codexSessionsRoot: URL?
         var claudeProjectsRoots: [URL]?
         var cacheRoot: URL?
+        var codexTraceDatabaseURL: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
         /// Force a full rescan, ignoring per-file cache and incremental offsets.
@@ -23,12 +24,14 @@ enum CostUsageScanner {
             codexSessionsRoot: URL? = nil,
             claudeProjectsRoots: [URL]? = nil,
             cacheRoot: URL? = nil,
+            codexTraceDatabaseURL: URL? = nil,
             claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
             forceRescan: Bool = false)
         {
             self.codexSessionsRoot = codexSessionsRoot
             self.claudeProjectsRoots = claudeProjectsRoots
             self.cacheRoot = cacheRoot
+            self.codexTraceDatabaseURL = codexTraceDatabaseURL
             self.claudeLogProviderFilter = claudeLogProviderFilter
             self.forceRescan = forceRescan
         }
@@ -41,6 +44,16 @@ enum CostUsageScanner {
         let lastTotals: CostUsageCodexTotals?
         let sessionId: String?
         let forkedFromId: String?
+        let rows: [CodexUsageRow]
+    }
+
+    struct CodexUsageRow: Codable, Equatable {
+        let day: String
+        let model: String
+        let turnID: String?
+        let input: Int
+        let cached: Int
+        let output: Int
     }
 
     private struct CodexScanState {
@@ -656,8 +669,10 @@ enum CostUsageScanner {
         var forkedFromId: String?
         var inheritedTotals: CostUsageCodexTotals?
         var remainingInheritedTotals: CostUsageCodexTotals?
+        var currentTurnID: String?
 
         var days: [String: [String: [Int]]] = [:]
+        var rows: [CodexUsageRow] = []
 
         func add(dayKey: String, model: String, input: Int, cached: Int, output: Int) {
             guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
@@ -707,7 +722,10 @@ enum CostUsageScanner {
                         || line.bytes.containsAscii(#""type":"session_meta""#)
                     else { return }
 
-                    if line.bytes.containsAscii(#""type":"event_msg""#), !line.bytes.containsAscii(#""token_count""#) {
+                    if line.bytes.containsAscii(#""type":"event_msg""#),
+                       !line.bytes.containsAscii(#""token_count""#),
+                       !line.bytes.containsAscii(#""task_started""#)
+                    {
                         return
                     }
 
@@ -762,6 +780,10 @@ enum CostUsageScanner {
 
                         guard type == "event_msg" else { return }
                         guard let payload = obj["payload"] as? [String: Any] else { return }
+                        if (payload["type"] as? String) == "task_started" {
+                            currentTurnID = Self.codexTurnID(from: payload)
+                            return
+                        }
                         guard (payload["type"] as? String) == "token_count" else { return }
 
                         let info = payload["info"] as? [String: Any]
@@ -846,7 +868,26 @@ enum CostUsageScanner {
 
                         if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
                         let cachedClamp = min(deltaCached, deltaInput)
-                        add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
+                        let normModel = CostUsagePricing.normalizeCodexModel(model)
+                        add(
+                            dayKey: dayKey,
+                            model: normModel,
+                            input: deltaInput,
+                            cached: cachedClamp,
+                            output: deltaOutput)
+                        if CostUsageDayRange.isInRange(
+                            dayKey: dayKey,
+                            since: range.scanSinceKey,
+                            until: range.scanUntilKey)
+                        {
+                            rows.append(CodexUsageRow(
+                                day: dayKey,
+                                model: normModel,
+                                turnID: Self.codexTurnID(from: payload) ?? currentTurnID,
+                                input: deltaInput,
+                                cached: cachedClamp,
+                                output: deltaOutput))
+                        }
                     }
                 })
         } catch {
@@ -862,7 +903,18 @@ enum CostUsageScanner {
             lastModel: currentModel,
             lastTotals: previousTotals,
             sessionId: sessionId,
-            forkedFromId: forkedFromId)
+            forkedFromId: forkedFromId,
+            rows: rows)
+    }
+
+    private static func codexTurnID(from payload: [String: Any]) -> String? {
+        if let turnID = payload["turn_id"] as? String ?? payload["turnId"] as? String ?? payload["id"] as? String {
+            return turnID
+        }
+        if let info = payload["info"] as? [String: Any] {
+            return info["turn_id"] as? String ?? info["turnId"] as? String ?? info["id"] as? String
+        }
+        return nil
     }
 
     private static func scanCodexFile(
@@ -944,7 +996,8 @@ enum CostUsageScanner {
                     lastModel: delta.lastModel,
                     lastTotals: delta.lastTotals,
                     sessionId: sessionId,
-                    forkedFromId: delta.forkedFromId ?? cached.forkedFromId)
+                    forkedFromId: delta.forkedFromId ?? cached.forkedFromId,
+                    codexRows: (cached.codexRows ?? []) + delta.rows)
                 if let sessionId {
                     state.seenSessionIds.insert(sessionId)
                     resources.fileIndex.remember(fileURL: fileURL, sessionId: sessionId)
@@ -978,7 +1031,8 @@ enum CostUsageScanner {
             lastModel: parsed.lastModel,
             lastTotals: parsed.lastTotals,
             sessionId: sessionId,
-            forkedFromId: parsed.forkedFromId)
+            forkedFromId: parsed.forkedFromId,
+            codexRows: parsed.rows)
         cache.files[path] = usage
         Self.applyFileDays(cache: &cache, fileDays: usage.days, sign: 1)
         if let sessionId {
@@ -1080,18 +1134,24 @@ enum CostUsageScanner {
         }
 
         let modelsDevCatalog = CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: options.cacheRoot)
+        let priorityTurns = CodexPriorityTraceScanner.priorityTurns(
+            databaseURL: options.codexTraceDatabaseURL,
+            sinceDayKey: range.sinceKey,
+            untilDayKey: range.untilKey)
         return Self.buildCodexReportFromCache(
             cache: cache,
             range: range,
             modelsDevCatalog: modelsDevCatalog,
-            modelsDevCacheRoot: options.cacheRoot)
+            modelsDevCacheRoot: options.cacheRoot,
+            priorityTurns: priorityTurns)
     }
 
     private static func buildCodexReportFromCache(
         cache: CostUsageCache,
         range: CostUsageDayRange,
         modelsDevCatalog: ModelsDevCatalog? = nil,
-        modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
+        modelsDevCacheRoot: URL? = nil,
+        priorityTurns: [String: CodexPriorityTurnMetadata] = [:]) -> CostUsageDailyReport
     {
         var entries: [CostUsageDailyReport.Entry] = []
         var totalInput = 0
@@ -1103,6 +1163,7 @@ enum CostUsageScanner {
         let dayKeys = cache.days.keys.sorted().filter {
             CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
         }
+        let rowsByDayModel = self.codexRowsByDayModel(cache: cache, range: range)
 
         for day in dayKeys {
             guard let models = cache.days[day] else { continue }
@@ -1125,13 +1186,29 @@ enum CostUsageScanner {
                 dayInput += input
                 dayOutput += output
 
-                let cost = CostUsagePricing.codexCostUSD(
+                let rows = rowsByDayModel[day]?[model]
+                var cost = rows.flatMap {
+                    self.codexRowsCostUSD(
+                        rows: $0,
+                        modelsDevCatalog: modelsDevCatalog,
+                        modelsDevCacheRoot: modelsDevCacheRoot)
+                } ?? CostUsagePricing.codexCostUSD(
                     model: model,
                     inputTokens: input,
                     cachedInputTokens: cached,
                     outputTokens: output,
                     modelsDevCatalog: modelsDevCatalog,
                     modelsDevCacheRoot: modelsDevCacheRoot)
+                if !priorityTurns.isEmpty,
+                   let rows,
+                   let surcharge = self.codexPrioritySurchargeUSD(
+                       rows: rows,
+                       priorityTurns: priorityTurns,
+                       modelsDevCatalog: modelsDevCatalog,
+                       modelsDevCacheRoot: modelsDevCacheRoot)
+                {
+                    cost = (cost ?? 0) + surcharge
+                }
                 breakdown.append(
                     CostUsageDailyReport.ModelBreakdown(
                         modelName: model,
@@ -1176,6 +1253,72 @@ enum CostUsageScanner {
         return CostUsageDailyReport(data: entries, summary: summary)
     }
 
+    private static func codexRowsByDayModel(
+        cache: CostUsageCache,
+        range: CostUsageDayRange) -> [String: [String: [CodexUsageRow]]]
+    {
+        var rowsByDayModel: [String: [String: [CodexUsageRow]]] = [:]
+        for usage in cache.files.values {
+            for row in usage.codexRows ?? [] {
+                guard CostUsageDayRange.isInRange(dayKey: row.day, since: range.sinceKey, until: range.untilKey)
+                else { continue }
+                rowsByDayModel[row.day, default: [:]][row.model, default: []].append(row)
+            }
+        }
+        return rowsByDayModel
+    }
+
+    private static func codexRowsCostUSD(
+        rows: [CodexUsageRow],
+        modelsDevCatalog: ModelsDevCatalog?,
+        modelsDevCacheRoot: URL?) -> Double?
+    {
+        var total: Double = 0
+        var seen = false
+        for row in rows {
+            guard let cost = CostUsagePricing.codexCostUSD(
+                model: row.model,
+                inputTokens: row.input,
+                cachedInputTokens: row.cached,
+                outputTokens: row.output,
+                modelsDevCatalog: modelsDevCatalog,
+                modelsDevCacheRoot: modelsDevCacheRoot)
+            else { continue }
+            total += cost
+            seen = true
+        }
+        return seen ? total : nil
+    }
+
+    private static func codexPrioritySurchargeUSD(
+        rows: [CodexUsageRow],
+        priorityTurns: [String: CodexPriorityTurnMetadata],
+        modelsDevCatalog: ModelsDevCatalog?,
+        modelsDevCacheRoot: URL?) -> Double?
+    {
+        var total: Double = 0
+        var seen = false
+        for row in rows {
+            guard let turnID = row.turnID, priorityTurns[turnID] != nil else { continue }
+            guard let baseCost = CostUsagePricing.codexCostUSD(
+                model: row.model,
+                inputTokens: row.input,
+                cachedInputTokens: row.cached,
+                outputTokens: row.output,
+                modelsDevCatalog: modelsDevCatalog,
+                modelsDevCacheRoot: modelsDevCacheRoot),
+                let priorityCost = CostUsagePricing.codexPriorityCostUSD(
+                    model: row.model,
+                    inputTokens: row.input,
+                    cachedInputTokens: row.cached,
+                    outputTokens: row.output)
+            else { continue }
+            total += max(priorityCost - baseCost, 0)
+            seen = true
+        }
+        return seen ? total : nil
+    }
+
     // MARK: - Shared cache mutations
 
     static func makeFileUsage(
@@ -1187,6 +1330,7 @@ enum CostUsageScanner {
         lastTotals: CostUsageCodexTotals? = nil,
         sessionId: String? = nil,
         forkedFromId: String? = nil,
+        codexRows: [CodexUsageRow]? = nil,
         claudeRows: [ClaudeUsageRow]? = nil) -> CostUsageFileUsage
     {
         CostUsageFileUsage(
@@ -1198,6 +1342,7 @@ enum CostUsageScanner {
             lastTotals: lastTotals,
             sessionId: sessionId,
             forkedFromId: forkedFromId,
+            codexRows: codexRows,
             claudeRows: claudeRows)
     }
 
