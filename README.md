@@ -141,8 +141,8 @@ Dev loop:
 ```bash
 ./Scripts/compile_and_run.sh
 ./Scripts/compile_and_run.sh --test  # also run swift test before packaging/relaunching
-pnpm check                           # SwiftFormat + SwiftLint
-pnpm docs:list                       # list docs with frontmatter summaries
+make check                           # SwiftFormat + SwiftLint
+make docs-list                       # list docs with frontmatter summaries
 ```
 
 CLI install:
