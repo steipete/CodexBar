@@ -3,6 +3,7 @@
 ## 0.25 — Unreleased
 
 ### Providers & Usage
+- Localization: add Simplified Chinese app strings and an in-app language selector (#819). Thanks @markhome1!
 - Antigravity: add OAuth-backed remote usage fetching so quotas can refresh even when the IDE is closed (#635). Thanks @abnormal749!
 - MiniMax: add multi-service quota cards for text, speech, image, video, and music coding-plan usage (#605). Thanks @XWind18!
 - Cost history: add an additive models.dev pricing metadata parser/cache pipeline for future provider-scoped cost lookups (#863). Thanks @iam-brain!
