@@ -969,6 +969,7 @@ struct SettingsStoreTests {
             .deepseek,
             .codebuff,
             .crof,
+            .venice,
         ])
 
         // Move one provider; ensure it's persisted across instances.

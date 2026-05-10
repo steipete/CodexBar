@@ -127,7 +127,13 @@ final class SettingsStore {
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore())
     {
         let appGroupID = AppGroupSupport.currentGroupID()
-        let appGroupMigration = AppGroupSupport.migrateLegacyDataIfNeeded(standardDefaults: userDefaults)
+        let appGroupMigration: AppGroupSupport.MigrationResult
+        if Self.isRunningTests {
+            appGroupMigration = AppGroupSupport.migrateLegacyDataIfNeeded(standardDefaults: userDefaults)
+        } else {
+            Self.scheduleAppGroupMigration()
+            appGroupMigration = AppGroupSupport.MigrationResult(status: .targetUnavailable)
+        }
         let sharedDefaultsAvailable = Self.sharedDefaults != nil
         if !Self.isRunningTests {
             CodexBarLog.logger(LogCategories.settings).info(
@@ -177,22 +183,43 @@ final class SettingsStore {
         self.runInitialProviderDetectionIfNeeded()
         self.ensureAlibabaProviderAutoEnabledIfNeeded()
         self.applyTokenCostDefaultIfNeeded()
-        if self.claudeUsageDataSource != .cli { self.claudeWebExtrasEnabled = false }
-        if hasStoredOpenAIWebAccessPreference {
-            self.openAIWebAccessEnabled = self.defaultsState.openAIWebAccessEnabled
+        if self.claudeUsageDataSource != .cli {
+            if Self.isRunningTests {
+                self.claudeWebExtrasEnabled = false
+            } else {
+                self.defaultsState.claudeWebExtrasEnabledRaw = false
+            }
+        }
+        let resolvedOpenAIWebAccessEnabled = if hasStoredOpenAIWebAccessPreference {
+            self.defaultsState.openAIWebAccessEnabled
         } else {
-            self.openAIWebAccessEnabled = Self.inferredInitialOpenAIWebAccessEnabled(
+            Self.inferredInitialOpenAIWebAccessEnabled(
                 config: config,
                 hadExistingConfig: hadExistingConfig)
         }
-        if Self.shouldBridgeSharedDefaults(for: userDefaults) {
-            Self.sharedDefaults?.set(self.debugDisableKeychainAccess, forKey: "debugDisableKeychainAccess")
+        if Self.isRunningTests {
+            self.openAIWebAccessEnabled = resolvedOpenAIWebAccessEnabled
+        } else {
+            self.defaultsState.openAIWebAccessEnabled = resolvedOpenAIWebAccessEnabled
         }
         KeychainAccessGate.isDisabled = self.debugDisableKeychainAccess
     }
 }
 
 extension SettingsStore {
+    private static func scheduleAppGroupMigration() {
+        Task.detached(priority: .utility) {
+            let result = AppGroupSupport.migrateLegacyDataIfNeeded()
+            CodexBarLog.logger(LogCategories.settings).info(
+                "App group migration completed",
+                metadata: [
+                    "migrationStatus": result.status.rawValue,
+                    "migratedSnapshot": result.copiedSnapshot ? "1" : "0",
+                    "migratedDefaults": "\(result.copiedDefaults)",
+                ])
+        }
+    }
+
     private static func inferredInitialOpenAIWebAccessEnabled(
         config: CodexBarConfig,
         hadExistingConfig: Bool) -> Bool
@@ -207,7 +234,7 @@ extension SettingsStore {
         let refreshDefault = userDefaults.string(forKey: "refreshFrequency")
             .flatMap(RefreshFrequency.init(rawValue:))
         let refreshFrequency = refreshDefault ?? .fiveMinutes
-        if refreshDefault == nil {
+        if Self.isRunningTests, refreshDefault == nil {
             userDefaults.set(refreshFrequency.rawValue, forKey: "refreshFrequency")
         }
         let launchAtLogin = userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false
@@ -219,14 +246,16 @@ extension SettingsStore {
             if Self.shouldBridgeSharedDefaults(for: userDefaults),
                let shared = Self.sharedDefaults?.object(forKey: "debugDisableKeychainAccess") as? Bool
             {
-                userDefaults.set(shared, forKey: "debugDisableKeychainAccess")
+                if Self.isRunningTests {
+                    userDefaults.set(shared, forKey: "debugDisableKeychainAccess")
+                }
                 return shared
             }
             return false
         }()
         let debugFileLoggingEnabled = userDefaults.object(forKey: "debugFileLoggingEnabled") as? Bool ?? false
         let debugLogLevelRaw = userDefaults.string(forKey: "debugLogLevel") ?? CodexBarLog.Level.verbose.rawValue
-        if userDefaults.string(forKey: "debugLogLevel") == nil {
+        if Self.isRunningTests, userDefaults.string(forKey: "debugLogLevel") == nil {
             userDefaults.set(debugLogLevelRaw, forKey: "debugLogLevel")
         }
         let debugLoadingPatternRaw = userDefaults.string(forKey: "debugLoadingPattern")
@@ -234,7 +263,7 @@ extension SettingsStore {
         let statusChecksEnabled = userDefaults.object(forKey: "statusChecksEnabled") as? Bool ?? true
         let sessionQuotaDefault = userDefaults.object(forKey: "sessionQuotaNotificationsEnabled") as? Bool
         let sessionQuotaNotificationsEnabled = sessionQuotaDefault ?? true
-        if sessionQuotaDefault == nil {
+        if Self.isRunningTests, sessionQuotaDefault == nil {
             userDefaults.set(true, forKey: "sessionQuotaNotificationsEnabled")
         }
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
@@ -266,16 +295,22 @@ extension SettingsStore {
         let claudePeakHoursEnabled = userDefaults.object(forKey: "claudePeakHoursEnabled") as? Bool ?? true
         let creditsExtrasDefault = userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool
         let showOptionalCreditsAndExtraUsage = creditsExtrasDefault ?? true
-        if creditsExtrasDefault == nil { userDefaults.set(true, forKey: "showOptionalCreditsAndExtraUsage") }
+        if Self.isRunningTests, creditsExtrasDefault == nil {
+            userDefaults.set(true, forKey: "showOptionalCreditsAndExtraUsage")
+        }
         let openAIWebAccessDefault = userDefaults.object(forKey: "openAIWebAccessEnabled") as? Bool
         let openAIWebAccessEnabled = openAIWebAccessDefault ?? false
-        if openAIWebAccessDefault == nil { userDefaults.set(false, forKey: "openAIWebAccessEnabled") }
+        if Self.isRunningTests, openAIWebAccessDefault == nil {
+            userDefaults.set(false, forKey: "openAIWebAccessEnabled")
+        }
         let openAIWebBatterySaverDefault = userDefaults.object(forKey: "openAIWebBatterySaverEnabled") as? Bool
         let openAIWebBatterySaverEnabled = openAIWebBatterySaverDefault ?? false
-        if openAIWebBatterySaverDefault == nil { userDefaults.set(false, forKey: "openAIWebBatterySaverEnabled") }
+        if Self.isRunningTests, openAIWebBatterySaverDefault == nil {
+            userDefaults.set(false, forKey: "openAIWebBatterySaverEnabled")
+        }
         let providerStorageFootprintsDefault = userDefaults.object(forKey: "providerStorageFootprintsEnabled") as? Bool
         let providerStorageFootprintsEnabled = providerStorageFootprintsDefault ?? false
-        if providerStorageFootprintsDefault == nil {
+        if Self.isRunningTests, providerStorageFootprintsDefault == nil {
             userDefaults.set(false, forKey: "providerStorageFootprintsEnabled")
         }
         let jetbrainsIDEBasePath = userDefaults.string(forKey: "jetbrainsIDEBasePath") ?? ""
