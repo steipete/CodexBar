@@ -2,6 +2,9 @@ import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+#if os(macOS)
+import Security
+#endif
 
 @Suite(.serialized)
 @MainActor
@@ -166,4 +169,22 @@ struct NetworkProxyTests {
             settings.networkProxyStatusText
                 == "Proxy is active and will route provider requests through proxy.example.com:1080.")
     }
+
+    #if os(macOS)
+    @Test
+    func `temporary keychain unavailability is treated as proxy password store failure`() {
+        let store = KeychainNetworkProxyPasswordStore()
+
+        KeychainCacheStore.withLoadFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+            do {
+                _ = try store.loadPassword()
+                #expect(Bool(false), "Expected proxy password load to fail")
+            } catch NetworkProxyPasswordStoreError.keychainUnavailable {
+                #expect(true)
+            } catch {
+                #expect(Bool(false), "Expected keychainUnavailable, got \(error)")
+            }
+        }
+    }
+    #endif
 }

@@ -25,9 +25,11 @@ struct KeychainNetworkProxyPasswordStore: NetworkProxyPasswordStoring {
     func loadPassword() throws -> String? {
         switch KeychainCacheStore.load(key: Self.key, as: String.self) {
         case let .found(value):
-            value
+            return value
         case .missing:
-            nil
+            return nil
+        case .temporarilyUnavailable:
+            throw NetworkProxyPasswordStoreError.keychainUnavailable
         case .invalid:
             throw NetworkProxyPasswordStoreError.keychainUnavailable
         }
