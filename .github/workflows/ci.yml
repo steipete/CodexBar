@@ -53,10 +53,14 @@ jobs:
             --skip CodexUsageFetcherFallbackTests \
             --skip CodexWebDashboardStrategyAuthorityTests \
             --skip OpenAIDashboardNavigationDelegateTests \
+            --skip StatusMenuCodexSwitcherTests \
+            --skip StatusMenuHostedSubmenuRefreshTests \
+            --skip StatusMenuSwitcherClickTests \
+            --skip StatusMenuTests \
             --skip StatusMenuTokenAccountSwitcherTests \
             --skip SubprocessRunnerTests
           swift test --no-parallel \
-            --filter 'ClaudeOAuthCredentialsStoreSecurityCLITests|CLIOpenAIDashboardCacheTests|CodexAccountScopedRefreshDashboardCleanupTests|CodexAccountScopedRefreshTests|CodexBaselineCharacterizationTests|CodexDashboardWorkedExampleParityTests|CodexUsageFetcherFallbackTests|CodexWebDashboardStrategyAuthorityTests|OpenAIDashboardNavigationDelegateTests|SubprocessRunnerTests'
+            --filter 'ClaudeOAuthCredentialsStoreSecurityCLITests|CLIOpenAIDashboardCacheTests|CodexAccountScopedRefreshDashboardCleanupTests|CodexAccountScopedRefreshTests|CodexBaselineCharacterizationTests|CodexDashboardWorkedExampleParityTests|CodexUsageFetcherFallbackTests|CodexWebDashboardStrategyAuthorityTests|OpenAIDashboardNavigationDelegateTests|StatusMenuCodexSwitcherTests|StatusMenuHostedSubmenuRefreshTests|StatusMenuSwitcherClickTests|StatusMenuTests|SubprocessRunnerTests'
 
   build-linux-cli:
     timeout-minutes: 20
