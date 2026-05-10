@@ -36,6 +36,10 @@ public final class ProviderHTTPClient: @unchecked Sendable {
         self.queue.sync { self.proxy }
     }
 
+    public func currentPassword() -> String? {
+        self.queue.sync { self.password }
+    }
+
     public static func makeSessionConfiguration(
         proxy: NetworkProxyConfiguration?,
         password: String?) -> URLSessionConfiguration

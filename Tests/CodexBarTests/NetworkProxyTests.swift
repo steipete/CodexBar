@@ -6,6 +6,27 @@ import Testing
 import Security
 #endif
 
+final class FailingOnLoadProxyPasswordStore: NetworkProxyPasswordStoring, @unchecked Sendable {
+    var value: String?
+    var shouldFailOnLoad = false
+
+    init(value: String? = nil) {
+        self.value = value
+    }
+
+    func loadPassword() throws -> String? {
+        if self.shouldFailOnLoad {
+            struct LoadFailure: Error {}
+            throw LoadFailure()
+        }
+        return self.value
+    }
+
+    func storePassword(_ password: String?) throws {
+        self.value = password
+    }
+}
+
 @Suite(.serialized)
 @MainActor
 struct NetworkProxyTests {
@@ -168,6 +189,51 @@ struct NetworkProxyTests {
         #expect(
             settings.networkProxyStatusText
                 == "Proxy is active and will route provider requests through proxy.example.com:1080.")
+    }
+
+    @Test
+    func `proxy auth stays cached when password load fails during sync`() throws {
+        ProviderHTTPClient.shared.update(proxy: nil, password: nil)
+        defer { ProviderHTTPClient.shared.update(proxy: nil, password: nil) }
+
+        let suite = "NetworkProxyTests-sync-password-cache"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let passwordStore = FailingOnLoadProxyPasswordStore()
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            codexCookieStore: InMemoryCookieHeaderStore(),
+            claudeCookieStore: InMemoryCookieHeaderStore(),
+            cursorCookieStore: InMemoryCookieHeaderStore(),
+            opencodeCookieStore: InMemoryCookieHeaderStore(),
+            factoryCookieStore: InMemoryCookieHeaderStore(),
+            minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+            minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+            kimiTokenStore: InMemoryKimiTokenStore(),
+            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
+            augmentCookieStore: InMemoryCookieHeaderStore(),
+            ampCookieStore: InMemoryCookieHeaderStore(),
+            copilotTokenStore: InMemoryCopilotTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore(),
+            networkProxyPasswordStore: passwordStore)
+
+        settings.networkProxyEnabled = true
+        settings.networkProxyHost = "proxy.example.com"
+        settings.networkProxyPort = "8080"
+        settings.networkProxyUsername = "alice"
+        settings.networkProxyPassword = "secret"
+
+        #expect(ProviderHTTPClient.shared.currentPassword() == "secret")
+        #expect(ProviderHTTPClient.shared.currentProxyConfiguration()?.host == "proxy.example.com")
+
+        passwordStore.shouldFailOnLoad = true
+        settings.networkProxyHost = "proxy2.example.com"
+
+        #expect(ProviderHTTPClient.shared.currentPassword() == "secret")
+        #expect(ProviderHTTPClient.shared.currentProxyConfiguration()?.host == "proxy2.example.com")
     }
 
     #if os(macOS)

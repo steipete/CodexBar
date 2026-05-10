@@ -50,12 +50,15 @@ extension SettingsStore {
     var networkProxyPassword: String {
         get { (try? self.networkProxyPasswordStore.loadPassword()) ?? "" }
         set {
+            let trimmedPassword = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
             do {
                 try self.networkProxyPasswordStore.storePassword(newValue)
             } catch {
                 CodexBarLog.logger(LogCategories.configStore).error("Failed to persist proxy password: \(error)")
             }
-            self.syncProviderHTTPClientConfiguration()
+            ProviderHTTPClient.shared.update(
+                proxy: self.activeNetworkProxyConfiguration(),
+                password: trimmedPassword.isEmpty ? nil : trimmedPassword)
         }
     }
 
@@ -100,7 +103,13 @@ extension SettingsStore {
     }
 
     func syncProviderHTTPClientConfiguration() {
-        let password = (try? self.networkProxyPasswordStore.loadPassword()) ?? nil
-        ProviderHTTPClient.shared.update(proxy: self.activeNetworkProxyConfiguration(), password: password)
+        do {
+            let password = try self.networkProxyPasswordStore.loadPassword()
+            ProviderHTTPClient.shared.update(proxy: self.activeNetworkProxyConfiguration(), password: password)
+        } catch {
+            ProviderHTTPClient.shared.update(
+                proxy: self.activeNetworkProxyConfiguration(),
+                password: ProviderHTTPClient.shared.currentPassword())
+        }
     }
 }
