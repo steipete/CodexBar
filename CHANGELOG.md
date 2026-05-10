@@ -13,6 +13,7 @@
 - Command Code: add browser-cookie provider support for monthly USD billing credits (#857). Thanks @sixhobbits!
 - StepFun: add username/password or Oasis-Token provider support for Step Plan rate-limit tracking (#815). Thanks @tevenfeng!
 - OpenRouter, Mistral, and Kimi K2: show balance/spend metrics in menu bar text when quota percentage is not useful (#853). Thanks @willytop8!
+- Usage pace: show session-level pace indicators for Codex and Claude 5-hour windows (#355). Thanks @johnlarkin1!
 
 ### Fixes
 - Startup: avoid blocking menu-bar creation on synchronous defaults migration/default seeding when macOS preferences services stall.
