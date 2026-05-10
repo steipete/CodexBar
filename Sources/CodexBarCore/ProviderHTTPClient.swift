@@ -20,11 +20,14 @@ public final class ProviderHTTPClient: @unchecked Sendable {
     public func update(proxy: NetworkProxyConfiguration?, password: String?) {
         let configuration = Self.makeSessionConfiguration(proxy: proxy, password: password)
         let session = URLSession(configuration: configuration)
-        self.queue.sync {
+        let oldSession = self.queue.sync {
+            let oldSession = self.session
             self.proxy = proxy
             self.password = password
             self.session = session
+            return oldSession
         }
+        oldSession.finishTasksAndInvalidate()
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {

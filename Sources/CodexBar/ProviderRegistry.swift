@@ -58,7 +58,6 @@ struct ProviderRegistry {
                         env: env,
                         settings: snapshot,
                         fetcher: fetcher,
-                        httpClient: ProviderHTTPClient.shared,
                         claudeFetcher: claudeFetcher,
                         browserDetection: browserDetection)
                 })

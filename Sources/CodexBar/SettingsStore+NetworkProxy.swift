@@ -59,6 +59,7 @@ extension SettingsStore {
             ProviderHTTPClient.shared.update(
                 proxy: self.activeNetworkProxyConfiguration(),
                 password: trimmedPassword.isEmpty ? nil : trimmedPassword)
+            self.cancelNetworkProxyPasswordRetry()
         }
     }
 
@@ -73,6 +74,7 @@ extension SettingsStore {
             mutate(&proxy)
             config.networkProxy = proxy
         }
+        self.cancelNetworkProxyPasswordRetry()
         self.syncProviderHTTPClientConfiguration()
     }
 
@@ -106,10 +108,36 @@ extension SettingsStore {
         do {
             let password = try self.networkProxyPasswordStore.loadPassword()
             ProviderHTTPClient.shared.update(proxy: self.activeNetworkProxyConfiguration(), password: password)
+            self.cancelNetworkProxyPasswordRetry()
         } catch {
+            let proxy = self.activeNetworkProxyConfiguration()
             ProviderHTTPClient.shared.update(
-                proxy: self.activeNetworkProxyConfiguration(),
+                proxy: proxy,
                 password: ProviderHTTPClient.shared.currentPassword())
+            if proxy != nil {
+                self.scheduleNetworkProxyPasswordRetry()
+            } else {
+                self.cancelNetworkProxyPasswordRetry()
+            }
         }
+    }
+
+    private func scheduleNetworkProxyPasswordRetry() {
+        guard self.networkProxyPasswordRetryTask == nil else { return }
+        guard self.networkProxyPasswordRetryAttempt < Self.networkProxyPasswordRetryDelays.count else { return }
+        let delay = Self.networkProxyPasswordRetryDelays[self.networkProxyPasswordRetryAttempt]
+        self.networkProxyPasswordRetryAttempt += 1
+        self.networkProxyPasswordRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.networkProxyPasswordRetryTask = nil
+            self?.syncProviderHTTPClientConfiguration()
+        }
+    }
+
+    private func cancelNetworkProxyPasswordRetry() {
+        self.networkProxyPasswordRetryTask?.cancel()
+        self.networkProxyPasswordRetryTask = nil
+        self.networkProxyPasswordRetryAttempt = 0
     }
 }

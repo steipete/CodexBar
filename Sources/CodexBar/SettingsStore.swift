@@ -81,11 +81,20 @@ final class SettingsStore {
     @ObservationIgnored var configPersistTask: Task<Void, Never>?
     @ObservationIgnored var configLoading = false
     @ObservationIgnored var tokenAccountsLoaded = false
+    @ObservationIgnored var networkProxyPasswordRetryTask: Task<Void, Never>?
+    @ObservationIgnored var networkProxyPasswordRetryAttempt = 0
     @ObservationIgnored let networkProxyPasswordStore: any NetworkProxyPasswordStoring
     var defaultsState: SettingsDefaultsState
     var configRevision: Int = 0
     var providerOrder: [UsageProvider] = []
     var providerEnablement: [UsageProvider: Bool] = [:]
+    static var networkProxyPasswordRetryDelays: [Duration] = [
+        .seconds(1),
+        .seconds(2),
+        .seconds(5),
+        .seconds(10),
+        .seconds(30),
+    ]
 
     static func shouldBridgeSharedDefaults(for userDefaults: UserDefaults) -> Bool {
         if !self.isRunningTests { return true }

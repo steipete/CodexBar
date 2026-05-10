@@ -236,6 +236,62 @@ struct NetworkProxyTests {
         #expect(ProviderHTTPClient.shared.currentProxyConfiguration()?.host == "proxy2.example.com")
     }
 
+    @Test
+    func `proxy password load is retried after startup keychain failure`() async throws {
+        ProviderHTTPClient.shared.update(proxy: nil, password: nil)
+        let originalDelays = SettingsStore.networkProxyPasswordRetryDelays
+        SettingsStore.networkProxyPasswordRetryDelays = [.milliseconds(5)]
+        defer {
+            ProviderHTTPClient.shared.update(proxy: nil, password: nil)
+            SettingsStore.networkProxyPasswordRetryDelays = originalDelays
+        }
+
+        let suite = "NetworkProxyTests-startup-password-retry"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        try configStore.save(CodexBarConfig(
+            providers: [],
+            networkProxy: NetworkProxyConfiguration(
+                enabled: true,
+                scheme: .http,
+                host: "proxy.example.com",
+                port: "8080",
+                username: "alice")))
+        let passwordStore = FailingOnLoadProxyPasswordStore(value: "secret")
+        passwordStore.shouldFailOnLoad = true
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            codexCookieStore: InMemoryCookieHeaderStore(),
+            claudeCookieStore: InMemoryCookieHeaderStore(),
+            cursorCookieStore: InMemoryCookieHeaderStore(),
+            opencodeCookieStore: InMemoryCookieHeaderStore(),
+            factoryCookieStore: InMemoryCookieHeaderStore(),
+            minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+            minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+            kimiTokenStore: InMemoryKimiTokenStore(),
+            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
+            augmentCookieStore: InMemoryCookieHeaderStore(),
+            ampCookieStore: InMemoryCookieHeaderStore(),
+            copilotTokenStore: InMemoryCopilotTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore(),
+            networkProxyPasswordStore: passwordStore)
+        _ = settings
+
+        #expect(ProviderHTTPClient.shared.currentProxyConfiguration()?.host == "proxy.example.com")
+        #expect(ProviderHTTPClient.shared.currentPassword() == nil)
+
+        passwordStore.shouldFailOnLoad = false
+        try await Task.sleep(for: .milliseconds(30))
+
+        #expect(ProviderHTTPClient.shared.currentPassword() == "secret")
+        #expect(ProviderHTTPClient.shared.currentProxyConfiguration()?.host == "proxy.example.com")
+    }
+
     #if os(macOS)
     @Test
     func `temporary keychain unavailability is treated as proxy password store failure`() {
