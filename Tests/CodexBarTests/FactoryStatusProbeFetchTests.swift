@@ -101,6 +101,12 @@ struct FactoryStatusProbeFetchTests {
             "GET api.factory.ai/api/billing/limits",
             "GET api.factory.ai/api/organization/subscription/usage?useCache=true",
         ])
+        let usageRequest = try #require(FactoryStubURLProtocol.requests.first {
+            $0.url?.path == "/api/organization/subscription/usage"
+        })
+        #expect(usageRequest.httpMethod == "GET")
+        #expect(usageRequest.httpBody == nil)
+        #expect(usageRequest.httpBodyStream == nil)
         await FactorySessionStore.shared.clearSession()
     }
 

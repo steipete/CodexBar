@@ -1354,13 +1354,6 @@ public struct FactoryStatusProbe: Sendable {
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
 
-        // Build request body
-        var body: [String: Any] = ["useCache": true]
-        if let userId {
-            body["userId"] = userId
-        }
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
         let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
