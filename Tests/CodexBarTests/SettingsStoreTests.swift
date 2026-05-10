@@ -1085,6 +1085,7 @@ struct SettingsStoreTests {
             .codebuff,
             .crof,
             .venice,
+            .commandcode,
         ])
 
         // Move one provider; ensure it's persisted across instances.
