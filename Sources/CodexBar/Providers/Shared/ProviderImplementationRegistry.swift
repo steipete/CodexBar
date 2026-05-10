@@ -35,7 +35,6 @@ enum ProviderImplementationRegistry {
         case .synthetic: SyntheticProviderImplementation()
         case .openrouter: OpenRouterProviderImplementation()
         case .warp: WarpProviderImplementation()
-        case .qwen: QwenProviderImplementation()
         case .doubao: DoubaoProviderImplementation()
         }
     }

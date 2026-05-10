@@ -75,7 +75,6 @@ public enum ProviderDescriptorRegistry {
         .synthetic: SyntheticProviderDescriptor.descriptor,
         .openrouter: OpenRouterProviderDescriptor.descriptor,
         .warp: WarpProviderDescriptor.descriptor,
-        .qwen: QwenProviderDescriptor.descriptor,
         .doubao: DoubaoProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {

@@ -61,10 +61,6 @@ public enum ProviderTokenResolver {
         self.openRouterResolution(environment: environment)?.token
     }
 
-    public static func qwenToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.qwenResolution(environment: environment)?.token
-    }
-
     public static func doubaoToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.doubaoResolution(environment: environment)?.token
     }
@@ -147,12 +143,6 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(OpenRouterSettingsReader.apiToken(environment: environment))
-    }
-
-    public static func qwenResolution(
-        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
-    {
-        self.resolveEnv(QwenSettingsReader.apiKey(environment: environment))
     }
 
     public static func doubaoResolution(
