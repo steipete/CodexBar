@@ -31,6 +31,11 @@ enum PiSessionCostScanner {
         let modelName: String
     }
 
+    private struct ModelsDevPricingContext {
+        let catalog: ModelsDevCatalog?
+        let cacheRoot: URL?
+    }
+
     private static let costScale = 1_000_000_000.0
     private static let maxLineBytes = 16 * 1024 * 1024
     private static let maxSafeRoundedInt = Double(Int.max) - 1
@@ -50,6 +55,9 @@ enum PiSessionCostScanner {
         var cache = PiSessionCostCacheIO.load(cacheRoot: options.cacheRoot)
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
+        let pricingContext = ModelsDevPricingContext(
+            catalog: CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: options.cacheRoot),
+            cacheRoot: options.cacheRoot)
         let windowExpanded = self.requestedWindowExpandsCache(range: range, cache: cache)
         let shouldRefresh = options.forceRescan
             || windowExpanded
@@ -68,6 +76,7 @@ enum PiSessionCostScanner {
                     fileURL: fileURL,
                     range: range,
                     forceRescan: options.forceRescan || windowExpanded,
+                    pricingContext: pricingContext,
                     cache: &cache)
             }
 
@@ -87,7 +96,11 @@ enum PiSessionCostScanner {
             PiSessionCostCacheIO.save(cache: cache, cacheRoot: options.cacheRoot)
         }
 
-        return self.buildReport(provider: provider, cache: cache, range: range)
+        return self.buildReport(
+            provider: provider,
+            cache: cache,
+            range: range,
+            pricingContext: pricingContext)
     }
 
     private static func requestedWindowExpandsCache(
@@ -165,6 +178,7 @@ enum PiSessionCostScanner {
         fileURL: URL,
         range: CostUsageScanner.CostUsageDayRange,
         forceRescan: Bool,
+        pricingContext: ModelsDevPricingContext,
         cache: inout PiSessionCostCache)
     {
         let path = fileURL.path
@@ -196,7 +210,8 @@ enum PiSessionCostScanner {
                 fileURL: fileURL,
                 range: range,
                 startOffset: cached.parsedBytes,
-                initialModelContext: cached.lastModelContext)
+                initialModelContext: cached.lastModelContext,
+                pricingContext: pricingContext)
             if !delta.contributions.isEmpty {
                 self.applyContributions(
                     daysByProvider: &cache.daysByProvider,
@@ -220,7 +235,10 @@ enum PiSessionCostScanner {
                 sign: -1)
         }
 
-        let parsed = self.parsePiSessionFile(fileURL: fileURL, range: range)
+        let parsed = self.parsePiSessionFile(
+            fileURL: fileURL,
+            range: range,
+            pricingContext: pricingContext)
         if !parsed.contributions.isEmpty {
             self.applyContributions(daysByProvider: &cache.daysByProvider, contributions: parsed.contributions, sign: 1)
         }
@@ -237,7 +255,8 @@ enum PiSessionCostScanner {
         fileURL: URL,
         range: CostUsageScanner.CostUsageDayRange,
         startOffset: Int64 = 0,
-        initialModelContext: PiModelContext? = nil) -> ParseResult
+        initialModelContext: PiModelContext? = nil,
+        pricingContext: ModelsDevPricingContext? = nil) -> ParseResult
     {
         var currentModelContext = initialModelContext
         var contributions: [String: [String: [String: PiPackedUsage]]] = [:]
@@ -303,7 +322,8 @@ enum PiSessionCostScanner {
                     let usage = self.extractUsage(
                         provider: identity.provider,
                         modelName: identity.modelName,
-                        message: message)
+                        message: message,
+                        pricingContext: pricingContext)
                     add(provider: identity.provider, dayKey: dayKey, modelName: identity.modelName, usage: usage)
                 }
             })) ?? startOffset
@@ -437,7 +457,8 @@ enum PiSessionCostScanner {
     private static func extractUsage(
         provider: UsageProvider,
         modelName: String,
-        message: [String: Any]) -> PiPackedUsage
+        message: [String: Any],
+        pricingContext: ModelsDevPricingContext? = nil) -> PiPackedUsage
     {
         let usage = (message["usage"] as? [String: Any]) ?? [:]
         let input = self.readNonNegativeInt(
@@ -484,7 +505,11 @@ enum PiSessionCostScanner {
             cacheWriteTokens: cacheWrite,
             outputTokens: output,
             totalTokens: totalTokens)
-        let costUSD = self.computedCostUSD(provider: provider, modelName: modelName, usage: rawUsage)
+        let costUSD = self.computedCostUSD(
+            provider: provider,
+            modelName: modelName,
+            usage: rawUsage,
+            pricingContext: pricingContext)
         let costNanos = costUSD.map { Int64(($0 * self.costScale).rounded()) } ?? 0
 
         return PiPackedUsage(
@@ -500,7 +525,8 @@ enum PiSessionCostScanner {
     private static func computedCostUSD(
         provider: UsageProvider,
         modelName: String,
-        usage: PiPackedUsage) -> Double?
+        usage: PiPackedUsage,
+        pricingContext: ModelsDevPricingContext? = nil) -> Double?
     {
         switch provider {
         case .codex:
@@ -508,14 +534,18 @@ enum PiSessionCostScanner {
                 model: modelName,
                 inputTokens: usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
                 cachedInputTokens: usage.cacheReadTokens,
-                outputTokens: usage.outputTokens)
+                outputTokens: usage.outputTokens,
+                modelsDevCatalog: pricingContext?.catalog,
+                modelsDevCacheRoot: pricingContext?.cacheRoot)
         case .claude:
             CostUsagePricing.claudeCostUSD(
                 model: modelName,
                 inputTokens: usage.inputTokens,
                 cacheReadInputTokens: usage.cacheReadTokens,
                 cacheCreationInputTokens: usage.cacheWriteTokens,
-                outputTokens: usage.outputTokens)
+                outputTokens: usage.outputTokens,
+                modelsDevCatalog: pricingContext?.catalog,
+                modelsDevCacheRoot: pricingContext?.cacheRoot)
         default:
             nil
         }
@@ -552,7 +582,8 @@ enum PiSessionCostScanner {
     private static func buildReport(
         provider: UsageProvider,
         cache: PiSessionCostCache,
-        range: CostUsageScanner.CostUsageDayRange) -> CostUsageDailyReport
+        range: CostUsageScanner.CostUsageDayRange,
+        pricingContext: ModelsDevPricingContext? = nil) -> CostUsageDailyReport
     {
         guard let providerDays = cache.daysByProvider[provider.rawValue] else {
             return CostUsageDailyReport(data: [], summary: nil)
@@ -589,17 +620,26 @@ enum PiSessionCostScanner {
                 let modelTotalTokens = max(
                     packed.totalTokens,
                     packed.inputTokens + packed.cacheReadTokens + packed.cacheWriteTokens + packed.outputTokens)
+                let currentPricingCost = self.computedCostUSD(
+                    provider: provider,
+                    modelName: modelName,
+                    usage: packed,
+                    pricingContext: pricingContext)
+                let costNanos = currentPricingCost.map { Int64(($0 * self.costScale).rounded()) }
+                    ?? (packed.costSampleCount > 0 ? packed.costNanos : nil)
                 breakdown.append(CostUsageDailyReport.ModelBreakdown(
                     modelName: modelName,
-                    costUSD: packed.costSampleCount > 0 ? Double(packed.costNanos) / Self.costScale : nil,
+                    costUSD: costNanos.map { Double($0) / Self.costScale },
                     totalTokens: modelTotalTokens > 0 ? modelTotalTokens : nil))
                 dayInput += packed.inputTokens
                 dayOutput += packed.outputTokens
                 dayCacheRead += packed.cacheReadTokens
                 dayCacheWrite += packed.cacheWriteTokens
                 dayTotalTokens += modelTotalTokens
-                dayCostNanos += packed.costNanos
-                dayCostSamples += packed.costSampleCount
+                if let costNanos {
+                    dayCostNanos += costNanos
+                    dayCostSamples += 1
+                }
             }
 
             let sortedBreakdown = self.sortedModelBreakdowns(breakdown)

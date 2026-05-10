@@ -257,6 +257,9 @@ enum CostUsagePricing {
             cacheReadInputCostPerTokenAboveThreshold: 6e-7),
     ]
 
+    private static let codexModelsDevProviderID = "openai"
+    private static let claudeModelsDevProviderID = "anthropic"
+
     static func normalizeCodexModel(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("openai/") {
@@ -310,9 +313,42 @@ enum CostUsagePricing {
         return trimmed
     }
 
-    static func codexCostUSD(model: String, inputTokens: Int, cachedInputTokens: Int, outputTokens: Int) -> Double? {
+    static func codexCostUSD(
+        model: String,
+        inputTokens: Int,
+        cachedInputTokens: Int,
+        outputTokens: Int,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
+    {
         let key = self.normalizeCodexModel(model)
+        if let lookup = self.modelsDevLookup(
+            providerID: self.codexModelsDevProviderID,
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+        {
+            return self.codexCostUSD(
+                pricing: lookup.pricing,
+                inputTokens: inputTokens,
+                cachedInputTokens: cachedInputTokens,
+                outputTokens: outputTokens)
+        }
+
         guard let pricing = self.codex[key] else { return nil }
+        return self.codexCostUSD(
+            pricing: pricing,
+            inputTokens: inputTokens,
+            cachedInputTokens: cachedInputTokens,
+            outputTokens: outputTokens)
+    }
+
+    private static func codexCostUSD(
+        pricing: CodexPricing,
+        inputTokens: Int,
+        cachedInputTokens: Int,
+        outputTokens: Int) -> Double
+    {
         let cached = min(max(0, cachedInputTokens), max(0, inputTokens))
         let nonCached = max(0, inputTokens - cached)
         let cachedRate = pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
@@ -321,16 +357,63 @@ enum CostUsagePricing {
             + Double(max(0, outputTokens)) * pricing.outputCostPerToken
     }
 
+    private static func codexCostUSD(
+        pricing: ModelsDevPricingInfo,
+        inputTokens: Int,
+        cachedInputTokens: Int,
+        outputTokens: Int) -> Double
+    {
+        self.codexCostUSD(
+            pricing: CodexPricing(
+                inputCostPerToken: pricing.inputCostPerToken,
+                outputCostPerToken: pricing.outputCostPerToken,
+                cacheReadInputCostPerToken: pricing.cacheReadInputCostPerToken,
+                displayLabel: nil),
+            inputTokens: inputTokens,
+            cachedInputTokens: cachedInputTokens,
+            outputTokens: outputTokens)
+    }
+
     static func claudeCostUSD(
         model: String,
         inputTokens: Int,
         cacheReadInputTokens: Int,
         cacheCreationInputTokens: Int,
-        outputTokens: Int) -> Double?
+        outputTokens: Int,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
     {
+        if let lookup = self.modelsDevLookup(
+            providerID: self.claudeModelsDevProviderID,
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+        {
+            return self.claudeCostUSD(
+                pricing: lookup.pricing,
+                inputTokens: inputTokens,
+                cacheReadInputTokens: cacheReadInputTokens,
+                cacheCreationInputTokens: cacheCreationInputTokens,
+                outputTokens: outputTokens)
+        }
+
         let key = self.normalizeClaudeModel(model)
         guard let pricing = self.claude[key] else { return nil }
+        return self.claudeCostUSD(
+            pricing: pricing,
+            inputTokens: inputTokens,
+            cacheReadInputTokens: cacheReadInputTokens,
+            cacheCreationInputTokens: cacheCreationInputTokens,
+            outputTokens: outputTokens)
+    }
 
+    private static func claudeCostUSD(
+        pricing: ClaudePricing,
+        inputTokens: Int,
+        cacheReadInputTokens: Int,
+        cacheCreationInputTokens: Int,
+        outputTokens: Int) -> Double
+    {
         func tiered(_ tokens: Int, base: Double, above: Double?, threshold: Int?) -> Double {
             guard let threshold, let above else { return Double(tokens) * base }
             let below = min(tokens, threshold)
@@ -358,5 +441,49 @@ enum CostUsagePricing {
                 base: pricing.outputCostPerToken,
                 above: pricing.outputCostPerTokenAboveThreshold,
                 threshold: pricing.thresholdTokens)
+    }
+
+    private static func claudeCostUSD(
+        pricing: ModelsDevPricingInfo,
+        inputTokens: Int,
+        cacheReadInputTokens: Int,
+        cacheCreationInputTokens: Int,
+        outputTokens: Int) -> Double
+    {
+        self.claudeCostUSD(
+            pricing: ClaudePricing(
+                inputCostPerToken: pricing.inputCostPerToken,
+                outputCostPerToken: pricing.outputCostPerToken,
+                cacheCreationInputCostPerToken: pricing.cacheCreationInputCostPerToken ?? pricing.inputCostPerToken,
+                cacheReadInputCostPerToken: pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken,
+                thresholdTokens: pricing.thresholdTokens,
+                inputCostPerTokenAboveThreshold: pricing.inputCostPerTokenAboveThreshold,
+                outputCostPerTokenAboveThreshold: pricing.outputCostPerTokenAboveThreshold,
+                cacheCreationInputCostPerTokenAboveThreshold: pricing.cacheCreationInputCostPerTokenAboveThreshold,
+                cacheReadInputCostPerTokenAboveThreshold: pricing.cacheReadInputCostPerTokenAboveThreshold),
+            inputTokens: inputTokens,
+            cacheReadInputTokens: cacheReadInputTokens,
+            cacheCreationInputTokens: cacheCreationInputTokens,
+            outputTokens: outputTokens)
+    }
+
+    static func modelsDevCatalog(now: Date = Date(), cacheRoot: URL? = nil) -> ModelsDevCatalog? {
+        ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact?.catalog
+    }
+
+    private static func modelsDevLookup(
+        providerID: String,
+        model: String,
+        catalog: ModelsDevCatalog?,
+        cacheRoot: URL?) -> ModelsDevPricingLookup?
+    {
+        if let catalog {
+            return catalog.pricing(providerID: providerID, modelID: model)
+        }
+
+        return ModelsDevPricingPipeline.lookup(
+            providerID: providerID,
+            modelID: model,
+            cacheRoot: cacheRoot)
     }
 }

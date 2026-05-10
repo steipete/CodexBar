@@ -1077,12 +1077,19 @@ enum CostUsageScanner {
             CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: options.cacheRoot)
         }
 
-        return Self.buildCodexReportFromCache(cache: cache, range: range)
+        let modelsDevCatalog = CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: options.cacheRoot)
+        return Self.buildCodexReportFromCache(
+            cache: cache,
+            range: range,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: options.cacheRoot)
     }
 
     private static func buildCodexReportFromCache(
         cache: CostUsageCache,
-        range: CostUsageDayRange) -> CostUsageDailyReport
+        range: CostUsageDayRange,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
     {
         var entries: [CostUsageDailyReport.Entry] = []
         var totalInput = 0
@@ -1120,7 +1127,9 @@ enum CostUsageScanner {
                     model: model,
                     inputTokens: input,
                     cachedInputTokens: cached,
-                    outputTokens: output)
+                    outputTokens: output,
+                    modelsDevCatalog: modelsDevCatalog,
+                    modelsDevCacheRoot: modelsDevCacheRoot)
                 breakdown.append(
                     CostUsageDailyReport.ModelBreakdown(
                         modelName: model,
