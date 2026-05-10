@@ -30,6 +30,8 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case openrouter
     case windsurf
     case perplexity
+    case mimo
+    case doubao
     case abacus
     case mistral
     case deepseek
@@ -70,6 +72,8 @@ public enum IconStyle: Sendable, CaseIterable {
     case openrouter
     case windsurf
     case perplexity
+    case mimo
+    case doubao
     case abacus
     case mistral
     case deepseek

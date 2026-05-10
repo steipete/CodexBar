@@ -60,44 +60,127 @@ p {
   overflow-wrap: break-word;
 }
 
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.aurora .blob {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.6;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.aurora .b1 {
+  width: 44vw;
+  height: 44vw;
+  left: -6vw;
+  top: -6vw;
+  background: radial-gradient(circle at 50% 50%, #ff7a1a, transparent 62%);
+  animation: drift1 36s ease-in-out infinite;
+}
+
+.aurora .b2 {
+  width: 42vw;
+  height: 42vw;
+  right: -6vw;
+  top: -4vw;
+  background: radial-gradient(circle at 50% 50%, #6e5aff, transparent 62%);
+  animation: drift2 42s ease-in-out infinite;
+}
+
+.aurora .b3 {
+  width: 38vw;
+  height: 38vw;
+  left: 24vw;
+  top: 44vh;
+  background: radial-gradient(circle at 50% 50%, #16d3b4, transparent 62%);
+  opacity: 0.42;
+  animation: drift3 48s ease-in-out infinite;
+}
+
+.aurora .b4 {
+  width: 36vw;
+  height: 36vw;
+  right: 6vw;
+  top: 70vh;
+  background: radial-gradient(circle at 50% 50%, #ff3d8b, transparent 62%);
+  opacity: 0.42;
+  animation: drift4 40s ease-in-out infinite;
+}
+
+/* Structured grid — graph-paper baseline visible across the page */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -2;
-  background:
-    linear-gradient(135deg, rgba(255, 106, 0, 0.10), transparent 30%),
-    linear-gradient(225deg, rgba(76, 0, 255, 0.09), transparent 34%),
-    linear-gradient(0deg, rgba(0, 191, 165, 0.06), transparent 42%);
   pointer-events: none;
+  background-image:
+    linear-gradient(rgba(10, 10, 12, 0.085) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(10, 10, 12, 0.085) 1px, transparent 1px);
+  background-size: 64px 64px;
+  background-position: 50% 0;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.7) 70%, rgba(0, 0, 0, 0.45));
+          mask-image: linear-gradient(180deg, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.7) 70%, rgba(0, 0, 0, 0.45));
 }
 
+/* Crosshair dots at every 64px intersection — anchors the grid */
 body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
-  background-image:
-    linear-gradient(rgba(10, 10, 12, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(10, 10, 12, 0.05) 1px, transparent 1px);
-  background-size: 22px 22px;
   pointer-events: none;
-  mask-image: linear-gradient(to bottom, black, black 70%, transparent);
-  -webkit-mask-image: linear-gradient(to bottom, black, black 70%, transparent);
+  background-image: radial-gradient(circle, rgba(10, 10, 12, 0.42) 1.2px, transparent 1.8px);
+  background-size: 64px 64px;
+  background-position: 50% 0;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.5) 75%, transparent);
+          mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.5) 75%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
+  .aurora .blob {
+    opacity: 0.55;
+    filter: blur(72px) saturate(150%);
+  }
+  .aurora .b3,
+  .aurora .b4 {
+    opacity: 0.38;
+  }
   body::before {
-    background:
-      linear-gradient(135deg, rgba(255, 106, 0, 0.14), transparent 30%),
-      linear-gradient(225deg, rgba(110, 90, 255, 0.13), transparent 34%),
-      linear-gradient(0deg, rgba(0, 200, 170, 0.08), transparent 42%);
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
   }
   body::after {
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.34) 1.2px, transparent 1.8px);
   }
+}
+
+@keyframes drift1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(2vw, 1.5vw, 0) scale(1.04); }
+}
+@keyframes drift2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-2vw, 2vw, 0) scale(1.05); }
+}
+@keyframes drift3 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(1.5vw, -2vw, 0) scale(1.03); }
+}
+@keyframes drift4 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-2vw, -1.5vw, 0) scale(1.04); }
 }
 
 a {
@@ -221,9 +304,23 @@ code {
   margin: 0 0 18px;
   font-size: 60px;
   line-height: 1.04;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
   font-weight: 600;
   max-width: 18ch;
+}
+
+.lede h1 .grad {
+  background-image: linear-gradient(100deg, #ff6a00 0%, #ff3399 32%, #6e5aff 62%, #00bfa5 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% 100%;
+  animation: hue-slide 14s ease-in-out infinite;
+}
+
+@keyframes hue-slide {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .lede .dek {
@@ -353,11 +450,13 @@ code {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--bg-elev);
+  background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   text-decoration: none;
   color: var(--ink-1);
   min-height: 64px;
-  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
 .provider:hover {
@@ -482,7 +581,9 @@ code {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 18px;
-  background: var(--bg-elev);
+  background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
 }
 
 .detail .block h3 {
@@ -606,5 +707,9 @@ code {
   .provider:hover,
   .btn:hover {
     transform: none;
+  }
+  .aurora .blob,
+  .lede h1 .grad {
+    animation: none;
   }
 }

@@ -72,6 +72,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         let allowStartupBootstrapPrompt: Bool
         let useWebExtras: Bool
         let manualCookieHeader: String?
+        let webOrganizationID: String?
         let keepCLISessionsAlive: Bool
         let browserDetection: BrowserDetection
     }
@@ -112,6 +113,10 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private var manualCookieHeader: String? {
         self.configuration.manualCookieHeader
+    }
+
+    private var webOrganizationID: String? {
+        self.configuration.webOrganizationID
     }
 
     private var keepCLISessionsAlive: Bool {
@@ -218,6 +223,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         allowStartupBootstrapPrompt: Bool = false,
         useWebExtras: Bool = false,
         manualCookieHeader: String? = nil,
+        webOrganizationID: String? = nil,
         keepCLISessionsAlive: Bool = false)
     {
         self.configuration = Configuration(
@@ -229,6 +235,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             allowStartupBootstrapPrompt: allowStartupBootstrapPrompt,
             useWebExtras: useWebExtras,
             manualCookieHeader: manualCookieHeader,
+            webOrganizationID: webOrganizationID,
             keepCLISessionsAlive: keepCLISessionsAlive,
             browserDetection: browserDetection)
     }
@@ -953,11 +960,17 @@ extension ClaudeUsageFetcher {
     private func loadViaWebAPI() async throws -> ClaudeUsageSnapshot {
         let webData: ClaudeWebAPIFetcher.WebUsageData =
             if let header = self.manualCookieHeader {
-                try await ClaudeWebAPIFetcher.fetchUsage(cookieHeader: header) { msg in
+                try await ClaudeWebAPIFetcher.fetchUsage(
+                    cookieHeader: header,
+                    targetOrganizationID: self.webOrganizationID)
+                { msg in
                     Self.log.debug(msg)
                 }
             } else {
-                try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: self.browserDetection) { msg in
+                try await ClaudeWebAPIFetcher.fetchUsage(
+                    browserDetection: self.browserDetection,
+                    targetOrganizationID: self.webOrganizationID)
+                { msg in
                     Self.log.debug(msg)
                 }
             }
@@ -1062,12 +1075,16 @@ extension ClaudeUsageFetcher {
         do {
             let webData: ClaudeWebAPIFetcher.WebUsageData =
                 if let header = self.manualCookieHeader {
-                    try await ClaudeWebAPIFetcher.fetchUsage(cookieHeader: header) { msg in
+                    try await ClaudeWebAPIFetcher.fetchUsage(
+                        cookieHeader: header,
+                        targetOrganizationID: self.webOrganizationID)
+                    { msg in
                         Self.log.debug(msg)
                     }
                 } else {
                     try await ClaudeWebAPIFetcher.fetchUsage(
-                        browserDetection: self.browserDetection)
+                        browserDetection: self.browserDetection,
+                        targetOrganizationID: self.webOrganizationID)
                     { msg in
                         Self.log.debug(msg)
                     }

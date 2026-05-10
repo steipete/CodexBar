@@ -148,7 +148,8 @@ struct MenuDescriptor {
             let resetStyle = settings.resetTimeDisplayStyle
             let labels = Self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snap)
             if let primary = snap.primary {
-                let primaryWindow = if provider == .warp || provider == .kilo || provider == .abacus ||
+                let primaryWindow = if provider == .warp || provider == .kilo || provider == .mimo || provider ==
+                    .abacus ||
                     provider == .deepseek
                 {
                     // Some providers use resetDescription for non-reset detail
@@ -167,9 +168,10 @@ struct MenuDescriptor {
                     window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
-                if provider == .warp || provider == .kilo || provider == .abacus || provider == .deepseek,
-                   let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !detail.isEmpty
+                if provider == .warp || provider == .kilo || provider == .mimo || provider == .abacus || provider ==
+                    .deepseek,
+                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+                    !detail.isEmpty
                 {
                     entries.append(.text(detail, .secondary))
                 }
@@ -301,7 +303,20 @@ struct MenuDescriptor {
                 entries.append(.text("Activity: \(detail)", .secondary))
             }
         } else if let loginMethodText, !loginMethodText.isEmpty {
-            entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText, provider: provider))", .secondary))
+            if provider == .openrouter || provider == .mimo,
+               loginMethodText.localizedCaseInsensitiveContains("balance:")
+            {
+                let balanceValue = loginMethodText
+                    .replacingOccurrences(
+                        of: #"(?i)^\s*balance:\s*"#,
+                        with: "",
+                        options: [.regularExpression])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let value = balanceValue.isEmpty ? loginMethodText : balanceValue
+                entries.append(.text("Balance: \(AccountFormatter.plan(value, provider: provider))", .secondary))
+            } else {
+                entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText, provider: provider))", .secondary))
+            }
         }
 
         if metadata.usesAccountFallback {

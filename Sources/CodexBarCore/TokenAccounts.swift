@@ -9,6 +9,19 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
     /// Stable provider-specific identity (e.g. GitHub `login`) used for
     /// re-auth deduplication. Optional so legacy accounts keep working.
     public let externalIdentifier: String?
+    /// Optional provider-specific organization/workspace target. Claude web
+    /// sessionKey accounts use this to disambiguate linked Anthropic emails.
+    public let organizationID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case label
+        case token
+        case addedAt
+        case lastUsed
+        case externalIdentifier
+        case organizationID = "organizationId"
+    }
 
     public init(
         id: UUID,
@@ -16,7 +29,8 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         token: String,
         addedAt: TimeInterval,
         lastUsed: TimeInterval?,
-        externalIdentifier: String? = nil)
+        externalIdentifier: String? = nil,
+        organizationID: String? = nil)
     {
         self.id = id
         self.label = label
@@ -24,10 +38,20 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         self.addedAt = addedAt
         self.lastUsed = lastUsed
         self.externalIdentifier = externalIdentifier
+        self.organizationID = organizationID
     }
 
     public var displayName: String {
         self.label
+    }
+
+    public var sanitizedOrganizationID: String? {
+        Self.clean(self.organizationID)
+    }
+
+    private static func clean(_ raw: String?) -> String? {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty ?? true) ? nil : trimmed
     }
 }
 

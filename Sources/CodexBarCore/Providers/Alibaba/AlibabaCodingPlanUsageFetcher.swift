@@ -1108,9 +1108,9 @@ public enum AlibabaCodingPlanUsageError: LocalizedError, Sendable, Equatable {
         case .invalidCredentials:
             "Alibaba Coding Plan API credentials are invalid or expired."
         case .apiKeyUnavailableInRegion:
-            "Alibaba Coding Plan API key mode is not available for this account/region. " +
-                "Use cookie authentication in Settings -> Providers -> Alibaba, or switch regions " +
-                "if your account supports API key mode elsewhere."
+            "Alibaba Coding Plan quota is not available through Coding Plan API keys for this account/region. " +
+                "Use cookie authentication in Settings -> Providers -> Alibaba if the Alibaba console exposes a " +
+                "compatible session, or switch regions if quota API access is available there."
         case let .networkError(message):
             "Alibaba Coding Plan network error: \(message)"
         case let .apiError(message):

@@ -146,9 +146,7 @@ public struct GeminiStatusProbe: Sendable {
     public init(
         timeout: TimeInterval = 10.0,
         homeDirectory: String = NSHomeDirectory(),
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await URLSession.shared.data(for: request)
-        })
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = Self.defaultDataLoader)
     {
         self.timeout = timeout
         self.homeDirectory = homeDirectory

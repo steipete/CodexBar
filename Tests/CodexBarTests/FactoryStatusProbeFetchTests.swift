@@ -303,6 +303,85 @@ struct FactoryStatusProbeFetchTests {
     }
 
     @Test
+    func `uses bearer subject when auth profile omits user id`() async throws {
+        let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(FactoryStubURLProtocol.self)
+            }
+            FactoryStubURLProtocol.handler = nil
+            FactoryStubURLProtocol.requests = []
+        }
+        FactoryStubURLProtocol.requests = []
+
+        FactoryStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.path == "/api/app/auth/me" {
+                let body = """
+                {
+                  "organization": {
+                    "id": "org_1",
+                    "name": "Acme",
+                    "subscription": {
+                      "factoryTier": "team",
+                      "orbSubscription": {
+                        "plan": { "name": "Team", "id": "plan_1" },
+                        "status": "active"
+                      }
+                    }
+                  },
+                  "userProfile": {
+                    "email": "user@example.com",
+                    "role": "member"
+                  }
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            if url.host == "api.factory.ai", url.path == "/api/billing/limits" {
+                return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+            }
+            if url.path == "/api/organization/subscription/usage" {
+                guard URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?
+                    .contains(where: { $0.name == "userId" && $0.value == "user_jwt" }) == true
+                else {
+                    return Self.makeResponse(
+                        url: url,
+                        body: #"{"detail":"Must be manager to get usage for other users"}"#,
+                        statusCode: 403)
+                }
+                let body = """
+                {
+                  "usage": {
+                    "standard": {
+                      "userTokens": 100,
+                      "totalAllowance": 1000,
+                      "usedRatio": 0.10
+                    }
+                  },
+                  "userId": "user_jwt"
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        let token = Self.makeJWT(payload: ["sub": "user_jwt"])
+        let probe = FactoryStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let snapshot = try await probe.fetch(cookieHeaderOverride: "access-token=\(token); session=abc")
+
+        #expect(snapshot.userId == "user_jwt")
+        #expect(snapshot.standardUserTokens == 100)
+        #expect(Self.requestTrace() == [
+            "GET app.factory.ai/api/app/auth/me",
+            "GET api.factory.ai/api/billing/limits",
+            "GET app.factory.ai/api/organization/subscription/usage?useCache=true&userId=user_jwt",
+        ])
+    }
+
+    @Test
     func `falls back to legacy usage when billing limits request fails`() async throws {
         let registered = URLProtocol.registerClass(FactoryStubURLProtocol.self)
         defer {
@@ -613,6 +692,20 @@ struct FactoryStatusProbeFetchTests {
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "application/json"])!
         return (response, Data(body.utf8))
+    }
+
+    private static func makeJWT(payload: [String: Any]) -> String {
+        func base64URL(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "=", with: "")
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+        }
+
+        let header = ["alg": "none", "typ": "JWT"]
+        let headerData = (try? JSONSerialization.data(withJSONObject: header)) ?? Data()
+        let payloadData = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+        return "\(base64URL(headerData)).\(base64URL(payloadData))."
     }
 
     private static func requestTrace() -> [String] {

@@ -9,7 +9,7 @@ let useLocalSweetCookieKit =
 let sweetCookieKitDependency: Package.Dependency =
     useLocalSweetCookieKit && FileManager.default.fileExists(atPath: sweetCookieKitPath)
     ? .package(path: sweetCookieKitPath)
-    : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0")
+    : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.1")
 
 let package = Package(
     name: "CodexBar",

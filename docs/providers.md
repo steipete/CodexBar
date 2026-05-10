@@ -44,6 +44,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
+| Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
+| Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
 | Mistral | Console billing API via Ory Kratos session cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
@@ -220,6 +222,18 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Browser session cookie from automatic import, manual header/token, or `PERPLEXITY_SESSION_TOKEN` / `PERPLEXITY_COOKIE`.
 - Tracks recurring credits, bonus/promotional credits, purchased credits, and renewal date when present.
 - Status: `https://status.perplexity.com/` (link only, no auto-polling).
+
+## Xiaomi MiMo
+- Browser cookies from automatic import or manual `Cookie:` header.
+- Reads balance and token-plan usage from `platform.xiaomimimo.com`.
+- Status: none yet.
+- Details: `docs/mimo.md`.
+
+## Doubao
+- API key via `ARK_API_KEY`, `VOLCENGINE_API_KEY`, `DOUBAO_API_KEY`, or provider config.
+- Probes Volcengine Ark chat completions and reads request rate-limit headers when present.
+- Status: none yet.
+- Details: `docs/doubao.md`.
 
 ## Abacus AI
 - Browser cookies (`abacus.ai`, `apps.abacus.ai`) via automatic import or manual header.

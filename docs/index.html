@@ -9,7 +9,7 @@
       content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 29 providers — Codex, Claude, Cursor, Gemini, Copilot, and 24 more."
     />
     <meta name="theme-color" content="#0a0a0c" />
-    <link rel="canonical" href="https://codexbar.app/" />
+    <link rel="canonical" href="https://codex.bar/" />
 
     <meta property="og:title" content="CodexBar" />
     <meta
@@ -17,18 +17,24 @@
       content="Track usage windows, credits, and resets across 29 AI coding providers from your macOS menu bar."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://codexbar.app/" />
-    <meta property="og:image" content="https://codexbar.app/social.png" />
+    <meta property="og:url" content="https://codex.bar/" />
+    <meta property="og:image" content="https://codex.bar/social.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta name="twitter:image" content="https://codexbar.app/social.png" />
+    <meta name="twitter:image" content="https://codex.bar/social.png" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="icon" href="./icon.png" type="image/png" />
     <link rel="apple-touch-icon" href="./icon.png" />
-    <link rel="stylesheet" href="./site.css?v=2" />
+    <link rel="stylesheet" href="./site.css?v=7" />
   </head>
   <body>
+    <div class="aurora" aria-hidden="true">
+      <span class="blob b1"></span>
+      <span class="blob b2"></span>
+      <span class="blob b3"></span>
+      <span class="blob b4"></span>
+    </div>
     <header class="masthead">
       <a class="brand" href="./" aria-label="CodexBar">
         <img class="mark" src="./icon.png" alt="" width="28" height="28" />
@@ -43,7 +49,7 @@
 
     <main>
       <section class="lede">
-        <h1>Every AI coding limit, in your menu&nbsp;bar.</h1>
+        <h1>Every AI coding limit, <span class="grad">in your menu&nbsp;bar.</span></h1>
         <p class="dek">
           CodexBar tracks usage windows, credit balances, and reset countdowns across the providers you actually pay for —
           one status item each, or merge them into one.

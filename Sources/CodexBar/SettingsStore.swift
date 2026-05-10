@@ -147,6 +147,11 @@ final class SettingsStore {
                 ])
         }
 
+        if userDefaults.object(forKey: "openAIWebAccessEnabled") == nil,
+           let legacyOpenAIWebAccess = userDefaults.object(forKey: "openAIWebAccess") as? Bool
+        {
+            userDefaults.set(legacyOpenAIWebAccess, forKey: "openAIWebAccessEnabled")
+        }
         let hasStoredOpenAIWebAccessPreference = userDefaults.object(forKey: "openAIWebAccessEnabled") != nil
         let hadExistingConfig = (try? configStore.load()) != nil
         let legacyStores = CodexBarConfigMigrator.LegacyStores(

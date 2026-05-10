@@ -862,6 +862,29 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `imports legacy open AI web access defaults key`() throws {
+        let suite = "SettingsStoreTests-openai-web-legacy-key"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.removeObject(forKey: "openAIWebAccessEnabled")
+        defaults.set(false, forKey: "openAIWebAccess")
+        defaults.set(false, forKey: "debugDisableKeychainAccess")
+        let configStore = testConfigStore(suiteName: suite)
+        try configStore.save(CodexBarConfig(providers: [
+            ProviderConfig(id: .codex, cookieSource: .auto),
+        ]))
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.openAIWebAccessEnabled == false)
+        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == false)
+    }
+
+    @Test
     func `infers open AI web access enabled for legacy codex config with implicit auto cookies`() throws {
         let suite = "SettingsStoreTests-openai-web-legacy-implicit-auto"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -1065,6 +1088,7 @@ struct SettingsStoreTests {
             .copilot,
             .zai,
             .minimax,
+            .manus,
             .kimi,
             .kilo,
             .kiro,
@@ -1079,6 +1103,8 @@ struct SettingsStoreTests {
             .openrouter,
             .windsurf,
             .perplexity,
+            .mimo,
+            .doubao,
             .abacus,
             .mistral,
             .deepseek,

@@ -41,6 +41,20 @@ struct ProviderTokenResolverTests {
     }
 
     @Test
+    func `doubao resolution uses first supported environment token`() {
+        let env = ["ARK_API_KEY": "ark-token"]
+        let resolution = ProviderTokenResolver.doubaoResolution(environment: env)
+        #expect(resolution?.token == "ark-token")
+        #expect(resolution?.source == .environment)
+    }
+
+    @Test
+    func `doubao settings reader trims quoted token`() {
+        let env = ["DOUBAO_API_KEY": " 'doubao-token' "]
+        #expect(DoubaoSettingsReader.apiKey(environment: env) == "doubao-token")
+    }
+
+    @Test
     func `kilo resolution prefers environment over auth file`() throws {
         let fileURL = try self.makeKiloAuthFile(contents: #"{"kilo":{"access":"file-token"}}"#)
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }

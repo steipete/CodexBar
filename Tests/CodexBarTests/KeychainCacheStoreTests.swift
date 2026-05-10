@@ -153,5 +153,28 @@ struct KeychainCacheStoreTests {
             #expect(Bool(false), "Expected override not to mutate test store")
         }
     }
+
+    @Test
+    func `cache ACL trusts bundled app and CLI helper`() {
+        let root = URL(fileURLWithPath: "/Applications/CodexBar.app")
+        let executable = root.appendingPathComponent("Contents/MacOS/CodexBar")
+        let helper = root.appendingPathComponent("Contents/Helpers/CodexBarCLI")
+        let existing = Set([
+            root.path,
+            executable.path,
+            helper.path,
+        ])
+
+        let paths = KeychainCacheStore.trustedApplicationPathsForCacheAccess(
+            bundleURL: root,
+            executableURL: executable,
+            fileExists: { existing.contains($0) })
+
+        #expect(paths == [
+            root.path,
+            helper.path,
+            executable.path,
+        ])
+    }
     #endif
 }

@@ -130,7 +130,11 @@ extension StatusItemController {
     }
 
     func menuDidClose(_ menu: NSMenu) {
+        let wasHostedSubviewMenu = self.isHostedSubviewMenu(menu)
         self.forgetClosedMenu(menu)
+        if wasHostedSubviewMenu {
+            self.refreshOpenMenusIfNeeded()
+        }
     }
 
     func forgetClosedMenu(_ menu: NSMenu) {
@@ -1037,6 +1041,7 @@ extension StatusItemController {
         guard Self.menuRefreshEnabled else { return }
         guard !self.openMenus.isEmpty else { return }
         var orphanedKeys: [ObjectIdentifier] = []
+        let hasOpenHostedSubviewMenu = self.hasOpenHostedSubviewMenu()
         for (key, menu) in self.openMenus {
             guard key == ObjectIdentifier(menu) else {
                 orphanedKeys.append(key)
@@ -1045,6 +1050,10 @@ extension StatusItemController {
 
             if self.isHostedSubviewMenu(menu) {
                 self.refreshHostedSubviewHeights(in: menu)
+                continue
+            }
+
+            if hasOpenHostedSubviewMenu {
                 continue
             }
 
@@ -1078,6 +1087,10 @@ extension StatusItemController {
         return self.store.enabledProvidersForDisplay().first ?? .codex
     }
 
+    private func hasOpenHostedSubviewMenu() -> Bool {
+        self.openMenus.values.contains { self.isHostedSubviewMenu($0) }
+    }
+
     func refreshOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
         self.rebuildOpenMenuIfStillVisible(menu, provider: provider)
         Task { @MainActor [weak self, weak menu] in
@@ -1097,6 +1110,7 @@ extension StatusItemController {
 
     private func rebuildOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
         guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
+        guard self.isHostedSubviewMenu(menu) || !self.hasOpenHostedSubviewMenu() else { return }
         self.populateMenu(menu, provider: provider)
         self.markMenuFresh(menu)
         self.applyIcon(phase: nil)

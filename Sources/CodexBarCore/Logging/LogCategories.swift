@@ -24,6 +24,7 @@ public enum LogCategories {
     public static let cursorLogin = "cursor-login"
     public static let deepSeekSettings = "deepseek-settings"
     public static let deepSeekUsage = "deepseek-usage"
+    public static let doubaoUsage = "doubao-usage"
     public static let geminiProbe = "gemini-probe"
     public static let keychainCache = "keychain-cache"
     public static let keychainMigration = "keychain-migration"
